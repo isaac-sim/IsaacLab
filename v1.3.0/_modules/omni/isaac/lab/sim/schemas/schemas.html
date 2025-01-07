@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="1.3.0" />
-    <meta name="docbuild:last-update" content="Jan 03, 2025"/>
+    <meta name="docbuild:last-update" content="Jan 07, 2025"/>
   </head>
   
   
@@ -512,28 +512,28 @@
 <span class="c1"># SPDX-License-Identifier: BSD-3-Clause</span>
 
 <span class="c1"># needed to import for allowing type-hinting: Usd.Stage | None</span>
-<span class="kn">from</span> <span class="nn">__future__</span> <span class="kn">import</span> <span class="n">annotations</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
 
-<span class="kn">import</span> <span class="nn">omni.isaac.core.utils.stage</span> <span class="k">as</span> <span class="nn">stage_utils</span>
-<span class="kn">import</span> <span class="nn">omni.log</span>
-<span class="kn">import</span> <span class="nn">omni.physx.scripts.utils</span> <span class="k">as</span> <span class="nn">physx_utils</span>
-<span class="kn">from</span> <span class="nn">omni.physx.scripts</span> <span class="kn">import</span> <span class="n">deformableUtils</span> <span class="k">as</span> <span class="n">deformable_utils</span>
-<span class="kn">from</span> <span class="nn">pxr</span> <span class="kn">import</span> <span class="n">PhysxSchema</span><span class="p">,</span> <span class="n">Usd</span><span class="p">,</span> <span class="n">UsdPhysics</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">omni.isaac.core.utils.stage</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">stage_utils</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">omni.log</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">omni.physx.scripts.utils</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">physx_utils</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">omni.physx.scripts</span><span class="w"> </span><span class="kn">import</span> <span class="n">deformableUtils</span> <span class="k">as</span> <span class="n">deformable_utils</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pxr</span><span class="w"> </span><span class="kn">import</span> <span class="n">PhysxSchema</span><span class="p">,</span> <span class="n">Usd</span><span class="p">,</span> <span class="n">UsdPhysics</span>
 
-<span class="kn">from</span> <span class="nn">..utils</span> <span class="kn">import</span> <span class="p">(</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">..utils</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
     <span class="n">apply_nested</span><span class="p">,</span>
     <span class="n">find_global_fixed_joint_prim</span><span class="p">,</span>
     <span class="n">get_all_matching_child_prims</span><span class="p">,</span>
     <span class="n">safe_set_attribute_on_usd_schema</span><span class="p">,</span>
 <span class="p">)</span>
-<span class="kn">from</span> <span class="nn">.</span> <span class="kn">import</span> <span class="n">schemas_cfg</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.</span><span class="w"> </span><span class="kn">import</span> <span class="n">schemas_cfg</span>
 
 <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">Articulation root properties.</span>
 <span class="sd">&quot;&quot;&quot;</span>
 
 
-<div class="viewcode-block" id="define_articulation_root_properties"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.sim.schemas.html#omni.isaac.lab.sim.schemas.define_articulation_root_properties">[docs]</a><span class="k">def</span> <span class="nf">define_articulation_root_properties</span><span class="p">(</span>
+<div class="viewcode-block" id="define_articulation_root_properties"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.sim.schemas.html#omni.isaac.lab.sim.schemas.define_articulation_root_properties">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">define_articulation_root_properties</span><span class="p">(</span>
     <span class="n">prim_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">schemas_cfg</span><span class="o">.</span><span class="n">ArticulationRootPropertiesCfg</span><span class="p">,</span> <span class="n">stage</span><span class="p">:</span> <span class="n">Usd</span><span class="o">.</span><span class="n">Stage</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 <span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Apply the articulation root schema on the input prim and set its properties.</span>
@@ -566,7 +566,7 @@
 
 
 <div class="viewcode-block" id="modify_articulation_root_properties"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.sim.schemas.html#omni.isaac.lab.sim.schemas.modify_articulation_root_properties">[docs]</a><span class="nd">@apply_nested</span>
-<span class="k">def</span> <span class="nf">modify_articulation_root_properties</span><span class="p">(</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">modify_articulation_root_properties</span><span class="p">(</span>
     <span class="n">prim_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">schemas_cfg</span><span class="o">.</span><span class="n">ArticulationRootPropertiesCfg</span><span class="p">,</span> <span class="n">stage</span><span class="p">:</span> <span class="n">Usd</span><span class="o">.</span><span class="n">Stage</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Modify PhysX parameters for an articulation root prim.</span>
@@ -693,7 +693,7 @@
 <span class="sd">&quot;&quot;&quot;</span>
 
 
-<div class="viewcode-block" id="define_rigid_body_properties"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.sim.schemas.html#omni.isaac.lab.sim.schemas.define_rigid_body_properties">[docs]</a><span class="k">def</span> <span class="nf">define_rigid_body_properties</span><span class="p">(</span>
+<div class="viewcode-block" id="define_rigid_body_properties"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.sim.schemas.html#omni.isaac.lab.sim.schemas.define_rigid_body_properties">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">define_rigid_body_properties</span><span class="p">(</span>
     <span class="n">prim_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">schemas_cfg</span><span class="o">.</span><span class="n">RigidBodyPropertiesCfg</span><span class="p">,</span> <span class="n">stage</span><span class="p">:</span> <span class="n">Usd</span><span class="o">.</span><span class="n">Stage</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 <span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Apply the rigid body schema on the input prim and set its properties.</span>
@@ -726,7 +726,7 @@
 
 
 <div class="viewcode-block" id="modify_rigid_body_properties"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.sim.schemas.html#omni.isaac.lab.sim.schemas.modify_rigid_body_properties">[docs]</a><span class="nd">@apply_nested</span>
-<span class="k">def</span> <span class="nf">modify_rigid_body_properties</span><span class="p">(</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">modify_rigid_body_properties</span><span class="p">(</span>
     <span class="n">prim_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">schemas_cfg</span><span class="o">.</span><span class="n">RigidBodyPropertiesCfg</span><span class="p">,</span> <span class="n">stage</span><span class="p">:</span> <span class="n">Usd</span><span class="o">.</span><span class="n">Stage</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Modify PhysX parameters for a rigid body prim.</span>
@@ -789,7 +789,7 @@
 <span class="sd">&quot;&quot;&quot;</span>
 
 
-<div class="viewcode-block" id="define_collision_properties"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.sim.schemas.html#omni.isaac.lab.sim.schemas.define_collision_properties">[docs]</a><span class="k">def</span> <span class="nf">define_collision_properties</span><span class="p">(</span>
+<div class="viewcode-block" id="define_collision_properties"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.sim.schemas.html#omni.isaac.lab.sim.schemas.define_collision_properties">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">define_collision_properties</span><span class="p">(</span>
     <span class="n">prim_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">schemas_cfg</span><span class="o">.</span><span class="n">CollisionPropertiesCfg</span><span class="p">,</span> <span class="n">stage</span><span class="p">:</span> <span class="n">Usd</span><span class="o">.</span><span class="n">Stage</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 <span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Apply the collision schema on the input prim and set its properties.</span>
@@ -821,7 +821,7 @@
 
 
 <div class="viewcode-block" id="modify_collision_properties"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.sim.schemas.html#omni.isaac.lab.sim.schemas.modify_collision_properties">[docs]</a><span class="nd">@apply_nested</span>
-<span class="k">def</span> <span class="nf">modify_collision_properties</span><span class="p">(</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">modify_collision_properties</span><span class="p">(</span>
     <span class="n">prim_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">schemas_cfg</span><span class="o">.</span><span class="n">CollisionPropertiesCfg</span><span class="p">,</span> <span class="n">stage</span><span class="p">:</span> <span class="n">Usd</span><span class="o">.</span><span class="n">Stage</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Modify PhysX properties of collider prim.</span>
@@ -882,7 +882,7 @@
 <span class="sd">&quot;&quot;&quot;</span>
 
 
-<div class="viewcode-block" id="define_mass_properties"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.sim.schemas.html#omni.isaac.lab.sim.schemas.define_mass_properties">[docs]</a><span class="k">def</span> <span class="nf">define_mass_properties</span><span class="p">(</span><span class="n">prim_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">schemas_cfg</span><span class="o">.</span><span class="n">MassPropertiesCfg</span><span class="p">,</span> <span class="n">stage</span><span class="p">:</span> <span class="n">Usd</span><span class="o">.</span><span class="n">Stage</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+<div class="viewcode-block" id="define_mass_properties"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.sim.schemas.html#omni.isaac.lab.sim.schemas.define_mass_properties">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">define_mass_properties</span><span class="p">(</span><span class="n">prim_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">schemas_cfg</span><span class="o">.</span><span class="n">MassPropertiesCfg</span><span class="p">,</span> <span class="n">stage</span><span class="p">:</span> <span class="n">Usd</span><span class="o">.</span><span class="n">Stage</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Apply the mass schema on the input prim and set its properties.</span>
 
 <span class="sd">    See :func:`modify_mass_properties` for more details on how the properties are set.</span>
@@ -912,7 +912,7 @@
 
 
 <div class="viewcode-block" id="modify_mass_properties"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.sim.schemas.html#omni.isaac.lab.sim.schemas.modify_mass_properties">[docs]</a><span class="nd">@apply_nested</span>
-<span class="k">def</span> <span class="nf">modify_mass_properties</span><span class="p">(</span><span class="n">prim_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">schemas_cfg</span><span class="o">.</span><span class="n">MassPropertiesCfg</span><span class="p">,</span> <span class="n">stage</span><span class="p">:</span> <span class="n">Usd</span><span class="o">.</span><span class="n">Stage</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">modify_mass_properties</span><span class="p">(</span><span class="n">prim_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">schemas_cfg</span><span class="o">.</span><span class="n">MassPropertiesCfg</span><span class="p">,</span> <span class="n">stage</span><span class="p">:</span> <span class="n">Usd</span><span class="o">.</span><span class="n">Stage</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Set properties for the mass of a rigid body prim.</span>
 
 <span class="sd">    These properties are based on the `UsdPhysics.MassAPI` schema. If the mass is not defined, the density is used</span>
@@ -967,7 +967,7 @@
 <span class="sd">&quot;&quot;&quot;</span>
 
 
-<div class="viewcode-block" id="activate_contact_sensors"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.sim.schemas.html#omni.isaac.lab.sim.schemas.activate_contact_sensors">[docs]</a><span class="k">def</span> <span class="nf">activate_contact_sensors</span><span class="p">(</span><span class="n">prim_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">threshold</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span><span class="p">,</span> <span class="n">stage</span><span class="p">:</span> <span class="n">Usd</span><span class="o">.</span><span class="n">Stage</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+<div class="viewcode-block" id="activate_contact_sensors"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.sim.schemas.html#omni.isaac.lab.sim.schemas.activate_contact_sensors">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">activate_contact_sensors</span><span class="p">(</span><span class="n">prim_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">threshold</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span><span class="p">,</span> <span class="n">stage</span><span class="p">:</span> <span class="n">Usd</span><span class="o">.</span><span class="n">Stage</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Activate the contact sensor on all rigid bodies under a specified prim path.</span>
 
 <span class="sd">    This function adds the PhysX contact report API to all rigid bodies under the specified prim path.</span>
@@ -1036,7 +1036,7 @@
 
 
 <div class="viewcode-block" id="modify_joint_drive_properties"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.sim.schemas.html#omni.isaac.lab.sim.schemas.modify_joint_drive_properties">[docs]</a><span class="nd">@apply_nested</span>
-<span class="k">def</span> <span class="nf">modify_joint_drive_properties</span><span class="p">(</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">modify_joint_drive_properties</span><span class="p">(</span>
     <span class="n">prim_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">drive_props</span><span class="p">:</span> <span class="n">schemas_cfg</span><span class="o">.</span><span class="n">JointDrivePropertiesCfg</span><span class="p">,</span> <span class="n">stage</span><span class="p">:</span> <span class="n">Usd</span><span class="o">.</span><span class="n">Stage</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Modify PhysX parameters for a joint prim.</span>
@@ -1109,7 +1109,7 @@
 
 
 <div class="viewcode-block" id="modify_fixed_tendon_properties"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.sim.schemas.html#omni.isaac.lab.sim.schemas.modify_fixed_tendon_properties">[docs]</a><span class="nd">@apply_nested</span>
-<span class="k">def</span> <span class="nf">modify_fixed_tendon_properties</span><span class="p">(</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">modify_fixed_tendon_properties</span><span class="p">(</span>
     <span class="n">prim_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">schemas_cfg</span><span class="o">.</span><span class="n">FixedTendonPropertiesCfg</span><span class="p">,</span> <span class="n">stage</span><span class="p">:</span> <span class="n">Usd</span><span class="o">.</span><span class="n">Stage</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Modify PhysX parameters for a fixed tendon attachment prim.</span>
@@ -1172,7 +1172,7 @@
 <span class="sd">&quot;&quot;&quot;</span>
 
 
-<div class="viewcode-block" id="define_deformable_body_properties"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.sim.schemas.html#omni.isaac.lab.sim.schemas.define_deformable_body_properties">[docs]</a><span class="k">def</span> <span class="nf">define_deformable_body_properties</span><span class="p">(</span>
+<div class="viewcode-block" id="define_deformable_body_properties"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.sim.schemas.html#omni.isaac.lab.sim.schemas.define_deformable_body_properties">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">define_deformable_body_properties</span><span class="p">(</span>
     <span class="n">prim_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">schemas_cfg</span><span class="o">.</span><span class="n">DeformableBodyPropertiesCfg</span><span class="p">,</span> <span class="n">stage</span><span class="p">:</span> <span class="n">Usd</span><span class="o">.</span><span class="n">Stage</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 <span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Apply the deformable body schema on the input prim and set its properties.</span>
@@ -1226,7 +1226,7 @@
 
 
 <div class="viewcode-block" id="modify_deformable_body_properties"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.sim.schemas.html#omni.isaac.lab.sim.schemas.modify_deformable_body_properties">[docs]</a><span class="nd">@apply_nested</span>
-<span class="k">def</span> <span class="nf">modify_deformable_body_properties</span><span class="p">(</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">modify_deformable_body_properties</span><span class="p">(</span>
     <span class="n">prim_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">schemas_cfg</span><span class="o">.</span><span class="n">DeformableBodyPropertiesCfg</span><span class="p">,</span> <span class="n">stage</span><span class="p">:</span> <span class="n">Usd</span><span class="o">.</span><span class="n">Stage</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 <span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Modify PhysX parameters for a deformable body prim.</span>
@@ -1371,7 +1371,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jan 03, 2025.
+  Last updated on Jan 07, 2025.
   <br/>
 </p>
   </div>

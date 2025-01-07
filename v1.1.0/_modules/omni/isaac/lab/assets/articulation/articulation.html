@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="1.1.0" />
-    <meta name="docbuild:last-update" content="Jan 03, 2025"/>
+    <meta name="docbuild:last-update" content="Jan 07, 2025"/>
   </head>
   
   
@@ -502,32 +502,32 @@
 <span class="c1"># Flag for pyright to ignore type errors in this file.</span>
 <span class="c1"># pyright: reportPrivateUsage=false</span>
 
-<span class="kn">from</span> <span class="nn">__future__</span> <span class="kn">import</span> <span class="n">annotations</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
 
-<span class="kn">import</span> <span class="nn">torch</span>
-<span class="kn">from</span> <span class="nn">collections.abc</span> <span class="kn">import</span> <span class="n">Sequence</span>
-<span class="kn">from</span> <span class="nn">prettytable</span> <span class="kn">import</span> <span class="n">PrettyTable</span>
-<span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">TYPE_CHECKING</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Sequence</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">prettytable</span><span class="w"> </span><span class="kn">import</span> <span class="n">PrettyTable</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TYPE_CHECKING</span>
 
-<span class="kn">import</span> <span class="nn">carb</span>
-<span class="kn">import</span> <span class="nn">omni.isaac.core.utils.stage</span> <span class="k">as</span> <span class="nn">stage_utils</span>
-<span class="kn">import</span> <span class="nn">omni.physics.tensors.impl.api</span> <span class="k">as</span> <span class="nn">physx</span>
-<span class="kn">from</span> <span class="nn">omni.isaac.core.utils.types</span> <span class="kn">import</span> <span class="n">ArticulationActions</span>
-<span class="kn">from</span> <span class="nn">pxr</span> <span class="kn">import</span> <span class="n">PhysxSchema</span><span class="p">,</span> <span class="n">UsdPhysics</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">carb</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">omni.isaac.core.utils.stage</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">stage_utils</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">omni.physics.tensors.impl.api</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">physx</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.core.utils.types</span><span class="w"> </span><span class="kn">import</span> <span class="n">ArticulationActions</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pxr</span><span class="w"> </span><span class="kn">import</span> <span class="n">PhysxSchema</span><span class="p">,</span> <span class="n">UsdPhysics</span>
 
-<span class="kn">import</span> <span class="nn">omni.isaac.lab.sim</span> <span class="k">as</span> <span class="nn">sim_utils</span>
-<span class="kn">import</span> <span class="nn">omni.isaac.lab.utils.math</span> <span class="k">as</span> <span class="nn">math_utils</span>
-<span class="kn">import</span> <span class="nn">omni.isaac.lab.utils.string</span> <span class="k">as</span> <span class="nn">string_utils</span>
-<span class="kn">from</span> <span class="nn">omni.isaac.lab.actuators</span> <span class="kn">import</span> <span class="n">ActuatorBase</span><span class="p">,</span> <span class="n">ActuatorBaseCfg</span><span class="p">,</span> <span class="n">ImplicitActuator</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">omni.isaac.lab.sim</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">sim_utils</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">omni.isaac.lab.utils.math</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">math_utils</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">omni.isaac.lab.utils.string</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">string_utils</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.actuators</span><span class="w"> </span><span class="kn">import</span> <span class="n">ActuatorBase</span><span class="p">,</span> <span class="n">ActuatorBaseCfg</span><span class="p">,</span> <span class="n">ImplicitActuator</span>
 
-<span class="kn">from</span> <span class="nn">..rigid_object</span> <span class="kn">import</span> <span class="n">RigidObject</span>
-<span class="kn">from</span> <span class="nn">.articulation_data</span> <span class="kn">import</span> <span class="n">ArticulationData</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">..rigid_object</span><span class="w"> </span><span class="kn">import</span> <span class="n">RigidObject</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.articulation_data</span><span class="w"> </span><span class="kn">import</span> <span class="n">ArticulationData</span>
 
 <span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
-    <span class="kn">from</span> <span class="nn">.articulation_cfg</span> <span class="kn">import</span> <span class="n">ArticulationCfg</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">.articulation_cfg</span><span class="w"> </span><span class="kn">import</span> <span class="n">ArticulationCfg</span>
 
 
-<div class="viewcode-block" id="Articulation"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.Articulation">[docs]</a><span class="k">class</span> <span class="nc">Articulation</span><span class="p">(</span><span class="n">RigidObject</span><span class="p">):</span>
+<div class="viewcode-block" id="Articulation"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.Articulation">[docs]</a><span class="k">class</span><span class="w"> </span><span class="nc">Articulation</span><span class="p">(</span><span class="n">RigidObject</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;An articulation asset class.</span>
 
 <span class="sd">    An articulation is a collection of rigid bodies connected by joints. The joints can be either</span>
@@ -591,7 +591,7 @@
 <span class="sd">    attribute. They are used to compute the joint commands during the :meth:`write_data_to_sim` function.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-<div class="viewcode-block" id="Articulation.__init__"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.Articulation.__init__">[docs]</a>    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">ArticulationCfg</span><span class="p">):</span>
+<div class="viewcode-block" id="Articulation.__init__"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.Articulation.__init__">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">ArticulationCfg</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Initialize the articulation.</span>
 
 <span class="sd">        Args:</span>
@@ -604,46 +604,46 @@
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">data</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ArticulationData</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">data</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ArticulationData</span><span class="p">:</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data</span>
 
     <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">is_fixed_base</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">is_fixed_base</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Whether the articulation is a fixed-base or floating-base system.&quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">shared_metatype</span><span class="o">.</span><span class="n">fixed_base</span>
 
     <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">num_joints</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">num_joints</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Number of joints in articulation.&quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">shared_metatype</span><span class="o">.</span><span class="n">dof_count</span>
 
     <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">num_fixed_tendons</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">num_fixed_tendons</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Number of fixed tendons in articulation.&quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">max_fixed_tendons</span>
 
     <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">num_bodies</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">num_bodies</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Number of bodies in articulation.&quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">shared_metatype</span><span class="o">.</span><span class="n">link_count</span>
 
     <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">joint_names</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">joint_names</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Ordered names of joints in articulation.&quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">shared_metatype</span><span class="o">.</span><span class="n">dof_names</span>
 
     <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">fixed_tendon_names</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">fixed_tendon_names</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Ordered names of fixed tendons in articulation.&quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_fixed_tendon_names</span>
 
     <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">body_names</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">body_names</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Ordered names of bodies in articulation.&quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">shared_metatype</span><span class="o">.</span><span class="n">link_names</span>
 
     <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">root_physx_view</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">physx</span><span class="o">.</span><span class="n">ArticulationView</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">root_physx_view</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">physx</span><span class="o">.</span><span class="n">ArticulationView</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Articulation view for the asset (PhysX).</span>
 
 <span class="sd">        Note:</span>
@@ -655,7 +655,7 @@
 <span class="sd">    Operations.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-<div class="viewcode-block" id="Articulation.reset"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.Articulation.reset">[docs]</a>    <span class="k">def</span> <span class="nf">reset</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+<div class="viewcode-block" id="Articulation.reset"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.Articulation.reset">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">reset</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">reset</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span>
         <span class="c1"># use ellipses object to skip initial indices.</span>
         <span class="k">if</span> <span class="n">env_ids</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
@@ -664,7 +664,7 @@
         <span class="k">for</span> <span class="n">actuator</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">actuators</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
             <span class="n">actuator</span><span class="o">.</span><span class="n">reset</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span></div>
 
-<div class="viewcode-block" id="Articulation.write_data_to_sim"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.Articulation.write_data_to_sim">[docs]</a>    <span class="k">def</span> <span class="nf">write_data_to_sim</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<div class="viewcode-block" id="Articulation.write_data_to_sim"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.Articulation.write_data_to_sim">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">write_data_to_sim</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Write external wrenches and joint commands to the simulation.</span>
 
 <span class="sd">        If any explicit actuators are present, then the actuator models are used to compute the</span>
@@ -682,7 +682,7 @@
             <span class="bp">self</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">set_dof_position_targets</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_joint_pos_target_sim</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ALL_INDICES</span><span class="p">)</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">set_dof_velocity_targets</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_joint_vel_target_sim</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ALL_INDICES</span><span class="p">)</span></div>
 
-<div class="viewcode-block" id="Articulation.find_joints"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.Articulation.find_joints">[docs]</a>    <span class="k">def</span> <span class="nf">find_joints</span><span class="p">(</span>
+<div class="viewcode-block" id="Articulation.find_joints"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.Articulation.find_joints">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">find_joints</span><span class="p">(</span>
         <span class="bp">self</span><span class="p">,</span> <span class="n">name_keys</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span> <span class="n">joint_subset</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">preserve_order</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
     <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">],</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]]:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Find joints in the articulation based on the name keys.</span>
@@ -704,7 +704,7 @@
         <span class="c1"># find joints</span>
         <span class="k">return</span> <span class="n">string_utils</span><span class="o">.</span><span class="n">resolve_matching_names</span><span class="p">(</span><span class="n">name_keys</span><span class="p">,</span> <span class="n">joint_subset</span><span class="p">,</span> <span class="n">preserve_order</span><span class="p">)</span></div>
 
-<div class="viewcode-block" id="Articulation.find_fixed_tendons"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.Articulation.find_fixed_tendons">[docs]</a>    <span class="k">def</span> <span class="nf">find_fixed_tendons</span><span class="p">(</span>
+<div class="viewcode-block" id="Articulation.find_fixed_tendons"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.Articulation.find_fixed_tendons">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">find_fixed_tendons</span><span class="p">(</span>
         <span class="bp">self</span><span class="p">,</span> <span class="n">name_keys</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span> <span class="n">tendon_subsets</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">preserve_order</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
     <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">],</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]]:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Find fixed tendons in the articulation based on the name keys.</span>
@@ -732,7 +732,7 @@
 <span class="sd">    Operations - Writers.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-<div class="viewcode-block" id="Articulation.write_root_pose_to_sim"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.Articulation.write_root_pose_to_sim">[docs]</a>    <span class="k">def</span> <span class="nf">write_root_pose_to_sim</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">root_pose</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+<div class="viewcode-block" id="Articulation.write_root_pose_to_sim"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.Articulation.write_root_pose_to_sim">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">write_root_pose_to_sim</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">root_pose</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
         <span class="c1"># resolve all indices</span>
         <span class="n">physx_env_ids</span> <span class="o">=</span> <span class="n">env_ids</span>
         <span class="k">if</span> <span class="n">env_ids</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
@@ -747,7 +747,7 @@
         <span class="c1"># set into simulation</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">set_root_transforms</span><span class="p">(</span><span class="n">root_poses_xyzw</span><span class="p">,</span> <span class="n">indices</span><span class="o">=</span><span class="n">physx_env_ids</span><span class="p">)</span></div>
 
-<div class="viewcode-block" id="Articulation.write_root_velocity_to_sim"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.Articulation.write_root_velocity_to_sim">[docs]</a>    <span class="k">def</span> <span class="nf">write_root_velocity_to_sim</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">root_velocity</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+<div class="viewcode-block" id="Articulation.write_root_velocity_to_sim"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.Articulation.write_root_velocity_to_sim">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">write_root_velocity_to_sim</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">root_velocity</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
         <span class="c1"># resolve all indices</span>
         <span class="n">physx_env_ids</span> <span class="o">=</span> <span class="n">env_ids</span>
         <span class="k">if</span> <span class="n">env_ids</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
@@ -760,7 +760,7 @@
         <span class="c1"># set into simulation</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">set_root_velocities</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">root_state_w</span><span class="p">[:,</span> <span class="mi">7</span><span class="p">:],</span> <span class="n">indices</span><span class="o">=</span><span class="n">physx_env_ids</span><span class="p">)</span></div>
 
-<div class="viewcode-block" id="Articulation.write_joint_state_to_sim"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.Articulation.write_joint_state_to_sim">[docs]</a>    <span class="k">def</span> <span class="nf">write_joint_state_to_sim</span><span class="p">(</span>
+<div class="viewcode-block" id="Articulation.write_joint_state_to_sim"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.Articulation.write_joint_state_to_sim">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">write_joint_state_to_sim</span><span class="p">(</span>
         <span class="bp">self</span><span class="p">,</span>
         <span class="n">position</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
         <span class="n">velocity</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
@@ -794,7 +794,7 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">set_dof_positions</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">joint_pos</span><span class="p">,</span> <span class="n">indices</span><span class="o">=</span><span class="n">physx_env_ids</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">set_dof_velocities</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">joint_vel</span><span class="p">,</span> <span class="n">indices</span><span class="o">=</span><span class="n">physx_env_ids</span><span class="p">)</span></div>
 
-<div class="viewcode-block" id="Articulation.write_joint_stiffness_to_sim"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.Articulation.write_joint_stiffness_to_sim">[docs]</a>    <span class="k">def</span> <span class="nf">write_joint_stiffness_to_sim</span><span class="p">(</span>
+<div class="viewcode-block" id="Articulation.write_joint_stiffness_to_sim"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.Articulation.write_joint_stiffness_to_sim">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">write_joint_stiffness_to_sim</span><span class="p">(</span>
         <span class="bp">self</span><span class="p">,</span>
         <span class="n">stiffness</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="nb">float</span><span class="p">,</span>
         <span class="n">joint_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="nb">slice</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
@@ -823,7 +823,7 @@
         <span class="c1"># set into simulation</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">set_dof_stiffnesses</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">joint_stiffness</span><span class="o">.</span><span class="n">cpu</span><span class="p">(),</span> <span class="n">indices</span><span class="o">=</span><span class="n">physx_env_ids</span><span class="o">.</span><span class="n">cpu</span><span class="p">())</span></div>
 
-<div class="viewcode-block" id="Articulation.write_joint_damping_to_sim"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.Articulation.write_joint_damping_to_sim">[docs]</a>    <span class="k">def</span> <span class="nf">write_joint_damping_to_sim</span><span class="p">(</span>
+<div class="viewcode-block" id="Articulation.write_joint_damping_to_sim"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.Articulation.write_joint_damping_to_sim">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">write_joint_damping_to_sim</span><span class="p">(</span>
         <span class="bp">self</span><span class="p">,</span>
         <span class="n">damping</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="nb">float</span><span class="p">,</span>
         <span class="n">joint_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="nb">slice</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
@@ -854,7 +854,7 @@
         <span class="c1"># set into simulation</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">set_dof_dampings</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">joint_damping</span><span class="o">.</span><span class="n">cpu</span><span class="p">(),</span> <span class="n">indices</span><span class="o">=</span><span class="n">physx_env_ids</span><span class="o">.</span><span class="n">cpu</span><span class="p">())</span></div>
 
-<div class="viewcode-block" id="Articulation.write_joint_effort_limit_to_sim"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.Articulation.write_joint_effort_limit_to_sim">[docs]</a>    <span class="k">def</span> <span class="nf">write_joint_effort_limit_to_sim</span><span class="p">(</span>
+<div class="viewcode-block" id="Articulation.write_joint_effort_limit_to_sim"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.Articulation.write_joint_effort_limit_to_sim">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">write_joint_effort_limit_to_sim</span><span class="p">(</span>
         <span class="bp">self</span><span class="p">,</span>
         <span class="n">limits</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="nb">float</span><span class="p">,</span>
         <span class="n">joint_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="nb">slice</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
@@ -887,7 +887,7 @@
         <span class="c1"># set into simulation</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">set_dof_max_forces</span><span class="p">(</span><span class="n">torque_limit_all</span><span class="o">.</span><span class="n">cpu</span><span class="p">(),</span> <span class="n">indices</span><span class="o">=</span><span class="n">physx_env_ids</span><span class="o">.</span><span class="n">cpu</span><span class="p">())</span></div>
 
-<div class="viewcode-block" id="Articulation.write_joint_armature_to_sim"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.Articulation.write_joint_armature_to_sim">[docs]</a>    <span class="k">def</span> <span class="nf">write_joint_armature_to_sim</span><span class="p">(</span>
+<div class="viewcode-block" id="Articulation.write_joint_armature_to_sim"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.Articulation.write_joint_armature_to_sim">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">write_joint_armature_to_sim</span><span class="p">(</span>
         <span class="bp">self</span><span class="p">,</span>
         <span class="n">armature</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="nb">float</span><span class="p">,</span>
         <span class="n">joint_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="nb">slice</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
@@ -915,7 +915,7 @@
         <span class="c1"># set into simulation</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">set_dof_armatures</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">joint_armature</span><span class="o">.</span><span class="n">cpu</span><span class="p">(),</span> <span class="n">indices</span><span class="o">=</span><span class="n">physx_env_ids</span><span class="o">.</span><span class="n">cpu</span><span class="p">())</span></div>
 
-<div class="viewcode-block" id="Articulation.write_joint_friction_to_sim"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.Articulation.write_joint_friction_to_sim">[docs]</a>    <span class="k">def</span> <span class="nf">write_joint_friction_to_sim</span><span class="p">(</span>
+<div class="viewcode-block" id="Articulation.write_joint_friction_to_sim"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.Articulation.write_joint_friction_to_sim">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">write_joint_friction_to_sim</span><span class="p">(</span>
         <span class="bp">self</span><span class="p">,</span>
         <span class="n">joint_friction</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="nb">float</span><span class="p">,</span>
         <span class="n">joint_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="nb">slice</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
@@ -943,7 +943,7 @@
         <span class="c1"># set into simulation</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">set_dof_friction_coefficients</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">joint_friction</span><span class="o">.</span><span class="n">cpu</span><span class="p">(),</span> <span class="n">indices</span><span class="o">=</span><span class="n">physx_env_ids</span><span class="o">.</span><span class="n">cpu</span><span class="p">())</span></div>
 
-<div class="viewcode-block" id="Articulation.write_joint_limits_to_sim"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.Articulation.write_joint_limits_to_sim">[docs]</a>    <span class="k">def</span> <span class="nf">write_joint_limits_to_sim</span><span class="p">(</span>
+<div class="viewcode-block" id="Articulation.write_joint_limits_to_sim"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.Articulation.write_joint_limits_to_sim">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">write_joint_limits_to_sim</span><span class="p">(</span>
         <span class="bp">self</span><span class="p">,</span>
         <span class="n">limits</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="nb">float</span><span class="p">,</span>
         <span class="n">joint_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="nb">slice</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
@@ -976,7 +976,7 @@
 <span class="sd">    Operations - State.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-<div class="viewcode-block" id="Articulation.set_joint_position_target"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.Articulation.set_joint_position_target">[docs]</a>    <span class="k">def</span> <span class="nf">set_joint_position_target</span><span class="p">(</span>
+<div class="viewcode-block" id="Articulation.set_joint_position_target"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.Articulation.set_joint_position_target">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">set_joint_position_target</span><span class="p">(</span>
         <span class="bp">self</span><span class="p">,</span> <span class="n">target</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">joint_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="nb">slice</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
     <span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Set joint position targets into internal buffers.</span>
@@ -1001,7 +1001,7 @@
         <span class="c1"># set targets</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">joint_pos_target</span><span class="p">[</span><span class="n">env_ids</span><span class="p">,</span> <span class="n">joint_ids</span><span class="p">]</span> <span class="o">=</span> <span class="n">target</span></div>
 
-<div class="viewcode-block" id="Articulation.set_joint_velocity_target"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.Articulation.set_joint_velocity_target">[docs]</a>    <span class="k">def</span> <span class="nf">set_joint_velocity_target</span><span class="p">(</span>
+<div class="viewcode-block" id="Articulation.set_joint_velocity_target"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.Articulation.set_joint_velocity_target">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">set_joint_velocity_target</span><span class="p">(</span>
         <span class="bp">self</span><span class="p">,</span> <span class="n">target</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">joint_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="nb">slice</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
     <span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Set joint velocity targets into internal buffers.</span>
@@ -1026,7 +1026,7 @@
         <span class="c1"># set targets</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">joint_vel_target</span><span class="p">[</span><span class="n">env_ids</span><span class="p">,</span> <span class="n">joint_ids</span><span class="p">]</span> <span class="o">=</span> <span class="n">target</span></div>
 
-<div class="viewcode-block" id="Articulation.set_joint_effort_target"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.Articulation.set_joint_effort_target">[docs]</a>    <span class="k">def</span> <span class="nf">set_joint_effort_target</span><span class="p">(</span>
+<div class="viewcode-block" id="Articulation.set_joint_effort_target"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.Articulation.set_joint_effort_target">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">set_joint_effort_target</span><span class="p">(</span>
         <span class="bp">self</span><span class="p">,</span> <span class="n">target</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">joint_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="nb">slice</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
     <span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Set joint efforts into internal buffers.</span>
@@ -1055,7 +1055,7 @@
 <span class="sd">    Operations - Tendons.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-<div class="viewcode-block" id="Articulation.set_fixed_tendon_stiffness"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.Articulation.set_fixed_tendon_stiffness">[docs]</a>    <span class="k">def</span> <span class="nf">set_fixed_tendon_stiffness</span><span class="p">(</span>
+<div class="viewcode-block" id="Articulation.set_fixed_tendon_stiffness"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.Articulation.set_fixed_tendon_stiffness">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">set_fixed_tendon_stiffness</span><span class="p">(</span>
         <span class="bp">self</span><span class="p">,</span>
         <span class="n">stiffness</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
         <span class="n">fixed_tendon_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="nb">slice</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
@@ -1082,7 +1082,7 @@
         <span class="c1"># set stiffness</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">fixed_tendon_stiffness</span><span class="p">[</span><span class="n">env_ids</span><span class="p">,</span> <span class="n">fixed_tendon_ids</span><span class="p">]</span> <span class="o">=</span> <span class="n">stiffness</span></div>
 
-<div class="viewcode-block" id="Articulation.set_fixed_tendon_damping"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.Articulation.set_fixed_tendon_damping">[docs]</a>    <span class="k">def</span> <span class="nf">set_fixed_tendon_damping</span><span class="p">(</span>
+<div class="viewcode-block" id="Articulation.set_fixed_tendon_damping"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.Articulation.set_fixed_tendon_damping">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">set_fixed_tendon_damping</span><span class="p">(</span>
         <span class="bp">self</span><span class="p">,</span>
         <span class="n">damping</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
         <span class="n">fixed_tendon_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="nb">slice</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
@@ -1109,7 +1109,7 @@
         <span class="c1"># set damping</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">fixed_tendon_damping</span><span class="p">[</span><span class="n">env_ids</span><span class="p">,</span> <span class="n">fixed_tendon_ids</span><span class="p">]</span> <span class="o">=</span> <span class="n">damping</span></div>
 
-<div class="viewcode-block" id="Articulation.set_fixed_tendon_limit_stiffness"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.Articulation.set_fixed_tendon_limit_stiffness">[docs]</a>    <span class="k">def</span> <span class="nf">set_fixed_tendon_limit_stiffness</span><span class="p">(</span>
+<div class="viewcode-block" id="Articulation.set_fixed_tendon_limit_stiffness"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.Articulation.set_fixed_tendon_limit_stiffness">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">set_fixed_tendon_limit_stiffness</span><span class="p">(</span>
         <span class="bp">self</span><span class="p">,</span>
         <span class="n">limit_stiffness</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
         <span class="n">fixed_tendon_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="nb">slice</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
@@ -1136,7 +1136,7 @@
         <span class="c1"># set limit_stiffness</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">fixed_tendon_limit_stiffness</span><span class="p">[</span><span class="n">env_ids</span><span class="p">,</span> <span class="n">fixed_tendon_ids</span><span class="p">]</span> <span class="o">=</span> <span class="n">limit_stiffness</span></div>
 
-<div class="viewcode-block" id="Articulation.set_fixed_tendon_limit"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.Articulation.set_fixed_tendon_limit">[docs]</a>    <span class="k">def</span> <span class="nf">set_fixed_tendon_limit</span><span class="p">(</span>
+<div class="viewcode-block" id="Articulation.set_fixed_tendon_limit"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.Articulation.set_fixed_tendon_limit">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">set_fixed_tendon_limit</span><span class="p">(</span>
         <span class="bp">self</span><span class="p">,</span>
         <span class="n">limit</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
         <span class="n">fixed_tendon_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="nb">slice</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
@@ -1163,7 +1163,7 @@
         <span class="c1"># set limit</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">fixed_tendon_limit</span><span class="p">[</span><span class="n">env_ids</span><span class="p">,</span> <span class="n">fixed_tendon_ids</span><span class="p">]</span> <span class="o">=</span> <span class="n">limit</span></div>
 
-<div class="viewcode-block" id="Articulation.set_fixed_tendon_rest_length"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.Articulation.set_fixed_tendon_rest_length">[docs]</a>    <span class="k">def</span> <span class="nf">set_fixed_tendon_rest_length</span><span class="p">(</span>
+<div class="viewcode-block" id="Articulation.set_fixed_tendon_rest_length"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.Articulation.set_fixed_tendon_rest_length">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">set_fixed_tendon_rest_length</span><span class="p">(</span>
         <span class="bp">self</span><span class="p">,</span>
         <span class="n">rest_length</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
         <span class="n">fixed_tendon_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="nb">slice</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
@@ -1190,7 +1190,7 @@
         <span class="c1"># set rest_length</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">fixed_tendon_rest_length</span><span class="p">[</span><span class="n">env_ids</span><span class="p">,</span> <span class="n">fixed_tendon_ids</span><span class="p">]</span> <span class="o">=</span> <span class="n">rest_length</span></div>
 
-<div class="viewcode-block" id="Articulation.set_fixed_tendon_offset"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.Articulation.set_fixed_tendon_offset">[docs]</a>    <span class="k">def</span> <span class="nf">set_fixed_tendon_offset</span><span class="p">(</span>
+<div class="viewcode-block" id="Articulation.set_fixed_tendon_offset"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.Articulation.set_fixed_tendon_offset">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">set_fixed_tendon_offset</span><span class="p">(</span>
         <span class="bp">self</span><span class="p">,</span>
         <span class="n">offset</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
         <span class="n">fixed_tendon_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="nb">slice</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
@@ -1217,7 +1217,7 @@
         <span class="c1"># set offset</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">fixed_tendon_offset</span><span class="p">[</span><span class="n">env_ids</span><span class="p">,</span> <span class="n">fixed_tendon_ids</span><span class="p">]</span> <span class="o">=</span> <span class="n">offset</span></div>
 
-<div class="viewcode-block" id="Articulation.write_fixed_tendon_properties_to_sim"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.Articulation.write_fixed_tendon_properties_to_sim">[docs]</a>    <span class="k">def</span> <span class="nf">write_fixed_tendon_properties_to_sim</span><span class="p">(</span>
+<div class="viewcode-block" id="Articulation.write_fixed_tendon_properties_to_sim"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.Articulation.write_fixed_tendon_properties_to_sim">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">write_fixed_tendon_properties_to_sim</span><span class="p">(</span>
         <span class="bp">self</span><span class="p">,</span>
         <span class="n">fixed_tendon_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="nb">slice</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
         <span class="n">env_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
@@ -1250,7 +1250,7 @@
 <span class="sd">    Internal helper.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="k">def</span> <span class="nf">_initialize_impl</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_initialize_impl</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="c1"># create simulation view</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_physics_sim_view</span> <span class="o">=</span> <span class="n">physx</span><span class="o">.</span><span class="n">create_simulation_view</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_backend</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_physics_sim_view</span><span class="o">.</span><span class="n">set_subspace_roots</span><span class="p">(</span><span class="s2">&quot;/&quot;</span><span class="p">)</span>
@@ -1307,7 +1307,7 @@
         <span class="c1"># log joint information</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_log_articulation_joint_info</span><span class="p">()</span>
 
-    <span class="k">def</span> <span class="nf">_create_buffers</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_create_buffers</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="c1"># allocate buffers</span>
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">_create_buffers</span><span class="p">()</span>
 
@@ -1399,7 +1399,7 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">_joint_vel_target_sim</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">joint_pos_target</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_joint_effort_target_sim</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">joint_pos_target</span><span class="p">)</span>
 
-    <span class="k">def</span> <span class="nf">_process_cfg</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_process_cfg</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Post processing of configuration parameters.&quot;&quot;&quot;</span>
         <span class="c1"># default state</span>
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">_process_cfg</span><span class="p">()</span>
@@ -1423,7 +1423,7 @@
 <span class="sd">    Internal helpers -- Actuators.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="k">def</span> <span class="nf">_process_actuators_cfg</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_process_actuators_cfg</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Process and apply articulation joint properties.&quot;&quot;&quot;</span>
         <span class="c1"># create actuators</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">actuators</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>
@@ -1507,7 +1507,7 @@
                 <span class="sa">f</span><span class="s2">&quot; joints available: </span><span class="si">{</span><span class="n">total_act_joints</span><span class="si">}</span><span class="s2"> != </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">num_joints</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="bp">self</span><span class="o">.</span><span class="n">num_fixed_tendons</span><span class="si">}</span><span class="s2">.&quot;</span>
             <span class="p">)</span>
 
-    <span class="k">def</span> <span class="nf">_process_fixed_tendons</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_process_fixed_tendons</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Process fixed tendons.&quot;&quot;&quot;</span>
         <span class="c1"># create a list to store the fixed tendon names</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_fixed_tendon_names</span> <span class="o">=</span> <span class="nb">list</span><span class="p">()</span>
@@ -1535,7 +1535,7 @@
             <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">default_fixed_tendon_rest_length</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">get_fixed_tendon_rest_lengths</span><span class="p">()</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">default_fixed_tendon_offset</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">get_fixed_tendon_offsets</span><span class="p">()</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
 
-    <span class="k">def</span> <span class="nf">_apply_actuator_model</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_apply_actuator_model</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Processes joint commands for the articulation by forwarding them to the actuators.</span>
 
 <span class="sd">        The actions are first processed using actuator models. Depending on the robot configuration,</span>
@@ -1578,7 +1578,7 @@
 <span class="sd">    Internal helpers -- Debugging.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="k">def</span> <span class="nf">_validate_cfg</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_validate_cfg</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Validate the configuration after processing.</span>
 
 <span class="sd">        Note:</span>
@@ -1618,7 +1618,7 @@
                 <span class="n">msg</span> <span class="o">+=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="se">\t</span><span class="s2">- &#39;</span><span class="si">{</span><span class="n">joint_name</span><span class="si">}</span><span class="s2">&#39;: </span><span class="si">{</span><span class="n">joint_vel</span><span class="si">:</span><span class="s2">.3f</span><span class="si">}</span><span class="s2"> not in [</span><span class="si">{</span><span class="n">joint_limits</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="si">:</span><span class="s2">.3f</span><span class="si">}</span><span class="s2">, </span><span class="si">{</span><span class="n">joint_limits</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="si">:</span><span class="s2">.3f</span><span class="si">}</span><span class="s2">]</span><span class="se">\n</span><span class="s2">&quot;</span>
             <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
 
-    <span class="k">def</span> <span class="nf">_log_articulation_joint_info</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_log_articulation_joint_info</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Log information about the articulation&#39;s simulated joints.&quot;&quot;&quot;</span>
         <span class="c1"># read out all joint parameters from simulation</span>
         <span class="c1"># -- gains</span>
@@ -1745,7 +1745,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jan 03, 2025.
+  Last updated on Jan 07, 2025.
   <br/>
 </p>
   </div>

@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="1.1.0" />
-    <meta name="docbuild:last-update" content="Jan 03, 2025"/>
+    <meta name="docbuild:last-update" content="Jan 07, 2025"/>
   </head>
   
   
@@ -501,18 +501,18 @@
 
 <span class="sd">&quot;&quot;&quot;Gamepad controller for SE(3) control.&quot;&quot;&quot;</span>
 
-<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
-<span class="kn">import</span> <span class="nn">weakref</span>
-<span class="kn">from</span> <span class="nn">collections.abc</span> <span class="kn">import</span> <span class="n">Callable</span>
-<span class="kn">from</span> <span class="nn">scipy.spatial.transform.rotation</span> <span class="kn">import</span> <span class="n">Rotation</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">weakref</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Callable</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">scipy.spatial.transform.rotation</span><span class="w"> </span><span class="kn">import</span> <span class="n">Rotation</span>
 
-<span class="kn">import</span> <span class="nn">carb</span>
-<span class="kn">import</span> <span class="nn">omni</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">carb</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">omni</span>
 
-<span class="kn">from</span> <span class="nn">..device_base</span> <span class="kn">import</span> <span class="n">DeviceBase</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">..device_base</span><span class="w"> </span><span class="kn">import</span> <span class="n">DeviceBase</span>
 
 
-<div class="viewcode-block" id="Se3Gamepad"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.devices.html#omni.isaac.lab.devices.Se3Gamepad">[docs]</a><span class="k">class</span> <span class="nc">Se3Gamepad</span><span class="p">(</span><span class="n">DeviceBase</span><span class="p">):</span>
+<div class="viewcode-block" id="Se3Gamepad"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.devices.html#omni.isaac.lab.devices.Se3Gamepad">[docs]</a><span class="k">class</span><span class="w"> </span><span class="nc">Se3Gamepad</span><span class="p">(</span><span class="n">DeviceBase</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;A gamepad controller for sending SE(3) commands as delta poses and binary command (open/close).</span>
 
 <span class="sd">    This class is designed to provide a gamepad controller for a robotic arm with a gripper.</span>
@@ -543,7 +543,7 @@
 
 <span class="sd">    &quot;&quot;&quot;</span>
 
-<div class="viewcode-block" id="Se3Gamepad.__init__"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.devices.html#omni.isaac.lab.devices.Se3Gamepad.__init__">[docs]</a>    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">pos_sensitivity</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span><span class="p">,</span> <span class="n">rot_sensitivity</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.6</span><span class="p">,</span> <span class="n">dead_zone</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.01</span><span class="p">):</span>
+<div class="viewcode-block" id="Se3Gamepad.__init__"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.devices.html#omni.isaac.lab.devices.Se3Gamepad.__init__">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">pos_sensitivity</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span><span class="p">,</span> <span class="n">rot_sensitivity</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.6</span><span class="p">,</span> <span class="n">dead_zone</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.01</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Initialize the gamepad layer.</span>
 
 <span class="sd">        Args:</span>
@@ -582,12 +582,12 @@
         <span class="c1"># dictionary for additional callbacks</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_additional_callbacks</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span></div>
 
-    <span class="k">def</span> <span class="fm">__del__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__del__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Unsubscribe from gamepad events.&quot;&quot;&quot;</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_input</span><span class="o">.</span><span class="n">unsubscribe_from_gamepad_events</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_gamepad</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_gamepad_sub</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_gamepad_sub</span> <span class="o">=</span> <span class="kc">None</span>
 
-    <span class="k">def</span> <span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Returns: A string containing the information of joystick.&quot;&quot;&quot;</span>
         <span class="n">msg</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;Gamepad Controller for SE(3): </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span>
         <span class="n">msg</span> <span class="o">+=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="se">\t</span><span class="s2">Device name: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_input</span><span class="o">.</span><span class="n">get_gamepad_name</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_gamepad</span><span class="p">)</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span>
@@ -605,12 +605,12 @@
 <span class="sd">    Operations</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-<div class="viewcode-block" id="Se3Gamepad.reset"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.devices.html#omni.isaac.lab.devices.Se3Gamepad.reset">[docs]</a>    <span class="k">def</span> <span class="nf">reset</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<div class="viewcode-block" id="Se3Gamepad.reset"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.devices.html#omni.isaac.lab.devices.Se3Gamepad.reset">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">reset</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="c1"># default flags</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_close_gripper</span> <span class="o">=</span> <span class="kc">False</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_delta_pose_raw</span><span class="o">.</span><span class="n">fill</span><span class="p">(</span><span class="mf">0.0</span><span class="p">)</span></div>
 
-<div class="viewcode-block" id="Se3Gamepad.add_callback"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.devices.html#omni.isaac.lab.devices.Se3Gamepad.add_callback">[docs]</a>    <span class="k">def</span> <span class="nf">add_callback</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">:</span> <span class="n">carb</span><span class="o">.</span><span class="n">input</span><span class="o">.</span><span class="n">GamepadInput</span><span class="p">,</span> <span class="n">func</span><span class="p">:</span> <span class="n">Callable</span><span class="p">):</span>
+<div class="viewcode-block" id="Se3Gamepad.add_callback"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.devices.html#omni.isaac.lab.devices.Se3Gamepad.add_callback">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">add_callback</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">:</span> <span class="n">carb</span><span class="o">.</span><span class="n">input</span><span class="o">.</span><span class="n">GamepadInput</span><span class="p">,</span> <span class="n">func</span><span class="p">:</span> <span class="n">Callable</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Add additional functions to bind gamepad.</span>
 
 <span class="sd">        A list of available gamepad keys are present in the</span>
@@ -623,7 +623,7 @@
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_additional_callbacks</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">func</span></div>
 
-<div class="viewcode-block" id="Se3Gamepad.advance"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.devices.html#omni.isaac.lab.devices.Se3Gamepad.advance">[docs]</a>    <span class="k">def</span> <span class="nf">advance</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span> <span class="nb">bool</span><span class="p">]:</span>
+<div class="viewcode-block" id="Se3Gamepad.advance"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.devices.html#omni.isaac.lab.devices.Se3Gamepad.advance">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">advance</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span> <span class="nb">bool</span><span class="p">]:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Provides the result from gamepad event state.</span>
 
 <span class="sd">        Returns:</span>
@@ -642,7 +642,7 @@
 <span class="sd">    Internal helpers.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="k">def</span> <span class="nf">_on_gamepad_event</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">event</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_on_gamepad_event</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">event</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Subscriber callback to when kit is updated.</span>
 
 <span class="sd">        Reference:</span>
@@ -678,7 +678,7 @@
         <span class="c1"># since no error, we are fine :)</span>
         <span class="k">return</span> <span class="kc">True</span>
 
-    <span class="k">def</span> <span class="nf">_create_key_bindings</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_create_key_bindings</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Creates default key binding.&quot;&quot;&quot;</span>
         <span class="c1"># map gamepad input to the element in self._delta_pose_raw</span>
         <span class="c1">#   the first index is the direction (0: positive, 1: negative)</span>
@@ -714,7 +714,7 @@
             <span class="n">carb</span><span class="o">.</span><span class="n">input</span><span class="o">.</span><span class="n">GamepadInput</span><span class="o">.</span><span class="n">DPAD_LEFT</span><span class="p">:</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">rot_sensitivity</span> <span class="o">*</span> <span class="mf">0.8</span><span class="p">),</span>
         <span class="p">}</span>
 
-    <span class="k">def</span> <span class="nf">_resolve_command_buffer</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">raw_command</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_resolve_command_buffer</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">raw_command</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Resolves the command buffer.</span>
 
 <span class="sd">        Args:</span>
@@ -785,7 +785,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jan 03, 2025.
+  Last updated on Jan 07, 2025.
   <br/>
 </p>
   </div>

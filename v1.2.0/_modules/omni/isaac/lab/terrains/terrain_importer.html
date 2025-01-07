@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="1.2.0" />
-    <meta name="docbuild:last-update" content="Jan 03, 2025"/>
+    <meta name="docbuild:last-update" content="Jan 07, 2025"/>
   </head>
   
   
@@ -508,30 +508,30 @@
 <span class="c1">#</span>
 <span class="c1"># SPDX-License-Identifier: BSD-3-Clause</span>
 
-<span class="kn">from</span> <span class="nn">__future__</span> <span class="kn">import</span> <span class="n">annotations</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
 
-<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
-<span class="kn">import</span> <span class="nn">torch</span>
-<span class="kn">import</span> <span class="nn">trimesh</span>
-<span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">TYPE_CHECKING</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">trimesh</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TYPE_CHECKING</span>
 
-<span class="kn">import</span> <span class="nn">warp</span>
-<span class="kn">from</span> <span class="nn">pxr</span> <span class="kn">import</span> <span class="n">UsdGeom</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">warp</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pxr</span><span class="w"> </span><span class="kn">import</span> <span class="n">UsdGeom</span>
 
-<span class="kn">import</span> <span class="nn">omni.isaac.lab.sim</span> <span class="k">as</span> <span class="nn">sim_utils</span>
-<span class="kn">from</span> <span class="nn">omni.isaac.lab.markers</span> <span class="kn">import</span> <span class="n">VisualizationMarkers</span>
-<span class="kn">from</span> <span class="nn">omni.isaac.lab.markers.config</span> <span class="kn">import</span> <span class="n">FRAME_MARKER_CFG</span>
-<span class="kn">from</span> <span class="nn">omni.isaac.lab.utils.warp</span> <span class="kn">import</span> <span class="n">convert_to_warp_mesh</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">omni.isaac.lab.sim</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">sim_utils</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.markers</span><span class="w"> </span><span class="kn">import</span> <span class="n">VisualizationMarkers</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.markers.config</span><span class="w"> </span><span class="kn">import</span> <span class="n">FRAME_MARKER_CFG</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.utils.warp</span><span class="w"> </span><span class="kn">import</span> <span class="n">convert_to_warp_mesh</span>
 
-<span class="kn">from</span> <span class="nn">.terrain_generator</span> <span class="kn">import</span> <span class="n">TerrainGenerator</span>
-<span class="kn">from</span> <span class="nn">.trimesh.utils</span> <span class="kn">import</span> <span class="n">make_plane</span>
-<span class="kn">from</span> <span class="nn">.utils</span> <span class="kn">import</span> <span class="n">create_prim_from_mesh</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.terrain_generator</span><span class="w"> </span><span class="kn">import</span> <span class="n">TerrainGenerator</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.trimesh.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">make_plane</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">create_prim_from_mesh</span>
 
 <span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
-    <span class="kn">from</span> <span class="nn">.terrain_importer_cfg</span> <span class="kn">import</span> <span class="n">TerrainImporterCfg</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">.terrain_importer_cfg</span><span class="w"> </span><span class="kn">import</span> <span class="n">TerrainImporterCfg</span>
 
 
-<div class="viewcode-block" id="TerrainImporter"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.terrains.html#omni.isaac.lab.terrains.TerrainImporter">[docs]</a><span class="k">class</span> <span class="nc">TerrainImporter</span><span class="p">:</span>
+<div class="viewcode-block" id="TerrainImporter"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.terrains.html#omni.isaac.lab.terrains.TerrainImporter">[docs]</a><span class="k">class</span><span class="w"> </span><span class="nc">TerrainImporter</span><span class="p">:</span>
 <span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;A class to handle terrain meshes and import them into the simulator.</span>
 
 <span class="sd">    We assume that a terrain mesh comprises of sub-terrains that are arranged in a grid with</span>
@@ -560,7 +560,7 @@
     <span class="n">env_origins</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The origins of the environments. Shape is (num_envs, 3).&quot;&quot;&quot;</span>
 
-<div class="viewcode-block" id="TerrainImporter.__init__"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.terrains.html#omni.isaac.lab.terrains.TerrainImporter.__init__">[docs]</a>    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">TerrainImporterCfg</span><span class="p">):</span>
+<div class="viewcode-block" id="TerrainImporter.__init__"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.terrains.html#omni.isaac.lab.terrains.TerrainImporter.__init__">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">TerrainImporterCfg</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Initialize the terrain importer.</span>
 
 <span class="sd">        Args:</span>
@@ -620,7 +620,7 @@
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">has_debug_vis_implementation</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">has_debug_vis_implementation</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Whether the terrain importer has a debug visualization implemented.</span>
 
 <span class="sd">        This always returns True.</span>
@@ -628,7 +628,7 @@
         <span class="k">return</span> <span class="kc">True</span>
 
     <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">flat_patches</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">flat_patches</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;A dictionary containing the sampled valid (flat) patches for the terrain.</span>
 
 <span class="sd">        This is only available if the terrain type is &#39;generator&#39;. For other terrain types, this feature</span>
@@ -642,7 +642,7 @@
 <span class="sd">    Operations - Visibility.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-<div class="viewcode-block" id="TerrainImporter.set_debug_vis"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.terrains.html#omni.isaac.lab.terrains.TerrainImporter.set_debug_vis">[docs]</a>    <span class="k">def</span> <span class="nf">set_debug_vis</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">debug_vis</span><span class="p">:</span> <span class="nb">bool</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<div class="viewcode-block" id="TerrainImporter.set_debug_vis"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.terrains.html#omni.isaac.lab.terrains.TerrainImporter.set_debug_vis">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">set_debug_vis</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">debug_vis</span><span class="p">:</span> <span class="nb">bool</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Set the debug visualization of the terrain importer.</span>
 
 <span class="sd">        Args:</span>
@@ -679,7 +679,7 @@
 <span class="sd">    Operations - Import.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-<div class="viewcode-block" id="TerrainImporter.import_ground_plane"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.terrains.html#omni.isaac.lab.terrains.TerrainImporter.import_ground_plane">[docs]</a>    <span class="k">def</span> <span class="nf">import_ground_plane</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">size</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="mf">2.0e6</span><span class="p">,</span> <span class="mf">2.0e6</span><span class="p">)):</span>
+<div class="viewcode-block" id="TerrainImporter.import_ground_plane"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.terrains.html#omni.isaac.lab.terrains.TerrainImporter.import_ground_plane">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">import_ground_plane</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">size</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="mf">2.0e6</span><span class="p">,</span> <span class="mf">2.0e6</span><span class="p">)):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Add a plane to the terrain importer.</span>
 
 <span class="sd">        Args:</span>
@@ -704,7 +704,7 @@
         <span class="n">ground_plane_cfg</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">GroundPlaneCfg</span><span class="p">(</span><span class="n">physics_material</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">physics_material</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="n">size</span><span class="p">)</span>
         <span class="n">ground_plane_cfg</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">prim_path</span><span class="p">,</span> <span class="n">ground_plane_cfg</span><span class="p">)</span></div>
 
-<div class="viewcode-block" id="TerrainImporter.import_mesh"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.terrains.html#omni.isaac.lab.terrains.TerrainImporter.import_mesh">[docs]</a>    <span class="k">def</span> <span class="nf">import_mesh</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">mesh</span><span class="p">:</span> <span class="n">trimesh</span><span class="o">.</span><span class="n">Trimesh</span><span class="p">):</span>
+<div class="viewcode-block" id="TerrainImporter.import_mesh"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.terrains.html#omni.isaac.lab.terrains.TerrainImporter.import_mesh">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">import_mesh</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">mesh</span><span class="p">:</span> <span class="n">trimesh</span><span class="o">.</span><span class="n">Trimesh</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Import a mesh into the simulator.</span>
 
 <span class="sd">        The mesh is imported into the simulator under the prim path ``cfg.prim_path/{key}``. The created path</span>
@@ -737,7 +737,7 @@
             <span class="n">physics_material</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">physics_material</span><span class="p">,</span>
         <span class="p">)</span></div>
 
-<div class="viewcode-block" id="TerrainImporter.import_usd"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.terrains.html#omni.isaac.lab.terrains.TerrainImporter.import_usd">[docs]</a>    <span class="k">def</span> <span class="nf">import_usd</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">usd_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+<div class="viewcode-block" id="TerrainImporter.import_usd"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.terrains.html#omni.isaac.lab.terrains.TerrainImporter.import_usd">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">import_usd</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">usd_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Import a mesh from a USD file.</span>
 
 <span class="sd">        We assume that the USD file contains a single mesh. If the USD file contains multiple meshes, then</span>
@@ -784,7 +784,7 @@
 <span class="sd">    Operations - Origins.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-<div class="viewcode-block" id="TerrainImporter.configure_env_origins"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.terrains.html#omni.isaac.lab.terrains.TerrainImporter.configure_env_origins">[docs]</a>    <span class="k">def</span> <span class="nf">configure_env_origins</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">origins</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+<div class="viewcode-block" id="TerrainImporter.configure_env_origins"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.terrains.html#omni.isaac.lab.terrains.TerrainImporter.configure_env_origins">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">configure_env_origins</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">origins</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Configure the origins of the environments based on the added terrain.</span>
 
 <span class="sd">        Args:</span>
@@ -807,7 +807,7 @@
             <span class="c1"># compute environment origins</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">env_origins</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_compute_env_origins_grid</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">num_envs</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">env_spacing</span><span class="p">)</span></div>
 
-<div class="viewcode-block" id="TerrainImporter.update_env_origins"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.terrains.html#omni.isaac.lab.terrains.TerrainImporter.update_env_origins">[docs]</a>    <span class="k">def</span> <span class="nf">update_env_origins</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">move_up</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">move_down</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">):</span>
+<div class="viewcode-block" id="TerrainImporter.update_env_origins"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.terrains.html#omni.isaac.lab.terrains.TerrainImporter.update_env_origins">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">update_env_origins</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">move_up</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">move_down</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Update the environment origins based on the terrain levels.&quot;&quot;&quot;</span>
         <span class="c1"># check if grid-like spawning</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">terrain_origins</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
@@ -828,7 +828,7 @@
 <span class="sd">    Internal helpers.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="k">def</span> <span class="nf">_compute_env_origins_curriculum</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">num_envs</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">origins</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_compute_env_origins_curriculum</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">num_envs</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">origins</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Compute the origins of the environments defined by the sub-terrains origins.&quot;&quot;&quot;</span>
         <span class="c1"># extract number of rows and cols</span>
         <span class="n">num_rows</span><span class="p">,</span> <span class="n">num_cols</span> <span class="o">=</span> <span class="n">origins</span><span class="o">.</span><span class="n">shape</span><span class="p">[:</span><span class="mi">2</span><span class="p">]</span>
@@ -851,7 +851,7 @@
         <span class="n">env_origins</span><span class="p">[:]</span> <span class="o">=</span> <span class="n">origins</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">terrain_levels</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">terrain_types</span><span class="p">]</span>
         <span class="k">return</span> <span class="n">env_origins</span>
 
-    <span class="k">def</span> <span class="nf">_compute_env_origins_grid</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">num_envs</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">env_spacing</span><span class="p">:</span> <span class="nb">float</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_compute_env_origins_grid</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">num_envs</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">env_spacing</span><span class="p">:</span> <span class="nb">float</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Compute the origins of the environments in a grid based on configured spacing.&quot;&quot;&quot;</span>
         <span class="c1"># create tensor based on number of environments</span>
         <span class="n">env_origins</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">num_envs</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
@@ -912,7 +912,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jan 03, 2025.
+  Last updated on Jan 07, 2025.
   <br/>
 </p>
   </div>

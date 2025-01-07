@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="1.3.0" />
-    <meta name="docbuild:last-update" content="Jan 03, 2025"/>
+    <meta name="docbuild:last-update" content="Jan 07, 2025"/>
   </head>
   
   
@@ -520,14 +520,14 @@
 <span class="c1">#</span>
 <span class="c1"># SPDX-License-Identifier: BSD-3-Clause</span>
 
-<span class="kn">from</span> <span class="nn">dataclasses</span> <span class="kn">import</span> <span class="n">MISSING</span>
-<span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Literal</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">MISSING</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Literal</span>
 
-<span class="kn">import</span> <span class="nn">omni.isaac.lab.terrains.trimesh.mesh_terrains</span> <span class="k">as</span> <span class="nn">mesh_terrains</span>
-<span class="kn">import</span> <span class="nn">omni.isaac.lab.terrains.trimesh.utils</span> <span class="k">as</span> <span class="nn">mesh_utils_terrains</span>
-<span class="kn">from</span> <span class="nn">omni.isaac.lab.utils</span> <span class="kn">import</span> <span class="n">configclass</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">omni.isaac.lab.terrains.trimesh.mesh_terrains</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">mesh_terrains</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">omni.isaac.lab.terrains.trimesh.utils</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">mesh_utils_terrains</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">configclass</span>
 
-<span class="kn">from</span> <span class="nn">..terrain_generator_cfg</span> <span class="kn">import</span> <span class="n">SubTerrainBaseCfg</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">..terrain_generator_cfg</span><span class="w"> </span><span class="kn">import</span> <span class="n">SubTerrainBaseCfg</span>
 
 <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">Different trimesh terrain configurations.</span>
@@ -535,14 +535,14 @@
 
 
 <div class="viewcode-block" id="MeshPlaneTerrainCfg"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.terrains.html#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshPlaneTerrainCfg">[docs]</a><span class="nd">@configclass</span>
-<span class="k">class</span> <span class="nc">MeshPlaneTerrainCfg</span><span class="p">(</span><span class="n">SubTerrainBaseCfg</span><span class="p">):</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">MeshPlaneTerrainCfg</span><span class="p">(</span><span class="n">SubTerrainBaseCfg</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for a plane mesh terrain.&quot;&quot;&quot;</span>
 
     <span class="n">function</span> <span class="o">=</span> <span class="n">mesh_terrains</span><span class="o">.</span><span class="n">flat_terrain</span></div>
 
 
 <div class="viewcode-block" id="MeshPyramidStairsTerrainCfg"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.terrains.html#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshPyramidStairsTerrainCfg">[docs]</a><span class="nd">@configclass</span>
-<span class="k">class</span> <span class="nc">MeshPyramidStairsTerrainCfg</span><span class="p">(</span><span class="n">SubTerrainBaseCfg</span><span class="p">):</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">MeshPyramidStairsTerrainCfg</span><span class="p">(</span><span class="n">SubTerrainBaseCfg</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for a pyramid stair mesh terrain.&quot;&quot;&quot;</span>
 
     <span class="n">function</span> <span class="o">=</span> <span class="n">mesh_terrains</span><span class="o">.</span><span class="n">pyramid_stairs_terrain</span>
@@ -568,7 +568,7 @@
 
 
 <div class="viewcode-block" id="MeshInvertedPyramidStairsTerrainCfg"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.terrains.html#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshInvertedPyramidStairsTerrainCfg">[docs]</a><span class="nd">@configclass</span>
-<span class="k">class</span> <span class="nc">MeshInvertedPyramidStairsTerrainCfg</span><span class="p">(</span><span class="n">MeshPyramidStairsTerrainCfg</span><span class="p">):</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">MeshInvertedPyramidStairsTerrainCfg</span><span class="p">(</span><span class="n">MeshPyramidStairsTerrainCfg</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for an inverted pyramid stair mesh terrain.</span>
 
 <span class="sd">    Note:</span>
@@ -579,7 +579,7 @@
 
 
 <div class="viewcode-block" id="MeshRandomGridTerrainCfg"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.terrains.html#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRandomGridTerrainCfg">[docs]</a><span class="nd">@configclass</span>
-<span class="k">class</span> <span class="nc">MeshRandomGridTerrainCfg</span><span class="p">(</span><span class="n">SubTerrainBaseCfg</span><span class="p">):</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">MeshRandomGridTerrainCfg</span><span class="p">(</span><span class="n">SubTerrainBaseCfg</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for a random grid mesh terrain.&quot;&quot;&quot;</span>
 
     <span class="n">function</span> <span class="o">=</span> <span class="n">mesh_terrains</span><span class="o">.</span><span class="n">random_grid_terrain</span>
@@ -599,7 +599,7 @@
 
 
 <div class="viewcode-block" id="MeshRailsTerrainCfg"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.terrains.html#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRailsTerrainCfg">[docs]</a><span class="nd">@configclass</span>
-<span class="k">class</span> <span class="nc">MeshRailsTerrainCfg</span><span class="p">(</span><span class="n">SubTerrainBaseCfg</span><span class="p">):</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">MeshRailsTerrainCfg</span><span class="p">(</span><span class="n">SubTerrainBaseCfg</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for a terrain with box rails as extrusions.&quot;&quot;&quot;</span>
 
     <span class="n">function</span> <span class="o">=</span> <span class="n">mesh_terrains</span><span class="o">.</span><span class="n">rails_terrain</span>
@@ -613,7 +613,7 @@
 
 
 <div class="viewcode-block" id="MeshPitTerrainCfg"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.terrains.html#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshPitTerrainCfg">[docs]</a><span class="nd">@configclass</span>
-<span class="k">class</span> <span class="nc">MeshPitTerrainCfg</span><span class="p">(</span><span class="n">SubTerrainBaseCfg</span><span class="p">):</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">MeshPitTerrainCfg</span><span class="p">(</span><span class="n">SubTerrainBaseCfg</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for a terrain with a pit that leads out of the pit.&quot;&quot;&quot;</span>
 
     <span class="n">function</span> <span class="o">=</span> <span class="n">mesh_terrains</span><span class="o">.</span><span class="n">pit_terrain</span>
@@ -627,7 +627,7 @@
 
 
 <div class="viewcode-block" id="MeshBoxTerrainCfg"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.terrains.html#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshBoxTerrainCfg">[docs]</a><span class="nd">@configclass</span>
-<span class="k">class</span> <span class="nc">MeshBoxTerrainCfg</span><span class="p">(</span><span class="n">SubTerrainBaseCfg</span><span class="p">):</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">MeshBoxTerrainCfg</span><span class="p">(</span><span class="n">SubTerrainBaseCfg</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for a terrain with boxes (similar to a pyramid).&quot;&quot;&quot;</span>
 
     <span class="n">function</span> <span class="o">=</span> <span class="n">mesh_terrains</span><span class="o">.</span><span class="n">box_terrain</span>
@@ -641,7 +641,7 @@
 
 
 <div class="viewcode-block" id="MeshGapTerrainCfg"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.terrains.html#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshGapTerrainCfg">[docs]</a><span class="nd">@configclass</span>
-<span class="k">class</span> <span class="nc">MeshGapTerrainCfg</span><span class="p">(</span><span class="n">SubTerrainBaseCfg</span><span class="p">):</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">MeshGapTerrainCfg</span><span class="p">(</span><span class="n">SubTerrainBaseCfg</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for a terrain with a gap around the platform.&quot;&quot;&quot;</span>
 
     <span class="n">function</span> <span class="o">=</span> <span class="n">mesh_terrains</span><span class="o">.</span><span class="n">gap_terrain</span>
@@ -653,7 +653,7 @@
 
 
 <div class="viewcode-block" id="MeshFloatingRingTerrainCfg"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.terrains.html#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshFloatingRingTerrainCfg">[docs]</a><span class="nd">@configclass</span>
-<span class="k">class</span> <span class="nc">MeshFloatingRingTerrainCfg</span><span class="p">(</span><span class="n">SubTerrainBaseCfg</span><span class="p">):</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">MeshFloatingRingTerrainCfg</span><span class="p">(</span><span class="n">SubTerrainBaseCfg</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for a terrain with a floating ring around the center.&quot;&quot;&quot;</span>
 
     <span class="n">function</span> <span class="o">=</span> <span class="n">mesh_terrains</span><span class="o">.</span><span class="n">floating_ring_terrain</span>
@@ -669,7 +669,7 @@
 
 
 <div class="viewcode-block" id="MeshStarTerrainCfg"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.terrains.html#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshStarTerrainCfg">[docs]</a><span class="nd">@configclass</span>
-<span class="k">class</span> <span class="nc">MeshStarTerrainCfg</span><span class="p">(</span><span class="n">SubTerrainBaseCfg</span><span class="p">):</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">MeshStarTerrainCfg</span><span class="p">(</span><span class="n">SubTerrainBaseCfg</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for a terrain with a star pattern.&quot;&quot;&quot;</span>
 
     <span class="n">function</span> <span class="o">=</span> <span class="n">mesh_terrains</span><span class="o">.</span><span class="n">star_terrain</span>
@@ -685,11 +685,11 @@
 
 
 <div class="viewcode-block" id="MeshRepeatedObjectsTerrainCfg"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.terrains.html#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedObjectsTerrainCfg">[docs]</a><span class="nd">@configclass</span>
-<span class="k">class</span> <span class="nc">MeshRepeatedObjectsTerrainCfg</span><span class="p">(</span><span class="n">SubTerrainBaseCfg</span><span class="p">):</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">MeshRepeatedObjectsTerrainCfg</span><span class="p">(</span><span class="n">SubTerrainBaseCfg</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Base configuration for a terrain with repeated objects.&quot;&quot;&quot;</span>
 
 <div class="viewcode-block" id="MeshRepeatedObjectsTerrainCfg.ObjectCfg"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.terrains.html#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedObjectsTerrainCfg.ObjectCfg">[docs]</a>    <span class="nd">@configclass</span>
-    <span class="k">class</span> <span class="nc">ObjectCfg</span><span class="p">:</span>
+    <span class="k">class</span><span class="w"> </span><span class="nc">ObjectCfg</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Configuration of repeated objects.&quot;&quot;&quot;</span>
 
         <span class="n">num_objects</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">MISSING</span>
@@ -718,11 +718,11 @@
 
 
 <div class="viewcode-block" id="MeshRepeatedPyramidsTerrainCfg"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.terrains.html#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedPyramidsTerrainCfg">[docs]</a><span class="nd">@configclass</span>
-<span class="k">class</span> <span class="nc">MeshRepeatedPyramidsTerrainCfg</span><span class="p">(</span><span class="n">MeshRepeatedObjectsTerrainCfg</span><span class="p">):</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">MeshRepeatedPyramidsTerrainCfg</span><span class="p">(</span><span class="n">MeshRepeatedObjectsTerrainCfg</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for a terrain with repeated pyramids.&quot;&quot;&quot;</span>
 
 <div class="viewcode-block" id="MeshRepeatedPyramidsTerrainCfg.ObjectCfg"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.terrains.html#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedPyramidsTerrainCfg.ObjectCfg">[docs]</a>    <span class="nd">@configclass</span>
-    <span class="k">class</span> <span class="nc">ObjectCfg</span><span class="p">(</span><span class="n">MeshRepeatedObjectsTerrainCfg</span><span class="o">.</span><span class="n">ObjectCfg</span><span class="p">):</span>
+    <span class="k">class</span><span class="w"> </span><span class="nc">ObjectCfg</span><span class="p">(</span><span class="n">MeshRepeatedObjectsTerrainCfg</span><span class="o">.</span><span class="n">ObjectCfg</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Configuration for a curriculum of repeated pyramids.&quot;&quot;&quot;</span>
 
         <span class="n">radius</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">MISSING</span>
@@ -741,11 +741,11 @@
 
 
 <div class="viewcode-block" id="MeshRepeatedBoxesTerrainCfg"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.terrains.html#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedBoxesTerrainCfg">[docs]</a><span class="nd">@configclass</span>
-<span class="k">class</span> <span class="nc">MeshRepeatedBoxesTerrainCfg</span><span class="p">(</span><span class="n">MeshRepeatedObjectsTerrainCfg</span><span class="p">):</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">MeshRepeatedBoxesTerrainCfg</span><span class="p">(</span><span class="n">MeshRepeatedObjectsTerrainCfg</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for a terrain with repeated boxes.&quot;&quot;&quot;</span>
 
 <div class="viewcode-block" id="MeshRepeatedBoxesTerrainCfg.ObjectCfg"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.terrains.html#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedBoxesTerrainCfg.ObjectCfg">[docs]</a>    <span class="nd">@configclass</span>
-    <span class="k">class</span> <span class="nc">ObjectCfg</span><span class="p">(</span><span class="n">MeshRepeatedObjectsTerrainCfg</span><span class="o">.</span><span class="n">ObjectCfg</span><span class="p">):</span>
+    <span class="k">class</span><span class="w"> </span><span class="nc">ObjectCfg</span><span class="p">(</span><span class="n">MeshRepeatedObjectsTerrainCfg</span><span class="o">.</span><span class="n">ObjectCfg</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Configuration for repeated boxes.&quot;&quot;&quot;</span>
 
         <span class="n">size</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="n">MISSING</span>
@@ -764,11 +764,11 @@
 
 
 <div class="viewcode-block" id="MeshRepeatedCylindersTerrainCfg"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.terrains.html#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedCylindersTerrainCfg">[docs]</a><span class="nd">@configclass</span>
-<span class="k">class</span> <span class="nc">MeshRepeatedCylindersTerrainCfg</span><span class="p">(</span><span class="n">MeshRepeatedObjectsTerrainCfg</span><span class="p">):</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">MeshRepeatedCylindersTerrainCfg</span><span class="p">(</span><span class="n">MeshRepeatedObjectsTerrainCfg</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for a terrain with repeated cylinders.&quot;&quot;&quot;</span>
 
 <div class="viewcode-block" id="MeshRepeatedCylindersTerrainCfg.ObjectCfg"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.terrains.html#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedCylindersTerrainCfg.ObjectCfg">[docs]</a>    <span class="nd">@configclass</span>
-    <span class="k">class</span> <span class="nc">ObjectCfg</span><span class="p">(</span><span class="n">MeshRepeatedObjectsTerrainCfg</span><span class="o">.</span><span class="n">ObjectCfg</span><span class="p">):</span>
+    <span class="k">class</span><span class="w"> </span><span class="nc">ObjectCfg</span><span class="p">(</span><span class="n">MeshRepeatedObjectsTerrainCfg</span><span class="o">.</span><span class="n">ObjectCfg</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Configuration for repeated cylinder.&quot;&quot;&quot;</span>
 
         <span class="n">radius</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">MISSING</span>
@@ -831,7 +831,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jan 03, 2025.
+  Last updated on Jan 07, 2025.
   <br/>
 </p>
   </div>

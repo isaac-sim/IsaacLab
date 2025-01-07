@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="1.2.0" />
-    <meta name="docbuild:last-update" content="Jan 03, 2025"/>
+    <meta name="docbuild:last-update" content="Jan 07, 2025"/>
   </head>
   
   
@@ -618,9 +618,9 @@ with a rigid object. For this, we will use the <a class="reference internal" hre
 <span class="linenos"> 16</span><span class="sd">&quot;&quot;&quot;Launch Isaac Sim Simulator first.&quot;&quot;&quot;</span>
 <span class="linenos"> 17</span>
 <span class="linenos"> 18</span>
-<span class="linenos"> 19</span><span class="kn">import</span> <span class="nn">argparse</span>
+<span class="linenos"> 19</span><span class="kn">import</span><span class="w"> </span><span class="nn">argparse</span>
 <span class="linenos"> 20</span>
-<span class="linenos"> 21</span><span class="kn">from</span> <span class="nn">omni.isaac.lab.app</span> <span class="kn">import</span> <span class="n">AppLauncher</span>
+<span class="linenos"> 21</span><span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.app</span><span class="w"> </span><span class="kn">import</span> <span class="n">AppLauncher</span>
 <span class="linenos"> 22</span>
 <span class="linenos"> 23</span><span class="c1"># add argparse arguments</span>
 <span class="linenos"> 24</span><span class="n">parser</span> <span class="o">=</span> <span class="n">argparse</span><span class="o">.</span><span class="n">ArgumentParser</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="s2">&quot;Tutorial on spawning and interacting with a rigid object.&quot;</span><span class="p">)</span>
@@ -635,17 +635,17 @@ with a rigid object. For this, we will use the <a class="reference internal" hre
 <span class="linenos"> 33</span>
 <span class="linenos"> 34</span><span class="sd">&quot;&quot;&quot;Rest everything follows.&quot;&quot;&quot;</span>
 <span class="linenos"> 35</span>
-<span class="linenos"> 36</span><span class="kn">import</span> <span class="nn">torch</span>
+<span class="linenos"> 36</span><span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
 <span class="linenos"> 37</span>
-<span class="linenos"> 38</span><span class="kn">import</span> <span class="nn">omni.isaac.core.utils.prims</span> <span class="k">as</span> <span class="nn">prim_utils</span>
+<span class="linenos"> 38</span><span class="kn">import</span><span class="w"> </span><span class="nn">omni.isaac.core.utils.prims</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">prim_utils</span>
 <span class="linenos"> 39</span>
-<span class="linenos"> 40</span><span class="kn">import</span> <span class="nn">omni.isaac.lab.sim</span> <span class="k">as</span> <span class="nn">sim_utils</span>
-<span class="linenos"> 41</span><span class="kn">import</span> <span class="nn">omni.isaac.lab.utils.math</span> <span class="k">as</span> <span class="nn">math_utils</span>
-<span class="linenos"> 42</span><span class="kn">from</span> <span class="nn">omni.isaac.lab.assets</span> <span class="kn">import</span> <span class="n">RigidObject</span><span class="p">,</span> <span class="n">RigidObjectCfg</span>
-<span class="linenos"> 43</span><span class="kn">from</span> <span class="nn">omni.isaac.lab.sim</span> <span class="kn">import</span> <span class="n">SimulationContext</span>
+<span class="linenos"> 40</span><span class="kn">import</span><span class="w"> </span><span class="nn">omni.isaac.lab.sim</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">sim_utils</span>
+<span class="linenos"> 41</span><span class="kn">import</span><span class="w"> </span><span class="nn">omni.isaac.lab.utils.math</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">math_utils</span>
+<span class="linenos"> 42</span><span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.assets</span><span class="w"> </span><span class="kn">import</span> <span class="n">RigidObject</span><span class="p">,</span> <span class="n">RigidObjectCfg</span>
+<span class="linenos"> 43</span><span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.sim</span><span class="w"> </span><span class="kn">import</span> <span class="n">SimulationContext</span>
 <span class="linenos"> 44</span>
 <span class="linenos"> 45</span>
-<span class="linenos"> 46</span><span class="k">def</span> <span class="nf">design_scene</span><span class="p">():</span>
+<span class="linenos"> 46</span><span class="k">def</span><span class="w"> </span><span class="nf">design_scene</span><span class="p">():</span>
 <span class="linenos"> 47</span><span class="w">    </span><span class="sd">&quot;&quot;&quot;Designs the scene.&quot;&quot;&quot;</span>
 <span class="linenos"> 48</span>    <span class="c1"># Ground-plane</span>
 <span class="linenos"> 49</span>    <span class="n">cfg</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">GroundPlaneCfg</span><span class="p">()</span>
@@ -680,7 +680,7 @@ with a rigid object. For this, we will use the <a class="reference internal" hre
 </span><span class="hll"><span class="linenos"> 78</span>    <span class="k">return</span> <span class="n">scene_entities</span><span class="p">,</span> <span class="n">origins</span>
 </span><span class="linenos"> 79</span>
 <span class="linenos"> 80</span>
-<span class="linenos"> 81</span><span class="k">def</span> <span class="nf">run_simulator</span><span class="p">(</span><span class="n">sim</span><span class="p">:</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">SimulationContext</span><span class="p">,</span> <span class="n">entities</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">RigidObject</span><span class="p">],</span> <span class="n">origins</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">):</span>
+<span class="linenos"> 81</span><span class="k">def</span><span class="w"> </span><span class="nf">run_simulator</span><span class="p">(</span><span class="n">sim</span><span class="p">:</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">SimulationContext</span><span class="p">,</span> <span class="n">entities</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">RigidObject</span><span class="p">],</span> <span class="n">origins</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">):</span>
 <span class="linenos"> 82</span><span class="w">    </span><span class="sd">&quot;&quot;&quot;Runs the simulation loop.&quot;&quot;&quot;</span>
 <span class="linenos"> 83</span>    <span class="c1"># Extract scene entities</span>
 <span class="linenos"> 84</span>    <span class="c1"># note: we only do this here for readability. In general, it is better to access the entities directly from</span>
@@ -724,7 +724,7 @@ with a rigid object. For this, we will use the <a class="reference internal" hre
 <span class="linenos">122</span>            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Root position (in world): </span><span class="si">{</span><span class="n">cone_object</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">root_state_w</span><span class="p">[:,</span><span class="w"> </span><span class="p">:</span><span class="mi">3</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 <span class="linenos">123</span>
 <span class="linenos">124</span>
-<span class="linenos">125</span><span class="k">def</span> <span class="nf">main</span><span class="p">():</span>
+<span class="linenos">125</span><span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">():</span>
 <span class="linenos">126</span><span class="w">    </span><span class="sd">&quot;&quot;&quot;Main function.&quot;&quot;&quot;</span>
 <span class="linenos">127</span>    <span class="c1"># Load kit helper</span>
 <span class="linenos">128</span>    <span class="n">sim_cfg</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">SimulationCfg</span><span class="p">()</span>
@@ -974,7 +974,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jan 03, 2025.
+  Last updated on Jan 07, 2025.
   <br/>
 </p>
   </div>

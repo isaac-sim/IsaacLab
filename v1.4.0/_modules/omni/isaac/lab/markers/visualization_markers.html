@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="1.3.0" />
-    <meta name="docbuild:last-update" content="Jan 03, 2025"/>
+    <meta name="docbuild:last-update" content="Jan 07, 2025"/>
   </head>
   
   
@@ -534,25 +534,25 @@
 <span class="sd">&quot;&quot;&quot;</span>
 
 <span class="c1"># needed to import for allowing type-hinting: np.ndarray | torch.Tensor | None</span>
-<span class="kn">from</span> <span class="nn">__future__</span> <span class="kn">import</span> <span class="n">annotations</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
 
-<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
-<span class="kn">import</span> <span class="nn">torch</span>
-<span class="kn">from</span> <span class="nn">dataclasses</span> <span class="kn">import</span> <span class="n">MISSING</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">MISSING</span>
 
-<span class="kn">import</span> <span class="nn">omni.isaac.core.utils.stage</span> <span class="k">as</span> <span class="nn">stage_utils</span>
-<span class="kn">import</span> <span class="nn">omni.kit.commands</span>
-<span class="kn">import</span> <span class="nn">omni.physx.scripts.utils</span> <span class="k">as</span> <span class="nn">physx_utils</span>
-<span class="kn">from</span> <span class="nn">pxr</span> <span class="kn">import</span> <span class="n">Gf</span><span class="p">,</span> <span class="n">PhysxSchema</span><span class="p">,</span> <span class="n">Sdf</span><span class="p">,</span> <span class="n">Usd</span><span class="p">,</span> <span class="n">UsdGeom</span><span class="p">,</span> <span class="n">UsdPhysics</span><span class="p">,</span> <span class="n">Vt</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">omni.isaac.core.utils.stage</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">stage_utils</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">omni.kit.commands</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">omni.physx.scripts.utils</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">physx_utils</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pxr</span><span class="w"> </span><span class="kn">import</span> <span class="n">Gf</span><span class="p">,</span> <span class="n">PhysxSchema</span><span class="p">,</span> <span class="n">Sdf</span><span class="p">,</span> <span class="n">Usd</span><span class="p">,</span> <span class="n">UsdGeom</span><span class="p">,</span> <span class="n">UsdPhysics</span><span class="p">,</span> <span class="n">Vt</span>
 
-<span class="kn">import</span> <span class="nn">omni.isaac.lab.sim</span> <span class="k">as</span> <span class="nn">sim_utils</span>
-<span class="kn">from</span> <span class="nn">omni.isaac.lab.sim.spawners</span> <span class="kn">import</span> <span class="n">SpawnerCfg</span>
-<span class="kn">from</span> <span class="nn">omni.isaac.lab.utils.configclass</span> <span class="kn">import</span> <span class="n">configclass</span>
-<span class="kn">from</span> <span class="nn">omni.isaac.lab.utils.math</span> <span class="kn">import</span> <span class="n">convert_quat</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">omni.isaac.lab.sim</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">sim_utils</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.sim.spawners</span><span class="w"> </span><span class="kn">import</span> <span class="n">SpawnerCfg</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.utils.configclass</span><span class="w"> </span><span class="kn">import</span> <span class="n">configclass</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.utils.math</span><span class="w"> </span><span class="kn">import</span> <span class="n">convert_quat</span>
 
 
 <div class="viewcode-block" id="VisualizationMarkersCfg"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.markers.html#omni.isaac.lab.markers.VisualizationMarkersCfg">[docs]</a><span class="nd">@configclass</span>
-<span class="k">class</span> <span class="nc">VisualizationMarkersCfg</span><span class="p">:</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">VisualizationMarkersCfg</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;A class to configure a :class:`VisualizationMarkers`.&quot;&quot;&quot;</span>
 
     <span class="n">prim_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">MISSING</span>
@@ -566,7 +566,7 @@
 <span class="sd">    &quot;&quot;&quot;</span></div>
 
 
-<div class="viewcode-block" id="VisualizationMarkers"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.markers.html#omni.isaac.lab.markers.VisualizationMarkers">[docs]</a><span class="k">class</span> <span class="nc">VisualizationMarkers</span><span class="p">:</span>
+<div class="viewcode-block" id="VisualizationMarkers"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.markers.html#omni.isaac.lab.markers.VisualizationMarkers">[docs]</a><span class="k">class</span><span class="w"> </span><span class="nc">VisualizationMarkers</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;A class to coordinate groups of visual markers (loaded from USD).</span>
 
 <span class="sd">    This class allows visualization of different UI markers in the scene, such as points and frames.</span>
@@ -643,7 +643,7 @@
 
 <span class="sd">    &quot;&quot;&quot;</span>
 
-<div class="viewcode-block" id="VisualizationMarkers.__init__"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.markers.html#omni.isaac.lab.markers.VisualizationMarkers.__init__">[docs]</a>    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">VisualizationMarkersCfg</span><span class="p">):</span>
+<div class="viewcode-block" id="VisualizationMarkers.__init__"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.markers.html#omni.isaac.lab.markers.VisualizationMarkers.__init__">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">VisualizationMarkersCfg</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Initialize the class.</span>
 
 <span class="sd">        When the class is initialized, the :class:`UsdGeom.PointInstancer` is created into the stage</span>
@@ -679,7 +679,7 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">_instancer_manager</span><span class="o">.</span><span class="n">GetPositionsAttr</span><span class="p">()</span><span class="o">.</span><span class="n">Set</span><span class="p">([</span><span class="n">Gf</span><span class="o">.</span><span class="n">Vec3f</span><span class="p">(</span><span class="mf">0.0</span><span class="p">)]</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_prototypes</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_count</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_prototypes</span></div>
 
-    <span class="k">def</span> <span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Return: A string representation of the class.&quot;&quot;&quot;</span>
         <span class="n">msg</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;VisualizationMarkers(prim_path=</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">prim_path</span><span class="si">}</span><span class="s2">)&quot;</span>
         <span class="n">msg</span> <span class="o">+=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="se">\n\t</span><span class="s2">Count: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">count</span><span class="si">}</span><span class="s2">&quot;</span>
@@ -694,12 +694,12 @@
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">num_prototypes</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">num_prototypes</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;The number of marker prototypes available.&quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">markers</span><span class="p">)</span>
 
     <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">count</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">count</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;The total number of marker instances.&quot;&quot;&quot;</span>
         <span class="c1"># TODO: Update this when the USD API is available (Isaac Sim 2023.1)</span>
         <span class="c1"># return self._instancer_manager.GetInstanceCount()</span>
@@ -709,7 +709,7 @@
 <span class="sd">    Operations.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-<div class="viewcode-block" id="VisualizationMarkers.set_visibility"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.markers.html#omni.isaac.lab.markers.VisualizationMarkers.set_visibility">[docs]</a>    <span class="k">def</span> <span class="nf">set_visibility</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">visible</span><span class="p">:</span> <span class="nb">bool</span><span class="p">):</span>
+<div class="viewcode-block" id="VisualizationMarkers.set_visibility"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.markers.html#omni.isaac.lab.markers.VisualizationMarkers.set_visibility">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">set_visibility</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">visible</span><span class="p">:</span> <span class="nb">bool</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Sets the visibility of the markers.</span>
 
 <span class="sd">        The method does this through the USD API.</span>
@@ -723,7 +723,7 @@
         <span class="k">else</span><span class="p">:</span>
             <span class="n">imageable</span><span class="o">.</span><span class="n">MakeInvisible</span><span class="p">()</span></div>
 
-<div class="viewcode-block" id="VisualizationMarkers.is_visible"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.markers.html#omni.isaac.lab.markers.VisualizationMarkers.is_visible">[docs]</a>    <span class="k">def</span> <span class="nf">is_visible</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<div class="viewcode-block" id="VisualizationMarkers.is_visible"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.markers.html#omni.isaac.lab.markers.VisualizationMarkers.is_visible">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">is_visible</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Checks the visibility of the markers.</span>
 
 <span class="sd">        Returns:</span>
@@ -731,7 +731,7 @@
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_instancer_manager</span><span class="o">.</span><span class="n">GetVisibilityAttr</span><span class="p">()</span><span class="o">.</span><span class="n">Get</span><span class="p">()</span> <span class="o">!=</span> <span class="n">UsdGeom</span><span class="o">.</span><span class="n">Tokens</span><span class="o">.</span><span class="n">invisible</span></div>
 
-<div class="viewcode-block" id="VisualizationMarkers.visualize"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.markers.html#omni.isaac.lab.markers.VisualizationMarkers.visualize">[docs]</a>    <span class="k">def</span> <span class="nf">visualize</span><span class="p">(</span>
+<div class="viewcode-block" id="VisualizationMarkers.visualize"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.markers.html#omni.isaac.lab.markers.VisualizationMarkers.visualize">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">visualize</span><span class="p">(</span>
         <span class="bp">self</span><span class="p">,</span>
         <span class="n">translations</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span> <span class="o">|</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
         <span class="n">orientations</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span> <span class="o">|</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
@@ -855,7 +855,7 @@
 <span class="sd">    Helper functions.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="k">def</span> <span class="nf">_add_markers_prototypes</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">markers_cfg</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">SpawnerCfg</span><span class="p">]):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_add_markers_prototypes</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">markers_cfg</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">SpawnerCfg</span><span class="p">]):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Adds markers prototypes to the scene and sets the markers instancer to use them.&quot;&quot;&quot;</span>
         <span class="c1"># add markers based on config</span>
         <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">cfg</span> <span class="ow">in</span> <span class="n">markers_cfg</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
@@ -875,7 +875,7 @@
                 <span class="sa">f</span><span class="s2">&quot;Failed to load all the prototypes. Expected: </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">markers_cfg</span><span class="p">)</span><span class="si">}</span><span class="s2">. Received: </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">prototypes</span><span class="p">)</span><span class="si">}</span><span class="s2">.&quot;</span>
             <span class="p">)</span>
 
-    <span class="k">def</span> <span class="nf">_process_prototype_prim</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">prim</span><span class="p">:</span> <span class="n">Usd</span><span class="o">.</span><span class="n">Prim</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_process_prototype_prim</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">prim</span><span class="p">:</span> <span class="n">Usd</span><span class="o">.</span><span class="n">Prim</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Process a prim and its descendants to make them suitable for defining prototypes.</span>
 
 <span class="sd">        Point instancer defines its own prototypes so if an asset is already instanced, this doesn&#39;t work.</span>
@@ -972,7 +972,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jan 03, 2025.
+  Last updated on Jan 07, 2025.
   <br/>
 </p>
   </div>

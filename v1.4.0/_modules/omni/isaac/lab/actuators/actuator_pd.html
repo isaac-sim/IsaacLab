@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="1.3.0" />
-    <meta name="docbuild:last-update" content="Jan 03, 2025"/>
+    <meta name="docbuild:last-update" content="Jan 07, 2025"/>
   </head>
   
   
@@ -520,19 +520,19 @@
 <span class="c1">#</span>
 <span class="c1"># SPDX-License-Identifier: BSD-3-Clause</span>
 
-<span class="kn">from</span> <span class="nn">__future__</span> <span class="kn">import</span> <span class="n">annotations</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
 
-<span class="kn">import</span> <span class="nn">torch</span>
-<span class="kn">from</span> <span class="nn">collections.abc</span> <span class="kn">import</span> <span class="n">Sequence</span>
-<span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">TYPE_CHECKING</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Sequence</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TYPE_CHECKING</span>
 
-<span class="kn">from</span> <span class="nn">omni.isaac.lab.utils</span> <span class="kn">import</span> <span class="n">DelayBuffer</span><span class="p">,</span> <span class="n">LinearInterpolation</span>
-<span class="kn">from</span> <span class="nn">omni.isaac.lab.utils.types</span> <span class="kn">import</span> <span class="n">ArticulationActions</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">DelayBuffer</span><span class="p">,</span> <span class="n">LinearInterpolation</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.utils.types</span><span class="w"> </span><span class="kn">import</span> <span class="n">ArticulationActions</span>
 
-<span class="kn">from</span> <span class="nn">.actuator_base</span> <span class="kn">import</span> <span class="n">ActuatorBase</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.actuator_base</span><span class="w"> </span><span class="kn">import</span> <span class="n">ActuatorBase</span>
 
 <span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
-    <span class="kn">from</span> <span class="nn">.actuator_cfg</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">.actuator_cfg</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
         <span class="n">DCMotorCfg</span><span class="p">,</span>
         <span class="n">DelayedPDActuatorCfg</span><span class="p">,</span>
         <span class="n">IdealPDActuatorCfg</span><span class="p">,</span>
@@ -546,7 +546,7 @@
 <span class="sd">&quot;&quot;&quot;</span>
 
 
-<div class="viewcode-block" id="ImplicitActuator"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.actuators.html#omni.isaac.lab.actuators.ImplicitActuator">[docs]</a><span class="k">class</span> <span class="nc">ImplicitActuator</span><span class="p">(</span><span class="n">ActuatorBase</span><span class="p">):</span>
+<div class="viewcode-block" id="ImplicitActuator"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.actuators.html#omni.isaac.lab.actuators.ImplicitActuator">[docs]</a><span class="k">class</span><span class="w"> </span><span class="nc">ImplicitActuator</span><span class="p">(</span><span class="n">ActuatorBase</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Implicit actuator model that is handled by the simulation.</span>
 
 <span class="sd">    This performs a similar function as the :class:`IdealPDActuator` class. However, the PD control is handled</span>
@@ -572,11 +572,11 @@
 <span class="sd">    Operations.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-<div class="viewcode-block" id="ImplicitActuator.reset"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.actuators.html#omni.isaac.lab.actuators.ImplicitActuator.reset">[docs]</a>    <span class="k">def</span> <span class="nf">reset</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+<div class="viewcode-block" id="ImplicitActuator.reset"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.actuators.html#omni.isaac.lab.actuators.ImplicitActuator.reset">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">reset</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="c1"># This is a no-op. There is no state to reset for implicit actuators.</span>
         <span class="k">pass</span></div>
 
-<div class="viewcode-block" id="ImplicitActuator.compute"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.actuators.html#omni.isaac.lab.actuators.ImplicitActuator.compute">[docs]</a>    <span class="k">def</span> <span class="nf">compute</span><span class="p">(</span>
+<div class="viewcode-block" id="ImplicitActuator.compute"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.actuators.html#omni.isaac.lab.actuators.ImplicitActuator.compute">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">compute</span><span class="p">(</span>
         <span class="bp">self</span><span class="p">,</span> <span class="n">control_action</span><span class="p">:</span> <span class="n">ArticulationActions</span><span class="p">,</span> <span class="n">joint_pos</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">joint_vel</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span>
     <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ArticulationActions</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Process the actuator group actions and compute the articulation actions.</span>
@@ -609,7 +609,7 @@
 <span class="sd">&quot;&quot;&quot;</span>
 
 
-<div class="viewcode-block" id="IdealPDActuator"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.actuators.html#omni.isaac.lab.actuators.IdealPDActuator">[docs]</a><span class="k">class</span> <span class="nc">IdealPDActuator</span><span class="p">(</span><span class="n">ActuatorBase</span><span class="p">):</span>
+<div class="viewcode-block" id="IdealPDActuator"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.actuators.html#omni.isaac.lab.actuators.IdealPDActuator">[docs]</a><span class="k">class</span><span class="w"> </span><span class="nc">IdealPDActuator</span><span class="p">(</span><span class="n">ActuatorBase</span><span class="p">):</span>
 <span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Ideal torque-controlled actuator model with a simple saturation model.</span>
 
 <span class="sd">    It employs the following model for computing torques for the actuated joint :math:`j`:</span>
@@ -642,10 +642,10 @@
 <span class="sd">    Operations.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-<div class="viewcode-block" id="IdealPDActuator.reset"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.actuators.html#omni.isaac.lab.actuators.IdealPDActuator.reset">[docs]</a>    <span class="k">def</span> <span class="nf">reset</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]):</span>
+<div class="viewcode-block" id="IdealPDActuator.reset"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.actuators.html#omni.isaac.lab.actuators.IdealPDActuator.reset">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">reset</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]):</span>
         <span class="k">pass</span></div>
 
-<div class="viewcode-block" id="IdealPDActuator.compute"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.actuators.html#omni.isaac.lab.actuators.IdealPDActuator.compute">[docs]</a>    <span class="k">def</span> <span class="nf">compute</span><span class="p">(</span>
+<div class="viewcode-block" id="IdealPDActuator.compute"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.actuators.html#omni.isaac.lab.actuators.IdealPDActuator.compute">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">compute</span><span class="p">(</span>
         <span class="bp">self</span><span class="p">,</span> <span class="n">control_action</span><span class="p">:</span> <span class="n">ArticulationActions</span><span class="p">,</span> <span class="n">joint_pos</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">joint_vel</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span>
     <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ArticulationActions</span><span class="p">:</span>
         <span class="c1"># compute errors</span>
@@ -662,7 +662,7 @@
         <span class="k">return</span> <span class="n">control_action</span></div></div>
 
 
-<div class="viewcode-block" id="DCMotor"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.actuators.html#omni.isaac.lab.actuators.DCMotor">[docs]</a><span class="k">class</span> <span class="nc">DCMotor</span><span class="p">(</span><span class="n">IdealPDActuator</span><span class="p">):</span>
+<div class="viewcode-block" id="DCMotor"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.actuators.html#omni.isaac.lab.actuators.DCMotor">[docs]</a><span class="k">class</span><span class="w"> </span><span class="nc">DCMotor</span><span class="p">(</span><span class="n">IdealPDActuator</span><span class="p">):</span>
 <span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Direct control (DC) motor actuator model with velocity-based saturation model.</span>
 
 <span class="sd">    It uses the same model as the :class:`IdealActuator` for computing the torques from input commands.</span>
@@ -706,7 +706,7 @@
     <span class="n">cfg</span><span class="p">:</span> <span class="n">DCMotorCfg</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The configuration for the actuator model.&quot;&quot;&quot;</span>
 
-<div class="viewcode-block" id="DCMotor.__init__"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.actuators.html#omni.isaac.lab.actuators.DCMotor.__init__">[docs]</a>    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">DCMotorCfg</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+<div class="viewcode-block" id="DCMotor.__init__"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.actuators.html#omni.isaac.lab.actuators.DCMotor.__init__">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">DCMotorCfg</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
         <span class="c1"># parse configuration</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">saturation_effort</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
@@ -725,7 +725,7 @@
 <span class="sd">    Operations.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-<div class="viewcode-block" id="DCMotor.compute"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.actuators.html#omni.isaac.lab.actuators.DCMotor.compute">[docs]</a>    <span class="k">def</span> <span class="nf">compute</span><span class="p">(</span>
+<div class="viewcode-block" id="DCMotor.compute"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.actuators.html#omni.isaac.lab.actuators.DCMotor.compute">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">compute</span><span class="p">(</span>
         <span class="bp">self</span><span class="p">,</span> <span class="n">control_action</span><span class="p">:</span> <span class="n">ArticulationActions</span><span class="p">,</span> <span class="n">joint_pos</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">joint_vel</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span>
     <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ArticulationActions</span><span class="p">:</span>
         <span class="c1"># save current joint vel</span>
@@ -737,7 +737,7 @@
 <span class="sd">    Helper functions.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="k">def</span> <span class="nf">_clip_effort</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">effort</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_clip_effort</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">effort</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
         <span class="c1"># compute torque limits</span>
         <span class="c1"># -- max limit</span>
         <span class="n">max_effort</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_saturation_effort</span> <span class="o">*</span> <span class="p">(</span><span class="mf">1.0</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">_joint_vel</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">velocity_limit</span><span class="p">)</span>
@@ -750,7 +750,7 @@
         <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">clip</span><span class="p">(</span><span class="n">effort</span><span class="p">,</span> <span class="nb">min</span><span class="o">=</span><span class="n">min_effort</span><span class="p">,</span> <span class="nb">max</span><span class="o">=</span><span class="n">max_effort</span><span class="p">)</span></div>
 
 
-<div class="viewcode-block" id="DelayedPDActuator"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.actuators.html#omni.isaac.lab.actuators.DelayedPDActuator">[docs]</a><span class="k">class</span> <span class="nc">DelayedPDActuator</span><span class="p">(</span><span class="n">IdealPDActuator</span><span class="p">):</span>
+<div class="viewcode-block" id="DelayedPDActuator"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.actuators.html#omni.isaac.lab.actuators.DelayedPDActuator">[docs]</a><span class="k">class</span><span class="w"> </span><span class="nc">DelayedPDActuator</span><span class="p">(</span><span class="n">IdealPDActuator</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Ideal PD actuator with delayed command application.</span>
 
 <span class="sd">    This class extends the :class:`IdealPDActuator` class by adding a delay to the actuator commands. The delay</span>
@@ -766,7 +766,7 @@
     <span class="n">cfg</span><span class="p">:</span> <span class="n">DelayedPDActuatorCfg</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The configuration for the actuator model.&quot;&quot;&quot;</span>
 
-<div class="viewcode-block" id="DelayedPDActuator.__init__"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.actuators.html#omni.isaac.lab.actuators.DelayedPDActuator.__init__">[docs]</a>    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">DelayedPDActuatorCfg</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+<div class="viewcode-block" id="DelayedPDActuator.__init__"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.actuators.html#omni.isaac.lab.actuators.DelayedPDActuator.__init__">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">DelayedPDActuatorCfg</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
         <span class="c1"># instantiate the delay buffers</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">positions_delay_buffer</span> <span class="o">=</span> <span class="n">DelayBuffer</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">max_delay</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_num_envs</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="p">)</span>
@@ -775,7 +775,7 @@
         <span class="c1"># all of the envs</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_ALL_INDICES</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_num_envs</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">long</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="p">)</span></div>
 
-<div class="viewcode-block" id="DelayedPDActuator.reset"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.actuators.html#omni.isaac.lab.actuators.DelayedPDActuator.reset">[docs]</a>    <span class="k">def</span> <span class="nf">reset</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]):</span>
+<div class="viewcode-block" id="DelayedPDActuator.reset"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.actuators.html#omni.isaac.lab.actuators.DelayedPDActuator.reset">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">reset</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]):</span>
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">reset</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span>
         <span class="c1"># number of environments (since env_ids can be a slice)</span>
         <span class="k">if</span> <span class="n">env_ids</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">env_ids</span> <span class="o">==</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">):</span>
@@ -799,7 +799,7 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">velocities_delay_buffer</span><span class="o">.</span><span class="n">reset</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">efforts_delay_buffer</span><span class="o">.</span><span class="n">reset</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span></div>
 
-<div class="viewcode-block" id="DelayedPDActuator.compute"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.actuators.html#omni.isaac.lab.actuators.DelayedPDActuator.compute">[docs]</a>    <span class="k">def</span> <span class="nf">compute</span><span class="p">(</span>
+<div class="viewcode-block" id="DelayedPDActuator.compute"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.actuators.html#omni.isaac.lab.actuators.DelayedPDActuator.compute">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">compute</span><span class="p">(</span>
         <span class="bp">self</span><span class="p">,</span> <span class="n">control_action</span><span class="p">:</span> <span class="n">ArticulationActions</span><span class="p">,</span> <span class="n">joint_pos</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">joint_vel</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span>
     <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ArticulationActions</span><span class="p">:</span>
         <span class="c1"># apply delay based on the delay the model for all the setpoints</span>
@@ -810,7 +810,7 @@
         <span class="k">return</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">compute</span><span class="p">(</span><span class="n">control_action</span><span class="p">,</span> <span class="n">joint_pos</span><span class="p">,</span> <span class="n">joint_vel</span><span class="p">)</span></div></div>
 
 
-<div class="viewcode-block" id="RemotizedPDActuator"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.actuators.html#omni.isaac.lab.actuators.RemotizedPDActuator">[docs]</a><span class="k">class</span> <span class="nc">RemotizedPDActuator</span><span class="p">(</span><span class="n">DelayedPDActuator</span><span class="p">):</span>
+<div class="viewcode-block" id="RemotizedPDActuator"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.actuators.html#omni.isaac.lab.actuators.RemotizedPDActuator">[docs]</a><span class="k">class</span><span class="w"> </span><span class="nc">RemotizedPDActuator</span><span class="p">(</span><span class="n">DelayedPDActuator</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Ideal PD actuator with angle-dependent torque limits.</span>
 
 <span class="sd">    This class extends the :class:`DelayedPDActuator` class by adding angle-dependent torque limits to the actuator.</span>
@@ -820,7 +820,7 @@
 <span class="sd">    The torque limits are interpolated based on the current joint positions and applied to the actuator commands.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-<div class="viewcode-block" id="RemotizedPDActuator.__init__"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.actuators.html#omni.isaac.lab.actuators.RemotizedPDActuator.__init__">[docs]</a>    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span>
+<div class="viewcode-block" id="RemotizedPDActuator.__init__"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.actuators.html#omni.isaac.lab.actuators.RemotizedPDActuator.__init__">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
         <span class="bp">self</span><span class="p">,</span>
         <span class="n">cfg</span><span class="p">:</span> <span class="n">RemotizedPDActuatorCfg</span><span class="p">,</span>
         <span class="n">joint_names</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span>
@@ -850,22 +850,22 @@
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">angle_samples</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">angle_samples</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_joint_parameter_lookup</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]</span>
 
     <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">transmission_ratio_samples</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">transmission_ratio_samples</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_joint_parameter_lookup</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">]</span>
 
     <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">max_torque_samples</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">max_torque_samples</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_joint_parameter_lookup</span><span class="p">[:,</span> <span class="mi">2</span><span class="p">]</span>
 
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Operations.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-<div class="viewcode-block" id="RemotizedPDActuator.compute"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.actuators.html#omni.isaac.lab.actuators.RemotizedPDActuator.compute">[docs]</a>    <span class="k">def</span> <span class="nf">compute</span><span class="p">(</span>
+<div class="viewcode-block" id="RemotizedPDActuator.compute"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.actuators.html#omni.isaac.lab.actuators.RemotizedPDActuator.compute">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">compute</span><span class="p">(</span>
         <span class="bp">self</span><span class="p">,</span> <span class="n">control_action</span><span class="p">:</span> <span class="n">ArticulationActions</span><span class="p">,</span> <span class="n">joint_pos</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">joint_vel</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span>
     <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ArticulationActions</span><span class="p">:</span>
         <span class="c1"># call the base method</span>
@@ -925,7 +925,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jan 03, 2025.
+  Last updated on Jan 07, 2025.
   <br/>
 </p>
   </div>

@@ -60,8 +60,8 @@
     <link rel="prev" title="Multi-GPU and Multi-Node Training" href="multi_gpu.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-  <meta name="docsearch:version" content="1.3.0" />
-    <meta name="docbuild:last-update" content="Jan 03, 2025"/>
+  <meta name="docsearch:version" content="1.4.0" />
+    <meta name="docbuild:last-update" content="Jan 07, 2025"/>
   </head>
   
   
@@ -680,12 +680,12 @@ sweep configuration. This assumes homogeneous node resource composition for node
 <span class="c1">#</span>
 <span class="c1"># SPDX-License-Identifier: BSD-3-Clause</span>
 
-<span class="kn">import</span> <span class="nn">argparse</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">argparse</span>
 
-<span class="kn">import</span> <span class="nn">ray</span>
-<span class="kn">from</span> <span class="nn">ray.util.scheduling_strategies</span> <span class="kn">import</span> <span class="n">NodeAffinitySchedulingStrategy</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">ray</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ray.util.scheduling_strategies</span><span class="w"> </span><span class="kn">import</span> <span class="n">NodeAffinitySchedulingStrategy</span>
 
-<span class="kn">import</span> <span class="nn">source.standalone.workflows.ray.util</span> <span class="k">as</span> <span class="nn">util</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">source.standalone.workflows.ray.util</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">util</span>
 
 <span class="sd">&quot;&quot;&quot;</span>
 <span class="hll"><span class="sd">This script dispatches sub-job(s) (either individual jobs or tuning aggregate jobs)</span>
@@ -743,7 +743,7 @@ sweep configuration. This assumes homogeneous node resource composition for node
 </span><span class="hll"><span class="sd">&quot;&quot;&quot;</span>
 </span>
 
-<span class="k">def</span> <span class="nf">wrap_resources_to_jobs</span><span class="p">(</span><span class="n">jobs</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span> <span class="n">args</span><span class="p">:</span> <span class="n">argparse</span><span class="o">.</span><span class="n">Namespace</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">wrap_resources_to_jobs</span><span class="p">(</span><span class="n">jobs</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span> <span class="n">args</span><span class="p">:</span> <span class="n">argparse</span><span class="o">.</span><span class="n">Namespace</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Provided a list of jobs, dispatch jobs to one worker per available node,</span>
 <span class="sd">    unless otherwise specified by resource constraints.</span>
@@ -836,17 +836,17 @@ sweep configuration. This assumes homogeneous node resource composition for node
 <span class="c1"># All rights reserved.</span>
 <span class="c1">#</span>
 <span class="c1"># SPDX-License-Identifier: BSD-3-Clause</span>
-<span class="kn">import</span> <span class="nn">argparse</span>
-<span class="kn">import</span> <span class="nn">importlib.util</span>
-<span class="kn">import</span> <span class="nn">os</span>
-<span class="kn">import</span> <span class="nn">sys</span>
-<span class="kn">from</span> <span class="nn">time</span> <span class="kn">import</span> <span class="n">sleep</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">argparse</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">importlib.util</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">sys</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">time</span><span class="w"> </span><span class="kn">import</span> <span class="n">sleep</span>
 
-<span class="kn">import</span> <span class="nn">ray</span>
-<span class="kn">import</span> <span class="nn">util</span>
-<span class="kn">from</span> <span class="nn">ray</span> <span class="kn">import</span> <span class="n">air</span><span class="p">,</span> <span class="n">tune</span>
-<span class="kn">from</span> <span class="nn">ray.tune.search.optuna</span> <span class="kn">import</span> <span class="n">OptunaSearch</span>
-<span class="kn">from</span> <span class="nn">ray.tune.search.repeater</span> <span class="kn">import</span> <span class="n">Repeater</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">ray</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">util</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ray</span><span class="w"> </span><span class="kn">import</span> <span class="n">air</span><span class="p">,</span> <span class="n">tune</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ray.tune.search.optuna</span><span class="w"> </span><span class="kn">import</span> <span class="n">OptunaSearch</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ray.tune.search.repeater</span><span class="w"> </span><span class="kn">import</span> <span class="n">Repeater</span>
 
 <span class="sd">&quot;&quot;&quot;</span>
 <span class="hll"><span class="sd">This script breaks down an aggregate tuning job, as defined by a hyperparameter sweep configuration,</span>
@@ -893,7 +893,7 @@ sweep configuration. This assumes homogeneous node resource composition for node
 <span class="n">NUM_WORKERS_PER_NODE</span> <span class="o">=</span> <span class="mi">1</span>  <span class="c1"># needed for local parallelism</span>
 
 
-<span class="k">class</span> <span class="nc">IsaacLabTuneTrainable</span><span class="p">(</span><span class="n">tune</span><span class="o">.</span><span class="n">Trainable</span><span class="p">):</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">IsaacLabTuneTrainable</span><span class="p">(</span><span class="n">tune</span><span class="o">.</span><span class="n">Trainable</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The Isaac Lab Ray Tune Trainable.</span>
 <span class="sd">    This class uses the standalone workflows to start jobs, along with the hydra integration.</span>
 <span class="sd">    This class achieves Ray-based logging through reading the tensorboard logs from</span>
@@ -901,19 +901,19 @@ sweep configuration. This assumes homogeneous node resource composition for node
 <span class="sd">    :class:`JobCfg`</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="k">def</span> <span class="nf">setup</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">config</span><span class="p">:</span> <span class="nb">dict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">setup</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">config</span><span class="p">:</span> <span class="nb">dict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Get the invocation command, return quick for easy scheduling.&quot;&quot;&quot;</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="kc">None</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">invoke_cmd</span> <span class="o">=</span> <span class="n">util</span><span class="o">.</span><span class="n">get_invocation_command_from_cfg</span><span class="p">(</span><span class="n">cfg</span><span class="o">=</span><span class="n">config</span><span class="p">,</span> <span class="n">python_cmd</span><span class="o">=</span><span class="n">PYTHON_EXEC</span><span class="p">,</span> <span class="n">workflow</span><span class="o">=</span><span class="n">WORKFLOW</span><span class="p">)</span>
         <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;[INFO]: Recovered invocation with </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">invoke_cmd</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">experiment</span> <span class="o">=</span> <span class="kc">None</span>
 
-    <span class="k">def</span> <span class="nf">reset_config</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">new_config</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">reset_config</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">new_config</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Allow environments to be re-used by fetching a new invocation command&quot;&quot;&quot;</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">setup</span><span class="p">(</span><span class="n">new_config</span><span class="p">)</span>
         <span class="k">return</span> <span class="kc">True</span>
 
-    <span class="k">def</span> <span class="nf">step</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">step</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">experiment</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>  <span class="c1"># start experiment</span>
             <span class="c1"># When including this as first step instead of setup, experiments get scheduled faster</span>
             <span class="c1"># Don&#39;t want to block the scheduler while the experiment spins up</span>
@@ -954,7 +954,7 @@ sweep configuration. This assumes homogeneous node resource composition for node
             <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="s2">&quot;done&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">False</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span>
 
-    <span class="k">def</span> <span class="nf">default_resource_request</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">default_resource_request</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;How many resources each trainable uses. Assumes homogeneous resources across gpu nodes,</span>
 <span class="sd">        and that each trainable is meant for one node, where it uses all available resources.&quot;&quot;&quot;</span>
         <span class="n">resources</span> <span class="o">=</span> <span class="n">util</span><span class="o">.</span><span class="n">get_gpu_node_resources</span><span class="p">(</span><span class="n">one_node_only</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
@@ -966,7 +966,7 @@ sweep configuration. This assumes homogeneous node resource composition for node
         <span class="p">)</span>
 
 
-<span class="k">def</span> <span class="nf">invoke_tuning_run</span><span class="p">(</span><span class="n">cfg</span><span class="p">:</span> <span class="nb">dict</span><span class="p">,</span> <span class="n">args</span><span class="p">:</span> <span class="n">argparse</span><span class="o">.</span><span class="n">Namespace</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">invoke_tuning_run</span><span class="p">(</span><span class="n">cfg</span><span class="p">:</span> <span class="nb">dict</span><span class="p">,</span> <span class="n">args</span><span class="p">:</span> <span class="n">argparse</span><span class="o">.</span><span class="n">Namespace</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Invoke an Isaac-Ray tuning run.</span>
 
 <span class="sd">    Log either to a local directory or to MLFlow.</span>
@@ -1050,11 +1050,11 @@ sweep configuration. This assumes homogeneous node resource composition for node
         <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[DONE!]: Check results with MLFlow dashboard&quot;</span><span class="p">)</span>
 
 
-<span class="k">class</span> <span class="nc">JobCfg</span><span class="p">:</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">JobCfg</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;To be compatible with :meth: invoke_tuning_run and :class:IsaacLabTuneTrainable,</span>
 <span class="sd">    at a minimum, the tune job should inherit from this class.&quot;&quot;&quot;</span>
 
-    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">):</span>
         <span class="k">assert</span> <span class="s2">&quot;runner_args&quot;</span> <span class="ow">in</span> <span class="n">cfg</span><span class="p">,</span> <span class="s2">&quot;No runner arguments specified.&quot;</span>
         <span class="k">assert</span> <span class="s2">&quot;--task&quot;</span> <span class="ow">in</span> <span class="n">cfg</span><span class="p">[</span><span class="s2">&quot;runner_args&quot;</span><span class="p">],</span> <span class="s2">&quot;No task specified.&quot;</span>
         <span class="k">assert</span> <span class="s2">&quot;hydra_args&quot;</span> <span class="ow">in</span> <span class="n">cfg</span><span class="p">,</span> <span class="s2">&quot;No hypeparameters specified.&quot;</span>
@@ -1140,10 +1140,10 @@ sweep configuration. This assumes homogeneous node resource composition for node
         <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;[INFO]: Using remote mode </span><span class="si">{</span><span class="n">PYTHON_EXEC</span><span class="si">=}</span><span class="s2"> </span><span class="si">{</span><span class="n">WORKFLOW</span><span class="si">=}</span><span class="s2">&quot;</span><span class="p">)</span>
 
         <span class="k">if</span> <span class="n">args</span><span class="o">.</span><span class="n">mlflow_uri</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="kn">import</span> <span class="nn">mlflow</span>
+            <span class="kn">import</span><span class="w"> </span><span class="nn">mlflow</span>
 
             <span class="n">mlflow</span><span class="o">.</span><span class="n">set_tracking_uri</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">mlflow_uri</span><span class="p">)</span>
-            <span class="kn">from</span> <span class="nn">ray.air.integrations.mlflow</span> <span class="kn">import</span> <span class="n">MLflowLoggerCallback</span>
+            <span class="kn">from</span><span class="w"> </span><span class="nn">ray.air.integrations.mlflow</span><span class="w"> </span><span class="kn">import</span> <span class="n">MLflowLoggerCallback</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Please provide a result MLFLow URI server.&quot;</span><span class="p">)</span>
     <span class="k">else</span><span class="p">:</span>  <span class="c1"># local</span>
@@ -1190,12 +1190,12 @@ resource requirements:</p>
 <span class="c1">#</span>
 <span class="c1"># SPDX-License-Identifier: BSD-3-Clause</span>
 
-<span class="kn">import</span> <span class="nn">argparse</span>
-<span class="kn">import</span> <span class="nn">os</span>
-<span class="kn">import</span> <span class="nn">time</span>
-<span class="kn">from</span> <span class="nn">concurrent.futures</span> <span class="kn">import</span> <span class="n">ThreadPoolExecutor</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">argparse</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">time</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">concurrent.futures</span><span class="w"> </span><span class="kn">import</span> <span class="n">ThreadPoolExecutor</span>
 
-<span class="kn">from</span> <span class="nn">ray</span> <span class="kn">import</span> <span class="n">job_submission</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ray</span><span class="w"> </span><span class="kn">import</span> <span class="n">job_submission</span>
 <span class="hll">
 </span><span class="hll"><span class="sd">&quot;&quot;&quot;</span>
 </span><span class="hll"><span class="sd">This script submits aggregate job(s) to cluster(s) described in a</span>
@@ -1242,7 +1242,7 @@ resource requirements:</p>
 <span class="n">CONFIG</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;working_dir&quot;</span><span class="p">:</span> <span class="n">script_directory</span><span class="p">,</span> <span class="s2">&quot;executable&quot;</span><span class="p">:</span> <span class="s2">&quot;/workspace/isaaclab/isaaclab.sh -p&quot;</span><span class="p">}</span>
 
 
-<span class="k">def</span> <span class="nf">read_cluster_spec</span><span class="p">(</span><span class="n">fn</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">]:</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">read_cluster_spec</span><span class="p">(</span><span class="n">fn</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">]:</span>
     <span class="k">if</span> <span class="n">fn</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
         <span class="n">cluster_spec_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">expanduser</span><span class="p">(</span><span class="s2">&quot;~/.cluster_config&quot;</span><span class="p">)</span>
     <span class="k">else</span><span class="p">:</span>
@@ -1263,7 +1263,7 @@ resource requirements:</p>
     <span class="k">return</span> <span class="n">clusters</span>
 
 
-<span class="k">def</span> <span class="nf">submit_job</span><span class="p">(</span><span class="n">cluster</span><span class="p">:</span> <span class="nb">dict</span><span class="p">,</span> <span class="n">job_command</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">submit_job</span><span class="p">(</span><span class="n">cluster</span><span class="p">:</span> <span class="nb">dict</span><span class="p">,</span> <span class="n">job_command</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Submits a job to a single cluster, prints the final result and Ray dashboard URL at the end.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
@@ -1293,7 +1293,7 @@ resource requirements:</p>
     <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;----------------------------------------------------&quot;</span><span class="p">)</span>
 
 
-<span class="k">def</span> <span class="nf">submit_jobs_to_clusters</span><span class="p">(</span><span class="n">jobs</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span> <span class="n">clusters</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">submit_jobs_to_clusters</span><span class="p">(</span><span class="n">jobs</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span> <span class="n">clusters</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Submit all jobs to their respective clusters, cycling through clusters if there are more jobs than clusters.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
@@ -1345,13 +1345,13 @@ resource requirements:</p>
 <span class="c1">#</span>
 <span class="c1"># SPDX-License-Identifier: BSD-3-Clause</span>
 
-<span class="kn">import</span> <span class="nn">argparse</span>
-<span class="kn">import</span> <span class="nn">os</span>
-<span class="kn">import</span> <span class="nn">re</span>
-<span class="kn">import</span> <span class="nn">subprocess</span>
-<span class="kn">import</span> <span class="nn">threading</span>
-<span class="kn">import</span> <span class="nn">time</span>
-<span class="kn">from</span> <span class="nn">concurrent.futures</span> <span class="kn">import</span> <span class="n">ThreadPoolExecutor</span><span class="p">,</span> <span class="n">as_completed</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">argparse</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">re</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">subprocess</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">threading</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">time</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">concurrent.futures</span><span class="w"> </span><span class="kn">import</span> <span class="n">ThreadPoolExecutor</span><span class="p">,</span> <span class="n">as_completed</span>
 
 <span class="hll"><span class="sd">&quot;&quot;&quot;</span>
 </span><span class="hll"><span class="sd">This script requires that kubectl is installed and KubeRay was used to create the cluster.</span>
@@ -1368,7 +1368,7 @@ resource requirements:</p>
 </span><span class="hll"><span class="sd">&quot;&quot;&quot;</span>
 </span>
 
-<span class="k">def</span> <span class="nf">get_namespace</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">get_namespace</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Get the current Kubernetes namespace from the context, fallback to default if not set&quot;&quot;&quot;</span>
     <span class="k">try</span><span class="p">:</span>
         <span class="n">namespace</span> <span class="o">=</span> <span class="p">(</span>
@@ -1383,7 +1383,7 @@ resource requirements:</p>
     <span class="k">return</span> <span class="n">namespace</span>
 
 
-<span class="k">def</span> <span class="nf">get_pods</span><span class="p">(</span><span class="n">namespace</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;default&quot;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">]:</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">get_pods</span><span class="p">(</span><span class="n">namespace</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;default&quot;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">]:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Get a list of all of the pods in the namespace&quot;&quot;&quot;</span>
     <span class="n">cmd</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;kubectl&quot;</span><span class="p">,</span> <span class="s2">&quot;get&quot;</span><span class="p">,</span> <span class="s2">&quot;pods&quot;</span><span class="p">,</span> <span class="s2">&quot;-n&quot;</span><span class="p">,</span> <span class="n">namespace</span><span class="p">,</span> <span class="s2">&quot;--no-headers&quot;</span><span class="p">]</span>
     <span class="n">output</span> <span class="o">=</span> <span class="n">subprocess</span><span class="o">.</span><span class="n">check_output</span><span class="p">(</span><span class="n">cmd</span><span class="p">)</span><span class="o">.</span><span class="n">decode</span><span class="p">()</span>
@@ -1396,7 +1396,7 @@ resource requirements:</p>
     <span class="k">return</span> <span class="n">pods</span>
 
 
-<span class="k">def</span> <span class="nf">get_clusters</span><span class="p">(</span><span class="n">pods</span><span class="p">:</span> <span class="nb">list</span><span class="p">,</span> <span class="n">cluster_name_prefix</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">set</span><span class="p">:</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">get_clusters</span><span class="p">(</span><span class="n">pods</span><span class="p">:</span> <span class="nb">list</span><span class="p">,</span> <span class="n">cluster_name_prefix</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">set</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Get unique cluster name(s). Works for one or more clusters, based off of the number of head nodes.</span>
 <span class="sd">    Excludes MLflow deployments.</span>
@@ -1415,7 +1415,7 @@ resource requirements:</p>
     <span class="k">return</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">clusters</span><span class="p">)</span>
 
 
-<span class="k">def</span> <span class="nf">get_mlflow_info</span><span class="p">(</span><span class="n">namespace</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">cluster_prefix</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;isaacray&quot;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">get_mlflow_info</span><span class="p">(</span><span class="n">namespace</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">cluster_prefix</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;isaacray&quot;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Get MLflow service information if it exists in the namespace with the given prefix.</span>
 <span class="sd">    Only works for a single cluster instance.</span>
@@ -1450,7 +1450,7 @@ resource requirements:</p>
         <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Could not grok MLflow: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>  <span class="c1"># Fixed f-string</span>
 
 
-<span class="k">def</span> <span class="nf">check_clusters_running</span><span class="p">(</span><span class="n">pods</span><span class="p">:</span> <span class="nb">list</span><span class="p">,</span> <span class="n">clusters</span><span class="p">:</span> <span class="nb">set</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">check_clusters_running</span><span class="p">(</span><span class="n">pods</span><span class="p">:</span> <span class="nb">list</span><span class="p">,</span> <span class="n">clusters</span><span class="p">:</span> <span class="nb">set</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Check that all of the pods in all provided clusters are running.</span>
 
@@ -1472,7 +1472,7 @@ resource requirements:</p>
     <span class="k">return</span> <span class="n">clusters_running</span>
 
 
-<span class="k">def</span> <span class="nf">get_ray_address</span><span class="p">(</span><span class="n">head_pod</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">namespace</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;default&quot;</span><span class="p">,</span> <span class="n">ray_head_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;head&quot;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">get_ray_address</span><span class="p">(</span><span class="n">head_pod</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">namespace</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;default&quot;</span><span class="p">,</span> <span class="n">ray_head_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;head&quot;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Given a cluster head pod, check its logs, which should include the ray address which can accept job requests.</span>
 
@@ -1501,7 +1501,7 @@ resource requirements:</p>
         <span class="k">return</span> <span class="kc">None</span>
 
 
-<span class="k">def</span> <span class="nf">process_cluster</span><span class="p">(</span><span class="n">cluster_info</span><span class="p">:</span> <span class="nb">dict</span><span class="p">,</span> <span class="n">ray_head_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;head&quot;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">process_cluster</span><span class="p">(</span><span class="n">cluster_info</span><span class="p">:</span> <span class="nb">dict</span><span class="p">,</span> <span class="n">ray_head_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;head&quot;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    For each cluster, check that it is running, and get the Ray head address that will accept jobs.</span>
 
@@ -1530,7 +1530,7 @@ resource requirements:</p>
     <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;name: </span><span class="si">{</span><span class="n">cluster</span><span class="si">}</span><span class="s2"> address: </span><span class="si">{</span><span class="n">ray_address</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span>
 
 
-<span class="k">def</span> <span class="nf">main</span><span class="p">():</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">():</span>
     <span class="c1"># Parse command-line arguments</span>
     <span class="n">parser</span> <span class="o">=</span> <span class="n">argparse</span><span class="o">.</span><span class="n">ArgumentParser</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="s2">&quot;Process Ray clusters and save their specifications.&quot;</span><span class="p">)</span>
     <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">&quot;--prefix&quot;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="s2">&quot;isaacray&quot;</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s2">&quot;The prefix for the cluster names.&quot;</span><span class="p">)</span>
@@ -1626,15 +1626,15 @@ resource requirements:</p>
 <span class="c1">#</span>
 <span class="c1"># SPDX-License-Identifier: BSD-3-Clause</span>
 
-<span class="kn">import</span> <span class="nn">argparse</span>
-<span class="kn">import</span> <span class="nn">pathlib</span>
-<span class="kn">import</span> <span class="nn">subprocess</span>
-<span class="kn">import</span> <span class="nn">yaml</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">argparse</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">pathlib</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">subprocess</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">yaml</span>
 
-<span class="kn">from</span> <span class="nn">jinja2</span> <span class="kn">import</span> <span class="n">Environment</span><span class="p">,</span> <span class="n">FileSystemLoader</span>
-<span class="kn">from</span> <span class="nn">kubernetes</span> <span class="kn">import</span> <span class="n">config</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">jinja2</span><span class="w"> </span><span class="kn">import</span> <span class="n">Environment</span><span class="p">,</span> <span class="n">FileSystemLoader</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">kubernetes</span><span class="w"> </span><span class="kn">import</span> <span class="n">config</span>
 
-<span class="kn">import</span> <span class="nn">source.standalone.workflows.ray.util</span> <span class="k">as</span> <span class="nn">util</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">source.standalone.workflows.ray.util</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">util</span>
 
 <span class="hll"><span class="sd">&quot;&quot;&quot;This script helps create one or more KubeRay clusters.</span>
 </span><span class="hll">
@@ -1661,7 +1661,7 @@ resource requirements:</p>
 </span><span class="n">RAY_DIR</span> <span class="o">=</span> <span class="n">pathlib</span><span class="o">.</span><span class="n">Path</span><span class="p">(</span><span class="vm">__file__</span><span class="p">)</span><span class="o">.</span><span class="n">parent</span>
 
 
-<span class="k">def</span> <span class="nf">apply_manifest</span><span class="p">(</span><span class="n">args</span><span class="p">:</span> <span class="n">argparse</span><span class="o">.</span><span class="n">Namespace</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">apply_manifest</span><span class="p">(</span><span class="n">args</span><span class="p">:</span> <span class="n">argparse</span><span class="o">.</span><span class="n">Namespace</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Provided a Jinja templated ray.io/v1alpha1 file,</span>
 <span class="sd">    populate the arguments and create the cluster. Additionally, create</span>
 <span class="sd">    kubernetes containers for resources separated by &#39;---&#39; from the rest</span>
@@ -1707,7 +1707,7 @@ resource requirements:</p>
         <span class="n">exit</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;An error occurred while running `kubectl`: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 
 
-<span class="k">def</span> <span class="nf">parse_args</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">argparse</span><span class="o">.</span><span class="n">Namespace</span><span class="p">:</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">parse_args</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">argparse</span><span class="o">.</span><span class="n">Namespace</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Parse command-line arguments for Kubernetes deployment script.</span>
 
@@ -1785,7 +1785,7 @@ resource requirements:</p>
     <span class="k">return</span> <span class="n">util</span><span class="o">.</span><span class="n">fill_in_missing_resources</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="n">cluster_creation_flag</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 
 
-<span class="k">def</span> <span class="nf">main</span><span class="p">():</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">():</span>
     <span class="n">args</span> <span class="o">=</span> <span class="n">parse_args</span><span class="p">()</span>
 
     <span class="k">if</span> <span class="s2">&quot;head&quot;</span> <span class="ow">in</span> <span class="n">args</span><span class="o">.</span><span class="n">name</span><span class="p">:</span>
@@ -1901,12 +1901,12 @@ that the cluster job submission address is known.</p>
 <span class="c1">#</span>
 <span class="c1"># SPDX-License-Identifier: BSD-3-Clause</span>
 
-<span class="kn">import</span> <span class="nn">argparse</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">argparse</span>
 
-<span class="kn">import</span> <span class="nn">ray</span>
-<span class="kn">from</span> <span class="nn">ray.util.scheduling_strategies</span> <span class="kn">import</span> <span class="n">NodeAffinitySchedulingStrategy</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">ray</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ray.util.scheduling_strategies</span><span class="w"> </span><span class="kn">import</span> <span class="n">NodeAffinitySchedulingStrategy</span>
 
-<span class="kn">import</span> <span class="nn">source.standalone.workflows.ray.util</span> <span class="k">as</span> <span class="nn">util</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">source.standalone.workflows.ray.util</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">util</span>
 
 <span class="sd">&quot;&quot;&quot;</span>
 <span class="hll"><span class="sd">This script dispatches sub-job(s) (either individual jobs or tuning aggregate jobs)</span>
@@ -1964,7 +1964,7 @@ that the cluster job submission address is known.</p>
 </span><span class="hll"><span class="sd">&quot;&quot;&quot;</span>
 </span>
 
-<span class="k">def</span> <span class="nf">wrap_resources_to_jobs</span><span class="p">(</span><span class="n">jobs</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span> <span class="n">args</span><span class="p">:</span> <span class="n">argparse</span><span class="o">.</span><span class="n">Namespace</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">wrap_resources_to_jobs</span><span class="p">(</span><span class="n">jobs</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span> <span class="n">args</span><span class="p">:</span> <span class="n">argparse</span><span class="o">.</span><span class="n">Namespace</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Provided a list of jobs, dispatch jobs to one worker per available node,</span>
 <span class="sd">    unless otherwise specified by resource constraints.</span>
@@ -2059,18 +2059,18 @@ that the cluster job submission address is known.</p>
 <span class="c1">#</span>
 <span class="c1"># SPDX-License-Identifier: BSD-3-Clause</span>
 
-<span class="kn">import</span> <span class="nn">pathlib</span>
-<span class="kn">import</span> <span class="nn">sys</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">pathlib</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">sys</span>
 
 <span class="c1"># Allow for import of items from the ray workflow.</span>
 <span class="n">UTIL_DIR</span> <span class="o">=</span> <span class="n">pathlib</span><span class="o">.</span><span class="n">Path</span><span class="p">(</span><span class="vm">__file__</span><span class="p">)</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">parent</span>
 <span class="n">sys</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">UTIL_DIR</span><span class="p">))</span>
-<span class="kn">import</span> <span class="nn">tuner</span>
-<span class="kn">import</span> <span class="nn">util</span>
-<span class="kn">from</span> <span class="nn">ray</span> <span class="kn">import</span> <span class="n">tune</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">tuner</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">util</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ray</span><span class="w"> </span><span class="kn">import</span> <span class="n">tune</span>
 
 
-<span class="k">class</span> <span class="nc">CameraJobCfg</span><span class="p">(</span><span class="n">tuner</span><span class="o">.</span><span class="n">JobCfg</span><span class="p">):</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">CameraJobCfg</span><span class="p">(</span><span class="n">tuner</span><span class="o">.</span><span class="n">JobCfg</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;In order to be compatible with :meth: invoke_tuning_run, and</span>
 <span class="sd">    :class:IsaacLabTuneTrainable , configurations should</span>
 <span class="sd">    be in a similar format to this class. This class can vary env count/horizon length,</span>
@@ -2079,12 +2079,12 @@ that the cluster job submission address is known.</p>
 <span class="sd">    These ranges were selected for demonstration purposes. Best ranges are run/task specific.&quot;&quot;&quot;</span>
 
     <span class="nd">@staticmethod</span>
-    <span class="k">def</span> <span class="nf">_get_batch_size_divisors</span><span class="p">(</span><span class="n">batch_size</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">min_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">128</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">]:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_get_batch_size_divisors</span><span class="p">(</span><span class="n">batch_size</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">min_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">128</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">]:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Get valid batch divisors to combine with num_envs and horizon length&quot;&quot;&quot;</span>
         <span class="n">divisors</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">min_size</span><span class="p">,</span> <span class="n">batch_size</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="k">if</span> <span class="n">batch_size</span> <span class="o">%</span> <span class="n">i</span> <span class="o">==</span> <span class="mi">0</span><span class="p">]</span>
         <span class="k">return</span> <span class="n">divisors</span> <span class="k">if</span> <span class="n">divisors</span> <span class="k">else</span> <span class="p">[</span><span class="n">min_size</span><span class="p">]</span>
 
-    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="o">=</span><span class="p">{},</span> <span class="n">vary_env_count</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span> <span class="n">vary_cnn</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span> <span class="n">vary_mlp</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="o">=</span><span class="p">{},</span> <span class="n">vary_env_count</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span> <span class="n">vary_cnn</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span> <span class="n">vary_mlp</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">):</span>
         <span class="n">cfg</span> <span class="o">=</span> <span class="n">util</span><span class="o">.</span><span class="n">populate_isaac_ray_cfg_args</span><span class="p">(</span><span class="n">cfg</span><span class="p">)</span>
 
         <span class="c1"># Basic configuration</span>
@@ -2105,7 +2105,7 @@ that the cluster job submission address is known.</p>
             <span class="n">cfg</span><span class="p">[</span><span class="s2">&quot;runner_args&quot;</span><span class="p">][</span><span class="s2">&quot;--num_envs&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">selected_env_count</span>
             <span class="n">cfg</span><span class="p">[</span><span class="s2">&quot;hydra_args&quot;</span><span class="p">][</span><span class="s2">&quot;agent.params.config.horizon_length&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">selected_horizon</span>
 
-            <span class="k">def</span> <span class="nf">get_valid_batch_size</span><span class="p">(</span><span class="n">config</span><span class="p">):</span>
+            <span class="k">def</span><span class="w"> </span><span class="nf">get_valid_batch_size</span><span class="p">(</span><span class="n">config</span><span class="p">):</span>
                 <span class="n">num_envs</span> <span class="o">=</span> <span class="n">config</span><span class="p">[</span><span class="s2">&quot;runner_args&quot;</span><span class="p">][</span><span class="s2">&quot;--num_envs&quot;</span><span class="p">]</span>
                 <span class="n">horizon_length</span> <span class="o">=</span> <span class="n">config</span><span class="p">[</span><span class="s2">&quot;hydra_args&quot;</span><span class="p">][</span><span class="s2">&quot;agent.params.config.horizon_length&quot;</span><span class="p">]</span>
                 <span class="n">total_batch</span> <span class="o">=</span> <span class="n">horizon_length</span> <span class="o">*</span> <span class="n">num_envs</span>
@@ -2122,7 +2122,7 @@ that the cluster job submission address is known.</p>
             <span class="n">cfg</span><span class="p">[</span><span class="s2">&quot;hydra_args&quot;</span><span class="p">][</span><span class="s2">&quot;agent.params.network.cnn.initializer&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;{name:default}&quot;</span>
             <span class="n">cfg</span><span class="p">[</span><span class="s2">&quot;hydra_args&quot;</span><span class="p">][</span><span class="s2">&quot;agent.params.network.cnn.regularizer&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;{name:None}&quot;</span>
 
-            <span class="k">def</span> <span class="nf">get_cnn_layers</span><span class="p">(</span><span class="n">_</span><span class="p">):</span>
+            <span class="k">def</span><span class="w"> </span><span class="nf">get_cnn_layers</span><span class="p">(</span><span class="n">_</span><span class="p">):</span>
                 <span class="n">layers</span> <span class="o">=</span> <span class="p">[]</span>
                 <span class="n">size</span> <span class="o">=</span> <span class="mi">64</span>  <span class="c1"># Initial input size</span>
 
@@ -2168,7 +2168,7 @@ that the cluster job submission address is known.</p>
 
             <span class="n">num_layers</span> <span class="o">=</span> <span class="n">tune</span><span class="o">.</span><span class="n">randint</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">max_num_layers</span><span class="p">)</span>
 
-            <span class="k">def</span> <span class="nf">get_mlp_layers</span><span class="p">(</span><span class="n">_</span><span class="p">):</span>
+            <span class="k">def</span><span class="w"> </span><span class="nf">get_mlp_layers</span><span class="p">(</span><span class="n">_</span><span class="p">):</span>
                 <span class="k">return</span> <span class="p">[</span><span class="n">tune</span><span class="o">.</span><span class="n">randint</span><span class="p">(</span><span class="mi">4</span><span class="p">,</span> <span class="n">max_neurons_per_layer</span><span class="p">)</span><span class="o">.</span><span class="n">sample</span><span class="p">()</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_layers</span><span class="o">.</span><span class="n">sample</span><span class="p">())]</span>
 
             <span class="n">cfg</span><span class="p">[</span><span class="s2">&quot;hydra_args&quot;</span><span class="p">][</span><span class="s2">&quot;agent.params.network.mlp.units&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">tune</span><span class="o">.</span><span class="n">sample_from</span><span class="p">(</span><span class="n">get_mlp_layers</span><span class="p">)</span>
@@ -2180,10 +2180,10 @@ that the cluster job submission address is known.</p>
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">cfg</span><span class="p">)</span>
 
 
-<span class="k">class</span> <span class="nc">ResNetCameraJob</span><span class="p">(</span><span class="n">CameraJobCfg</span><span class="p">):</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">ResNetCameraJob</span><span class="p">(</span><span class="n">CameraJobCfg</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Try different ResNet sizes.&quot;&quot;&quot;</span>
 
-    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">=</span> <span class="p">{}):</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">=</span> <span class="p">{}):</span>
         <span class="n">cfg</span> <span class="o">=</span> <span class="n">util</span><span class="o">.</span><span class="n">populate_isaac_ray_cfg_args</span><span class="p">(</span><span class="n">cfg</span><span class="p">)</span>
         <span class="n">cfg</span><span class="p">[</span><span class="s2">&quot;hydra_args&quot;</span><span class="p">][</span><span class="s2">&quot;env.observations.policy.image.params.model_name&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">tune</span><span class="o">.</span><span class="n">choice</span><span class="p">(</span>
             <span class="p">[</span><span class="s2">&quot;resnet18&quot;</span><span class="p">,</span> <span class="s2">&quot;resnet34&quot;</span><span class="p">,</span> <span class="s2">&quot;resnet50&quot;</span><span class="p">,</span> <span class="s2">&quot;resnet101&quot;</span><span class="p">]</span>
@@ -2191,10 +2191,10 @@ that the cluster job submission address is known.</p>
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="n">vary_env_count</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">vary_cnn</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">vary_mlp</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 
 
-<span class="k">class</span> <span class="nc">TheiaCameraJob</span><span class="p">(</span><span class="n">CameraJobCfg</span><span class="p">):</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">TheiaCameraJob</span><span class="p">(</span><span class="n">CameraJobCfg</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Try different Theia sizes.&quot;&quot;&quot;</span>
 
-    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">=</span> <span class="p">{}):</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">=</span> <span class="p">{}):</span>
         <span class="n">cfg</span> <span class="o">=</span> <span class="n">util</span><span class="o">.</span><span class="n">populate_isaac_ray_cfg_args</span><span class="p">(</span><span class="n">cfg</span><span class="p">)</span>
         <span class="n">cfg</span><span class="p">[</span><span class="s2">&quot;hydra_args&quot;</span><span class="p">][</span><span class="s2">&quot;env.observations.policy.image.params.model_name&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">tune</span><span class="o">.</span><span class="n">choice</span><span class="p">([</span>
             <span class="s2">&quot;theia-tiny-patch16-224-cddsv&quot;</span><span class="p">,</span>
@@ -2215,48 +2215,48 @@ that the cluster job submission address is known.</p>
 <span class="c1"># All rights reserved.</span>
 <span class="c1">#</span>
 <span class="c1"># SPDX-License-Identifier: BSD-3-Clause</span>
-<span class="kn">import</span> <span class="nn">pathlib</span>
-<span class="kn">import</span> <span class="nn">sys</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">pathlib</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">sys</span>
 
 <span class="c1"># Allow for import of items from the ray workflow.</span>
 <span class="n">CUR_DIR</span> <span class="o">=</span> <span class="n">pathlib</span><span class="o">.</span><span class="n">Path</span><span class="p">(</span><span class="vm">__file__</span><span class="p">)</span><span class="o">.</span><span class="n">parent</span>
 <span class="n">UTIL_DIR</span> <span class="o">=</span> <span class="n">CUR_DIR</span><span class="o">.</span><span class="n">parent</span>
 <span class="n">sys</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">extend</span><span class="p">([</span><span class="nb">str</span><span class="p">(</span><span class="n">UTIL_DIR</span><span class="p">),</span> <span class="nb">str</span><span class="p">(</span><span class="n">CUR_DIR</span><span class="p">)])</span>
-<span class="kn">import</span> <span class="nn">util</span>
-<span class="kn">import</span> <span class="nn">vision_cfg</span>
-<span class="kn">from</span> <span class="nn">ray</span> <span class="kn">import</span> <span class="n">tune</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">util</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">vision_cfg</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ray</span><span class="w"> </span><span class="kn">import</span> <span class="n">tune</span>
 
 
-<span class="k">class</span> <span class="nc">CartpoleRGBNoTuneJobCfg</span><span class="p">(</span><span class="n">vision_cfg</span><span class="o">.</span><span class="n">CameraJobCfg</span><span class="p">):</span>
-    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">=</span> <span class="p">{}):</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">CartpoleRGBNoTuneJobCfg</span><span class="p">(</span><span class="n">vision_cfg</span><span class="o">.</span><span class="n">CameraJobCfg</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">=</span> <span class="p">{}):</span>
         <span class="n">cfg</span> <span class="o">=</span> <span class="n">util</span><span class="o">.</span><span class="n">populate_isaac_ray_cfg_args</span><span class="p">(</span><span class="n">cfg</span><span class="p">)</span>
         <span class="n">cfg</span><span class="p">[</span><span class="s2">&quot;runner_args&quot;</span><span class="p">][</span><span class="s2">&quot;--task&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">tune</span><span class="o">.</span><span class="n">choice</span><span class="p">([</span><span class="s2">&quot;Isaac-Cartpole-RGB-v0&quot;</span><span class="p">])</span>
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="n">vary_env_count</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">vary_cnn</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">vary_mlp</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
 
 
-<span class="k">class</span> <span class="nc">CartpoleRGBCNNOnlyJobCfg</span><span class="p">(</span><span class="n">vision_cfg</span><span class="o">.</span><span class="n">CameraJobCfg</span><span class="p">):</span>
-    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">=</span> <span class="p">{}):</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">CartpoleRGBCNNOnlyJobCfg</span><span class="p">(</span><span class="n">vision_cfg</span><span class="o">.</span><span class="n">CameraJobCfg</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">=</span> <span class="p">{}):</span>
         <span class="n">cfg</span> <span class="o">=</span> <span class="n">util</span><span class="o">.</span><span class="n">populate_isaac_ray_cfg_args</span><span class="p">(</span><span class="n">cfg</span><span class="p">)</span>
         <span class="n">cfg</span><span class="p">[</span><span class="s2">&quot;runner_args&quot;</span><span class="p">][</span><span class="s2">&quot;--task&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">tune</span><span class="o">.</span><span class="n">choice</span><span class="p">([</span><span class="s2">&quot;Isaac-Cartpole-RGB-v0&quot;</span><span class="p">])</span>
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="n">vary_env_count</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">vary_cnn</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">vary_mlp</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
 
 
-<span class="k">class</span> <span class="nc">CartpoleRGBJobCfg</span><span class="p">(</span><span class="n">vision_cfg</span><span class="o">.</span><span class="n">CameraJobCfg</span><span class="p">):</span>
-    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">=</span> <span class="p">{}):</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">CartpoleRGBJobCfg</span><span class="p">(</span><span class="n">vision_cfg</span><span class="o">.</span><span class="n">CameraJobCfg</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">=</span> <span class="p">{}):</span>
         <span class="n">cfg</span> <span class="o">=</span> <span class="n">util</span><span class="o">.</span><span class="n">populate_isaac_ray_cfg_args</span><span class="p">(</span><span class="n">cfg</span><span class="p">)</span>
         <span class="n">cfg</span><span class="p">[</span><span class="s2">&quot;runner_args&quot;</span><span class="p">][</span><span class="s2">&quot;--task&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">tune</span><span class="o">.</span><span class="n">choice</span><span class="p">([</span><span class="s2">&quot;Isaac-Cartpole-RGB-v0&quot;</span><span class="p">])</span>
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="n">vary_env_count</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">vary_cnn</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">vary_mlp</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 
 
-<span class="k">class</span> <span class="nc">CartpoleResNetJobCfg</span><span class="p">(</span><span class="n">vision_cfg</span><span class="o">.</span><span class="n">ResNetCameraJob</span><span class="p">):</span>
-    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">=</span> <span class="p">{}):</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">CartpoleResNetJobCfg</span><span class="p">(</span><span class="n">vision_cfg</span><span class="o">.</span><span class="n">ResNetCameraJob</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">=</span> <span class="p">{}):</span>
         <span class="n">cfg</span> <span class="o">=</span> <span class="n">util</span><span class="o">.</span><span class="n">populate_isaac_ray_cfg_args</span><span class="p">(</span><span class="n">cfg</span><span class="p">)</span>
         <span class="n">cfg</span><span class="p">[</span><span class="s2">&quot;runner_args&quot;</span><span class="p">][</span><span class="s2">&quot;--task&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">tune</span><span class="o">.</span><span class="n">choice</span><span class="p">([</span><span class="s2">&quot;Isaac-Cartpole-RGB-ResNet18-v0&quot;</span><span class="p">])</span>
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">cfg</span><span class="p">)</span>
 
 
-<span class="k">class</span> <span class="nc">CartpoleTheiaJobCfg</span><span class="p">(</span><span class="n">vision_cfg</span><span class="o">.</span><span class="n">TheiaCameraJob</span><span class="p">):</span>
-    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">=</span> <span class="p">{}):</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">CartpoleTheiaJobCfg</span><span class="p">(</span><span class="n">vision_cfg</span><span class="o">.</span><span class="n">TheiaCameraJob</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">=</span> <span class="p">{}):</span>
         <span class="n">cfg</span> <span class="o">=</span> <span class="n">util</span><span class="o">.</span><span class="n">populate_isaac_ray_cfg_args</span><span class="p">(</span><span class="n">cfg</span><span class="p">)</span>
         <span class="n">cfg</span><span class="p">[</span><span class="s2">&quot;runner_args&quot;</span><span class="p">][</span><span class="s2">&quot;--task&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">tune</span><span class="o">.</span><span class="n">choice</span><span class="p">([</span><span class="s2">&quot;Isaac-Cartpole-RGB-TheiaTiny-v0&quot;</span><span class="p">])</span>
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">cfg</span><span class="p">)</span>
@@ -2271,17 +2271,17 @@ that the cluster job submission address is known.</p>
 <span class="c1"># All rights reserved.</span>
 <span class="c1">#</span>
 <span class="c1"># SPDX-License-Identifier: BSD-3-Clause</span>
-<span class="kn">import</span> <span class="nn">argparse</span>
-<span class="kn">import</span> <span class="nn">importlib.util</span>
-<span class="kn">import</span> <span class="nn">os</span>
-<span class="kn">import</span> <span class="nn">sys</span>
-<span class="kn">from</span> <span class="nn">time</span> <span class="kn">import</span> <span class="n">sleep</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">argparse</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">importlib.util</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">sys</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">time</span><span class="w"> </span><span class="kn">import</span> <span class="n">sleep</span>
 
-<span class="kn">import</span> <span class="nn">ray</span>
-<span class="kn">import</span> <span class="nn">util</span>
-<span class="kn">from</span> <span class="nn">ray</span> <span class="kn">import</span> <span class="n">air</span><span class="p">,</span> <span class="n">tune</span>
-<span class="kn">from</span> <span class="nn">ray.tune.search.optuna</span> <span class="kn">import</span> <span class="n">OptunaSearch</span>
-<span class="kn">from</span> <span class="nn">ray.tune.search.repeater</span> <span class="kn">import</span> <span class="n">Repeater</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">ray</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">util</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ray</span><span class="w"> </span><span class="kn">import</span> <span class="n">air</span><span class="p">,</span> <span class="n">tune</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ray.tune.search.optuna</span><span class="w"> </span><span class="kn">import</span> <span class="n">OptunaSearch</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ray.tune.search.repeater</span><span class="w"> </span><span class="kn">import</span> <span class="n">Repeater</span>
 
 <span class="sd">&quot;&quot;&quot;</span>
 <span class="hll"><span class="sd">This script breaks down an aggregate tuning job, as defined by a hyperparameter sweep configuration,</span>
@@ -2328,7 +2328,7 @@ that the cluster job submission address is known.</p>
 <span class="n">NUM_WORKERS_PER_NODE</span> <span class="o">=</span> <span class="mi">1</span>  <span class="c1"># needed for local parallelism</span>
 
 
-<span class="k">class</span> <span class="nc">IsaacLabTuneTrainable</span><span class="p">(</span><span class="n">tune</span><span class="o">.</span><span class="n">Trainable</span><span class="p">):</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">IsaacLabTuneTrainable</span><span class="p">(</span><span class="n">tune</span><span class="o">.</span><span class="n">Trainable</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The Isaac Lab Ray Tune Trainable.</span>
 <span class="sd">    This class uses the standalone workflows to start jobs, along with the hydra integration.</span>
 <span class="sd">    This class achieves Ray-based logging through reading the tensorboard logs from</span>
@@ -2336,19 +2336,19 @@ that the cluster job submission address is known.</p>
 <span class="sd">    :class:`JobCfg`</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="k">def</span> <span class="nf">setup</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">config</span><span class="p">:</span> <span class="nb">dict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">setup</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">config</span><span class="p">:</span> <span class="nb">dict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Get the invocation command, return quick for easy scheduling.&quot;&quot;&quot;</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="kc">None</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">invoke_cmd</span> <span class="o">=</span> <span class="n">util</span><span class="o">.</span><span class="n">get_invocation_command_from_cfg</span><span class="p">(</span><span class="n">cfg</span><span class="o">=</span><span class="n">config</span><span class="p">,</span> <span class="n">python_cmd</span><span class="o">=</span><span class="n">PYTHON_EXEC</span><span class="p">,</span> <span class="n">workflow</span><span class="o">=</span><span class="n">WORKFLOW</span><span class="p">)</span>
         <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;[INFO]: Recovered invocation with </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">invoke_cmd</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">experiment</span> <span class="o">=</span> <span class="kc">None</span>
 
-    <span class="k">def</span> <span class="nf">reset_config</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">new_config</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">reset_config</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">new_config</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Allow environments to be re-used by fetching a new invocation command&quot;&quot;&quot;</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">setup</span><span class="p">(</span><span class="n">new_config</span><span class="p">)</span>
         <span class="k">return</span> <span class="kc">True</span>
 
-    <span class="k">def</span> <span class="nf">step</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">step</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">experiment</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>  <span class="c1"># start experiment</span>
             <span class="c1"># When including this as first step instead of setup, experiments get scheduled faster</span>
             <span class="c1"># Don&#39;t want to block the scheduler while the experiment spins up</span>
@@ -2389,7 +2389,7 @@ that the cluster job submission address is known.</p>
             <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="s2">&quot;done&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">False</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span>
 
-    <span class="k">def</span> <span class="nf">default_resource_request</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">default_resource_request</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;How many resources each trainable uses. Assumes homogeneous resources across gpu nodes,</span>
 <span class="sd">        and that each trainable is meant for one node, where it uses all available resources.&quot;&quot;&quot;</span>
         <span class="n">resources</span> <span class="o">=</span> <span class="n">util</span><span class="o">.</span><span class="n">get_gpu_node_resources</span><span class="p">(</span><span class="n">one_node_only</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
@@ -2401,7 +2401,7 @@ that the cluster job submission address is known.</p>
         <span class="p">)</span>
 
 
-<span class="k">def</span> <span class="nf">invoke_tuning_run</span><span class="p">(</span><span class="n">cfg</span><span class="p">:</span> <span class="nb">dict</span><span class="p">,</span> <span class="n">args</span><span class="p">:</span> <span class="n">argparse</span><span class="o">.</span><span class="n">Namespace</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">invoke_tuning_run</span><span class="p">(</span><span class="n">cfg</span><span class="p">:</span> <span class="nb">dict</span><span class="p">,</span> <span class="n">args</span><span class="p">:</span> <span class="n">argparse</span><span class="o">.</span><span class="n">Namespace</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Invoke an Isaac-Ray tuning run.</span>
 
 <span class="sd">    Log either to a local directory or to MLFlow.</span>
@@ -2485,11 +2485,11 @@ that the cluster job submission address is known.</p>
         <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[DONE!]: Check results with MLFlow dashboard&quot;</span><span class="p">)</span>
 
 
-<span class="k">class</span> <span class="nc">JobCfg</span><span class="p">:</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">JobCfg</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;To be compatible with :meth: invoke_tuning_run and :class:IsaacLabTuneTrainable,</span>
 <span class="sd">    at a minimum, the tune job should inherit from this class.&quot;&quot;&quot;</span>
 
-    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">):</span>
         <span class="k">assert</span> <span class="s2">&quot;runner_args&quot;</span> <span class="ow">in</span> <span class="n">cfg</span><span class="p">,</span> <span class="s2">&quot;No runner arguments specified.&quot;</span>
         <span class="k">assert</span> <span class="s2">&quot;--task&quot;</span> <span class="ow">in</span> <span class="n">cfg</span><span class="p">[</span><span class="s2">&quot;runner_args&quot;</span><span class="p">],</span> <span class="s2">&quot;No task specified.&quot;</span>
         <span class="k">assert</span> <span class="s2">&quot;hydra_args&quot;</span> <span class="ow">in</span> <span class="n">cfg</span><span class="p">,</span> <span class="s2">&quot;No hypeparameters specified.&quot;</span>
@@ -2575,10 +2575,10 @@ that the cluster job submission address is known.</p>
         <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;[INFO]: Using remote mode </span><span class="si">{</span><span class="n">PYTHON_EXEC</span><span class="si">=}</span><span class="s2"> </span><span class="si">{</span><span class="n">WORKFLOW</span><span class="si">=}</span><span class="s2">&quot;</span><span class="p">)</span>
 
         <span class="k">if</span> <span class="n">args</span><span class="o">.</span><span class="n">mlflow_uri</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="kn">import</span> <span class="nn">mlflow</span>
+            <span class="kn">import</span><span class="w"> </span><span class="nn">mlflow</span>
 
             <span class="n">mlflow</span><span class="o">.</span><span class="n">set_tracking_uri</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">mlflow_uri</span><span class="p">)</span>
-            <span class="kn">from</span> <span class="nn">ray.air.integrations.mlflow</span> <span class="kn">import</span> <span class="n">MLflowLoggerCallback</span>
+            <span class="kn">from</span><span class="w"> </span><span class="nn">ray.air.integrations.mlflow</span><span class="w"> </span><span class="kn">import</span> <span class="n">MLflowLoggerCallback</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Please provide a result MLFLow URI server.&quot;</span><span class="p">)</span>
     <span class="k">else</span><span class="p">:</span>  <span class="c1"># local</span>
@@ -2667,15 +2667,15 @@ Google’s.</p>
 <span class="c1">#</span>
 <span class="c1"># SPDX-License-Identifier: BSD-3-Clause</span>
 
-<span class="kn">import</span> <span class="nn">argparse</span>
-<span class="kn">import</span> <span class="nn">pathlib</span>
-<span class="kn">import</span> <span class="nn">subprocess</span>
-<span class="kn">import</span> <span class="nn">yaml</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">argparse</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">pathlib</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">subprocess</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">yaml</span>
 
-<span class="kn">from</span> <span class="nn">jinja2</span> <span class="kn">import</span> <span class="n">Environment</span><span class="p">,</span> <span class="n">FileSystemLoader</span>
-<span class="kn">from</span> <span class="nn">kubernetes</span> <span class="kn">import</span> <span class="n">config</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">jinja2</span><span class="w"> </span><span class="kn">import</span> <span class="n">Environment</span><span class="p">,</span> <span class="n">FileSystemLoader</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">kubernetes</span><span class="w"> </span><span class="kn">import</span> <span class="n">config</span>
 
-<span class="kn">import</span> <span class="nn">source.standalone.workflows.ray.util</span> <span class="k">as</span> <span class="nn">util</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">source.standalone.workflows.ray.util</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">util</span>
 <span class="hll">
 </span><span class="hll"><span class="sd">&quot;&quot;&quot;This script helps create one or more KubeRay clusters.</span>
 </span><span class="hll">
@@ -2702,7 +2702,7 @@ Google’s.</p>
 </span><span class="n">RAY_DIR</span> <span class="o">=</span> <span class="n">pathlib</span><span class="o">.</span><span class="n">Path</span><span class="p">(</span><span class="vm">__file__</span><span class="p">)</span><span class="o">.</span><span class="n">parent</span>
 
 
-<span class="k">def</span> <span class="nf">apply_manifest</span><span class="p">(</span><span class="n">args</span><span class="p">:</span> <span class="n">argparse</span><span class="o">.</span><span class="n">Namespace</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">apply_manifest</span><span class="p">(</span><span class="n">args</span><span class="p">:</span> <span class="n">argparse</span><span class="o">.</span><span class="n">Namespace</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Provided a Jinja templated ray.io/v1alpha1 file,</span>
 <span class="sd">    populate the arguments and create the cluster. Additionally, create</span>
 <span class="sd">    kubernetes containers for resources separated by &#39;---&#39; from the rest</span>
@@ -2748,7 +2748,7 @@ Google’s.</p>
         <span class="n">exit</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;An error occurred while running `kubectl`: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 
 
-<span class="k">def</span> <span class="nf">parse_args</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">argparse</span><span class="o">.</span><span class="n">Namespace</span><span class="p">:</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">parse_args</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">argparse</span><span class="o">.</span><span class="n">Namespace</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Parse command-line arguments for Kubernetes deployment script.</span>
 
@@ -2826,7 +2826,7 @@ Google’s.</p>
     <span class="k">return</span> <span class="n">util</span><span class="o">.</span><span class="n">fill_in_missing_resources</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="n">cluster_creation_flag</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 
 
-<span class="k">def</span> <span class="nf">main</span><span class="p">():</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">():</span>
     <span class="n">args</span> <span class="o">=</span> <span class="n">parse_args</span><span class="p">()</span>
 
     <span class="k">if</span> <span class="s2">&quot;head&quot;</span> <span class="ow">in</span> <span class="n">args</span><span class="o">.</span><span class="n">name</span><span class="p">:</span>
@@ -2858,13 +2858,13 @@ printed.</p>
 <span class="c1">#</span>
 <span class="c1"># SPDX-License-Identifier: BSD-3-Clause</span>
 
-<span class="kn">import</span> <span class="nn">argparse</span>
-<span class="kn">import</span> <span class="nn">os</span>
-<span class="kn">import</span> <span class="nn">re</span>
-<span class="kn">import</span> <span class="nn">subprocess</span>
-<span class="kn">import</span> <span class="nn">threading</span>
-<span class="kn">import</span> <span class="nn">time</span>
-<span class="kn">from</span> <span class="nn">concurrent.futures</span> <span class="kn">import</span> <span class="n">ThreadPoolExecutor</span><span class="p">,</span> <span class="n">as_completed</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">argparse</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">re</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">subprocess</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">threading</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">time</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">concurrent.futures</span><span class="w"> </span><span class="kn">import</span> <span class="n">ThreadPoolExecutor</span><span class="p">,</span> <span class="n">as_completed</span>
 
 <span class="hll"><span class="sd">&quot;&quot;&quot;</span>
 </span><span class="hll"><span class="sd">This script requires that kubectl is installed and KubeRay was used to create the cluster.</span>
@@ -2881,7 +2881,7 @@ printed.</p>
 </span><span class="hll"><span class="sd">&quot;&quot;&quot;</span>
 </span>
 
-<span class="k">def</span> <span class="nf">get_namespace</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">get_namespace</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Get the current Kubernetes namespace from the context, fallback to default if not set&quot;&quot;&quot;</span>
     <span class="k">try</span><span class="p">:</span>
         <span class="n">namespace</span> <span class="o">=</span> <span class="p">(</span>
@@ -2896,7 +2896,7 @@ printed.</p>
     <span class="k">return</span> <span class="n">namespace</span>
 
 
-<span class="k">def</span> <span class="nf">get_pods</span><span class="p">(</span><span class="n">namespace</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;default&quot;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">]:</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">get_pods</span><span class="p">(</span><span class="n">namespace</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;default&quot;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">]:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Get a list of all of the pods in the namespace&quot;&quot;&quot;</span>
     <span class="n">cmd</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;kubectl&quot;</span><span class="p">,</span> <span class="s2">&quot;get&quot;</span><span class="p">,</span> <span class="s2">&quot;pods&quot;</span><span class="p">,</span> <span class="s2">&quot;-n&quot;</span><span class="p">,</span> <span class="n">namespace</span><span class="p">,</span> <span class="s2">&quot;--no-headers&quot;</span><span class="p">]</span>
     <span class="n">output</span> <span class="o">=</span> <span class="n">subprocess</span><span class="o">.</span><span class="n">check_output</span><span class="p">(</span><span class="n">cmd</span><span class="p">)</span><span class="o">.</span><span class="n">decode</span><span class="p">()</span>
@@ -2909,7 +2909,7 @@ printed.</p>
     <span class="k">return</span> <span class="n">pods</span>
 
 
-<span class="k">def</span> <span class="nf">get_clusters</span><span class="p">(</span><span class="n">pods</span><span class="p">:</span> <span class="nb">list</span><span class="p">,</span> <span class="n">cluster_name_prefix</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">set</span><span class="p">:</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">get_clusters</span><span class="p">(</span><span class="n">pods</span><span class="p">:</span> <span class="nb">list</span><span class="p">,</span> <span class="n">cluster_name_prefix</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">set</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Get unique cluster name(s). Works for one or more clusters, based off of the number of head nodes.</span>
 <span class="sd">    Excludes MLflow deployments.</span>
@@ -2928,7 +2928,7 @@ printed.</p>
     <span class="k">return</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">clusters</span><span class="p">)</span>
 
 
-<span class="k">def</span> <span class="nf">get_mlflow_info</span><span class="p">(</span><span class="n">namespace</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">cluster_prefix</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;isaacray&quot;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">get_mlflow_info</span><span class="p">(</span><span class="n">namespace</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">cluster_prefix</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;isaacray&quot;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Get MLflow service information if it exists in the namespace with the given prefix.</span>
 <span class="sd">    Only works for a single cluster instance.</span>
@@ -2963,7 +2963,7 @@ printed.</p>
         <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Could not grok MLflow: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>  <span class="c1"># Fixed f-string</span>
 
 
-<span class="k">def</span> <span class="nf">check_clusters_running</span><span class="p">(</span><span class="n">pods</span><span class="p">:</span> <span class="nb">list</span><span class="p">,</span> <span class="n">clusters</span><span class="p">:</span> <span class="nb">set</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">check_clusters_running</span><span class="p">(</span><span class="n">pods</span><span class="p">:</span> <span class="nb">list</span><span class="p">,</span> <span class="n">clusters</span><span class="p">:</span> <span class="nb">set</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Check that all of the pods in all provided clusters are running.</span>
 
@@ -2985,7 +2985,7 @@ printed.</p>
     <span class="k">return</span> <span class="n">clusters_running</span>
 
 
-<span class="k">def</span> <span class="nf">get_ray_address</span><span class="p">(</span><span class="n">head_pod</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">namespace</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;default&quot;</span><span class="p">,</span> <span class="n">ray_head_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;head&quot;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">get_ray_address</span><span class="p">(</span><span class="n">head_pod</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">namespace</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;default&quot;</span><span class="p">,</span> <span class="n">ray_head_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;head&quot;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Given a cluster head pod, check its logs, which should include the ray address which can accept job requests.</span>
 
@@ -3014,7 +3014,7 @@ printed.</p>
         <span class="k">return</span> <span class="kc">None</span>
 
 
-<span class="k">def</span> <span class="nf">process_cluster</span><span class="p">(</span><span class="n">cluster_info</span><span class="p">:</span> <span class="nb">dict</span><span class="p">,</span> <span class="n">ray_head_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;head&quot;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">process_cluster</span><span class="p">(</span><span class="n">cluster_info</span><span class="p">:</span> <span class="nb">dict</span><span class="p">,</span> <span class="n">ray_head_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;head&quot;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    For each cluster, check that it is running, and get the Ray head address that will accept jobs.</span>
 
@@ -3043,7 +3043,7 @@ printed.</p>
     <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;name: </span><span class="si">{</span><span class="n">cluster</span><span class="si">}</span><span class="s2"> address: </span><span class="si">{</span><span class="n">ray_address</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span>
 
 
-<span class="k">def</span> <span class="nf">main</span><span class="p">():</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">():</span>
     <span class="c1"># Parse command-line arguments</span>
     <span class="n">parser</span> <span class="o">=</span> <span class="n">argparse</span><span class="o">.</span><span class="n">ArgumentParser</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="s2">&quot;Process Ray clusters and save their specifications.&quot;</span><span class="p">)</span>
     <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">&quot;--prefix&quot;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="s2">&quot;isaacray&quot;</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s2">&quot;The prefix for the cluster names.&quot;</span><span class="p">)</span>
@@ -3156,12 +3156,12 @@ and determine the server URI.</p>
 <span class="c1">#</span>
 <span class="c1"># SPDX-License-Identifier: BSD-3-Clause</span>
 
-<span class="kn">import</span> <span class="nn">argparse</span>
-<span class="kn">import</span> <span class="nn">os</span>
-<span class="kn">import</span> <span class="nn">time</span>
-<span class="kn">from</span> <span class="nn">concurrent.futures</span> <span class="kn">import</span> <span class="n">ThreadPoolExecutor</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">argparse</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">time</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">concurrent.futures</span><span class="w"> </span><span class="kn">import</span> <span class="n">ThreadPoolExecutor</span>
 
-<span class="kn">from</span> <span class="nn">ray</span> <span class="kn">import</span> <span class="n">job_submission</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ray</span><span class="w"> </span><span class="kn">import</span> <span class="n">job_submission</span>
 <span class="hll">
 </span><span class="hll"><span class="sd">&quot;&quot;&quot;</span>
 </span><span class="hll"><span class="sd">This script submits aggregate job(s) to cluster(s) described in a</span>
@@ -3208,7 +3208,7 @@ and determine the server URI.</p>
 <span class="n">CONFIG</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;working_dir&quot;</span><span class="p">:</span> <span class="n">script_directory</span><span class="p">,</span> <span class="s2">&quot;executable&quot;</span><span class="p">:</span> <span class="s2">&quot;/workspace/isaaclab/isaaclab.sh -p&quot;</span><span class="p">}</span>
 
 
-<span class="k">def</span> <span class="nf">read_cluster_spec</span><span class="p">(</span><span class="n">fn</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">]:</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">read_cluster_spec</span><span class="p">(</span><span class="n">fn</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">]:</span>
     <span class="k">if</span> <span class="n">fn</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
         <span class="n">cluster_spec_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">expanduser</span><span class="p">(</span><span class="s2">&quot;~/.cluster_config&quot;</span><span class="p">)</span>
     <span class="k">else</span><span class="p">:</span>
@@ -3229,7 +3229,7 @@ and determine the server URI.</p>
     <span class="k">return</span> <span class="n">clusters</span>
 
 
-<span class="k">def</span> <span class="nf">submit_job</span><span class="p">(</span><span class="n">cluster</span><span class="p">:</span> <span class="nb">dict</span><span class="p">,</span> <span class="n">job_command</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">submit_job</span><span class="p">(</span><span class="n">cluster</span><span class="p">:</span> <span class="nb">dict</span><span class="p">,</span> <span class="n">job_command</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Submits a job to a single cluster, prints the final result and Ray dashboard URL at the end.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
@@ -3259,7 +3259,7 @@ and determine the server URI.</p>
     <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;----------------------------------------------------&quot;</span><span class="p">)</span>
 
 
-<span class="k">def</span> <span class="nf">submit_jobs_to_clusters</span><span class="p">(</span><span class="n">jobs</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span> <span class="n">clusters</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">submit_jobs_to_clusters</span><span class="p">(</span><span class="n">jobs</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span> <span class="n">clusters</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Submit all jobs to their respective clusters, cycling through clusters if there are more jobs than clusters.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
@@ -3310,17 +3310,17 @@ and determine the server URI.</p>
 <span class="c1"># All rights reserved.</span>
 <span class="c1">#</span>
 <span class="c1"># SPDX-License-Identifier: BSD-3-Clause</span>
-<span class="kn">import</span> <span class="nn">argparse</span>
-<span class="kn">import</span> <span class="nn">importlib.util</span>
-<span class="kn">import</span> <span class="nn">os</span>
-<span class="kn">import</span> <span class="nn">sys</span>
-<span class="kn">from</span> <span class="nn">time</span> <span class="kn">import</span> <span class="n">sleep</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">argparse</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">importlib.util</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">sys</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">time</span><span class="w"> </span><span class="kn">import</span> <span class="n">sleep</span>
 
-<span class="kn">import</span> <span class="nn">ray</span>
-<span class="kn">import</span> <span class="nn">util</span>
-<span class="kn">from</span> <span class="nn">ray</span> <span class="kn">import</span> <span class="n">air</span><span class="p">,</span> <span class="n">tune</span>
-<span class="kn">from</span> <span class="nn">ray.tune.search.optuna</span> <span class="kn">import</span> <span class="n">OptunaSearch</span>
-<span class="kn">from</span> <span class="nn">ray.tune.search.repeater</span> <span class="kn">import</span> <span class="n">Repeater</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">ray</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">util</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ray</span><span class="w"> </span><span class="kn">import</span> <span class="n">air</span><span class="p">,</span> <span class="n">tune</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ray.tune.search.optuna</span><span class="w"> </span><span class="kn">import</span> <span class="n">OptunaSearch</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ray.tune.search.repeater</span><span class="w"> </span><span class="kn">import</span> <span class="n">Repeater</span>
 
 <span class="sd">&quot;&quot;&quot;</span>
 <span class="hll"><span class="sd">This script breaks down an aggregate tuning job, as defined by a hyperparameter sweep configuration,</span>
@@ -3367,7 +3367,7 @@ and determine the server URI.</p>
 <span class="n">NUM_WORKERS_PER_NODE</span> <span class="o">=</span> <span class="mi">1</span>  <span class="c1"># needed for local parallelism</span>
 
 
-<span class="k">class</span> <span class="nc">IsaacLabTuneTrainable</span><span class="p">(</span><span class="n">tune</span><span class="o">.</span><span class="n">Trainable</span><span class="p">):</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">IsaacLabTuneTrainable</span><span class="p">(</span><span class="n">tune</span><span class="o">.</span><span class="n">Trainable</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The Isaac Lab Ray Tune Trainable.</span>
 <span class="sd">    This class uses the standalone workflows to start jobs, along with the hydra integration.</span>
 <span class="sd">    This class achieves Ray-based logging through reading the tensorboard logs from</span>
@@ -3375,19 +3375,19 @@ and determine the server URI.</p>
 <span class="sd">    :class:`JobCfg`</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="k">def</span> <span class="nf">setup</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">config</span><span class="p">:</span> <span class="nb">dict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">setup</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">config</span><span class="p">:</span> <span class="nb">dict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Get the invocation command, return quick for easy scheduling.&quot;&quot;&quot;</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="kc">None</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">invoke_cmd</span> <span class="o">=</span> <span class="n">util</span><span class="o">.</span><span class="n">get_invocation_command_from_cfg</span><span class="p">(</span><span class="n">cfg</span><span class="o">=</span><span class="n">config</span><span class="p">,</span> <span class="n">python_cmd</span><span class="o">=</span><span class="n">PYTHON_EXEC</span><span class="p">,</span> <span class="n">workflow</span><span class="o">=</span><span class="n">WORKFLOW</span><span class="p">)</span>
         <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;[INFO]: Recovered invocation with </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">invoke_cmd</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">experiment</span> <span class="o">=</span> <span class="kc">None</span>
 
-    <span class="k">def</span> <span class="nf">reset_config</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">new_config</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">reset_config</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">new_config</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Allow environments to be re-used by fetching a new invocation command&quot;&quot;&quot;</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">setup</span><span class="p">(</span><span class="n">new_config</span><span class="p">)</span>
         <span class="k">return</span> <span class="kc">True</span>
 
-    <span class="k">def</span> <span class="nf">step</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">step</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">experiment</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>  <span class="c1"># start experiment</span>
             <span class="c1"># When including this as first step instead of setup, experiments get scheduled faster</span>
             <span class="c1"># Don&#39;t want to block the scheduler while the experiment spins up</span>
@@ -3428,7 +3428,7 @@ and determine the server URI.</p>
             <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="s2">&quot;done&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">False</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span>
 
-    <span class="k">def</span> <span class="nf">default_resource_request</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">default_resource_request</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;How many resources each trainable uses. Assumes homogeneous resources across gpu nodes,</span>
 <span class="sd">        and that each trainable is meant for one node, where it uses all available resources.&quot;&quot;&quot;</span>
         <span class="n">resources</span> <span class="o">=</span> <span class="n">util</span><span class="o">.</span><span class="n">get_gpu_node_resources</span><span class="p">(</span><span class="n">one_node_only</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
@@ -3440,7 +3440,7 @@ and determine the server URI.</p>
         <span class="p">)</span>
 
 
-<span class="k">def</span> <span class="nf">invoke_tuning_run</span><span class="p">(</span><span class="n">cfg</span><span class="p">:</span> <span class="nb">dict</span><span class="p">,</span> <span class="n">args</span><span class="p">:</span> <span class="n">argparse</span><span class="o">.</span><span class="n">Namespace</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">invoke_tuning_run</span><span class="p">(</span><span class="n">cfg</span><span class="p">:</span> <span class="nb">dict</span><span class="p">,</span> <span class="n">args</span><span class="p">:</span> <span class="n">argparse</span><span class="o">.</span><span class="n">Namespace</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Invoke an Isaac-Ray tuning run.</span>
 
 <span class="sd">    Log either to a local directory or to MLFlow.</span>
@@ -3524,11 +3524,11 @@ and determine the server URI.</p>
         <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[DONE!]: Check results with MLFlow dashboard&quot;</span><span class="p">)</span>
 
 
-<span class="k">class</span> <span class="nc">JobCfg</span><span class="p">:</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">JobCfg</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;To be compatible with :meth: invoke_tuning_run and :class:IsaacLabTuneTrainable,</span>
 <span class="sd">    at a minimum, the tune job should inherit from this class.&quot;&quot;&quot;</span>
 
-    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">):</span>
         <span class="k">assert</span> <span class="s2">&quot;runner_args&quot;</span> <span class="ow">in</span> <span class="n">cfg</span><span class="p">,</span> <span class="s2">&quot;No runner arguments specified.&quot;</span>
         <span class="k">assert</span> <span class="s2">&quot;--task&quot;</span> <span class="ow">in</span> <span class="n">cfg</span><span class="p">[</span><span class="s2">&quot;runner_args&quot;</span><span class="p">],</span> <span class="s2">&quot;No task specified.&quot;</span>
         <span class="k">assert</span> <span class="s2">&quot;hydra_args&quot;</span> <span class="ow">in</span> <span class="n">cfg</span><span class="p">,</span> <span class="s2">&quot;No hypeparameters specified.&quot;</span>
@@ -3614,10 +3614,10 @@ and determine the server URI.</p>
         <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;[INFO]: Using remote mode </span><span class="si">{</span><span class="n">PYTHON_EXEC</span><span class="si">=}</span><span class="s2"> </span><span class="si">{</span><span class="n">WORKFLOW</span><span class="si">=}</span><span class="s2">&quot;</span><span class="p">)</span>
 
         <span class="k">if</span> <span class="n">args</span><span class="o">.</span><span class="n">mlflow_uri</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="kn">import</span> <span class="nn">mlflow</span>
+            <span class="kn">import</span><span class="w"> </span><span class="nn">mlflow</span>
 
             <span class="n">mlflow</span><span class="o">.</span><span class="n">set_tracking_uri</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">mlflow_uri</span><span class="p">)</span>
-            <span class="kn">from</span> <span class="nn">ray.air.integrations.mlflow</span> <span class="kn">import</span> <span class="n">MLflowLoggerCallback</span>
+            <span class="kn">from</span><span class="w"> </span><span class="nn">ray.air.integrations.mlflow</span><span class="w"> </span><span class="kn">import</span> <span class="n">MLflowLoggerCallback</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Please provide a result MLFLow URI server.&quot;</span><span class="p">)</span>
     <span class="k">else</span><span class="p">:</span>  <span class="c1"># local</span>
@@ -3660,48 +3660,48 @@ and determine the server URI.</p>
 <span class="c1"># All rights reserved.</span>
 <span class="c1">#</span>
 <span class="c1"># SPDX-License-Identifier: BSD-3-Clause</span>
-<span class="kn">import</span> <span class="nn">pathlib</span>
-<span class="kn">import</span> <span class="nn">sys</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">pathlib</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">sys</span>
 
 <span class="c1"># Allow for import of items from the ray workflow.</span>
 <span class="n">CUR_DIR</span> <span class="o">=</span> <span class="n">pathlib</span><span class="o">.</span><span class="n">Path</span><span class="p">(</span><span class="vm">__file__</span><span class="p">)</span><span class="o">.</span><span class="n">parent</span>
 <span class="n">UTIL_DIR</span> <span class="o">=</span> <span class="n">CUR_DIR</span><span class="o">.</span><span class="n">parent</span>
 <span class="n">sys</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">extend</span><span class="p">([</span><span class="nb">str</span><span class="p">(</span><span class="n">UTIL_DIR</span><span class="p">),</span> <span class="nb">str</span><span class="p">(</span><span class="n">CUR_DIR</span><span class="p">)])</span>
-<span class="kn">import</span> <span class="nn">util</span>
-<span class="kn">import</span> <span class="nn">vision_cfg</span>
-<span class="kn">from</span> <span class="nn">ray</span> <span class="kn">import</span> <span class="n">tune</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">util</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">vision_cfg</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ray</span><span class="w"> </span><span class="kn">import</span> <span class="n">tune</span>
 
 
-<span class="k">class</span> <span class="nc">CartpoleRGBNoTuneJobCfg</span><span class="p">(</span><span class="n">vision_cfg</span><span class="o">.</span><span class="n">CameraJobCfg</span><span class="p">):</span>
-    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">=</span> <span class="p">{}):</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">CartpoleRGBNoTuneJobCfg</span><span class="p">(</span><span class="n">vision_cfg</span><span class="o">.</span><span class="n">CameraJobCfg</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">=</span> <span class="p">{}):</span>
         <span class="n">cfg</span> <span class="o">=</span> <span class="n">util</span><span class="o">.</span><span class="n">populate_isaac_ray_cfg_args</span><span class="p">(</span><span class="n">cfg</span><span class="p">)</span>
         <span class="n">cfg</span><span class="p">[</span><span class="s2">&quot;runner_args&quot;</span><span class="p">][</span><span class="s2">&quot;--task&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">tune</span><span class="o">.</span><span class="n">choice</span><span class="p">([</span><span class="s2">&quot;Isaac-Cartpole-RGB-v0&quot;</span><span class="p">])</span>
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="n">vary_env_count</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">vary_cnn</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">vary_mlp</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
 
 
-<span class="k">class</span> <span class="nc">CartpoleRGBCNNOnlyJobCfg</span><span class="p">(</span><span class="n">vision_cfg</span><span class="o">.</span><span class="n">CameraJobCfg</span><span class="p">):</span>
-    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">=</span> <span class="p">{}):</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">CartpoleRGBCNNOnlyJobCfg</span><span class="p">(</span><span class="n">vision_cfg</span><span class="o">.</span><span class="n">CameraJobCfg</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">=</span> <span class="p">{}):</span>
         <span class="n">cfg</span> <span class="o">=</span> <span class="n">util</span><span class="o">.</span><span class="n">populate_isaac_ray_cfg_args</span><span class="p">(</span><span class="n">cfg</span><span class="p">)</span>
         <span class="n">cfg</span><span class="p">[</span><span class="s2">&quot;runner_args&quot;</span><span class="p">][</span><span class="s2">&quot;--task&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">tune</span><span class="o">.</span><span class="n">choice</span><span class="p">([</span><span class="s2">&quot;Isaac-Cartpole-RGB-v0&quot;</span><span class="p">])</span>
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="n">vary_env_count</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">vary_cnn</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">vary_mlp</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
 
 
-<span class="k">class</span> <span class="nc">CartpoleRGBJobCfg</span><span class="p">(</span><span class="n">vision_cfg</span><span class="o">.</span><span class="n">CameraJobCfg</span><span class="p">):</span>
-    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">=</span> <span class="p">{}):</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">CartpoleRGBJobCfg</span><span class="p">(</span><span class="n">vision_cfg</span><span class="o">.</span><span class="n">CameraJobCfg</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">=</span> <span class="p">{}):</span>
         <span class="n">cfg</span> <span class="o">=</span> <span class="n">util</span><span class="o">.</span><span class="n">populate_isaac_ray_cfg_args</span><span class="p">(</span><span class="n">cfg</span><span class="p">)</span>
         <span class="n">cfg</span><span class="p">[</span><span class="s2">&quot;runner_args&quot;</span><span class="p">][</span><span class="s2">&quot;--task&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">tune</span><span class="o">.</span><span class="n">choice</span><span class="p">([</span><span class="s2">&quot;Isaac-Cartpole-RGB-v0&quot;</span><span class="p">])</span>
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="n">vary_env_count</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">vary_cnn</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">vary_mlp</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 
 
-<span class="k">class</span> <span class="nc">CartpoleResNetJobCfg</span><span class="p">(</span><span class="n">vision_cfg</span><span class="o">.</span><span class="n">ResNetCameraJob</span><span class="p">):</span>
-    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">=</span> <span class="p">{}):</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">CartpoleResNetJobCfg</span><span class="p">(</span><span class="n">vision_cfg</span><span class="o">.</span><span class="n">ResNetCameraJob</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">=</span> <span class="p">{}):</span>
         <span class="n">cfg</span> <span class="o">=</span> <span class="n">util</span><span class="o">.</span><span class="n">populate_isaac_ray_cfg_args</span><span class="p">(</span><span class="n">cfg</span><span class="p">)</span>
         <span class="n">cfg</span><span class="p">[</span><span class="s2">&quot;runner_args&quot;</span><span class="p">][</span><span class="s2">&quot;--task&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">tune</span><span class="o">.</span><span class="n">choice</span><span class="p">([</span><span class="s2">&quot;Isaac-Cartpole-RGB-ResNet18-v0&quot;</span><span class="p">])</span>
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">cfg</span><span class="p">)</span>
 
 
-<span class="k">class</span> <span class="nc">CartpoleTheiaJobCfg</span><span class="p">(</span><span class="n">vision_cfg</span><span class="o">.</span><span class="n">TheiaCameraJob</span><span class="p">):</span>
-    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">=</span> <span class="p">{}):</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">CartpoleTheiaJobCfg</span><span class="p">(</span><span class="n">vision_cfg</span><span class="o">.</span><span class="n">TheiaCameraJob</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">=</span> <span class="p">{}):</span>
         <span class="n">cfg</span> <span class="o">=</span> <span class="n">util</span><span class="o">.</span><span class="n">populate_isaac_ray_cfg_args</span><span class="p">(</span><span class="n">cfg</span><span class="p">)</span>
         <span class="n">cfg</span><span class="p">[</span><span class="s2">&quot;runner_args&quot;</span><span class="p">][</span><span class="s2">&quot;--task&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">tune</span><span class="o">.</span><span class="n">choice</span><span class="p">([</span><span class="s2">&quot;Isaac-Cartpole-RGB-TheiaTiny-v0&quot;</span><span class="p">])</span>
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">cfg</span><span class="p">)</span>
@@ -3833,7 +3833,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jan 03, 2025.
+  Last updated on Jan 07, 2025.
   <br/>
 </p>
   </div>

@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="0.3.0" />
-    <meta name="docbuild:last-update" content="Jan 03, 2025"/>
+    <meta name="docbuild:last-update" content="Jan 07, 2025"/>
   </head>
   
   
@@ -498,22 +498,22 @@
 <span class="c1">#</span>
 <span class="c1"># SPDX-License-Identifier: BSD-3-Clause</span>
 
-<span class="kn">from</span> <span class="nn">__future__</span> <span class="kn">import</span> <span class="n">annotations</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
 
-<span class="kn">from</span> <span class="nn">collections.abc</span> <span class="kn">import</span> <span class="n">Callable</span>
-<span class="kn">from</span> <span class="nn">dataclasses</span> <span class="kn">import</span> <span class="n">MISSING</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Callable</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">MISSING</span>
 
-<span class="kn">from</span> <span class="nn">omni.isaac.lab.sim</span> <span class="kn">import</span> <span class="n">converters</span><span class="p">,</span> <span class="n">schemas</span>
-<span class="kn">from</span> <span class="nn">omni.isaac.lab.sim.spawners</span> <span class="kn">import</span> <span class="n">materials</span>
-<span class="kn">from</span> <span class="nn">omni.isaac.lab.sim.spawners.spawner_cfg</span> <span class="kn">import</span> <span class="n">RigidObjectSpawnerCfg</span><span class="p">,</span> <span class="n">SpawnerCfg</span>
-<span class="kn">from</span> <span class="nn">omni.isaac.lab.utils</span> <span class="kn">import</span> <span class="n">configclass</span>
-<span class="kn">from</span> <span class="nn">omni.isaac.lab.utils.assets</span> <span class="kn">import</span> <span class="n">ISAAC_NUCLEUS_DIR</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.sim</span><span class="w"> </span><span class="kn">import</span> <span class="n">converters</span><span class="p">,</span> <span class="n">schemas</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.sim.spawners</span><span class="w"> </span><span class="kn">import</span> <span class="n">materials</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.sim.spawners.spawner_cfg</span><span class="w"> </span><span class="kn">import</span> <span class="n">RigidObjectSpawnerCfg</span><span class="p">,</span> <span class="n">SpawnerCfg</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">configclass</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.utils.assets</span><span class="w"> </span><span class="kn">import</span> <span class="n">ISAAC_NUCLEUS_DIR</span>
 
-<span class="kn">from</span> <span class="nn">.</span> <span class="kn">import</span> <span class="n">from_files</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.</span><span class="w"> </span><span class="kn">import</span> <span class="n">from_files</span>
 
 
 <span class="nd">@configclass</span>
-<span class="k">class</span> <span class="nc">FileCfg</span><span class="p">(</span><span class="n">RigidObjectSpawnerCfg</span><span class="p">):</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">FileCfg</span><span class="p">(</span><span class="n">RigidObjectSpawnerCfg</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration parameters for spawning an asset from a file.</span>
 
 <span class="sd">    Note:</span>
@@ -549,7 +549,7 @@
 
 
 <div class="viewcode-block" id="UsdFileCfg"><a class="viewcode-back" href="../../../../../../../source/api/lab/omni.isaac.lab.sim.spawners.html#omni.isaac.lab.sim.spawners.from_files.UsdFileCfg">[docs]</a><span class="nd">@configclass</span>
-<span class="k">class</span> <span class="nc">UsdFileCfg</span><span class="p">(</span><span class="n">FileCfg</span><span class="p">):</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">UsdFileCfg</span><span class="p">(</span><span class="n">FileCfg</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;USD file to spawn asset from.</span>
 
 <span class="sd">    See :meth:`spawn_from_usd` for more information.</span>
@@ -574,7 +574,7 @@
 
 
 <div class="viewcode-block" id="UrdfFileCfg"><a class="viewcode-back" href="../../../../../../../source/api/lab/omni.isaac.lab.sim.spawners.html#omni.isaac.lab.sim.spawners.from_files.UrdfFileCfg">[docs]</a><span class="nd">@configclass</span>
-<span class="k">class</span> <span class="nc">UrdfFileCfg</span><span class="p">(</span><span class="n">FileCfg</span><span class="p">,</span> <span class="n">converters</span><span class="o">.</span><span class="n">UrdfConverterCfg</span><span class="p">):</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">UrdfFileCfg</span><span class="p">(</span><span class="n">FileCfg</span><span class="p">,</span> <span class="n">converters</span><span class="o">.</span><span class="n">UrdfConverterCfg</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;URDF file to spawn asset from.</span>
 
 <span class="sd">    It uses the :class:`UrdfConverter` class to create a USD file from URDF and spawns the imported</span>
@@ -594,7 +594,7 @@
 
 
 <div class="viewcode-block" id="GroundPlaneCfg"><a class="viewcode-back" href="../../../../../../../source/api/lab/omni.isaac.lab.sim.spawners.html#omni.isaac.lab.sim.spawners.from_files.GroundPlaneCfg">[docs]</a><span class="nd">@configclass</span>
-<span class="k">class</span> <span class="nc">GroundPlaneCfg</span><span class="p">(</span><span class="n">SpawnerCfg</span><span class="p">):</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">GroundPlaneCfg</span><span class="p">(</span><span class="n">SpawnerCfg</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Create a ground plane prim.</span>
 
 <span class="sd">    This uses the USD for the standard grid-world ground plane from Isaac Sim by default.</span>
@@ -663,7 +663,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jan 03, 2025.
+  Last updated on Jan 07, 2025.
   <br/>
 </p>
   </div>

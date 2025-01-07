@@ -60,8 +60,8 @@
     <link rel="prev" title="Saving rendered images and 3D re-projection" href="save_camera_output.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-  <meta name="docsearch:version" content="1.3.0" />
-    <meta name="docbuild:last-update" content="Jan 03, 2025"/>
+  <meta name="docsearch:version" content="1.4.0" />
+    <meta name="docbuild:last-update" content="Jan 07, 2025"/>
   </head>
   
   
@@ -638,10 +638,10 @@ directory.</p>
 <span class="linenos"> 23</span>
 <span class="linenos"> 24</span><span class="sd">&quot;&quot;&quot;Launch Isaac Sim Simulator first.&quot;&quot;&quot;</span>
 <span class="linenos"> 25</span>
-<span class="linenos"> 26</span><span class="kn">import</span> <span class="nn">argparse</span>
-<span class="linenos"> 27</span><span class="kn">from</span> <span class="nn">collections.abc</span> <span class="kn">import</span> <span class="n">Callable</span>
+<span class="linenos"> 26</span><span class="kn">import</span><span class="w"> </span><span class="nn">argparse</span>
+<span class="linenos"> 27</span><span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Callable</span>
 <span class="linenos"> 28</span>
-<span class="linenos"> 29</span><span class="kn">from</span> <span class="nn">omni.isaac.lab.app</span> <span class="kn">import</span> <span class="n">AppLauncher</span>
+<span class="linenos"> 29</span><span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.app</span><span class="w"> </span><span class="kn">import</span> <span class="n">AppLauncher</span>
 <span class="linenos"> 30</span>
 <span class="linenos"> 31</span><span class="c1"># parse the arguments</span>
 <span class="linenos"> 32</span><span class="n">args_cli</span> <span class="o">=</span> <span class="n">argparse</span><span class="o">.</span><span class="n">Namespace</span><span class="p">()</span>
@@ -844,7 +844,7 @@ directory.</p>
 <span class="linenos">229</span><span class="n">args_cli</span><span class="o">.</span><span class="n">enable_cameras</span> <span class="o">=</span> <span class="kc">True</span>
 <span class="linenos">230</span>
 <span class="linenos">231</span><span class="k">if</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">autotune</span><span class="p">:</span>
-<span class="linenos">232</span>    <span class="kn">import</span> <span class="nn">pynvml</span>
+<span class="linenos">232</span>    <span class="kn">import</span><span class="w"> </span><span class="nn">pynvml</span>
 <span class="linenos">233</span>
 <span class="linenos">234</span><span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">args_cli</span><span class="o">.</span><span class="n">ray_caster_visible_mesh_prim_paths</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
 <span class="linenos">235</span>    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[WARNING]: Ray Casting is only currently supported for a single, static object&quot;</span><span class="p">)</span>
@@ -854,20 +854,20 @@ directory.</p>
 <span class="linenos">239</span>
 <span class="linenos">240</span><span class="sd">&quot;&quot;&quot;Rest everything follows.&quot;&quot;&quot;</span>
 <span class="linenos">241</span>
-<span class="linenos">242</span><span class="kn">import</span> <span class="nn">gymnasium</span> <span class="k">as</span> <span class="nn">gym</span>
-<span class="linenos">243</span><span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
-<span class="linenos">244</span><span class="kn">import</span> <span class="nn">random</span>
-<span class="linenos">245</span><span class="kn">import</span> <span class="nn">time</span>
-<span class="linenos">246</span><span class="kn">import</span> <span class="nn">torch</span>
+<span class="linenos">242</span><span class="kn">import</span><span class="w"> </span><span class="nn">gymnasium</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">gym</span>
+<span class="linenos">243</span><span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="linenos">244</span><span class="kn">import</span><span class="w"> </span><span class="nn">random</span>
+<span class="linenos">245</span><span class="kn">import</span><span class="w"> </span><span class="nn">time</span>
+<span class="linenos">246</span><span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
 <span class="linenos">247</span>
-<span class="linenos">248</span><span class="kn">import</span> <span class="nn">omni.isaac.core.utils.prims</span> <span class="k">as</span> <span class="nn">prim_utils</span>
-<span class="linenos">249</span><span class="kn">import</span> <span class="nn">psutil</span>
-<span class="linenos">250</span><span class="kn">from</span> <span class="nn">omni.isaac.core.utils.stage</span> <span class="kn">import</span> <span class="n">create_new_stage</span>
+<span class="linenos">248</span><span class="kn">import</span><span class="w"> </span><span class="nn">omni.isaac.core.utils.prims</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">prim_utils</span>
+<span class="linenos">249</span><span class="kn">import</span><span class="w"> </span><span class="nn">psutil</span>
+<span class="linenos">250</span><span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.core.utils.stage</span><span class="w"> </span><span class="kn">import</span> <span class="n">create_new_stage</span>
 <span class="linenos">251</span>
-<span class="linenos">252</span><span class="kn">import</span> <span class="nn">omni.isaac.lab.sim</span> <span class="k">as</span> <span class="nn">sim_utils</span>
-<span class="linenos">253</span><span class="kn">from</span> <span class="nn">omni.isaac.lab.assets</span> <span class="kn">import</span> <span class="n">RigidObject</span><span class="p">,</span> <span class="n">RigidObjectCfg</span>
-<span class="linenos">254</span><span class="kn">from</span> <span class="nn">omni.isaac.lab.scene.interactive_scene</span> <span class="kn">import</span> <span class="n">InteractiveScene</span>
-<span class="linenos">255</span><span class="kn">from</span> <span class="nn">omni.isaac.lab.sensors</span> <span class="kn">import</span> <span class="p">(</span>
+<span class="linenos">252</span><span class="kn">import</span><span class="w"> </span><span class="nn">omni.isaac.lab.sim</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">sim_utils</span>
+<span class="linenos">253</span><span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.assets</span><span class="w"> </span><span class="kn">import</span> <span class="n">RigidObject</span><span class="p">,</span> <span class="n">RigidObjectCfg</span>
+<span class="linenos">254</span><span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.scene.interactive_scene</span><span class="w"> </span><span class="kn">import</span> <span class="n">InteractiveScene</span>
+<span class="linenos">255</span><span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.sensors</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
 <span class="linenos">256</span>    <span class="n">Camera</span><span class="p">,</span>
 <span class="linenos">257</span>    <span class="n">CameraCfg</span><span class="p">,</span>
 <span class="linenos">258</span>    <span class="n">RayCasterCamera</span><span class="p">,</span>
@@ -876,16 +876,16 @@ directory.</p>
 <span class="linenos">261</span>    <span class="n">TiledCameraCfg</span><span class="p">,</span>
 <span class="linenos">262</span>    <span class="n">patterns</span><span class="p">,</span>
 <span class="linenos">263</span><span class="p">)</span>
-<span class="linenos">264</span><span class="kn">from</span> <span class="nn">omni.isaac.lab.utils.math</span> <span class="kn">import</span> <span class="n">orthogonalize_perspective_depth</span><span class="p">,</span> <span class="n">unproject_depth</span>
+<span class="linenos">264</span><span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.utils.math</span><span class="w"> </span><span class="kn">import</span> <span class="n">orthogonalize_perspective_depth</span><span class="p">,</span> <span class="n">unproject_depth</span>
 <span class="linenos">265</span>
-<span class="linenos">266</span><span class="kn">from</span> <span class="nn">omni.isaac.lab_tasks.utils</span> <span class="kn">import</span> <span class="n">load_cfg_from_registry</span>
+<span class="linenos">266</span><span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab_tasks.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">load_cfg_from_registry</span>
 <span class="linenos">267</span>
 <span class="linenos">268</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="linenos">269</span><span class="sd">Camera Creation</span>
 <span class="linenos">270</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="linenos">271</span>
 <span class="linenos">272</span>
-<span class="linenos">273</span><span class="k">def</span> <span class="nf">create_camera_base</span><span class="p">(</span>
+<span class="linenos">273</span><span class="k">def</span><span class="w"> </span><span class="nf">create_camera_base</span><span class="p">(</span>
 <span class="linenos">274</span>    <span class="n">camera_cfg</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">CameraCfg</span> <span class="o">|</span> <span class="n">TiledCameraCfg</span><span class="p">],</span>
 <span class="linenos">275</span>    <span class="n">num_cams</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
 <span class="linenos">276</span>    <span class="n">data_types</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span>
@@ -924,7 +924,7 @@ directory.</p>
 <span class="linenos">309</span>        <span class="k">return</span> <span class="kc">None</span>
 <span class="linenos">310</span>
 <span class="linenos">311</span>
-<span class="linenos">312</span><span class="k">def</span> <span class="nf">create_tiled_cameras</span><span class="p">(</span>
+<span class="linenos">312</span><span class="k">def</span><span class="w"> </span><span class="nf">create_tiled_cameras</span><span class="p">(</span>
 <span class="linenos">313</span>    <span class="n">num_cams</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">2</span><span class="p">,</span> <span class="n">data_types</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">height</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">100</span><span class="p">,</span> <span class="n">width</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">120</span>
 <span class="linenos">314</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">TiledCamera</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
 <span class="linenos">315</span>    <span class="k">if</span> <span class="n">data_types</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
@@ -939,7 +939,7 @@ directory.</p>
 <span class="linenos">324</span>    <span class="p">)</span>
 <span class="linenos">325</span>
 <span class="linenos">326</span>
-<span class="linenos">327</span><span class="k">def</span> <span class="nf">create_cameras</span><span class="p">(</span>
+<span class="linenos">327</span><span class="k">def</span><span class="w"> </span><span class="nf">create_cameras</span><span class="p">(</span>
 <span class="linenos">328</span>    <span class="n">num_cams</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">2</span><span class="p">,</span> <span class="n">data_types</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">height</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">100</span><span class="p">,</span> <span class="n">width</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">120</span>
 <span class="linenos">329</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Camera</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
 <span class="linenos">330</span><span class="w">    </span><span class="sd">&quot;&quot;&quot;Defines the Standard cameras.&quot;&quot;&quot;</span>
@@ -950,7 +950,7 @@ directory.</p>
 <span class="linenos">335</span>    <span class="p">)</span>
 <span class="linenos">336</span>
 <span class="linenos">337</span>
-<span class="linenos">338</span><span class="k">def</span> <span class="nf">create_ray_caster_cameras</span><span class="p">(</span>
+<span class="linenos">338</span><span class="k">def</span><span class="w"> </span><span class="nf">create_ray_caster_cameras</span><span class="p">(</span>
 <span class="linenos">339</span>    <span class="n">num_cams</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">2</span><span class="p">,</span>
 <span class="linenos">340</span>    <span class="n">data_types</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;distance_to_image_plane&quot;</span><span class="p">],</span>
 <span class="linenos">341</span>    <span class="n">mesh_prim_paths</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;/World/ground&quot;</span><span class="p">],</span>
@@ -987,7 +987,7 @@ directory.</p>
 <span class="linenos">372</span>        <span class="k">return</span> <span class="kc">None</span>
 <span class="linenos">373</span>
 <span class="linenos">374</span>
-<span class="linenos">375</span><span class="k">def</span> <span class="nf">create_tiled_camera_cfg</span><span class="p">(</span><span class="n">prim_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">TiledCameraCfg</span><span class="p">:</span>
+<span class="linenos">375</span><span class="k">def</span><span class="w"> </span><span class="nf">create_tiled_camera_cfg</span><span class="p">(</span><span class="n">prim_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">TiledCameraCfg</span><span class="p">:</span>
 <span class="linenos">376</span><span class="w">    </span><span class="sd">&quot;&quot;&quot;Grab a simple tiled camera config for injecting into task environments.&quot;&quot;&quot;</span>
 <span class="linenos">377</span>    <span class="k">return</span> <span class="n">create_camera_base</span><span class="p">(</span>
 <span class="linenos">378</span>        <span class="n">TiledCameraCfg</span><span class="p">,</span>
@@ -1000,7 +1000,7 @@ directory.</p>
 <span class="linenos">385</span>    <span class="p">)</span>
 <span class="linenos">386</span>
 <span class="linenos">387</span>
-<span class="linenos">388</span><span class="k">def</span> <span class="nf">create_standard_camera_cfg</span><span class="p">(</span><span class="n">prim_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">CameraCfg</span><span class="p">:</span>
+<span class="linenos">388</span><span class="k">def</span><span class="w"> </span><span class="nf">create_standard_camera_cfg</span><span class="p">(</span><span class="n">prim_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">CameraCfg</span><span class="p">:</span>
 <span class="linenos">389</span><span class="w">    </span><span class="sd">&quot;&quot;&quot;Grab a simple standard camera config for injecting into task environments.&quot;&quot;&quot;</span>
 <span class="linenos">390</span>    <span class="k">return</span> <span class="n">create_camera_base</span><span class="p">(</span>
 <span class="linenos">391</span>        <span class="n">CameraCfg</span><span class="p">,</span>
@@ -1013,7 +1013,7 @@ directory.</p>
 <span class="linenos">398</span>    <span class="p">)</span>
 <span class="linenos">399</span>
 <span class="linenos">400</span>
-<span class="linenos">401</span><span class="k">def</span> <span class="nf">create_ray_caster_camera_cfg</span><span class="p">(</span><span class="n">prim_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">RayCasterCameraCfg</span><span class="p">:</span>
+<span class="linenos">401</span><span class="k">def</span><span class="w"> </span><span class="nf">create_ray_caster_camera_cfg</span><span class="p">(</span><span class="n">prim_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">RayCasterCameraCfg</span><span class="p">:</span>
 <span class="linenos">402</span><span class="w">    </span><span class="sd">&quot;&quot;&quot;Grab a simple ray caster config for injecting into task environments.&quot;&quot;&quot;</span>
 <span class="linenos">403</span>    <span class="k">return</span> <span class="n">create_ray_caster_cameras</span><span class="p">(</span>
 <span class="linenos">404</span>        <span class="n">num_cams</span><span class="o">=</span><span class="n">args_cli</span><span class="o">.</span><span class="n">num_ray_caster_cameras</span><span class="p">,</span>
@@ -1029,7 +1029,7 @@ directory.</p>
 <span class="linenos">414</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="linenos">415</span>
 <span class="linenos">416</span>
-<span class="linenos">417</span><span class="k">def</span> <span class="nf">design_scene</span><span class="p">(</span>
+<span class="linenos">417</span><span class="k">def</span><span class="w"> </span><span class="nf">design_scene</span><span class="p">(</span>
 <span class="linenos">418</span>    <span class="n">num_tiled_cams</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">2</span><span class="p">,</span>
 <span class="linenos">419</span>    <span class="n">num_standard_cams</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span>
 <span class="linenos">420</span>    <span class="n">num_ray_caster_cams</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span>
@@ -1116,7 +1116,7 @@ directory.</p>
 <span class="linenos">501</span>    <span class="k">return</span> <span class="n">scene_entities</span>
 <span class="linenos">502</span>
 <span class="linenos">503</span>
-<span class="linenos">504</span><span class="k">def</span> <span class="nf">inject_cameras_into_task</span><span class="p">(</span>
+<span class="linenos">504</span><span class="k">def</span><span class="w"> </span><span class="nf">inject_cameras_into_task</span><span class="p">(</span>
 <span class="linenos">505</span>    <span class="n">task</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
 <span class="linenos">506</span>    <span class="n">num_cams</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
 <span class="linenos">507</span>    <span class="n">camera_name_prefix</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
@@ -1146,7 +1146,7 @@ directory.</p>
 <span class="linenos">531</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="linenos">532</span>
 <span class="linenos">533</span>
-<span class="linenos">534</span><span class="k">def</span> <span class="nf">get_utilization_percentages</span><span class="p">(</span><span class="n">reset</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span> <span class="n">max_values</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">float</span><span class="p">]:</span>
+<span class="linenos">534</span><span class="k">def</span><span class="w"> </span><span class="nf">get_utilization_percentages</span><span class="p">(</span><span class="n">reset</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span> <span class="n">max_values</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">float</span><span class="p">]:</span>
 <span class="linenos">535</span><span class="w">    </span><span class="sd">&quot;&quot;&quot;Get the maximum CPU, RAM, GPU utilization (processing), and</span>
 <span class="linenos">536</span><span class="sd">    GPU memory usage percentages since the last time reset was true.&quot;&quot;&quot;</span>
 <span class="linenos">537</span>    <span class="k">if</span> <span class="n">reset</span><span class="p">:</span>
@@ -1193,7 +1193,7 @@ directory.</p>
 <span class="linenos">578</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="linenos">579</span>
 <span class="linenos">580</span>
-<span class="linenos">581</span><span class="k">def</span> <span class="nf">run_simulator</span><span class="p">(</span>
+<span class="linenos">581</span><span class="k">def</span><span class="w"> </span><span class="nf">run_simulator</span><span class="p">(</span>
 <span class="linenos">582</span>    <span class="n">sim</span><span class="p">:</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">SimulationContext</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
 <span class="linenos">583</span>    <span class="n">scene_entities</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">|</span> <span class="n">InteractiveScene</span><span class="p">,</span>
 <span class="linenos">584</span>    <span class="n">warm_start_length</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">10</span><span class="p">,</span>
@@ -1347,7 +1347,7 @@ directory.</p>
 <span class="linenos">732</span>    <span class="k">return</span> <span class="p">{</span><span class="s2">&quot;timing_analytics&quot;</span><span class="p">:</span> <span class="n">timing_analytics</span><span class="p">,</span> <span class="s2">&quot;system_utilization_analytics&quot;</span><span class="p">:</span> <span class="n">system_utilization_analytics</span><span class="p">}</span>
 <span class="linenos">733</span>
 <span class="linenos">734</span>
-<span class="linenos">735</span><span class="k">def</span> <span class="nf">main</span><span class="p">():</span>
+<span class="linenos">735</span><span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">():</span>
 <span class="linenos">736</span><span class="w">    </span><span class="sd">&quot;&quot;&quot;Main function.&quot;&quot;&quot;</span>
 <span class="linenos">737</span>    <span class="c1"># Load simulation context</span>
 <span class="linenos">738</span>    <span class="k">if</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">num_tiled_cameras</span> <span class="o">+</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">num_standard_cameras</span> <span class="o">+</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">num_ray_caster_cameras</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
@@ -1638,7 +1638,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jan 03, 2025.
+  Last updated on Jan 07, 2025.
   <br/>
 </p>
   </div>

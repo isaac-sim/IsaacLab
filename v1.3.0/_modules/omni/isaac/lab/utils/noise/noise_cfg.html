@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="1.3.0" />
-    <meta name="docbuild:last-update" content="Jan 03, 2025"/>
+    <meta name="docbuild:last-update" content="Jan 07, 2025"/>
   </head>
   
   
@@ -511,20 +511,20 @@
 <span class="c1">#</span>
 <span class="c1"># SPDX-License-Identifier: BSD-3-Clause</span>
 
-<span class="kn">from</span> <span class="nn">__future__</span> <span class="kn">import</span> <span class="n">annotations</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
 
-<span class="kn">import</span> <span class="nn">torch</span>
-<span class="kn">from</span> <span class="nn">collections.abc</span> <span class="kn">import</span> <span class="n">Callable</span>
-<span class="kn">from</span> <span class="nn">dataclasses</span> <span class="kn">import</span> <span class="n">MISSING</span>
-<span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Literal</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Callable</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">MISSING</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Literal</span>
 
-<span class="kn">from</span> <span class="nn">omni.isaac.lab.utils</span> <span class="kn">import</span> <span class="n">configclass</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">configclass</span>
 
-<span class="kn">from</span> <span class="nn">.</span> <span class="kn">import</span> <span class="n">noise_model</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.</span><span class="w"> </span><span class="kn">import</span> <span class="n">noise_model</span>
 
 
 <div class="viewcode-block" id="NoiseCfg"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.noise.NoiseCfg">[docs]</a><span class="nd">@configclass</span>
-<span class="k">class</span> <span class="nc">NoiseCfg</span><span class="p">:</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">NoiseCfg</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Base configuration for a noise term.&quot;&quot;&quot;</span>
 
     <span class="n">func</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">NoiseCfg</span><span class="p">],</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]</span> <span class="o">=</span> <span class="n">MISSING</span>
@@ -538,7 +538,7 @@
 
 
 <div class="viewcode-block" id="ConstantNoiseCfg"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.noise.ConstantNoiseCfg">[docs]</a><span class="nd">@configclass</span>
-<span class="k">class</span> <span class="nc">ConstantNoiseCfg</span><span class="p">(</span><span class="n">NoiseCfg</span><span class="p">):</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">ConstantNoiseCfg</span><span class="p">(</span><span class="n">NoiseCfg</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for an additive constant noise term.&quot;&quot;&quot;</span>
 
     <span class="n">func</span> <span class="o">=</span> <span class="n">noise_model</span><span class="o">.</span><span class="n">constant_noise</span>
@@ -548,7 +548,7 @@
 
 
 <div class="viewcode-block" id="UniformNoiseCfg"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.noise.UniformNoiseCfg">[docs]</a><span class="nd">@configclass</span>
-<span class="k">class</span> <span class="nc">UniformNoiseCfg</span><span class="p">(</span><span class="n">NoiseCfg</span><span class="p">):</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">UniformNoiseCfg</span><span class="p">(</span><span class="n">NoiseCfg</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for a additive uniform noise term.&quot;&quot;&quot;</span>
 
     <span class="n">func</span> <span class="o">=</span> <span class="n">noise_model</span><span class="o">.</span><span class="n">uniform_noise</span>
@@ -560,7 +560,7 @@
 
 
 <div class="viewcode-block" id="GaussianNoiseCfg"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.noise.GaussianNoiseCfg">[docs]</a><span class="nd">@configclass</span>
-<span class="k">class</span> <span class="nc">GaussianNoiseCfg</span><span class="p">(</span><span class="n">NoiseCfg</span><span class="p">):</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">GaussianNoiseCfg</span><span class="p">(</span><span class="n">NoiseCfg</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for an additive gaussian noise term.&quot;&quot;&quot;</span>
 
     <span class="n">func</span> <span class="o">=</span> <span class="n">noise_model</span><span class="o">.</span><span class="n">gaussian_noise</span>
@@ -577,7 +577,7 @@
 
 
 <div class="viewcode-block" id="NoiseModelCfg"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.noise.NoiseModelCfg">[docs]</a><span class="nd">@configclass</span>
-<span class="k">class</span> <span class="nc">NoiseModelCfg</span><span class="p">:</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">NoiseModelCfg</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for a noise model.&quot;&quot;&quot;</span>
 
     <span class="n">class_type</span><span class="p">:</span> <span class="nb">type</span> <span class="o">=</span> <span class="n">noise_model</span><span class="o">.</span><span class="n">NoiseModel</span>
@@ -588,7 +588,7 @@
 
 
 <div class="viewcode-block" id="NoiseModelWithAdditiveBiasCfg"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.noise.NoiseModelWithAdditiveBiasCfg">[docs]</a><span class="nd">@configclass</span>
-<span class="k">class</span> <span class="nc">NoiseModelWithAdditiveBiasCfg</span><span class="p">(</span><span class="n">NoiseModelCfg</span><span class="p">):</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">NoiseModelWithAdditiveBiasCfg</span><span class="p">(</span><span class="n">NoiseModelCfg</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for an additive gaussian noise with bias model.&quot;&quot;&quot;</span>
 
     <span class="n">class_type</span><span class="p">:</span> <span class="nb">type</span> <span class="o">=</span> <span class="n">noise_model</span><span class="o">.</span><span class="n">NoiseModelWithAdditiveBias</span>
@@ -645,7 +645,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jan 03, 2025.
+  Last updated on Jan 07, 2025.
   <br/>
 </p>
   </div>

@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="0.3.0" />
-    <meta name="docbuild:last-update" content="Jan 03, 2025"/>
+    <meta name="docbuild:last-update" content="Jan 07, 2025"/>
   </head>
   
   
@@ -498,32 +498,32 @@
 <span class="c1">#</span>
 <span class="c1"># SPDX-License-Identifier: BSD-3-Clause</span>
 
-<span class="kn">import</span> <span class="nn">math</span>
-<span class="kn">from</span> <span class="nn">dataclasses</span> <span class="kn">import</span> <span class="n">MISSING</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">math</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">MISSING</span>
 
-<span class="kn">from</span> <span class="nn">omni.isaac.lab.managers</span> <span class="kn">import</span> <span class="n">CommandTermCfg</span>
-<span class="kn">from</span> <span class="nn">omni.isaac.lab.utils</span> <span class="kn">import</span> <span class="n">configclass</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.managers</span><span class="w"> </span><span class="kn">import</span> <span class="n">CommandTermCfg</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">configclass</span>
 
-<span class="kn">from</span> <span class="nn">.null_command</span> <span class="kn">import</span> <span class="n">NullCommand</span>
-<span class="kn">from</span> <span class="nn">.pose_2d_command</span> <span class="kn">import</span> <span class="n">TerrainBasedPose2dCommand</span><span class="p">,</span> <span class="n">UniformPose2dCommand</span>
-<span class="kn">from</span> <span class="nn">.pose_command</span> <span class="kn">import</span> <span class="n">UniformPoseCommand</span>
-<span class="kn">from</span> <span class="nn">.velocity_command</span> <span class="kn">import</span> <span class="n">NormalVelocityCommand</span><span class="p">,</span> <span class="n">UniformVelocityCommand</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.null_command</span><span class="w"> </span><span class="kn">import</span> <span class="n">NullCommand</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.pose_2d_command</span><span class="w"> </span><span class="kn">import</span> <span class="n">TerrainBasedPose2dCommand</span><span class="p">,</span> <span class="n">UniformPose2dCommand</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.pose_command</span><span class="w"> </span><span class="kn">import</span> <span class="n">UniformPoseCommand</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.velocity_command</span><span class="w"> </span><span class="kn">import</span> <span class="n">NormalVelocityCommand</span><span class="p">,</span> <span class="n">UniformVelocityCommand</span>
 
 
 <div class="viewcode-block" id="NullCommandCfg"><a class="viewcode-back" href="../../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.commands.commands_cfg.NullCommandCfg">[docs]</a><span class="nd">@configclass</span>
-<span class="k">class</span> <span class="nc">NullCommandCfg</span><span class="p">(</span><span class="n">CommandTermCfg</span><span class="p">):</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">NullCommandCfg</span><span class="p">(</span><span class="n">CommandTermCfg</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for the null command generator.&quot;&quot;&quot;</span>
 
     <span class="n">class_type</span><span class="p">:</span> <span class="nb">type</span> <span class="o">=</span> <span class="n">NullCommand</span>
 
-    <span class="k">def</span> <span class="nf">__post_init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">__post_init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Post initialization.&quot;&quot;&quot;</span>
         <span class="c1"># set the resampling time range to infinity to avoid resampling</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">resampling_time_range</span> <span class="o">=</span> <span class="p">(</span><span class="n">math</span><span class="o">.</span><span class="n">inf</span><span class="p">,</span> <span class="n">math</span><span class="o">.</span><span class="n">inf</span><span class="p">)</span></div>
 
 
 <div class="viewcode-block" id="UniformVelocityCommandCfg"><a class="viewcode-back" href="../../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformVelocityCommandCfg">[docs]</a><span class="nd">@configclass</span>
-<span class="k">class</span> <span class="nc">UniformVelocityCommandCfg</span><span class="p">(</span><span class="n">CommandTermCfg</span><span class="p">):</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">UniformVelocityCommandCfg</span><span class="p">(</span><span class="n">CommandTermCfg</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for the uniform velocity command generator.&quot;&quot;&quot;</span>
 
     <span class="n">class_type</span><span class="p">:</span> <span class="nb">type</span> <span class="o">=</span> <span class="n">UniformVelocityCommand</span>
@@ -546,7 +546,7 @@
 <span class="sd">    (the others follow the sampled angular velocity command).&quot;&quot;&quot;</span>
 
 <div class="viewcode-block" id="UniformVelocityCommandCfg.Ranges"><a class="viewcode-back" href="../../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformVelocityCommandCfg.Ranges">[docs]</a>    <span class="nd">@configclass</span>
-    <span class="k">class</span> <span class="nc">Ranges</span><span class="p">:</span>
+    <span class="k">class</span><span class="w"> </span><span class="nc">Ranges</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Uniform distribution ranges for the velocity commands.&quot;&quot;&quot;</span>
 
         <span class="n">lin_vel_x</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="n">MISSING</span>  <span class="c1"># min max [m/s]</span>
@@ -559,14 +559,14 @@
 
 
 <div class="viewcode-block" id="NormalVelocityCommandCfg"><a class="viewcode-back" href="../../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.commands.commands_cfg.NormalVelocityCommandCfg">[docs]</a><span class="nd">@configclass</span>
-<span class="k">class</span> <span class="nc">NormalVelocityCommandCfg</span><span class="p">(</span><span class="n">UniformVelocityCommandCfg</span><span class="p">):</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">NormalVelocityCommandCfg</span><span class="p">(</span><span class="n">UniformVelocityCommandCfg</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for the normal velocity command generator.&quot;&quot;&quot;</span>
 
     <span class="n">class_type</span><span class="p">:</span> <span class="nb">type</span> <span class="o">=</span> <span class="n">NormalVelocityCommand</span>
     <span class="n">heading_command</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>  <span class="c1"># --&gt; we don&#39;t use heading command for normal velocity command.</span>
 
 <div class="viewcode-block" id="NormalVelocityCommandCfg.Ranges"><a class="viewcode-back" href="../../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.commands.commands_cfg.NormalVelocityCommandCfg.Ranges">[docs]</a>    <span class="nd">@configclass</span>
-    <span class="k">class</span> <span class="nc">Ranges</span><span class="p">:</span>
+    <span class="k">class</span><span class="w"> </span><span class="nc">Ranges</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Normal distribution ranges for the velocity commands.&quot;&quot;&quot;</span>
 
         <span class="n">mean_vel</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="n">MISSING</span>
@@ -590,7 +590,7 @@
 
 
 <div class="viewcode-block" id="UniformPoseCommandCfg"><a class="viewcode-back" href="../../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformPoseCommandCfg">[docs]</a><span class="nd">@configclass</span>
-<span class="k">class</span> <span class="nc">UniformPoseCommandCfg</span><span class="p">(</span><span class="n">CommandTermCfg</span><span class="p">):</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">UniformPoseCommandCfg</span><span class="p">(</span><span class="n">CommandTermCfg</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for uniform pose command generator.&quot;&quot;&quot;</span>
 
     <span class="n">class_type</span><span class="p">:</span> <span class="nb">type</span> <span class="o">=</span> <span class="n">UniformPoseCommand</span>
@@ -607,7 +607,7 @@
 <span class="sd">    &quot;&quot;&quot;</span>
 
 <div class="viewcode-block" id="UniformPoseCommandCfg.Ranges"><a class="viewcode-back" href="../../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformPoseCommandCfg.Ranges">[docs]</a>    <span class="nd">@configclass</span>
-    <span class="k">class</span> <span class="nc">Ranges</span><span class="p">:</span>
+    <span class="k">class</span><span class="w"> </span><span class="nc">Ranges</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Uniform distribution ranges for the pose commands.&quot;&quot;&quot;</span>
 
         <span class="n">pos_x</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="n">MISSING</span>  <span class="c1"># min max [m]</span>
@@ -622,7 +622,7 @@
 
 
 <div class="viewcode-block" id="UniformPose2dCommandCfg"><a class="viewcode-back" href="../../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformPose2dCommandCfg">[docs]</a><span class="nd">@configclass</span>
-<span class="k">class</span> <span class="nc">UniformPose2dCommandCfg</span><span class="p">(</span><span class="n">CommandTermCfg</span><span class="p">):</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">UniformPose2dCommandCfg</span><span class="p">(</span><span class="n">CommandTermCfg</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for the uniform 2D-pose command generator.&quot;&quot;&quot;</span>
 
     <span class="n">class_type</span><span class="p">:</span> <span class="nb">type</span> <span class="o">=</span> <span class="n">UniformPose2dCommand</span>
@@ -637,7 +637,7 @@
 <span class="sd">    &quot;&quot;&quot;</span>
 
 <div class="viewcode-block" id="UniformPose2dCommandCfg.Ranges"><a class="viewcode-back" href="../../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformPose2dCommandCfg.Ranges">[docs]</a>    <span class="nd">@configclass</span>
-    <span class="k">class</span> <span class="nc">Ranges</span><span class="p">:</span>
+    <span class="k">class</span><span class="w"> </span><span class="nc">Ranges</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Uniform distribution ranges for the position commands.&quot;&quot;&quot;</span>
 
         <span class="n">pos_x</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="n">MISSING</span>
@@ -655,13 +655,13 @@
 
 
 <div class="viewcode-block" id="TerrainBasedPose2dCommandCfg"><a class="viewcode-back" href="../../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.commands.commands_cfg.TerrainBasedPose2dCommandCfg">[docs]</a><span class="nd">@configclass</span>
-<span class="k">class</span> <span class="nc">TerrainBasedPose2dCommandCfg</span><span class="p">(</span><span class="n">UniformPose2dCommandCfg</span><span class="p">):</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">TerrainBasedPose2dCommandCfg</span><span class="p">(</span><span class="n">UniformPose2dCommandCfg</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for the terrain-based position command generator.&quot;&quot;&quot;</span>
 
     <span class="n">class_type</span> <span class="o">=</span> <span class="n">TerrainBasedPose2dCommand</span>
 
 <div class="viewcode-block" id="TerrainBasedPose2dCommandCfg.Ranges"><a class="viewcode-back" href="../../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.commands.commands_cfg.TerrainBasedPose2dCommandCfg.Ranges">[docs]</a>    <span class="nd">@configclass</span>
-    <span class="k">class</span> <span class="nc">Ranges</span><span class="p">:</span>
+    <span class="k">class</span><span class="w"> </span><span class="nc">Ranges</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Uniform distribution ranges for the position commands.&quot;&quot;&quot;</span>
 
         <span class="n">heading</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="n">MISSING</span>
@@ -719,7 +719,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jan 03, 2025.
+  Last updated on Jan 07, 2025.
   <br/>
 </p>
   </div>

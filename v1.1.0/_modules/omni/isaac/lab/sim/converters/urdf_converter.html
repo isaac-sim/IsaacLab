@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="1.1.0" />
-    <meta name="docbuild:last-update" content="Jan 03, 2025"/>
+    <meta name="docbuild:last-update" content="Jan 07, 2025"/>
   </head>
   
   
@@ -499,18 +499,18 @@
 <span class="c1">#</span>
 <span class="c1"># SPDX-License-Identifier: BSD-3-Clause</span>
 
-<span class="kn">from</span> <span class="nn">__future__</span> <span class="kn">import</span> <span class="n">annotations</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
 
-<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
 
-<span class="kn">import</span> <span class="nn">omni.kit.commands</span>
-<span class="kn">import</span> <span class="nn">omni.usd</span>
-<span class="kn">from</span> <span class="nn">omni.isaac.core.utils.extensions</span> <span class="kn">import</span> <span class="n">enable_extension</span>
-<span class="kn">from</span> <span class="nn">omni.isaac.version</span> <span class="kn">import</span> <span class="n">get_version</span>
-<span class="kn">from</span> <span class="nn">pxr</span> <span class="kn">import</span> <span class="n">Usd</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">omni.kit.commands</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">omni.usd</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.core.utils.extensions</span><span class="w"> </span><span class="kn">import</span> <span class="n">enable_extension</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.version</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_version</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pxr</span><span class="w"> </span><span class="kn">import</span> <span class="n">Usd</span>
 
-<span class="kn">from</span> <span class="nn">.asset_converter_base</span> <span class="kn">import</span> <span class="n">AssetConverterBase</span>
-<span class="kn">from</span> <span class="nn">.urdf_converter_cfg</span> <span class="kn">import</span> <span class="n">UrdfConverterCfg</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.asset_converter_base</span><span class="w"> </span><span class="kn">import</span> <span class="n">AssetConverterBase</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.urdf_converter_cfg</span><span class="w"> </span><span class="kn">import</span> <span class="n">UrdfConverterCfg</span>
 
 <span class="n">_DRIVE_TYPE</span> <span class="o">=</span> <span class="p">{</span>
     <span class="s2">&quot;none&quot;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
@@ -528,7 +528,7 @@
 <span class="sd">&quot;&quot;&quot;Mapping from normals division name to urdf importer normals division number.&quot;&quot;&quot;</span>
 
 
-<div class="viewcode-block" id="UrdfConverter"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.sim.converters.html#omni.isaac.lab.sim.converters.UrdfConverter">[docs]</a><span class="k">class</span> <span class="nc">UrdfConverter</span><span class="p">(</span><span class="n">AssetConverterBase</span><span class="p">):</span>
+<div class="viewcode-block" id="UrdfConverter"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.sim.converters.html#omni.isaac.lab.sim.converters.UrdfConverter">[docs]</a><span class="k">class</span><span class="w"> </span><span class="nc">UrdfConverter</span><span class="p">(</span><span class="n">AssetConverterBase</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Converter for a URDF description file to a USD file.</span>
 
 <span class="sd">    This class wraps around the `omni.isaac.urdf_importer`_ extension to provide a lazy implementation</span>
@@ -555,7 +555,7 @@
     <span class="n">cfg</span><span class="p">:</span> <span class="n">UrdfConverterCfg</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The configuration instance for URDF to USD conversion.&quot;&quot;&quot;</span>
 
-<div class="viewcode-block" id="UrdfConverter.__init__"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.sim.converters.html#omni.isaac.lab.sim.converters.UrdfConverter.__init__">[docs]</a>    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">UrdfConverterCfg</span><span class="p">):</span>
+<div class="viewcode-block" id="UrdfConverter.__init__"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.sim.converters.html#omni.isaac.lab.sim.converters.UrdfConverter.__init__">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">UrdfConverterCfg</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Initializes the class.</span>
 
 <span class="sd">        Args:</span>
@@ -567,7 +567,7 @@
 <span class="sd">    Implementation specific methods.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="k">def</span> <span class="nf">_convert_asset</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">UrdfConverterCfg</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_convert_asset</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">UrdfConverterCfg</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Calls underlying Omniverse command to convert URDF to USD.</span>
 
 <span class="sd">        Args:</span>
@@ -601,7 +601,7 @@
 <span class="sd">    Helper methods.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="k">def</span> <span class="nf">_get_urdf_import_config</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">UrdfConverterCfg</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">omni</span><span class="o">.</span><span class="n">importer</span><span class="o">.</span><span class="n">urdf</span><span class="o">.</span><span class="n">ImportConfig</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_get_urdf_import_config</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">UrdfConverterCfg</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">omni</span><span class="o">.</span><span class="n">importer</span><span class="o">.</span><span class="n">urdf</span><span class="o">.</span><span class="n">ImportConfig</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Create and fill URDF ImportConfig with desired settings</span>
 
 <span class="sd">        Args:</span>
@@ -613,7 +613,7 @@
         <span class="c1"># Enable urdf extension</span>
         <span class="n">enable_extension</span><span class="p">(</span><span class="s2">&quot;omni.importer.urdf&quot;</span><span class="p">)</span>
 
-        <span class="kn">from</span> <span class="nn">omni.importer.urdf</span> <span class="kn">import</span> <span class="n">_urdf</span> <span class="k">as</span> <span class="n">omni_urdf</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">omni.importer.urdf</span><span class="w"> </span><span class="kn">import</span> <span class="n">_urdf</span> <span class="k">as</span> <span class="n">omni_urdf</span>
 
         <span class="n">import_config</span> <span class="o">=</span> <span class="n">omni_urdf</span><span class="o">.</span><span class="n">ImportConfig</span><span class="p">()</span>
 
@@ -704,7 +704,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jan 03, 2025.
+  Last updated on Jan 07, 2025.
   <br/>
 </p>
   </div>

@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="1.2.0" />
-    <meta name="docbuild:last-update" content="Jan 03, 2025"/>
+    <meta name="docbuild:last-update" content="Jan 07, 2025"/>
   </head>
   
   
@@ -508,19 +508,19 @@
 <span class="c1">#</span>
 <span class="c1"># SPDX-License-Identifier: BSD-3-Clause</span>
 
-<span class="kn">import</span> <span class="nn">torch</span>
-<span class="kn">from</span> <span class="nn">collections.abc</span> <span class="kn">import</span> <span class="n">Iterable</span>
-<span class="kn">from</span> <span class="nn">dataclasses</span> <span class="kn">import</span> <span class="n">MISSING</span>
-<span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Literal</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Iterable</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">MISSING</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Literal</span>
 
-<span class="kn">from</span> <span class="nn">omni.isaac.lab.utils</span> <span class="kn">import</span> <span class="n">configclass</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">configclass</span>
 
-<span class="kn">from</span> <span class="nn">.</span> <span class="kn">import</span> <span class="n">actuator_net</span><span class="p">,</span> <span class="n">actuator_pd</span>
-<span class="kn">from</span> <span class="nn">.actuator_base</span> <span class="kn">import</span> <span class="n">ActuatorBase</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.</span><span class="w"> </span><span class="kn">import</span> <span class="n">actuator_net</span><span class="p">,</span> <span class="n">actuator_pd</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.actuator_base</span><span class="w"> </span><span class="kn">import</span> <span class="n">ActuatorBase</span>
 
 
 <div class="viewcode-block" id="ActuatorBaseCfg"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.actuators.html#omni.isaac.lab.actuators.ActuatorBaseCfg">[docs]</a><span class="nd">@configclass</span>
-<span class="k">class</span> <span class="nc">ActuatorBaseCfg</span><span class="p">:</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">ActuatorBaseCfg</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for default actuators in an articulation.&quot;&quot;&quot;</span>
 
     <span class="n">class_type</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">ActuatorBase</span><span class="p">]</span> <span class="o">=</span> <span class="n">MISSING</span>
@@ -579,7 +579,7 @@
 
 
 <div class="viewcode-block" id="ImplicitActuatorCfg"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.actuators.html#omni.isaac.lab.actuators.ImplicitActuatorCfg">[docs]</a><span class="nd">@configclass</span>
-<span class="k">class</span> <span class="nc">ImplicitActuatorCfg</span><span class="p">(</span><span class="n">ActuatorBaseCfg</span><span class="p">):</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">ImplicitActuatorCfg</span><span class="p">(</span><span class="n">ActuatorBaseCfg</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for an implicit actuator.</span>
 
 <span class="sd">    Note:</span>
@@ -595,14 +595,14 @@
 
 
 <div class="viewcode-block" id="IdealPDActuatorCfg"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.actuators.html#omni.isaac.lab.actuators.IdealPDActuatorCfg">[docs]</a><span class="nd">@configclass</span>
-<span class="k">class</span> <span class="nc">IdealPDActuatorCfg</span><span class="p">(</span><span class="n">ActuatorBaseCfg</span><span class="p">):</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">IdealPDActuatorCfg</span><span class="p">(</span><span class="n">ActuatorBaseCfg</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for an ideal PD actuator.&quot;&quot;&quot;</span>
 
     <span class="n">class_type</span><span class="p">:</span> <span class="nb">type</span> <span class="o">=</span> <span class="n">actuator_pd</span><span class="o">.</span><span class="n">IdealPDActuator</span></div>
 
 
 <div class="viewcode-block" id="DCMotorCfg"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.actuators.html#omni.isaac.lab.actuators.DCMotorCfg">[docs]</a><span class="nd">@configclass</span>
-<span class="k">class</span> <span class="nc">DCMotorCfg</span><span class="p">(</span><span class="n">IdealPDActuatorCfg</span><span class="p">):</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">DCMotorCfg</span><span class="p">(</span><span class="n">IdealPDActuatorCfg</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for direct control (DC) motor actuator model.&quot;&quot;&quot;</span>
 
     <span class="n">class_type</span><span class="p">:</span> <span class="nb">type</span> <span class="o">=</span> <span class="n">actuator_pd</span><span class="o">.</span><span class="n">DCMotor</span>
@@ -612,7 +612,7 @@
 
 
 <div class="viewcode-block" id="ActuatorNetLSTMCfg"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.actuators.html#omni.isaac.lab.actuators.ActuatorNetLSTMCfg">[docs]</a><span class="nd">@configclass</span>
-<span class="k">class</span> <span class="nc">ActuatorNetLSTMCfg</span><span class="p">(</span><span class="n">DCMotorCfg</span><span class="p">):</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">ActuatorNetLSTMCfg</span><span class="p">(</span><span class="n">DCMotorCfg</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for LSTM-based actuator model.&quot;&quot;&quot;</span>
 
     <span class="n">class_type</span><span class="p">:</span> <span class="nb">type</span> <span class="o">=</span> <span class="n">actuator_net</span><span class="o">.</span><span class="n">ActuatorNetLSTM</span>
@@ -625,7 +625,7 @@
 
 
 <div class="viewcode-block" id="ActuatorNetMLPCfg"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.actuators.html#omni.isaac.lab.actuators.ActuatorNetMLPCfg">[docs]</a><span class="nd">@configclass</span>
-<span class="k">class</span> <span class="nc">ActuatorNetMLPCfg</span><span class="p">(</span><span class="n">DCMotorCfg</span><span class="p">):</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">ActuatorNetMLPCfg</span><span class="p">(</span><span class="n">DCMotorCfg</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for MLP-based actuator model.&quot;&quot;&quot;</span>
 
     <span class="n">class_type</span><span class="p">:</span> <span class="nb">type</span> <span class="o">=</span> <span class="n">actuator_net</span><span class="o">.</span><span class="n">ActuatorNetMLP</span>
@@ -662,7 +662,7 @@
 
 
 <div class="viewcode-block" id="DelayedPDActuatorCfg"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.actuators.html#omni.isaac.lab.actuators.DelayedPDActuatorCfg">[docs]</a><span class="nd">@configclass</span>
-<span class="k">class</span> <span class="nc">DelayedPDActuatorCfg</span><span class="p">(</span><span class="n">IdealPDActuatorCfg</span><span class="p">):</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">DelayedPDActuatorCfg</span><span class="p">(</span><span class="n">IdealPDActuatorCfg</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for a delayed PD actuator.&quot;&quot;&quot;</span>
 
     <span class="n">class_type</span><span class="p">:</span> <span class="nb">type</span> <span class="o">=</span> <span class="n">actuator_pd</span><span class="o">.</span><span class="n">DelayedPDActuator</span>
@@ -675,7 +675,7 @@
 
 
 <div class="viewcode-block" id="RemotizedPDActuatorCfg"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.actuators.html#omni.isaac.lab.actuators.RemotizedPDActuatorCfg">[docs]</a><span class="nd">@configclass</span>
-<span class="k">class</span> <span class="nc">RemotizedPDActuatorCfg</span><span class="p">(</span><span class="n">DelayedPDActuatorCfg</span><span class="p">):</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">RemotizedPDActuatorCfg</span><span class="p">(</span><span class="n">DelayedPDActuatorCfg</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for a remotized PD actuator.</span>
 
 <span class="sd">    Note:</span>
@@ -739,7 +739,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jan 03, 2025.
+  Last updated on Jan 07, 2025.
   <br/>
 </p>
   </div>

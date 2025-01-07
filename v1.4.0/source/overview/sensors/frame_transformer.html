@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="1.3.0" />
-    <meta name="docbuild:last-update" content="Jan 03, 2025"/>
+    <meta name="docbuild:last-update" content="Jan 07, 2025"/>
   </head>
   
   
@@ -588,7 +588,7 @@
 <p>One of the most common operations that needs to be performed within a physics simulation is the frame transformation: rewriting a vector or quaternion in the basis of an arbitrary euclidean coordinate system. There are many ways to accomplish this within Isaac and USD, but these methods can be cumbersome to implement within Isaac Lab’s GPU based simulation and cloned environments. To mitigate this problem, we have designed the Frame Transformer Sensor, that tracks and calculate the relative frame transformations for rigid bodies of interest to the scene.</p>
 <p>The sensory is minimally defined by a source frame and a list of target frames.  These definitions take the form of a prim path (for the source) and list of regex capable prim paths the rigid bodies to be tracked (for the targets).</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="nd">@configclass</span>
-<span class="k">class</span> <span class="nc">FrameTransformerSensorSceneCfg</span><span class="p">(</span><span class="n">InteractiveSceneCfg</span><span class="p">):</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">FrameTransformerSensorSceneCfg</span><span class="p">(</span><span class="n">InteractiveSceneCfg</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Design the scene with sensors on the robot.&quot;&quot;&quot;</span>
 
     <span class="c1"># ground plane</span>
@@ -643,7 +643,7 @@
 </pre></div>
 </div>
 <p>We can now run the scene and query the sensor for data</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">run_simulator</span><span class="p">(</span><span class="n">sim</span><span class="p">:</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">SimulationContext</span><span class="p">,</span> <span class="n">scene</span><span class="p">:</span> <span class="n">InteractiveScene</span><span class="p">):</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span><span class="w"> </span><span class="nf">run_simulator</span><span class="p">(</span><span class="n">sim</span><span class="p">:</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">SimulationContext</span><span class="p">,</span> <span class="n">scene</span><span class="p">:</span> <span class="n">InteractiveScene</span><span class="p">):</span>
   <span class="o">.</span>
   <span class="o">.</span>
   <span class="o">.</span>
@@ -719,9 +719,9 @@ relative<span class="w"> </span>transforms:<span class="w"> </span>tensor<span c
 <span class="linenos">  3</span><span class="c1">#</span>
 <span class="linenos">  4</span><span class="c1"># SPDX-License-Identifier: BSD-3-Clause</span>
 <span class="linenos">  5</span>
-<span class="linenos">  6</span><span class="kn">import</span> <span class="nn">argparse</span>
+<span class="linenos">  6</span><span class="kn">import</span><span class="w"> </span><span class="nn">argparse</span>
 <span class="linenos">  7</span>
-<span class="linenos">  8</span><span class="kn">from</span> <span class="nn">omni.isaac.lab.app</span> <span class="kn">import</span> <span class="n">AppLauncher</span>
+<span class="linenos">  8</span><span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.app</span><span class="w"> </span><span class="kn">import</span> <span class="n">AppLauncher</span>
 <span class="linenos">  9</span>
 <span class="linenos"> 10</span><span class="c1"># add argparse arguments</span>
 <span class="linenos"> 11</span><span class="n">parser</span> <span class="o">=</span> <span class="n">argparse</span><span class="o">.</span><span class="n">ArgumentParser</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="s2">&quot;Tutorial on adding sensors on a robot.&quot;</span><span class="p">)</span>
@@ -737,22 +737,22 @@ relative<span class="w"> </span>transforms:<span class="w"> </span>tensor<span c
 <span class="linenos"> 21</span>
 <span class="linenos"> 22</span><span class="sd">&quot;&quot;&quot;Rest everything follows.&quot;&quot;&quot;</span>
 <span class="linenos"> 23</span>
-<span class="linenos"> 24</span><span class="kn">import</span> <span class="nn">torch</span>
+<span class="linenos"> 24</span><span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
 <span class="linenos"> 25</span>
-<span class="linenos"> 26</span><span class="kn">import</span> <span class="nn">omni.isaac.lab.sim</span> <span class="k">as</span> <span class="nn">sim_utils</span>
-<span class="linenos"> 27</span><span class="kn">from</span> <span class="nn">omni.isaac.lab.assets</span> <span class="kn">import</span> <span class="n">AssetBaseCfg</span><span class="p">,</span> <span class="n">RigidObjectCfg</span>
-<span class="linenos"> 28</span><span class="kn">from</span> <span class="nn">omni.isaac.lab.scene</span> <span class="kn">import</span> <span class="n">InteractiveScene</span><span class="p">,</span> <span class="n">InteractiveSceneCfg</span>
-<span class="linenos"> 29</span><span class="kn">from</span> <span class="nn">omni.isaac.lab.sensors</span> <span class="kn">import</span> <span class="n">FrameTransformerCfg</span>
-<span class="linenos"> 30</span><span class="kn">from</span> <span class="nn">omni.isaac.lab.utils</span> <span class="kn">import</span> <span class="n">configclass</span>
+<span class="linenos"> 26</span><span class="kn">import</span><span class="w"> </span><span class="nn">omni.isaac.lab.sim</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">sim_utils</span>
+<span class="linenos"> 27</span><span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.assets</span><span class="w"> </span><span class="kn">import</span> <span class="n">AssetBaseCfg</span><span class="p">,</span> <span class="n">RigidObjectCfg</span>
+<span class="linenos"> 28</span><span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.scene</span><span class="w"> </span><span class="kn">import</span> <span class="n">InteractiveScene</span><span class="p">,</span> <span class="n">InteractiveSceneCfg</span>
+<span class="linenos"> 29</span><span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.sensors</span><span class="w"> </span><span class="kn">import</span> <span class="n">FrameTransformerCfg</span>
+<span class="linenos"> 30</span><span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">configclass</span>
 <span class="linenos"> 31</span>
 <span class="linenos"> 32</span><span class="c1">##</span>
 <span class="linenos"> 33</span><span class="c1"># Pre-defined configs</span>
 <span class="linenos"> 34</span><span class="c1">##</span>
-<span class="linenos"> 35</span><span class="kn">from</span> <span class="nn">omni.isaac.lab_assets.anymal</span> <span class="kn">import</span> <span class="n">ANYMAL_C_CFG</span>  <span class="c1"># isort: skip</span>
+<span class="linenos"> 35</span><span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab_assets.anymal</span><span class="w"> </span><span class="kn">import</span> <span class="n">ANYMAL_C_CFG</span>  <span class="c1"># isort: skip</span>
 <span class="linenos"> 36</span>
 <span class="linenos"> 37</span>
 <span class="linenos"> 38</span><span class="nd">@configclass</span>
-<span class="linenos"> 39</span><span class="k">class</span> <span class="nc">FrameTransformerSensorSceneCfg</span><span class="p">(</span><span class="n">InteractiveSceneCfg</span><span class="p">):</span>
+<span class="linenos"> 39</span><span class="k">class</span><span class="w"> </span><span class="nc">FrameTransformerSensorSceneCfg</span><span class="p">(</span><span class="n">InteractiveSceneCfg</span><span class="p">):</span>
 <span class="linenos"> 40</span><span class="w">    </span><span class="sd">&quot;&quot;&quot;Design the scene with sensors on the robot.&quot;&quot;&quot;</span>
 <span class="linenos"> 41</span>
 <span class="linenos"> 42</span>    <span class="c1"># ground plane</span>
@@ -802,7 +802,7 @@ relative<span class="w"> </span>transforms:<span class="w"> </span>tensor<span c
 <span class="linenos"> 86</span>    <span class="p">)</span>
 <span class="linenos"> 87</span>
 <span class="linenos"> 88</span>
-<span class="linenos"> 89</span><span class="k">def</span> <span class="nf">run_simulator</span><span class="p">(</span><span class="n">sim</span><span class="p">:</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">SimulationContext</span><span class="p">,</span> <span class="n">scene</span><span class="p">:</span> <span class="n">InteractiveScene</span><span class="p">):</span>
+<span class="linenos"> 89</span><span class="k">def</span><span class="w"> </span><span class="nf">run_simulator</span><span class="p">(</span><span class="n">sim</span><span class="p">:</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">SimulationContext</span><span class="p">,</span> <span class="n">scene</span><span class="p">:</span> <span class="n">InteractiveScene</span><span class="p">):</span>
 <span class="linenos"> 90</span><span class="w">    </span><span class="sd">&quot;&quot;&quot;Run the simulator.&quot;&quot;&quot;</span>
 <span class="linenos"> 91</span>    <span class="c1"># Define simulation stepping</span>
 <span class="linenos"> 92</span>    <span class="n">sim_dt</span> <span class="o">=</span> <span class="n">sim</span><span class="o">.</span><span class="n">get_physics_dt</span><span class="p">()</span>
@@ -861,7 +861,7 @@ relative<span class="w"> </span>transforms:<span class="w"> </span>tensor<span c
 <span class="linenos">145</span>        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;relative transforms:&quot;</span><span class="p">,</span> <span class="n">scene</span><span class="p">[</span><span class="s2">&quot;robot_transforms&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">target_pos_source</span><span class="p">)</span>
 <span class="linenos">146</span>
 <span class="linenos">147</span>
-<span class="linenos">148</span><span class="k">def</span> <span class="nf">main</span><span class="p">():</span>
+<span class="linenos">148</span><span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">():</span>
 <span class="linenos">149</span><span class="w">    </span><span class="sd">&quot;&quot;&quot;Main function.&quot;&quot;&quot;</span>
 <span class="linenos">150</span>
 <span class="linenos">151</span>    <span class="c1"># Initialize the simulation context</span>
@@ -954,7 +954,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jan 03, 2025.
+  Last updated on Jan 07, 2025.
   <br/>
 </p>
   </div>

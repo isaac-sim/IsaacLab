@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="1.2.0" />
-    <meta name="docbuild:last-update" content="Jan 03, 2025"/>
+    <meta name="docbuild:last-update" content="Jan 07, 2025"/>
   </head>
   
   
@@ -508,26 +508,26 @@
 <span class="c1">#</span>
 <span class="c1"># SPDX-License-Identifier: BSD-3-Clause</span>
 
-<span class="kn">from</span> <span class="nn">__future__</span> <span class="kn">import</span> <span class="n">annotations</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
 
-<span class="kn">import</span> <span class="nn">asyncio</span>
-<span class="kn">import</span> <span class="nn">os</span>
-<span class="kn">import</span> <span class="nn">weakref</span>
-<span class="kn">from</span> <span class="nn">datetime</span> <span class="kn">import</span> <span class="n">datetime</span>
-<span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">TYPE_CHECKING</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">asyncio</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">weakref</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">datetime</span><span class="w"> </span><span class="kn">import</span> <span class="n">datetime</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TYPE_CHECKING</span>
 
-<span class="kn">import</span> <span class="nn">omni.kit.app</span>
-<span class="kn">import</span> <span class="nn">omni.kit.commands</span>
-<span class="kn">import</span> <span class="nn">omni.usd</span>
-<span class="kn">from</span> <span class="nn">pxr</span> <span class="kn">import</span> <span class="n">PhysxSchema</span><span class="p">,</span> <span class="n">Sdf</span><span class="p">,</span> <span class="n">Usd</span><span class="p">,</span> <span class="n">UsdGeom</span><span class="p">,</span> <span class="n">UsdPhysics</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">omni.kit.app</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">omni.kit.commands</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">omni.usd</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pxr</span><span class="w"> </span><span class="kn">import</span> <span class="n">PhysxSchema</span><span class="p">,</span> <span class="n">Sdf</span><span class="p">,</span> <span class="n">Usd</span><span class="p">,</span> <span class="n">UsdGeom</span><span class="p">,</span> <span class="n">UsdPhysics</span>
 
 <span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
-    <span class="kn">import</span> <span class="nn">omni.ui</span>
+    <span class="kn">import</span><span class="w"> </span><span class="nn">omni.ui</span>
 
-    <span class="kn">from</span> <span class="nn">..manager_based_env</span> <span class="kn">import</span> <span class="n">ManagerBasedEnv</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">..manager_based_env</span><span class="w"> </span><span class="kn">import</span> <span class="n">ManagerBasedEnv</span>
 
 
-<div class="viewcode-block" id="BaseEnvWindow"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.ui.html#omni.isaac.lab.envs.ui.BaseEnvWindow">[docs]</a><span class="k">class</span> <span class="nc">BaseEnvWindow</span><span class="p">:</span>
+<div class="viewcode-block" id="BaseEnvWindow"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.ui.html#omni.isaac.lab.envs.ui.BaseEnvWindow">[docs]</a><span class="k">class</span><span class="w"> </span><span class="nc">BaseEnvWindow</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Window manager for the basic environment.</span>
 
 <span class="sd">    This class creates a window that is used to control the environment. The window</span>
@@ -544,7 +544,7 @@
 
 <span class="sd">    &quot;&quot;&quot;</span>
 
-<div class="viewcode-block" id="BaseEnvWindow.__init__"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.ui.html#omni.isaac.lab.envs.ui.BaseEnvWindow.__init__">[docs]</a>    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedEnv</span><span class="p">,</span> <span class="n">window_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;IsaacLab&quot;</span><span class="p">):</span>
+<div class="viewcode-block" id="BaseEnvWindow.__init__"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.ui.html#omni.isaac.lab.envs.ui.BaseEnvWindow.__init__">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedEnv</span><span class="p">,</span> <span class="n">window_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;IsaacLab&quot;</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Initialize the window.</span>
 
 <span class="sd">        Args:</span>
@@ -586,7 +586,7 @@
                 <span class="c1"># create collapsable frame for debug visualization</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">_build_debug_vis_frame</span><span class="p">()</span></div>
 
-    <span class="k">def</span> <span class="fm">__del__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__del__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Destructor for the window.&quot;&quot;&quot;</span>
         <span class="c1"># destroy the window</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">ui_window</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
@@ -598,7 +598,7 @@
 <span class="sd">    Build sub-sections of the UI.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="k">def</span> <span class="nf">_build_sim_frame</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_build_sim_frame</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Builds the sim-related controls frame for the UI.&quot;&quot;&quot;</span>
         <span class="c1"># create collapsable frame for controls</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">ui_window_elements</span><span class="p">[</span><span class="s2">&quot;sim_frame&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">omni</span><span class="o">.</span><span class="n">ui</span><span class="o">.</span><span class="n">CollapsableFrame</span><span class="p">(</span>
@@ -640,7 +640,7 @@
                 <span class="c1"># disable the button if fabric is not enabled</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">ui_window_elements</span><span class="p">[</span><span class="s2">&quot;record_animation&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">enabled</span> <span class="o">=</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">env</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">is_fabric_enabled</span><span class="p">()</span>
 
-    <span class="k">def</span> <span class="nf">_build_viewer_frame</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_build_viewer_frame</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Build the viewer-related control frame for the UI.&quot;&quot;&quot;</span>
         <span class="c1"># create collapsable frame for viewer</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">ui_window_elements</span><span class="p">[</span><span class="s2">&quot;viewer_frame&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">omni</span><span class="o">.</span><span class="n">ui</span><span class="o">.</span><span class="n">CollapsableFrame</span><span class="p">(</span>
@@ -697,7 +697,7 @@
                     <span class="n">on_value_changed_fn</span><span class="o">=</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_set_viewer_location_fn</span><span class="p">]</span> <span class="o">*</span> <span class="mi">3</span><span class="p">,</span>
                 <span class="p">)</span>
 
-    <span class="k">def</span> <span class="nf">_build_debug_vis_frame</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_build_debug_vis_frame</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Builds the debug visualization frame for various scene elements.</span>
 
 <span class="sd">        This function inquires the scene for all elements that have a debug visualization</span>
@@ -743,7 +743,7 @@
 <span class="sd">    Custom callbacks for UI elements.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="k">def</span> <span class="nf">_toggle_recording_animation_fn</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">:</span> <span class="nb">bool</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_toggle_recording_animation_fn</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">:</span> <span class="nb">bool</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Toggles the animation recording.&quot;&quot;&quot;</span>
         <span class="k">if</span> <span class="n">value</span><span class="p">:</span>
             <span class="c1"># log directory to save the recording</span>
@@ -822,7 +822,7 @@
             <span class="c1"># reset the log directory</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">animation_log_dir</span> <span class="o">=</span> <span class="kc">None</span>
 
-    <span class="k">def</span> <span class="nf">_set_viewer_origin_type_fn</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_set_viewer_origin_type_fn</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Sets the origin of the viewport&#39;s camera. This is based on the drop-down menu in the UI.&quot;&quot;&quot;</span>
         <span class="c1"># Extract the viewport camera controller from environment</span>
         <span class="n">vcc</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">env</span><span class="o">.</span><span class="n">viewport_camera_controller</span>
@@ -842,7 +842,7 @@
             <span class="c1"># update the camera view</span>
             <span class="n">vcc</span><span class="o">.</span><span class="n">update_view_to_asset_root</span><span class="p">(</span><span class="n">viewer_asset_name</span><span class="p">)</span>
 
-    <span class="k">def</span> <span class="nf">_set_viewer_location_fn</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">model</span><span class="p">:</span> <span class="n">omni</span><span class="o">.</span><span class="n">ui</span><span class="o">.</span><span class="n">SimpleFloatModel</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_set_viewer_location_fn</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">model</span><span class="p">:</span> <span class="n">omni</span><span class="o">.</span><span class="n">ui</span><span class="o">.</span><span class="n">SimpleFloatModel</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Sets the viewport camera location based on the UI.&quot;&quot;&quot;</span>
         <span class="c1"># access the viewport camera controller (for brevity)</span>
         <span class="n">vcc</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">env</span><span class="o">.</span><span class="n">viewport_camera_controller</span>
@@ -854,7 +854,7 @@
         <span class="c1"># update the camera view</span>
         <span class="n">vcc</span><span class="o">.</span><span class="n">update_view_location</span><span class="p">(</span><span class="n">eye</span><span class="p">,</span> <span class="n">lookat</span><span class="p">)</span>
 
-    <span class="k">def</span> <span class="nf">_set_viewer_env_index_fn</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">model</span><span class="p">:</span> <span class="n">omni</span><span class="o">.</span><span class="n">ui</span><span class="o">.</span><span class="n">SimpleIntModel</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_set_viewer_env_index_fn</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">model</span><span class="p">:</span> <span class="n">omni</span><span class="o">.</span><span class="n">ui</span><span class="o">.</span><span class="n">SimpleIntModel</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Sets the environment index and updates the camera if in &#39;env&#39; origin mode.&quot;&quot;&quot;</span>
         <span class="c1"># access the viewport camera controller (for brevity)</span>
         <span class="n">vcc</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">env</span><span class="o">.</span><span class="n">viewport_camera_controller</span>
@@ -867,9 +867,9 @@
 <span class="sd">    Helper functions - UI building.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="k">def</span> <span class="nf">_create_debug_vis_ui_element</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">elem</span><span class="p">:</span> <span class="nb">object</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_create_debug_vis_ui_element</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">elem</span><span class="p">:</span> <span class="nb">object</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Create a checkbox for toggling debug visualization for the given element.&quot;&quot;&quot;</span>
-        <span class="kn">from</span> <span class="nn">omni.kit.window.extensions</span> <span class="kn">import</span> <span class="n">SimpleCheckBox</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">omni.kit.window.extensions</span><span class="w"> </span><span class="kn">import</span> <span class="n">SimpleCheckBox</span>
 
         <span class="k">with</span> <span class="n">omni</span><span class="o">.</span><span class="n">ui</span><span class="o">.</span><span class="n">HStack</span><span class="p">():</span>
             <span class="c1"># create the UI element</span>
@@ -892,7 +892,7 @@
             <span class="p">)</span>
             <span class="n">omni</span><span class="o">.</span><span class="n">isaac</span><span class="o">.</span><span class="n">ui</span><span class="o">.</span><span class="n">ui_utils</span><span class="o">.</span><span class="n">add_line_rect_flourish</span><span class="p">()</span>
 
-    <span class="k">async</span> <span class="k">def</span> <span class="nf">_dock_window</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">window_title</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">_dock_window</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">window_title</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Docks the custom UI window to the property window.&quot;&quot;&quot;</span>
         <span class="c1"># wait for the window to be created</span>
         <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">5</span><span class="p">):</span>
@@ -953,7 +953,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jan 03, 2025.
+  Last updated on Jan 07, 2025.
   <br/>
 </p>
   </div>

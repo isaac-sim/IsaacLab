@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="1.2.0" />
-    <meta name="docbuild:last-update" content="Jan 03, 2025"/>
+    <meta name="docbuild:last-update" content="Jan 07, 2025"/>
   </head>
   
   
@@ -530,18 +530,18 @@
 <span class="sd">&quot;&quot;&quot;</span>
 
 <span class="c1"># needed to import for type hinting: Agent | list[Agent]</span>
-<span class="kn">from</span> <span class="nn">__future__</span> <span class="kn">import</span> <span class="n">annotations</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
 
-<span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Literal</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Literal</span>
 
-<span class="kn">from</span> <span class="nn">omni.isaac.lab.envs</span> <span class="kn">import</span> <span class="n">DirectMARLEnv</span><span class="p">,</span> <span class="n">DirectRLEnv</span><span class="p">,</span> <span class="n">ManagerBasedRLEnv</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.envs</span><span class="w"> </span><span class="kn">import</span> <span class="n">DirectMARLEnv</span><span class="p">,</span> <span class="n">DirectRLEnv</span><span class="p">,</span> <span class="n">ManagerBasedRLEnv</span>
 
 <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">Vectorized environment wrapper.</span>
 <span class="sd">&quot;&quot;&quot;</span>
 
 
-<div class="viewcode-block" id="SkrlVecEnvWrapper"><a class="viewcode-back" href="../../../../../../source/api/lab_tasks/omni.isaac.lab_tasks.utils.wrappers.html#omni.isaac.lab_tasks.utils.wrappers.skrl.SkrlVecEnvWrapper">[docs]</a><span class="k">def</span> <span class="nf">SkrlVecEnvWrapper</span><span class="p">(</span>
+<div class="viewcode-block" id="SkrlVecEnvWrapper"><a class="viewcode-back" href="../../../../../../source/api/lab_tasks/omni.isaac.lab_tasks.utils.wrappers.html#omni.isaac.lab_tasks.utils.wrappers.skrl.SkrlVecEnvWrapper">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">SkrlVecEnvWrapper</span><span class="p">(</span>
     <span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedRLEnv</span> <span class="o">|</span> <span class="n">DirectRLEnv</span> <span class="o">|</span> <span class="n">DirectMARLEnv</span><span class="p">,</span>
     <span class="n">ml_framework</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;torch&quot;</span><span class="p">,</span> <span class="s2">&quot;jax&quot;</span><span class="p">,</span> <span class="s2">&quot;jax-numpy&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;torch&quot;</span><span class="p">,</span>
     <span class="n">wrapper</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;auto&quot;</span><span class="p">,</span> <span class="s2">&quot;isaaclab&quot;</span><span class="p">,</span> <span class="s2">&quot;isaaclab-single-agent&quot;</span><span class="p">,</span> <span class="s2">&quot;isaaclab-multi-agent&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;isaaclab&quot;</span><span class="p">,</span>
@@ -579,9 +579,9 @@
 
     <span class="c1"># import statements according to the ML framework</span>
     <span class="k">if</span> <span class="n">ml_framework</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">&quot;torch&quot;</span><span class="p">):</span>
-        <span class="kn">from</span> <span class="nn">skrl.envs.wrappers.torch</span> <span class="kn">import</span> <span class="n">wrap_env</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">skrl.envs.wrappers.torch</span><span class="w"> </span><span class="kn">import</span> <span class="n">wrap_env</span>
     <span class="k">elif</span> <span class="n">ml_framework</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">&quot;jax&quot;</span><span class="p">):</span>
-        <span class="kn">from</span> <span class="nn">skrl.envs.wrappers.jax</span> <span class="kn">import</span> <span class="n">wrap_env</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">skrl.envs.wrappers.jax</span><span class="w"> </span><span class="kn">import</span> <span class="n">wrap_env</span>
     <span class="k">else</span><span class="p">:</span>
         <span class="ne">ValueError</span><span class="p">(</span>
             <span class="sa">f</span><span class="s2">&quot;Invalid ML framework for skrl: </span><span class="si">{</span><span class="n">ml_framework</span><span class="si">}</span><span class="s2">. Available options are: &#39;torch&#39;, &#39;jax&#39; or &#39;jax-numpy&#39;&quot;</span>
@@ -636,7 +636,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jan 03, 2025.
+  Last updated on Jan 07, 2025.
   <br/>
 </p>
   </div>

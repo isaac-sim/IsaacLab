@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="1.1.0" />
-    <meta name="docbuild:last-update" content="Jan 03, 2025"/>
+    <meta name="docbuild:last-update" content="Jan 07, 2025"/>
   </head>
   
   
@@ -499,13 +499,13 @@
 <span class="c1">#</span>
 <span class="c1"># SPDX-License-Identifier: BSD-3-Clause</span>
 
-<span class="kn">from</span> <span class="nn">dataclasses</span> <span class="kn">import</span> <span class="n">MISSING</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">MISSING</span>
 
-<span class="kn">from</span> <span class="nn">omni.isaac.lab.controllers</span> <span class="kn">import</span> <span class="n">DifferentialIKControllerCfg</span>
-<span class="kn">from</span> <span class="nn">omni.isaac.lab.managers.action_manager</span> <span class="kn">import</span> <span class="n">ActionTerm</span><span class="p">,</span> <span class="n">ActionTermCfg</span>
-<span class="kn">from</span> <span class="nn">omni.isaac.lab.utils</span> <span class="kn">import</span> <span class="n">configclass</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.controllers</span><span class="w"> </span><span class="kn">import</span> <span class="n">DifferentialIKControllerCfg</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.managers.action_manager</span><span class="w"> </span><span class="kn">import</span> <span class="n">ActionTerm</span><span class="p">,</span> <span class="n">ActionTermCfg</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">configclass</span>
 
-<span class="kn">from</span> <span class="nn">.</span> <span class="kn">import</span> <span class="n">binary_joint_actions</span><span class="p">,</span> <span class="n">joint_actions</span><span class="p">,</span> <span class="n">joint_actions_to_limits</span><span class="p">,</span> <span class="n">non_holonomic_actions</span><span class="p">,</span> <span class="n">task_space_actions</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.</span><span class="w"> </span><span class="kn">import</span> <span class="n">binary_joint_actions</span><span class="p">,</span> <span class="n">joint_actions</span><span class="p">,</span> <span class="n">joint_actions_to_limits</span><span class="p">,</span> <span class="n">non_holonomic_actions</span><span class="p">,</span> <span class="n">task_space_actions</span>
 
 <span class="c1">##</span>
 <span class="c1"># Joint actions.</span>
@@ -513,7 +513,7 @@
 
 
 <div class="viewcode-block" id="JointActionCfg"><a class="viewcode-back" href="../../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.actions.actions_cfg.JointActionCfg">[docs]</a><span class="nd">@configclass</span>
-<span class="k">class</span> <span class="nc">JointActionCfg</span><span class="p">(</span><span class="n">ActionTermCfg</span><span class="p">):</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">JointActionCfg</span><span class="p">(</span><span class="n">ActionTermCfg</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for the base joint action term.</span>
 
 <span class="sd">    See :class:`JointAction` for more details.</span>
@@ -528,7 +528,7 @@
 
 
 <div class="viewcode-block" id="JointPositionActionCfg"><a class="viewcode-back" href="../../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.actions.actions_cfg.JointPositionActionCfg">[docs]</a><span class="nd">@configclass</span>
-<span class="k">class</span> <span class="nc">JointPositionActionCfg</span><span class="p">(</span><span class="n">JointActionCfg</span><span class="p">):</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">JointPositionActionCfg</span><span class="p">(</span><span class="n">JointActionCfg</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for the joint position action term.</span>
 
 <span class="sd">    See :class:`JointPositionAction` for more details.</span>
@@ -546,7 +546,7 @@
 
 
 <div class="viewcode-block" id="RelativeJointPositionActionCfg"><a class="viewcode-back" href="../../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.actions.actions_cfg.RelativeJointPositionActionCfg">[docs]</a><span class="nd">@configclass</span>
-<span class="k">class</span> <span class="nc">RelativeJointPositionActionCfg</span><span class="p">(</span><span class="n">JointActionCfg</span><span class="p">):</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">RelativeJointPositionActionCfg</span><span class="p">(</span><span class="n">JointActionCfg</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for the relative joint position action term.</span>
 
 <span class="sd">    See :class:`RelativeJointPositionAction` for more details.</span>
@@ -562,7 +562,7 @@
 
 
 <div class="viewcode-block" id="JointVelocityActionCfg"><a class="viewcode-back" href="../../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.actions.actions_cfg.JointVelocityActionCfg">[docs]</a><span class="nd">@configclass</span>
-<span class="k">class</span> <span class="nc">JointVelocityActionCfg</span><span class="p">(</span><span class="n">JointActionCfg</span><span class="p">):</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">JointVelocityActionCfg</span><span class="p">(</span><span class="n">JointActionCfg</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for the joint velocity action term.</span>
 
 <span class="sd">    See :class:`JointVelocityAction` for more details.</span>
@@ -579,7 +579,7 @@
 
 
 <div class="viewcode-block" id="JointEffortActionCfg"><a class="viewcode-back" href="../../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.actions.actions_cfg.JointEffortActionCfg">[docs]</a><span class="nd">@configclass</span>
-<span class="k">class</span> <span class="nc">JointEffortActionCfg</span><span class="p">(</span><span class="n">JointActionCfg</span><span class="p">):</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">JointEffortActionCfg</span><span class="p">(</span><span class="n">JointActionCfg</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for the joint effort action term.</span>
 
 <span class="sd">    See :class:`JointEffortAction` for more details.</span>
@@ -594,7 +594,7 @@
 
 
 <div class="viewcode-block" id="JointPositionToLimitsActionCfg"><a class="viewcode-back" href="../../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.actions.actions_cfg.JointPositionToLimitsActionCfg">[docs]</a><span class="nd">@configclass</span>
-<span class="k">class</span> <span class="nc">JointPositionToLimitsActionCfg</span><span class="p">(</span><span class="n">ActionTermCfg</span><span class="p">):</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">JointPositionToLimitsActionCfg</span><span class="p">(</span><span class="n">ActionTermCfg</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for the bounded joint position action term.</span>
 
 <span class="sd">    See :class:`JointPositionWithinLimitsAction` for more details.</span>
@@ -620,7 +620,7 @@
 
 
 <div class="viewcode-block" id="EMAJointPositionToLimitsActionCfg"><a class="viewcode-back" href="../../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.actions.actions_cfg.EMAJointPositionToLimitsActionCfg">[docs]</a><span class="nd">@configclass</span>
-<span class="k">class</span> <span class="nc">EMAJointPositionToLimitsActionCfg</span><span class="p">(</span><span class="n">JointPositionToLimitsActionCfg</span><span class="p">):</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">EMAJointPositionToLimitsActionCfg</span><span class="p">(</span><span class="n">JointPositionToLimitsActionCfg</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for the exponential moving average (EMA) joint position action term.</span>
 
 <span class="sd">    See :class:`EMAJointPositionToLimitsAction` for more details.</span>
@@ -641,7 +641,7 @@
 
 
 <div class="viewcode-block" id="BinaryJointActionCfg"><a class="viewcode-back" href="../../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.actions.actions_cfg.BinaryJointActionCfg">[docs]</a><span class="nd">@configclass</span>
-<span class="k">class</span> <span class="nc">BinaryJointActionCfg</span><span class="p">(</span><span class="n">ActionTermCfg</span><span class="p">):</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">BinaryJointActionCfg</span><span class="p">(</span><span class="n">ActionTermCfg</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for the base binary joint action term.</span>
 
 <span class="sd">    See :class:`BinaryJointAction` for more details.</span>
@@ -656,7 +656,7 @@
 
 
 <div class="viewcode-block" id="BinaryJointPositionActionCfg"><a class="viewcode-back" href="../../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.actions.actions_cfg.BinaryJointPositionActionCfg">[docs]</a><span class="nd">@configclass</span>
-<span class="k">class</span> <span class="nc">BinaryJointPositionActionCfg</span><span class="p">(</span><span class="n">BinaryJointActionCfg</span><span class="p">):</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">BinaryJointPositionActionCfg</span><span class="p">(</span><span class="n">BinaryJointActionCfg</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for the binary joint position action term.</span>
 
 <span class="sd">    See :class:`BinaryJointPositionAction` for more details.</span>
@@ -666,7 +666,7 @@
 
 
 <div class="viewcode-block" id="BinaryJointVelocityActionCfg"><a class="viewcode-back" href="../../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.actions.actions_cfg.BinaryJointVelocityActionCfg">[docs]</a><span class="nd">@configclass</span>
-<span class="k">class</span> <span class="nc">BinaryJointVelocityActionCfg</span><span class="p">(</span><span class="n">BinaryJointActionCfg</span><span class="p">):</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">BinaryJointVelocityActionCfg</span><span class="p">(</span><span class="n">BinaryJointActionCfg</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for the binary joint velocity action term.</span>
 
 <span class="sd">    See :class:`BinaryJointVelocityAction` for more details.</span>
@@ -681,7 +681,7 @@
 
 
 <div class="viewcode-block" id="NonHolonomicActionCfg"><a class="viewcode-back" href="../../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.actions.actions_cfg.NonHolonomicActionCfg">[docs]</a><span class="nd">@configclass</span>
-<span class="k">class</span> <span class="nc">NonHolonomicActionCfg</span><span class="p">(</span><span class="n">ActionTermCfg</span><span class="p">):</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">NonHolonomicActionCfg</span><span class="p">(</span><span class="n">ActionTermCfg</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for the non-holonomic action term with dummy joints at the base.</span>
 
 <span class="sd">    See :class:`NonHolonomicAction` for more details.</span>
@@ -709,14 +709,14 @@
 
 
 <div class="viewcode-block" id="DifferentialInverseKinematicsActionCfg"><a class="viewcode-back" href="../../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.actions.actions_cfg.DifferentialInverseKinematicsActionCfg">[docs]</a><span class="nd">@configclass</span>
-<span class="k">class</span> <span class="nc">DifferentialInverseKinematicsActionCfg</span><span class="p">(</span><span class="n">ActionTermCfg</span><span class="p">):</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">DifferentialInverseKinematicsActionCfg</span><span class="p">(</span><span class="n">ActionTermCfg</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for inverse differential kinematics action term.</span>
 
 <span class="sd">    See :class:`DifferentialInverseKinematicsAction` for more details.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
 <div class="viewcode-block" id="DifferentialInverseKinematicsActionCfg.OffsetCfg"><a class="viewcode-back" href="../../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.actions.actions_cfg.DifferentialInverseKinematicsActionCfg.OffsetCfg">[docs]</a>    <span class="nd">@configclass</span>
-    <span class="k">class</span> <span class="nc">OffsetCfg</span><span class="p">:</span>
+    <span class="k">class</span><span class="w"> </span><span class="nc">OffsetCfg</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;The offset pose from parent frame to child frame.</span>
 
 <span class="sd">        On many robots, end-effector frames are fictitious frames that do not have a corresponding</span>
@@ -789,7 +789,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jan 03, 2025.
+  Last updated on Jan 07, 2025.
   <br/>
 </p>
   </div>

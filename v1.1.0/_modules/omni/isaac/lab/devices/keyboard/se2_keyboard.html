@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="1.1.0" />
-    <meta name="docbuild:last-update" content="Jan 03, 2025"/>
+    <meta name="docbuild:last-update" content="Jan 07, 2025"/>
   </head>
   
   
@@ -501,17 +501,17 @@
 
 <span class="sd">&quot;&quot;&quot;Keyboard controller for SE(2) control.&quot;&quot;&quot;</span>
 
-<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
-<span class="kn">import</span> <span class="nn">weakref</span>
-<span class="kn">from</span> <span class="nn">collections.abc</span> <span class="kn">import</span> <span class="n">Callable</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">weakref</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Callable</span>
 
-<span class="kn">import</span> <span class="nn">carb</span>
-<span class="kn">import</span> <span class="nn">omni</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">carb</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">omni</span>
 
-<span class="kn">from</span> <span class="nn">..device_base</span> <span class="kn">import</span> <span class="n">DeviceBase</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">..device_base</span><span class="w"> </span><span class="kn">import</span> <span class="n">DeviceBase</span>
 
 
-<div class="viewcode-block" id="Se2Keyboard"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.devices.html#omni.isaac.lab.devices.Se2Keyboard">[docs]</a><span class="k">class</span> <span class="nc">Se2Keyboard</span><span class="p">(</span><span class="n">DeviceBase</span><span class="p">):</span>
+<div class="viewcode-block" id="Se2Keyboard"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.devices.html#omni.isaac.lab.devices.Se2Keyboard">[docs]</a><span class="k">class</span><span class="w"> </span><span class="nc">Se2Keyboard</span><span class="p">(</span><span class="n">DeviceBase</span><span class="p">):</span>
 <span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;A keyboard controller for sending SE(2) commands as velocity commands.</span>
 
 <span class="sd">    This class is designed to provide a keyboard controller for mobile base (such as quadrupeds).</span>
@@ -535,7 +535,7 @@
 
 <span class="sd">    &quot;&quot;&quot;</span>
 
-<div class="viewcode-block" id="Se2Keyboard.__init__"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.devices.html#omni.isaac.lab.devices.Se2Keyboard.__init__">[docs]</a>    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">v_x_sensitivity</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.8</span><span class="p">,</span> <span class="n">v_y_sensitivity</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.4</span><span class="p">,</span> <span class="n">omega_z_sensitivity</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span><span class="p">):</span>
+<div class="viewcode-block" id="Se2Keyboard.__init__"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.devices.html#omni.isaac.lab.devices.Se2Keyboard.__init__">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">v_x_sensitivity</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.8</span><span class="p">,</span> <span class="n">v_y_sensitivity</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.4</span><span class="p">,</span> <span class="n">omega_z_sensitivity</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Initialize the keyboard layer.</span>
 
 <span class="sd">        Args:</span>
@@ -563,12 +563,12 @@
         <span class="c1"># dictionary for additional callbacks</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_additional_callbacks</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span></div>
 
-    <span class="k">def</span> <span class="fm">__del__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__del__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Release the keyboard interface.&quot;&quot;&quot;</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_input</span><span class="o">.</span><span class="n">unsubscribe_from_keyboard_events</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_keyboard</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_keyboard_sub</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_keyboard_sub</span> <span class="o">=</span> <span class="kc">None</span>
 
-    <span class="k">def</span> <span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Returns: A string containing the information of joystick.&quot;&quot;&quot;</span>
         <span class="n">msg</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;Keyboard Controller for SE(2): </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span>
         <span class="n">msg</span> <span class="o">+=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="se">\t</span><span class="s2">Keyboard name: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_input</span><span class="o">.</span><span class="n">get_keyboard_name</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_keyboard</span><span class="p">)</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span>
@@ -586,11 +586,11 @@
 <span class="sd">    Operations</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-<div class="viewcode-block" id="Se2Keyboard.reset"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.devices.html#omni.isaac.lab.devices.Se2Keyboard.reset">[docs]</a>    <span class="k">def</span> <span class="nf">reset</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<div class="viewcode-block" id="Se2Keyboard.reset"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.devices.html#omni.isaac.lab.devices.Se2Keyboard.reset">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">reset</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="c1"># default flags</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_base_command</span><span class="o">.</span><span class="n">fill</span><span class="p">(</span><span class="mf">0.0</span><span class="p">)</span></div>
 
-<div class="viewcode-block" id="Se2Keyboard.add_callback"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.devices.html#omni.isaac.lab.devices.Se2Keyboard.add_callback">[docs]</a>    <span class="k">def</span> <span class="nf">add_callback</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">func</span><span class="p">:</span> <span class="n">Callable</span><span class="p">):</span>
+<div class="viewcode-block" id="Se2Keyboard.add_callback"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.devices.html#omni.isaac.lab.devices.Se2Keyboard.add_callback">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">add_callback</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">func</span><span class="p">:</span> <span class="n">Callable</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Add additional functions to bind keyboard.</span>
 
 <span class="sd">        A list of available keys are present in the</span>
@@ -603,7 +603,7 @@
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_additional_callbacks</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">func</span></div>
 
-<div class="viewcode-block" id="Se2Keyboard.advance"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.devices.html#omni.isaac.lab.devices.Se2Keyboard.advance">[docs]</a>    <span class="k">def</span> <span class="nf">advance</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>
+<div class="viewcode-block" id="Se2Keyboard.advance"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.devices.html#omni.isaac.lab.devices.Se2Keyboard.advance">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">advance</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Provides the result from keyboard event state.</span>
 
 <span class="sd">        Returns:</span>
@@ -615,7 +615,7 @@
 <span class="sd">    Internal helpers.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="k">def</span> <span class="nf">_on_keyboard_event</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">event</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_on_keyboard_event</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">event</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Subscriber callback to when kit is updated.</span>
 
 <span class="sd">        Reference:</span>
@@ -639,7 +639,7 @@
         <span class="c1"># since no error, we are fine :)</span>
         <span class="k">return</span> <span class="kc">True</span>
 
-    <span class="k">def</span> <span class="nf">_create_key_bindings</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_create_key_bindings</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Creates default key binding.&quot;&quot;&quot;</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_INPUT_KEY_MAPPING</span> <span class="o">=</span> <span class="p">{</span>
             <span class="c1"># forward command</span>
@@ -708,7 +708,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jan 03, 2025.
+  Last updated on Jan 07, 2025.
   <br/>
 </p>
   </div>

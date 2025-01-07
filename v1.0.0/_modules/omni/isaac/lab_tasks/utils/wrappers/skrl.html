@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="0.3.0" />
-    <meta name="docbuild:last-update" content="Jan 03, 2025"/>
+    <meta name="docbuild:last-update" content="Jan 07, 2025"/>
   </head>
   
   
@@ -519,28 +519,28 @@
 <span class="sd">&quot;&quot;&quot;</span>
 
 <span class="c1"># needed to import for type hinting: Agent | list[Agent]</span>
-<span class="kn">from</span> <span class="nn">__future__</span> <span class="kn">import</span> <span class="n">annotations</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
 
-<span class="kn">import</span> <span class="nn">copy</span>
-<span class="kn">import</span> <span class="nn">torch</span>
-<span class="kn">import</span> <span class="nn">tqdm</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">copy</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">tqdm</span>
 
-<span class="kn">from</span> <span class="nn">skrl.agents.torch</span> <span class="kn">import</span> <span class="n">Agent</span>
-<span class="kn">from</span> <span class="nn">skrl.envs.wrappers.torch</span> <span class="kn">import</span> <span class="n">Wrapper</span><span class="p">,</span> <span class="n">wrap_env</span>
-<span class="kn">from</span> <span class="nn">skrl.resources.preprocessors.torch</span> <span class="kn">import</span> <span class="n">RunningStandardScaler</span>  <span class="c1"># noqa: F401</span>
-<span class="kn">from</span> <span class="nn">skrl.resources.schedulers.torch</span> <span class="kn">import</span> <span class="n">KLAdaptiveLR</span>  <span class="c1"># noqa: F401</span>
-<span class="kn">from</span> <span class="nn">skrl.trainers.torch</span> <span class="kn">import</span> <span class="n">Trainer</span>
-<span class="kn">from</span> <span class="nn">skrl.trainers.torch.sequential</span> <span class="kn">import</span> <span class="n">SEQUENTIAL_TRAINER_DEFAULT_CONFIG</span>
-<span class="kn">from</span> <span class="nn">skrl.utils.model_instantiators.torch</span> <span class="kn">import</span> <span class="n">Shape</span>  <span class="c1"># noqa: F401</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">skrl.agents.torch</span><span class="w"> </span><span class="kn">import</span> <span class="n">Agent</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">skrl.envs.wrappers.torch</span><span class="w"> </span><span class="kn">import</span> <span class="n">Wrapper</span><span class="p">,</span> <span class="n">wrap_env</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">skrl.resources.preprocessors.torch</span><span class="w"> </span><span class="kn">import</span> <span class="n">RunningStandardScaler</span>  <span class="c1"># noqa: F401</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">skrl.resources.schedulers.torch</span><span class="w"> </span><span class="kn">import</span> <span class="n">KLAdaptiveLR</span>  <span class="c1"># noqa: F401</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">skrl.trainers.torch</span><span class="w"> </span><span class="kn">import</span> <span class="n">Trainer</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">skrl.trainers.torch.sequential</span><span class="w"> </span><span class="kn">import</span> <span class="n">SEQUENTIAL_TRAINER_DEFAULT_CONFIG</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">skrl.utils.model_instantiators.torch</span><span class="w"> </span><span class="kn">import</span> <span class="n">Shape</span>  <span class="c1"># noqa: F401</span>
 
-<span class="kn">from</span> <span class="nn">omni.isaac.lab.envs</span> <span class="kn">import</span> <span class="n">DirectRLEnv</span><span class="p">,</span> <span class="n">ManagerBasedRLEnv</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.envs</span><span class="w"> </span><span class="kn">import</span> <span class="n">DirectRLEnv</span><span class="p">,</span> <span class="n">ManagerBasedRLEnv</span>
 
 <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">Configuration Parser.</span>
 <span class="sd">&quot;&quot;&quot;</span>
 
 
-<div class="viewcode-block" id="process_skrl_cfg"><a class="viewcode-back" href="../../../../../../source/api/lab_tasks/omni.isaac.lab_tasks.utils.wrappers.html#omni.isaac.lab_tasks.utils.wrappers.skrl.process_skrl_cfg">[docs]</a><span class="k">def</span> <span class="nf">process_skrl_cfg</span><span class="p">(</span><span class="n">cfg</span><span class="p">:</span> <span class="nb">dict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+<div class="viewcode-block" id="process_skrl_cfg"><a class="viewcode-back" href="../../../../../../source/api/lab_tasks/omni.isaac.lab_tasks.utils.wrappers.html#omni.isaac.lab_tasks.utils.wrappers.skrl.process_skrl_cfg">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">process_skrl_cfg</span><span class="p">(</span><span class="n">cfg</span><span class="p">:</span> <span class="nb">dict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Convert simple YAML types to skrl classes/components.</span>
 
 <span class="sd">    Args:</span>
@@ -557,13 +557,13 @@
         <span class="s2">&quot;output_shape&quot;</span><span class="p">,</span>
     <span class="p">]</span>
 
-    <span class="k">def</span> <span class="nf">reward_shaper_function</span><span class="p">(</span><span class="n">scale</span><span class="p">):</span>
-        <span class="k">def</span> <span class="nf">reward_shaper</span><span class="p">(</span><span class="n">rewards</span><span class="p">,</span> <span class="n">timestep</span><span class="p">,</span> <span class="n">timesteps</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">reward_shaper_function</span><span class="p">(</span><span class="n">scale</span><span class="p">):</span>
+        <span class="k">def</span><span class="w"> </span><span class="nf">reward_shaper</span><span class="p">(</span><span class="n">rewards</span><span class="p">,</span> <span class="n">timestep</span><span class="p">,</span> <span class="n">timesteps</span><span class="p">):</span>
             <span class="k">return</span> <span class="n">rewards</span> <span class="o">*</span> <span class="n">scale</span>
 
         <span class="k">return</span> <span class="n">reward_shaper</span>
 
-    <span class="k">def</span> <span class="nf">update_dict</span><span class="p">(</span><span class="n">d</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">update_dict</span><span class="p">(</span><span class="n">d</span><span class="p">):</span>
         <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">d</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
             <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
                 <span class="n">update_dict</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
@@ -586,7 +586,7 @@
 <span class="sd">&quot;&quot;&quot;</span>
 
 
-<div class="viewcode-block" id="SkrlVecEnvWrapper"><a class="viewcode-back" href="../../../../../../source/api/lab_tasks/omni.isaac.lab_tasks.utils.wrappers.html#omni.isaac.lab_tasks.utils.wrappers.skrl.SkrlVecEnvWrapper">[docs]</a><span class="k">def</span> <span class="nf">SkrlVecEnvWrapper</span><span class="p">(</span><span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedRLEnv</span><span class="p">):</span>
+<div class="viewcode-block" id="SkrlVecEnvWrapper"><a class="viewcode-back" href="../../../../../../source/api/lab_tasks/omni.isaac.lab_tasks.utils.wrappers.html#omni.isaac.lab_tasks.utils.wrappers.skrl.SkrlVecEnvWrapper">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">SkrlVecEnvWrapper</span><span class="p">(</span><span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedRLEnv</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Wraps around Isaac Lab environment for skrl.</span>
 
 <span class="sd">    This function wraps around the Isaac Lab environment. Since the :class:`ManagerBasedRLEnv` environment</span>
@@ -617,7 +617,7 @@
 <span class="sd">&quot;&quot;&quot;</span>
 
 
-<div class="viewcode-block" id="SkrlSequentialLogTrainer"><a class="viewcode-back" href="../../../../../../source/api/lab_tasks/omni.isaac.lab_tasks.utils.wrappers.html#omni.isaac.lab_tasks.utils.wrappers.skrl.SkrlSequentialLogTrainer">[docs]</a><span class="k">class</span> <span class="nc">SkrlSequentialLogTrainer</span><span class="p">(</span><span class="n">Trainer</span><span class="p">):</span>
+<div class="viewcode-block" id="SkrlSequentialLogTrainer"><a class="viewcode-back" href="../../../../../../source/api/lab_tasks/omni.isaac.lab_tasks.utils.wrappers.html#omni.isaac.lab_tasks.utils.wrappers.skrl.SkrlSequentialLogTrainer">[docs]</a><span class="k">class</span><span class="w"> </span><span class="nc">SkrlSequentialLogTrainer</span><span class="p">(</span><span class="n">Trainer</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Sequential trainer with logging of episode information.</span>
 
 <span class="sd">    This trainer inherits from the :class:`skrl.trainers.base_class.Trainer` class. It is used to</span>
@@ -634,7 +634,7 @@
 <span class="sd">        https://skrl.readthedocs.io/en/latest/api/trainers.html#base-class</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-<div class="viewcode-block" id="SkrlSequentialLogTrainer.__init__"><a class="viewcode-back" href="../../../../../../source/api/lab_tasks/omni.isaac.lab_tasks.utils.wrappers.html#omni.isaac.lab_tasks.utils.wrappers.skrl.SkrlSequentialLogTrainer.__init__">[docs]</a>    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span>
+<div class="viewcode-block" id="SkrlSequentialLogTrainer.__init__"><a class="viewcode-back" href="../../../../../../source/api/lab_tasks/omni.isaac.lab_tasks.utils.wrappers.html#omni.isaac.lab_tasks.utils.wrappers.skrl.SkrlSequentialLogTrainer.__init__">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
         <span class="bp">self</span><span class="p">,</span>
         <span class="n">env</span><span class="p">:</span> <span class="n">Wrapper</span><span class="p">,</span>
         <span class="n">agents</span><span class="p">:</span> <span class="n">Agent</span> <span class="o">|</span> <span class="nb">list</span><span class="p">[</span><span class="n">Agent</span><span class="p">],</span>
@@ -664,7 +664,7 @@
         <span class="k">else</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">agents</span><span class="o">.</span><span class="n">init</span><span class="p">(</span><span class="n">trainer_cfg</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="p">)</span></div>
 
-<div class="viewcode-block" id="SkrlSequentialLogTrainer.train"><a class="viewcode-back" href="../../../../../../source/api/lab_tasks/omni.isaac.lab_tasks.utils.wrappers.html#omni.isaac.lab_tasks.utils.wrappers.skrl.SkrlSequentialLogTrainer.train">[docs]</a>    <span class="k">def</span> <span class="nf">train</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<div class="viewcode-block" id="SkrlSequentialLogTrainer.train"><a class="viewcode-back" href="../../../../../../source/api/lab_tasks/omni.isaac.lab_tasks.utils.wrappers.html#omni.isaac.lab_tasks.utils.wrappers.skrl.SkrlSequentialLogTrainer.train">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">train</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Train the agents sequentially.</span>
 
 <span class="sd">        This method executes the training loop for the agents. It performs the following steps:</span>
@@ -718,7 +718,7 @@
             <span class="c1"># update states</span>
             <span class="n">states</span><span class="o">.</span><span class="n">copy_</span><span class="p">(</span><span class="n">next_states</span><span class="p">)</span></div>
 
-<div class="viewcode-block" id="SkrlSequentialLogTrainer.eval"><a class="viewcode-back" href="../../../../../../source/api/lab_tasks/omni.isaac.lab_tasks.utils.wrappers.html#omni.isaac.lab_tasks.utils.wrappers.skrl.SkrlSequentialLogTrainer.eval">[docs]</a>    <span class="k">def</span> <span class="nf">eval</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<div class="viewcode-block" id="SkrlSequentialLogTrainer.eval"><a class="viewcode-back" href="../../../../../../source/api/lab_tasks/omni.isaac.lab_tasks.utils.wrappers.html#omni.isaac.lab_tasks.utils.wrappers.skrl.SkrlSequentialLogTrainer.eval">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">eval</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Evaluate the agents sequentially.</span>
 
 <span class="sd">        This method executes the following steps in loop:</span>
@@ -826,7 +826,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jan 03, 2025.
+  Last updated on Jan 07, 2025.
   <br/>
 </p>
   </div>

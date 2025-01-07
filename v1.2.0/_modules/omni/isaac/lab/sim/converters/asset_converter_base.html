@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="1.2.0" />
-    <meta name="docbuild:last-update" content="Jan 03, 2025"/>
+    <meta name="docbuild:last-update" content="Jan 07, 2025"/>
   </head>
   
   
@@ -508,20 +508,20 @@
 <span class="c1">#</span>
 <span class="c1"># SPDX-License-Identifier: BSD-3-Clause</span>
 
-<span class="kn">import</span> <span class="nn">abc</span>
-<span class="kn">import</span> <span class="nn">hashlib</span>
-<span class="kn">import</span> <span class="nn">json</span>
-<span class="kn">import</span> <span class="nn">os</span>
-<span class="kn">import</span> <span class="nn">pathlib</span>
-<span class="kn">import</span> <span class="nn">random</span>
-<span class="kn">from</span> <span class="nn">datetime</span> <span class="kn">import</span> <span class="n">datetime</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">abc</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">hashlib</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">json</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">pathlib</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">random</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">datetime</span><span class="w"> </span><span class="kn">import</span> <span class="n">datetime</span>
 
-<span class="kn">from</span> <span class="nn">omni.isaac.lab.sim.converters.asset_converter_base_cfg</span> <span class="kn">import</span> <span class="n">AssetConverterBaseCfg</span>
-<span class="kn">from</span> <span class="nn">omni.isaac.lab.utils.assets</span> <span class="kn">import</span> <span class="n">check_file_path</span>
-<span class="kn">from</span> <span class="nn">omni.isaac.lab.utils.io</span> <span class="kn">import</span> <span class="n">dump_yaml</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.sim.converters.asset_converter_base_cfg</span><span class="w"> </span><span class="kn">import</span> <span class="n">AssetConverterBaseCfg</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.utils.assets</span><span class="w"> </span><span class="kn">import</span> <span class="n">check_file_path</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.utils.io</span><span class="w"> </span><span class="kn">import</span> <span class="n">dump_yaml</span>
 
 
-<div class="viewcode-block" id="AssetConverterBase"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.sim.converters.html#omni.isaac.lab.sim.converters.AssetConverterBase">[docs]</a><span class="k">class</span> <span class="nc">AssetConverterBase</span><span class="p">(</span><span class="n">abc</span><span class="o">.</span><span class="n">ABC</span><span class="p">):</span>
+<div class="viewcode-block" id="AssetConverterBase"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.sim.converters.html#omni.isaac.lab.sim.converters.AssetConverterBase">[docs]</a><span class="k">class</span><span class="w"> </span><span class="nc">AssetConverterBase</span><span class="p">(</span><span class="n">abc</span><span class="o">.</span><span class="n">ABC</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Base class for converting an asset file from different formats into USD format.</span>
 
 <span class="sd">    This class provides a common interface for converting an asset file into USD. It does not</span>
@@ -550,7 +550,7 @@
 
 <span class="sd">    &quot;&quot;&quot;</span>
 
-<div class="viewcode-block" id="AssetConverterBase.__init__"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.sim.converters.html#omni.isaac.lab.sim.converters.AssetConverterBase.__init__">[docs]</a>    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">AssetConverterBaseCfg</span><span class="p">):</span>
+<div class="viewcode-block" id="AssetConverterBase.__init__"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.sim.converters.html#omni.isaac.lab.sim.converters.AssetConverterBase.__init__">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">AssetConverterBaseCfg</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Initializes the class.</span>
 
 <span class="sd">        Args:</span>
@@ -623,22 +623,22 @@
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">usd_dir</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">usd_dir</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;The absolute path to the directory where the generated USD files are stored.&quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_usd_dir</span>
 
     <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">usd_file_name</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">usd_file_name</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;The file name of the generated USD file.&quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_usd_file_name</span>
 
     <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">usd_path</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">usd_path</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;The absolute path to the generated USD file.&quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">usd_dir</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">usd_file_name</span><span class="p">)</span>
 
     <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">usd_instanceable_meshes_path</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">usd_instanceable_meshes_path</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;The relative path to the USD file with meshes.</span>
 
 <span class="sd">        The path is with respect to the USD directory :attr:`usd_dir`. This is to ensure that the</span>
@@ -652,7 +652,7 @@
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="nd">@abc</span><span class="o">.</span><span class="n">abstractmethod</span>
-    <span class="k">def</span> <span class="nf">_convert_asset</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">AssetConverterBaseCfg</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_convert_asset</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">AssetConverterBaseCfg</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Converts the asset file to USD.</span>
 
 <span class="sd">        Args:</span>
@@ -665,7 +665,7 @@
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="nd">@staticmethod</span>
-    <span class="k">def</span> <span class="nf">_config_to_hash</span><span class="p">(</span><span class="n">cfg</span><span class="p">:</span> <span class="n">AssetConverterBaseCfg</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_config_to_hash</span><span class="p">(</span><span class="n">cfg</span><span class="p">:</span> <span class="n">AssetConverterBaseCfg</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Converts the configuration object and asset file to an MD5 hash of a string.</span>
 
 <span class="sd">        .. warning::</span>
@@ -746,7 +746,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jan 03, 2025.
+  Last updated on Jan 07, 2025.
   <br/>
 </p>
   </div>

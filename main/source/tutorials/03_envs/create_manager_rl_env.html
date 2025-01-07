@@ -60,8 +60,8 @@
     <link rel="prev" title="Creating a Manager-Based Base Environment" href="create_manager_base_env.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-  <meta name="docsearch:version" content="1.3.0" />
-    <meta name="docbuild:last-update" content="Jan 03, 2025"/>
+  <meta name="docsearch:version" content="1.4.0" />
+    <meta name="docbuild:last-update" content="Jan 07, 2025"/>
   </head>
   
   
@@ -628,26 +628,26 @@ curriculum and commands.</p>
 <span class="linenos">  3</span><span class="c1">#</span>
 <span class="linenos">  4</span><span class="c1"># SPDX-License-Identifier: BSD-3-Clause</span>
 <span class="linenos">  5</span>
-<span class="linenos">  6</span><span class="kn">import</span> <span class="nn">math</span>
+<span class="linenos">  6</span><span class="kn">import</span><span class="w"> </span><span class="nn">math</span>
 <span class="linenos">  7</span>
-<span class="linenos">  8</span><span class="kn">import</span> <span class="nn">omni.isaac.lab.sim</span> <span class="k">as</span> <span class="nn">sim_utils</span>
-<span class="linenos">  9</span><span class="kn">from</span> <span class="nn">omni.isaac.lab.assets</span> <span class="kn">import</span> <span class="n">ArticulationCfg</span><span class="p">,</span> <span class="n">AssetBaseCfg</span>
-<span class="linenos"> 10</span><span class="kn">from</span> <span class="nn">omni.isaac.lab.envs</span> <span class="kn">import</span> <span class="n">ManagerBasedRLEnvCfg</span>
-<span class="linenos"> 11</span><span class="kn">from</span> <span class="nn">omni.isaac.lab.managers</span> <span class="kn">import</span> <span class="n">EventTermCfg</span> <span class="k">as</span> <span class="n">EventTerm</span>
-<span class="linenos"> 12</span><span class="kn">from</span> <span class="nn">omni.isaac.lab.managers</span> <span class="kn">import</span> <span class="n">ObservationGroupCfg</span> <span class="k">as</span> <span class="n">ObsGroup</span>
-<span class="linenos"> 13</span><span class="kn">from</span> <span class="nn">omni.isaac.lab.managers</span> <span class="kn">import</span> <span class="n">ObservationTermCfg</span> <span class="k">as</span> <span class="n">ObsTerm</span>
-<span class="linenos"> 14</span><span class="kn">from</span> <span class="nn">omni.isaac.lab.managers</span> <span class="kn">import</span> <span class="n">RewardTermCfg</span> <span class="k">as</span> <span class="n">RewTerm</span>
-<span class="linenos"> 15</span><span class="kn">from</span> <span class="nn">omni.isaac.lab.managers</span> <span class="kn">import</span> <span class="n">SceneEntityCfg</span>
-<span class="linenos"> 16</span><span class="kn">from</span> <span class="nn">omni.isaac.lab.managers</span> <span class="kn">import</span> <span class="n">TerminationTermCfg</span> <span class="k">as</span> <span class="n">DoneTerm</span>
-<span class="linenos"> 17</span><span class="kn">from</span> <span class="nn">omni.isaac.lab.scene</span> <span class="kn">import</span> <span class="n">InteractiveSceneCfg</span>
-<span class="linenos"> 18</span><span class="kn">from</span> <span class="nn">omni.isaac.lab.utils</span> <span class="kn">import</span> <span class="n">configclass</span>
+<span class="linenos">  8</span><span class="kn">import</span><span class="w"> </span><span class="nn">omni.isaac.lab.sim</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">sim_utils</span>
+<span class="linenos">  9</span><span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.assets</span><span class="w"> </span><span class="kn">import</span> <span class="n">ArticulationCfg</span><span class="p">,</span> <span class="n">AssetBaseCfg</span>
+<span class="linenos"> 10</span><span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.envs</span><span class="w"> </span><span class="kn">import</span> <span class="n">ManagerBasedRLEnvCfg</span>
+<span class="linenos"> 11</span><span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.managers</span><span class="w"> </span><span class="kn">import</span> <span class="n">EventTermCfg</span> <span class="k">as</span> <span class="n">EventTerm</span>
+<span class="linenos"> 12</span><span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.managers</span><span class="w"> </span><span class="kn">import</span> <span class="n">ObservationGroupCfg</span> <span class="k">as</span> <span class="n">ObsGroup</span>
+<span class="linenos"> 13</span><span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.managers</span><span class="w"> </span><span class="kn">import</span> <span class="n">ObservationTermCfg</span> <span class="k">as</span> <span class="n">ObsTerm</span>
+<span class="linenos"> 14</span><span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.managers</span><span class="w"> </span><span class="kn">import</span> <span class="n">RewardTermCfg</span> <span class="k">as</span> <span class="n">RewTerm</span>
+<span class="linenos"> 15</span><span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.managers</span><span class="w"> </span><span class="kn">import</span> <span class="n">SceneEntityCfg</span>
+<span class="linenos"> 16</span><span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.managers</span><span class="w"> </span><span class="kn">import</span> <span class="n">TerminationTermCfg</span> <span class="k">as</span> <span class="n">DoneTerm</span>
+<span class="linenos"> 17</span><span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.scene</span><span class="w"> </span><span class="kn">import</span> <span class="n">InteractiveSceneCfg</span>
+<span class="linenos"> 18</span><span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">configclass</span>
 <span class="linenos"> 19</span>
-<span class="linenos"> 20</span><span class="kn">import</span> <span class="nn">omni.isaac.lab_tasks.manager_based.classic.cartpole.mdp</span> <span class="k">as</span> <span class="nn">mdp</span>
+<span class="linenos"> 20</span><span class="kn">import</span><span class="w"> </span><span class="nn">omni.isaac.lab_tasks.manager_based.classic.cartpole.mdp</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">mdp</span>
 <span class="linenos"> 21</span>
 <span class="linenos"> 22</span><span class="c1">##</span>
 <span class="linenos"> 23</span><span class="c1"># Pre-defined configs</span>
 <span class="linenos"> 24</span><span class="c1">##</span>
-<span class="linenos"> 25</span><span class="kn">from</span> <span class="nn">omni.isaac.lab_assets.cartpole</span> <span class="kn">import</span> <span class="n">CARTPOLE_CFG</span>  <span class="c1"># isort:skip</span>
+<span class="linenos"> 25</span><span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab_assets.cartpole</span><span class="w"> </span><span class="kn">import</span> <span class="n">CARTPOLE_CFG</span>  <span class="c1"># isort:skip</span>
 <span class="linenos"> 26</span>
 <span class="linenos"> 27</span>
 <span class="linenos"> 28</span><span class="c1">##</span>
@@ -656,7 +656,7 @@ curriculum and commands.</p>
 <span class="linenos"> 31</span>
 <span class="linenos"> 32</span>
 <span class="linenos"> 33</span><span class="nd">@configclass</span>
-<span class="linenos"> 34</span><span class="k">class</span> <span class="nc">CartpoleSceneCfg</span><span class="p">(</span><span class="n">InteractiveSceneCfg</span><span class="p">):</span>
+<span class="linenos"> 34</span><span class="k">class</span><span class="w"> </span><span class="nc">CartpoleSceneCfg</span><span class="p">(</span><span class="n">InteractiveSceneCfg</span><span class="p">):</span>
 <span class="linenos"> 35</span><span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for a cart-pole scene.&quot;&quot;&quot;</span>
 <span class="linenos"> 36</span>
 <span class="linenos"> 37</span>    <span class="c1"># ground plane</span>
@@ -681,25 +681,25 @@ curriculum and commands.</p>
 <span class="linenos"> 56</span>
 <span class="linenos"> 57</span>
 <span class="linenos"> 58</span><span class="nd">@configclass</span>
-<span class="linenos"> 59</span><span class="k">class</span> <span class="nc">ActionsCfg</span><span class="p">:</span>
+<span class="linenos"> 59</span><span class="k">class</span><span class="w"> </span><span class="nc">ActionsCfg</span><span class="p">:</span>
 <span class="linenos"> 60</span><span class="w">    </span><span class="sd">&quot;&quot;&quot;Action specifications for the MDP.&quot;&quot;&quot;</span>
 <span class="linenos"> 61</span>
 <span class="linenos"> 62</span>    <span class="n">joint_effort</span> <span class="o">=</span> <span class="n">mdp</span><span class="o">.</span><span class="n">JointEffortActionCfg</span><span class="p">(</span><span class="n">asset_name</span><span class="o">=</span><span class="s2">&quot;robot&quot;</span><span class="p">,</span> <span class="n">joint_names</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;slider_to_cart&quot;</span><span class="p">],</span> <span class="n">scale</span><span class="o">=</span><span class="mf">100.0</span><span class="p">)</span>
 <span class="linenos"> 63</span>
 <span class="linenos"> 64</span>
 <span class="linenos"> 65</span><span class="nd">@configclass</span>
-<span class="linenos"> 66</span><span class="k">class</span> <span class="nc">ObservationsCfg</span><span class="p">:</span>
+<span class="linenos"> 66</span><span class="k">class</span><span class="w"> </span><span class="nc">ObservationsCfg</span><span class="p">:</span>
 <span class="linenos"> 67</span><span class="w">    </span><span class="sd">&quot;&quot;&quot;Observation specifications for the MDP.&quot;&quot;&quot;</span>
 <span class="linenos"> 68</span>
 <span class="linenos"> 69</span>    <span class="nd">@configclass</span>
-<span class="linenos"> 70</span>    <span class="k">class</span> <span class="nc">PolicyCfg</span><span class="p">(</span><span class="n">ObsGroup</span><span class="p">):</span>
+<span class="linenos"> 70</span>    <span class="k">class</span><span class="w"> </span><span class="nc">PolicyCfg</span><span class="p">(</span><span class="n">ObsGroup</span><span class="p">):</span>
 <span class="linenos"> 71</span><span class="w">        </span><span class="sd">&quot;&quot;&quot;Observations for policy group.&quot;&quot;&quot;</span>
 <span class="linenos"> 72</span>
 <span class="linenos"> 73</span>        <span class="c1"># observation terms (order preserved)</span>
 <span class="linenos"> 74</span>        <span class="n">joint_pos_rel</span> <span class="o">=</span> <span class="n">ObsTerm</span><span class="p">(</span><span class="n">func</span><span class="o">=</span><span class="n">mdp</span><span class="o">.</span><span class="n">joint_pos_rel</span><span class="p">)</span>
 <span class="linenos"> 75</span>        <span class="n">joint_vel_rel</span> <span class="o">=</span> <span class="n">ObsTerm</span><span class="p">(</span><span class="n">func</span><span class="o">=</span><span class="n">mdp</span><span class="o">.</span><span class="n">joint_vel_rel</span><span class="p">)</span>
 <span class="linenos"> 76</span>
-<span class="linenos"> 77</span>        <span class="k">def</span> <span class="nf">__post_init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="linenos"> 77</span>        <span class="k">def</span><span class="w"> </span><span class="nf">__post_init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <span class="linenos"> 78</span>            <span class="bp">self</span><span class="o">.</span><span class="n">enable_corruption</span> <span class="o">=</span> <span class="kc">False</span>
 <span class="linenos"> 79</span>            <span class="bp">self</span><span class="o">.</span><span class="n">concatenate_terms</span> <span class="o">=</span> <span class="kc">True</span>
 <span class="linenos"> 80</span>
@@ -708,7 +708,7 @@ curriculum and commands.</p>
 <span class="linenos"> 83</span>
 <span class="linenos"> 84</span>
 <span class="linenos"> 85</span><span class="nd">@configclass</span>
-<span class="linenos"> 86</span><span class="k">class</span> <span class="nc">EventCfg</span><span class="p">:</span>
+<span class="linenos"> 86</span><span class="k">class</span><span class="w"> </span><span class="nc">EventCfg</span><span class="p">:</span>
 <span class="linenos"> 87</span><span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for events.&quot;&quot;&quot;</span>
 <span class="linenos"> 88</span>
 <span class="linenos"> 89</span>    <span class="c1"># reset</span>
@@ -734,7 +734,7 @@ curriculum and commands.</p>
 <span class="linenos">109</span>
 <span class="linenos">110</span>
 <span class="linenos">111</span><span class="nd">@configclass</span>
-<span class="linenos">112</span><span class="k">class</span> <span class="nc">RewardsCfg</span><span class="p">:</span>
+<span class="linenos">112</span><span class="k">class</span><span class="w"> </span><span class="nc">RewardsCfg</span><span class="p">:</span>
 <span class="linenos">113</span><span class="w">    </span><span class="sd">&quot;&quot;&quot;Reward terms for the MDP.&quot;&quot;&quot;</span>
 <span class="linenos">114</span>
 <span class="linenos">115</span>    <span class="c1"># (1) Constant running reward</span>
@@ -762,7 +762,7 @@ curriculum and commands.</p>
 </span><span class="hll"><span class="linenos">137</span>
 </span><span class="hll"><span class="linenos">138</span>
 </span><span class="hll"><span class="linenos">139</span><span class="nd">@configclass</span>
-</span><span class="hll"><span class="linenos">140</span><span class="k">class</span> <span class="nc">TerminationsCfg</span><span class="p">:</span>
+</span><span class="hll"><span class="linenos">140</span><span class="k">class</span><span class="w"> </span><span class="nc">TerminationsCfg</span><span class="p">:</span>
 </span><span class="hll"><span class="linenos">141</span><span class="w">    </span><span class="sd">&quot;&quot;&quot;Termination terms for the MDP.&quot;&quot;&quot;</span>
 </span><span class="linenos">142</span>
 <span class="linenos">143</span>    <span class="c1"># (1) Time out</span>
@@ -780,7 +780,7 @@ curriculum and commands.</p>
 </span><span class="linenos">155</span>
 <span class="linenos">156</span>
 <span class="linenos">157</span><span class="nd">@configclass</span>
-<span class="linenos">158</span><span class="k">class</span> <span class="nc">CartpoleEnvCfg</span><span class="p">(</span><span class="n">ManagerBasedRLEnvCfg</span><span class="p">):</span>
+<span class="linenos">158</span><span class="k">class</span><span class="w"> </span><span class="nc">CartpoleEnvCfg</span><span class="p">(</span><span class="n">ManagerBasedRLEnvCfg</span><span class="p">):</span>
 <span class="linenos">159</span><span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for the cartpole environment.&quot;&quot;&quot;</span>
 <span class="linenos">160</span>
 <span class="linenos">161</span>    <span class="c1"># Scene settings</span>
@@ -794,7 +794,7 @@ curriculum and commands.</p>
 <span class="linenos">169</span>    <span class="n">terminations</span><span class="p">:</span> <span class="n">TerminationsCfg</span> <span class="o">=</span> <span class="n">TerminationsCfg</span><span class="p">()</span>
 <span class="linenos">170</span>
 <span class="linenos">171</span>    <span class="c1"># Post initialization</span>
-<span class="hll"><span class="linenos">172</span>    <span class="k">def</span> <span class="nf">__post_init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="hll"><span class="linenos">172</span>    <span class="k">def</span><span class="w"> </span><span class="nf">__post_init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 </span><span class="hll"><span class="linenos">173</span><span class="w">        </span><span class="sd">&quot;&quot;&quot;Post initialization.&quot;&quot;&quot;</span>
 </span><span class="hll"><span class="linenos">174</span>        <span class="c1"># general settings</span>
 </span><span class="linenos">175</span>        <span class="bp">self</span><span class="o">.</span><span class="n">decimation</span> <span class="o">=</span> <span class="mi">2</span>
@@ -823,9 +823,9 @@ curriculum and commands.</p>
 <span class="linenos"> 7</span>
 <span class="linenos"> 8</span><span class="sd">&quot;&quot;&quot;Launch Isaac Sim Simulator first.&quot;&quot;&quot;</span>
 <span class="linenos"> 9</span>
-<span class="linenos">10</span><span class="kn">import</span> <span class="nn">argparse</span>
+<span class="linenos">10</span><span class="kn">import</span><span class="w"> </span><span class="nn">argparse</span>
 <span class="linenos">11</span>
-<span class="linenos">12</span><span class="kn">from</span> <span class="nn">omni.isaac.lab.app</span> <span class="kn">import</span> <span class="n">AppLauncher</span>
+<span class="linenos">12</span><span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.app</span><span class="w"> </span><span class="kn">import</span> <span class="n">AppLauncher</span>
 <span class="linenos">13</span>
 <span class="linenos">14</span><span class="c1"># add argparse arguments</span>
 <span class="linenos">15</span><span class="n">parser</span> <span class="o">=</span> <span class="n">argparse</span><span class="o">.</span><span class="n">ArgumentParser</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="s2">&quot;Tutorial on running the cartpole RL environment.&quot;</span><span class="p">)</span>
@@ -842,14 +842,14 @@ curriculum and commands.</p>
 <span class="linenos">26</span>
 <span class="linenos">27</span><span class="sd">&quot;&quot;&quot;Rest everything follows.&quot;&quot;&quot;</span>
 <span class="linenos">28</span>
-<span class="linenos">29</span><span class="kn">import</span> <span class="nn">torch</span>
+<span class="linenos">29</span><span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
 <span class="linenos">30</span>
-<span class="linenos">31</span><span class="kn">from</span> <span class="nn">omni.isaac.lab.envs</span> <span class="kn">import</span> <span class="n">ManagerBasedRLEnv</span>
+<span class="linenos">31</span><span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.envs</span><span class="w"> </span><span class="kn">import</span> <span class="n">ManagerBasedRLEnv</span>
 <span class="linenos">32</span>
-<span class="linenos">33</span><span class="kn">from</span> <span class="nn">omni.isaac.lab_tasks.manager_based.classic.cartpole.cartpole_env_cfg</span> <span class="kn">import</span> <span class="n">CartpoleEnvCfg</span>
+<span class="linenos">33</span><span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab_tasks.manager_based.classic.cartpole.cartpole_env_cfg</span><span class="w"> </span><span class="kn">import</span> <span class="n">CartpoleEnvCfg</span>
 <span class="linenos">34</span>
 <span class="linenos">35</span>
-<span class="linenos">36</span><span class="k">def</span> <span class="nf">main</span><span class="p">():</span>
+<span class="linenos">36</span><span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">():</span>
 <span class="linenos">37</span><span class="w">    </span><span class="sd">&quot;&quot;&quot;Main function.&quot;&quot;&quot;</span>
 <span class="hll"><span class="linenos">38</span>    <span class="c1"># create environment configuration</span>
 </span><span class="hll"><span class="linenos">39</span>    <span class="n">env_cfg</span> <span class="o">=</span> <span class="n">CartpoleEnvCfg</span><span class="p">()</span>
@@ -914,7 +914,7 @@ that are passed to the reward function when it is called.</p>
 <li><p><strong>Pole Velocity Reward</strong>: Encourage the agent to keep the pole velocity as small as possible.</p></li>
 </ul>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="nd">@configclass</span>
-<span class="k">class</span> <span class="nc">RewardsCfg</span><span class="p">:</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">RewardsCfg</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Reward terms for the MDP.&quot;&quot;&quot;</span>
 
     <span class="c1"># (1) Constant running reward</span>
@@ -958,7 +958,7 @@ we want the task to terminate when either of the following conditions is met:</p
 <p>The flag <code class="xref py py-attr docutils literal notranslate"><span class="pre">managers.TerminationsCfg.time_out</span></code> specifies whether the term is a time-out (truncation) term
 or terminated term. These are used to indicate the two types of terminations as described in <a class="reference external" href="https://gymnasium.farama.org/tutorials/gymnasium_basics/handling_time_limits/">Gymnasium’s documentation</a>.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="nd">@configclass</span>
-<span class="k">class</span> <span class="nc">TerminationsCfg</span><span class="p">:</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">TerminationsCfg</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Termination terms for the MDP.&quot;&quot;&quot;</span>
 
     <span class="c1"># (1) Time out</span>
@@ -993,7 +993,7 @@ curriculum definition in the other locomotion or manipulation tasks.</p>
 cartpole environment. This is similar to the <code class="xref py py-class docutils literal notranslate"><span class="pre">ManagerBasedEnvCfg</span></code> defined in <a class="reference internal" href="create_manager_base_env.html#tutorial-create-manager-base-env"><span class="std std-ref">Creating a Manager-Based Base Environment</span></a>,
 only with the added RL components explained in the above sections.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="nd">@configclass</span>
-<span class="k">class</span> <span class="nc">CartpoleEnvCfg</span><span class="p">(</span><span class="n">ManagerBasedRLEnvCfg</span><span class="p">):</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">CartpoleEnvCfg</span><span class="p">(</span><span class="n">ManagerBasedRLEnvCfg</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for the cartpole environment.&quot;&quot;&quot;</span>
 
     <span class="c1"># Scene settings</span>
@@ -1007,7 +1007,7 @@ only with the added RL components explained in the above sections.</p>
     <span class="n">terminations</span><span class="p">:</span> <span class="n">TerminationsCfg</span> <span class="o">=</span> <span class="n">TerminationsCfg</span><span class="p">()</span>
 
     <span class="c1"># Post initialization</span>
-    <span class="k">def</span> <span class="nf">__post_init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">__post_init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Post initialization.&quot;&quot;&quot;</span>
         <span class="c1"># general settings</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">decimation</span> <span class="o">=</span> <span class="mi">2</span>
@@ -1027,7 +1027,7 @@ The only difference is that we create an instance of <a class="reference interna
 <a class="reference internal" href="../../api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.ManagerBasedEnv" title="omni.isaac.lab.envs.ManagerBasedEnv"><code class="xref py py-class docutils literal notranslate"><span class="pre">envs.ManagerBasedEnv</span></code></a>. Consequently, now the <a class="reference internal" href="../../api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.ManagerBasedRLEnv.step" title="omni.isaac.lab.envs.ManagerBasedRLEnv.step"><code class="xref py py-meth docutils literal notranslate"><span class="pre">envs.ManagerBasedRLEnv.step()</span></code></a> method returns additional signals
 such as the reward and termination status. The information dictionary also maintains logging of quantities
 such as the reward contribution from individual terms, the termination status of each term, the episode length etc.</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">main</span><span class="p">():</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">():</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Main function.&quot;&quot;&quot;</span>
     <span class="c1"># create environment configuration</span>
     <span class="n">env_cfg</span> <span class="o">=</span> <span class="n">CartpoleEnvCfg</span><span class="p">()</span>
@@ -1176,7 +1176,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jan 03, 2025.
+  Last updated on Jan 07, 2025.
   <br/>
 </p>
   </div>

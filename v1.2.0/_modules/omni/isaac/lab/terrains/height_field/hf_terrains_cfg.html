@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="1.2.0" />
-    <meta name="docbuild:last-update" content="Jan 03, 2025"/>
+    <meta name="docbuild:last-update" content="Jan 07, 2025"/>
   </head>
   
   
@@ -508,16 +508,16 @@
 <span class="c1">#</span>
 <span class="c1"># SPDX-License-Identifier: BSD-3-Clause</span>
 
-<span class="kn">from</span> <span class="nn">dataclasses</span> <span class="kn">import</span> <span class="n">MISSING</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">MISSING</span>
 
-<span class="kn">from</span> <span class="nn">omni.isaac.lab.utils</span> <span class="kn">import</span> <span class="n">configclass</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">configclass</span>
 
-<span class="kn">from</span> <span class="nn">..terrain_generator_cfg</span> <span class="kn">import</span> <span class="n">SubTerrainBaseCfg</span>
-<span class="kn">from</span> <span class="nn">.</span> <span class="kn">import</span> <span class="n">hf_terrains</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">..terrain_generator_cfg</span><span class="w"> </span><span class="kn">import</span> <span class="n">SubTerrainBaseCfg</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.</span><span class="w"> </span><span class="kn">import</span> <span class="n">hf_terrains</span>
 
 
 <div class="viewcode-block" id="HfTerrainBaseCfg"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.terrains.html#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfTerrainBaseCfg">[docs]</a><span class="nd">@configclass</span>
-<span class="k">class</span> <span class="nc">HfTerrainBaseCfg</span><span class="p">(</span><span class="n">SubTerrainBaseCfg</span><span class="p">):</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">HfTerrainBaseCfg</span><span class="p">(</span><span class="n">SubTerrainBaseCfg</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The base configuration for height field terrains.&quot;&quot;&quot;</span>
 
     <span class="n">border_width</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span>
@@ -541,7 +541,7 @@
 
 
 <div class="viewcode-block" id="HfRandomUniformTerrainCfg"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.terrains.html#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfRandomUniformTerrainCfg">[docs]</a><span class="nd">@configclass</span>
-<span class="k">class</span> <span class="nc">HfRandomUniformTerrainCfg</span><span class="p">(</span><span class="n">HfTerrainBaseCfg</span><span class="p">):</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">HfRandomUniformTerrainCfg</span><span class="p">(</span><span class="n">HfTerrainBaseCfg</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for a random uniform height field terrain.&quot;&quot;&quot;</span>
 
     <span class="n">function</span> <span class="o">=</span> <span class="n">hf_terrains</span><span class="o">.</span><span class="n">random_uniform_terrain</span>
@@ -560,7 +560,7 @@
 
 
 <div class="viewcode-block" id="HfPyramidSlopedTerrainCfg"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.terrains.html#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfPyramidSlopedTerrainCfg">[docs]</a><span class="nd">@configclass</span>
-<span class="k">class</span> <span class="nc">HfPyramidSlopedTerrainCfg</span><span class="p">(</span><span class="n">HfTerrainBaseCfg</span><span class="p">):</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">HfPyramidSlopedTerrainCfg</span><span class="p">(</span><span class="n">HfTerrainBaseCfg</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for a pyramid sloped height field terrain.&quot;&quot;&quot;</span>
 
     <span class="n">function</span> <span class="o">=</span> <span class="n">hf_terrains</span><span class="o">.</span><span class="n">pyramid_sloped_terrain</span>
@@ -577,7 +577,7 @@
 
 
 <div class="viewcode-block" id="HfInvertedPyramidSlopedTerrainCfg"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.terrains.html#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfInvertedPyramidSlopedTerrainCfg">[docs]</a><span class="nd">@configclass</span>
-<span class="k">class</span> <span class="nc">HfInvertedPyramidSlopedTerrainCfg</span><span class="p">(</span><span class="n">HfPyramidSlopedTerrainCfg</span><span class="p">):</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">HfInvertedPyramidSlopedTerrainCfg</span><span class="p">(</span><span class="n">HfPyramidSlopedTerrainCfg</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for an inverted pyramid sloped height field terrain.</span>
 
 <span class="sd">    Note:</span>
@@ -590,7 +590,7 @@
 
 
 <div class="viewcode-block" id="HfPyramidStairsTerrainCfg"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.terrains.html#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfPyramidStairsTerrainCfg">[docs]</a><span class="nd">@configclass</span>
-<span class="k">class</span> <span class="nc">HfPyramidStairsTerrainCfg</span><span class="p">(</span><span class="n">HfTerrainBaseCfg</span><span class="p">):</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">HfPyramidStairsTerrainCfg</span><span class="p">(</span><span class="n">HfTerrainBaseCfg</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for a pyramid stairs height field terrain.&quot;&quot;&quot;</span>
 
     <span class="n">function</span> <span class="o">=</span> <span class="n">hf_terrains</span><span class="o">.</span><span class="n">pyramid_stairs_terrain</span>
@@ -609,7 +609,7 @@
 
 
 <div class="viewcode-block" id="HfInvertedPyramidStairsTerrainCfg"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.terrains.html#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfInvertedPyramidStairsTerrainCfg">[docs]</a><span class="nd">@configclass</span>
-<span class="k">class</span> <span class="nc">HfInvertedPyramidStairsTerrainCfg</span><span class="p">(</span><span class="n">HfPyramidStairsTerrainCfg</span><span class="p">):</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">HfInvertedPyramidStairsTerrainCfg</span><span class="p">(</span><span class="n">HfPyramidStairsTerrainCfg</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for an inverted pyramid stairs height field terrain.</span>
 
 <span class="sd">    Note:</span>
@@ -622,7 +622,7 @@
 
 
 <div class="viewcode-block" id="HfDiscreteObstaclesTerrainCfg"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.terrains.html#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfDiscreteObstaclesTerrainCfg">[docs]</a><span class="nd">@configclass</span>
-<span class="k">class</span> <span class="nc">HfDiscreteObstaclesTerrainCfg</span><span class="p">(</span><span class="n">HfTerrainBaseCfg</span><span class="p">):</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">HfDiscreteObstaclesTerrainCfg</span><span class="p">(</span><span class="n">HfTerrainBaseCfg</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for a discrete obstacles height field terrain.&quot;&quot;&quot;</span>
 
     <span class="n">function</span> <span class="o">=</span> <span class="n">hf_terrains</span><span class="o">.</span><span class="n">discrete_obstacles_terrain</span>
@@ -643,7 +643,7 @@
 
 
 <div class="viewcode-block" id="HfWaveTerrainCfg"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.terrains.html#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfWaveTerrainCfg">[docs]</a><span class="nd">@configclass</span>
-<span class="k">class</span> <span class="nc">HfWaveTerrainCfg</span><span class="p">(</span><span class="n">HfTerrainBaseCfg</span><span class="p">):</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">HfWaveTerrainCfg</span><span class="p">(</span><span class="n">HfTerrainBaseCfg</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for a wave height field terrain.&quot;&quot;&quot;</span>
 
     <span class="n">function</span> <span class="o">=</span> <span class="n">hf_terrains</span><span class="o">.</span><span class="n">wave_terrain</span>
@@ -655,7 +655,7 @@
 
 
 <div class="viewcode-block" id="HfSteppingStonesTerrainCfg"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.terrains.html#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfSteppingStonesTerrainCfg">[docs]</a><span class="nd">@configclass</span>
-<span class="k">class</span> <span class="nc">HfSteppingStonesTerrainCfg</span><span class="p">(</span><span class="n">HfTerrainBaseCfg</span><span class="p">):</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">HfSteppingStonesTerrainCfg</span><span class="p">(</span><span class="n">HfTerrainBaseCfg</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for a stepping stones height field terrain.&quot;&quot;&quot;</span>
 
     <span class="n">function</span> <span class="o">=</span> <span class="n">hf_terrains</span><span class="o">.</span><span class="n">stepping_stones_terrain</span>
@@ -717,7 +717,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jan 03, 2025.
+  Last updated on Jan 07, 2025.
   <br/>
 </p>
   </div>

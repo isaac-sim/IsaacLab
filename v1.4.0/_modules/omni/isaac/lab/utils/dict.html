@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="1.3.0" />
-    <meta name="docbuild:last-update" content="Jan 03, 2025"/>
+    <meta name="docbuild:last-update" content="Jan 07, 2025"/>
   </head>
   
   
@@ -522,22 +522,22 @@
 
 <span class="sd">&quot;&quot;&quot;Sub-module for utilities for working with dictionaries.&quot;&quot;&quot;</span>
 
-<span class="kn">import</span> <span class="nn">collections.abc</span>
-<span class="kn">import</span> <span class="nn">hashlib</span>
-<span class="kn">import</span> <span class="nn">json</span>
-<span class="kn">import</span> <span class="nn">torch</span>
-<span class="kn">from</span> <span class="nn">collections.abc</span> <span class="kn">import</span> <span class="n">Iterable</span><span class="p">,</span> <span class="n">Mapping</span>
-<span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Any</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">collections.abc</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">hashlib</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">json</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Iterable</span><span class="p">,</span> <span class="n">Mapping</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span>
 
-<span class="kn">from</span> <span class="nn">.array</span> <span class="kn">import</span> <span class="n">TENSOR_TYPE_CONVERSIONS</span><span class="p">,</span> <span class="n">TENSOR_TYPES</span>
-<span class="kn">from</span> <span class="nn">.string</span> <span class="kn">import</span> <span class="n">callable_to_string</span><span class="p">,</span> <span class="n">string_to_callable</span><span class="p">,</span> <span class="n">string_to_slice</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.array</span><span class="w"> </span><span class="kn">import</span> <span class="n">TENSOR_TYPE_CONVERSIONS</span><span class="p">,</span> <span class="n">TENSOR_TYPES</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.string</span><span class="w"> </span><span class="kn">import</span> <span class="n">callable_to_string</span><span class="p">,</span> <span class="n">string_to_callable</span><span class="p">,</span> <span class="n">string_to_slice</span>
 
 <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">Dictionary &lt;-&gt; Class operations.</span>
 <span class="sd">&quot;&quot;&quot;</span>
 
 
-<div class="viewcode-block" id="class_to_dict"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.dict.class_to_dict">[docs]</a><span class="k">def</span> <span class="nf">class_to_dict</span><span class="p">(</span><span class="n">obj</span><span class="p">:</span> <span class="nb">object</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
+<div class="viewcode-block" id="class_to_dict"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.dict.class_to_dict">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">class_to_dict</span><span class="p">(</span><span class="n">obj</span><span class="p">:</span> <span class="nb">object</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Convert an object into dictionary recursively.</span>
 
 <span class="sd">    Note:</span>
@@ -588,7 +588,7 @@
     <span class="k">return</span> <span class="n">data</span></div>
 
 
-<div class="viewcode-block" id="update_class_from_dict"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.dict.update_class_from_dict">[docs]</a><span class="k">def</span> <span class="nf">update_class_from_dict</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">data</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span> <span class="n">_ns</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<div class="viewcode-block" id="update_class_from_dict"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.dict.update_class_from_dict">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">update_class_from_dict</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">data</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span> <span class="n">_ns</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Reads a dictionary and sets object variables recursively.</span>
 
 <span class="sd">    This function performs in-place update of the class member attributes.</span>
@@ -657,7 +657,7 @@
 <span class="sd">&quot;&quot;&quot;</span>
 
 
-<div class="viewcode-block" id="dict_to_md5_hash"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.dict.dict_to_md5_hash">[docs]</a><span class="k">def</span> <span class="nf">dict_to_md5_hash</span><span class="p">(</span><span class="n">data</span><span class="p">:</span> <span class="nb">object</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<div class="viewcode-block" id="dict_to_md5_hash"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.dict.dict_to_md5_hash">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">dict_to_md5_hash</span><span class="p">(</span><span class="n">data</span><span class="p">:</span> <span class="nb">object</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Convert a dictionary into a hashable key using MD5 hash.</span>
 
 <span class="sd">    Args:</span>
@@ -683,7 +683,7 @@
 <span class="sd">&quot;&quot;&quot;</span>
 
 
-<div class="viewcode-block" id="convert_dict_to_backend"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.dict.convert_dict_to_backend">[docs]</a><span class="k">def</span> <span class="nf">convert_dict_to_backend</span><span class="p">(</span>
+<div class="viewcode-block" id="convert_dict_to_backend"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.dict.convert_dict_to_backend">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">convert_dict_to_backend</span><span class="p">(</span>
     <span class="n">data</span><span class="p">:</span> <span class="nb">dict</span><span class="p">,</span> <span class="n">backend</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;numpy&quot;</span><span class="p">,</span> <span class="n">array_types</span><span class="p">:</span> <span class="n">Iterable</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="s2">&quot;numpy&quot;</span><span class="p">,</span> <span class="s2">&quot;torch&quot;</span><span class="p">,</span> <span class="s2">&quot;warp&quot;</span><span class="p">)</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Convert all arrays or tensors in a dictionary to a given backend.</span>
@@ -752,7 +752,7 @@
     <span class="k">return</span> <span class="n">output_dict</span></div>
 
 
-<div class="viewcode-block" id="update_dict"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.dict.update_dict">[docs]</a><span class="k">def</span> <span class="nf">update_dict</span><span class="p">(</span><span class="n">orig_dict</span><span class="p">:</span> <span class="nb">dict</span><span class="p">,</span> <span class="n">new_dict</span><span class="p">:</span> <span class="n">collections</span><span class="o">.</span><span class="n">abc</span><span class="o">.</span><span class="n">Mapping</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+<div class="viewcode-block" id="update_dict"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.dict.update_dict">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">update_dict</span><span class="p">(</span><span class="n">orig_dict</span><span class="p">:</span> <span class="nb">dict</span><span class="p">,</span> <span class="n">new_dict</span><span class="p">:</span> <span class="n">collections</span><span class="o">.</span><span class="n">abc</span><span class="o">.</span><span class="n">Mapping</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Updates existing dictionary with values from a new dictionary.</span>
 
 <span class="sd">    This function mimics the dict.update() function. However, it works for</span>
@@ -773,7 +773,7 @@
     <span class="k">return</span> <span class="n">orig_dict</span></div>
 
 
-<div class="viewcode-block" id="replace_slices_with_strings"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.dict.replace_slices_with_strings">[docs]</a><span class="k">def</span> <span class="nf">replace_slices_with_strings</span><span class="p">(</span><span class="n">data</span><span class="p">:</span> <span class="nb">dict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+<div class="viewcode-block" id="replace_slices_with_strings"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.dict.replace_slices_with_strings">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">replace_slices_with_strings</span><span class="p">(</span><span class="n">data</span><span class="p">:</span> <span class="nb">dict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Replace slice objects with their string representations in a dictionary.</span>
 
 <span class="sd">    Args:</span>
@@ -790,7 +790,7 @@
         <span class="k">return</span> <span class="n">data</span></div>
 
 
-<div class="viewcode-block" id="replace_strings_with_slices"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.dict.replace_strings_with_slices">[docs]</a><span class="k">def</span> <span class="nf">replace_strings_with_slices</span><span class="p">(</span><span class="n">data</span><span class="p">:</span> <span class="nb">dict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+<div class="viewcode-block" id="replace_strings_with_slices"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.dict.replace_strings_with_slices">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">replace_strings_with_slices</span><span class="p">(</span><span class="n">data</span><span class="p">:</span> <span class="nb">dict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Replace string representations of slices with slice objects in a dictionary.</span>
 
 <span class="sd">    Args:</span>
@@ -807,7 +807,7 @@
         <span class="k">return</span> <span class="n">data</span></div>
 
 
-<div class="viewcode-block" id="print_dict"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.dict.print_dict">[docs]</a><span class="k">def</span> <span class="nf">print_dict</span><span class="p">(</span><span class="n">val</span><span class="p">,</span> <span class="n">nesting</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="o">-</span><span class="mi">4</span><span class="p">,</span> <span class="n">start</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">):</span>
+<div class="viewcode-block" id="print_dict"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.dict.print_dict">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">print_dict</span><span class="p">(</span><span class="n">val</span><span class="p">,</span> <span class="n">nesting</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="o">-</span><span class="mi">4</span><span class="p">,</span> <span class="n">start</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Outputs a nested dictionary.&quot;&quot;&quot;</span>
     <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">val</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="n">start</span><span class="p">:</span>
@@ -870,7 +870,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jan 03, 2025.
+  Last updated on Jan 07, 2025.
   <br/>
 </p>
   </div>

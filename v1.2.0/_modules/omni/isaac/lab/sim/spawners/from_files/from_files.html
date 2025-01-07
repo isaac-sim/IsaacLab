@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="1.2.0" />
-    <meta name="docbuild:last-update" content="Jan 03, 2025"/>
+    <meta name="docbuild:last-update" content="Jan 07, 2025"/>
   </head>
   
   
@@ -508,25 +508,25 @@
 <span class="c1">#</span>
 <span class="c1"># SPDX-License-Identifier: BSD-3-Clause</span>
 
-<span class="kn">from</span> <span class="nn">__future__</span> <span class="kn">import</span> <span class="n">annotations</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
 
-<span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">TYPE_CHECKING</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TYPE_CHECKING</span>
 
-<span class="kn">import</span> <span class="nn">carb</span>
-<span class="kn">import</span> <span class="nn">omni.isaac.core.utils.prims</span> <span class="k">as</span> <span class="nn">prim_utils</span>
-<span class="kn">import</span> <span class="nn">omni.isaac.core.utils.stage</span> <span class="k">as</span> <span class="nn">stage_utils</span>
-<span class="kn">import</span> <span class="nn">omni.kit.commands</span>
-<span class="kn">from</span> <span class="nn">pxr</span> <span class="kn">import</span> <span class="n">Gf</span><span class="p">,</span> <span class="n">Sdf</span><span class="p">,</span> <span class="n">Usd</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">carb</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">omni.isaac.core.utils.prims</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">prim_utils</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">omni.isaac.core.utils.stage</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">stage_utils</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">omni.kit.commands</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pxr</span><span class="w"> </span><span class="kn">import</span> <span class="n">Gf</span><span class="p">,</span> <span class="n">Sdf</span><span class="p">,</span> <span class="n">Usd</span>
 
-<span class="kn">from</span> <span class="nn">omni.isaac.lab.sim</span> <span class="kn">import</span> <span class="n">converters</span><span class="p">,</span> <span class="n">schemas</span>
-<span class="kn">from</span> <span class="nn">omni.isaac.lab.sim.utils</span> <span class="kn">import</span> <span class="n">bind_physics_material</span><span class="p">,</span> <span class="n">bind_visual_material</span><span class="p">,</span> <span class="n">clone</span><span class="p">,</span> <span class="n">select_usd_variants</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.sim</span><span class="w"> </span><span class="kn">import</span> <span class="n">converters</span><span class="p">,</span> <span class="n">schemas</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.sim.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">bind_physics_material</span><span class="p">,</span> <span class="n">bind_visual_material</span><span class="p">,</span> <span class="n">clone</span><span class="p">,</span> <span class="n">select_usd_variants</span>
 
 <span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
-    <span class="kn">from</span> <span class="nn">.</span> <span class="kn">import</span> <span class="n">from_files_cfg</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">.</span><span class="w"> </span><span class="kn">import</span> <span class="n">from_files_cfg</span>
 
 
 <div class="viewcode-block" id="spawn_from_usd"><a class="viewcode-back" href="../../../../../../../source/api/lab/omni.isaac.lab.sim.spawners.html#omni.isaac.lab.sim.spawners.from_files.spawn_from_usd">[docs]</a><span class="nd">@clone</span>
-<span class="k">def</span> <span class="nf">spawn_from_usd</span><span class="p">(</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">spawn_from_usd</span><span class="p">(</span>
     <span class="n">prim_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
     <span class="n">cfg</span><span class="p">:</span> <span class="n">from_files_cfg</span><span class="o">.</span><span class="n">UsdFileCfg</span><span class="p">,</span>
     <span class="n">translation</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
@@ -566,7 +566,7 @@
 
 
 <div class="viewcode-block" id="spawn_from_urdf"><a class="viewcode-back" href="../../../../../../../source/api/lab/omni.isaac.lab.sim.spawners.html#omni.isaac.lab.sim.spawners.from_files.spawn_from_urdf">[docs]</a><span class="nd">@clone</span>
-<span class="k">def</span> <span class="nf">spawn_from_urdf</span><span class="p">(</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">spawn_from_urdf</span><span class="p">(</span>
     <span class="n">prim_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
     <span class="n">cfg</span><span class="p">:</span> <span class="n">from_files_cfg</span><span class="o">.</span><span class="n">UrdfFileCfg</span><span class="p">,</span>
     <span class="n">translation</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
@@ -607,7 +607,7 @@
     <span class="k">return</span> <span class="n">_spawn_from_usd_file</span><span class="p">(</span><span class="n">prim_path</span><span class="p">,</span> <span class="n">urdf_loader</span><span class="o">.</span><span class="n">usd_path</span><span class="p">,</span> <span class="n">cfg</span><span class="p">,</span> <span class="n">translation</span><span class="p">,</span> <span class="n">orientation</span><span class="p">)</span></div>
 
 
-<div class="viewcode-block" id="spawn_ground_plane"><a class="viewcode-back" href="../../../../../../../source/api/lab/omni.isaac.lab.sim.spawners.html#omni.isaac.lab.sim.spawners.from_files.spawn_ground_plane">[docs]</a><span class="k">def</span> <span class="nf">spawn_ground_plane</span><span class="p">(</span>
+<div class="viewcode-block" id="spawn_ground_plane"><a class="viewcode-back" href="../../../../../../../source/api/lab/omni.isaac.lab.sim.spawners.html#omni.isaac.lab.sim.spawners.from_files.spawn_ground_plane">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">spawn_ground_plane</span><span class="p">(</span>
     <span class="n">prim_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
     <span class="n">cfg</span><span class="p">:</span> <span class="n">from_files_cfg</span><span class="o">.</span><span class="n">GroundPlaneCfg</span><span class="p">,</span>
     <span class="n">translation</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
@@ -692,7 +692,7 @@
 <span class="sd">&quot;&quot;&quot;</span>
 
 
-<span class="k">def</span> <span class="nf">_spawn_from_usd_file</span><span class="p">(</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">_spawn_from_usd_file</span><span class="p">(</span>
     <span class="n">prim_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
     <span class="n">usd_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
     <span class="n">cfg</span><span class="p">:</span> <span class="n">from_files_cfg</span><span class="o">.</span><span class="n">FileCfg</span><span class="p">,</span>
@@ -828,7 +828,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jan 03, 2025.
+  Last updated on Jan 07, 2025.
   <br/>
 </p>
   </div>

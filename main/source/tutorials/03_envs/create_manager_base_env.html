@@ -60,8 +60,8 @@
     <link rel="prev" title="Using the Interactive Scene" href="../02_scene/create_scene.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-  <meta name="docsearch:version" content="1.3.0" />
-    <meta name="docbuild:last-update" content="Jan 03, 2025"/>
+  <meta name="docsearch:version" content="1.4.0" />
+    <meta name="docbuild:last-update" content="Jan 07, 2025"/>
   </head>
   
   
@@ -635,9 +635,9 @@ directory.</p>
 <span class="linenos"> 11</span><span class="sd">&quot;&quot;&quot;Launch Isaac Sim Simulator first.&quot;&quot;&quot;</span>
 <span class="linenos"> 12</span>
 <span class="linenos"> 13</span>
-<span class="linenos"> 14</span><span class="kn">import</span> <span class="nn">argparse</span>
+<span class="linenos"> 14</span><span class="kn">import</span><span class="w"> </span><span class="nn">argparse</span>
 <span class="linenos"> 15</span>
-<span class="linenos"> 16</span><span class="kn">from</span> <span class="nn">omni.isaac.lab.app</span> <span class="kn">import</span> <span class="n">AppLauncher</span>
+<span class="linenos"> 16</span><span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.app</span><span class="w"> </span><span class="kn">import</span> <span class="n">AppLauncher</span>
 <span class="linenos"> 17</span>
 <span class="linenos"> 18</span><span class="c1"># add argparse arguments</span>
 <span class="linenos"> 19</span><span class="n">parser</span> <span class="o">=</span> <span class="n">argparse</span><span class="o">.</span><span class="n">ArgumentParser</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="s2">&quot;Tutorial on creating a cartpole base environment.&quot;</span><span class="p">)</span>
@@ -654,40 +654,40 @@ directory.</p>
 <span class="linenos"> 30</span>
 <span class="linenos"> 31</span><span class="sd">&quot;&quot;&quot;Rest everything follows.&quot;&quot;&quot;</span>
 <span class="linenos"> 32</span>
-<span class="linenos"> 33</span><span class="kn">import</span> <span class="nn">math</span>
-<span class="linenos"> 34</span><span class="kn">import</span> <span class="nn">torch</span>
+<span class="linenos"> 33</span><span class="kn">import</span><span class="w"> </span><span class="nn">math</span>
+<span class="linenos"> 34</span><span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
 <span class="linenos"> 35</span>
-<span class="linenos"> 36</span><span class="kn">import</span> <span class="nn">omni.isaac.lab.envs.mdp</span> <span class="k">as</span> <span class="nn">mdp</span>
-<span class="linenos"> 37</span><span class="kn">from</span> <span class="nn">omni.isaac.lab.envs</span> <span class="kn">import</span> <span class="n">ManagerBasedEnv</span><span class="p">,</span> <span class="n">ManagerBasedEnvCfg</span>
-<span class="linenos"> 38</span><span class="kn">from</span> <span class="nn">omni.isaac.lab.managers</span> <span class="kn">import</span> <span class="n">EventTermCfg</span> <span class="k">as</span> <span class="n">EventTerm</span>
-<span class="linenos"> 39</span><span class="kn">from</span> <span class="nn">omni.isaac.lab.managers</span> <span class="kn">import</span> <span class="n">ObservationGroupCfg</span> <span class="k">as</span> <span class="n">ObsGroup</span>
-<span class="linenos"> 40</span><span class="kn">from</span> <span class="nn">omni.isaac.lab.managers</span> <span class="kn">import</span> <span class="n">ObservationTermCfg</span> <span class="k">as</span> <span class="n">ObsTerm</span>
-<span class="linenos"> 41</span><span class="kn">from</span> <span class="nn">omni.isaac.lab.managers</span> <span class="kn">import</span> <span class="n">SceneEntityCfg</span>
-<span class="linenos"> 42</span><span class="kn">from</span> <span class="nn">omni.isaac.lab.utils</span> <span class="kn">import</span> <span class="n">configclass</span>
+<span class="linenos"> 36</span><span class="kn">import</span><span class="w"> </span><span class="nn">omni.isaac.lab.envs.mdp</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">mdp</span>
+<span class="linenos"> 37</span><span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.envs</span><span class="w"> </span><span class="kn">import</span> <span class="n">ManagerBasedEnv</span><span class="p">,</span> <span class="n">ManagerBasedEnvCfg</span>
+<span class="linenos"> 38</span><span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.managers</span><span class="w"> </span><span class="kn">import</span> <span class="n">EventTermCfg</span> <span class="k">as</span> <span class="n">EventTerm</span>
+<span class="linenos"> 39</span><span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.managers</span><span class="w"> </span><span class="kn">import</span> <span class="n">ObservationGroupCfg</span> <span class="k">as</span> <span class="n">ObsGroup</span>
+<span class="linenos"> 40</span><span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.managers</span><span class="w"> </span><span class="kn">import</span> <span class="n">ObservationTermCfg</span> <span class="k">as</span> <span class="n">ObsTerm</span>
+<span class="linenos"> 41</span><span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.managers</span><span class="w"> </span><span class="kn">import</span> <span class="n">SceneEntityCfg</span>
+<span class="linenos"> 42</span><span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">configclass</span>
 <span class="linenos"> 43</span>
-<span class="linenos"> 44</span><span class="kn">from</span> <span class="nn">omni.isaac.lab_tasks.manager_based.classic.cartpole.cartpole_env_cfg</span> <span class="kn">import</span> <span class="n">CartpoleSceneCfg</span>
+<span class="linenos"> 44</span><span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab_tasks.manager_based.classic.cartpole.cartpole_env_cfg</span><span class="w"> </span><span class="kn">import</span> <span class="n">CartpoleSceneCfg</span>
 <span class="linenos"> 45</span>
 <span class="linenos"> 46</span>
 <span class="hll"><span class="linenos"> 47</span><span class="nd">@configclass</span>
-</span><span class="hll"><span class="linenos"> 48</span><span class="k">class</span> <span class="nc">ActionsCfg</span><span class="p">:</span>
+</span><span class="hll"><span class="linenos"> 48</span><span class="k">class</span><span class="w"> </span><span class="nc">ActionsCfg</span><span class="p">:</span>
 </span><span class="hll"><span class="linenos"> 49</span><span class="w">    </span><span class="sd">&quot;&quot;&quot;Action specifications for the environment.&quot;&quot;&quot;</span>
 </span><span class="hll"><span class="linenos"> 50</span>
 </span><span class="hll"><span class="linenos"> 51</span>    <span class="n">joint_efforts</span> <span class="o">=</span> <span class="n">mdp</span><span class="o">.</span><span class="n">JointEffortActionCfg</span><span class="p">(</span><span class="n">asset_name</span><span class="o">=</span><span class="s2">&quot;robot&quot;</span><span class="p">,</span> <span class="n">joint_names</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;slider_to_cart&quot;</span><span class="p">],</span> <span class="n">scale</span><span class="o">=</span><span class="mf">5.0</span><span class="p">)</span>
 </span><span class="linenos"> 52</span>
 <span class="linenos"> 53</span>
 <span class="hll"><span class="linenos"> 54</span><span class="nd">@configclass</span>
-</span><span class="hll"><span class="linenos"> 55</span><span class="k">class</span> <span class="nc">ObservationsCfg</span><span class="p">:</span>
+</span><span class="hll"><span class="linenos"> 55</span><span class="k">class</span><span class="w"> </span><span class="nc">ObservationsCfg</span><span class="p">:</span>
 </span><span class="hll"><span class="linenos"> 56</span><span class="w">    </span><span class="sd">&quot;&quot;&quot;Observation specifications for the environment.&quot;&quot;&quot;</span>
 </span><span class="hll"><span class="linenos"> 57</span>
 </span><span class="hll"><span class="linenos"> 58</span>    <span class="nd">@configclass</span>
-</span><span class="hll"><span class="linenos"> 59</span>    <span class="k">class</span> <span class="nc">PolicyCfg</span><span class="p">(</span><span class="n">ObsGroup</span><span class="p">):</span>
+</span><span class="hll"><span class="linenos"> 59</span>    <span class="k">class</span><span class="w"> </span><span class="nc">PolicyCfg</span><span class="p">(</span><span class="n">ObsGroup</span><span class="p">):</span>
 </span><span class="hll"><span class="linenos"> 60</span><span class="w">        </span><span class="sd">&quot;&quot;&quot;Observations for policy group.&quot;&quot;&quot;</span>
 </span><span class="hll"><span class="linenos"> 61</span>
 </span><span class="hll"><span class="linenos"> 62</span>        <span class="c1"># observation terms (order preserved)</span>
 </span><span class="hll"><span class="linenos"> 63</span>        <span class="n">joint_pos_rel</span> <span class="o">=</span> <span class="n">ObsTerm</span><span class="p">(</span><span class="n">func</span><span class="o">=</span><span class="n">mdp</span><span class="o">.</span><span class="n">joint_pos_rel</span><span class="p">)</span>
 </span><span class="hll"><span class="linenos"> 64</span>        <span class="n">joint_vel_rel</span> <span class="o">=</span> <span class="n">ObsTerm</span><span class="p">(</span><span class="n">func</span><span class="o">=</span><span class="n">mdp</span><span class="o">.</span><span class="n">joint_vel_rel</span><span class="p">)</span>
 </span><span class="hll"><span class="linenos"> 65</span>
-</span><span class="hll"><span class="linenos"> 66</span>        <span class="k">def</span> <span class="nf">__post_init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+</span><span class="hll"><span class="linenos"> 66</span>        <span class="k">def</span><span class="w"> </span><span class="nf">__post_init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 </span><span class="hll"><span class="linenos"> 67</span>            <span class="bp">self</span><span class="o">.</span><span class="n">enable_corruption</span> <span class="o">=</span> <span class="kc">False</span>
 </span><span class="hll"><span class="linenos"> 68</span>            <span class="bp">self</span><span class="o">.</span><span class="n">concatenate_terms</span> <span class="o">=</span> <span class="kc">True</span>
 </span><span class="hll"><span class="linenos"> 69</span>
@@ -696,7 +696,7 @@ directory.</p>
 </span><span class="linenos"> 72</span>
 <span class="linenos"> 73</span>
 <span class="hll"><span class="linenos"> 74</span><span class="nd">@configclass</span>
-</span><span class="hll"><span class="linenos"> 75</span><span class="k">class</span> <span class="nc">EventCfg</span><span class="p">:</span>
+</span><span class="hll"><span class="linenos"> 75</span><span class="k">class</span><span class="w"> </span><span class="nc">EventCfg</span><span class="p">:</span>
 </span><span class="hll"><span class="linenos"> 76</span><span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for events.&quot;&quot;&quot;</span>
 </span><span class="hll"><span class="linenos"> 77</span>
 </span><span class="hll"><span class="linenos"> 78</span>    <span class="c1"># on startup</span>
@@ -733,7 +733,7 @@ directory.</p>
 </span><span class="linenos">109</span>
 <span class="linenos">110</span>
 <span class="hll"><span class="linenos">111</span><span class="nd">@configclass</span>
-</span><span class="hll"><span class="linenos">112</span><span class="k">class</span> <span class="nc">CartpoleEnvCfg</span><span class="p">(</span><span class="n">ManagerBasedEnvCfg</span><span class="p">):</span>
+</span><span class="hll"><span class="linenos">112</span><span class="k">class</span><span class="w"> </span><span class="nc">CartpoleEnvCfg</span><span class="p">(</span><span class="n">ManagerBasedEnvCfg</span><span class="p">):</span>
 </span><span class="hll"><span class="linenos">113</span><span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for the cartpole environment.&quot;&quot;&quot;</span>
 </span><span class="hll"><span class="linenos">114</span>
 </span><span class="hll"><span class="linenos">115</span>    <span class="c1"># Scene settings</span>
@@ -743,7 +743,7 @@ directory.</p>
 </span><span class="hll"><span class="linenos">119</span>    <span class="n">actions</span> <span class="o">=</span> <span class="n">ActionsCfg</span><span class="p">()</span>
 </span><span class="hll"><span class="linenos">120</span>    <span class="n">events</span> <span class="o">=</span> <span class="n">EventCfg</span><span class="p">()</span>
 </span><span class="hll"><span class="linenos">121</span>
-</span><span class="hll"><span class="linenos">122</span>    <span class="k">def</span> <span class="nf">__post_init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+</span><span class="hll"><span class="linenos">122</span>    <span class="k">def</span><span class="w"> </span><span class="nf">__post_init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 </span><span class="hll"><span class="linenos">123</span><span class="w">        </span><span class="sd">&quot;&quot;&quot;Post initialization.&quot;&quot;&quot;</span>
 </span><span class="hll"><span class="linenos">124</span>        <span class="c1"># viewer settings</span>
 </span><span class="hll"><span class="linenos">125</span>        <span class="bp">self</span><span class="o">.</span><span class="n">viewer</span><span class="o">.</span><span class="n">eye</span> <span class="o">=</span> <span class="p">[</span><span class="mf">4.5</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">6.0</span><span class="p">]</span>
@@ -754,7 +754,7 @@ directory.</p>
 </span><span class="hll"><span class="linenos">130</span>        <span class="bp">self</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">dt</span> <span class="o">=</span> <span class="mf">0.005</span>  <span class="c1"># sim step every 5ms: 200Hz</span>
 </span><span class="linenos">131</span>
 <span class="linenos">132</span>
-<span class="linenos">133</span><span class="k">def</span> <span class="nf">main</span><span class="p">():</span>
+<span class="linenos">133</span><span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">():</span>
 <span class="linenos">134</span><span class="w">    </span><span class="sd">&quot;&quot;&quot;Main function.&quot;&quot;&quot;</span>
 <span class="hll"><span class="linenos">135</span>    <span class="c1"># parse the arguments</span>
 </span><span class="hll"><span class="linenos">136</span>    <span class="n">env_cfg</span> <span class="o">=</span> <span class="n">CartpoleEnvCfg</span><span class="p">()</span>
@@ -829,7 +829,7 @@ different control schemes for different aspects of the environment.</p>
 <p>In the cartpole environment, we want to control the force applied to the cart to balance the pole.
 Thus, we will create an action term that controls the force applied to the cart.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="nd">@configclass</span>
-<span class="k">class</span> <span class="nc">ActionsCfg</span><span class="p">:</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">ActionsCfg</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Action specifications for the environment.&quot;&quot;&quot;</span>
 
     <span class="n">joint_efforts</span> <span class="o">=</span> <span class="n">mdp</span><span class="o">.</span><span class="n">JointEffortActionCfg</span><span class="p">(</span><span class="n">asset_name</span><span class="o">=</span><span class="s2">&quot;robot&quot;</span><span class="p">,</span> <span class="n">joint_names</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;slider_to_cart&quot;</span><span class="p">],</span> <span class="n">scale</span><span class="o">=</span><span class="mf">5.0</span><span class="p">)</span>
@@ -858,18 +858,18 @@ callable class that computes the observation for that term. It includes other pa
 defining the noise model, clipping, scaling, etc. However, we leave these parameters to their
 default values for this tutorial.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="nd">@configclass</span>
-<span class="k">class</span> <span class="nc">ObservationsCfg</span><span class="p">:</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">ObservationsCfg</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Observation specifications for the environment.&quot;&quot;&quot;</span>
 
     <span class="nd">@configclass</span>
-    <span class="k">class</span> <span class="nc">PolicyCfg</span><span class="p">(</span><span class="n">ObsGroup</span><span class="p">):</span>
+    <span class="k">class</span><span class="w"> </span><span class="nc">PolicyCfg</span><span class="p">(</span><span class="n">ObsGroup</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Observations for policy group.&quot;&quot;&quot;</span>
 
         <span class="c1"># observation terms (order preserved)</span>
         <span class="n">joint_pos_rel</span> <span class="o">=</span> <span class="n">ObsTerm</span><span class="p">(</span><span class="n">func</span><span class="o">=</span><span class="n">mdp</span><span class="o">.</span><span class="n">joint_pos_rel</span><span class="p">)</span>
         <span class="n">joint_vel_rel</span> <span class="o">=</span> <span class="n">ObsTerm</span><span class="p">(</span><span class="n">func</span><span class="o">=</span><span class="n">mdp</span><span class="o">.</span><span class="n">joint_vel_rel</span><span class="p">)</span>
 
-        <span class="k">def</span> <span class="nf">__post_init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">def</span><span class="w"> </span><span class="nf">__post_init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">enable_corruption</span> <span class="o">=</span> <span class="kc">False</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">concatenate_terms</span> <span class="o">=</span> <span class="kc">True</span>
 
@@ -901,7 +901,7 @@ However, out of the box, Isaac Lab provides three commonly used modes:</p>
 operation is expensive and we don’t want to do it on every reset. We also create an event to randomize the initial
 joint state of the cartpole and the pole at every reset.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="nd">@configclass</span>
-<span class="k">class</span> <span class="nc">EventCfg</span><span class="p">:</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">EventCfg</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for events.&quot;&quot;&quot;</span>
 
     <span class="c1"># on startup</span>
@@ -948,7 +948,7 @@ parameters such as the timestep, gravity, etc. This is initialized to the defaul
 be modified as needed. We recommend doing so by defining the <code class="xref py py-meth docutils literal notranslate"><span class="pre">__post_init__()</span></code> method in the
 <a class="reference internal" href="../../api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.ManagerBasedEnvCfg" title="omni.isaac.lab.envs.ManagerBasedEnvCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">envs.ManagerBasedEnvCfg</span></code></a> class, which is called after the configuration is initialized.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="nd">@configclass</span>
-<span class="k">class</span> <span class="nc">CartpoleEnvCfg</span><span class="p">(</span><span class="n">ManagerBasedEnvCfg</span><span class="p">):</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">CartpoleEnvCfg</span><span class="p">(</span><span class="n">ManagerBasedEnvCfg</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for the cartpole environment.&quot;&quot;&quot;</span>
 
     <span class="c1"># Scene settings</span>
@@ -958,7 +958,7 @@ be modified as needed. We recommend doing so by defining the <code class="xref p
     <span class="n">actions</span> <span class="o">=</span> <span class="n">ActionsCfg</span><span class="p">()</span>
     <span class="n">events</span> <span class="o">=</span> <span class="n">EventCfg</span><span class="p">()</span>
 
-    <span class="k">def</span> <span class="nf">__post_init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">__post_init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Post initialization.&quot;&quot;&quot;</span>
         <span class="c1"># viewer settings</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">viewer</span><span class="o">.</span><span class="n">eye</span> <span class="o">=</span> <span class="p">[</span><span class="mf">4.5</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">6.0</span><span class="p">]</span>
@@ -981,7 +981,7 @@ agent for decision-making.</p>
 <p>The <a class="reference internal" href="../../api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.ManagerBasedEnv" title="omni.isaac.lab.envs.ManagerBasedEnv"><code class="xref py py-class docutils literal notranslate"><span class="pre">envs.ManagerBasedEnv</span></code></a> class does not have any notion of terminations since that concept is
 specific for episodic tasks. Thus, the user is responsible for defining the termination condition
 for the environment. In this tutorial, we reset the simulation at regular intervals.</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">main</span><span class="p">():</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">():</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Main function.&quot;&quot;&quot;</span>
     <span class="c1"># parse the arguments</span>
     <span class="n">env_cfg</span> <span class="o">=</span> <span class="n">CartpoleEnvCfg</span><span class="p">()</span>
@@ -1139,7 +1139,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jan 03, 2025.
+  Last updated on Jan 07, 2025.
   <br/>
 </p>
   </div>

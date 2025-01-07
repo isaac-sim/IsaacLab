@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="0.3.0" />
-    <meta name="docbuild:last-update" content="Jan 03, 2025"/>
+    <meta name="docbuild:last-update" content="Jan 07, 2025"/>
   </head>
   
   
@@ -1151,11 +1151,11 @@ inherit from this base class and implement the required methods.</p>
 class should also have a corresponding configuration class that defines the configuration terms for the
 manager. Each term should the <a class="reference internal" href="#omni.isaac.lab.managers.ManagerTermBaseCfg" title="omni.isaac.lab.managers.ManagerTermBaseCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">ManagerTermBaseCfg</span></code></a> class or its subclass.</p>
 <p>Example pseudo-code for creating a manager:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">omni.isaac.lab.utils</span> <span class="kn">import</span> <span class="n">configclass</span>
-<span class="kn">from</span> <span class="nn">omni.isaac.lab.utils.mdp</span> <span class="kn">import</span> <span class="n">ManagerBase</span><span class="p">,</span> <span class="n">ManagerTermBaseCfg</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">configclass</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.utils.mdp</span><span class="w"> </span><span class="kn">import</span> <span class="n">ManagerBase</span><span class="p">,</span> <span class="n">ManagerTermBaseCfg</span>
 
 <span class="nd">@configclass</span>
-<span class="k">class</span> <span class="nc">MyManagerCfg</span><span class="p">:</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">MyManagerCfg</span><span class="p">:</span>
 
     <span class="n">my_term_1</span><span class="p">:</span> <span class="n">ManagerTermBaseCfg</span> <span class="o">=</span> <span class="n">ManagerTermBaseCfg</span><span class="p">(</span><span class="o">...</span><span class="p">)</span>
     <span class="n">my_term_2</span><span class="p">:</span> <span class="n">ManagerTermBaseCfg</span> <span class="o">=</span> <span class="n">ManagerTermBaseCfg</span><span class="p">(</span><span class="o">...</span><span class="p">)</span>
@@ -3830,7 +3830,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jan 03, 2025.
+  Last updated on Jan 07, 2025.
   <br/>
 </p>
   </div>

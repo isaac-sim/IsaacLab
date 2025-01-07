@@ -63,7 +63,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="1.3.0" />
-    <meta name="docbuild:last-update" content="Jan 03, 2025"/>
+    <meta name="docbuild:last-update" content="Jan 07, 2025"/>
   </head>
   
   
@@ -920,19 +920,19 @@ configuration use-cases. These include:</p>
 the above two issues. It also provides additional helper functions for dictionary &lt;-&gt; class
 conversion and easily copying class instances.</p>
 <p>Usage:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">dataclasses</span> <span class="kn">import</span> <span class="n">MISSING</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">MISSING</span>
 
-<span class="kn">from</span> <span class="nn">omni.isaac.lab.utils.configclass</span> <span class="kn">import</span> <span class="n">configclass</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.utils.configclass</span><span class="w"> </span><span class="kn">import</span> <span class="n">configclass</span>
 
 
 <span class="nd">@configclass</span>
-<span class="k">class</span> <span class="nc">ViewerCfg</span><span class="p">:</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">ViewerCfg</span><span class="p">:</span>
     <span class="n">eye</span><span class="p">:</span> <span class="nb">list</span> <span class="o">=</span> <span class="p">[</span><span class="mf">7.5</span><span class="p">,</span> <span class="mf">7.5</span><span class="p">,</span> <span class="mf">7.5</span><span class="p">]</span>  <span class="c1"># field missing on purpose</span>
     <span class="n">lookat</span><span class="p">:</span> <span class="nb">list</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="p">[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">])</span>
 
 
 <span class="nd">@configclass</span>
-<span class="k">class</span> <span class="nc">EnvCfg</span><span class="p">:</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">EnvCfg</span><span class="p">:</span>
     <span class="n">num_envs</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">MISSING</span>
     <span class="n">episode_length</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">2000</span>
     <span class="n">viewer</span><span class="p">:</span> <span class="n">ViewerCfg</span> <span class="o">=</span> <span class="n">ViewerCfg</span><span class="p">()</span>
@@ -1086,7 +1086,7 @@ conversion and easily copying class instances.</p>
 <span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.utils.array.</span></span><span class="sig-name descname"><span class="pre">TensorData</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#omni.isaac.lab.utils.array.TensorData" title="Permalink to this definition">#</a></dt>
 <dd><p>Type definition for a tensor data.</p>
 <p>Union of numpy, torch, and warp arrays.</p>
-<p>alias of <a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Union" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Union</span></code></a>[<a class="reference external" href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="(in NumPy v2.2)"><code class="xref py py-class docutils literal notranslate"><span class="pre">ndarray</span></code></a>, <a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.5)"><code class="xref py py-class docutils literal notranslate"><span class="pre">Tensor</span></code></a>, <a class="reference external" href="https://nvidia.github.io/warp/modules/runtime.html#warp.array" title="(in Warp v1.5.0)"><code class="xref py py-class docutils literal notranslate"><span class="pre">array</span></code></a>]</p>
+<p>alias of <a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Union" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Union</span></code></a>[<a class="reference external" href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="(in NumPy v2.2)"><code class="xref py py-class docutils literal notranslate"><span class="pre">ndarray</span></code></a>, <a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.5)"><code class="xref py py-class docutils literal notranslate"><span class="pre">Tensor</span></code></a>, <a class="reference external" href="https://nvidia.github.io/warp/modules/runtime.html#warp.array" title="(in Warp v1.5.1)"><code class="xref py py-class docutils literal notranslate"><span class="pre">array</span></code></a>]</p>
 </dd></dl>
 
 <dl class="py data">
@@ -3019,8 +3019,8 @@ the input data or to apply a rolling average.</p>
 as an alternative to the built-in noise, clip and scale post-processing operations. For more details, see
 the <a class="reference internal" href="omni.isaac.lab.managers.html#omni.isaac.lab.managers.ObservationTermCfg" title="omni.isaac.lab.managers.ObservationTermCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">ObservationTermCfg</span></code></a> class.</p>
 <p>Usage with a function modifier:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">torch</span>
-<span class="kn">from</span> <span class="nn">omni.isaac.lab.utils</span> <span class="kn">import</span> <span class="n">modifiers</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">modifiers</span>
 
 <span class="c1"># create a random tensor</span>
 <span class="n">my_tensor</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">rand</span><span class="p">(</span><span class="mi">256</span><span class="p">,</span> <span class="mi">128</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="s2">&quot;cuda&quot;</span><span class="p">)</span>
@@ -3033,8 +3033,8 @@ the <a class="reference internal" href="omni.isaac.lab.managers.html#omni.isaac.
 </pre></div>
 </div>
 <p>Usage with a class modifier:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">torch</span>
-<span class="kn">from</span> <span class="nn">omni.isaac.lab.utils</span> <span class="kn">import</span> <span class="n">modifiers</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">modifiers</span>
 
 <span class="c1"># create a random tensor</span>
 <span class="n">my_tensor</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">rand</span><span class="p">(</span><span class="mi">256</span><span class="p">,</span> <span class="mi">128</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="s2">&quot;cuda&quot;</span><span class="p">)</span>
@@ -3123,7 +3123,7 @@ inherit from this class and implement the required methods.</p>
 This is useful for modifiers that require stateful operations, such as rolling averages
 or delays or decaying filters.</p>
 <p>Example pseudo-code to create and use the class:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">omni.isaac.lab.utils</span> <span class="kn">import</span> <span class="n">modifiers</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">modifiers</span>
 
 <span class="c1"># define custom keyword arguments to pass to ModifierCfg</span>
 <span class="n">kwarg_dict</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;arg_1&quot;</span> <span class="p">:</span> <span class="n">VAL_1</span><span class="p">,</span> <span class="s2">&quot;arg_2&quot;</span> <span class="p">:</span> <span class="n">VAL_2</span><span class="p">}</span>
@@ -3461,8 +3461,8 @@ If the value is None, that bound is not applied.</p></li>
 <p>The noise models are implemented as functions that take in a tensor and a configuration and return a tensor
 with the noise applied. These functions are then used in the <a class="reference internal" href="#omni.isaac.lab.utils.noise.NoiseCfg" title="omni.isaac.lab.utils.noise.NoiseCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">NoiseCfg</span></code></a> configuration class.</p>
 <p>Usage:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">torch</span>
-<span class="kn">from</span> <span class="nn">omni.isaac.lab.utils.noise</span> <span class="kn">import</span> <span class="n">AdditiveGaussianNoiseCfg</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.utils.noise</span><span class="w"> </span><span class="kn">import</span> <span class="n">AdditiveGaussianNoiseCfg</span>
 
 <span class="c1"># create a random tensor</span>
 <span class="n">my_tensor</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">rand</span><span class="p">(</span><span class="mi">128</span><span class="p">,</span> <span class="mi">128</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="s2">&quot;cuda&quot;</span><span class="p">)</span>
@@ -4159,9 +4159,9 @@ It allows timing via context managers and decorators as well.</p>
 returns the number of seconds since the epoch as a float. It has the
 highest resolution available on the system.</p>
 <p>As a regular object:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">time</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">time</span>
 
-<span class="kn">from</span> <span class="nn">omni.isaac.lab.utils.timer</span> <span class="kn">import</span> <span class="n">Timer</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.utils.timer</span><span class="w"> </span><span class="kn">import</span> <span class="n">Timer</span>
 
 <span class="n">timer</span> <span class="o">=</span> <span class="n">Timer</span><span class="p">()</span>
 <span class="n">timer</span><span class="o">.</span><span class="n">start</span><span class="p">()</span>
@@ -4174,9 +4174,9 @@ highest resolution available on the system.</p>
 </pre></div>
 </div>
 <p>As a context manager:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">time</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">time</span>
 
-<span class="kn">from</span> <span class="nn">omni.isaac.lab.utils.timer</span> <span class="kn">import</span> <span class="n">Timer</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.utils.timer</span><span class="w"> </span><span class="kn">import</span> <span class="n">Timer</span>
 
 <span class="k">with</span> <span class="n">Timer</span><span class="p">()</span> <span class="k">as</span> <span class="n">timer</span><span class="p">:</span>
     <span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
@@ -4391,7 +4391,7 @@ to all the joints of the articulation. We use a slice to make the indexing more 
 </div>
 <dl class="py function">
 <dt class="sig sig-object py" id="omni.isaac.lab.utils.warp.convert_to_warp_mesh">
-<span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.utils.warp.</span></span><span class="sig-name descname"><span class="pre">convert_to_warp_mesh</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">points</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="(in NumPy v2.2)"><span class="pre">numpy.ndarray</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">indices</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="(in NumPy v2.2)"><span class="pre">numpy.ndarray</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">device</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://nvidia.github.io/warp/modules/runtime.html#warp.Mesh" title="(in Warp v1.5.0)"><span class="pre">warp.Mesh</span></a></span></span><a class="reference internal" href="../../../_modules/omni/isaac/lab/utils/warp/ops.html#convert_to_warp_mesh"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.utils.warp.convert_to_warp_mesh" title="Permalink to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.utils.warp.</span></span><span class="sig-name descname"><span class="pre">convert_to_warp_mesh</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">points</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="(in NumPy v2.2)"><span class="pre">numpy.ndarray</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">indices</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="(in NumPy v2.2)"><span class="pre">numpy.ndarray</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">device</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://nvidia.github.io/warp/modules/runtime.html#warp.Mesh" title="(in Warp v1.5.1)"><span class="pre">warp.Mesh</span></a></span></span><a class="reference internal" href="../../../_modules/omni/isaac/lab/utils/warp/ops.html#convert_to_warp_mesh"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.utils.warp.convert_to_warp_mesh" title="Permalink to this definition">#</a></dt>
 <dd><p>Create a warp mesh object with a mesh defined from vertices and triangles.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -4782,7 +4782,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jan 03, 2025.
+  Last updated on Jan 07, 2025.
   <br/>
 </p>
   </div>

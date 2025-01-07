@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="0.3.0" />
-    <meta name="docbuild:last-update" content="Jan 03, 2025"/>
+    <meta name="docbuild:last-update" content="Jan 07, 2025"/>
   </head>
   
   
@@ -498,22 +498,22 @@
 <span class="c1">#</span>
 <span class="c1"># SPDX-License-Identifier: BSD-3-Clause</span>
 
-<span class="kn">import</span> <span class="nn">asyncio</span>
-<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">asyncio</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
 
-<span class="kn">import</span> <span class="nn">omni</span>
-<span class="kn">import</span> <span class="nn">omni.kit.commands</span>
-<span class="kn">import</span> <span class="nn">omni.usd</span>
-<span class="kn">from</span> <span class="nn">omni.isaac.core.utils.extensions</span> <span class="kn">import</span> <span class="n">enable_extension</span>
-<span class="kn">from</span> <span class="nn">pxr</span> <span class="kn">import</span> <span class="n">Usd</span><span class="p">,</span> <span class="n">UsdGeom</span><span class="p">,</span> <span class="n">UsdPhysics</span><span class="p">,</span> <span class="n">UsdUtils</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">omni</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">omni.kit.commands</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">omni.usd</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.core.utils.extensions</span><span class="w"> </span><span class="kn">import</span> <span class="n">enable_extension</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pxr</span><span class="w"> </span><span class="kn">import</span> <span class="n">Usd</span><span class="p">,</span> <span class="n">UsdGeom</span><span class="p">,</span> <span class="n">UsdPhysics</span><span class="p">,</span> <span class="n">UsdUtils</span>
 
-<span class="kn">from</span> <span class="nn">omni.isaac.lab.sim.converters.asset_converter_base</span> <span class="kn">import</span> <span class="n">AssetConverterBase</span>
-<span class="kn">from</span> <span class="nn">omni.isaac.lab.sim.converters.mesh_converter_cfg</span> <span class="kn">import</span> <span class="n">MeshConverterCfg</span>
-<span class="kn">from</span> <span class="nn">omni.isaac.lab.sim.schemas</span> <span class="kn">import</span> <span class="n">schemas</span>
-<span class="kn">from</span> <span class="nn">omni.isaac.lab.sim.utils</span> <span class="kn">import</span> <span class="n">export_prim_to_file</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.sim.converters.asset_converter_base</span><span class="w"> </span><span class="kn">import</span> <span class="n">AssetConverterBase</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.sim.converters.mesh_converter_cfg</span><span class="w"> </span><span class="kn">import</span> <span class="n">MeshConverterCfg</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.sim.schemas</span><span class="w"> </span><span class="kn">import</span> <span class="n">schemas</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.sim.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">export_prim_to_file</span>
 
 
-<div class="viewcode-block" id="MeshConverter"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.sim.converters.html#omni.isaac.lab.sim.converters.MeshConverter">[docs]</a><span class="k">class</span> <span class="nc">MeshConverter</span><span class="p">(</span><span class="n">AssetConverterBase</span><span class="p">):</span>
+<div class="viewcode-block" id="MeshConverter"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.sim.converters.html#omni.isaac.lab.sim.converters.MeshConverter">[docs]</a><span class="k">class</span><span class="w"> </span><span class="nc">MeshConverter</span><span class="p">(</span><span class="n">AssetConverterBase</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Converter for a mesh file in OBJ / STL / FBX format to a USD file.</span>
 
 <span class="sd">    This class wraps around the `omni.kit.asset_converter`_ extension to provide a lazy implementation</span>
@@ -544,7 +544,7 @@
     <span class="n">cfg</span><span class="p">:</span> <span class="n">MeshConverterCfg</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The configuration instance for mesh to USD conversion.&quot;&quot;&quot;</span>
 
-<div class="viewcode-block" id="MeshConverter.__init__"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.sim.converters.html#omni.isaac.lab.sim.converters.MeshConverter.__init__">[docs]</a>    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">MeshConverterCfg</span><span class="p">):</span>
+<div class="viewcode-block" id="MeshConverter.__init__"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.sim.converters.html#omni.isaac.lab.sim.converters.MeshConverter.__init__">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">MeshConverterCfg</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Initializes the class.</span>
 
 <span class="sd">        Args:</span>
@@ -556,7 +556,7 @@
 <span class="sd">    Implementation specific methods.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="k">def</span> <span class="nf">_convert_asset</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">MeshConverterCfg</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_convert_asset</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">MeshConverterCfg</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Generate USD from OBJ, STL or FBX.</span>
 
 <span class="sd">        It stores the asset in the following format:</span>
@@ -643,7 +643,7 @@
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="nd">@staticmethod</span>
-    <span class="k">async</span> <span class="k">def</span> <span class="nf">_convert_mesh_to_usd</span><span class="p">(</span>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">_convert_mesh_to_usd</span><span class="p">(</span>
         <span class="n">in_file</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">out_file</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">prim_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;/World&quot;</span><span class="p">,</span> <span class="n">load_materials</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
     <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Convert mesh from supported file types to USD.</span>
@@ -674,9 +674,9 @@
         <span class="n">enable_extension</span><span class="p">(</span><span class="s2">&quot;omni.kit.asset_converter&quot;</span><span class="p">)</span>
         <span class="n">enable_extension</span><span class="p">(</span><span class="s2">&quot;omni.usd.metrics.assembler&quot;</span><span class="p">)</span>
 
-        <span class="kn">import</span> <span class="nn">omni.kit.asset_converter</span>
-        <span class="kn">import</span> <span class="nn">omni.usd</span>
-        <span class="kn">from</span> <span class="nn">omni.metrics.assembler.core</span> <span class="kn">import</span> <span class="n">get_metrics_assembler_interface</span>
+        <span class="kn">import</span><span class="w"> </span><span class="nn">omni.kit.asset_converter</span>
+        <span class="kn">import</span><span class="w"> </span><span class="nn">omni.usd</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">omni.metrics.assembler.core</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_metrics_assembler_interface</span>
 
         <span class="c1"># Create converter context</span>
         <span class="n">converter_context</span> <span class="o">=</span> <span class="n">omni</span><span class="o">.</span><span class="n">kit</span><span class="o">.</span><span class="n">asset_converter</span><span class="o">.</span><span class="n">AssetConverterContext</span><span class="p">()</span>
@@ -770,7 +770,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jan 03, 2025.
+  Last updated on Jan 07, 2025.
   <br/>
 </p>
   </div>

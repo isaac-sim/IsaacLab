@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="1.3.0" />
-    <meta name="docbuild:last-update" content="Jan 03, 2025"/>
+    <meta name="docbuild:last-update" content="Jan 07, 2025"/>
   </head>
   
   
@@ -520,21 +520,21 @@
 <span class="sd">:attr:`AppLauncher.app` property.</span>
 <span class="sd">&quot;&quot;&quot;</span>
 
-<span class="kn">import</span> <span class="nn">argparse</span>
-<span class="kn">import</span> <span class="nn">contextlib</span>
-<span class="kn">import</span> <span class="nn">os</span>
-<span class="kn">import</span> <span class="nn">re</span>
-<span class="kn">import</span> <span class="nn">signal</span>
-<span class="kn">import</span> <span class="nn">sys</span>
-<span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Literal</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">argparse</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">contextlib</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">re</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">signal</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">sys</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Literal</span>
 
 <span class="k">with</span> <span class="n">contextlib</span><span class="o">.</span><span class="n">suppress</span><span class="p">(</span><span class="ne">ModuleNotFoundError</span><span class="p">):</span>
-    <span class="kn">import</span> <span class="nn">isaacsim</span>  <span class="c1"># noqa: F401</span>
+    <span class="kn">import</span><span class="w"> </span><span class="nn">isaacsim</span>  <span class="c1"># noqa: F401</span>
 
-<span class="kn">from</span> <span class="nn">omni.isaac.kit</span> <span class="kn">import</span> <span class="n">SimulationApp</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.kit</span><span class="w"> </span><span class="kn">import</span> <span class="n">SimulationApp</span>
 
 
-<div class="viewcode-block" id="AppLauncher"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.app.html#omni.isaac.lab.app.AppLauncher">[docs]</a><span class="k">class</span> <span class="nc">AppLauncher</span><span class="p">:</span>
+<div class="viewcode-block" id="AppLauncher"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.app.html#omni.isaac.lab.app.AppLauncher">[docs]</a><span class="k">class</span><span class="w"> </span><span class="nc">AppLauncher</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;A utility class to launch Isaac Sim application based on command-line arguments and environment variables.</span>
 
 <span class="sd">    The class resolves the simulation app settings that appear through environments variables,</span>
@@ -554,7 +554,7 @@
 
 <span class="sd">    &quot;&quot;&quot;</span>
 
-<div class="viewcode-block" id="AppLauncher.__init__"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.app.html#omni.isaac.lab.app.AppLauncher.__init__">[docs]</a>    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">launcher_args</span><span class="p">:</span> <span class="n">argparse</span><span class="o">.</span><span class="n">Namespace</span> <span class="o">|</span> <span class="nb">dict</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+<div class="viewcode-block" id="AppLauncher.__init__"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.app.html#omni.isaac.lab.app.AppLauncher.__init__">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">launcher_args</span><span class="p">:</span> <span class="n">argparse</span><span class="o">.</span><span class="n">Namespace</span> <span class="o">|</span> <span class="nb">dict</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Create a `SimulationApp`_ instance based on the input settings.</span>
 
 <span class="sd">        Args:</span>
@@ -638,7 +638,7 @@
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">app</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SimulationApp</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">app</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SimulationApp</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;The launched SimulationApp.&quot;&quot;&quot;</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_app</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
             <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_app</span>
@@ -650,7 +650,7 @@
 <span class="sd">    &quot;&quot;&quot;</span>
 
 <div class="viewcode-block" id="AppLauncher.add_app_launcher_args"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.app.html#omni.isaac.lab.app.AppLauncher.add_app_launcher_args">[docs]</a>    <span class="nd">@staticmethod</span>
-    <span class="k">def</span> <span class="nf">add_app_launcher_args</span><span class="p">(</span><span class="n">parser</span><span class="p">:</span> <span class="n">argparse</span><span class="o">.</span><span class="n">ArgumentParser</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">add_app_launcher_args</span><span class="p">(</span><span class="n">parser</span><span class="p">:</span> <span class="n">argparse</span><span class="o">.</span><span class="n">ArgumentParser</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Utility function to configure AppLauncher arguments with an existing argument parser object.</span>
 
 <span class="sd">        This function takes an ``argparse.ArgumentParser`` object and does some sanity checking on the existing</span>
@@ -854,7 +854,7 @@
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="nd">@staticmethod</span>
-    <span class="k">def</span> <span class="nf">_check_argparser_config_params</span><span class="p">(</span><span class="n">config</span><span class="p">:</span> <span class="nb">dict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_check_argparser_config_params</span><span class="p">(</span><span class="n">config</span><span class="p">:</span> <span class="nb">dict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Checks that input argparser object has parameters with valid settings with no name conflicts.</span>
 
 <span class="sd">        First, we inspect the dictionary to ensure that the passed ArgParser object is not attempting to add arguments</span>
@@ -897,7 +897,7 @@
                 <span class="c1"># Print out values which will be used</span>
                 <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;[INFO][AppLauncher]: The argument &#39;</span><span class="si">{</span><span class="n">key</span><span class="si">}</span><span class="s2">&#39; will be used to configure the SimulationApp.&quot;</span><span class="p">)</span>
 
-    <span class="k">def</span> <span class="nf">_config_resolution</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">launcher_args</span><span class="p">:</span> <span class="nb">dict</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_config_resolution</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">launcher_args</span><span class="p">:</span> <span class="nb">dict</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Resolve the input arguments and environment variables.</span>
 
 <span class="sd">        Args:</span>
@@ -1093,7 +1093,7 @@
             <span class="n">key</span><span class="p">:</span> <span class="n">launcher_args</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="nb">set</span><span class="p">(</span><span class="n">AppLauncher</span><span class="o">.</span><span class="n">_SIM_APP_CFG_TYPES</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span> <span class="o">&amp;</span> <span class="nb">set</span><span class="p">(</span><span class="n">launcher_args</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
         <span class="p">}</span>
 
-    <span class="k">def</span> <span class="nf">_create_app</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_create_app</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Launch and create the SimulationApp based on the parsed simulation config.&quot;&quot;&quot;</span>
         <span class="c1"># Initialize SimulationApp</span>
         <span class="c1"># hack sys module to make sure that the SimulationApp is initialized correctly</span>
@@ -1126,18 +1126,18 @@
         <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_kit_args</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
             <span class="n">sys</span><span class="o">.</span><span class="n">argv</span> <span class="o">=</span> <span class="p">[</span><span class="n">arg</span> <span class="k">for</span> <span class="n">arg</span> <span class="ow">in</span> <span class="n">sys</span><span class="o">.</span><span class="n">argv</span> <span class="k">if</span> <span class="n">arg</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_kit_args</span><span class="p">]</span>
 
-    <span class="k">def</span> <span class="nf">_rendering_enabled</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_rendering_enabled</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Check if rendering is required by the app.&quot;&quot;&quot;</span>
         <span class="c1"># Indicates whether rendering is required by the app.</span>
         <span class="c1"># Extensions required for rendering bring startup and simulation costs, so we do not enable them if not required.</span>
         <span class="k">return</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_headless</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">_livestream</span> <span class="o">&gt;=</span> <span class="mi">1</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">_enable_cameras</span>
 
-    <span class="k">def</span> <span class="nf">_load_extensions</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_load_extensions</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Load correct extensions based on AppLauncher&#39;s resolved config member variables.&quot;&quot;&quot;</span>
         <span class="c1"># These have to be loaded after SimulationApp is initialized</span>
-        <span class="kn">import</span> <span class="nn">carb</span>
-        <span class="kn">import</span> <span class="nn">omni.physx.bindings._physx</span> <span class="k">as</span> <span class="nn">physx_impl</span>
-        <span class="kn">from</span> <span class="nn">omni.isaac.core.utils.extensions</span> <span class="kn">import</span> <span class="n">enable_extension</span>
+        <span class="kn">import</span><span class="w"> </span><span class="nn">carb</span>
+        <span class="kn">import</span><span class="w"> </span><span class="nn">omni.physx.bindings._physx</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">physx_impl</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.core.utils.extensions</span><span class="w"> </span><span class="kn">import</span> <span class="n">enable_extension</span>
 
         <span class="c1"># Retrieve carb settings for modification</span>
         <span class="n">carb_settings_iface</span> <span class="o">=</span> <span class="n">carb</span><span class="o">.</span><span class="n">settings</span><span class="o">.</span><span class="n">get_settings</span><span class="p">()</span>
@@ -1196,7 +1196,7 @@
         <span class="c1"># disable physics backwards compatibility check</span>
         <span class="n">carb_settings_iface</span><span class="o">.</span><span class="n">set_int</span><span class="p">(</span><span class="n">physx_impl</span><span class="o">.</span><span class="n">SETTING_BACKWARD_COMPATIBILITY</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
 
-    <span class="k">def</span> <span class="nf">_hide_stop_button</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_hide_stop_button</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Hide the stop button in the toolbar.</span>
 
 <span class="sd">        For standalone executions, having a stop button is confusing since it invalidates the whole simulation.</span>
@@ -1205,7 +1205,7 @@
         <span class="c1"># when we are truly headless, then we can&#39;t import the widget toolbar</span>
         <span class="c1"># thus, we only hide the stop button when we are not headless (i.e. GUI is enabled)</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_livestream</span> <span class="o">&gt;=</span> <span class="mi">1</span> <span class="ow">or</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_headless</span><span class="p">:</span>
-            <span class="kn">import</span> <span class="nn">omni.kit.widget.toolbar</span>
+            <span class="kn">import</span><span class="w"> </span><span class="nn">omni.kit.widget.toolbar</span>
 
             <span class="c1"># grey out the stop button because we don&#39;t want to stop the simulation manually in standalone mode</span>
             <span class="n">toolbar</span> <span class="o">=</span> <span class="n">omni</span><span class="o">.</span><span class="n">kit</span><span class="o">.</span><span class="n">widget</span><span class="o">.</span><span class="n">toolbar</span><span class="o">.</span><span class="n">get_instance</span><span class="p">()</span>
@@ -1215,14 +1215,14 @@
                 <span class="n">play_button_group</span><span class="o">.</span><span class="n">_stop_button</span><span class="o">.</span><span class="n">enabled</span> <span class="o">=</span> <span class="kc">False</span>  <span class="c1"># type: ignore</span>
                 <span class="n">play_button_group</span><span class="o">.</span><span class="n">_stop_button</span> <span class="o">=</span> <span class="kc">None</span>  <span class="c1"># type: ignore</span>
 
-    <span class="k">def</span> <span class="nf">_interrupt_signal_handle_callback</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">signal</span><span class="p">,</span> <span class="n">frame</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_interrupt_signal_handle_callback</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">signal</span><span class="p">,</span> <span class="n">frame</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Handle the interrupt signal from the keyboard.&quot;&quot;&quot;</span>
         <span class="c1"># close the app</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_app</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
         <span class="c1"># raise the error for keyboard interrupt</span>
         <span class="k">raise</span> <span class="ne">KeyboardInterrupt</span>
 
-    <span class="k">def</span> <span class="nf">_abort_signal_handle_callback</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">signal</span><span class="p">,</span> <span class="n">frame</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_abort_signal_handle_callback</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">signal</span><span class="p">,</span> <span class="n">frame</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Handle the abort/segmentation/kill signals.&quot;&quot;&quot;</span>
         <span class="c1"># close the app</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_app</span><span class="o">.</span><span class="n">close</span><span class="p">()</span></div>
@@ -1273,7 +1273,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jan 03, 2025.
+  Last updated on Jan 07, 2025.
   <br/>
 </p>
   </div>

@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="1.2.0" />
-    <meta name="docbuild:last-update" content="Jan 03, 2025"/>
+    <meta name="docbuild:last-update" content="Jan 07, 2025"/>
   </head>
   
   
@@ -508,31 +508,31 @@
 <span class="c1">#</span>
 <span class="c1"># SPDX-License-Identifier: BSD-3-Clause</span>
 
-<span class="kn">import</span> <span class="nn">builtins</span>
-<span class="kn">import</span> <span class="nn">enum</span>
-<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
-<span class="kn">import</span> <span class="nn">sys</span>
-<span class="kn">import</span> <span class="nn">torch</span>
-<span class="kn">import</span> <span class="nn">traceback</span>
-<span class="kn">import</span> <span class="nn">weakref</span>
-<span class="kn">from</span> <span class="nn">collections.abc</span> <span class="kn">import</span> <span class="n">Iterator</span>
-<span class="kn">from</span> <span class="nn">contextlib</span> <span class="kn">import</span> <span class="n">contextmanager</span>
-<span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Any</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">builtins</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">enum</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">sys</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">traceback</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">weakref</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Iterator</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">contextlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">contextmanager</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span>
 
-<span class="kn">import</span> <span class="nn">carb</span>
-<span class="kn">import</span> <span class="nn">omni.isaac.core.utils.stage</span> <span class="k">as</span> <span class="nn">stage_utils</span>
-<span class="kn">import</span> <span class="nn">omni.physx</span>
-<span class="kn">from</span> <span class="nn">omni.isaac.core.simulation_context</span> <span class="kn">import</span> <span class="n">SimulationContext</span> <span class="k">as</span> <span class="n">_SimulationContext</span>
-<span class="kn">from</span> <span class="nn">omni.isaac.core.utils.viewports</span> <span class="kn">import</span> <span class="n">set_camera_view</span>
-<span class="kn">from</span> <span class="nn">omni.isaac.version</span> <span class="kn">import</span> <span class="n">get_version</span>
-<span class="kn">from</span> <span class="nn">pxr</span> <span class="kn">import</span> <span class="n">Gf</span><span class="p">,</span> <span class="n">PhysxSchema</span><span class="p">,</span> <span class="n">Usd</span><span class="p">,</span> <span class="n">UsdPhysics</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">carb</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">omni.isaac.core.utils.stage</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">stage_utils</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">omni.physx</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.core.simulation_context</span><span class="w"> </span><span class="kn">import</span> <span class="n">SimulationContext</span> <span class="k">as</span> <span class="n">_SimulationContext</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.core.utils.viewports</span><span class="w"> </span><span class="kn">import</span> <span class="n">set_camera_view</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.version</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_version</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pxr</span><span class="w"> </span><span class="kn">import</span> <span class="n">Gf</span><span class="p">,</span> <span class="n">PhysxSchema</span><span class="p">,</span> <span class="n">Usd</span><span class="p">,</span> <span class="n">UsdPhysics</span>
 
-<span class="kn">from</span> <span class="nn">.simulation_cfg</span> <span class="kn">import</span> <span class="n">SimulationCfg</span>
-<span class="kn">from</span> <span class="nn">.spawners</span> <span class="kn">import</span> <span class="n">DomeLightCfg</span><span class="p">,</span> <span class="n">GroundPlaneCfg</span>
-<span class="kn">from</span> <span class="nn">.utils</span> <span class="kn">import</span> <span class="n">bind_physics_material</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.simulation_cfg</span><span class="w"> </span><span class="kn">import</span> <span class="n">SimulationCfg</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.spawners</span><span class="w"> </span><span class="kn">import</span> <span class="n">DomeLightCfg</span><span class="p">,</span> <span class="n">GroundPlaneCfg</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">bind_physics_material</span>
 
 
-<div class="viewcode-block" id="SimulationContext"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.sim.html#omni.isaac.lab.sim.SimulationContext">[docs]</a><span class="k">class</span> <span class="nc">SimulationContext</span><span class="p">(</span><span class="n">_SimulationContext</span><span class="p">):</span>
+<div class="viewcode-block" id="SimulationContext"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.sim.html#omni.isaac.lab.sim.SimulationContext">[docs]</a><span class="k">class</span><span class="w"> </span><span class="nc">SimulationContext</span><span class="p">(</span><span class="n">_SimulationContext</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;A class to control simulation-related events such as physics stepping and rendering.</span>
 
 <span class="sd">    The simulation context helps control various simulation aspects. This includes:</span>
@@ -573,7 +573,7 @@
 <span class="sd">    the non-``_async`` functions are used in the standalone python script mode.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-<div class="viewcode-block" id="SimulationContext.RenderMode"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.sim.html#omni.isaac.lab.sim.SimulationContext.RenderMode">[docs]</a>    <span class="k">class</span> <span class="nc">RenderMode</span><span class="p">(</span><span class="n">enum</span><span class="o">.</span><span class="n">IntEnum</span><span class="p">):</span>
+<div class="viewcode-block" id="SimulationContext.RenderMode"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.sim.html#omni.isaac.lab.sim.SimulationContext.RenderMode">[docs]</a>    <span class="k">class</span><span class="w"> </span><span class="nc">RenderMode</span><span class="p">(</span><span class="n">enum</span><span class="o">.</span><span class="n">IntEnum</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Different rendering modes for the simulation.</span>
 
 <span class="sd">        Render modes correspond to how the viewport and other UI elements (such as listeners to keyboard or mouse</span>
@@ -608,7 +608,7 @@
         <span class="n">FULL_RENDERING</span> <span class="o">=</span> <span class="mi">2</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Full rendering, where all the simulation viewports, cameras and UI elements are updated.&quot;&quot;&quot;</span></div>
 
-<div class="viewcode-block" id="SimulationContext.__init__"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.sim.html#omni.isaac.lab.sim.SimulationContext.__init__">[docs]</a>    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">SimulationCfg</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+<div class="viewcode-block" id="SimulationContext.__init__"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.sim.html#omni.isaac.lab.sim.SimulationContext.__init__">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">SimulationCfg</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Creates a simulation context to control the simulator.</span>
 
 <span class="sd">        Args:</span>
@@ -673,8 +673,8 @@
             <span class="bp">self</span><span class="o">.</span><span class="n">_viewport_window</span> <span class="o">=</span> <span class="kc">None</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="c1"># note: need to import here in case the UI is not available (ex. headless mode)</span>
-            <span class="kn">import</span> <span class="nn">omni.ui</span> <span class="k">as</span> <span class="nn">ui</span>
-            <span class="kn">from</span> <span class="nn">omni.kit.viewport.utility</span> <span class="kn">import</span> <span class="n">get_active_viewport</span>
+            <span class="kn">import</span><span class="w"> </span><span class="nn">omni.ui</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">ui</span>
+            <span class="kn">from</span><span class="w"> </span><span class="nn">omni.kit.viewport.utility</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_active_viewport</span>
 
             <span class="c1"># set default render mode</span>
             <span class="c1"># note: this can be changed by calling the `set_render_mode` function</span>
@@ -694,7 +694,7 @@
         <span class="c1"># since render_viewport can only be False in headless mode, we only need to check for offscreen_render</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_render_viewport</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">_offscreen_render</span><span class="p">:</span>
             <span class="c1"># disable the viewport if offscreen_render is enabled</span>
-            <span class="kn">from</span> <span class="nn">omni.kit.viewport.utility</span> <span class="kn">import</span> <span class="n">get_active_viewport</span>
+            <span class="kn">from</span><span class="w"> </span><span class="nn">omni.kit.viewport.utility</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_active_viewport</span>
 
             <span class="n">get_active_viewport</span><span class="p">()</span><span class="o">.</span><span class="n">updates_enabled</span> <span class="o">=</span> <span class="kc">False</span>
 
@@ -750,14 +750,14 @@
 <span class="sd">    Operations - New.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-<div class="viewcode-block" id="SimulationContext.has_gui"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.sim.html#omni.isaac.lab.sim.SimulationContext.has_gui">[docs]</a>    <span class="k">def</span> <span class="nf">has_gui</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<div class="viewcode-block" id="SimulationContext.has_gui"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.sim.html#omni.isaac.lab.sim.SimulationContext.has_gui">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">has_gui</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Returns whether the simulation has a GUI enabled.</span>
 
 <span class="sd">        True if the simulation has a GUI enabled either locally or live-streamed.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_has_gui</span></div>
 
-<div class="viewcode-block" id="SimulationContext.has_rtx_sensors"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.sim.html#omni.isaac.lab.sim.SimulationContext.has_rtx_sensors">[docs]</a>    <span class="k">def</span> <span class="nf">has_rtx_sensors</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<div class="viewcode-block" id="SimulationContext.has_rtx_sensors"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.sim.html#omni.isaac.lab.sim.SimulationContext.has_rtx_sensors">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">has_rtx_sensors</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Returns whether the simulation has any RTX-rendering related sensors.</span>
 
 <span class="sd">        This function returns the value of the simulation parameter ``&quot;/isaaclab/render/rtx_sensors&quot;``.</span>
@@ -772,7 +772,7 @@
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_settings</span><span class="o">.</span><span class="n">get_as_bool</span><span class="p">(</span><span class="s2">&quot;/isaaclab/render/rtx_sensors&quot;</span><span class="p">)</span></div>
 
-<div class="viewcode-block" id="SimulationContext.is_fabric_enabled"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.sim.html#omni.isaac.lab.sim.SimulationContext.is_fabric_enabled">[docs]</a>    <span class="k">def</span> <span class="nf">is_fabric_enabled</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<div class="viewcode-block" id="SimulationContext.is_fabric_enabled"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.sim.html#omni.isaac.lab.sim.SimulationContext.is_fabric_enabled">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">is_fabric_enabled</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Returns whether the fabric interface is enabled.</span>
 
 <span class="sd">        When fabric interface is enabled, USD read/write operations are disabled. Instead all applications</span>
@@ -785,7 +785,7 @@
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_fabric_iface</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span></div>
 
-<div class="viewcode-block" id="SimulationContext.get_version"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.sim.html#omni.isaac.lab.sim.SimulationContext.get_version">[docs]</a>    <span class="k">def</span> <span class="nf">get_version</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">]:</span>
+<div class="viewcode-block" id="SimulationContext.get_version"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.sim.html#omni.isaac.lab.sim.SimulationContext.get_version">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">get_version</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">]:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Returns the version of the simulator.</span>
 
 <span class="sd">        This is a wrapper around the ``omni.isaac.version.get_version()`` function.</span>
@@ -803,7 +803,7 @@
 <span class="sd">    &quot;&quot;&quot;</span>
 
 <div class="viewcode-block" id="SimulationContext.set_camera_view"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.sim.html#omni.isaac.lab.sim.SimulationContext.set_camera_view">[docs]</a>    <span class="nd">@staticmethod</span>
-    <span class="k">def</span> <span class="nf">set_camera_view</span><span class="p">(</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">set_camera_view</span><span class="p">(</span>
         <span class="n">eye</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">],</span>
         <span class="n">target</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">],</span>
         <span class="n">camera_prim_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;/OmniverseKit_Persp&quot;</span><span class="p">,</span>
@@ -822,7 +822,7 @@
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">set_camera_view</span><span class="p">(</span><span class="n">eye</span><span class="p">,</span> <span class="n">target</span><span class="p">,</span> <span class="n">camera_prim_path</span><span class="p">)</span></div>
 
-<div class="viewcode-block" id="SimulationContext.set_render_mode"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.sim.html#omni.isaac.lab.sim.SimulationContext.set_render_mode">[docs]</a>    <span class="k">def</span> <span class="nf">set_render_mode</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mode</span><span class="p">:</span> <span class="n">RenderMode</span><span class="p">):</span>
+<div class="viewcode-block" id="SimulationContext.set_render_mode"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.sim.html#omni.isaac.lab.sim.SimulationContext.set_render_mode">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">set_render_mode</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mode</span><span class="p">:</span> <span class="n">RenderMode</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Change the current render mode of the simulation.</span>
 
 <span class="sd">        Please see :class:`RenderMode` for more information on the different render modes.</span>
@@ -868,7 +868,7 @@
             <span class="c1"># update render mode</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">render_mode</span> <span class="o">=</span> <span class="n">mode</span></div>
 
-<div class="viewcode-block" id="SimulationContext.set_setting"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.sim.html#omni.isaac.lab.sim.SimulationContext.set_setting">[docs]</a>    <span class="k">def</span> <span class="nf">set_setting</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">value</span><span class="p">:</span> <span class="n">Any</span><span class="p">):</span>
+<div class="viewcode-block" id="SimulationContext.set_setting"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.sim.html#omni.isaac.lab.sim.SimulationContext.set_setting">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">set_setting</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">value</span><span class="p">:</span> <span class="n">Any</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Set simulation settings using the Carbonite SDK.</span>
 
 <span class="sd">        .. note::</span>
@@ -885,7 +885,7 @@
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_settings</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span></div>
 
-<div class="viewcode-block" id="SimulationContext.get_setting"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.sim.html#omni.isaac.lab.sim.SimulationContext.get_setting">[docs]</a>    <span class="k">def</span> <span class="nf">get_setting</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
+<div class="viewcode-block" id="SimulationContext.get_setting"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.sim.html#omni.isaac.lab.sim.SimulationContext.get_setting">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">get_setting</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Read the simulation setting using the Carbonite SDK.</span>
 
 <span class="sd">        Args:</span>
@@ -900,7 +900,7 @@
 <span class="sd">    Operations - Override (standalone)</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="k">def</span> <span class="nf">reset</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">soft</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">reset</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">soft</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">):</span>
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">reset</span><span class="p">(</span><span class="n">soft</span><span class="o">=</span><span class="n">soft</span><span class="p">)</span>
         <span class="c1"># perform additional rendering steps to warm up replicator buffers</span>
         <span class="c1"># this is only needed for the first time we set the simulation</span>
@@ -908,7 +908,7 @@
             <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">2</span><span class="p">):</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">render</span><span class="p">()</span>
 
-<div class="viewcode-block" id="SimulationContext.step"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.sim.html#omni.isaac.lab.sim.SimulationContext.step">[docs]</a>    <span class="k">def</span> <span class="nf">step</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">render</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">):</span>
+<div class="viewcode-block" id="SimulationContext.step"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.sim.html#omni.isaac.lab.sim.SimulationContext.step">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">step</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">render</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Steps the simulation.</span>
 
 <span class="sd">        .. note::</span>
@@ -935,7 +935,7 @@
         <span class="c1"># step the simulation</span>
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">step</span><span class="p">(</span><span class="n">render</span><span class="o">=</span><span class="n">render</span><span class="p">)</span></div>
 
-<div class="viewcode-block" id="SimulationContext.render"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.sim.html#omni.isaac.lab.sim.SimulationContext.render">[docs]</a>    <span class="k">def</span> <span class="nf">render</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mode</span><span class="p">:</span> <span class="n">RenderMode</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+<div class="viewcode-block" id="SimulationContext.render"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.sim.html#omni.isaac.lab.sim.SimulationContext.render">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">render</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mode</span><span class="p">:</span> <span class="n">RenderMode</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Refreshes the rendering components including UI elements and view-ports depending on the render mode.</span>
 
 <span class="sd">        This function is used to refresh the rendering components of the simulation. This includes updating the</span>
@@ -982,7 +982,7 @@
 <span class="sd">    Operations - Override (extension)</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="k">async</span> <span class="k">def</span> <span class="nf">reset_async</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">soft</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">):</span>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">reset_async</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">soft</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">):</span>
         <span class="c1"># need to load all &quot;physics&quot; information from the USD file</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="n">soft</span><span class="p">:</span>
             <span class="n">omni</span><span class="o">.</span><span class="n">physx</span><span class="o">.</span><span class="n">acquire_physx_interface</span><span class="p">()</span><span class="o">.</span><span class="n">force_load_physics_from_usd</span><span class="p">()</span>
@@ -993,7 +993,7 @@
 <span class="sd">    Initialization/Destruction - Override.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="k">def</span> <span class="nf">_init_stage</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Usd</span><span class="o">.</span><span class="n">Stage</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_init_stage</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Usd</span><span class="o">.</span><span class="n">Stage</span><span class="p">:</span>
         <span class="n">_</span> <span class="o">=</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">_init_stage</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
         <span class="c1"># a stage update here is needed for the case when physics_dt != rendering_dt, otherwise the app crashes</span>
         <span class="c1"># when in headless mode</span>
@@ -1007,7 +1007,7 @@
         <span class="c1"># return the stage</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">stage</span>
 
-    <span class="k">async</span> <span class="k">def</span> <span class="nf">_initialize_stage_async</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Usd</span><span class="o">.</span><span class="n">Stage</span><span class="p">:</span>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">_initialize_stage_async</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Usd</span><span class="o">.</span><span class="n">Stage</span><span class="p">:</span>
         <span class="k">await</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">_initialize_stage_async</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
         <span class="c1"># set additional physx parameters and bind material</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_set_additional_physx_params</span><span class="p">()</span>
@@ -1017,7 +1017,7 @@
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">stage</span>
 
     <span class="nd">@classmethod</span>
-    <span class="k">def</span> <span class="nf">clear_instance</span><span class="p">(</span><span class="bp">cls</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">clear_instance</span><span class="p">(</span><span class="bp">cls</span><span class="p">):</span>
         <span class="c1"># clear the callback</span>
         <span class="k">if</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_instance</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
             <span class="k">if</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_instance</span><span class="o">.</span><span class="n">_app_control_on_stop_handle</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
@@ -1030,7 +1030,7 @@
 <span class="sd">    Helper Functions</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="k">def</span> <span class="nf">_set_additional_physx_params</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_set_additional_physx_params</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Sets additional PhysX parameters that are not directly supported by the parent class.&quot;&quot;&quot;</span>
         <span class="c1"># obtain the physics scene api</span>
         <span class="n">physics_scene</span><span class="p">:</span> <span class="n">UsdPhysics</span><span class="o">.</span><span class="n">Scene</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_physics_context</span><span class="o">.</span><span class="n">_physics_scene</span>
@@ -1077,10 +1077,10 @@
         <span class="c1"># bind the physics material to the scene</span>
         <span class="n">bind_physics_material</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">physics_prim_path</span><span class="p">,</span> <span class="n">material_path</span><span class="p">)</span>
 
-    <span class="k">def</span> <span class="nf">_load_fabric_interface</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_load_fabric_interface</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Loads the fabric interface if enabled.&quot;&quot;&quot;</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">use_fabric</span><span class="p">:</span>
-            <span class="kn">from</span> <span class="nn">omni.physxfabric</span> <span class="kn">import</span> <span class="n">get_physx_fabric_interface</span>
+            <span class="kn">from</span><span class="w"> </span><span class="nn">omni.physxfabric</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_physx_fabric_interface</span>
 
             <span class="c1"># acquire fabric interface</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_fabric_iface</span> <span class="o">=</span> <span class="n">get_physx_fabric_interface</span><span class="p">()</span>
@@ -1098,7 +1098,7 @@
 <span class="sd">    Callbacks.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="k">def</span> <span class="nf">_app_control_on_stop_callback</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">event</span><span class="p">:</span> <span class="n">carb</span><span class="o">.</span><span class="n">events</span><span class="o">.</span><span class="n">IEvent</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_app_control_on_stop_callback</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">event</span><span class="p">:</span> <span class="n">carb</span><span class="o">.</span><span class="n">events</span><span class="o">.</span><span class="n">IEvent</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Callback to deal with the app when the simulation is stopped.</span>
 
 <span class="sd">        Once the simulation is stopped, the physics handles go invalid. After that, it is not possible to</span>
@@ -1132,7 +1132,7 @@
 
         <span class="c1"># make sure that any replicator workflows finish rendering/writing</span>
         <span class="k">try</span><span class="p">:</span>
-            <span class="kn">import</span> <span class="nn">omni.replicator.core</span> <span class="k">as</span> <span class="nn">rep</span>
+            <span class="kn">import</span><span class="w"> </span><span class="nn">omni.replicator.core</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">rep</span>
 
             <span class="n">rep_status</span> <span class="o">=</span> <span class="n">rep</span><span class="o">.</span><span class="n">orchestrator</span><span class="o">.</span><span class="n">get_status</span><span class="p">()</span>
             <span class="k">if</span> <span class="n">rep_status</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">[</span><span class="n">rep</span><span class="o">.</span><span class="n">orchestrator</span><span class="o">.</span><span class="n">Status</span><span class="o">.</span><span class="n">STOPPED</span><span class="p">,</span> <span class="n">rep</span><span class="o">.</span><span class="n">orchestrator</span><span class="o">.</span><span class="n">Status</span><span class="o">.</span><span class="n">STOPPING</span><span class="p">]:</span>
@@ -1178,7 +1178,7 @@
 
 
 <span class="nd">@contextmanager</span>
-<span class="k">def</span> <span class="nf">build_simulation_context</span><span class="p">(</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">build_simulation_context</span><span class="p">(</span>
     <span class="n">create_new_stage</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
     <span class="n">gravity_enabled</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
     <span class="n">device</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;cuda:0&quot;</span><span class="p">,</span>
@@ -1320,7 +1320,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jan 03, 2025.
+  Last updated on Jan 07, 2025.
   <br/>
 </p>
   </div>

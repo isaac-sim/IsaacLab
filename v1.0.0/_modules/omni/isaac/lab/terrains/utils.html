@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="0.3.0" />
-    <meta name="docbuild:last-update" content="Jan 03, 2025"/>
+    <meta name="docbuild:last-update" content="Jan 07, 2025"/>
   </head>
   
   
@@ -499,18 +499,18 @@
 <span class="c1"># SPDX-License-Identifier: BSD-3-Clause</span>
 
 <span class="c1"># needed to import for allowing type-hinting: np.ndarray | torch.Tensor | None</span>
-<span class="kn">from</span> <span class="nn">__future__</span> <span class="kn">import</span> <span class="n">annotations</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
 
-<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
-<span class="kn">import</span> <span class="nn">torch</span>
-<span class="kn">import</span> <span class="nn">trimesh</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">trimesh</span>
 
-<span class="kn">import</span> <span class="nn">warp</span> <span class="k">as</span> <span class="nn">wp</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">warp</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">wp</span>
 
-<span class="kn">from</span> <span class="nn">omni.isaac.lab.utils.warp</span> <span class="kn">import</span> <span class="n">raycast_mesh</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.utils.warp</span><span class="w"> </span><span class="kn">import</span> <span class="n">raycast_mesh</span>
 
 
-<div class="viewcode-block" id="color_meshes_by_height"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.terrains.html#omni.isaac.lab.terrains.utils.color_meshes_by_height">[docs]</a><span class="k">def</span> <span class="nf">color_meshes_by_height</span><span class="p">(</span><span class="n">meshes</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">trimesh</span><span class="o">.</span><span class="n">Trimesh</span><span class="p">],</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">trimesh</span><span class="o">.</span><span class="n">Trimesh</span><span class="p">:</span>
+<div class="viewcode-block" id="color_meshes_by_height"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.terrains.html#omni.isaac.lab.terrains.utils.color_meshes_by_height">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">color_meshes_by_height</span><span class="p">(</span><span class="n">meshes</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">trimesh</span><span class="o">.</span><span class="n">Trimesh</span><span class="p">],</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">trimesh</span><span class="o">.</span><span class="n">Trimesh</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Color the vertices of a trimesh object based on the z-coordinate (height) of each vertex,</span>
 <span class="sd">    using the Turbo colormap. If the z-coordinates are all the same, the vertices will be colored</span>
@@ -552,7 +552,7 @@
     <span class="k">return</span> <span class="n">mesh</span></div>
 
 
-<div class="viewcode-block" id="create_prim_from_mesh"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.terrains.html#omni.isaac.lab.terrains.utils.create_prim_from_mesh">[docs]</a><span class="k">def</span> <span class="nf">create_prim_from_mesh</span><span class="p">(</span><span class="n">prim_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">mesh</span><span class="p">:</span> <span class="n">trimesh</span><span class="o">.</span><span class="n">Trimesh</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+<div class="viewcode-block" id="create_prim_from_mesh"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.terrains.html#omni.isaac.lab.terrains.utils.create_prim_from_mesh">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">create_prim_from_mesh</span><span class="p">(</span><span class="n">prim_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">mesh</span><span class="p">:</span> <span class="n">trimesh</span><span class="o">.</span><span class="n">Trimesh</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Create a USD prim with mesh defined from vertices and triangles.</span>
 
 <span class="sd">    The function creates a USD prim with a mesh defined from vertices and triangles. It performs the</span>
@@ -574,10 +574,10 @@
 <span class="sd">        physics_material: The physics material to apply. Defaults to None.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="c1"># need to import these here to prevent isaacsim launching when importing this module</span>
-    <span class="kn">import</span> <span class="nn">omni.isaac.core.utils.prims</span> <span class="k">as</span> <span class="nn">prim_utils</span>
-    <span class="kn">from</span> <span class="nn">pxr</span> <span class="kn">import</span> <span class="n">UsdGeom</span>
+    <span class="kn">import</span><span class="w"> </span><span class="nn">omni.isaac.core.utils.prims</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">prim_utils</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">pxr</span><span class="w"> </span><span class="kn">import</span> <span class="n">UsdGeom</span>
 
-    <span class="kn">import</span> <span class="nn">omni.isaac.lab.sim</span> <span class="k">as</span> <span class="nn">sim_utils</span>
+    <span class="kn">import</span><span class="w"> </span><span class="nn">omni.isaac.lab.sim</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">sim_utils</span>
 
     <span class="c1"># create parent prim</span>
     <span class="n">prim_utils</span><span class="o">.</span><span class="n">create_prim</span><span class="p">(</span><span class="n">prim_path</span><span class="p">,</span> <span class="s2">&quot;Xform&quot;</span><span class="p">)</span>
@@ -626,7 +626,7 @@
         <span class="n">sim_utils</span><span class="o">.</span><span class="n">bind_physics_material</span><span class="p">(</span><span class="n">prim</span><span class="o">.</span><span class="n">GetPrimPath</span><span class="p">(),</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">prim_path</span><span class="si">}</span><span class="s2">/physicsMaterial&quot;</span><span class="p">)</span></div>
 
 
-<div class="viewcode-block" id="find_flat_patches"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.terrains.html#omni.isaac.lab.terrains.utils.find_flat_patches">[docs]</a><span class="k">def</span> <span class="nf">find_flat_patches</span><span class="p">(</span>
+<div class="viewcode-block" id="find_flat_patches"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.terrains.html#omni.isaac.lab.terrains.utils.find_flat_patches">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">find_flat_patches</span><span class="p">(</span>
     <span class="n">wp_mesh</span><span class="p">:</span> <span class="n">wp</span><span class="o">.</span><span class="n">Mesh</span><span class="p">,</span>
     <span class="n">num_patches</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
     <span class="n">patch_radius</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="nb">list</span><span class="p">[</span><span class="nb">float</span><span class="p">],</span>
@@ -814,7 +814,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jan 03, 2025.
+  Last updated on Jan 07, 2025.
   <br/>
 </p>
   </div>

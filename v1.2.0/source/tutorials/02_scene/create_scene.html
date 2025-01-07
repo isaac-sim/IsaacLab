@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="1.2.0" />
-    <meta name="docbuild:last-update" content="Jan 03, 2025"/>
+    <meta name="docbuild:last-update" content="Jan 07, 2025"/>
   </head>
   
   
@@ -632,9 +632,9 @@ become more useful in the future as more assets and sensors are added to the sce
 <span class="linenos"> 15</span><span class="sd">&quot;&quot;&quot;Launch Isaac Sim Simulator first.&quot;&quot;&quot;</span>
 <span class="linenos"> 16</span>
 <span class="linenos"> 17</span>
-<span class="linenos"> 18</span><span class="kn">import</span> <span class="nn">argparse</span>
+<span class="linenos"> 18</span><span class="kn">import</span><span class="w"> </span><span class="nn">argparse</span>
 <span class="linenos"> 19</span>
-<span class="linenos"> 20</span><span class="kn">from</span> <span class="nn">omni.isaac.lab.app</span> <span class="kn">import</span> <span class="n">AppLauncher</span>
+<span class="linenos"> 20</span><span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.app</span><span class="w"> </span><span class="kn">import</span> <span class="n">AppLauncher</span>
 <span class="linenos"> 21</span>
 <span class="linenos"> 22</span><span class="c1"># add argparse arguments</span>
 <span class="linenos"> 23</span><span class="n">parser</span> <span class="o">=</span> <span class="n">argparse</span><span class="o">.</span><span class="n">ArgumentParser</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="s2">&quot;Tutorial on using the interactive scene interface.&quot;</span><span class="p">)</span>
@@ -650,22 +650,22 @@ become more useful in the future as more assets and sensors are added to the sce
 <span class="linenos"> 33</span>
 <span class="linenos"> 34</span><span class="sd">&quot;&quot;&quot;Rest everything follows.&quot;&quot;&quot;</span>
 <span class="linenos"> 35</span>
-<span class="linenos"> 36</span><span class="kn">import</span> <span class="nn">torch</span>
+<span class="linenos"> 36</span><span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
 <span class="linenos"> 37</span>
-<span class="linenos"> 38</span><span class="kn">import</span> <span class="nn">omni.isaac.lab.sim</span> <span class="k">as</span> <span class="nn">sim_utils</span>
-<span class="linenos"> 39</span><span class="kn">from</span> <span class="nn">omni.isaac.lab.assets</span> <span class="kn">import</span> <span class="n">ArticulationCfg</span><span class="p">,</span> <span class="n">AssetBaseCfg</span>
-<span class="linenos"> 40</span><span class="kn">from</span> <span class="nn">omni.isaac.lab.scene</span> <span class="kn">import</span> <span class="n">InteractiveScene</span><span class="p">,</span> <span class="n">InteractiveSceneCfg</span>
-<span class="linenos"> 41</span><span class="kn">from</span> <span class="nn">omni.isaac.lab.sim</span> <span class="kn">import</span> <span class="n">SimulationContext</span>
-<span class="linenos"> 42</span><span class="kn">from</span> <span class="nn">omni.isaac.lab.utils</span> <span class="kn">import</span> <span class="n">configclass</span>
+<span class="linenos"> 38</span><span class="kn">import</span><span class="w"> </span><span class="nn">omni.isaac.lab.sim</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">sim_utils</span>
+<span class="linenos"> 39</span><span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.assets</span><span class="w"> </span><span class="kn">import</span> <span class="n">ArticulationCfg</span><span class="p">,</span> <span class="n">AssetBaseCfg</span>
+<span class="linenos"> 40</span><span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.scene</span><span class="w"> </span><span class="kn">import</span> <span class="n">InteractiveScene</span><span class="p">,</span> <span class="n">InteractiveSceneCfg</span>
+<span class="linenos"> 41</span><span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.sim</span><span class="w"> </span><span class="kn">import</span> <span class="n">SimulationContext</span>
+<span class="linenos"> 42</span><span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">configclass</span>
 <span class="linenos"> 43</span>
 <span class="linenos"> 44</span><span class="c1">##</span>
 <span class="linenos"> 45</span><span class="c1"># Pre-defined configs</span>
 <span class="linenos"> 46</span><span class="c1">##</span>
-<span class="linenos"> 47</span><span class="kn">from</span> <span class="nn">omni.isaac.lab_assets</span> <span class="kn">import</span> <span class="n">CARTPOLE_CFG</span>  <span class="c1"># isort:skip</span>
+<span class="linenos"> 47</span><span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab_assets</span><span class="w"> </span><span class="kn">import</span> <span class="n">CARTPOLE_CFG</span>  <span class="c1"># isort:skip</span>
 <span class="linenos"> 48</span>
 <span class="linenos"> 49</span>
 <span class="hll"><span class="linenos"> 50</span><span class="nd">@configclass</span>
-</span><span class="hll"><span class="linenos"> 51</span><span class="k">class</span> <span class="nc">CartpoleSceneCfg</span><span class="p">(</span><span class="n">InteractiveSceneCfg</span><span class="p">):</span>
+</span><span class="hll"><span class="linenos"> 51</span><span class="k">class</span><span class="w"> </span><span class="nc">CartpoleSceneCfg</span><span class="p">(</span><span class="n">InteractiveSceneCfg</span><span class="p">):</span>
 </span><span class="hll"><span class="linenos"> 52</span><span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for a cart-pole scene.&quot;&quot;&quot;</span>
 </span><span class="hll"><span class="linenos"> 53</span>
 </span><span class="hll"><span class="linenos"> 54</span>    <span class="c1"># ground plane</span>
@@ -680,7 +680,7 @@ become more useful in the future as more assets and sensors are added to the sce
 </span><span class="hll"><span class="linenos"> 63</span>    <span class="n">cartpole</span><span class="p">:</span> <span class="n">ArticulationCfg</span> <span class="o">=</span> <span class="n">CARTPOLE_CFG</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">prim_path</span><span class="o">=</span><span class="s2">&quot;</span><span class="si">{ENV_REGEX_NS}</span><span class="s2">/Robot&quot;</span><span class="p">)</span>
 </span><span class="linenos"> 64</span>
 <span class="linenos"> 65</span>
-<span class="linenos"> 66</span><span class="k">def</span> <span class="nf">run_simulator</span><span class="p">(</span><span class="n">sim</span><span class="p">:</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">SimulationContext</span><span class="p">,</span> <span class="n">scene</span><span class="p">:</span> <span class="n">InteractiveScene</span><span class="p">):</span>
+<span class="linenos"> 66</span><span class="k">def</span><span class="w"> </span><span class="nf">run_simulator</span><span class="p">(</span><span class="n">sim</span><span class="p">:</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">SimulationContext</span><span class="p">,</span> <span class="n">scene</span><span class="p">:</span> <span class="n">InteractiveScene</span><span class="p">):</span>
 <span class="linenos"> 67</span><span class="w">    </span><span class="sd">&quot;&quot;&quot;Runs the simulation loop.&quot;&quot;&quot;</span>
 <span class="hll"><span class="linenos"> 68</span>    <span class="c1"># Extract scene entities</span>
 </span><span class="hll"><span class="linenos"> 69</span>    <span class="c1"># note: we only do this here for readability.</span>
@@ -723,7 +723,7 @@ become more useful in the future as more assets and sensors are added to the sce
 </span><span class="hll"><span class="linenos">106</span>        <span class="n">scene</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">sim_dt</span><span class="p">)</span>
 </span><span class="linenos">107</span>
 <span class="linenos">108</span>
-<span class="linenos">109</span><span class="k">def</span> <span class="nf">main</span><span class="p">():</span>
+<span class="linenos">109</span><span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">():</span>
 <span class="linenos">110</span><span class="w">    </span><span class="sd">&quot;&quot;&quot;Main function.&quot;&quot;&quot;</span>
 <span class="linenos">111</span>    <span class="c1"># Load kit helper</span>
 <span class="linenos">112</span>    <span class="n">sim_cfg</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">SimulationCfg</span><span class="p">(</span><span class="n">device</span><span class="o">=</span><span class="s2">&quot;cpu&quot;</span><span class="p">)</span>
@@ -763,7 +763,7 @@ to create the scene.</p>
 <p>For the cartpole example, we specify the same scene as in the previous tutorial, but list
 them now in the configuration class <code class="xref py py-class docutils literal notranslate"><span class="pre">CartpoleSceneCfg</span></code> instead of manually spawning them.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="nd">@configclass</span>
-<span class="k">class</span> <span class="nc">CartpoleSceneCfg</span><span class="p">(</span><span class="n">InteractiveSceneCfg</span><span class="p">):</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">CartpoleSceneCfg</span><span class="p">(</span><span class="n">InteractiveSceneCfg</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for a cart-pole scene.&quot;&quot;&quot;</span>
 
     <span class="c1"># ground plane</span>
@@ -956,7 +956,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jan 03, 2025.
+  Last updated on Jan 07, 2025.
   <br/>
 </p>
   </div>

@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="1.3.0" />
-    <meta name="docbuild:last-update" content="Jan 03, 2025"/>
+    <meta name="docbuild:last-update" content="Jan 07, 2025"/>
   </head>
   
   
@@ -511,23 +511,23 @@
 <span class="c1">#</span>
 <span class="c1"># SPDX-License-Identifier: BSD-3-Clause</span>
 
-<span class="kn">from</span> <span class="nn">__future__</span> <span class="kn">import</span> <span class="n">annotations</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
 
-<span class="kn">import</span> <span class="nn">copy</span>
-<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
-<span class="kn">import</span> <span class="nn">torch</span>
-<span class="kn">import</span> <span class="nn">weakref</span>
-<span class="kn">from</span> <span class="nn">collections.abc</span> <span class="kn">import</span> <span class="n">Sequence</span>
-<span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">TYPE_CHECKING</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">copy</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">weakref</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Sequence</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TYPE_CHECKING</span>
 
-<span class="kn">import</span> <span class="nn">omni.kit.app</span>
-<span class="kn">import</span> <span class="nn">omni.timeline</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">omni.kit.app</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">omni.timeline</span>
 
 <span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
-    <span class="kn">from</span> <span class="nn">omni.isaac.lab.envs</span> <span class="kn">import</span> <span class="n">DirectRLEnv</span><span class="p">,</span> <span class="n">ManagerBasedEnv</span><span class="p">,</span> <span class="n">ViewerCfg</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.envs</span><span class="w"> </span><span class="kn">import</span> <span class="n">DirectRLEnv</span><span class="p">,</span> <span class="n">ManagerBasedEnv</span><span class="p">,</span> <span class="n">ViewerCfg</span>
 
 
-<div class="viewcode-block" id="ViewportCameraController"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.ui.html#omni.isaac.lab.envs.ui.ViewportCameraController">[docs]</a><span class="k">class</span> <span class="nc">ViewportCameraController</span><span class="p">:</span>
+<div class="viewcode-block" id="ViewportCameraController"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.ui.html#omni.isaac.lab.envs.ui.ViewportCameraController">[docs]</a><span class="k">class</span><span class="w"> </span><span class="nc">ViewportCameraController</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;This class handles controlling the camera associated with a viewport in the simulator.</span>
 
 <span class="sd">    It can be used to set the viewpoint camera to track different origin types:</span>
@@ -542,7 +542,7 @@
 <span class="sd">    root position. For this, it registers a callback to the post update event stream from the simulation app.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-<div class="viewcode-block" id="ViewportCameraController.__init__"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.ui.html#omni.isaac.lab.envs.ui.ViewportCameraController.__init__">[docs]</a>    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedEnv</span> <span class="o">|</span> <span class="n">DirectRLEnv</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">ViewerCfg</span><span class="p">):</span>
+<div class="viewcode-block" id="ViewportCameraController.__init__"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.ui.html#omni.isaac.lab.envs.ui.ViewportCameraController.__init__">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedEnv</span> <span class="o">|</span> <span class="n">DirectRLEnv</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">ViewerCfg</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Initialize the ViewportCameraController.</span>
 
 <span class="sd">        Args:</span>
@@ -584,7 +584,7 @@
             <span class="k">lambda</span> <span class="n">event</span><span class="p">,</span> <span class="n">obj</span><span class="o">=</span><span class="n">weakref</span><span class="o">.</span><span class="n">proxy</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span> <span class="n">obj</span><span class="o">.</span><span class="n">_update_tracking_callback</span><span class="p">(</span><span class="n">event</span><span class="p">)</span>
         <span class="p">)</span></div>
 
-    <span class="k">def</span> <span class="fm">__del__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__del__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Unsubscribe from the callback.&quot;&quot;&quot;</span>
         <span class="c1"># use hasattr to handle case where __init__ has not completed before __del__ is called</span>
         <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">&quot;_viewport_camera_update_handle&quot;</span><span class="p">)</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">_viewport_camera_update_handle</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
@@ -596,7 +596,7 @@
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">cfg</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ViewerCfg</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">cfg</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ViewerCfg</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;The configuration for the viewer.&quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cfg</span>
 
@@ -604,7 +604,7 @@
 <span class="sd">    Public Functions</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-<div class="viewcode-block" id="ViewportCameraController.set_view_env_index"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.ui.html#omni.isaac.lab.envs.ui.ViewportCameraController.set_view_env_index">[docs]</a>    <span class="k">def</span> <span class="nf">set_view_env_index</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">env_index</span><span class="p">:</span> <span class="nb">int</span><span class="p">):</span>
+<div class="viewcode-block" id="ViewportCameraController.set_view_env_index"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.ui.html#omni.isaac.lab.envs.ui.ViewportCameraController.set_view_env_index">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">set_view_env_index</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">env_index</span><span class="p">:</span> <span class="nb">int</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Sets the environment index for the camera view.</span>
 
 <span class="sd">        Args:</span>
@@ -626,7 +626,7 @@
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">origin_type</span> <span class="o">==</span> <span class="s2">&quot;env&quot;</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">update_view_to_env</span><span class="p">()</span></div>
 
-<div class="viewcode-block" id="ViewportCameraController.update_view_to_world"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.ui.html#omni.isaac.lab.envs.ui.ViewportCameraController.update_view_to_world">[docs]</a>    <span class="k">def</span> <span class="nf">update_view_to_world</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<div class="viewcode-block" id="ViewportCameraController.update_view_to_world"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.ui.html#omni.isaac.lab.envs.ui.ViewportCameraController.update_view_to_world">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">update_view_to_world</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Updates the viewer&#39;s origin to the origin of the world which is (0, 0, 0).&quot;&quot;&quot;</span>
         <span class="c1"># set origin type to world</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">origin_type</span> <span class="o">=</span> <span class="s2">&quot;world&quot;</span>
@@ -635,7 +635,7 @@
         <span class="c1"># update the camera view</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">update_view_location</span><span class="p">()</span></div>
 
-<div class="viewcode-block" id="ViewportCameraController.update_view_to_env"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.ui.html#omni.isaac.lab.envs.ui.ViewportCameraController.update_view_to_env">[docs]</a>    <span class="k">def</span> <span class="nf">update_view_to_env</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<div class="viewcode-block" id="ViewportCameraController.update_view_to_env"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.ui.html#omni.isaac.lab.envs.ui.ViewportCameraController.update_view_to_env">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">update_view_to_env</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Updates the viewer&#39;s origin to the origin of the selected environment.&quot;&quot;&quot;</span>
         <span class="c1"># set origin type to world</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">origin_type</span> <span class="o">=</span> <span class="s2">&quot;env&quot;</span>
@@ -644,7 +644,7 @@
         <span class="c1"># update the camera view</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">update_view_location</span><span class="p">()</span></div>
 
-<div class="viewcode-block" id="ViewportCameraController.update_view_to_asset_root"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.ui.html#omni.isaac.lab.envs.ui.ViewportCameraController.update_view_to_asset_root">[docs]</a>    <span class="k">def</span> <span class="nf">update_view_to_asset_root</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">asset_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+<div class="viewcode-block" id="ViewportCameraController.update_view_to_asset_root"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.ui.html#omni.isaac.lab.envs.ui.ViewportCameraController.update_view_to_asset_root">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">update_view_to_asset_root</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">asset_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Updates the viewer&#39;s origin based upon the root of an asset in the scene.</span>
 
 <span class="sd">        Args:</span>
@@ -668,7 +668,7 @@
         <span class="c1"># update the camera view</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">update_view_location</span><span class="p">()</span></div>
 
-<div class="viewcode-block" id="ViewportCameraController.update_view_location"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.ui.html#omni.isaac.lab.envs.ui.ViewportCameraController.update_view_location">[docs]</a>    <span class="k">def</span> <span class="nf">update_view_location</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">eye</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">lookat</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+<div class="viewcode-block" id="ViewportCameraController.update_view_location"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.ui.html#omni.isaac.lab.envs.ui.ViewportCameraController.update_view_location">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">update_view_location</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">eye</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">lookat</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Updates the camera view pose based on the current viewer origin and the eye and lookat positions.</span>
 
 <span class="sd">        Args:</span>
@@ -692,7 +692,7 @@
 <span class="sd">    Private Functions</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="k">def</span> <span class="nf">_update_tracking_callback</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">event</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_update_tracking_callback</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">event</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Updates the camera view at each rendering step.&quot;&quot;&quot;</span>
         <span class="c1"># update the camera view if the origin is set to asset_root</span>
         <span class="c1"># in other cases, the camera view is static and does not need to be updated continuously</span>
@@ -745,7 +745,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jan 03, 2025.
+  Last updated on Jan 07, 2025.
   <br/>
 </p>
   </div>

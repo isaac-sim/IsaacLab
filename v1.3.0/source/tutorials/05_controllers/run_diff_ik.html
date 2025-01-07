@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="1.3.0" />
-    <meta name="docbuild:last-update" content="Jan 03, 2025"/>
+    <meta name="docbuild:last-update" content="Jan 07, 2025"/>
   </head>
   
   
@@ -624,9 +624,9 @@ end-effector pose command.</p>
 <span class="linenos"> 18</span>
 <span class="linenos"> 19</span><span class="sd">&quot;&quot;&quot;Launch Isaac Sim Simulator first.&quot;&quot;&quot;</span>
 <span class="linenos"> 20</span>
-<span class="linenos"> 21</span><span class="kn">import</span> <span class="nn">argparse</span>
+<span class="linenos"> 21</span><span class="kn">import</span><span class="w"> </span><span class="nn">argparse</span>
 <span class="linenos"> 22</span>
-<span class="linenos"> 23</span><span class="kn">from</span> <span class="nn">omni.isaac.lab.app</span> <span class="kn">import</span> <span class="n">AppLauncher</span>
+<span class="linenos"> 23</span><span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.app</span><span class="w"> </span><span class="kn">import</span> <span class="n">AppLauncher</span>
 <span class="linenos"> 24</span>
 <span class="linenos"> 25</span><span class="c1"># add argparse arguments</span>
 <span class="linenos"> 26</span><span class="n">parser</span> <span class="o">=</span> <span class="n">argparse</span><span class="o">.</span><span class="n">ArgumentParser</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="s2">&quot;Tutorial on using the differential IK controller.&quot;</span><span class="p">)</span>
@@ -643,27 +643,27 @@ end-effector pose command.</p>
 <span class="linenos"> 37</span>
 <span class="linenos"> 38</span><span class="sd">&quot;&quot;&quot;Rest everything follows.&quot;&quot;&quot;</span>
 <span class="linenos"> 39</span>
-<span class="linenos"> 40</span><span class="kn">import</span> <span class="nn">torch</span>
+<span class="linenos"> 40</span><span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
 <span class="linenos"> 41</span>
-<span class="linenos"> 42</span><span class="kn">import</span> <span class="nn">omni.isaac.lab.sim</span> <span class="k">as</span> <span class="nn">sim_utils</span>
-<span class="linenos"> 43</span><span class="kn">from</span> <span class="nn">omni.isaac.lab.assets</span> <span class="kn">import</span> <span class="n">AssetBaseCfg</span>
-<span class="linenos"> 44</span><span class="kn">from</span> <span class="nn">omni.isaac.lab.controllers</span> <span class="kn">import</span> <span class="n">DifferentialIKController</span><span class="p">,</span> <span class="n">DifferentialIKControllerCfg</span>
-<span class="linenos"> 45</span><span class="kn">from</span> <span class="nn">omni.isaac.lab.managers</span> <span class="kn">import</span> <span class="n">SceneEntityCfg</span>
-<span class="linenos"> 46</span><span class="kn">from</span> <span class="nn">omni.isaac.lab.markers</span> <span class="kn">import</span> <span class="n">VisualizationMarkers</span>
-<span class="linenos"> 47</span><span class="kn">from</span> <span class="nn">omni.isaac.lab.markers.config</span> <span class="kn">import</span> <span class="n">FRAME_MARKER_CFG</span>
-<span class="linenos"> 48</span><span class="kn">from</span> <span class="nn">omni.isaac.lab.scene</span> <span class="kn">import</span> <span class="n">InteractiveScene</span><span class="p">,</span> <span class="n">InteractiveSceneCfg</span>
-<span class="linenos"> 49</span><span class="kn">from</span> <span class="nn">omni.isaac.lab.utils</span> <span class="kn">import</span> <span class="n">configclass</span>
-<span class="linenos"> 50</span><span class="kn">from</span> <span class="nn">omni.isaac.lab.utils.assets</span> <span class="kn">import</span> <span class="n">ISAAC_NUCLEUS_DIR</span>
-<span class="linenos"> 51</span><span class="kn">from</span> <span class="nn">omni.isaac.lab.utils.math</span> <span class="kn">import</span> <span class="n">subtract_frame_transforms</span>
+<span class="linenos"> 42</span><span class="kn">import</span><span class="w"> </span><span class="nn">omni.isaac.lab.sim</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">sim_utils</span>
+<span class="linenos"> 43</span><span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.assets</span><span class="w"> </span><span class="kn">import</span> <span class="n">AssetBaseCfg</span>
+<span class="linenos"> 44</span><span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.controllers</span><span class="w"> </span><span class="kn">import</span> <span class="n">DifferentialIKController</span><span class="p">,</span> <span class="n">DifferentialIKControllerCfg</span>
+<span class="linenos"> 45</span><span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.managers</span><span class="w"> </span><span class="kn">import</span> <span class="n">SceneEntityCfg</span>
+<span class="linenos"> 46</span><span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.markers</span><span class="w"> </span><span class="kn">import</span> <span class="n">VisualizationMarkers</span>
+<span class="linenos"> 47</span><span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.markers.config</span><span class="w"> </span><span class="kn">import</span> <span class="n">FRAME_MARKER_CFG</span>
+<span class="linenos"> 48</span><span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.scene</span><span class="w"> </span><span class="kn">import</span> <span class="n">InteractiveScene</span><span class="p">,</span> <span class="n">InteractiveSceneCfg</span>
+<span class="linenos"> 49</span><span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">configclass</span>
+<span class="linenos"> 50</span><span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.utils.assets</span><span class="w"> </span><span class="kn">import</span> <span class="n">ISAAC_NUCLEUS_DIR</span>
+<span class="linenos"> 51</span><span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.utils.math</span><span class="w"> </span><span class="kn">import</span> <span class="n">subtract_frame_transforms</span>
 <span class="linenos"> 52</span>
 <span class="linenos"> 53</span><span class="c1">##</span>
 <span class="linenos"> 54</span><span class="c1"># Pre-defined configs</span>
 <span class="linenos"> 55</span><span class="c1">##</span>
-<span class="linenos"> 56</span><span class="kn">from</span> <span class="nn">omni.isaac.lab_assets</span> <span class="kn">import</span> <span class="n">FRANKA_PANDA_HIGH_PD_CFG</span><span class="p">,</span> <span class="n">UR10_CFG</span>  <span class="c1"># isort:skip</span>
+<span class="linenos"> 56</span><span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab_assets</span><span class="w"> </span><span class="kn">import</span> <span class="n">FRANKA_PANDA_HIGH_PD_CFG</span><span class="p">,</span> <span class="n">UR10_CFG</span>  <span class="c1"># isort:skip</span>
 <span class="linenos"> 57</span>
 <span class="linenos"> 58</span>
 <span class="linenos"> 59</span><span class="nd">@configclass</span>
-<span class="linenos"> 60</span><span class="k">class</span> <span class="nc">TableTopSceneCfg</span><span class="p">(</span><span class="n">InteractiveSceneCfg</span><span class="p">):</span>
+<span class="linenos"> 60</span><span class="k">class</span><span class="w"> </span><span class="nc">TableTopSceneCfg</span><span class="p">(</span><span class="n">InteractiveSceneCfg</span><span class="p">):</span>
 <span class="linenos"> 61</span><span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for a cart-pole scene.&quot;&quot;&quot;</span>
 <span class="linenos"> 62</span>
 <span class="linenos"> 63</span>    <span class="c1"># ground plane</span>
@@ -695,7 +695,7 @@ end-effector pose command.</p>
 <span class="linenos"> 89</span>        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Robot </span><span class="si">{</span><span class="n">args_cli</span><span class="o">.</span><span class="n">robot</span><span class="si">}</span><span class="s2"> is not supported. Valid: franka_panda, ur10&quot;</span><span class="p">)</span>
 <span class="linenos"> 90</span>
 <span class="linenos"> 91</span>
-<span class="linenos"> 92</span><span class="k">def</span> <span class="nf">run_simulator</span><span class="p">(</span><span class="n">sim</span><span class="p">:</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">SimulationContext</span><span class="p">,</span> <span class="n">scene</span><span class="p">:</span> <span class="n">InteractiveScene</span><span class="p">):</span>
+<span class="linenos"> 92</span><span class="k">def</span><span class="w"> </span><span class="nf">run_simulator</span><span class="p">(</span><span class="n">sim</span><span class="p">:</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">SimulationContext</span><span class="p">,</span> <span class="n">scene</span><span class="p">:</span> <span class="n">InteractiveScene</span><span class="p">):</span>
 <span class="linenos"> 93</span><span class="w">    </span><span class="sd">&quot;&quot;&quot;Runs the simulation loop.&quot;&quot;&quot;</span>
 <span class="linenos"> 94</span>    <span class="c1"># Extract scene entities</span>
 <span class="linenos"> 95</span>    <span class="c1"># note: we only do this here for readability.</span>
@@ -793,7 +793,7 @@ end-effector pose command.</p>
 <span class="linenos">187</span>        <span class="n">goal_marker</span><span class="o">.</span><span class="n">visualize</span><span class="p">(</span><span class="n">ik_commands</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">:</span><span class="mi">3</span><span class="p">]</span> <span class="o">+</span> <span class="n">scene</span><span class="o">.</span><span class="n">env_origins</span><span class="p">,</span> <span class="n">ik_commands</span><span class="p">[:,</span> <span class="mi">3</span><span class="p">:</span><span class="mi">7</span><span class="p">])</span>
 <span class="linenos">188</span>
 <span class="linenos">189</span>
-<span class="linenos">190</span><span class="k">def</span> <span class="nf">main</span><span class="p">():</span>
+<span class="linenos">190</span><span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">():</span>
 <span class="linenos">191</span><span class="w">    </span><span class="sd">&quot;&quot;&quot;Main function.&quot;&quot;&quot;</span>
 <span class="linenos">192</span>    <span class="c1"># Load kit helper</span>
 <span class="linenos">193</span>    <span class="n">sim_cfg</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">SimulationCfg</span><span class="p">(</span><span class="n">dt</span><span class="o">=</span><span class="mf">0.01</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">args_cli</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
@@ -1037,7 +1037,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jan 03, 2025.
+  Last updated on Jan 07, 2025.
   <br/>
 </p>
   </div>

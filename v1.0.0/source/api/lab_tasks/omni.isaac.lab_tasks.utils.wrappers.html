@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="0.3.0" />
-    <meta name="docbuild:last-update" content="Jan 03, 2025"/>
+    <meta name="docbuild:last-update" content="Jan 07, 2025"/>
   </head>
   
   
@@ -690,7 +690,7 @@ the initialized environment instance to the wrapper constructor. However, since 
 expect different input and output data structures, their wrapper classes are not compatible with each other.
 Thus, they should always be used in conjunction with the respective learning framework.</p>
 <p>For instance, to wrap an environment in the <a class="reference external" href="https://github.com/DLR-RM/stable-baselines3">Stable-Baselines3</a> wrapper, you can do the following:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">omni.isaac.lab_tasks.utils.wrappers.sb3</span> <span class="kn">import</span> <span class="n">Sb3VecEnvWrapper</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab_tasks.utils.wrappers.sb3</span><span class="w"> </span><span class="kn">import</span> <span class="n">Sb3VecEnvWrapper</span>
 
 <span class="n">env</span> <span class="o">=</span> <span class="n">Sb3VecEnvWrapper</span><span class="p">(</span><span class="n">env</span><span class="p">)</span>
 </pre></div>
@@ -700,9 +700,9 @@ Thus, they should always be used in conjunction with the respective learning fra
 <p>Wrapper to configure an <code class="xref py py-class docutils literal notranslate"><span class="pre">ManagerBasedRLEnv</span></code> instance to RL-Games vectorized environment.</p>
 <p>The following example shows how to wrap an environment for RL-Games and register the environment construction
 for RL-Games <code class="xref py py-class docutils literal notranslate"><span class="pre">Runner</span></code> class:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">rl_games.common</span> <span class="kn">import</span> <span class="n">env_configurations</span><span class="p">,</span> <span class="n">vecenv</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">rl_games.common</span><span class="w"> </span><span class="kn">import</span> <span class="n">env_configurations</span><span class="p">,</span> <span class="n">vecenv</span>
 
-<span class="kn">from</span> <span class="nn">omni.isaac.lab_tasks.utils.wrappers.rl_games</span> <span class="kn">import</span> <span class="n">RlGamesGpuEnv</span><span class="p">,</span> <span class="n">RlGamesVecEnvWrapper</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab_tasks.utils.wrappers.rl_games</span><span class="w"> </span><span class="kn">import</span> <span class="n">RlGamesGpuEnv</span><span class="p">,</span> <span class="n">RlGamesVecEnvWrapper</span>
 
 <span class="c1"># configuration parameters</span>
 <span class="n">rl_device</span> <span class="o">=</span> <span class="s2">&quot;cuda:0&quot;</span>
@@ -1551,13 +1551,13 @@ wrapper.</p>
 <span id="skrl-wrapper"></span><h2>SKRL Wrapper<a class="headerlink" href="#module-omni.isaac.lab_tasks.utils.wrappers.skrl" title="Permalink to this heading">#</a></h2>
 <p>Wrapper to configure an <code class="xref py py-class docutils literal notranslate"><span class="pre">ManagerBasedRLEnv</span></code> instance to skrl environment.</p>
 <p>The following example shows how to wrap an environment for skrl:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">omni.isaac.lab_tasks.utils.wrappers.skrl</span> <span class="kn">import</span> <span class="n">SkrlVecEnvWrapper</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab_tasks.utils.wrappers.skrl</span><span class="w"> </span><span class="kn">import</span> <span class="n">SkrlVecEnvWrapper</span>
 
 <span class="n">env</span> <span class="o">=</span> <span class="n">SkrlVecEnvWrapper</span><span class="p">(</span><span class="n">env</span><span class="p">)</span>
 </pre></div>
 </div>
 <p>Or, equivalently, by directly calling the skrl library API as follows:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">skrl.envs.torch.wrappers</span> <span class="kn">import</span> <span class="n">wrap_env</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">skrl.envs.torch.wrappers</span><span class="w"> </span><span class="kn">import</span> <span class="n">wrap_env</span>
 
 <span class="n">env</span> <span class="o">=</span> <span class="n">wrap_env</span><span class="p">(</span><span class="n">env</span><span class="p">,</span> <span class="n">wrapper</span><span class="o">=</span><span class="s2">&quot;isaac-orbit&quot;</span><span class="p">)</span>
 </pre></div>
@@ -1705,7 +1705,7 @@ train on. Defaults to None.</p></li>
 <span id="stable-baselines3-wrapper"></span><h2>Stable-Baselines3 Wrapper<a class="headerlink" href="#module-omni.isaac.lab_tasks.utils.wrappers.sb3" title="Permalink to this heading">#</a></h2>
 <p>Wrapper to configure an <code class="xref py py-class docutils literal notranslate"><span class="pre">ManagerBasedRLEnv</span></code> instance to Stable-Baselines3 vectorized environment.</p>
 <p>The following example shows how to wrap an environment for Stable-Baselines3:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">omni.isaac.lab_tasks.utils.wrappers.sb3</span> <span class="kn">import</span> <span class="n">Sb3VecEnvWrapper</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab_tasks.utils.wrappers.sb3</span><span class="w"> </span><span class="kn">import</span> <span class="n">Sb3VecEnvWrapper</span>
 
 <span class="n">env</span> <span class="o">=</span> <span class="n">Sb3VecEnvWrapper</span><span class="p">(</span><span class="n">env</span><span class="p">)</span>
 </pre></div>
@@ -2049,7 +2049,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jan 03, 2025.
+  Last updated on Jan 07, 2025.
   <br/>
 </p>
   </div>

@@ -57,8 +57,8 @@
     <link rel="search" title="Search" href="../../../../../search.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-  <meta name="docsearch:version" content="1.3.0" />
-    <meta name="docbuild:last-update" content="Jan 03, 2025"/>
+  <meta name="docsearch:version" content="1.4.0" />
+    <meta name="docbuild:last-update" content="Jan 07, 2025"/>
   </head>
   
   
@@ -520,12 +520,12 @@
 <span class="c1">#</span>
 <span class="c1"># SPDX-License-Identifier: BSD-3-Clause</span>
 
-<span class="kn">from</span> <span class="nn">__future__</span> <span class="kn">import</span> <span class="n">annotations</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
 
-<span class="kn">import</span> <span class="nn">torch</span>
-<span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">TYPE_CHECKING</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TYPE_CHECKING</span>
 
-<span class="kn">from</span> <span class="nn">omni.isaac.lab.utils.math</span> <span class="kn">import</span> <span class="p">(</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.utils.math</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
     <span class="n">apply_delta_pose</span><span class="p">,</span>
     <span class="n">combine_frame_transforms</span><span class="p">,</span>
     <span class="n">compute_pose_error</span><span class="p">,</span>
@@ -534,10 +534,10 @@
 <span class="p">)</span>
 
 <span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
-    <span class="kn">from</span> <span class="nn">.operational_space_cfg</span> <span class="kn">import</span> <span class="n">OperationalSpaceControllerCfg</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">.operational_space_cfg</span><span class="w"> </span><span class="kn">import</span> <span class="n">OperationalSpaceControllerCfg</span>
 
 
-<div class="viewcode-block" id="OperationalSpaceController"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.controllers.html#omni.isaac.lab.controllers.OperationalSpaceController">[docs]</a><span class="k">class</span> <span class="nc">OperationalSpaceController</span><span class="p">:</span>
+<div class="viewcode-block" id="OperationalSpaceController"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.controllers.html#omni.isaac.lab.controllers.OperationalSpaceController">[docs]</a><span class="k">class</span><span class="w"> </span><span class="nc">OperationalSpaceController</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Operational-space controller.</span>
 
 <span class="sd">    Reference:</span>
@@ -548,7 +548,7 @@
 <span class="sd">       by Marco Hutter (ETH Zurich)</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-<div class="viewcode-block" id="OperationalSpaceController.__init__"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.controllers.html#omni.isaac.lab.controllers.OperationalSpaceController.__init__">[docs]</a>    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">OperationalSpaceControllerCfg</span><span class="p">,</span> <span class="n">num_envs</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">device</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+<div class="viewcode-block" id="OperationalSpaceController.__init__"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.controllers.html#omni.isaac.lab.controllers.OperationalSpaceController.__init__">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">OperationalSpaceControllerCfg</span><span class="p">,</span> <span class="n">num_envs</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">device</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Initialize operational-space controller.</span>
 
 <span class="sd">        Args:</span>
@@ -661,7 +661,7 @@
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">action_dim</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">action_dim</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Dimension of the action space of controller.&quot;&quot;&quot;</span>
         <span class="c1"># impedance mode</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">impedance_mode</span> <span class="o">==</span> <span class="s2">&quot;fixed&quot;</span><span class="p">:</span>
@@ -680,14 +680,14 @@
 <span class="sd">    Operations.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-<div class="viewcode-block" id="OperationalSpaceController.reset"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.controllers.html#omni.isaac.lab.controllers.OperationalSpaceController.reset">[docs]</a>    <span class="k">def</span> <span class="nf">reset</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<div class="viewcode-block" id="OperationalSpaceController.reset"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.controllers.html#omni.isaac.lab.controllers.OperationalSpaceController.reset">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">reset</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Reset the internals.&quot;&quot;&quot;</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">desired_ee_pose_b</span> <span class="o">=</span> <span class="kc">None</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">desired_ee_pose_task</span> <span class="o">=</span> <span class="kc">None</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">desired_ee_wrench_b</span> <span class="o">=</span> <span class="kc">None</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">desired_ee_wrench_task</span> <span class="o">=</span> <span class="kc">None</span></div>
 
-<div class="viewcode-block" id="OperationalSpaceController.set_command"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.controllers.html#omni.isaac.lab.controllers.OperationalSpaceController.set_command">[docs]</a>    <span class="k">def</span> <span class="nf">set_command</span><span class="p">(</span>
+<div class="viewcode-block" id="OperationalSpaceController.set_command"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.controllers.html#omni.isaac.lab.controllers.OperationalSpaceController.set_command">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">set_command</span><span class="p">(</span>
         <span class="bp">self</span><span class="p">,</span>
         <span class="n">command</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
         <span class="n">current_ee_pose_b</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
@@ -859,7 +859,7 @@
                 <span class="o">-</span><span class="mi">1</span>
             <span class="p">)</span> <span class="o">+</span> <span class="n">torch</span><span class="o">.</span><span class="n">cross</span><span class="p">(</span><span class="n">current_task_frame_pose_b</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">3</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">desired_ee_wrench_b</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">3</span><span class="p">],</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span></div>
 
-<div class="viewcode-block" id="OperationalSpaceController.compute"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.controllers.html#omni.isaac.lab.controllers.OperationalSpaceController.compute">[docs]</a>    <span class="k">def</span> <span class="nf">compute</span><span class="p">(</span>
+<div class="viewcode-block" id="OperationalSpaceController.compute"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.controllers.html#omni.isaac.lab.controllers.OperationalSpaceController.compute">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">compute</span><span class="p">(</span>
         <span class="bp">self</span><span class="p">,</span>
         <span class="n">jacobian_b</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
         <span class="n">current_ee_pose_b</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
@@ -1110,7 +1110,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jan 03, 2025.
+  Last updated on Jan 07, 2025.
   <br/>
 </p>
   </div>
