@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="1.4.0" />
-    <meta name="docbuild:last-update" content="Jan 07, 2025"/>
+    <meta name="docbuild:last-update" content="Jan 08, 2025"/>
   </head>
   
   
@@ -520,7 +520,6 @@
 <span class="c1">#</span>
 <span class="c1"># SPDX-License-Identifier: BSD-3-Clause</span>
 
-<span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Iterable</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">MISSING</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Literal</span>
@@ -698,7 +697,7 @@
 
     <span class="n">class_type</span><span class="p">:</span> <span class="nb">type</span> <span class="o">=</span> <span class="n">actuator_pd</span><span class="o">.</span><span class="n">RemotizedPDActuator</span>
 
-    <span class="n">joint_parameter_lookup</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="n">MISSING</span>
+    <span class="n">joint_parameter_lookup</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">list</span><span class="p">[</span><span class="nb">float</span><span class="p">]]</span> <span class="o">=</span> <span class="n">MISSING</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Joint parameter lookup table. Shape is (num_lookup_points, 3).</span>
 
 <span class="sd">    This tensor describes the relationship between the joint angle (rad), the transmission ratio (in/out),</span>
@@ -751,7 +750,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jan 07, 2025.
+  Last updated on Jan 08, 2025.
   <br/>
 </p>
   </div>

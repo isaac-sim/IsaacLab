@@ -9,7 +9,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
 
-    <title>Installation using Isaac Sim pip &#8212; Isaac Lab Documentation</title>
+    <title>Installation using pip &#8212; Isaac Lab Documentation</title>
   
   
   
@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="1.4.0" />
-    <meta name="docbuild:last-update" content="Jan 07, 2025"/>
+    <meta name="docbuild:last-update" content="Jan 08, 2025"/>
   </head>
   
   
@@ -568,7 +568,7 @@
               
 
 <div id="jb-print-docs-body" class="onlyprint">
-    <h1>Installation using Isaac Sim pip</h1>
+    <h1>Installation using pip</h1>
     <!-- Table of contents -->
     <div id="print-main-content">
         <div id="jb-print-toc">
@@ -599,12 +599,9 @@
 <div id="searchbox"></div>
                 <article class="bd-article">
                   
-  <section id="installation-using-isaac-sim-pip">
-<span id="isaacsim-pip-installation"></span><h1>Installation using Isaac Sim pip<a class="headerlink" href="#installation-using-isaac-sim-pip" title="Permalink to this heading">#</a></h1>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>If you use Conda, we recommend using <a class="reference external" href="https://docs.anaconda.com/miniconda/miniconda-other-installer-links/">Miniconda</a>.</p>
-</div>
+  <section id="installation-using-pip">
+<span id="isaaclab-pip-installation"></span><h1>Installation using pip<a class="headerlink" href="#installation-using-pip" title="Permalink to this heading">#</a></h1>
+<p>Issac Lab requires Isaac Sim. Install Isaac Sim first, then Isaac Lab.</p>
 <section id="installing-isaac-sim">
 <h2>Installing Isaac Sim<a class="headerlink" href="#installing-isaac-sim" title="Permalink to this heading">#</a></h2>
 <p>From Isaac Sim 4.0 release, it is possible to install Isaac Sim using pip. This approach is experimental and may have
@@ -616,11 +613,15 @@ compatibility issues with some Linux distributions. If you encounter any issues,
 To check the GLIBC version on your system, use command <code class="docutils literal notranslate"><span class="pre">ldd</span> <span class="pre">--version</span></code>.</p>
 <p>This may pose compatibility issues with some Linux distributions. For instance, Ubuntu 20.04 LTS has GLIBC 2.31
 by default. If you encounter compatibility issues, we recommend following the
-<a class="reference internal" href="binaries_installation.html#isaacsim-binaries-installation"><span class="std std-ref">Isaac Sim Binaries Installation</span></a> approach.</p>
+<a class="reference internal" href="binaries_installation.html#isaaclab-binaries-installation"><span class="std std-ref">Isaac Sim Binaries Installation</span></a> approach.</p>
 </div>
 <div class="admonition attention">
 <p class="admonition-title">Attention</p>
 <p>On Windows with CUDA 12, the GPU driver version 552.86 is required.</p>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>If you use Conda, we recommend using <a class="reference external" href="https://docs.anaconda.com/miniconda/miniconda-other-installer-links/">Miniconda</a>.</p>
 </div>
 <ul>
 <li><p>To use the pip installation approach for Isaac Sim, we recommend first creating a virtual environment.
@@ -685,17 +686,20 @@ CUDA 12</label><div class="sd-tab-content docutils">
 </pre></div>
 </div>
 </li>
-<li><p>Then, install the Isaac Sim packages</p>
+<li><p>Then, install the Isaac Sim packages. There are 2 options: A complete installation, or a minimal installation for running Isaac Lab only.</p>
+<ul>
+<li><p>Complete installation:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span><span class="nv">isaacsim</span><span class="o">==</span><span class="m">4</span>.2.0.2<span class="w"> </span>isaacsim-extscache-physics<span class="o">==</span><span class="m">4</span>.2.0.2<span class="w"> </span>isaacsim-extscache-kit<span class="o">==</span><span class="m">4</span>.2.0.2<span class="w"> </span>isaacsim-extscache-kit-sdk<span class="o">==</span><span class="m">4</span>.2.0.2<span class="w"> </span>--extra-index-url<span class="w"> </span>https://pypi.nvidia.com
 </pre></div>
 </div>
 </li>
-<li><p>To install a minimal set of packages for running Isaac Lab only, the following command can be used. Note that you cannot run <code class="docutils literal notranslate"><span class="pre">isaacsim</span></code> with this.</p>
-<blockquote>
-<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span>isaacsim-rl<span class="w"> </span>isaacsim-replicator<span class="w"> </span>isaacsim-extscache-physics<span class="w"> </span>isaacsim-extscache-kit-sdk<span class="w"> </span>isaacsim-extscache-kit<span class="w"> </span>isaacsim-app<span class="w"> </span>--extra-index-url<span class="w"> </span>https://pypi.nvidia.com
+<li><p>Minimal set of packages for running Isaac Lab only:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span>isaacsim-rl<span class="w"> </span>isaacsim-replicator<span class="w"> </span>isaacsim-extscache-physics<span class="w"> </span>isaacsim-extscache-kit-sdk<span class="w"> </span>isaacsim-extscache-kit<span class="w"> </span>isaacsim-app<span class="w"> </span>--extra-index-url<span class="w"> </span>https://pypi.nvidia.com
 </pre></div>
 </div>
-</div></blockquote>
+<p>Note that you cannot run <code class="docutils literal notranslate"><span class="pre">isaacsim</span></code> with this.</p>
+</li>
+</ul>
 </li>
 </ul>
 <section id="verifying-the-isaac-sim-installation">
@@ -721,7 +725,10 @@ isaacsim<span class="w"> </span>omni.isaac.sim.python.kit
 <p>When running Isaac Sim for the first time, all dependent extensions will be pulled from the registry.
 This process can take upwards of 10 minutes and is required on the first run of each experience file.
 Once the extensions are pulled, consecutive runs using the same experience file will use the cached extensions.</p>
-<p>In addition, the first run will prompt users to accept the Nvidia Omniverse License Agreement.
+</div>
+<div class="admonition attention">
+<p class="admonition-title">Attention</p>
+<p>The first run will prompt users to accept the Nvidia Omniverse License Agreement.
 To accept the EULA, reply <code class="docutils literal notranslate"><span class="pre">Yes</span></code> when prompted with the below message:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>By<span class="w"> </span>installing<span class="w"> </span>or<span class="w"> </span>using<span class="w"> </span>Isaac<span class="w"> </span>Sim,<span class="w"> </span>I<span class="w"> </span>agree<span class="w"> </span>to<span class="w"> </span>the<span class="w"> </span>terms<span class="w"> </span>of<span class="w"> </span>NVIDIA<span class="w"> </span>OMNIVERSE<span class="w"> </span>LICENSE<span class="w"> </span>AGREEMENT<span class="w"> </span><span class="o">(</span>EULA<span class="o">)</span>
 <span class="k">in</span><span class="w"> </span>https://docs.omniverse.nvidia.com/isaacsim/latest/common/NVIDIA_Omniverse_License_Agreement.html
@@ -996,7 +1003,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jan 07, 2025.
+  Last updated on Jan 08, 2025.
   <br/>
 </p>
   </div>
