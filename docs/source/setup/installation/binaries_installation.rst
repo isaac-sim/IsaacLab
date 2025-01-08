@@ -1,12 +1,9 @@
-.. _isaacsim-binaries-installation:
-
+.. _isaaclab-binaries-installation:
 
 Installation using Isaac Sim Binaries
 =====================================
 
-.. note::
-
-   If you use Conda, we recommend using `Miniconda <https://docs.anaconda.com/miniconda/miniconda-other-installer-links/>`_.
+Issac Lab requires Isaac Sim. Install Isaac Sim first, then Isaac Lab.
 
 Installing Isaac Sim
 --------------------
@@ -268,6 +265,10 @@ Setting up the conda environment (optional)
 
 .. attention::
    This step is optional. If you are using the bundled python with Isaac Sim, you can skip this step.
+
+.. note::
+
+   If you use Conda, we recommend using `Miniconda <https://docs.anaconda.com/miniconda/miniconda-other-installer-links/>`_.
 
 The executable ``isaaclab.sh`` automatically fetches the python bundled with Isaac
 Sim, using ``./isaaclab.sh -p`` command (unless inside a virtual environment). This executable
