@@ -528,7 +528,7 @@ class AppLauncher:
             os.environ["PXR_WORK_THREAD_LIMIT"] = str(num_threads_per_process)
             os.environ["OPENBLAS_NUM_THREADS"] = str(num_threads_per_process)
             # pass command line variable to kit
-            self._kit_args.append(f"--/plugins/carb.tasking.plugin/threadCount={num_threads_per_process}")
+            sys.argv.append(f"--/plugins/carb.tasking.plugin/threadCount={num_threads_per_process}")
 
         # set physics and rendering device
         launcher_args["physics_gpu"] = self.device_id
