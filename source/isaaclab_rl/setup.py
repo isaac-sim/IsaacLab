@@ -73,8 +73,7 @@ setup(
     classifiers=[
         "Natural Language :: English",
         "Programming Language :: Python :: 3.10",
-        "Isaac Sim :: 4.2.0",
-        "Isaac Sim :: 4.1.0",
+        "Isaac Sim :: 4.5.0",
     ],
     zip_safe=False,
 )

@@ -37,36 +37,6 @@ We recommend using these versions or newer.
     the Isaac Lab directory is placed under the ``/home`` directory tree when using docker.
 
 
-Obtaining the Isaac Sim Container
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-* Get access to the `Isaac Sim container`_ by joining the NVIDIA Developer Program credentials.
-* Generate your `NGC API key`_ to access locked container images from NVIDIA GPU Cloud (NGC).
-
-  * This step requires you to create an NGC account if you do not already have one.
-  * You would also need to install the NGC CLI to perform operations from the command line.
-  * Once you have your generated API key and have installed the NGC CLI, you need to log in to NGC
-    from the terminal.
-
-    .. code:: bash
-
-        ngc config set
-
-* Use the command line to pull the Isaac Sim container image from NGC.
-
-  .. code:: bash
-
-      docker login nvcr.io
-
-  * For the username, enter ``$oauthtoken`` exactly as shown. It is a special username that is used to
-    authenticate with NGC.
-
-    .. code:: text
-
-        Username: $oauthtoken
-        Password: <Your NGC API Key>
-
-
 Directory Organization
 ----------------------
 
@@ -278,6 +248,47 @@ The container defaults to ``FastRTPS``, but ``CylconeDDS`` is also supported. Ea
 
    .. literalinclude:: ../../../docker/.env.ros2
       :language: bash
+
+
+Running Pre-Built Isaac Lab Container
+-------------------------------------
+
+In Isaac Lab 2.0 release, we introduced a minimal pre-built container that contains a very minimal set
+of Isaac Sim and Omniverse dependencies, along with Isaac Lab 2.0 pre-built into the container.
+This container allows users to pull the container directly from NGC without requiring a local build of
+the docker image. The Isaac Lab 2.0 source code will be available in this container under ``/workspace/IsaacLab``.
+
+This container is designed for running **headless** only and does not allow for X11 forwarding or running
+with the GUI. Please only use this container for headless training. For other use cases, we recommend
+following the above steps to build your own Isaac Lab docker image.
+
+To pull the minimal Isaac Lab container, run:
+
+.. code:: bash
+
+  docker pull nvcr.io/nvidia/isaac-lab:2.0.0
+
+To run the Isaac Lab container with an interactive bash session, run:
+
+.. code:: bash
+
+  docker run --name isaac-lab --entrypoint bash -it --runtime=nvidia --gpus all -e "ACCEPT_EULA=Y" --rm --network=host \
+     -e "PRIVACY_CONSENT=Y" \
+     -v ~/docker/isaac-sim/cache/kit:/isaac-sim/kit/cache:rw \
+     -v ~/docker/isaac-sim/cache/ov:/root/.cache/ov:rw \
+     -v ~/docker/isaac-sim/cache/pip:/root/.cache/pip:rw \
+     -v ~/docker/isaac-sim/cache/glcache:/root/.cache/nvidia/GLCache:rw \
+     -v ~/docker/isaac-sim/cache/computecache:/root/.nv/ComputeCache:rw \
+     -v ~/docker/isaac-sim/logs:/root/.nvidia-omniverse/logs:rw \
+     -v ~/docker/isaac-sim/data:/root/.local/share/ov/data:rw \
+     -v ~/docker/isaac-sim/documents:/root/Documents:rw \
+     nvcr.io/nvidia/isaac-lab:2.0.0
+
+To run an example within the container, run:
+
+.. code:: bash
+
+  ./isaaclab.sh -p scripts/tutorials/00_sim/log_time.py --headless
 
 
 .. _`NVIDIA Omniverse EULA`: https://docs.omniverse.nvidia.com/platform/latest/common/NVIDIA_Omniverse_License_Agreement.html

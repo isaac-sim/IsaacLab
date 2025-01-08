@@ -1,9 +1,9 @@
 Local Installation
 ==================
 
-.. image:: https://img.shields.io/badge/IsaacSim-4.2.0-silver.svg
+.. image:: https://img.shields.io/badge/IsaacSim-4.5.0-silver.svg
    :target: https://developer.nvidia.com/isaac-sim
-   :alt: IsaacSim 4.2.0
+   :alt: IsaacSim 4.5.0
 
 .. image:: https://img.shields.io/badge/python-3.10-blue.svg
    :target: https://www.python.org/downloads/release/python-31013/
@@ -19,8 +19,8 @@ Local Installation
 
 .. caution::
 
-   We have dropped support for Isaac Sim versions 4.0.0 and below. We recommend using the latest
-   Isaac Sim 4.2.0 release to benefit from the latest features and improvements.
+   We have dropped support for Isaac Sim versions 4.2.0 and below. We recommend using the latest
+   Isaac Sim 4.5.0 release to benefit from the latest features and improvements.
 
    For more information, please refer to the
    `Isaac Sim release notes <https://docs.omniverse.nvidia.com/isaacsim/latest/release_notes.html>`__.
