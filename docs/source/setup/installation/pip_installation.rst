@@ -25,6 +25,9 @@ compatibility issues with some Linux distributions. If you encounter any issues,
 
    On Windows with CUDA 12, the GPU driver version 552.86 is required.
 
+   Also, on Windows, it may be necessary to `enable long path <https://pip.pypa.io/warnings/enable-long-paths>`_
+   support to avoid installation errors due to OS limitations.
+
 .. note::
 
    If you use Conda, we recommend using `Miniconda <https://docs.anaconda.com/miniconda/miniconda-other-installer-links/>`_.
@@ -85,9 +88,22 @@ compatibility issues with some Linux distributions. If you encounter any issues,
 
 -  Before installing Isaac Sim, ensure the latest pip version is installed. To update pip, run
 
-   .. code-block:: bash
+   .. tab-set::
+      :sync-group: os
 
-      pip install --upgrade pip
+      .. tab-item:: :icon:`fa-brands fa-linux` Linux
+         :sync: linux
+
+         .. code-block:: bash
+
+            pip install --upgrade pip
+
+      .. tab-item:: :icon:`fa-brands fa-windows` Windows
+         :sync: windows
+
+         .. code-block:: batch
+
+            python -m pip install --upgrade pip
 
 -  Then, install the Isaac Sim packages.
 
