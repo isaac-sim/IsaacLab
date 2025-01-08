@@ -353,6 +353,62 @@ def randomize_actuator_gains(
                 asset.write_joint_damping_to_sim(damping, joint_ids=actuator.joint_indices, env_ids=env_ids)
 
 
+def randomize_collider_parameters(
+    env: ManagerBasedEnv,
+    env_ids: torch.Tensor | None,
+    asset_cfg: SceneEntityCfg,
+    rest_offset_distribution_params: tuple[float, float] | None = None,
+    contact_offset_distribution_params: tuple[float, float] | None = None,
+    operation: Literal["add", "scale", "abs"] = "abs",
+    distribution: Literal["uniform", "log_uniform", "gaussian"] = "uniform",
+):
+    """Randomize the collider parameters of a rigid or articulated asset by adding, scaling, or setting random values.
+
+    This function allows randomizing the collider parameters of the asset, such as rest and contact offsets.
+    These correspond to the physics engine collider properties that affect the collision checking.
+
+    The function samples random values from the given distribution parameters and applies the operation to the joint properties.
+    It then sets the values into the physics simulation. If the distribution parameters are not provided for a
+    particular property, the function does not modify the property.
+
+    .. tip::
+        This function uses CPU tensors to assign the collision properties. It is recommended to use this function
+        only during the initialization of the environment.
+    """
+    # extract the used quantities (to enable type-hinting)
+    asset: Articulation = env.scene[asset_cfg.name]
+
+    # resolve environment ids
+    if env_ids is None:
+        env_ids = torch.arange(env.scene.num_envs, device="cpu")
+
+    # sample collider properties from the given ranges and set into the physics simulation
+    # -- rest offsets
+    if rest_offset_distribution_params is not None:
+        rest_offset = asset.root_physx_view.get_rest_offsets().clone()
+        rest_offset = _randomize_prop_by_op(
+            rest_offset,
+            rest_offset_distribution_params,
+            None,
+            slice(None),
+            operation=operation,
+            distribution=distribution,
+        )
+        asset.root_physx_view.set_rest_offsets(rest_offset, env_ids)
+    # -- collision offsets
+    if contact_offset_distribution_params is not None:
+        contact_offset = asset.root_physx_view.get_contact_offsets().clone()
+        contact_offset = _randomize_prop_by_op(
+            contact_offset,
+            contact_offset_distribution_params,
+            None,
+            slice(None),
+            operation=operation,
+            distribution=distribution,
+        )
+        asset.root_physx_view.set_contact_offsets(contact_offset, env_ids)
+
+
 def randomize_joint_parameters(
     env: ManagerBasedEnv,
     env_ids: torch.Tensor | None,
