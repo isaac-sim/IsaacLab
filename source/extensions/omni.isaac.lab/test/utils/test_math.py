@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2024, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -194,6 +194,43 @@ class TestMathUtilities(unittest.TestCase):
         torch.testing.assert_close(error_2, error_3)
         torch.testing.assert_close(error_3, error_4)
         torch.testing.assert_close(error_4, error_1)
+
+    def test_convention_converter(self):
+        """Test convert_camera_frame_orientation_convention to and from ros, opengl, and world conventions."""
+        quat_ros = torch.tensor([[-0.17591989, 0.33985114, 0.82047325, -0.42470819]])
+        quat_opengl = torch.tensor([[0.33985113, 0.17591988, 0.42470818, 0.82047324]])
+        quat_world = torch.tensor([[-0.3647052, -0.27984815, -0.1159169, 0.88047623]])
+
+        # from ROS
+        torch.testing.assert_close(
+            math_utils.convert_camera_frame_orientation_convention(quat_ros, "ros", "opengl"), quat_opengl
+        )
+        torch.testing.assert_close(
+            math_utils.convert_camera_frame_orientation_convention(quat_ros, "ros", "world"), quat_world
+        )
+        torch.testing.assert_close(
+            math_utils.convert_camera_frame_orientation_convention(quat_ros, "ros", "ros"), quat_ros
+        )
+        # from OpenGL
+        torch.testing.assert_close(
+            math_utils.convert_camera_frame_orientation_convention(quat_opengl, "opengl", "ros"), quat_ros
+        )
+        torch.testing.assert_close(
+            math_utils.convert_camera_frame_orientation_convention(quat_opengl, "opengl", "world"), quat_world
+        )
+        torch.testing.assert_close(
+            math_utils.convert_camera_frame_orientation_convention(quat_opengl, "opengl", "opengl"), quat_opengl
+        )
+        # from World
+        torch.testing.assert_close(
+            math_utils.convert_camera_frame_orientation_convention(quat_world, "world", "ros"), quat_ros
+        )
+        torch.testing.assert_close(
+            math_utils.convert_camera_frame_orientation_convention(quat_world, "world", "opengl"), quat_opengl
+        )
+        torch.testing.assert_close(
+            math_utils.convert_camera_frame_orientation_convention(quat_world, "world", "world"), quat_world
+        )
 
     def test_wrap_to_pi(self):
         """Test wrap_to_pi method."""

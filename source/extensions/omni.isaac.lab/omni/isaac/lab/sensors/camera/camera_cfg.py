@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2024, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -51,6 +51,14 @@ class CameraCfg(SensorBaseCfg):
 
     If None, then the prim is not spawned by the asset. Instead, it is assumed that the
     asset is already present in the scene.
+    """
+
+    depth_clipping_behavior: Literal["max", "zero", "none"] = "none"
+    """Clipping behavior for the camera for values exceed the maximum value. Defaults to "none".
+
+    - ``"max"``: Values are clipped to the maximum value.
+    - ``"zero"``: Values are clipped to zero.
+    - ``"none``: No clipping is applied. Values will be returned as ``inf``.
     """
 
     data_types: list[str] = ["rgb"]

@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2024, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -9,9 +9,8 @@ import torch
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
-from omni.isaac.core.utils.types import ArticulationActions
-
 from omni.isaac.lab.utils import DelayBuffer, LinearInterpolation
+from omni.isaac.lab.utils.types import ArticulationActions
 
 from .actuator_base import ActuatorBase
 
@@ -63,7 +62,22 @@ class ImplicitActuator(ActuatorBase):
     def compute(
         self, control_action: ArticulationActions, joint_pos: torch.Tensor, joint_vel: torch.Tensor
     ) -> ArticulationActions:
-        """Compute the aproximmate torques for the actuated joint (physX does not compute this explicitly)."""
+        """Process the actuator group actions and compute the articulation actions.
+
+        In case of implicit actuator, the control action is directly returned as the computed action.
+        This function is a no-op and does not perform any computation on the input control action.
+        However, it computes the approximate torques for the actuated joint since PhysX does not compute
+        this quantity explicitly.
+
+        Args:
+            control_action: The joint action instance comprising of the desired joint positions, joint velocities
+                and (feed-forward) joint efforts.
+            joint_pos: The current joint positions of the joints in the group. Shape is (num_envs, num_joints).
+            joint_vel: The current joint velocities of the joints in the group. Shape is (num_envs, num_joints).
+
+        Returns:
+            The computed desired joint positions, joint velocities and joint efforts.
+        """
         # store approximate torques for reward computation
         error_pos = control_action.joint_positions - joint_pos
         error_vel = control_action.joint_velocities - joint_vel
@@ -310,7 +324,7 @@ class RemotizedPDActuator(DelayedPDActuator):
         super().__init__(
             cfg, joint_names, joint_ids, num_envs, device, stiffness, damping, armature, friction, torch.inf, torch.inf
         )
-        self._joint_parameter_lookup = cfg.joint_parameter_lookup.to(device=device)
+        self._joint_parameter_lookup = torch.tensor(cfg.joint_parameter_lookup, device=device)
         # define remotized joint torque limit
         self._torque_limit = LinearInterpolation(self.angle_samples, self.max_torque_samples, device=device)
 

@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2024, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -98,7 +98,8 @@ def run_simulator(
             # root state
             root_state = scene["robot"].data.default_root_state.clone()
             root_state[:, :3] += scene.env_origins
-            scene["robot"].write_root_state_to_sim(root_state)
+            scene["robot"].write_root_link_pose_to_sim(root_state[:, :7])
+            scene["robot"].write_root_com_velocity_to_sim(root_state[:, 7:])
             # set joint positions with some noise
             joint_pos, joint_vel = (
                 scene["robot"].data.default_joint_pos.clone(),

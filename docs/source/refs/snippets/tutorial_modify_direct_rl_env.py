@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2024, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -28,8 +28,8 @@ from omni.isaac.lab_assets import H1_CFG
 # [end-h1_env-import]
 
 # [start-h1_env-spaces]
-num_actions = 19
-num_observations = 69
+action_space = 19
+observation_space = 69
 # [end-h1_env-spaces]
 
 # [start-h1_env-robot]

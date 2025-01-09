@@ -101,3 +101,4 @@ tutorials show you how to use motion generators to control the robots at the tas
     :titlesonly:
 
     05_controllers/run_diff_ik
+    05_controllers/run_osc

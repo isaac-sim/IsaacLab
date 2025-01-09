@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2024, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -61,3 +61,4 @@ from .meshes import *  # noqa: F401, F403
 from .sensors import *  # noqa: F401, F403
 from .shapes import *  # noqa: F401, F403
 from .spawner_cfg import *  # noqa: F401, F403
+from .wrappers import *  # noqa: F401, F403

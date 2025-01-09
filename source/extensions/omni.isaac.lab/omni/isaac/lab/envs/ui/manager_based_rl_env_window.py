@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2024, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -34,5 +34,7 @@ class ManagerBasedRLEnvWindow(BaseEnvWindow):
         with self.ui_window_elements["main_vstack"]:
             with self.ui_window_elements["debug_frame"]:
                 with self.ui_window_elements["debug_vstack"]:
-                    self._create_debug_vis_ui_element("commands", self.env.command_manager)
-                    self._create_debug_vis_ui_element("actions", self.env.action_manager)
+                    self._visualize_manager(title="Commands", class_name="command_manager")
+                    self._visualize_manager(title="Rewards", class_name="reward_manager")
+                    self._visualize_manager(title="Curriculum", class_name="curriculum_manager")
+                    self._visualize_manager(title="Termination", class_name="termination_manager")

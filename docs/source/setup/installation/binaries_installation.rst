@@ -1,12 +1,9 @@
-.. _isaacsim-binaries-installation:
-
+.. _isaaclab-binaries-installation:
 
 Installation using Isaac Sim Binaries
 =====================================
 
-.. note::
-
-   If you use Conda, we recommend using `Miniconda <https://docs.anaconda.com/miniconda/miniconda-other-installer-links/>`_.
+Issac Lab requires Isaac Sim. Install Isaac Sim first, then Isaac Lab.
 
 Installing Isaac Sim
 --------------------
@@ -38,7 +35,7 @@ To check the minimum system requirements,refer to the documentation
          :sync: windows
 
          On Windows systems, by default,Isaac Sim is installed in the directory
-         ``C:\Users\%USERPROFILE%\AppData\Local\ov\pkg\isaac_sim-*``, with ``*`` corresponding to the Isaac Sim version.
+         ``%USERPROFILE%\AppData\Local\ov\pkg\isaac_sim-*``, with ``*`` corresponding to the Isaac Sim version.
 
 Verifying the Isaac Sim installation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -66,7 +63,7 @@ variables to your terminal for the remaining of the installation instructions:
       .. code:: batch
 
          :: Isaac Sim root directory
-         set ISAACSIM_PATH="C:\Users\%USERPROFILE%\AppData\Local\ov\pkg\isaac-sim-4.2.0"
+         set ISAACSIM_PATH="%USERPROFILE%\AppData\Local\ov\pkg\isaac-sim-4.2.0"
          :: Isaac Sim python executable
          set ISAACSIM_PYTHON_EXE="%ISAACSIM_PATH:"=%\python.bat"
 
@@ -269,6 +266,10 @@ Setting up the conda environment (optional)
 .. attention::
    This step is optional. If you are using the bundled python with Isaac Sim, you can skip this step.
 
+.. note::
+
+   If you use Conda, we recommend using `Miniconda <https://docs.anaconda.com/miniconda/miniconda-other-installer-links/>`_.
+
 The executable ``isaaclab.sh`` automatically fetches the python bundled with Isaac
 Sim, using ``./isaaclab.sh -p`` command (unless inside a virtual environment). This executable
 behaves like a python executable, and can be used to run any python script or
@@ -407,8 +408,14 @@ top of the repository:
 
 
 The above command should launch the simulator and display a window with a black
-ground plane. You can exit the script by pressing ``Ctrl+C`` on your terminal.
+viewport. You can exit the script by pressing ``Ctrl+C`` on your terminal.
 On Windows machines, please terminate the process from Command Prompt using
 ``Ctrl+Break`` or ``Ctrl+fn+B``.
+
+.. figure:: ../../_static/setup/verify_install.jpg
+    :align: center
+    :figwidth: 100%
+    :alt: Simulator with a black window.
+
 
 If you see this, then the installation was successful! |:tada:|

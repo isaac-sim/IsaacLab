@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2024, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -67,6 +67,8 @@ class TerrainImporter:
             ValueError: If terrain type is 'usd' and no configuration provided for ``usd_path``.
             ValueError: If terrain type is 'usd' or 'plane' and no configuration provided for ``env_spacing``.
         """
+        # check that the config is valid
+        cfg.validate()
         # store inputs
         self.cfg = cfg
         self.device = sim_utils.SimulationContext.instance().device  # type: ignore

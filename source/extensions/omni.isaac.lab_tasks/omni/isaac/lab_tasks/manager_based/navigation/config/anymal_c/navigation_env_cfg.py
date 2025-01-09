@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2024, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -108,13 +108,6 @@ class CommandsCfg:
 
 
 @configclass
-class CurriculumCfg:
-    """Curriculum terms for the MDP."""
-
-    pass
-
-
-@configclass
 class TerminationsCfg:
     """Termination terms for the MDP."""
 
@@ -127,14 +120,16 @@ class TerminationsCfg:
 
 @configclass
 class NavigationEnvCfg(ManagerBasedRLEnvCfg):
+    """Configuration for the navigation environment."""
+
+    # environment settings
     scene: SceneEntityCfg = LOW_LEVEL_ENV_CFG.scene
-    commands: CommandsCfg = CommandsCfg()
     actions: ActionsCfg = ActionsCfg()
     observations: ObservationsCfg = ObservationsCfg()
-    rewards: RewardsCfg = RewardsCfg()
     events: EventCfg = EventCfg()
-
-    curriculum: CurriculumCfg = CurriculumCfg()
+    # mdp settings
+    commands: CommandsCfg = CommandsCfg()
+    rewards: RewardsCfg = RewardsCfg()
     terminations: TerminationsCfg = TerminationsCfg()
 
     def __post_init__(self):

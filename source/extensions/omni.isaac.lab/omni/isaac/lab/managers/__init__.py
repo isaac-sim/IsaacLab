@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2024, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -23,10 +23,12 @@ from .manager_term_cfg import (
     ManagerTermBaseCfg,
     ObservationGroupCfg,
     ObservationTermCfg,
+    RecorderTermCfg,
     RewardTermCfg,
     TerminationTermCfg,
 )
 from .observation_manager import ObservationManager
+from .recorder_manager import DatasetExportMode, RecorderManager, RecorderManagerBaseCfg, RecorderTerm
 from .reward_manager import RewardManager
 from .scene_entity_cfg import SceneEntityCfg
 from .termination_manager import TerminationManager

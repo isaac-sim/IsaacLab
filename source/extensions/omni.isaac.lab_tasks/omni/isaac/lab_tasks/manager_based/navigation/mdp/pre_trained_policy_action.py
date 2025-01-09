@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2024, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -50,8 +50,14 @@ class PreTrainedPolicyAction(ActionTerm):
         self._low_level_action_term: ActionTerm = cfg.low_level_actions.class_type(cfg.low_level_actions, env)
         self.low_level_actions = torch.zeros(self.num_envs, self._low_level_action_term.action_dim, device=self.device)
 
+        def last_action():
+            # reset the low level actions if the episode was reset
+            if hasattr(env, "episode_length_buf"):
+                self.low_level_actions[env.episode_length_buf == 0, :] = 0
+            return self.low_level_actions
+
         # remap some of the low level observations to internal observations
-        cfg.low_level_observations.actions.func = lambda dummy_env: self.low_level_actions
+        cfg.low_level_observations.actions.func = lambda dummy_env: last_action()
         cfg.low_level_observations.actions.params = dict()
         cfg.low_level_observations.velocity_commands.func = lambda dummy_env: self._raw_actions
         cfg.low_level_observations.velocity_commands.params = dict()
@@ -128,11 +134,11 @@ class PreTrainedPolicyAction(ActionTerm):
             return
         # get marker location
         # -- base state
-        base_pos_w = self.robot.data.root_pos_w.clone()
+        base_pos_w = self.robot.data.root_link_pos_w.clone()
         base_pos_w[:, 2] += 0.5
         # -- resolve the scales and quaternions
         vel_des_arrow_scale, vel_des_arrow_quat = self._resolve_xy_velocity_to_arrow(self.raw_actions[:, :2])
-        vel_arrow_scale, vel_arrow_quat = self._resolve_xy_velocity_to_arrow(self.robot.data.root_lin_vel_b[:, :2])
+        vel_arrow_scale, vel_arrow_quat = self._resolve_xy_velocity_to_arrow(self.robot.data.root_com_lin_vel_b[:, :2])
         # display markers
         self.base_vel_goal_visualizer.visualize(base_pos_w, vel_des_arrow_quat, vel_des_arrow_scale)
         self.base_vel_visualizer.visualize(base_pos_w, vel_arrow_quat, vel_arrow_scale)
@@ -153,7 +159,7 @@ class PreTrainedPolicyAction(ActionTerm):
         zeros = torch.zeros_like(heading_angle)
         arrow_quat = math_utils.quat_from_euler_xyz(zeros, zeros, heading_angle)
         # convert everything back from base to world frame
-        base_quat_w = self.robot.data.root_quat_w
+        base_quat_w = self.robot.data.root_link_quat_w
         arrow_quat = math_utils.quat_mul(base_quat_w, arrow_quat)
 
         return arrow_scale, arrow_quat

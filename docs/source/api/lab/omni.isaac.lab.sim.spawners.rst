@@ -13,6 +13,7 @@
     sensors
     from_files
     materials
+    wrappers
 
   .. rubric:: Classes
 
@@ -300,5 +301,29 @@ Physical Materials
 .. autofunction:: spawn_deformable_body_material
 
 .. autoclass:: DeformableBodyMaterialCfg
+    :members:
+    :exclude-members: __init__, func
+
+Wrappers
+--------
+
+.. automodule:: omni.isaac.lab.sim.spawners.wrappers
+
+  .. rubric:: Classes
+
+  .. autosummary::
+
+    MultiAssetSpawnerCfg
+    MultiUsdFileCfg
+
+.. autofunction:: spawn_multi_asset
+
+.. autoclass:: MultiAssetSpawnerCfg
+    :members:
+    :exclude-members: __init__, func
+
+.. autofunction:: spawn_multi_usd_file
+
+.. autoclass:: MultiUsdFileCfg
     :members:
     :exclude-members: __init__, func

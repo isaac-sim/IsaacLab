@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2024, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -121,13 +121,6 @@ class CabinetSceneCfg(InteractiveSceneCfg):
 ##
 # MDP settings
 ##
-
-
-@configclass
-class CommandsCfg:
-    """Command terms for the MDP."""
-
-    null_command = mdp.NullCommandCfg()
 
 
 @configclass
@@ -267,7 +260,6 @@ class CabinetEnvCfg(ManagerBasedRLEnvCfg):
     # Basic settings
     observations: ObservationsCfg = ObservationsCfg()
     actions: ActionsCfg = ActionsCfg()
-    commands: CommandsCfg = CommandsCfg()
     # MDP settings
     rewards: RewardsCfg = RewardsCfg()
     terminations: TerminationsCfg = TerminationsCfg()

@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2024, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -11,7 +11,9 @@ The following configurations are available:
 * :obj:`UNITREE_GO1_CFG`: Unitree Go1 robot with actuator net model for the legs
 * :obj:`UNITREE_GO2_CFG`: Unitree Go2 robot with DC motor model for the legs
 * :obj:`H1_CFG`: H1 humanoid robot
+* :obj:`H1_MINIMAL_CFG`: H1 humanoid robot with minimal collision bodies
 * :obj:`G1_CFG`: G1 humanoid robot
+* :obj:`G1_MINIMAL_CFG`: G1 humanoid robot with minimal collision bodies
 
 Reference: https://github.com/unitreerobotics/unitree_ros
 """

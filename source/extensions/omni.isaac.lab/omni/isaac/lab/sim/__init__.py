@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2024, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -28,7 +28,7 @@ To make it convenient to use the module, we recommend importing the module as fo
 
 from .converters import *  # noqa: F401, F403
 from .schemas import *  # noqa: F401, F403
-from .simulation_cfg import PhysxCfg, SimulationCfg  # noqa: F401, F403
+from .simulation_cfg import PhysxCfg, RenderCfg, SimulationCfg  # noqa: F401, F403
 from .simulation_context import SimulationContext, build_simulation_context  # noqa: F401, F403
 from .spawners import *  # noqa: F401, F403
 from .utils import *  # noqa: F401, F403

@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2024, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -7,7 +7,6 @@ import glob
 import os
 import torch
 import torch.nn as nn
-
 import torchvision
 
 from omni.isaac.lab.sensors import save_images_to_file

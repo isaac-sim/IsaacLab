@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2024, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -67,14 +67,14 @@ class ManagerBasedRLEnvCfg(ManagerBasedEnvCfg):
     Please refer to the :class:`omni.isaac.lab.managers.TerminationManager` class for more details.
     """
 
-    curriculum: object = MISSING
-    """Curriculum settings.
+    curriculum: object | None = None
+    """Curriculum settings. Defaults to None, in which case no curriculum is applied.
 
     Please refer to the :class:`omni.isaac.lab.managers.CurriculumManager` class for more details.
     """
 
-    commands: object = MISSING
-    """Command settings.
+    commands: object | None = None
+    """Command settings. Defaults to None, in which case no commands are generated.
 
     Please refer to the :class:`omni.isaac.lab.managers.CommandManager` class for more details.
     """

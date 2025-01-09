@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2024, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -113,7 +113,8 @@ def run_simulator(sim: sim_utils.SimulationContext, entities: dict[str, Articula
                 root_state = robot.data.default_root_state.clone()
                 root_state[:, :3] += origins[index]
                 root_state[:, :2] += torch.randn_like(root_state[:, :2]) * 0.25
-                robot.write_root_state_to_sim(root_state)
+                robot.write_root_link_pose_to_sim(root_state[:, :7])
+                robot.write_root_com_velocity_to_sim(root_state[:, 7:])
                 # joint state
                 joint_pos, joint_vel = robot.data.default_joint_pos.clone(), robot.data.default_joint_vel.clone()
                 robot.write_joint_state_to_sim(joint_pos, joint_vel)
