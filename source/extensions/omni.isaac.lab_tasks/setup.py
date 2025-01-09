@@ -44,6 +44,7 @@ EXTRAS_REQUIRE = {
     "skrl": ["skrl>=1.3.0"],
     "rl-games": ["rl-games==1.6.1", "gym"],  # rl-games still needs gym :(
     "rsl-rl": ["rsl-rl@git+https://github.com/leggedrobotics/rsl_rl.git"],
+    "robomimic": [],
     "torchrl": ["torchrl==0.5"],
 }
 # Add the names with hyphens as aliases for convenience
