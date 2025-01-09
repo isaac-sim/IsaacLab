@@ -43,8 +43,6 @@ def generate_articulation_cfg(
     articulation_type: Literal["humanoid", "panda", "anymal", "shadow_hand", "single_joint"],
     stiffness: float | None = 10.0,
     damping: float | None = 2.0,
-    vel_limit: float | None = 100.0,
-    effort_limit: float | None = 400.0,
     vel_limit_sim: float | None = None,
     effort_limit_sim: float | None = None,
 ) -> ArticulationCfg:
@@ -77,8 +75,6 @@ def generate_articulation_cfg(
             actuators={
                 "joint": ImplicitActuatorCfg(
                     joint_names_expr=[".*"],
-                    effort_limit=effort_limit,
-                    velocity_limit=vel_limit,
                     effort_limit_sim=effort_limit_sim,
                     velocity_limit_sim=vel_limit_sim,
                     stiffness=0.0,

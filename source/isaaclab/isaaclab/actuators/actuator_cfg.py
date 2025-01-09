@@ -41,6 +41,11 @@ class ActuatorBaseCfg:
     """Velocity limit of the joints in the group. Defaults to None.
 
     This limit is used by the actuator model. If None, the limit is set to the value specified in the USD joint prim.
+
+    .. note::
+
+        velocity_limit is not used in ActuatorBaseCfg but is provided for inherited version like
+        :class:`omni.isaac.lab.actuators.DCMotor`.
     """
 
     effort_limit_sim: dict[str, float] | float | None = None
@@ -55,6 +60,7 @@ class ActuatorBaseCfg:
 
     If None, the limit is set to the value specified in the USD joint prim. Resulting solver solutions will constrain
     velocities by these limits. If velocity limits are too tight issues with solver convergence may occur.
+
     """
 
     stiffness: dict[str, float] | float | None = MISSING
