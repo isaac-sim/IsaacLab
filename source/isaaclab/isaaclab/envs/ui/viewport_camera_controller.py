@@ -14,7 +14,8 @@ from typing import TYPE_CHECKING
 
 import omni.kit.app
 import omni.timeline
-from omni.isaac.lab.assets.articulation.articulation import Articulation
+
+from isaaclab.assets.articulation.articulation import Articulation
 
 if TYPE_CHECKING:
     from isaaclab.envs import DirectRLEnv, ManagerBasedEnv, ViewerCfg
