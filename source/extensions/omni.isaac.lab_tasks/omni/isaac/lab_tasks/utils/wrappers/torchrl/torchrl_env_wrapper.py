@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2024, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -13,7 +13,7 @@ import torch
 import warnings
 from collections.abc import Iterator
 from dataclasses import asdict
-from tensordict import TensorDict, TensorDictBase
+from tensordict import TensorDict, TensorDictBase, unravel_key
 from tensordict.nn import ProbabilisticTensorDictSequential, TensorDictModule, dispatch
 from typing import Any
 
@@ -177,7 +177,6 @@ class TorchRLEnvWrapper(GymWrapper):
 
         self._curr_ep_len[new_ids] = 0
         self._curr_reward_sum[new_ids] = 0
-
         tensordict.set("episode_length", self._ep_len_buf)
         tensordict.set("episode_reward", self._ep_reward_buf)
         tensordict_out.set("episode_length", self._ep_len_buf)
@@ -193,6 +192,48 @@ class TorchRLEnvWrapper(GymWrapper):
                     if out is not None:
                         tensordict_out = out
         return tensordict_out
+
+    def _step_proc_data(self, next_tensordict_out):
+        batch_size = self.batch_size
+        dims = len(batch_size)
+        leading_batch_size = (
+            next_tensordict_out.batch_size[:-dims] if dims and batch_size[0] > 1 else next_tensordict_out.shape
+        )
+        for reward_key in self.reward_keys:
+            reward = next_tensordict_out.get(reward_key)
+            expected_reward_shape = torch.Size([
+                *leading_batch_size,
+                *self.output_spec["full_reward_spec"][reward_key].shape,
+            ])
+            actual_reward_shape = reward.shape
+            if actual_reward_shape != expected_reward_shape:
+                reward = reward.view(expected_reward_shape)
+                next_tensordict_out.set(reward_key, reward)
+
+        self._complete_done(self.full_done_spec, next_tensordict_out)
+
+        if self.run_type_checks:
+            for key, spec in self.observation_spec.items():
+                obs = next_tensordict_out.get(key)
+                spec.type_check(obs)
+
+            for reward_key in self.reward_keys:
+                if (
+                    next_tensordict_out.get(reward_key).dtype
+                    is not self.output_spec[unravel_key(("full_reward_spec", reward_key))].dtype
+                ):
+                    raise TypeError(
+                        f"expected reward.dtype to be {self.output_spec[unravel_key(('full_reward_spec',reward_key))]} "
+                        f"but got {next_tensordict_out.get(reward_key).dtype}"
+                    )
+
+            for done_key in self.done_keys:
+                if next_tensordict_out.get(done_key).dtype is not self.output_spec["full_done_spec", done_key].dtype:
+                    raise TypeError(
+                        f"expected done.dtype to be {self.output_spec['full_done_spec', done_key].dtype} but got"
+                        f" {next_tensordict_out.get(done_key).dtype}"
+                    )
+        return next_tensordict_out
 
 
 class InfoDictReaderWrapper(default_info_dict_reader):
@@ -217,20 +258,6 @@ class InfoDictReaderWrapper(default_info_dict_reader):
             if info_spec is not None:
                 value = tensordict.get(key)
                 info_spec[key] = UnboundedContinuousTensorSpec(value.shape, device=value.device, dtype=value.dtype)
-
-        def _traverse_dict(tensordict: TensorDict, key, val):
-            """
-            Recursively traverse key-value pairs of an arbitrarily nested dictionary
-            and add non-dict leaf values to the info tensordict while preserving structure.
-            """
-            if isinstance(val, dict):
-                nested_tensordict = TensorDict(batch_size=tensordict.shape, device=tensordict.device)
-                for k, v in val.items():
-                    _traverse_dict(nested_tensordict, k, v)
-                tensordict.set(key, nested_tensordict)
-            else:
-                val = torch.as_tensor(val, device=tensordict.device)
-                add_value_to_tensordict(tensordict, key, val)
 
         for key in keys:
             if key in info_dict:
