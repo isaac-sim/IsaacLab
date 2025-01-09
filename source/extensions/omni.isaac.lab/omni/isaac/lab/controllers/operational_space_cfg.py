@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2024, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -75,3 +75,16 @@ class OperationalSpaceControllerCfg:
     Note: since only the linear forces could be measured at the moment,
     only the first three elements are used for the feedback loop.
     """
+
+    nullspace_control: str = "none"
+    """The null space control method for redundant manipulators: ``"none"``, ``"position"``.
+
+    Note: ``"position"`` is used to drive the redundant manipulator to zero configuration by default. If
+    ``target_joint_pos`` is provided in the ``compute()`` method, it will be driven to this configuration.
+    """
+
+    nullspace_stiffness: float = 10.0
+    """The stiffness for null space control."""
+
+    nullspace_damping_ratio: float = 1.0
+    """The damping ratio for null space control."""

@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2024, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -18,5 +18,5 @@ PER_TEST_TIMEOUTS = {
     "test_rsl_rl_wrapper.py": 200,
     "test_sb3_wrapper.py": 200,
     "test_skrl_wrapper.py": 200,
-    "test_operational_space.py": 200,
+    "test_operational_space.py": 300,
 }

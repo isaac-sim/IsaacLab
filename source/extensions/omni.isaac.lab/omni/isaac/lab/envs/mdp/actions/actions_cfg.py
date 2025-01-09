@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2024, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -303,3 +303,10 @@ class OperationalSpaceControllerActionCfg(ActionTermCfg):
 
     damping_ratio_scale: float = 1.0
     """Scale factor for the damping ratio commands. Defaults to 1.0."""
+
+    nullspace_joint_pos_target: str = "none"
+    """The joint targets for the null-space control: ``"none"``, ``"zero"``, ``"default"``, ``"center"``.
+
+    Note: Functional only when ``nullspace_control`` is set to ``"position"`` within the
+        ``OperationalSpaceControllerCfg``.
+    """

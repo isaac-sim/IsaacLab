@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2024, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -58,6 +58,7 @@ def multi_agent_to_single_agent(env: DirectMARLEnv, state_as_observation: bool =
             self.cfg = self.env.cfg
             self.sim = self.env.sim
             self.scene = self.env.scene
+            self.render_mode = self.env.render_mode
 
             self.single_observation_space = gym.spaces.Dict()
             if self._state_as_observation:
@@ -126,7 +127,7 @@ def multi_agent_to_single_agent(env: DirectMARLEnv, state_as_observation: bool =
             return obs, rewards, terminated, time_outs, extras
 
         def render(self, recompute: bool = False) -> np.ndarray | None:
-            self.env.render(recompute)
+            return self.env.render(recompute)
 
         def close(self) -> None:
             self.env.close()

@@ -1,6 +1,26 @@
 Changelog
 ---------
 
+0.10.18 (2025-01-03)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the reset of the actions in the function overriding of the low level observations of :class:`omni.isaac.lab_tasks.manager_based.navigation.mdp.PreTrainedPolicyAction`.
+
+
+0.10.17 (2024-12-17)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the configuration of
+  :class:`omni.isaac.lab.envs.mdp.actions.OperationalSpaceControllerAction`
+  inside the ``Isaac-Reach-Franka-OSC-v0`` environment to enable nullspace control.
+
+
 0.10.16 (2024-12-16)
 ~~~~~~~~~~~~~~~~~~~~
 

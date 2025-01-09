@@ -1,6 +1,38 @@
 Changelog
 ---------
 
+0.30.3 (2025-01-02)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added body tracking as an origin type to :class:`omni.isaac.lab.envs.ViewerCfg` and :class:`omni.isaac.lab.envs.ui.ViewportCameraController`.
+
+
+0.30.2 (2024-12-22)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed populating default_joint_stiffness and default_joint_damping values for ImplicitActuator instances in :class:`omni.isaac.lab.assets.Articulation`
+
+
+0.30.1 (2024-12-17)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added null-space (position) control option to :class:`omni.isaac.lab.controllers.OperationalSpaceController`.
+* Added test cases that uses null-space control for :class:`omni.isaac.lab.controllers.OperationalSpaceController`.
+* Added information regarding null-space control to the tutorial script and documentation of
+  :class:`omni.isaac.lab.controllers.OperationalSpaceController`.
+* Added arguments to set specific null-space joint position targets within
+  :class:`omni.isaac.lab.envs.mdp.actions.OperationalSpaceControllerAction` class.
+
+
 0.30.0 (2024-12-16)
 ~~~~~~~~~~~~~~~~~~~
 

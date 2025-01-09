@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2024, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -49,7 +49,9 @@ class FrankaReachEnvCfg(joint_pos_env_cfg.FrankaReachEnvCfg):
                 motion_stiffness_task=100.0,
                 motion_damping_ratio_task=1.0,
                 motion_stiffness_limits_task=(50.0, 200.0),
+                nullspace_control="position",
             ),
+            nullspace_joint_pos_target="center",
             position_scale=1.0,
             orientation_scale=1.0,
             stiffness_scale=100.0,

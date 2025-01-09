@@ -66,6 +66,7 @@ Guidelines for modifications:
 * Michael Gussert
 * Michael Noseworthy
 * Muhong Guo
+* Nicola Loi
 * Nuralem Abizov
 * Oyindamola Omotuyi
 * Özhan Özen
@@ -77,6 +78,7 @@ Guidelines for modifications:
 * Rosario Scalise
 * Ryley McCarroll
 * Shafeef Omar
+* Stephan Pleines
 * Vladimir Fokow
 * Wei Yang
 * Xavier Nal

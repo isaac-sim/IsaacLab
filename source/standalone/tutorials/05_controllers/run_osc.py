@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2024, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -134,6 +134,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
         contact_wrench_stiffness_task=[0.0, 0.0, 0.1, 0.0, 0.0, 0.0],
         motion_control_axes_task=[1, 1, 0, 1, 1, 1],
         contact_wrench_control_axes_task=[0, 0, 1, 0, 0, 0],
+        nullspace_control="position",
     )
     osc = OperationalSpaceController(osc_cfg, num_envs=scene.num_envs, device=sim.device)
 
@@ -177,10 +178,22 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
     # Note: We need to update buffers before the first step for the controller.
     robot.update(dt=sim_dt)
 
+    # Get the center of the robot soft joint limits
+    joint_centers = torch.mean(robot.data.soft_joint_pos_limits[:, arm_joint_ids, :], dim=-1)
+
     # get the updated states
-    jacobian_b, mass_matrix, gravity, ee_pose_b, ee_vel_b, root_pose_w, ee_pose_w, ee_force_b = update_states(
-        sim, scene, robot, ee_frame_idx, arm_joint_ids, contact_forces
-    )
+    (
+        jacobian_b,
+        mass_matrix,
+        gravity,
+        ee_pose_b,
+        ee_vel_b,
+        root_pose_w,
+        ee_pose_w,
+        ee_force_b,
+        joint_pos,
+        joint_vel,
+    ) = update_states(sim, scene, robot, ee_frame_idx, arm_joint_ids, contact_forces)
 
     # Track the given target command
     current_goal_idx = 0  # Current goal index for the arm
@@ -210,7 +223,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
             contact_forces.reset()
             # reset target pose
             robot.update(sim_dt)
-            _, _, _, ee_pose_b, _, _, _, _ = update_states(
+            _, _, _, ee_pose_b, _, _, _, _, _, _ = update_states(
                 sim, scene, robot, ee_frame_idx, arm_joint_ids, contact_forces
             )  # at reset, the jacobians are not updated to the latest state
             command, ee_target_pose_b, ee_target_pose_w, current_goal_idx = update_target(
@@ -222,9 +235,18 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
             osc.set_command(command=command, current_ee_pose_b=ee_pose_b, current_task_frame_pose_b=task_frame_pose_b)
         else:
             # get the updated states
-            jacobian_b, mass_matrix, gravity, ee_pose_b, ee_vel_b, root_pose_w, ee_pose_w, ee_force_b = update_states(
-                sim, scene, robot, ee_frame_idx, arm_joint_ids, contact_forces
-            )
+            (
+                jacobian_b,
+                mass_matrix,
+                gravity,
+                ee_pose_b,
+                ee_vel_b,
+                root_pose_w,
+                ee_pose_w,
+                ee_force_b,
+                joint_pos,
+                joint_vel,
+            ) = update_states(sim, scene, robot, ee_frame_idx, arm_joint_ids, contact_forces)
             # compute the joint commands
             joint_efforts = osc.compute(
                 jacobian_b=jacobian_b,
@@ -233,6 +255,9 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
                 current_ee_force_b=ee_force_b,
                 mass_matrix=mass_matrix,
                 gravity=gravity,
+                current_joint_pos=joint_pos,
+                current_joint_vel=joint_vel,
+                nullspace_joint_pos_target=joint_centers,
             )
             # apply actions
             robot.set_joint_effort_target(joint_efforts, joint_ids=arm_joint_ids)
@@ -280,6 +305,8 @@ def update_states(
         root_pose_w (torch.tensor): Root pose in the world frame.
         ee_pose_w (torch.tensor): End-effector pose in the world frame.
         ee_force_b (torch.tensor): End-effector force in the body frame.
+        joint_pos (torch.tensor): The joint positions.
+        joint_vel (torch.tensor): The joint velocities.
 
     Raises:
         ValueError: Undefined target_type.
@@ -324,7 +351,22 @@ def update_states(
     # This is a simplification, only for the sake of testing.
     ee_force_b = ee_force_w
 
-    return jacobian_b, mass_matrix, gravity, ee_pose_b, ee_vel_b, root_pose_w, ee_pose_w, ee_force_b
+    # Get joint positions and velocities
+    joint_pos = robot.data.joint_pos[:, arm_joint_ids]
+    joint_vel = robot.data.joint_vel[:, arm_joint_ids]
+
+    return (
+        jacobian_b,
+        mass_matrix,
+        gravity,
+        ee_pose_b,
+        ee_vel_b,
+        root_pose_w,
+        ee_pose_w,
+        ee_force_b,
+        joint_pos,
+        joint_vel,
+    )
 
 
 # Update the target commands
