@@ -81,7 +81,7 @@ class DirectRLEnv(gym.Env):
         """
         # check that the config is valid
         cfg.validate()
-        # store inputs to class
+        # store inputs to classsimulation_app = app_launcher.app
         self.cfg = cfg
         # store the render mode
         self.render_mode = render_mode

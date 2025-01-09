@@ -38,6 +38,7 @@ import omni.isaac.lab_tasks.direct.humanoid_standup.standup_env as standup_env
 from omni.isaac.lab_tasks.utils import get_checkpoint_path, load_cfg_from_registry, parse_env_cfg
 import torch
 import time
+import numpy as np
 
 def test_standup_env():
     env_cfg = parse_env_cfg(
@@ -48,16 +49,21 @@ def test_standup_env():
     
     env.reset(seed=42)
 
-    
-
     for i in range(100000):
         action = env.action_space.sample()
 
         action = torch.tensor(action, dtype=torch.float32, device="cuda")
 
+        action = torch.zeros_like(action, dtype=torch.float32, device="cuda")
+
+        action[:, 4] = np.cos(i/60)
+
+
         # action = torch.zeros_like(action, dtype=torch.float32, device="cuda")
 
         observation, reward, terminated, truncated, info = env.step(action)
+
+        # print(f"Step {i}: Reward: {reward}, Terminated: {terminated}, Truncated: {truncated}")
         # if i ==2:
         #     time.sleep(10)
         # if terminated:

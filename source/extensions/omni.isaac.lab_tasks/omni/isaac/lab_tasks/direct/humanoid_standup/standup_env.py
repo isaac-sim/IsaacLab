@@ -79,8 +79,8 @@ class SigmabanEnvCfg(DirectRLEnvCfg):
     # env
     # Period for the agent to apply control [s]
     dt = 0.05
-    dt_sim = 1 / 120  # 1/500
-    episode_length_s = 6.0
+    dt_sim = 1 / 500  # 1/500
+    episode_length_s = 7.0
     decimation = round(dt / dt_sim)  # 25
 
     events: EventCfg = EventCfg()
@@ -195,10 +195,10 @@ class StandUpEnv(DirectRLEnv):
         )
 
         # Target robot state (q_motors, tilt) [rad^6]
-        # [shoulder_pitch, elbow, hip_pitch, knee, ankle_pitch, IMU_pitch]
+        # [elbow, shoulder_pitch, hip_pitch, knee, ankle_pitch, IMU_pitch]
         # in rad : [-0.864, 0.340, -0.907, 1.378, -0.638, -0.148]
         self.desired_state = torch.deg2rad(
-            torch.tensor([-19.5, 49.5, -52, 79, -36.5, 8.5], dtype=torch.float32, device=self.sim.device)
+            torch.tensor([-49.5, 19.5, -52, 79, -36.5, 8.5], dtype=torch.float32, device=self.sim.device)
         )
 
         # Window for qdot delay simulation
@@ -396,6 +396,7 @@ class StandUpEnv(DirectRLEnv):
 
         default_root_state[:, 3:7] = rotation_to_apply
 
+
         self.robot.write_root_link_pose_to_sim(default_root_state[:, :7], env_ids)
 
         self.robot.write_root_com_velocity_to_sim(default_root_state[:, 7:], env_ids)
@@ -497,7 +498,7 @@ def randomize_fall(
     return initial_q, initial_tilt
 
 
-# @torch.jit.script
+@torch.jit.script
 def compute_rewards(
     num_envs: int,
     desired_target: torch.Tensor,
@@ -538,7 +539,7 @@ def compute_rewards(
         + variation_cost * variation_cost_scale
         # + self_collision_cost * self_collision_cost_scale
     )
-    
+
     return total_reward, previous_actions
 
 
