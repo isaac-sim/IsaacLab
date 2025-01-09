@@ -8,7 +8,16 @@ Fixed
 ^^^^^
 
 * fixed docstring in articulation data :class:`omni.isaac.lab.assets.ArticulationData`.
-  In body properties sections, the second dimension should be num_bodies but was documented as 1 .
+  In body properties sections, the second dimension should be num_bodies but was documented as 1.
+
+
+0.30.3 (2025-01-02)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added body tracking as an origin type to :class:`omni.isaac.lab.envs.ViewerCfg` and :class:`omni.isaac.lab.envs.ui.ViewportCameraController`.
 
 
 0.30.2 (2024-12-22)
