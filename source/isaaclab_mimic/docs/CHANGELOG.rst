@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+1.0.2 (2025-01-10)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^^^
+
+* Fixed test_selection_strategy.py test case by starting omniverse app to import needed dependencies.
+
+
 1.0.1 (2024-12-16)
 ~~~~~~~~~~~~~~~~~~
 
