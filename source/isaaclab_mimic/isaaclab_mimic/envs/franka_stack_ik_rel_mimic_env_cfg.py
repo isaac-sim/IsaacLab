@@ -11,6 +11,9 @@ from isaaclab_tasks.manager_based.manipulation.stack.config.franka.stack_ik_rel_
 
 @configclass
 class FrankaCubeStackIKRelMimicEnvCfg(FrankaCubeStackEnvCfg, MimicEnvCfg):
+    """
+    Isaac Lab Mimic environment config class for Franka Cube Stack IK Rel env.
+    """
 
     def __post_init__(self):
         # post init of parents

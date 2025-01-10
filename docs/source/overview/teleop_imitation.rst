@@ -163,7 +163,7 @@ Creating Your Own Isaac Lab Mimic Compatible Environments
 In order to use Isaac Lab Mimic to generate additional demonstrations automatically with an existing Isaac Lab environment, the environment
 needs to be made "Mimic compatible" by implementing additional functions which are used during data generation.
 
-Mimic compatible environments are derived from the ``ManagerBasedRLMimicEnv`` base class and must implement the following functions:
+Mimic compatible environments are derived from the :class:`~isaaclab.envs.ManagerBasedRLMimicEnv` base class and must implement the following functions:
 
 * ``get_robot_eef_pose``: Returns the current robot end effector pose in the same frame as used by the robot end effector controller.
 
@@ -179,13 +179,11 @@ Mimic compatible environments are derived from the ``ManagerBasedRLMimicEnv`` ba
 
 * ``is_success``: Returns a boolean indicator of whether the task has been successfully completed.
 
-The class ``FrankaCubeStackIKRelMimicEnv`` shows an example of creating a Mimic compatible environment from an existing Isaac Lab environment.
-It can be found under ``source/isaaclab_mimic/isaaclab_mimic/envs``.
+The class :class:`~isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv` shows an example of creating a Mimic compatible environment from an existing Isaac Lab environment.
 
 A Mimic compatible environment config class must also be created by extending the existing environment config with additional Mimic required parameters.
-All Mimic required config parameters are specified in the ``MimicEnvCfg`` class found under ``source/isaaclab/isaaclab/envs``.
-The config class ``FrankaCubeStackIKRelMimicEnvCfg`` shows an example of creating a Mimic compatible environment config class for the Franka stacking task
-and can be found under ``source/isaaclab_mimic/isaaclab_mimic/envs``.
+All Mimic required config parameters are specified in the :class:`~isaaclab.envs.MimicEnvCfg` class.
+The config class :class:`~isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg` shows an example of creating a Mimic compatible environment config class for the Franka stacking task.
 
 Once both Mimic compatible environment and environment config classes have been created, a new Mimic compatible environment can be registered using ``gym.register`` and used
 with Isaac Lab Mimic data generation. For the Franka stacking task in the examples above, the Mimic environment is registered as ``Isaac-Stack-Cube-Franka-IK-Rel-Mimic-v0``.

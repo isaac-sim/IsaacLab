@@ -12,6 +12,9 @@ from isaaclab_tasks.manager_based.manipulation.stack.mdp import cubes_stacked
 
 
 class FrankaCubeStackIKRelMimicEnv(ManagerBasedRLMimicEnv):
+    """
+    Isaac Lab Mimic environment wrapper class for Franka Cube Stack IK Rel env.
+    """
 
     def get_robot_eef_pose(self, env_ind=0):
         """

@@ -59,3 +59,17 @@ The following wrappers are available in the ``isaaclab_rl`` extension:
 
 .. autosummary::
    :toctree: lab_rl
+
+
+isaaclab_mimic extension
+------------------------
+
+The following modules are available in the ``isaaclab_mimic`` extension:
+
+.. currentmodule:: isaaclab_mimic
+
+.. autosummary::
+   :toctree: lab_mimic
+
+   datagen
+   envs
