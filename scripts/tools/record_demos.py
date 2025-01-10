@@ -178,7 +178,9 @@ def main():
             # get keyboard command
             delta_pose, gripper_command = teleop_interface.advance()
             # convert to torch
-            delta_pose = torch.tensor(delta_pose, dtype=torch.float, device=env.device).repeat(env.num_envs, 1)
+            delta_pose = torch.tensor(delta_pose, dtype=torch.float, device=env.unwrapped.device).repeat(
+                env.unwrapped.num_envs, 1
+            )
             # compute actions based on environment
             actions = pre_process_actions(delta_pose, gripper_command)
 
