@@ -30,35 +30,36 @@ SIGMABAN_CFG = ArticulationCfg(
         ),
     ),
     init_state=ArticulationCfg.InitialStateCfg(
+        # pos=(0.0, 0.0, 0.35),
+        rot=(0.997, 0.0, 0.074, 0.0),
         pos=(0.0, 0.0, 0.35),
-        # rot=(0.997, 0.0, 0.074, 0.0),
-        # joint_pos={
-        #     "head_yaw": 0.0,
-        #     "head_pitch": 0.0,
-        #     ".*_hip_yaw": 0.0,
-        #     ".*_hip_roll": 0.0, 
-        #     ".*_hip_pitch": -0.907571, #-52deg
-        #     ".*_knee": 1.37881, #79deg
-        #     ".*_ankle_pitch": -0.6283185, #-36.5deg
-        #     ".*_ankle_roll": 0.0,
-        #     ".*_shoulder_pitch": 0.3316126, #19.5deg
-        #     ".*_shoulder_roll": 0.0,
-        #     ".*_elbow": -0.8552113, #-49.5deg
-        # },
         joint_pos={
             "head_yaw": 0.0,
             "head_pitch": 0.0,
             ".*_hip_yaw": 0.0,
             ".*_hip_roll": 0.0, 
-            ".*_hip_pitch": 0.0,
-            ".*_knee": 0.0,
-            ".*_ankle_pitch": 0.0,
+            ".*_hip_pitch": -0.907571, #-52deg
+            ".*_knee": 1.37881, #79deg
+            ".*_ankle_pitch": -0.6283185, #-36.5deg
             ".*_ankle_roll": 0.0,
-            ".*_shoulder_pitch": 0.8,
-            "left_shoulder_roll": -0.0872665,
-            "right_shoulder_roll": 0.0872665,
-            ".*_elbow": 0.0,
+            ".*_shoulder_pitch": 0.3316126, #19.5deg
+            ".*_shoulder_roll": 0.0,
+            ".*_elbow": -0.8552113, #-49.5deg
         },
+        # joint_pos={
+        #     "head_yaw": 0.0,
+        #     "head_pitch": 0.0,
+        #     ".*_hip_yaw": 0.0,
+        #     ".*_hip_roll": 0.0, 
+        #     ".*_hip_pitch": 0.0,
+        #     ".*_knee": 0.0,
+        #     ".*_ankle_pitch": 0.0,
+        #     ".*_ankle_roll": 0.0,
+        #     ".*_shoulder_pitch": 0.8,
+        #     "left_shoulder_roll": -0.0872665,
+        #     "right_shoulder_roll": 0.0872665,
+        #     ".*_elbow": 0.0,
+        # },
         joint_vel={".*": 0.0},
     ),
     soft_joint_pos_limit_factor=1.0, # 100% of the joint limits
@@ -66,7 +67,7 @@ SIGMABAN_CFG = ArticulationCfg(
         "MX64": IdealPDActuatorCfg(
             joint_names_expr=["head_yaw", "head_pitch", ".*_hip_yaw", ".*_shoulder_pitch", ".*_shoulder_roll", ".*_elbow"],
             # saturation_effort=7,
-            effort_limit=7, #5Nm
+            effort_limit=5, #5Nm
             # velocity_limit=6.2831, #2*pi rad/s
             armature=0.012,
             stiffness=12.5, # considered as kp
@@ -76,7 +77,7 @@ SIGMABAN_CFG = ArticulationCfg(
         "MX106": IdealPDActuatorCfg(
             joint_names_expr=[".*_hip_roll", ".*_hip_pitch", ".*_knee", ".*_ankle_pitch", ".*_ankle_roll"],
             # saturation_effort=10, #8Nm
-            effort_limit=10, #8Nm
+            effort_limit=8, #8Nm
             # velocity_limit=6.2831, #2*pi rad/s
             armature=0.025,
             stiffness=21, # considered as kp

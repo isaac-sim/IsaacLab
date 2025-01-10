@@ -19,7 +19,7 @@ Reference: https://github.com/unitreerobotics/unitree_ros
 """
 
 import omni.isaac.lab.sim as sim_utils
-from omni.isaac.lab.actuators import ActuatorNetMLPCfg, DCMotorCfg, ImplicitActuatorCfg
+from omni.isaac.lab.actuators import ActuatorNetMLPCfg, DCMotorCfg, ImplicitActuatorCfg, IdealPDActuatorCfg
 from omni.isaac.lab.assets.articulation import ArticulationCfg
 from omni.isaac.lab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
@@ -214,7 +214,7 @@ H1_CFG = ArticulationCfg(
     ),
     soft_joint_pos_limit_factor=0.9,
     actuators={
-        "legs": ImplicitActuatorCfg(
+        "legs": IdealPDActuatorCfg(
             joint_names_expr=[".*_hip_yaw", ".*_hip_roll", ".*_hip_pitch", ".*_knee", "torso"],
             effort_limit=300,
             velocity_limit=100.0,
@@ -233,14 +233,14 @@ H1_CFG = ArticulationCfg(
                 "torso": 5.0,
             },
         ),
-        "feet": ImplicitActuatorCfg(
+        "feet": IdealPDActuatorCfg(
             joint_names_expr=[".*_ankle"],
             effort_limit=100,
             velocity_limit=100.0,
             stiffness={".*_ankle": 20.0},
             damping={".*_ankle": 4.0},
         ),
-        "arms": ImplicitActuatorCfg(
+        "arms": IdealPDActuatorCfg(
             joint_names_expr=[".*_shoulder_pitch", ".*_shoulder_roll", ".*_shoulder_yaw", ".*_elbow"],
             effort_limit=300,
             velocity_limit=100.0,

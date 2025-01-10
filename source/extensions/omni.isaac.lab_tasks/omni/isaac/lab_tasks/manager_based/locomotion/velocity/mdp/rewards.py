@@ -43,6 +43,30 @@ def feet_air_time(
     reward *= torch.norm(env.command_manager.get_command(command_name)[:, :2], dim=1) > 0.1
     return reward
 
+# Compute a reward that penalizes the agent for its feet to touch each other
+def feet_contact_penalty(env, sensor_cfg: SceneEntityCfg) -> torch.Tensor:
+    """Penalize feet contact.
+
+    This function penalizes the agent if there is a contact between the feet. The penalty is computed as
+    a binary value indicating whether there is a contact between the feet.
+    """
+    contact_sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
+    contacts = contact_sensor.data.net_forces_w_history[:, :, sensor_cfg.body_ids, :].norm(dim=-1).max(dim=1)[0] > 1.0
+    feet_contact = torch.sum(contacts, dim=1) > 1
+    penalty = feet_contact.float()
+    return penalty
+
+def feet_four_contact_points(env, sensor_cfg: SceneEntityCfg) -> torch.Tensor:
+    """Reward feet having four contact points with the ground.
+
+    This function rewards the agent if each foot has four contact points with the ground. The reward is
+    computed as a binary value indicating whether each foot has four contact points.
+    """
+    contact_sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
+    contacts = contact_sensor.data.net_forces_w_history[:, :, sensor_cfg.body_ids, :].norm(dim=-1) > 1.0
+    four_contacts = torch.sum(contacts, dim=1) == 4
+    reward = four_contacts.float()
+    return reward
 
 def feet_air_time_positive_biped(env, command_name: str, threshold: float, sensor_cfg: SceneEntityCfg) -> torch.Tensor:
     """Reward long steps taken by the feet for bipeds.
