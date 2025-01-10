@@ -575,14 +575,14 @@ class AppLauncher:
             )
 
         # Process livestream here before launching kit because some of the extensions only work when launched with the kit file
+        self._livestream_args = []
         if self._livestream >= 1:
-            livestream_args = []
             # Note: Only one livestream extension can be enabled at a time
             if self._livestream == 1:
                 warnings.warn(
                     "Native Livestream is deprecated. Please use WebRTC Livestream instead with --livestream 2."
                 )
-                livestream_args += [
+                self._livestream_args += [
                     '--/app/livestream/proto="ws"',
                     "--/app/livestream/allowResize=true",
                     "--enable",
@@ -593,14 +593,14 @@ class AppLauncher:
                     "omni.kit.streamsdk.plugins-4.1.1",
                 ]
             elif self._livestream == 2:
-                livestream_args += [
+                self._livestream_args += [
                     "--/app/livestream/allowResize=false",
                     "--enable",
                     "omni.kit.livestream.webrtc",
                 ]
             else:
                 raise ValueError(f"Invalid value for livestream: {self._livestream}. Expected: 1, 2 .")
-            sys.argv += livestream_args
+            sys.argv += self._livestream_args
 
         # Resolve additional arguments passed to Kit
         self._kit_args = []
@@ -648,6 +648,8 @@ class AppLauncher:
         # remove additional OV args from sys.argv
         if len(self._kit_args) > 0:
             sys.argv = [arg for arg in sys.argv if arg not in self._kit_args]
+        if len(self._livestream_args) > 0:
+            sys.argv = [arg for arg in sys.argv if arg not in self._livestream_args]
 
     def _rendering_enabled(self) -> bool:
         """Check if rendering is required by the app."""
