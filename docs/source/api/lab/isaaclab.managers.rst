@@ -28,6 +28,8 @@
     TerminationTermCfg
     CurriculumManager
     CurriculumTermCfg
+    RecorderManager
+    RecorderTermCfg
 
 Scene Entity
 ------------
@@ -142,5 +144,17 @@ Curriculum Manager
     :show-inheritance:
 
 .. autoclass:: CurriculumTermCfg
+    :members:
+    :exclude-members: __init__
+
+Recorder Manager
+----------------
+
+.. autoclass:: RecorderManager
+    :members:
+    :inherited-members:
+    :show-inheritance:
+
+.. autoclass:: RecorderTermCfg
     :members:
     :exclude-members: __init__
