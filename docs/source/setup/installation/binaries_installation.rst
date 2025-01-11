@@ -3,7 +3,7 @@
 Installation using Isaac Sim Binaries
 =====================================
 
-Issac Lab requires Isaac Sim. Install Isaac Sim first, then Isaac Lab.
+Isaac Lab requires Isaac Sim. This tutorial installs Isaac Sim first from binaries, then Isaac Lab from source code.
 
 Installing Isaac Sim
 --------------------

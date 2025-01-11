@@ -138,6 +138,7 @@ SKRL
 
             It is recommended to `install JAX <https://jax.readthedocs.io/en/latest/installation.html>`_ manually before proceeding to install skrl and its dependencies, as JAX installs its CPU version by default. For example, ``pip install -U "jax[cuda12]"`` can be used to install JAX for CUDA 12.
             Visit the **skrl** `installation <https://skrl.readthedocs.io/en/latest/intro/installation.html>`_ page for more details.
+            Note that JAX GPU support is only available on Linux.
 
          .. code:: bash
 

@@ -38,4 +38,4 @@ modules = [
 use_online_index=true
 
 [[python.module]]
-name = "isaaclab_tasks"
+name = "isaaclab_rl"
