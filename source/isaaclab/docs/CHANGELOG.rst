@@ -1,7 +1,7 @@
 Changelog
 ---------
 
-0.33.6 (2025-01-30)
+0.33.7 (2025-01-30)
 ~~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -12,7 +12,7 @@ Fixed
   to the event being triggered at the wrong time after the reset.
 
 
-0.33.5 (2025-01-17)
+0.33.6 (2025-01-17)
 ~~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -42,13 +42,23 @@ Fixed
   the :class:`omni.isaac.lab.assets.RigidObjectCollection` class.
 
 
-0.33.4 (2025-01-14)
+0.33.5 (2025-01-14)
 ~~~~~~~~~~~~~~~~~~~
 
 Fixed
 ^^^^^
 
 * Fixed the respawn of only wrong object samples in :func:`repeated_objects_terrain` of :mod:`omni.isaac.lab.terrains.trimesh` module. Previously, the function was respawning all objects in the scene instead of only the wrong object samples, which in worst case could lead to infinite respawn loop.
+
+
+0.33.4 (2025-01-10)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Added an optional parameter in the :meth:`record_pre_reset` method in
+  :class:`~isaaclab.managers.RecorderManager` to override the export config upon invoking.
 
 
 0.33.3 (2025-01-08)

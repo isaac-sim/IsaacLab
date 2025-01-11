@@ -359,7 +359,7 @@ class RecorderManager(ManagerBase):
             key, value = term.record_post_step()
             self.add_to_episodes(key, value)
 
-    def record_pre_reset(self, env_ids: Sequence[int] | None) -> None:
+    def record_pre_reset(self, env_ids: Sequence[int] | None, force_export_or_skip=None) -> None:
         """Trigger recorder terms for pre-reset functions.
 
         Args:
@@ -385,7 +385,7 @@ class RecorderManager(ManagerBase):
             success_results |= self._env.termination_manager.get_term("success")[env_ids]
         self.set_success_to_episodes(env_ids, success_results)
 
-        if self.cfg.export_in_record_pre_reset:
+        if force_export_or_skip or (force_export_or_skip is None and self.cfg.export_in_record_pre_reset):
             self.export_episodes(env_ids)
 
     def record_post_reset(self, env_ids: Sequence[int] | None) -> None:

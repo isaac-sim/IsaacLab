@@ -19,6 +19,7 @@ optional arguments:
     --dataset_file            File path to export recorded demos. (default: "./datasets/dataset.hdf5")
     --step_hz                 Environment stepping rate in Hz. (default: 30)
     --num_demos               Number of demonstrations to record. (default: 0)
+    --num_success_steps       Number of continuous steps with task success for concluding a demo as successful. (default: 10)
 """
 
 """Launch Isaac Sim Simulator first."""
@@ -39,6 +40,12 @@ parser.add_argument("--step_hz", type=int, default=30, help="Environment steppin
 parser.add_argument(
     "--num_demos", type=int, default=0, help="Number of demonstrations to record. Set to 0 for infinite."
 )
+parser.add_argument(
+    "--num_success_steps",
+    type=int,
+    default=10,
+    help="Number of continuous steps with task success for concluding a demo as successful. Default is 10.",
+)
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
@@ -57,6 +64,8 @@ import contextlib
 import gymnasium as gym
 import time
 import torch
+
+import omni.log
 
 from isaaclab.devices import Se3HandTracking, Se3Keyboard, Se3SpaceMouse
 from isaaclab.envs import ViewerCfg
@@ -127,8 +136,19 @@ def main():
     env_cfg = parse_env_cfg(args_cli.task, device=args_cli.device, num_envs=1)
     env_cfg.env_name = args_cli.task
 
-    # modify configuration such that the environment runs indefinitely
-    # until goal is reached
+    # extract success checking function to invoke in the main loop
+    success_term = None
+    if hasattr(env_cfg.terminations, "success"):
+        success_term = env_cfg.terminations.success
+        env_cfg.terminations.success = None
+    else:
+        omni.log.warn(
+            "No success termination term was found in the environment."
+            " Will not be able to mark recorded demos as successful."
+        )
+
+    # modify configuration such that the environment runs indefinitely until
+    # the goal is reached or other termination conditions are met
     env_cfg.terminations.time_out = None
 
     env_cfg.observations.policy.concatenate_terms = False
@@ -173,6 +193,7 @@ def main():
 
     # simulate environment -- run everything in inference mode
     current_recorded_demo_count = 0
+    success_step_count = 0
     with contextlib.suppress(KeyboardInterrupt) and torch.inference_mode():
         while True:
             # get keyboard command
@@ -187,15 +208,29 @@ def main():
             # perform action on environment
             env.step(actions)
 
+            if success_term is not None:
+                if bool(success_term.func(env, **success_term.params)[0]):
+                    success_step_count += 1
+                    if success_step_count >= args_cli.num_success_steps:
+                        env.recorder_manager.record_pre_reset([0], force_export_or_skip=False)
+                        env.recorder_manager.set_success_to_episodes(
+                            [0], torch.tensor([[True]], dtype=torch.bool, device=env.unwrapped.device)
+                        )
+                        env.recorder_manager.export_episodes([0])
+                        should_reset_recording_instance = True
+                else:
+                    success_step_count = 0
+
             if should_reset_recording_instance:
                 env.unwrapped.recorder_manager.reset()
                 env.reset()
                 should_reset_recording_instance = False
+                success_step_count = 0
 
             # print out the current demo count if it has changed
             if env.unwrapped.recorder_manager.exported_successful_episode_count > current_recorded_demo_count:
                 current_recorded_demo_count = env.unwrapped.recorder_manager.exported_successful_episode_count
-                print(f"Recorded {current_recorded_demo_count} demonstrations.")
+                print(f"Recorded {current_recorded_demo_count} successful demonstrations.")
 
             if (
                 args_cli.num_demos > 0
