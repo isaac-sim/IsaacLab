@@ -1,15 +1,16 @@
 .. _isaaclab-pip-installation:
 
-Installation using pip
+Installation using Isaac Sim pip
 ================================
 
-Issac Lab requires Isaac Sim. Install Isaac Sim first, then Isaac Lab.
+Isaac Lab requires Isaac Sim. This tutorial first installs Isaac Sim from pip, then Isaac Lab from source code.
 
 Installing Isaac Sim
 --------------------
 
-From Isaac Sim 4.0 release, it is possible to install Isaac Sim using pip. This approach is experimental and may have
-compatibility issues with some Linux distributions. If you encounter any issues, please report them to the
+From Isaac Sim 4.0 release, it is possible to install Isaac Sim using pip.
+This approach makes it easier to install Isaac Sim without requiring to download the Isaac Sim binaries.
+If you encounter any issues, please report them to the
 `Isaac Sim Forums <https://docs.omniverse.nvidia.com/isaacsim/latest/common/feedback.html>`_.
 
 .. attention::

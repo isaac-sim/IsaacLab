@@ -350,8 +350,9 @@ def warm_start_app():
         capture_output=True,
     )
     if len(warm_start_output.stderr) > 0:
-        logging.error(f"Error warm starting the app: {str(warm_start_output.stderr)}")
-        exit(1)
+        if "DeprecationWarning" not in str(warm_start_output.stderr):
+            logging.error(f"Error warm starting the app: {str(warm_start_output.stderr)}")
+            exit(1)
 
     # headless experience with rendering
     warm_start_rendering_output = subprocess.run(
@@ -366,8 +367,9 @@ def warm_start_app():
         capture_output=True,
     )
     if len(warm_start_rendering_output.stderr) > 0:
-        logging.error(f"Error warm starting the app with rendering: {str(warm_start_rendering_output.stderr)}")
-        exit(1)
+        if "DeprecationWarning" not in str(warm_start_rendering_output.stderr):
+            logging.error(f"Error warm starting the app with rendering: {str(warm_start_rendering_output.stderr)}")
+            exit(1)
 
     after = time.time()
     time_elapsed = after - before

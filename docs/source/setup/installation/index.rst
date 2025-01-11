@@ -32,8 +32,30 @@ Local Installation
     `Isaac Sim system requirements <https://docs.omniverse.nvidia.com/isaacsim/latest/installation/requirements.html#system-requirements>`_.
 
 
+Isaac Lab is built on top of the Isaac Sim platform. Therefore, it is required to first install Isaac Sim
+before using Isaac Lab.
+
+Both Isaac Sim and Isaac Lab provide two ways of installation:
+either through binary download/source file, or through Python's package installer ``pip``.
+
+The method of installation may depend on the use case and the level of customization desired from users.
+For example, installing Isaac Sim from pip will be a simpler process than installing it from binaries,
+but the source code will then only be accessible through the installed source package and not through the direct binary download.
+
+Similarly, installing Isaac Lab through pip is only recommended for workflows that use external launch scripts outside of Isaac Lab.
+The Isaac Lab pip packages only provide the core framework extensions for Isaac Lab and does not include any of the
+standalone training, inferencing, and example scripts. Therefore, this workflow is recommended for projects that are
+built as external extensions outside of Isaac Lab, which utilizes user-defined runner scripts.
+
+For Ubuntu 22.04 and Windows systems, we recommend using Isaac Sim pip installation.
+For Ubuntu 20.04 systems, we recommend installing Isaac Sim through binaries.
+
+For users getting started with Isaac Lab, we recommend installing Isaac Lab by cloning the repo.
+
+
 .. toctree::
     :maxdepth: 2
 
     Pip installation (recommended for Ubuntu 22.04 and Windows) <pip_installation>
     Binary installation (recommended for Ubuntu 20.04) <binaries_installation>
+    Advanced installation (Isaac Lab pip) <isaaclab_pip_installation>

@@ -18,7 +18,7 @@ import time
 
 from isaaclab.app import AppLauncher
 
-import scripts.workflows.rsl_rl.cli_args as cli_args  # isort: skip
+import scripts.reinforcement_learning.rsl_rl.cli_args as cli_args  # isort: skip
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Train an RL agent with RSL-RL.")
