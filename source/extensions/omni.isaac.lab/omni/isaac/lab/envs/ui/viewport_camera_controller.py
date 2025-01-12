@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2024, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -14,6 +14,8 @@ from typing import TYPE_CHECKING
 
 import omni.kit.app
 import omni.timeline
+
+from omni.isaac.lab.assets.articulation.articulation import Articulation
 
 if TYPE_CHECKING:
     from omni.isaac.lab.envs import DirectRLEnv, ManagerBasedEnv, ViewerCfg
@@ -59,12 +61,15 @@ class ViewportCameraController:
             self.set_view_env_index(self.cfg.env_index)
             # set the camera origin to the center of the environment
             self.update_view_to_env()
-        elif self.cfg.origin_type == "asset_root":
+        elif self.cfg.origin_type == "asset_root" or self.cfg.origin_type == "asset_body":
             # note: we do not yet update camera for tracking an asset origin, as the asset may not yet be
             # in the scene when this is called. Instead, we subscribe to the post update event to update the camera
             # at each rendering step.
             if self.cfg.asset_name is None:
                 raise ValueError(f"No asset name provided for viewer with origin type: '{self.cfg.origin_type}'.")
+            if self.cfg.origin_type == "asset_body":
+                if self.cfg.body_name is None:
+                    raise ValueError(f"No body name provided for viewer with origin type: '{self.cfg.origin_type}'.")
         else:
             # set the camera origin to the center of the world
             self.update_view_to_world()
@@ -160,6 +165,41 @@ class ViewportCameraController:
         # update the camera view
         self.update_view_location()
 
+    def update_view_to_asset_body(self, asset_name: str, body_name: str):
+        """Updates the viewer's origin based upon the body of an asset in the scene.
+
+        Args:
+            asset_name: The name of the asset in the scene. The name should match the name of the
+                asset in the scene.
+            body_name: The name of the body in the asset.
+
+        Raises:
+            ValueError: If the asset is not in the scene or the body is not valid.
+        """
+        # check if the asset is in the scene
+        if self.cfg.asset_name != asset_name:
+            asset_entities = [*self._env.scene.rigid_objects.keys(), *self._env.scene.articulations.keys()]
+            if asset_name not in asset_entities:
+                raise ValueError(f"Asset '{asset_name}' is not in the scene. Available entities: {asset_entities}.")
+        # check if the body is in the asset
+        asset: Articulation = self._env.scene[asset_name]
+        if body_name not in asset.body_names:
+            raise ValueError(
+                f"'{body_name}' is not a body of Asset '{asset_name}'. Available bodies: {asset.body_names}."
+            )
+        # get the body index
+        body_id, _ = asset.find_bodies(body_name)
+        # update the asset name
+        self.cfg.asset_name = asset_name
+        # set origin type to asset_body
+        self.cfg.origin_type = "asset_body"
+        # update the camera origins
+        self.viewer_origin = (
+            self._env.scene[self.cfg.asset_name].data.body_link_pos_w[self.cfg.env_index, body_id].view(3)
+        )
+        # update the camera view
+        self.update_view_location()
+
     def update_view_location(self, eye: Sequence[float] | None = None, lookat: Sequence[float] | None = None):
         """Updates the camera view pose based on the current viewer origin and the eye and lookat positions.
 
@@ -190,3 +230,5 @@ class ViewportCameraController:
         # in other cases, the camera view is static and does not need to be updated continuously
         if self.cfg.origin_type == "asset_root" and self.cfg.asset_name is not None:
             self.update_view_to_asset_root(self.cfg.asset_name)
+        if self.cfg.origin_type == "asset_body" and self.cfg.asset_name is not None and self.cfg.body_name is not None:
+            self.update_view_to_asset_body(self.cfg.asset_name, self.cfg.body_name)

@@ -1,9 +1,8 @@
-# Copyright (c) 2022-2024, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-import torch
 from collections.abc import Iterable
 from dataclasses import MISSING
 from typing import Literal
@@ -181,7 +180,7 @@ class RemotizedPDActuatorCfg(DelayedPDActuatorCfg):
 
     class_type: type = actuator_pd.RemotizedPDActuator
 
-    joint_parameter_lookup: torch.Tensor = MISSING
+    joint_parameter_lookup: list[list[float]] = MISSING
     """Joint parameter lookup table. Shape is (num_lookup_points, 3).
 
     This tensor describes the relationship between the joint angle (rad), the transmission ratio (in/out),

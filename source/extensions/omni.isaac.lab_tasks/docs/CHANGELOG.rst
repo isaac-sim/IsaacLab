@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.10.18 (2025-01-03)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the reset of the actions in the function overriding of the low level observations of :class:`omni.isaac.lab_tasks.manager_based.navigation.mdp.PreTrainedPolicyAction`.
+
+
 0.10.17 (2024-12-17)
 ~~~~~~~~~~~~~~~~~~~~
 
