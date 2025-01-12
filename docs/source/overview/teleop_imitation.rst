@@ -177,8 +177,6 @@ Mimic compatible environments are derived from the :class:`~isaaclab.envs.Manage
 
 * ``get_subtask_term_signals``: Returns a dictionary of binary flags for each subtask in a task. The flag of 1 is set when the subtask has been completed and 0 otherwise.
 
-* ``is_success``: Returns a boolean indicator of whether the task has been successfully completed.
-
 The class :class:`~isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv` shows an example of creating a Mimic compatible environment from an existing Isaac Lab environment.
 
 A Mimic compatible environment config class must also be created by extending the existing environment config with additional Mimic required parameters.

@@ -22,6 +22,12 @@ parser.add_argument(
     "--num_demos", type=int, default=0, help="Number of demonstrations to record. Set to 0 for infinite."
 )
 parser.add_argument(
+    "--num_success_steps",
+    type=int,
+    default=10,
+    help="Number of continuous steps with task success for concluding a demo as successful. Default is 10.",
+)
+parser.add_argument(
     "--num_envs",
     type=int,
     default=5,
@@ -178,7 +184,7 @@ def pre_process_actions(delta_pose: torch.Tensor, gripper_command: bool) -> torc
 
 
 async def run_teleop_robot(
-    env, env_id, env_action_queue, shared_datagen_info_pool, exported_dataset_path, teleop_interface=None
+    env, env_id, env_action_queue, shared_datagen_info_pool, success_term, exported_dataset_path, teleop_interface=None
 ):
     """Run teleop robot."""
     global num_recorded
@@ -208,14 +214,14 @@ async def run_teleop_robot(
     recorded_episode_dataset_file_handler.create(exported_dataset_path, env_name=env.unwrapped.cfg.env_name)
 
     env_id_tensor = torch.tensor([env_id], dtype=torch.int64, device=env.device)
-    success_delay_step_count = 10
-    has_succeeded = False
+    success_step_count = 0
     num_recorded = 0
     while True:
         if should_reset_teleop_instance:
             env.unwrapped.recorder_manager.reset(env_id_tensor)
             env.unwrapped.reset(env_ids=env_id_tensor)
             should_reset_teleop_instance = False
+            success_step_count = 0
 
         # get keyboard command
         delta_pose, gripper_command = teleop_interface.advance()
@@ -227,33 +233,27 @@ async def run_teleop_robot(
         await env_action_queue.put((env_id, teleop_action))
         await env_action_queue.join()
 
-        if has_succeeded:
-            if success_delay_step_count > 0:
-                success_delay_step_count -= 1
-                continue
+        if success_term is not None:
+            if bool(success_term.func(env, **success_term.params)[env_id]):
+                success_step_count += 1
+                if success_step_count >= args_cli.num_success_steps:
+                    env.recorder_manager.set_success_to_episodes(
+                        env_id_tensor, torch.tensor([[True]], dtype=torch.bool, device=env.device)
+                    )
+                    teleop_episode = env.unwrapped.recorder_manager.get_episode(env_id)
+                    await shared_datagen_info_pool.add_episode(teleop_episode)
 
-            if bool(env.is_success()[env_id]):
-                env.recorder_manager.set_success_to_episodes(
-                    env_id_tensor, torch.tensor([[True]], dtype=torch.bool, device=env.device)
-                )
-                teleop_episode = env.unwrapped.recorder_manager.get_episode(env_id)
-                await shared_datagen_info_pool.add_episode(teleop_episode)
-
-                recorded_episode_dataset_file_handler.write_episode(teleop_episode)
-                recorded_episode_dataset_file_handler.flush()
-                env.recorder_manager.reset(env_id_tensor)
-                num_recorded += 1
-                should_reset_teleop_instance = True
+                    recorded_episode_dataset_file_handler.write_episode(teleop_episode)
+                    recorded_episode_dataset_file_handler.flush()
+                    env.recorder_manager.reset(env_id_tensor)
+                    num_recorded += 1
+                    should_reset_teleop_instance = True
             else:
-                has_succeeded = False
-        else:
-            if bool(env.is_success()[env_id]):
-                has_succeeded = True
-                success_delay_step_count = 10
+                success_step_count = 0
 
 
 async def run_data_generator(
-    env, env_id, env_action_queue, shared_datagen_info_pool, pause_subtask=False, export_demo=True
+    env, env_id, env_action_queue, shared_datagen_info_pool, success_term, pause_subtask=False, export_demo=True
 ):
     """Run data generator."""
     global num_success, num_failures, num_attempts
@@ -266,6 +266,7 @@ async def run_data_generator(
 
         results = await data_generator.generate(
             env_id=env_id,
+            success_term=success_term,
             env_action_queue=env_action_queue,
             select_src_per_subtask=env.unwrapped.cfg.datagen_config.generation_select_src_per_subtask,
             transform_first_robot_pose=env.unwrapped.cfg.datagen_config.generation_transform_first_robot_pose,
@@ -367,10 +368,16 @@ def main():
     env_cfg = parse_env_cfg(env_name, device=args_cli.device, num_envs=num_envs)
     env_cfg.env_name = env_name
 
-    # modify configuration such that the environment runs indefinitely
-    env_cfg.terminations.time_out = None
+    # extract success checking function to invoke manually
+    success_term = None
+    if hasattr(env_cfg.terminations, "success"):
+        success_term = env_cfg.terminations.success
+        env_cfg.terminations.success = None
+    else:
+        raise NotImplementedError("No success termination term was found in the environment.")
+
     # data generator is in charge of resetting the environment
-    env_cfg.terminations.success = None
+    env_cfg.terminations = None
 
     env_cfg.observations.policy.concatenate_terms = False
 
@@ -416,14 +423,21 @@ def main():
         if args_cli.teleop_env_index is not None and i == args_cli.teleop_env_index:
             data_generator_asyncio_tasks.append(
                 asyncio_event_loop.create_task(
-                    run_teleop_robot(env, i, env_action_queue, shared_datagen_info_pool, args_cli.output_file)
+                    run_teleop_robot(
+                        env, i, env_action_queue, shared_datagen_info_pool, success_term, args_cli.output_file
+                    )
                 )
             )
             continue
         data_generator_asyncio_tasks.append(
             asyncio_event_loop.create_task(
                 run_data_generator(
-                    env, i, env_action_queue, shared_datagen_info_pool, export_demo=bool(args_cli.generated_output_file)
+                    env,
+                    i,
+                    env_action_queue,
+                    shared_datagen_info_pool,
+                    success_term,
+                    export_demo=bool(args_cli.generated_output_file),
                 )
             )
         )

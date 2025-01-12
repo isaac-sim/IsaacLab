@@ -188,7 +188,8 @@ class DataGenerator:
 
     async def generate(
         self,
-        env_id=0,
+        env_id,
+        success_term,
         env_action_queue: asyncio.Queue | None = None,
         select_src_per_subtask=False,
         transform_first_robot_pose=False,
@@ -201,6 +202,9 @@ class DataGenerator:
 
         Args:
             env_id (int): environment ID
+
+            success_term (TerminationTermCfg): success function to check if the task is successful
+
             env_action_queue (asyncio.Queue): queue to store actions for each environment
 
             select_src_per_subtask (bool): if True, select a different source demonstration for each subtask
@@ -385,7 +389,9 @@ class DataGenerator:
             traj_to_execute.pop_first()
 
             # Execute the trajectory and collect data.
-            exec_results = await traj_to_execute.execute(env=self.env, env_id=env_id, env_action_queue=env_action_queue)
+            exec_results = await traj_to_execute.execute(
+                env=self.env, env_id=env_id, env_action_queue=env_action_queue, success_term=success_term
+            )
 
             # check that trajectory is non-empty
             if len(exec_results["states"]) > 0:

@@ -106,18 +106,6 @@ class ManagerBasedRLMimicEnv(ManagerBasedRLEnv):
         """
         raise NotImplementedError
 
-    def is_success(self):
-        """
-        Determines whether the task has succeeded based on internally defined success criteria.
-
-        This method implements the logic to evaluate the task's success by checking relevant
-        conditions and constraints derived from the observations in the scene.
-
-        Returns:
-            success (bool): True if the task is considered successful based on the defined criteria. False otherwise.
-        """
-        raise NotImplementedError
-
     def serialize(self):
         """
         Save all information needed to re-instantiate this environment in a dictionary.
