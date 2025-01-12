@@ -69,3 +69,21 @@ def nut_successfully_threaded(
     force_satisfied = force_norm < 5
     upright_satisfied = upright_reward > 0.45
     return torch.logical_and(goal_reached, torch.logical_and(force_satisfied, upright_satisfied))
+
+def nut_successfully_mated(
+    env: ManagerBasedRLEnv,
+    threshold: float = 1e-3,
+):
+    # only look at the xy plane
+    diff = rel_nut_bolt_tip_distance(env)
+    xy_dis = l2_norm(diff[..., :2])
+    z_dis = diff[..., 2]
+    upright_reward = nut_upright_reward_forge(env)
+    contact_sensor = env.scene.sensors["contact_sensor"]
+    net_contact_forces = contact_sensor.data.net_forces_w_history
+    force_norm = torch.norm(net_contact_forces, dim=-1).squeeze(-1).squeeze(-1)
+    goal_reached = xy_dis < threshold
+    
+    force_satisfied = force_norm < 5
+    upright_satisfied = upright_reward > 0.45
+    return torch.logical_and(goal_reached, torch.logical_and(force_satisfied, upright_satisfied)), xy_dis, z_dis, force_norm

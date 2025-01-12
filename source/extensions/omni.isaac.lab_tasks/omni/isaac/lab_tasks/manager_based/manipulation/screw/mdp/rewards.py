@@ -113,3 +113,12 @@ def get_imitation_reward_from_dtw(ref_traj, curr_ee_pos, prev_ee_traj, criterion
     imitation_rwd = 1 - torch.tanh(soft_dtw)
 
     return imitation_rwd * w_task_progress, cur_ee_traj
+
+
+def incoming_wrench_mag(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg) -> torch.Tensor:
+    wrench = mdp.body_incoming_wrench(env, asset_cfg)
+    return torch.norm(wrench, dim=-1)
+
+# def incoming_wrench_smooth(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg) -> torch.Tensor:
+#     wrench = mdp.body_incoming_wrench(env, asset_cfg)
+#     return torch.norm(wrench, dim=-1)

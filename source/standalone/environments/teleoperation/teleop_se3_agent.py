@@ -140,6 +140,8 @@ def main():
     teleop_interface.reset()
     counter = 0
     record_forces = True
+    env_uw = env.unwrapped
+    wrench_cfg = env_uw.observation_manager.get_term_cfg("policy", "wrist_wrench")
     forces, frames = [], []
     for i in range(10):
         frame = env.unwrapped.render()
@@ -173,7 +175,8 @@ def main():
             if record_forces:
                 frame = env.unwrapped.render()
                 frames.append(frame)
-                wrench = obs["policy"][0, 13:19]
+                wrench = wrench_cfg.func(env_uw, **wrench_cfg.params)
+                print(wrench[0, :3])
                 # contact_sensor = env.unwrapped.scene["contact_sensor"]
                 # dt = contact_sensor._sim_physics_dt
                 # friction_data = contact_sensor.contact_physx_view.get_friction_data(dt)

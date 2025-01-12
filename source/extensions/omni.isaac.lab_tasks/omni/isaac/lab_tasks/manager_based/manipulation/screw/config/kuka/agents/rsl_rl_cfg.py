@@ -16,7 +16,7 @@ from omni.isaac.lab_tasks.utils.wrappers.rsl_rl import (
 class KukaScrewPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     num_steps_per_env = 32
     max_iterations = 50000
-    save_interval = 500
+    save_interval = 200
     experiment_name = "kuka_screw"
     run_name = ""
     resume = False
@@ -36,13 +36,13 @@ class KukaScrewPPORunnerCfg(RslRlOnPolicyRunnerCfg):
         use_clipped_value_loss=True,
         clip_param=0.2,
         entropy_coef=0.001,
-        num_learning_epochs=5,
-        num_mini_batches=4,  # default
-        learning_rate=1.0e-3,
+        num_learning_epochs=10,
+        num_mini_batches=8,  # default
+        learning_rate=5e-4,
         schedule="adaptive",
         gamma=0.99,
         lam=0.95,
-        desired_kl=0.01,
+        desired_kl=0.016,
         max_grad_norm=1.0,
     )
     # automate

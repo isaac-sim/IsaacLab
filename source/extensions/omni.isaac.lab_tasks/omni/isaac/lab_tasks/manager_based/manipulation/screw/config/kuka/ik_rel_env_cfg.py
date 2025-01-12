@@ -35,6 +35,7 @@ from omni.isaac.lab.managers import SceneEntityCfg
 from omni.isaac.lab.managers import TerminationTermCfg as DoneTerm
 from omni.isaac.lab.sensors import ContactSensorCfg
 from omni.isaac.lab.utils import  configclass
+from omni.isaac.lab.sensors import TiledCameraCfg
 
 import omni.isaac.lab_tasks.manager_based.manipulation.screw.mdp as mdp
 from omni.isaac.lab_tasks.manager_based.manipulation.screw.screw_env_cfg import (
@@ -115,7 +116,7 @@ class reset_scene_to_grasp_state(ManagerTermBase):
         self.tensor_args = TensorDeviceType(device=env.device)
         self.robot_base_pose = Pose.from_list([-0.15, -0.5, -0.8, 1, 0, 0, 0], self.tensor_args)
         self.curobo_arm = CuRoboArm("victor_left.yml", 
-                                    external_asset_path="/home/zixuanh/force_tool/assets/victor",
+                                    external_asset_path=os.path.abspath("assets/victor"),
                                     base_pose=self.robot_base_pose, num_ik_seeds=10, device=env.device,
                                     )
         self.curobo_arm.update_world()
@@ -142,7 +143,7 @@ class reset_scene_to_grasp_state(ManagerTermBase):
         
         if self.reset_randomize_mode == "task":
             arm_state = cached_state["robot"]["joint_state"]["position"][:, :7]
-            default_tool_pose = self.curobo_arm.forward_kinematics(arm_state).ee_pose
+            default_tool_pose = self.curobo_arm.forward_kinematics(arm_state.clone()).ee_pose
             nut_rel_pose = Pose.from_list(self.nut_rel_pose, self.tensor_args)
             default_nut_pose = default_tool_pose.multiply(nut_rel_pose)
             default_nut_pose = default_nut_pose.repeat(B)
@@ -255,6 +256,7 @@ def create_fixed_joint(env: ManagerBasedEnv, env_ids: torch.Tensor):
         child_prim = stage.GetPrimAtPath(f"/World/envs/env_{i}/Robot/victor_left_tool0")
         parent_prim = stage.GetPrimAtPath(f"/World/envs/env_{i}/Nut/factory_nut")
         physx_utils.createJoint(stage, "Fixed", child_prim, parent_prim)
+        # physx_utils.createJoint(stage, "Fixed", parent_prim, child_prim)
 
 
 @configclass
@@ -358,8 +360,8 @@ class IKRelKukaNutThreadEnvCfg(BaseNutThreadEnvCfg):
 
         action_params = self.params.actions
         action_params.ik_lambda = action_params.get("ik_lambda", 0.001)
-        action_params.keep_grasp_state = action_params.get("keep_grasp_state", False)
-        action_params.uni_rotate = action_params.get("uni_rotate", False)
+        action_params.keep_grasp_state = action_params.get("keep_grasp_state", True)
+        action_params.uni_rotate = action_params.get("uni_rotate", True)
 
         obs_params = self.params.observations
         obs_params.hist_len = obs_params.get("hist_len", 1)
@@ -379,16 +381,16 @@ class IKRelKukaNutThreadEnvCfg(BaseNutThreadEnvCfg):
         rewards_params.success_w = rewards_params.get("success_w", 1.0)
         rewards_params.action_rate_w = rewards_params.get("action_rate_w", -0.0)
         rewards_params.contact_force_penalty_w = rewards_params.get("contact_force_penalty_w", -0.01)
-
+        rewards_params.incoming_wrench_mag_w = rewards_params.get("incoming_wrench_mag_w", 0.0)
         termination_params = self.params.terminations
         termination_params.far_from_bolt = termination_params.get("far_from_bolt", False)
         termination_params.nut_fallen = termination_params.get("nut_fallen", False)
 
         events_params = self.params.events
-        events_params.reset_target = events_params.get("reset_target", "grasp")
+        events_params.reset_target = events_params.get("reset_target", "rigid_grasp_open_align")
         events_params.reset_range_scale = events_params.get("reset_range_scale", 1.0)
-        events_params.reset_randomize_mode = events_params.get("reset_randomize_mode", None)
         events_params.reset_joint_std = events_params.get("reset_joint_std", 0.0)
+        events_params.reset_randomize_mode = events_params.get("reset_randomize_mode", "task")
         events_params.reset_use_adr = events_params.get("reset_use_adr", False)
         
         curri_params = self.params.curriculum
@@ -429,16 +431,6 @@ class IKRelKukaNutThreadEnvCfg(BaseNutThreadEnvCfg):
 
         # action
         action_params = self.params.actions
-        # arm_lows = [-0.002, -0.002, -0.002, -0.0005, -0.0005, -0.5]
-        # arm_highs = [0.002, 0.002, 0.002, 0.0005, 0.0005, 0.5]
-        # scale = [0.002, 0.002, 0.002, 0.0005, 0.0005, 0.5]
-        # arm_lows = [-0.004, -0.004, -0.002, -0.5, -0.5, -0.5]
-        # arm_highs = [0.004, 0.004, 0.002, 0.5, 0.5, 0.5]
-        # scale = [0.004, 0.004, 0.002, 0.5, 0.5, 0.5]
-        
-        # arm_lows = [-0.002, -0.002, -0.002, -0.01, -0.01, -0.5]
-        # arm_highs = [0.002, 0.002, 0.002, 0.01, 0.01, 0.5]
-        # scale = [0.002, 0.002, 0.002, 0.01, 0.01, 0.5]
         # arm_lows = [-0.01, -0.01, -0.01, -0.05, -0.05, -0.5]
         # arm_highs = [0.01, 0.01, 0.01, 0.05, 0.05, 0.5]
         # scale = [0.01, 0.01, 0.01, 0.05, 0.05, 0.5]
@@ -545,7 +537,7 @@ class IKRelKukaNutThreadEnvCfg(BaseNutThreadEnvCfg):
         self.events.reset_default = GraspResetEventTermCfg(
             func=reset_scene_to_grasp_state,
             mode="reset",
-            nut_rel_pose=np.concatenate([nut_rel_pos, nut.init_state.rot]),
+            nut_rel_pose=np.concatenate([nut_rel_pos, nut.init_state.rot]).tolist(),
             reset_target=event_params.reset_target,
             reset_range_scale=event_params.reset_range_scale,
             reset_randomize_mode=event_params.reset_randomize_mode,
@@ -575,6 +567,12 @@ class IKRelKukaNutThreadEnvCfg(BaseNutThreadEnvCfg):
         self.rewards.upright_reward.weight = rewards_params.upright_reward_w
         self.rewards.success.weight = rewards_params.success_w
         self.rewards.action_rate.weight = rewards_params.action_rate_w
+        
+        self.rewards.incoming_wrench_mag = RewTerm(
+            func=mdp.incoming_wrench_mag,
+            params={"asset_cfg": self.observations.policy.wrist_wrench.params["asset_cfg"]},
+            weight=rewards_params.incoming_wrench_mag_w,
+        )
         if rewards_params.dtw_ref_traj_w > 0:
             self.rewards.dtw_ref_traj = DTWReferenceTrajRewardCfg(
                 his_traj_len=10,
@@ -600,3 +598,18 @@ class IKRelKukaNutThreadEnvCfg(BaseNutThreadEnvCfg):
                 func=mdp.modify_reward_weight,
                 params={"term_name": "contact_force_penalty", "weight": -1, "num_steps": 800*32},
             )
+        # self.scene.tiled_camera = TiledCameraCfg(
+        #     prim_path="{ENV_REGEX_NS}/Camera",
+        #     offset=TiledCameraCfg.OffsetCfg(
+        #         pos=(1.3, 0.0, 0.1),
+        #         # rot=(0.6599831, -0.7512804, 0, 0),
+        #         rot=[0.4813639 , 0.5011198, 0.5182935, 0.4985375],
+        #         convention="opengl"
+        #     ),
+        #     data_types=["rgb"],
+        #     spawn=sim_utils.PinholeCameraCfg(
+        #         focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 20.0)
+        #     ),
+        #     width=720,
+        #     height=720,
+        # )
