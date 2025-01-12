@@ -340,7 +340,8 @@ class WaypointTrajectory:
     async def execute(
         self,
         env,
-        env_id=0,
+        env_id,
+        success_term,
         env_action_queue: asyncio.Queue | None = None,
     ):
         """
@@ -351,6 +352,7 @@ class WaypointTrajectory:
         Args:
             env (Isaac Lab ManagerBasedEnv instance): environment to use for executing trajectory
             env_id (int): environment index
+            success_term: success term to check if the task is successful
             env_action_queue (asyncio.Queue): queue for sending actions to the environment
 
         Returns:
@@ -410,8 +412,7 @@ class WaypointTrajectory:
                 actions.append(play_action)
                 observations.append(obs)
 
-                # TODO: Change the termination manager to support multiple environments
-                cur_success_metric = bool(env.is_success()[env_id])
+                cur_success_metric = bool(success_term.func(env, **success_term.params)[env_id])
 
                 # If the task success metric is True once during the execution, then the task is considered successful
                 success = success or cur_success_metric

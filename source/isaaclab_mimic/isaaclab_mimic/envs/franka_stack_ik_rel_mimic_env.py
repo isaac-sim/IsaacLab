@@ -8,8 +8,6 @@ import torch
 import isaaclab.utils.math as PoseUtils
 from isaaclab.envs import ManagerBasedRLMimicEnv
 
-from isaaclab_tasks.manager_based.manipulation.stack.mdp import cubes_stacked
-
 
 class FrankaCubeStackIKRelMimicEnv(ManagerBasedRLMimicEnv):
     """
@@ -144,6 +142,3 @@ class FrankaCubeStackIKRelMimicEnv(ManagerBasedRLMimicEnv):
         signals["stack_1"] = subtask_terms["stack_1"][env_ind]
         # final subtask is placing cubeC on cubeA (motion relative to cubeA) - but final subtask signal is not needed
         return signals
-
-    def is_success(self):
-        return cubes_stacked(self, atol=0.001, rtol=0.001)

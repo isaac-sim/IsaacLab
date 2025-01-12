@@ -68,12 +68,13 @@ num_failures = 0
 num_attempts = 0
 
 
-async def run_data_generator(env, env_id, env_action_queue, data_generator, pause_subtask=False):
+async def run_data_generator(env, env_id, env_action_queue, data_generator, success_term, pause_subtask=False):
     """Run data generator."""
     global num_success, num_failures, num_attempts
     while True:
         results = await data_generator.generate(
             env_id=env_id,
+            success_term=success_term,
             env_action_queue=env_action_queue,
             select_src_per_subtask=env.unwrapped.cfg.datagen_config.generation_select_src_per_subtask,
             transform_first_robot_pose=env.unwrapped.cfg.datagen_config.generation_transform_first_robot_pose,
@@ -165,10 +166,16 @@ def main():
 
     env_cfg.env_name = env_name
 
-    # modify configuration such that the environment runs indefinitely
-    env_cfg.terminations.time_out = None
+    # extract success checking function to invoke manually
+    success_term = None
+    if hasattr(env_cfg.terminations, "success"):
+        success_term = env_cfg.terminations.success
+        env_cfg.terminations.success = None
+    else:
+        raise NotImplementedError("No success termination term was found in the environment.")
+
     # data generator is in charge of resetting the environment
-    env_cfg.terminations.success = None
+    env_cfg.terminations = None
 
     env_cfg.observations.policy.concatenate_terms = False
 
@@ -209,7 +216,9 @@ def main():
     for i in range(num_envs):
         data_generator_asyncio_tasks.append(
             asyncio_event_loop.create_task(
-                run_data_generator(env, i, env_action_queue, data_generator, pause_subtask=args_cli.pause_subtask)
+                run_data_generator(
+                    env, i, env_action_queue, data_generator, success_term, pause_subtask=args_cli.pause_subtask
+                )
             )
         )
 
