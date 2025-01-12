@@ -148,7 +148,7 @@ class BasicActuatorCfg:
     """Dummy configuration class for ActuatorBase config."""
 
     joint_names_expr: list[str] = ["some_string"]
-    joint_parameter_lookup: torch.Tensor = torch.Tensor([1, 2, 3])
+    joint_parameter_lookup: list[list[float]] = [[1, 2, 3], [4, 5, 6]]
     stiffness: float = 1.0
     damping: float = 2.0
 
@@ -542,14 +542,14 @@ class TestConfigClass(unittest.TestCase):
 
     def test_actuator_cfg_dict_conversion(self):
         """Test dict conversion of ActuatorConfig."""
-        # create a basic actuator config with a Torch.Tensor (joint_parameter_lookup)
+        # create a basic RemotizedPDActuator config
         actuator_cfg = BasicActuatorCfg()
         # return writable attributes of config object
         actuator_cfg_dict_attr = actuator_cfg.__dict__
         # check if __dict__ attribute of config is not empty
         self.assertTrue(len(actuator_cfg_dict_attr) > 0)
         # class_to_dict utility function should return a primitive dictionary
-        actuator_cfg_dict = class_to_dict(actuator_cfg.joint_parameter_lookup)
+        actuator_cfg_dict = class_to_dict(actuator_cfg)
         self.assertTrue(isinstance(actuator_cfg_dict, dict))
 
     def test_dict_conversion_order(self):
