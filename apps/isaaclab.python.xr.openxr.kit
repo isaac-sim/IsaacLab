@@ -17,6 +17,14 @@ app.folder = "${exe-path}/"
 app.name = "Isaac-Sim"
 app.version = "4.5.0"
 
+### async rendering settings
+omni.replicator.asyncRendering = true
+app.asyncRendering = true
+app.asyncRenderingLowLatency = true
+
+# For XR, set this back to default "#define OMNI_MAX_DEVICE_GROUP_DEVICE_COUNT 16"
+renderer.multiGpu.maxGpuCount = 16
+
 [dependencies]
 "isaaclab.python.rendering" = {}
 "isaacsim.xr.openxr" = {}
@@ -28,7 +36,9 @@ app.version = "4.5.0"
 [settings]
 # xr settings
 xr.ui.enabled = false
-xrstage.profile.ar.anchorMode = "scene origin"
+xrstage.profile.ar.anchorMode = "active camera"
+xr.depth.aov = "GBufferDepth"
+defaults.xr.profile.ar.renderQuality = "off"
 
 # Register extension folder from this repo in kit
 [settings.app.exts]

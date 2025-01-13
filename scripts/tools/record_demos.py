@@ -122,7 +122,11 @@ def pre_process_actions(delta_pose: torch.Tensor, gripper_command: bool) -> torc
 def main():
     """Collect demonstrations from the environment using teleop interfaces."""
 
-    rate_limiter = RateLimiter(args_cli.step_hz)
+    # if handtracking is selected, rate limiting is achieved via OpenXR
+    if args_cli.teleop_device.lower() == "handtracking":
+        rate_limiter = None
+    else:
+        rate_limiter = RateLimiter(args_cli.step_hz)
 
     # get directory path and file name (without extension) from cli arguments
     output_dir = os.path.dirname(args_cli.dataset_file)
@@ -243,7 +247,8 @@ def main():
             if env.unwrapped.sim.is_stopped():
                 break
 
-            rate_limiter.sleep(env.unwrapped)
+            if rate_limiter:
+                rate_limiter.sleep(env.unwrapped)
 
     env.close()
 
