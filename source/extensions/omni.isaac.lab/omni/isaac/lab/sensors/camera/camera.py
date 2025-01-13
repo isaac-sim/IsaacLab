@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2024, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -395,7 +395,7 @@ class Camera(SensorBase):
                 orientations = torch.from_numpy(orientations).to(device=self._device)
             elif not isinstance(orientations, torch.Tensor):
                 orientations = torch.tensor(orientations, device=self._device)
-            orientations = convert_orientation_convention(orientations, origin=convention, target="opengl")
+            orientations = convert_camera_frame_orientation_convention(orientations, origin=convention, target="opengl")
         # set the pose
         self._view.set_local_poses(positions, orientations, env_ids)
 
