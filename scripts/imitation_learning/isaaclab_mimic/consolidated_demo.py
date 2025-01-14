@@ -85,6 +85,7 @@ from isaaclab_mimic.datagen.data_generator import DataGenerator
 from isaaclab_mimic.datagen.datagen_info_pool import DataGenInfoPool
 
 from isaaclab.devices import Se3Keyboard, Se3SpaceMouse
+from isaaclab.envs import ManagerBasedRLMimicEnv
 from isaaclab.envs.mdp.recorders.recorders_cfg import ActionStateRecorderManagerCfg
 from isaaclab.managers import DatasetExportMode, RecorderTerm, RecorderTermCfg
 from isaaclab.utils import configclass
@@ -104,11 +105,16 @@ class PreStepDatagenInfoRecorder(RecorderTerm):
     """Recorder term that records the datagen info data in each step."""
 
     def record_pre_step(self):
+        eef_pose_dict = {}
+        for eef_name in self._env.cfg.subtask_configs.keys():
+            eef_pose_dict[eef_name] = self._env.get_robot_eef_pose(eef_name)
+
         datagen_info = {
-            "object_pose": self._env.scene.get_state(is_relative=True)["rigid_object"],
-            "target_eef_pose": self._env.action_to_target_eef_pos(self._env.action_manager.action),
+            "object_pose": self._env.get_object_poses(),
+            "eef_pose": eef_pose_dict,
+            "target_eef_pose": self._env.action_to_target_eef_pose(self._env.action_manager.action),
         }
-        return "obs", datagen_info
+        return "obs/datagen_info", datagen_info
 
 
 @configclass
@@ -122,7 +128,7 @@ class PreStepSubtaskTermsObservationsRecorder(RecorderTerm):
     """Recorder term that records the subtask completion observations in each step."""
 
     def record_pre_step(self):
-        return "obs/subtask_term_signals", self._env.obs_buf["subtask_terms"]
+        return "obs/datagen_info/subtask_term_signals", self._env.get_subtask_term_signals()
 
 
 @configclass
@@ -396,6 +402,15 @@ def main():
 
     # create environment
     env = gym.make(env_name, cfg=env_cfg)
+
+    if not isinstance(env.unwrapped, ManagerBasedRLMimicEnv):
+        raise ValueError("The environment should be derived from ManagerBasedRLMimicEnv")
+
+    # check if the mimic API env.unwrapped.get_subtask_term_signals() is implemented
+    if env.unwrapped.get_subtask_term_signals.__func__ is ManagerBasedRLMimicEnv.get_subtask_term_signals:
+        raise NotImplementedError(
+            "The environment does not implement the get_subtask_term_signals method required to run this script."
+        )
 
     # set seed for generation
     random.seed(env.unwrapped.cfg.datagen_config.seed)

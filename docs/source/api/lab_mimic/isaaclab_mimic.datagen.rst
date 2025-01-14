@@ -39,13 +39,6 @@ Datagen Info Pool
   :members:
   :inherited-members:
 
-Selection Strategy
-------------------
-
-.. autoclass:: SelectionStrategy
-  :members:
-  :inherited-members:
-
 Random Strategy
 ---------------
 

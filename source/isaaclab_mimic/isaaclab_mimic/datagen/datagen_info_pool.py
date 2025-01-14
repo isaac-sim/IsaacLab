@@ -36,9 +36,13 @@ class DataGenInfoPool:
 
         self._asyncio_lock = asyncio_lock
 
-        self.subtask_term_signals = [subtask_config.subtask_term_signal for subtask_config in env_cfg.subtask_configs]
+        if len(env_cfg.subtask_configs) != 1:
+            raise ValueError("Data generation currently supports only one end-effector.")
+
+        (subtask_configs,) = env_cfg.subtask_configs.values()
+        self.subtask_term_signals = [subtask_config.subtask_term_signal for subtask_config in subtask_configs]
         self.subtask_term_offset_ranges = [
-            subtask_config.subtask_term_offset_range for subtask_config in env_cfg.subtask_configs
+            subtask_config.subtask_term_offset_range for subtask_config in subtask_configs
         ]
 
     @property
@@ -82,41 +86,49 @@ class DataGenInfoPool:
             episode (EpisodeData): episode to add
         """
         ep_grp = episode.data
+        eef_name = list(self.env.cfg.subtask_configs.keys())[0]
 
         # extract datagen info
-        # Extract eef poses
-        eef_pos = ep_grp["obs"]["eef_pos"]
-        # format (w, x, y, z)
-        eef_quat = ep_grp["obs"]["eef_quat"]
+        if "datagen_info" in ep_grp["obs"]:
+            eef_pose = ep_grp["obs"]["datagen_info"]["eef_pose"][eef_name]
+            object_poses_dict = ep_grp["obs"]["datagen_info"]["object_pose"]
+            target_eef_pose = ep_grp["obs"]["datagen_info"]["target_eef_pose"][eef_name]
+            subtask_term_signals_dict = ep_grp["obs"]["datagen_info"]["subtask_term_signals"]
+        else:
+            # Extract eef poses
+            eef_pos = ep_grp["obs"]["eef_pos"]
+            eef_quat = ep_grp["obs"]["eef_quat"]  # format (w, x, y, z)
+            eef_rot_matrices = PoseUtils.matrix_from_quat(eef_quat)  # shape (N, 3, 3)
+            # Create pose matrices for all environments
+            eef_pose = PoseUtils.make_pose(eef_pos, eef_rot_matrices)  # shape (N, 4, 4)
 
-        eef_rot_matrices = PoseUtils.matrix_from_quat(eef_quat)  # shape (N, 3, 3)
+            # Object poses
+            object_poses_dict = dict()
+            for object_name, value in ep_grp["obs"]["object_pose"].items():
+                # object_pose
+                value = value["root_pose"]
+                # Root state ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame. Shape is (num_steps, 13).
+                # Quaternion ordering is wxyz
 
-        # Create pose matrices for all environments
-        eef_pose = PoseUtils.make_pose(eef_pos, eef_rot_matrices)  # shape (N, 4, 4)
+                # Convert to rotation matrices
+                object_rot_matrices = PoseUtils.matrix_from_quat(value[:, 3:7])  # shape (N, 3, 3)
+                object_rot_positions = value[:, 0:3]  # shape (N, 3)
+                object_poses_dict[object_name] = PoseUtils.make_pose(object_rot_positions, object_rot_matrices)
 
-        object_poses_dict = dict()
-        # TODO: change object_pose key in the dataset to object_state since it is not just the pose
-        for object_name, value in ep_grp["obs"]["object_pose"].items():
-            # object_pose
-            value = value["root_pose"]
-            # Root state ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame. Shape is (num_steps, 13).
-            # Quaternion ordering is wxyz
+            # Target eef pose
+            target_eef_pose = ep_grp["obs"]["target_eef_pose"]
 
-            # Convert to rotation matrices
-            object_rot_matrices = PoseUtils.matrix_from_quat(value[:, 3:7])  # shape (N, 3, 3)
-
-            object_rot_positions = value[:, 0:3]  # shape (N, 3)
-
-            object_poses_dict[object_name] = PoseUtils.make_pose(object_rot_positions, object_rot_matrices)
+            # Subtask termination signalsS
+            subtask_term_signals_dict = (ep_grp["obs"]["subtask_term_signals"],)
 
         # Extract gripper actions
-        gripper_actions = self.env.action_to_gripper_action(ep_grp["actions"])
+        gripper_actions = self.env.actions_to_gripper_actions(ep_grp["actions"])[eef_name]
 
         ep_datagen_info_obj = DatagenInfo(
             eef_pose=eef_pose,
             object_poses=object_poses_dict,
-            subtask_term_signals=ep_grp["obs"]["subtask_term_signals"],
-            target_eef_pose=ep_grp["obs"]["target_eef_pose"],
+            subtask_term_signals=subtask_term_signals_dict,
+            target_eef_pose=target_eef_pose,
             gripper_action=gripper_actions,
         )
         self._datagen_infos.append(ep_datagen_info_obj)

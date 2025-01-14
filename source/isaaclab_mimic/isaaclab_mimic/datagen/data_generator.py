@@ -47,9 +47,14 @@ class DataGenerator:
         assert isinstance(self.env_cfg, MimicEnvCfg)
         self.dataset_path = dataset_path
 
+        if len(self.env_cfg.subtask_configs) != 1:
+            raise ValueError("Data generation currently supports only one end-effector.")
+
+        (self.eef_name,) = self.env_cfg.subtask_configs.keys()
+        (self.subtask_configs,) = self.env_cfg.subtask_configs.values()
         # sanity check on task spec offset ranges - final subtask should not have any offset randomization
-        assert self.env_cfg.subtask_configs[-1].subtask_term_offset_range[0] == 0
-        assert self.env_cfg.subtask_configs[-1].subtask_term_offset_range[1] == 0
+        assert self.subtask_configs[-1].subtask_term_offset_range[0] == 0
+        assert self.subtask_configs[-1].subtask_term_offset_range[1] == 0
 
         self.demo_keys = demo_keys
 
@@ -88,8 +93,8 @@ class DataGenerator:
         # add them to subtask end indices, and then set them as the start indices of next subtask too
         for i in range(src_subtask_indices.shape[1] - 1):
             end_offsets = np.random.randint(
-                low=self.env_cfg.subtask_configs[i].subtask_term_offset_range[0],
-                high=self.env_cfg.subtask_configs[i].subtask_term_offset_range[1] + 1,
+                low=self.subtask_configs[i].subtask_term_offset_range[0],
+                high=self.subtask_configs[i].subtask_term_offset_range[1] + 1,
                 size=src_subtask_indices.shape[0],
             )
             src_subtask_indices[:, i, 1] = src_subtask_indices[:, i, 1] + end_offsets
@@ -235,6 +240,8 @@ class DataGenerator:
                 src_demo_inds (list): list of selected source demonstration indices for each subtask
                 src_demo_labels (np.array): same as @src_demo_inds, but repeated to have a label for each timestep of the trajectory
         """
+        eef_names = list(self.env_cfg.subtask_configs.keys())
+        eef_name = eef_names[0]
 
         # reset the env to create a new task demo instance
         env_id_tensor = torch.tensor([env_id], dtype=torch.int64, device=self.env.device)
@@ -257,17 +264,17 @@ class DataGenerator:
         )  # like @generated_src_demo_inds, but padded to align with size of @generated_actions
 
         prev_src_demo_datagen_info_pool_size = 0
-        for subtask_ind in range(len(self.env_cfg.subtask_configs)):
+        for subtask_ind in range(len(self.subtask_configs)):
 
             # some things only happen on first subtask
             is_first_subtask = subtask_ind == 0
 
             # name of object for this subtask
-            subtask_object_name = self.env_cfg.subtask_configs[subtask_ind].object_ref
+            subtask_object_name = self.subtask_configs[subtask_ind].object_ref
 
             # corresponding current object pose
             cur_object_pose = (
-                self.env.get_object_poses(env_ind=env_id)[subtask_object_name]
+                self.env.get_object_poses(env_ids=[env_id])[subtask_object_name][0]
                 if (subtask_object_name is not None)
                 else None
             )
@@ -288,13 +295,13 @@ class DataGenerator:
                 # Run source demo selection or use selected demo from previous iteration
                 if need_source_demo_selection:
                     selected_src_demo_ind = self.select_source_demo(
-                        eef_pose=self.env.get_robot_eef_pose(env_ind=env_id),
+                        eef_pose=self.env.get_robot_eef_pose(eef_name, env_ids=[env_id])[0],
                         object_pose=cur_object_pose,
                         subtask_ind=subtask_ind,
                         src_subtask_inds=all_subtask_inds[:, subtask_ind],
                         subtask_object_name=subtask_object_name,
-                        selection_strategy_name=self.env_cfg.subtask_configs[subtask_ind].selection_strategy,
-                        selection_strategy_kwargs=self.env_cfg.subtask_configs[subtask_ind].selection_strategy_kwargs,
+                        selection_strategy_name=self.subtask_configs[subtask_ind].selection_strategy,
+                        selection_strategy_kwargs=self.subtask_configs[subtask_ind].selection_strategy_kwargs,
                     )
                 assert selected_src_demo_ind is not None
 
@@ -356,17 +363,19 @@ class DataGenerator:
             else:
                 # Interpolation segment will start from current robot eef pose.
                 init_sequence = WaypointSequence.from_poses(
-                    poses=self.env.get_robot_eef_pose(env_ind=env_id)[None],
+                    eef_names=eef_names,
+                    poses=self.env.get_robot_eef_pose(eef_name, env_ids=[env_id])[0][None],
                     gripper_actions=src_subtask_gripper_actions[0:1],
-                    action_noise=self.env_cfg.subtask_configs[subtask_ind].action_noise,
+                    action_noise=self.subtask_configs[subtask_ind].action_noise,
                 )
             traj_to_execute.add_waypoint_sequence(init_sequence)
 
             # Construct trajectory for the transformed segment.
             transformed_seq = WaypointSequence.from_poses(
+                eef_names=eef_names,
                 poses=transformed_eef_poses,
                 gripper_actions=src_subtask_gripper_actions,
-                action_noise=self.env_cfg.subtask_configs[subtask_ind].action_noise,
+                action_noise=self.subtask_configs[subtask_ind].action_noise,
             )
             transformed_traj = WaypointTrajectory()
             transformed_traj.add_waypoint_sequence(transformed_seq)
@@ -375,11 +384,12 @@ class DataGenerator:
             # Interpolation will happen from the initial pose (@init_sequence) to the first element of @transformed_seq.
             traj_to_execute.merge(
                 transformed_traj,
-                num_steps_interp=self.env_cfg.subtask_configs[subtask_ind].num_interpolation_steps,
-                num_steps_fixed=self.env_cfg.subtask_configs[subtask_ind].num_fixed_steps,
+                eef_names=eef_names,
+                num_steps_interp=self.subtask_configs[subtask_ind].num_interpolation_steps,
+                num_steps_fixed=self.subtask_configs[subtask_ind].num_fixed_steps,
                 action_noise=(
-                    float(self.env_cfg.subtask_configs[subtask_ind].apply_noise_during_interpolation)
-                    * self.env_cfg.subtask_configs[subtask_ind].action_noise
+                    float(self.subtask_configs[subtask_ind].apply_noise_during_interpolation)
+                    * self.subtask_configs[subtask_ind].action_noise
                 ),
             )
 

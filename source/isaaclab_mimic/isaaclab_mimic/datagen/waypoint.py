@@ -18,7 +18,7 @@ class Waypoint:
     Represents a single desired 6-DoF waypoint, along with corresponding gripper actuation for this point.
     """
 
-    def __init__(self, pose, gripper_action, noise=None):
+    def __init__(self, eef_names, pose, gripper_action, noise=None):
         """
         Args:
             pose (torch.Tensor): 4x4 pose target for robot controller
@@ -26,10 +26,10 @@ class Waypoint:
             noise (float or None): action noise amplitude to apply during execution at this timestep
                 (for arm actions, not gripper actions)
         """
+        self.eef_names = eef_names
         self.pose = pose
         self.gripper_action = gripper_action
         self.noise = noise
-        assert len(self.gripper_action.shape) == 1
 
     def __str__(self):
         """String representation of the waypoint."""
@@ -54,7 +54,7 @@ class WaypointSequence:
             self.sequence = deepcopy(sequence)
 
     @classmethod
-    def from_poses(cls, poses, gripper_actions, action_noise):
+    def from_poses(cls, eef_names, poses, gripper_actions, action_noise):
         """
         Instantiate a WaypointSequence object given a sequence of poses,
         gripper actions, and action noise.
@@ -79,6 +79,7 @@ class WaypointSequence:
         # make WaypointSequence instance
         sequence = [
             Waypoint(
+                eef_names=eef_names,
                 pose=poses[t],
                 gripper_action=gripper_actions[t],
                 noise=action_noise[t, 0],
@@ -201,6 +202,7 @@ class WaypointTrajectory:
 
     def add_waypoint_sequence_for_target_pose(
         self,
+        eef_names,
         pose,
         gripper_action,
         num_steps,
@@ -252,6 +254,7 @@ class WaypointTrajectory:
 
         # add waypoint sequence for this set of poses
         sequence = WaypointSequence.from_poses(
+            eef_names=eef_names,
             poses=poses,
             gripper_actions=gripper_actions,
             action_noise=action_noise,
@@ -278,6 +281,7 @@ class WaypointTrajectory:
     def merge(
         self,
         other,
+        eef_names,
         num_steps_interp=None,
         num_steps_fixed=None,
         action_noise=0.0,
@@ -311,6 +315,7 @@ class WaypointTrajectory:
             if need_interp:
                 # interpolation segment
                 self.add_waypoint_sequence_for_target_pose(
+                    eef_names=eef_names,
                     pose=target_for_interpolation.pose,
                     gripper_action=target_for_interpolation.gripper_action,
                     num_steps=num_steps_interp,
@@ -324,6 +329,7 @@ class WaypointTrajectory:
                 # account for the fact that we pop'd the first element of @other in anticipation of an interpolation segment
                 num_steps_fixed_to_use = num_steps_fixed if need_interp else (num_steps_fixed + 1)
                 self.add_waypoint_sequence_for_target_pose(
+                    eef_names=eef_names,
                     pose=target_for_interpolation.pose,
                     gripper_action=target_for_interpolation.gripper_action,
                     num_steps=num_steps_fixed_to_use,
@@ -382,17 +388,15 @@ class WaypointTrajectory:
                 obs = env.obs_buf
                 state = env.scene.get_state(is_relative=True)
 
-                # convert target pose to arm action
-                action_pose = env.target_eef_pose_to_action(target_eef_pose=waypoint.pose, env_ind=env_id)
-
-                # maybe add noise to action using torch.randn
-                if waypoint.noise is not None:
-                    noise = waypoint.noise * torch.randn_like(action_pose)
-                    action_pose += noise
-                    action_pose = torch.clamp(action_pose, -1.0, 1.0)
-
-                # add in gripper action
-                play_action = torch.cat([action_pose, waypoint.gripper_action], dim=0)
+                # convert target pose and gripper action to env action
+                target_eef_pose_dict = {waypoint.eef_names[0]: waypoint.pose}
+                gripper_action_dict = {waypoint.eef_names[0]: waypoint.gripper_action}
+                play_action = env.target_eef_pose_to_action(
+                    target_eef_pose_dict=target_eef_pose_dict,
+                    gripper_action_dict=gripper_action_dict,
+                    noise=waypoint.noise,
+                    env_id=env_id,
+                )
 
                 # step environment
                 if not isinstance(play_action, torch.Tensor):
