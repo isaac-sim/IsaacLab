@@ -902,11 +902,13 @@
 <span class="sd">            env_ids: Environment indices. If None, then all indices are used.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="c1"># resolve all indices</span>
+        <span class="n">physx_env_ids</span> <span class="o">=</span> <span class="n">env_ids</span>
         <span class="k">if</span> <span class="n">env_ids</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="n">local_env_ids</span> <span class="o">=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
+            <span class="n">env_ids</span> <span class="o">=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
+            <span class="n">physx_env_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ALL_INDICES</span>
 
-        <span class="n">com_pos</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">com_pos_b</span><span class="p">[</span><span class="n">local_env_ids</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="p">:]</span>
-        <span class="n">com_quat</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">com_quat_b</span><span class="p">[</span><span class="n">local_env_ids</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="p">:]</span>
+        <span class="n">com_pos</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">com_pos_b</span><span class="p">[</span><span class="n">env_ids</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="p">:]</span>
+        <span class="n">com_quat</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">com_quat_b</span><span class="p">[</span><span class="n">env_ids</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="p">:]</span>
 
         <span class="n">root_link_pos</span><span class="p">,</span> <span class="n">root_link_quat</span> <span class="o">=</span> <span class="n">math_utils</span><span class="o">.</span><span class="n">combine_frame_transforms</span><span class="p">(</span>
             <span class="n">root_pose</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="p">:</span><span class="mi">3</span><span class="p">],</span>
@@ -916,7 +918,7 @@
         <span class="p">)</span>
 
         <span class="n">root_link_pose</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">((</span><span class="n">root_link_pos</span><span class="p">,</span> <span class="n">root_link_quat</span><span class="p">),</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">write_root_link_pose_to_sim</span><span class="p">(</span><span class="n">root_pose</span><span class="o">=</span><span class="n">root_link_pose</span><span class="p">,</span> <span class="n">env_ids</span><span class="o">=</span><span class="n">env_ids</span><span class="p">)</span></div>
+        <span class="bp">self</span><span class="o">.</span><span class="n">write_root_link_pose_to_sim</span><span class="p">(</span><span class="n">root_pose</span><span class="o">=</span><span class="n">root_link_pose</span><span class="p">,</span> <span class="n">env_ids</span><span class="o">=</span><span class="n">physx_env_ids</span><span class="p">)</span></div>
 
 <div class="viewcode-block" id="Articulation.write_root_velocity_to_sim"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.Articulation.write_root_velocity_to_sim">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">write_root_velocity_to_sim</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">root_velocity</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Set the root center of mass velocity over selected environment indices into the simulation.</span>
@@ -975,18 +977,20 @@
 <span class="sd">            env_ids: Environment indices. If None, then all indices are used.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="c1"># resolve all indices</span>
+        <span class="n">physx_env_ids</span> <span class="o">=</span> <span class="n">env_ids</span>
         <span class="k">if</span> <span class="n">env_ids</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="n">local_env_ids</span> <span class="o">=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
+            <span class="n">env_ids</span> <span class="o">=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
+            <span class="n">physx_env_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ALL_INDICES</span>
 
         <span class="n">root_com_velocity</span> <span class="o">=</span> <span class="n">root_velocity</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
-        <span class="n">quat</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">root_link_state_w</span><span class="p">[</span><span class="n">local_env_ids</span><span class="p">,</span> <span class="mi">3</span><span class="p">:</span><span class="mi">7</span><span class="p">]</span>
-        <span class="n">com_pos_b</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">com_pos_b</span><span class="p">[</span><span class="n">local_env_ids</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="p">:]</span>
+        <span class="n">quat</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">root_link_state_w</span><span class="p">[</span><span class="n">env_ids</span><span class="p">,</span> <span class="mi">3</span><span class="p">:</span><span class="mi">7</span><span class="p">]</span>
+        <span class="n">com_pos_b</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">com_pos_b</span><span class="p">[</span><span class="n">env_ids</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="p">:]</span>
         <span class="c1"># transform given velocity to center of mass</span>
         <span class="n">root_com_velocity</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">3</span><span class="p">]</span> <span class="o">+=</span> <span class="n">torch</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">cross</span><span class="p">(</span>
             <span class="n">root_com_velocity</span><span class="p">[:,</span> <span class="mi">3</span><span class="p">:],</span> <span class="n">math_utils</span><span class="o">.</span><span class="n">quat_rotate</span><span class="p">(</span><span class="n">quat</span><span class="p">,</span> <span class="n">com_pos_b</span><span class="p">),</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span>
         <span class="p">)</span>
         <span class="c1"># write center of mass velocity to sim</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">write_root_com_velocity_to_sim</span><span class="p">(</span><span class="n">root_velocity</span><span class="o">=</span><span class="n">root_com_velocity</span><span class="p">,</span> <span class="n">env_ids</span><span class="o">=</span><span class="n">env_ids</span><span class="p">)</span></div>
+        <span class="bp">self</span><span class="o">.</span><span class="n">write_root_com_velocity_to_sim</span><span class="p">(</span><span class="n">root_velocity</span><span class="o">=</span><span class="n">root_com_velocity</span><span class="p">,</span> <span class="n">env_ids</span><span class="o">=</span><span class="n">physx_env_ids</span><span class="p">)</span></div>
 
 <div class="viewcode-block" id="Articulation.write_joint_state_to_sim"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.Articulation.write_joint_state_to_sim">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">write_joint_state_to_sim</span><span class="p">(</span>
         <span class="bp">self</span><span class="p">,</span>
