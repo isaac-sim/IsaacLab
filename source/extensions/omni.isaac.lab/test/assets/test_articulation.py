@@ -1088,6 +1088,7 @@ class TestArticulation(unittest.TestCase):
                                 # make quaternion a unit vector
                                 rand_state[..., 3:7] = torch.nn.functional.normalize(rand_state[..., 3:7], dim=-1)
 
+                                env_idx = env_idx.to(device)
                                 for i in range(10):
 
                                     # perform step
@@ -1096,9 +1097,15 @@ class TestArticulation(unittest.TestCase):
                                     articulation.update(sim.cfg.dt)
 
                                     if state_location == "com":
-                                        articulation.write_root_com_state_to_sim(rand_state)
+                                        if i % 2 == 0:
+                                            articulation.write_root_com_state_to_sim(rand_state)
+                                        else:
+                                            articulation.write_root_com_state_to_sim(rand_state, env_ids=env_idx)
                                     elif state_location == "link":
-                                        articulation.write_root_link_state_to_sim(rand_state)
+                                        if i % 2 == 0:
+                                            articulation.write_root_link_state_to_sim(rand_state)
+                                        else:
+                                            articulation.write_root_link_state_to_sim(rand_state, env_ids=env_idx)
 
                                     if state_location == "com":
                                         torch.testing.assert_close(rand_state, articulation.data.root_com_state_w)
