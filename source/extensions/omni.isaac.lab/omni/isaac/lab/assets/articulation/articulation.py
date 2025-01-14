@@ -387,7 +387,6 @@ class Articulation(AssetBase):
         # resolve all indices
         physx_env_ids = env_ids
         if env_ids is None:
-            local_env_ids = slice(None)
             env_ids = slice(None)
             physx_env_ids = self._ALL_INDICES
 
