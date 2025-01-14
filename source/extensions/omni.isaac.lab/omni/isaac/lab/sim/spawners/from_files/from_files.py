@@ -101,6 +101,46 @@ def spawn_from_urdf(
     # spawn asset from the generated usd file
     return _spawn_from_usd_file(prim_path, urdf_loader.usd_path, cfg, translation, orientation)
 
+@clone
+def spawn_from_mjcf(
+    prim_path: str,
+    cfg: from_files_cfg.MjcfFileCfg,
+    translation: tuple[float, float, float] | None = None,
+    orientation: tuple[float, float, float, float] | None = None,
+) -> Usd.Prim:
+    """Spawn an asset from a MJCF file and override the settings with the given config.
+
+    It uses the :class:`MjcfConverter` class to create a USD file from MJCF. This file is then imported
+    at the specified prim path.
+
+    In case a prim already exists at the given prim path, then the function does not create a new prim
+    or throw an error that the prim already exists. Instead, it just takes the existing prim and overrides
+    the settings with the given config.
+
+    .. note::
+        This function is decorated with :func:`clone` that resolves prim path into list of paths
+        if the input prim path is a regex pattern. This is done to support spawning multiple assets
+        from a single and cloning the USD prim at the given path expression.
+
+    Args:
+        prim_path: The prim path or pattern to spawn the asset at. If the prim path is a regex pattern,
+            then the asset is spawned at all the matching prim paths.
+        cfg: The configuration instance.
+        translation: The translation to apply to the prim w.r.t. its parent prim. Defaults to None, in which
+            case the translation specified in the generated USD file is used.
+        orientation: The orientation in (w, x, y, z) to apply to the prim w.r.t. its parent prim. Defaults to None,
+            in which case the orientation specified in the generated USD file is used.
+
+    Returns:
+        The prim of the spawned asset.
+
+    Raises:
+        FileNotFoundError: If the MJCF file does not exist at the given path.
+    """
+    # mjcf loader to convert mjcf to usd
+    mjcf_loader = converters.MjcfConverter(cfg)
+    # spawn asset from the generated usd file
+    return _spawn_from_usd_file(prim_path, mjcf_loader.usd_path, cfg, translation, orientation)
 
 def spawn_ground_plane(
     prim_path: str,

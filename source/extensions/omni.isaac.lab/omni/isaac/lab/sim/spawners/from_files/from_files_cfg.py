@@ -121,6 +121,27 @@ class UrdfFileCfg(FileCfg, converters.UrdfConverterCfg):
 
     func: Callable = from_files.spawn_from_urdf
 
+@configclass
+class MjcfFileCfg(FileCfg, converters.MjcfConverterCfg):
+    """MJCF file to spawn asset from.
+
+    It uses the :class:`MjcfConverter` class to create a USD file from MJCF and spawns the imported
+    USD file. Similar to the :class:`UsdFileCfg`, the generated USD file can be modified by specifying
+    the respective properties in the configuration class.
+
+    See :meth:`spawn_from_mjcf` for more information.
+
+    .. note::
+        The configuration parameters include various properties. If not `None`, these properties
+        are modified on the spawned prim in a nested manner.
+
+        If they are set to a value, then the properties are modified on the spawned prim in a nested manner.
+        This is done by calling the respective function with the specified properties.
+
+    """
+
+    func: Callable = from_files.spawn_from_mjcf
+
 
 """
 Spawning ground plane.

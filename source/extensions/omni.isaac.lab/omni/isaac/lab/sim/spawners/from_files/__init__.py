@@ -13,5 +13,5 @@ Currently, the following spawners are supported:
 
 """
 
-from .from_files import spawn_from_urdf, spawn_from_usd, spawn_ground_plane
-from .from_files_cfg import GroundPlaneCfg, UrdfFileCfg, UsdFileCfg
+from .from_files import spawn_from_urdf, spawn_from_mjcf, spawn_from_usd, spawn_ground_plane
+from .from_files_cfg import GroundPlaneCfg, UrdfFileCfg, MjcfFileCfg, UsdFileCfg
