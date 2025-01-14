@@ -63,7 +63,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="1.4.0" />
-    <meta name="docbuild:last-update" content="Jan 13, 2025"/>
+    <meta name="docbuild:last-update" content="Jan 14, 2025"/>
   </head>
   
   
@@ -5186,21 +5186,21 @@ to the world.</p>
 <dl class="py property">
 <dt class="sig sig-object py" id="omni.isaac.lab.assets.ArticulationData.body_link_pos_w">
 <em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">body_link_pos_w</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.5)"><span class="pre">torch.Tensor</span></a></em><a class="headerlink" href="#omni.isaac.lab.assets.ArticulationData.body_link_pos_w" title="Permalink to this definition">#</a></dt>
-<dd><p>Positions of all bodies in simulation world frame. Shape is (num_instances, 1, 3).</p>
+<dd><p>Positions of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3).</p>
 <p>This quantity is the position of the rigid bodies’ actor frame relative to the world.</p>
 </dd></dl>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="omni.isaac.lab.assets.ArticulationData.body_link_quat_w">
 <em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">body_link_quat_w</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.5)"><span class="pre">torch.Tensor</span></a></em><a class="headerlink" href="#omni.isaac.lab.assets.ArticulationData.body_link_quat_w" title="Permalink to this definition">#</a></dt>
-<dd><p>Orientation (w, x, y, z) of all bodies in simulation world frame. Shape is (num_instances, 1, 4).</p>
+<dd><p>Orientation (w, x, y, z) of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 4).</p>
 <p>This quantity is the orientation of the rigid bodies’ actor frame  relative to the world.</p>
 </dd></dl>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="omni.isaac.lab.assets.ArticulationData.body_link_vel_w">
 <em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">body_link_vel_w</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.5)"><span class="pre">torch.Tensor</span></a></em><a class="headerlink" href="#omni.isaac.lab.assets.ArticulationData.body_link_vel_w" title="Permalink to this definition">#</a></dt>
-<dd><p>Velocity of all bodies in simulation world frame. Shape is (num_instances, 1, 6).</p>
+<dd><p>Velocity of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 6).</p>
 <p>This quantity contains the linear and angular velocities of the rigid bodies’ center of mass frame
 relative to the world.</p>
 </dd></dl>
@@ -5208,21 +5208,21 @@ relative to the world.</p>
 <dl class="py property">
 <dt class="sig sig-object py" id="omni.isaac.lab.assets.ArticulationData.body_link_lin_vel_w">
 <em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">body_link_lin_vel_w</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.5)"><span class="pre">torch.Tensor</span></a></em><a class="headerlink" href="#omni.isaac.lab.assets.ArticulationData.body_link_lin_vel_w" title="Permalink to this definition">#</a></dt>
-<dd><p>Linear velocity of all bodies in simulation world frame. Shape is (num_instances, 1, 3).</p>
+<dd><p>Linear velocity of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3).</p>
 <p>This quantity is the linear velocity of the rigid bodies’ center of mass frame relative to the world.</p>
 </dd></dl>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="omni.isaac.lab.assets.ArticulationData.body_link_ang_vel_w">
 <em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">body_link_ang_vel_w</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.5)"><span class="pre">torch.Tensor</span></a></em><a class="headerlink" href="#omni.isaac.lab.assets.ArticulationData.body_link_ang_vel_w" title="Permalink to this definition">#</a></dt>
-<dd><p>Angular velocity of all bodies in simulation world frame. Shape is (num_instances, 1, 3).</p>
+<dd><p>Angular velocity of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3).</p>
 <p>This quantity is the angular velocity of the rigid bodies’ center of mass frame relative to the world.</p>
 </dd></dl>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="omni.isaac.lab.assets.ArticulationData.body_com_pos_w">
 <em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">body_com_pos_w</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.5)"><span class="pre">torch.Tensor</span></a></em><a class="headerlink" href="#omni.isaac.lab.assets.ArticulationData.body_com_pos_w" title="Permalink to this definition">#</a></dt>
-<dd><p>Positions of all bodies in simulation world frame. Shape is (num_instances, 1, 3).</p>
+<dd><p>Positions of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3).</p>
 <p>This quantity is the position of the rigid bodies’ actor frame.</p>
 </dd></dl>
 
@@ -5230,27 +5230,27 @@ relative to the world.</p>
 <dt class="sig sig-object py" id="omni.isaac.lab.assets.ArticulationData.body_com_quat_w">
 <em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">body_com_quat_w</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.5)"><span class="pre">torch.Tensor</span></a></em><a class="headerlink" href="#omni.isaac.lab.assets.ArticulationData.body_com_quat_w" title="Permalink to this definition">#</a></dt>
 <dd><p>Orientation (w, x, y, z) of the prinicple axies of inertia of all bodies in simulation world frame.</p>
-<p>Shape is (num_instances, 1, 4). This quantity is the orientation of the rigid bodies’ actor frame.</p>
+<p>Shape is (num_instances, num_bodies, 4). This quantity is the orientation of the rigid bodies’ actor frame.</p>
 </dd></dl>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="omni.isaac.lab.assets.ArticulationData.body_com_vel_w">
 <em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">body_com_vel_w</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.5)"><span class="pre">torch.Tensor</span></a></em><a class="headerlink" href="#omni.isaac.lab.assets.ArticulationData.body_com_vel_w" title="Permalink to this definition">#</a></dt>
-<dd><p>Velocity of all bodies in simulation world frame. Shape is (num_instances, 1, 6).</p>
+<dd><p>Velocity of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 6).</p>
 <p>This quantity contains the linear and angular velocities of the rigid bodies’ center of mass frame.</p>
 </dd></dl>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="omni.isaac.lab.assets.ArticulationData.body_com_lin_vel_w">
 <em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">body_com_lin_vel_w</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.5)"><span class="pre">torch.Tensor</span></a></em><a class="headerlink" href="#omni.isaac.lab.assets.ArticulationData.body_com_lin_vel_w" title="Permalink to this definition">#</a></dt>
-<dd><p>Linear velocity of all bodies in simulation world frame. Shape is (num_instances, 1, 3).</p>
+<dd><p>Linear velocity of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3).</p>
 <p>This quantity is the linear velocity of the rigid bodies’ center of mass frame.</p>
 </dd></dl>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="omni.isaac.lab.assets.ArticulationData.body_com_ang_vel_w">
 <em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">body_com_ang_vel_w</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.5)"><span class="pre">torch.Tensor</span></a></em><a class="headerlink" href="#omni.isaac.lab.assets.ArticulationData.body_com_ang_vel_w" title="Permalink to this definition">#</a></dt>
-<dd><p>Angular velocity of all bodies in simulation world frame. Shape is (num_instances, 1, 3).</p>
+<dd><p>Angular velocity of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3).</p>
 <p>This quantity is the angular velocity of the rigid bodies’ center of mass frame.</p>
 </dd></dl>
 
@@ -6619,7 +6619,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jan 13, 2025.
+  Last updated on Jan 14, 2025.
   <br/>
 </p>
   </div>

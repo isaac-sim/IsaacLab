@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="1.4.0" />
-    <meta name="docbuild:last-update" content="Jan 13, 2025"/>
+    <meta name="docbuild:last-update" content="Jan 14, 2025"/>
   </head>
   
   
@@ -1264,7 +1264,7 @@
 
     <span class="nd">@property</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">body_link_pos_w</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Positions of all bodies in simulation world frame. Shape is (num_instances, 1, 3).</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Positions of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3).</span>
 
 <span class="sd">        This quantity is the position of the rigid bodies&#39; actor frame relative to the world.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
@@ -1277,7 +1277,7 @@
 
     <span class="nd">@property</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">body_link_quat_w</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Orientation (w, x, y, z) of all bodies in simulation world frame. Shape is (num_instances, 1, 4).</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Orientation (w, x, y, z) of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 4).</span>
 
 <span class="sd">        This quantity is the orientation of the rigid bodies&#39; actor frame  relative to the world.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
@@ -1291,7 +1291,7 @@
 
     <span class="nd">@property</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">body_link_vel_w</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Velocity of all bodies in simulation world frame. Shape is (num_instances, 1, 6).</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Velocity of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 6).</span>
 
 <span class="sd">        This quantity contains the linear and angular velocities of the rigid bodies&#39; center of mass frame</span>
 <span class="sd">        relative to the world.</span>
@@ -1300,7 +1300,7 @@
 
     <span class="nd">@property</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">body_link_lin_vel_w</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Linear velocity of all bodies in simulation world frame. Shape is (num_instances, 1, 3).</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Linear velocity of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3).</span>
 
 <span class="sd">        This quantity is the linear velocity of the rigid bodies&#39; center of mass frame relative to the world.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
@@ -1308,7 +1308,7 @@
 
     <span class="nd">@property</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">body_link_ang_vel_w</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Angular velocity of all bodies in simulation world frame. Shape is (num_instances, 1, 3).</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Angular velocity of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3).</span>
 
 <span class="sd">        This quantity is the angular velocity of the rigid bodies&#39; center of mass frame relative to the world.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
@@ -1320,7 +1320,7 @@
 
     <span class="nd">@property</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">body_com_pos_w</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Positions of all bodies in simulation world frame. Shape is (num_instances, 1, 3).</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Positions of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3).</span>
 
 <span class="sd">        This quantity is the position of the rigid bodies&#39; actor frame.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
@@ -1330,13 +1330,13 @@
     <span class="k">def</span><span class="w"> </span><span class="nf">body_com_quat_w</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Orientation (w, x, y, z) of the prinicple axies of inertia of all bodies in simulation world frame.</span>
 
-<span class="sd">        Shape is (num_instances, 1, 4). This quantity is the orientation of the rigid bodies&#39; actor frame.</span>
+<span class="sd">        Shape is (num_instances, num_bodies, 4). This quantity is the orientation of the rigid bodies&#39; actor frame.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">body_com_state_w</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">3</span><span class="p">:</span><span class="mi">7</span><span class="p">]</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">body_com_vel_w</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Velocity of all bodies in simulation world frame. Shape is (num_instances, 1, 6).</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Velocity of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 6).</span>
 
 <span class="sd">        This quantity contains the linear and angular velocities of the rigid bodies&#39; center of mass frame.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
@@ -1349,7 +1349,7 @@
 
     <span class="nd">@property</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">body_com_lin_vel_w</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Linear velocity of all bodies in simulation world frame. Shape is (num_instances, 1, 3).</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Linear velocity of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3).</span>
 
 <span class="sd">        This quantity is the linear velocity of the rigid bodies&#39; center of mass frame.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
@@ -1362,7 +1362,7 @@
 
     <span class="nd">@property</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">body_com_ang_vel_w</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Angular velocity of all bodies in simulation world frame. Shape is (num_instances, 1, 3).</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Angular velocity of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3).</span>
 
 <span class="sd">        This quantity is the angular velocity of the rigid bodies&#39; center of mass frame.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
@@ -1436,7 +1436,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jan 13, 2025.
+  Last updated on Jan 14, 2025.
   <br/>
 </p>
   </div>
