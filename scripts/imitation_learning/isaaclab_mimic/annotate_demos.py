@@ -55,6 +55,7 @@ import isaaclab_mimic.envs  # noqa: F401
 # Only enables inputs if this script is NOT headless mode
 if not args_cli.headless and not os.environ.get("HEADLESS", 0):
     from isaaclab.devices import Se3Keyboard
+from isaaclab.envs import ManagerBasedRLMimicEnv
 from isaaclab.envs.mdp.recorders.recorders_cfg import ActionStateRecorderManagerCfg
 from isaaclab.managers import RecorderTerm, RecorderTermCfg
 from isaaclab.utils import configclass
@@ -88,11 +89,16 @@ class PreStepDatagenInfoRecorder(RecorderTerm):
     """Recorder term that records the datagen info data in each step."""
 
     def record_pre_step(self):
+        eef_pose_dict = {}
+        for eef_name in self._env.cfg.subtask_configs.keys():
+            eef_pose_dict[eef_name] = self._env.get_robot_eef_pose(eef_name)
+
         datagen_info = {
-            "object_pose": self._env.scene.get_state(is_relative=True)["rigid_object"],
-            "target_eef_pose": self._env.action_to_target_eef_pos(self._env.action_manager.action),
+            "object_pose": self._env.get_object_poses(),
+            "eef_pose": eef_pose_dict,
+            "target_eef_pose": self._env.action_to_target_eef_pose(self._env.action_manager.action),
         }
-        return "obs", datagen_info
+        return "obs/datagen_info", datagen_info
 
 
 @configclass
@@ -106,7 +112,7 @@ class PreStepSubtaskTermsObservationsRecorder(RecorderTerm):
     """Recorder term that records the subtask completion observations in each step."""
 
     def record_pre_step(self):
-        return "obs/subtask_term_signals", self._env.obs_buf["subtask_terms"]
+        return "obs/datagen_info/subtask_term_signals", self._env.get_subtask_term_signals()
 
 
 @configclass
@@ -164,11 +170,25 @@ def main():
     # Set up recorder terms for mimic annotations
     env_cfg.env_name = args_cli.task
     env_cfg.recorders: MimicRecorderManagerCfg = MimicRecorderManagerCfg()
+    if not args_cli.auto:
+        # disable subtask term signals recorder term if in manual mode
+        env_cfg.recorders.record_pre_step_subtask_term_signals = None
     env_cfg.recorders.dataset_export_dir_path = output_dir
     env_cfg.recorders.dataset_filename = output_file_name
 
     # create environment from loaded config
     env = gym.make(args_cli.task, cfg=env_cfg)
+
+    if not isinstance(env.unwrapped, ManagerBasedRLMimicEnv):
+        raise ValueError("The environment should be derived from ManagerBasedRLMimicEnv")
+
+    if args_cli.auto:
+        # check if the mimic API env.unwrapped.get_subtask_term_signals() is implemented
+        if env.unwrapped.get_subtask_term_signals.__func__ is ManagerBasedRLMimicEnv.get_subtask_term_signals:
+            raise NotImplementedError(
+                "The environment does not implement the get_subtask_term_signals method required "
+                "to run automatic annotations."
+            )
 
     # reset environment
     env.reset()
@@ -219,13 +239,12 @@ def main():
                             f"                          to number of subtasks {len(args_cli.signals)}"
                         )
                     annotated_episode = env.unwrapped.recorder_manager.get_episode(0)
-                    del annotated_episode.data["obs"]["subtask_term_signals"]
                     for subtask_index in range(len(args_cli.signals)):
                         # subtask termination signal is false until subtask is complete, and true afterwards
                         subtask_signals = torch.ones(len(actions), dtype=torch.bool)
                         subtask_signals[: subtask_indices[subtask_index]] = False
                         annotated_episode.add(
-                            f"obs/subtask_term_signals/{args_cli.signals[subtask_index]}", subtask_signals
+                            f"obs/datagen_info/subtask_term_signals/{args_cli.signals[subtask_index]}", subtask_signals
                         )
 
                 # set success to the recorded episode data and export to file

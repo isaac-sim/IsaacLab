@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import torch
+from collections.abc import Sequence
 
 import isaaclab.utils.math as PoseUtils
 from isaaclab.envs import ManagerBasedRLMimicEnv
@@ -14,131 +15,147 @@ class FrankaCubeStackIKRelMimicEnv(ManagerBasedRLMimicEnv):
     Isaac Lab Mimic environment wrapper class for Franka Cube Stack IK Rel env.
     """
 
-    def get_robot_eef_pose(self, env_ind=0):
+    def get_robot_eef_pose(self, eef_name: str, env_ids: Sequence[int] | None = None) -> torch.Tensor:
         """
         Get current robot end effector pose. Should be the same frame as used by the robot end-effector controller.
 
+        Args:
+            eef_name: Name of the end effector.
+            env_ids: Environment indices to get the pose for. If None, all envs are considered.
+
         Returns:
-            pose (torch.Tensor): 4x4 eef pose matrix
+            A torch.Tensor eef pose matrix. Shape is (len(env_ids), 4, 4)
         """
+        if env_ids is None:
+            env_ids = slice(None)
 
         # Retrieve end effector pose from the observation buffer
-        eef_pos = self.obs_buf["policy"]["eef_pos"][env_ind]
-        eef_quat = self.obs_buf["policy"]["eef_quat"][env_ind]
+        eef_pos = self.obs_buf["policy"]["eef_pos"][env_ids]
+        eef_quat = self.obs_buf["policy"]["eef_quat"][env_ids]
         # Quaternion format is w,x,y,z
         return PoseUtils.make_pose(eef_pos, PoseUtils.matrix_from_quat(eef_quat))
 
-    def target_eef_pose_to_action(self, target_eef_pose, relative=True, env_ind=0):
+    def target_eef_pose_to_action(
+        self, target_eef_pose_dict: dict, gripper_action_dict: dict, noise: float | None = None, env_id: int = 0
+    ) -> torch.Tensor:
         """
-        Takes a target pose for the end effector controller and returns an action
+        Takes a target pose and gripper action for the end effector controller and returns an action
         (usually a normalized delta pose action) to try and achieve that target pose.
+        Noise is added to the target pose action if specified.
 
         Args:
-            target_eef_pose (torch.Tensor): 4x4 target eef pose
-            relative (bool): if True, use relative pose actions, else absolute pose actions
+            target_eef_pose_dict: Dictionary of 4x4 target eef pose for each end-effector.
+            gripper_action_dict: Dictionary of gripper actions for each end-effector.
+            noise: Noise to add to the action. If None, no noise is added.
+            env_id: Environment index to get the action for.
 
         Returns:
-            action (torch.Tensor): action compatible with env.step (minus gripper actuation)
+            An action torch.Tensor that's compatible with env.step().
         """
+        eef_name = list(self.cfg.subtask_configs.keys())[0]
 
         # target position and rotation
+        (target_eef_pose,) = target_eef_pose_dict.values()
         target_pos, target_rot = PoseUtils.unmake_pose(target_eef_pose)
 
         # current position and rotation
-        curr_pose = self.get_robot_eef_pose(env_ind=env_ind)
+        curr_pose = self.get_robot_eef_pose(eef_name, env_ids=[env_id])[0]
         curr_pos, curr_rot = PoseUtils.unmake_pose(curr_pose)
 
-        if relative:
-            # normalized delta position action
-            delta_position = target_pos - curr_pos
-            # delta_position = np.clip(delta_position / max_dpos, -1., 1.)
+        # normalized delta position action
+        delta_position = target_pos - curr_pos
 
-            # normalized delta rotation action
-            delta_rot_mat = target_rot.matmul(curr_rot.transpose(-1, -2))
-            delta_quat = PoseUtils.quat_from_matrix(delta_rot_mat)
-            delta_rotation = PoseUtils.axis_angle_from_quat(delta_quat)
+        # normalized delta rotation action
+        delta_rot_mat = target_rot.matmul(curr_rot.transpose(-1, -2))
+        delta_quat = PoseUtils.quat_from_matrix(delta_rot_mat)
+        delta_rotation = PoseUtils.axis_angle_from_quat(delta_quat)
 
-            # delta_rotation = np.clip(delta_rotation / max_drot, -1., 1.)
-            return torch.cat([delta_position, delta_rotation], dim=0)
-        else:
-            raise NotImplementedError("Absolute pose actions are not implemented.")
-            return
+        # get gripper action for single eef
+        (gripper_action,) = gripper_action_dict.values()
 
-    def action_to_target_eef_pos(self, action, relative=True, env_ind=0):
+        # add noise to action
+        pose_action = torch.cat([delta_position, delta_rotation], dim=0)
+        if noise is not None:
+            noise = noise * torch.randn_like(pose_action)
+            pose_action += noise
+            pose_action = torch.clamp(pose_action, -1.0, 1.0)
+
+        return torch.cat([pose_action, gripper_action], dim=0)
+
+    def action_to_target_eef_pose(self, action: torch.Tensor) -> dict[str, torch.Tensor]:
         """
         Converts action (compatible with env.step) to a target pose for the end effector controller.
         Inverse of @target_eef_pose_to_action. Usually used to infer a sequence of target controller poses
         from a demonstration trajectory using the recorded actions.
 
         Args:
-            action (torch.Tensor): environment action
-            relative (bool): if True, use relative pose actions, else absolute pose actions
+            action: Environment action. Shape is (num_envs, action_dim)
 
         Returns:
-            target_eef_pose (torch.Tensor): 4x4 target eef pose that @action corresponds to
+            A dictionary of eef pose torch.Tensor that @action corresponds to
         """
+        eef_name = list(self.cfg.subtask_configs.keys())[0]
 
-        target_poses = []
+        delta_position = action[:, :3]
+        delta_rotation = action[:, 3:6]
 
-        for env_ind in range(self.scene.num_envs):
+        # current position and rotation
+        curr_pose = self.get_robot_eef_pose(eef_name, env_ids=None)
+        curr_pos, curr_rot = PoseUtils.unmake_pose(curr_pose)
 
-            delta_position = action[env_ind][:3]
-            delta_rotation = action[env_ind][3:6]
+        # get pose target
+        target_pos = curr_pos + delta_position
 
-            # current position and rotation
-            curr_pose = self.get_robot_eef_pose(env_ind=env_ind)
-            curr_pos, curr_rot = PoseUtils.unmake_pose(curr_pose)
+        # Convert delta_rotation to axis angle form
+        delta_rotation_angle = torch.linalg.norm(delta_rotation, dim=-1, keepdim=True)
+        delta_rotation_axis = delta_rotation / delta_rotation_angle
 
-            # get pose target
-            target_pos = curr_pos + delta_position
+        # Handle invalid division for the case when delta_rotation_angle is close to zero
+        is_close_to_zero_angle = torch.isclose(delta_rotation_angle, torch.zeros_like(delta_rotation_angle)).squeeze(1)
+        delta_rotation_axis[is_close_to_zero_angle] = torch.zeros_like(delta_rotation_axis)[is_close_to_zero_angle]
 
-            # Convert delta_rotation to axis angle form
-            delta_rotation_angle = torch.linalg.norm(delta_rotation, dim=-1, keepdim=True)
-            # make sure that axis is a unit vector
-            # Check for invalid division
-            if torch.isclose(delta_rotation_angle, torch.tensor([0.0], device=delta_rotation_angle.device)):
-                # Quaternion format is wxyz
-                delta_quat = torch.tensor([1.0, 0.0, 0.0, 0.0], device=delta_rotation_angle.device)
-            else:
-                delta_rotation_axis = delta_rotation / delta_rotation_angle
-                delta_quat = PoseUtils.quat_from_angle_axis(delta_rotation_angle, delta_rotation_axis).squeeze(0)
-            delta_rot_mat = PoseUtils.matrix_from_quat(delta_quat)
+        delta_quat = PoseUtils.quat_from_angle_axis(delta_rotation_angle.squeeze(1), delta_rotation_axis).squeeze(0)
+        delta_rot_mat = PoseUtils.matrix_from_quat(delta_quat)
+        target_rot = torch.matmul(delta_rot_mat, curr_rot)
 
-            target_rot = torch.matmul(delta_rot_mat, curr_rot)
+        target_poses = PoseUtils.make_pose(target_pos, target_rot).clone()
 
-            target_pose = PoseUtils.make_pose(target_pos, target_rot).clone()
+        return {eef_name: target_poses}
 
-            target_poses.append(target_pose)
-        return target_poses
-
-    def action_to_gripper_action(self, action):
+    def actions_to_gripper_actions(self, actions: torch.Tensor) -> dict[str, torch.Tensor]:
         """
-        Extracts the gripper actuation part of an action (compatible with env.step).
+        Extracts the gripper actuation part from a sequence of env actions (compatible with env.step).
 
         Args:
-            action (torch.Tensor): environment action of shape N x action_dim. Where N is number of steps in a demo
+            actions: environment actions. The shape is (num_envs, num steps in a demo, action_dim).
 
         Returns:
-            gripper_action (torch.Tensor): subset of environment action for gripper actuation of shape N x gripper_action_dim
+            A dictionary of torch.Tensor gripper actions. Key to each dict is an eef_name.
         """
-
         # last dimension is gripper action
-        return action[:, -1:]
+        return {list(self.cfg.subtask_configs.keys())[0]: actions[:, -1:]}
 
-    def get_subtask_term_signals(self, env_ind=0):
+    def get_subtask_term_signals(self, env_ids: Sequence[int] | None = None) -> dict[str, torch.Tensor]:
         """
-        Gets a dictionary of binary flags for each subtask in a task. The flag is 1
-        when the subtask has been completed and 0 otherwise. Isaac Lab Mimic only uses this
-        when parsing source demonstrations at the start of data generation, and it only
-        uses the first 0 -> 1 transition in this signal to detect the end of a subtask.
+        Gets a dictionary of termination signal flags for each subtask in a task. The flag is 1
+        when the subtask has been completed and 0 otherwise. The implementation of this method is
+        required if intending to enable automatic subtask term signal annotation when running the
+        dataset annotation tool. This method can be kept unimplemented if intending to use manual
+        subtask term signal annotation.
+
+        Args:
+            env_ids: Environment indices to get the termination signals for. If None, all envs are considered.
+
         Returns:
-            subtask_term_signals (dict): dictionary that maps subtask name to termination flag (0 or 1)
+            A dictionary termination signal flags (False or True) for each subtask.
         """
-        signals = dict()
+        if env_ids is None:
+            env_ids = slice(None)
 
+        signals = dict()
         subtask_terms = self.obs_buf["subtask_terms"]
-        signals["grasp_1"] = subtask_terms["grasp_1"][env_ind]
-        signals["grasp_2"] = subtask_terms["grasp_2"][env_ind]
-        signals["stack_1"] = subtask_terms["stack_1"][env_ind]
+        signals["grasp_1"] = subtask_terms["grasp_1"][env_ids]
+        signals["grasp_2"] = subtask_terms["grasp_2"][env_ids]
+        signals["stack_1"] = subtask_terms["stack_1"][env_ids]
         # final subtask is placing cubeC on cubeA (motion relative to cubeA) - but final subtask signal is not needed
         return signals
