@@ -12,6 +12,16 @@ Added
 * Added :meth:`sim/spawn/sensors/sensors/spawn_lidar` and :class:`sim/spawn/sensors/sensors_cfg/LidarCfg` functionality for spawning both builtin and custom lidar models
 
 
+0.30.4 (2025-01-08)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* fixed docstring in articulation data :class:`omni.isaac.lab.assets.ArticulationData`.
+  In body properties sections, the second dimension should be num_bodies but was documented as 1.
+
+
 0.30.3 (2025-01-02)
 ~~~~~~~~~~~~~~~~~~~
 
