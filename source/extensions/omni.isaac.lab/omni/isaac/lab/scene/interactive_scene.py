@@ -468,7 +468,8 @@ class InteractiveScene:
                 return out
             all_keys += list(asset_family.keys())
         # if not found, raise error
-        raise KeyError(f"Scene entity with key '{key}' not found. Available Entities: '{all_keys}'")
+        return None
+        # raise KeyError(f"Scene entity with key '{key}' not found. Available Entities: '{all_keys}'")
 
     """
     Internal methods.

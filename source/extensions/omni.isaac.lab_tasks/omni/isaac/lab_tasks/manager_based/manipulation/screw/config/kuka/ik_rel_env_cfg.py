@@ -12,6 +12,7 @@ from typing import Literal, Sequence
 
 from numba.core import event
 import omni.isaac.core.utils.stage as stage_utils
+from omni.isaac.lab_tasks.manager_based.manipulation.screw.mdp import robot_tool_pose
 import omni.physx.scripts.utils as physx_utils
 from einops import repeat
 from force_tool.utils.data_utils import SmartDict, read_h5_dict
@@ -264,12 +265,6 @@ class EventCfg:
     """Configuration for events."""
 
 
-def robot_tool_pose(env: ManagerBasedEnv):
-    tool_w = env.unwrapped.scene["robot"].read_body_state_w("victor_left_tool0")[:, 0, :7]
-    tool_w[:, :3] = tool_w[:, :3] - env.unwrapped.scene.env_origins
-    return tool_w
-
-
 def terminate_if_nut_fallen(env):
     # relative pose between gripper and nut
     nut_root_pose = env.unwrapped.scene["nut"].read_root_state_from_sim()
@@ -364,6 +359,7 @@ class IKRelKukaNutThreadEnvCfg(BaseNutThreadEnvCfg):
         action_params.uni_rotate = action_params.get("uni_rotate", True)
 
         obs_params = self.params.observations
+        obs_params.use_tiled_camera = obs_params.get("use_tiled_camera", False)
         obs_params.hist_len = obs_params.get("hist_len", 1)
         obs_params.include_action = obs_params.get("include_action", True)
         obs_params.include_wrench = obs_params.get("include_wrench", True)
@@ -506,6 +502,26 @@ class IKRelKukaNutThreadEnvCfg(BaseNutThreadEnvCfg):
             if isinstance(term, ObsTerm):
                 term.hist_len = obs_params.hist_len
 
+        # for debug only
+        if obs_params.use_tiled_camera:
+            self.scene.tiled_camera = TiledCameraCfg(
+                prim_path="{ENV_REGEX_NS}/Camera",
+                offset=TiledCameraCfg.OffsetCfg(
+                pos=(1.3, 0.1, 0.15),
+                # [ x: -2.3975473, y: 1.5188981, z: -2.3157065 ]
+                # rot=[0.4813639 , 0.5011198, 0.5182935, 0.4985375],
+                # [-90, 78, 179]
+                rot=[0.4497752 , 0.4401843, 0.5533875, 0.545621],
+                convention="opengl"
+            ),
+            data_types=["rgb"],
+            spawn=sim_utils.PinholeCameraCfg(
+                focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 20.0)
+            ),
+            width=720,
+            height=720,
+            )
+
         # events
         event_params = self.params.events
         self.events = EventCfg()
@@ -596,20 +612,5 @@ class IKRelKukaNutThreadEnvCfg(BaseNutThreadEnvCfg):
         if curri_params.use_contact_force_curri:
             self.curriculum.modify_contact_force_penalty = CurrTerm(
                 func=mdp.modify_reward_weight,
-                params={"term_name": "contact_force_penalty", "weight": -1, "num_steps": 800*32},
+                params={"term_name": "contact_force_penalty", "weight": -0.1, "num_steps": 800*32},
             )
-        # self.scene.tiled_camera = TiledCameraCfg(
-        #     prim_path="{ENV_REGEX_NS}/Camera",
-        #     offset=TiledCameraCfg.OffsetCfg(
-        #         pos=(1.3, 0.0, 0.1),
-        #         # rot=(0.6599831, -0.7512804, 0, 0),
-        #         rot=[0.4813639 , 0.5011198, 0.5182935, 0.4985375],
-        #         convention="opengl"
-        #     ),
-        #     data_types=["rgb"],
-        #     spawn=sim_utils.PinholeCameraCfg(
-        #         focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 20.0)
-        #     ),
-        #     width=720,
-        #     height=720,
-        # )

@@ -8,6 +8,7 @@ from __future__ import annotations
 import torch
 from typing import TYPE_CHECKING
 
+from omni.isaac.lab.envs import ManagerBasedEnv
 import omni.isaac.lab.utils.math as math_utils
 from omni.isaac.lab.assets import ArticulationData
 from omni.isaac.lab.sensors import FrameTransformerData
@@ -30,6 +31,12 @@ def rel_nut_bolt_bottom_distance(env: ManagerBasedRLEnv) -> torch.Tensor:
 
 def rel_nut_bolt_tip_distance(env: ManagerBasedRLEnv) -> torch.Tensor:
     return rel_nut_bolt_distance(env, "bolt_tip")
+
+
+def robot_tool_pose(env: ManagerBasedEnv):
+    tool_w = env.unwrapped.scene["robot"].read_body_state_w("victor_left_tool0")[:, 0, :7]
+    tool_w[:, :3] = tool_w[:, :3] - env.unwrapped.scene.env_origins
+    return tool_w
 
 
 # def rel_ee_object_distance(env: ManagerBasedRLEnv) -> torch.Tensor:
