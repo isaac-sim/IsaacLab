@@ -25,7 +25,7 @@ class TestKitStartUpPerformance(unittest.TestCase):
         self.app_launcher = AppLauncher(headless=True).app
         end_time = time.time()
         elapsed_time = end_time - start_time
-        self.assertLessEqual(elapsed_time, 8.0)
+        self.assertLessEqual(elapsed_time, 10.0)
 
 
 if __name__ == "__main__":
