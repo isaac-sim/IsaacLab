@@ -619,7 +619,7 @@ torques are the desired actuation efforts that are set into the simulation.</p>
 class, which implements a PD controller with feed-forward effort, and simple clipping based on the configured
 maximum effort:</p>
 <div class="math notranslate nohighlight">
-\[\begin{split}\tau_{j, computed} &amp; = k_p * (q - q_{des}) + k_d * (\dot{q} - \dot{q}_{des}) + \tau_{ff} \\
+\[\begin{split}\tau_{j, computed} &amp; = k_p * (q_{des} - q) + k_d * (\dot{q}_{des} - \dot{q}) + \tau_{ff} \\
 \tau_{j, applied} &amp; = clip(\tau_{computed}, -\tau_{j, max}, \tau_{j, max})\end{split}\]</div>
 <p>where, <span class="math notranslate nohighlight">\(k_p\)</span> and <span class="math notranslate nohighlight">\(k_d\)</span> are joint stiffness and damping gains, <span class="math notranslate nohighlight">\(q\)</span> and <span class="math notranslate nohighlight">\(\dot{q}\)</span>
 are the current joint positions and velocities, <span class="math notranslate nohighlight">\(q_{des}\)</span>, <span class="math notranslate nohighlight">\(\dot{q}_{des}\)</span> and <span class="math notranslate nohighlight">\(\tau_{ff}\)</span>
