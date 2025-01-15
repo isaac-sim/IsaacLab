@@ -56,17 +56,32 @@ def feet_contact_penalty(env, sensor_cfg: SceneEntityCfg) -> torch.Tensor:
     penalty = feet_contact.float()
     return penalty
 
-def feet_four_contact_points(env, sensor_cfg: SceneEntityCfg) -> torch.Tensor:
-    """Reward feet having four contact points with the ground.
+def feet_normal_ground(env, sensor_cfg: SceneEntityCfg) -> torch.Tensor:
+    """Calculate the resultant contact forces of the feet considering the normal to the ground.
 
-    This function rewards the agent if each foot has four contact points with the ground. The reward is
-    computed as a binary value indicating whether each foot has four contact points.
+    This function calculates the resultant contact forces of the feet and checks if the resultant force
+    is normal to the ground. The reward is computed as the sum of the norm of the contact forces for each foot
+    that are not normal to the ground.
     """
     contact_sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
-    contacts = contact_sensor.data.net_forces_w_history[:, :, sensor_cfg.body_ids, :].norm(dim=-1) > 1.0
-    four_contacts = torch.sum(contacts, dim=1) == 4
-    reward = four_contacts.float()
+    contact_forces = contact_sensor.data.net_forces_w_history[:, :, sensor_cfg.body_ids, :]
+    ground_normal = torch.tensor([0, 0, 1], device=contact_forces.device, dtype=contact_forces.dtype)
+    normal_forces = torch.sum(contact_forces * ground_normal, dim=-1, keepdim=True) * ground_normal
+    tangential_forces = contact_forces - normal_forces
+    tangential_force_norm = tangential_forces.norm(dim=-1)
+    reward = torch.sum(tangential_force_norm, dim=(1, 2))
     return reward
+
+def torso_height(env, target_height: float, sensor_cfg: SceneEntityCfg) -> torch.Tensor:
+    """Reward the agent for keeping the torso at a defined height.
+
+    This function rewards the agent for maintaining the torso at a specified target height. The reward is
+    computed as the negative squared error between the current torso height and the target height.
+    """
+    asset = env.scene[sensor_cfg.name]
+    current_height = asset.data.root_link_pos_w[:, 2]
+    height_error = torch.square(current_height - target_height)
+    return height_error
 
 def feet_air_time_positive_biped(env, command_name: str, threshold: float, sensor_cfg: SceneEntityCfg) -> torch.Tensor:
     """Reward long steps taken by the feet for bipeds.

@@ -48,5 +48,5 @@ class SigmabanFlatPPORunnerCfg(SigmabanRoughPPORunnerCfg):
 
         self.max_iterations = 3000
         self.experiment_name = "Sigmaban_flat"
-        self.policy.actor_hidden_dims = [256, 128, 128] # [128, 128, 128]
-        self.policy.critic_hidden_dims = [256, 128, 128] # [128, 128, 128]
+        self.policy.actor_hidden_dims = [128, 128, 128] # [128, 128, 128]
+        self.policy.critic_hidden_dims = [128, 128, 128] # [128, 128, 128]

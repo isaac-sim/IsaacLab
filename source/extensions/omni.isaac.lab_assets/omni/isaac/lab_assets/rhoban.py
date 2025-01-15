@@ -67,7 +67,7 @@ SIGMABAN_CFG = ArticulationCfg(
         "MX64": IdealPDActuatorCfg(
             joint_names_expr=["head_yaw", "head_pitch", ".*_hip_yaw", ".*_shoulder_pitch", ".*_shoulder_roll", ".*_elbow"],
             # saturation_effort=7,
-            effort_limit=5, #5Nm
+            effort_limit=4, #5Nm
             # velocity_limit=6.2831, #2*pi rad/s
             armature=0.012,
             stiffness=12.5, # considered as kp
@@ -77,7 +77,7 @@ SIGMABAN_CFG = ArticulationCfg(
         "MX106": IdealPDActuatorCfg(
             joint_names_expr=[".*_hip_roll", ".*_hip_pitch", ".*_knee", ".*_ankle_pitch", ".*_ankle_roll"],
             # saturation_effort=10, #8Nm
-            effort_limit=8, #8Nm
+            effort_limit=6, #8Nm
             # velocity_limit=6.2831, #2*pi rad/s
             armature=0.025,
             stiffness=21, # considered as kp

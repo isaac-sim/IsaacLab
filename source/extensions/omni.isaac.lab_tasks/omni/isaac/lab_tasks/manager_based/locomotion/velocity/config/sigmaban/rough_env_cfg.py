@@ -27,15 +27,17 @@ class SigmabanRewards(RewardsCfg):
     lin_vel_z_l2 = None
     track_lin_vel_xy_exp = RewTerm(
         func=mdp.track_lin_vel_xy_yaw_frame_exp,
-        weight=4.0, # 10.0
-        params={"command_name": "base_velocity", "std": 0.5},
+        weight=6.0, # 4.0
+        params={"command_name": "base_velocity", "std": 0.3}, # 0.5
     )
     track_ang_vel_z_exp = RewTerm(
-        func=mdp.track_ang_vel_z_world_exp, weight=1.0, params={"command_name": "base_velocity", "std": 0.5}
+        func=mdp.track_ang_vel_z_world_exp, 
+        weight=1.0, #1.0
+        params={"command_name": "base_velocity", "std": 0.5}
     )
     feet_air_time = RewTerm(
         func=mdp.feet_air_time_positive_biped,
-        weight=0.25,
+        weight=0, #0.25
         params={
             "command_name": "base_velocity",
             "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*_foot"),
@@ -51,39 +53,57 @@ class SigmabanRewards(RewardsCfg):
         },
     )
 
-    feet_contact_penalty = RewTerm(
-        func=mdp.feet_contact_penalty,
-        weight=-0.25,
-        params={"sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*_foot")
-        },
-    )
+    # feet_contact_penalty = RewTerm(
+    #     func=mdp.feet_contact_penalty,
+    #     weight=-0.25,
+    #     params={"sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*_foot")
+    #     },
+    # )
 
     legs_contact_penalty = RewTerm(
         func=mdp.feet_contact_penalty,
-        weight=-0.25,
+        weight=-0.5, #-0.5
         params={"sensor_cfg": SceneEntityCfg("contact_forces", body_names=[".*_foot", ".*_tibia", ".*_knee", ".*_mx106_block_hip"])
         },
     )
     
     # Penalize ankle joint limits
     dof_pos_limits = RewTerm(
-        func=mdp.joint_pos_limits, weight=-1.0, params={"asset_cfg": SceneEntityCfg("robot", joint_names=".*_ankle_.*")}
+        func=mdp.joint_pos_limits, 
+        weight=-1.0, #-1.0
+        params={"asset_cfg": SceneEntityCfg("robot", joint_names=".*_ankle_.*")}
     )
     # Penalize deviation from default of the joints that are not essential for locomotion
     joint_deviation_hip = RewTerm(
         func=mdp.joint_deviation_l1,
-        weight=-0.2,
+        weight=-0.2, #-0.3
         params={"asset_cfg": SceneEntityCfg("robot", joint_names=[".*_hip_yaw"])},
     )
-    joint_deviation_head = RewTerm(
-        func=mdp.joint_deviation_l1,
-        weight=-0.2,
-        params={"asset_cfg": SceneEntityCfg("robot", joint_names=["head_yaw", "head_pitch"])},
-    )
+
     joint_deviation_arms = RewTerm(
         func=mdp.joint_deviation_l1,
-        weight=-0.2,
+        weight=-0.2, #-0.2
         params={"asset_cfg": SceneEntityCfg("robot", joint_names=[".*_shoulder_.*", ".*_elbow"])},
+    )
+    # feet_normal_ground = RewTerm(
+    #     func=mdp.feet_normal_ground,
+    #     weight=-1.0,
+    #     params={"sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*_foot")},
+    # )
+    right_foot_normal_ground = RewTerm(
+        func=mdp.feet_normal_ground,
+        weight=-0.0, #-5.0
+        params={"sensor_cfg": SceneEntityCfg("contact_forces", body_names="right_foot")},
+    )
+    left_foot_normal_ground = RewTerm(
+        func=mdp.feet_normal_ground,
+        weight=-0.0, #-5.0
+        params={"sensor_cfg": SceneEntityCfg("contact_forces", body_names="left_foot")},
+    )
+    torso_height = RewTerm(
+        func=mdp.torso_height,
+          weight=0.0, #-10.0
+          params={"target_height": 0.30, "sensor_cfg": SceneEntityCfg("robot")}
     )
     # joint_deviation_torso = RewTerm(
     #     func=mdp.joint_deviation_l1, weight=-0.1, params={"asset_cfg": SceneEntityCfg("robot", joint_names="torso")}
@@ -130,9 +150,9 @@ class SigmabanRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
         self.rewards.dof_acc_l2.weight = -1.25e-7
 
         # Commands
-        self.commands.base_velocity.ranges.lin_vel_x = (0.0, 1.0)
-        self.commands.base_velocity.ranges.lin_vel_y = (0.0, 0.0)
-        self.commands.base_velocity.ranges.ang_vel_z = (-1.0, 1.0)
+        self.commands.base_velocity.ranges.lin_vel_x = (-0.1, 0.5)
+        self.commands.base_velocity.ranges.lin_vel_y = (-0.15, 0.15)
+        self.commands.base_velocity.ranges.ang_vel_z = (-0.4, 0.4)
 
 
 @configclass
@@ -142,7 +162,7 @@ class SigmabanRoughEnvCfg_PLAY(SigmabanRoughEnvCfg):
         super().__post_init__()
 
         # make a smaller scene for play
-        self.scene.num_envs = 50
+        self.scene.num_envs = 10
         self.scene.env_spacing = 2.5
         self.episode_length_s = 40.0
         # spawn the robot randomly in the grid (instead of their terrain levels)
