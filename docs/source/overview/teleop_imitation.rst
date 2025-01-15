@@ -101,6 +101,14 @@ If, while performing a demonstration, a mistake is made, or the current demonstr
 .. note::
    Non-determinism may be observed during replay as physics in IsaacLab are not determimnistically reproducible when using ``env.reset``.
 
+Pre-recorded demonstrations
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+We provide a pre-recorded ``dataset.hdf5`` containing 10 human demonstrations for ``Isaac-Stack-Cube-Franka-IK-Rel-v0`` `here <https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/4.5/Isaac/IsaacLab/Mimic/dataset.hdf5>`_.
+This dataset may be downloaded and used in the remaining tutorial steps if you do not wish to collect your own demonstrations.
+
+.. note::
+   Use of the pre-recorded dataset is optional.
 
 Generating additional demonstrations
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
