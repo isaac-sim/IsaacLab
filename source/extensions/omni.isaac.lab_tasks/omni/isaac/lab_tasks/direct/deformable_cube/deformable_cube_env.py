@@ -23,7 +23,6 @@ CUBE_Y_MIN, CUBE_Y_MAX = -0.5, 0.5
 
 # TODO: Edit GPU settings for softbody contact buffer size
 # TODO: mess with deformable object settings
-# TODO: Add container
 
 def get_robot() -> ArticulationCfg:
 	return ArticulationCfg(
@@ -49,7 +48,9 @@ def get_robot() -> ArticulationCfg:
 				"panda_joint6": 1.003,
 				"panda_joint7": 0.469,
 				"panda_finger_joint.*": 0.035,
-			}
+			},
+			pos=(-0.05, 0.0, 1.0),
+			rot=(1.0, 0.0, 0.0, 0.0)
 		),
 		actuators={
 			"panda_shoulder": ImplicitActuatorCfg(
@@ -93,7 +94,7 @@ def get_object() -> DeformableObjectCfg:
 				youngs_modulus=1e5
 			),
 		),
-		init_state=DeformableObjectCfg.InitialStateCfg(pos=(0.0, 0.0, CUBE_SIZE / 1.9)),
+		init_state=DeformableObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 1.0 + CUBE_SIZE / 1.9)),
 		debug_vis=True,
 	)
 
@@ -101,7 +102,7 @@ def get_container() -> RigidObjectCfg:
 	return RigidObjectCfg(
 		prim_path="/World/envs/env_.*/Container",
 		spawn=sim_utils.UsdFileCfg(
-			usd_path=f"./Container_B04_01.usd",
+			usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/KLT_Bin/small_KLT_visual_collision.usd",
 			rigid_props=sim_utils.RigidBodyPropertiesCfg(
 				disable_gravity=False,
 			),
@@ -109,11 +110,32 @@ def get_container() -> RigidObjectCfg:
 			collision_props=sim_utils.CollisionPropertiesCfg(
 				collision_enabled=True,
 			),
-			visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 1.0, 1.0), metallic=0.2),
-			scale=(0.02, 0.02, 0.02),
+			scale=(2.4, 2.5, 1.2),
 		),
-		init_state=RigidObjectCfg.InitialStateCfg(pos=(0.5, 1.0, 0.1)),
+		init_state=RigidObjectCfg.InitialStateCfg(
+			pos=(0.5, 0.75, 1.02),
+			rot=(math.sqrt(2)/2, 0.0, 0.0, math.sqrt(2)/2)
+		),
 	)
+
+def get_table() -> RigidObjectCfg:
+	return RigidObjectCfg(
+		prim_path="/World/envs/env_.*/Table",
+		spawn=sim_utils.UsdFileCfg(
+			usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/SeattleLabTable/table_instanceable.usd",
+			rigid_props=sim_utils.RigidBodyPropertiesCfg(
+				disable_gravity=False,
+			),
+			collision_props=sim_utils.CollisionPropertiesCfg(
+				collision_enabled=True,
+			),
+		),
+		init_state=RigidObjectCfg.InitialStateCfg(
+			pos=(0.5, 0.0, 1.0),
+			rot=(0.707, 0.0, 0.0, 0.707)
+		),
+	)
+
 
 @configclass
 class DeformableCubeEnvCfg(DirectRLEnvCfg):
@@ -138,6 +160,7 @@ class DeformableCubeEnvCfg(DirectRLEnvCfg):
 	)
 
 	# entities
+	table_cfg: RigidObjectCfg = get_table()
 	robot_cfg: ArticulationCfg = get_robot()
 	object_cfg: DeformableObjectCfg = get_object()
 	container_cfg: RigidObjectCfg = get_container()
@@ -163,6 +186,7 @@ class DeformableCubeEnv(DirectRLEnv):
 		self.robot = Articulation(self.cfg.robot_cfg)
 		self.object = DeformableObject(self.cfg.object_cfg)
 		self.container = RigidObject(self.cfg.container_cfg)
+		self.table = RigidObject(self.cfg.table_cfg)
 		self.scene.articulations["robot"] = self.robot
 
 		spawn_ground_plane(prim_path="/World/ground", cfg=GroundPlaneCfg())
@@ -220,6 +244,6 @@ class DeformableCubeEnv(DirectRLEnv):
 		self.robot.write_joint_state_to_sim(position=joint_pos, velocity=joint_vel, env_ids=env_ids)
 
 		# reset containers
-		container_pose = self.container.data.default_root_state[env_ids, :]
-		container_pose[:, :3] += self.scene.env_origins
-		self.container.write_root_state_to_sim(container_pose, env_ids)
+		# container_pose = self.container.data.default_root_state[env_ids, :]
+		# container_pose[:, :3] += self.scene.env_origins
+		# self.container.write_root_state_to_sim(container_pose, env_ids)
