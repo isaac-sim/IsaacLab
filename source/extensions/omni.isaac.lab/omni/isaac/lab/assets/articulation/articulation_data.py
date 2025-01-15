@@ -547,7 +547,7 @@ class ArticulationData:
 
         This quantity is the position of the actor frame of the root rigid body relative to the world.
         """
-        if self._body_com_state_w.timestamp < self._sim_timestamp:
+        if self._root_link_state_w.timestamp < self._sim_timestamp:
             # read data from simulation (pose is of link)
             pose = self._root_physx_view.get_root_transforms()
             return pose[:, :3]
@@ -559,7 +559,7 @@ class ArticulationData:
 
         This quantity is the orientation of the actor frame of the root rigid body.
         """
-        if self._body_com_state_w.timestamp < self._sim_timestamp:
+        if self._root_link_state_w.timestamp < self._sim_timestamp:
             # read data from simulation (pose is of link)
             pose = self._root_physx_view.get_root_transforms().clone()
             pose[:, 3:7] = math_utils.convert_quat(pose[:, 3:7], to="wxyz")
