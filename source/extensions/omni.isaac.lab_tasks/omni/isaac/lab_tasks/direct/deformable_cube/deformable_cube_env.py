@@ -101,28 +101,23 @@ def get_container() -> RigidObjectCfg:
 	return RigidObjectCfg(
 		prim_path="/World/envs/env_.*/Container",
 		spawn=sim_utils.UsdFileCfg(
-			usd_path=f"./Container_B04_40x30x12cm_PR_V_NVD_01.usd",
+			usd_path=f"./Container_B04_01.usd",
 			rigid_props=sim_utils.RigidBodyPropertiesCfg(
 				disable_gravity=False,
-				solver_position_iteration_count=8,
-				solver_velocity_iteration_count=1,
-				max_depenetration_velocity=0.01
 			),
-			mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+			mass_props=sim_utils.MassPropertiesCfg(density=5000.0),
 			collision_props=sim_utils.CollisionPropertiesCfg(
 				collision_enabled=True,
-				contact_offset=0.02,
-				rest_offset=0.001
 			),
-			visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 1.0), metallic=0.2),
+			visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 1.0, 1.0), metallic=0.2),
 			scale=(0.02, 0.02, 0.02),
 		),
-		init_state=RigidObjectCfg.InitialStateCfg(pos=(0.5, 0.5, 0.5)),
+		init_state=RigidObjectCfg.InitialStateCfg(pos=(0.5, 1.0, 0.1)),
 	)
 
 @configclass
 class DeformableCubeEnvCfg(DirectRLEnvCfg):
-	num_envs = 5
+	num_envs = 32
 	env_spacing = 3.0
 	dt = 1 / 120
 	observation_space = 15
@@ -223,3 +218,8 @@ class DeformableCubeEnv(DirectRLEnv):
 		joint_vel = torch.zeros_like(joint_pos)
 		# self.robot.set_joint_position_target(joint_pos, env_ids=env_ids)
 		self.robot.write_joint_state_to_sim(position=joint_pos, velocity=joint_vel, env_ids=env_ids)
+
+		# reset containers
+		container_pose = self.container.data.default_root_state[env_ids, :]
+		container_pose[:, :3] += self.scene.env_origins
+		self.container.write_root_state_to_sim(container_pose, env_ids)
