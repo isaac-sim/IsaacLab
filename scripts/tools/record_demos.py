@@ -94,7 +94,7 @@ class RateLimiter:
         next_wakeup_time = self.last_time + self.sleep_duration
         while time.time() < next_wakeup_time:
             time.sleep(self.render_period)
-            env.unwrapped.sim.render()
+            env.sim.render()
 
         self.last_time = self.last_time + self.sleep_duration
 
@@ -162,7 +162,7 @@ def main():
     env_cfg.recorders.dataset_filename = output_file_name
 
     # create environment
-    env = gym.make(args_cli.task, cfg=env_cfg)
+    env = gym.make(args_cli.task, cfg=env_cfg).unwrapped
 
     # add teleoperation key for reset current recording instance
     should_reset_recording_instance = False
@@ -203,9 +203,7 @@ def main():
             # get keyboard command
             delta_pose, gripper_command = teleop_interface.advance()
             # convert to torch
-            delta_pose = torch.tensor(delta_pose, dtype=torch.float, device=env.unwrapped.device).repeat(
-                env.unwrapped.num_envs, 1
-            )
+            delta_pose = torch.tensor(delta_pose, dtype=torch.float, device=env.device).repeat(env.num_envs, 1)
             # compute actions based on environment
             actions = pre_process_actions(delta_pose, gripper_command)
 
@@ -218,7 +216,7 @@ def main():
                     if success_step_count >= args_cli.num_success_steps:
                         env.recorder_manager.record_pre_reset([0], force_export_or_skip=False)
                         env.recorder_manager.set_success_to_episodes(
-                            [0], torch.tensor([[True]], dtype=torch.bool, device=env.unwrapped.device)
+                            [0], torch.tensor([[True]], dtype=torch.bool, device=env.device)
                         )
                         env.recorder_manager.export_episodes([0])
                         should_reset_recording_instance = True
@@ -226,29 +224,26 @@ def main():
                     success_step_count = 0
 
             if should_reset_recording_instance:
-                env.unwrapped.recorder_manager.reset()
+                env.recorder_manager.reset()
                 env.reset()
                 should_reset_recording_instance = False
                 success_step_count = 0
 
             # print out the current demo count if it has changed
-            if env.unwrapped.recorder_manager.exported_successful_episode_count > current_recorded_demo_count:
-                current_recorded_demo_count = env.unwrapped.recorder_manager.exported_successful_episode_count
+            if env.recorder_manager.exported_successful_episode_count > current_recorded_demo_count:
+                current_recorded_demo_count = env.recorder_manager.exported_successful_episode_count
                 print(f"Recorded {current_recorded_demo_count} successful demonstrations.")
 
-            if (
-                args_cli.num_demos > 0
-                and env.unwrapped.recorder_manager.exported_successful_episode_count >= args_cli.num_demos
-            ):
+            if args_cli.num_demos > 0 and env.recorder_manager.exported_successful_episode_count >= args_cli.num_demos:
                 print(f"All {args_cli.num_demos} demonstrations recorded. Exiting the app.")
                 break
 
             # check that simulation is stopped or not
-            if env.unwrapped.sim.is_stopped():
+            if env.sim.is_stopped():
                 break
 
             if rate_limiter:
-                rate_limiter.sleep(env.unwrapped)
+                rate_limiter.sleep(env)
 
     env.close()
 
