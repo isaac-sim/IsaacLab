@@ -169,6 +169,7 @@ class Articulation(AssetBase):
         # reset external wrench
         self._external_force_b[env_ids] = 0.0
         self._external_torque_b[env_ids] = 0.0
+        self._external_wrench_positions_b[env_ids] = 0.0
 
     def write_data_to_sim(self):
         """Write external wrenches and joint commands to the simulation.
@@ -182,13 +183,26 @@ class Articulation(AssetBase):
         """
         # write external wrench
         if self.has_external_wrench:
-            self.root_physx_view.apply_forces_and_torques_at_position(
-                force_data=self._external_force_b.view(-1, 3),
-                torque_data=self._external_torque_b.view(-1, 3),
-                position_data=None,
-                indices=self._ALL_INDICES,
-                is_global=False,
-            )
+            if self.uses_external_wrench_positions:
+                self.root_physx_view.apply_forces_and_torques_at_position(
+                    force_data=self._external_force_b.view(-1, 3),
+                    torque_data=self._external_torque_b.view(-1, 3),
+                    position_data=self._external_wrench_positions_b.view(-1, 3),
+                    indices=self._ALL_INDICES,
+                    is_global=False,
+                )
+                # Reset the external wrench after writing to the simulation.
+                self.uses_external_wrench_positions = False
+                # Fill the positions tensor with zeros to avoid applying the wrench at the same position in the next step.
+                self._external_wrench_positions_b.fill_(0.0)
+            else:
+                self.root_physx_view.apply_forces_and_torques_at_position(
+                    force_data=self._external_force_b.view(-1, 3),
+                    torque_data=self._external_torque_b.view(-1, 3),
+                    position_data=None,
+                    indices=self._ALL_INDICES,
+                    is_global=False,
+                )
 
         # apply actuator models
         self._apply_actuator_model()
@@ -829,10 +843,12 @@ class Articulation(AssetBase):
         self,
         forces: torch.Tensor,
         torques: torch.Tensor,
+        positions: torch.Tensor | None = None,
         body_ids: Sequence[int] | slice | None = None,
         env_ids: Sequence[int] | None = None,
     ):
-        """Set external force and torque to apply on the asset's bodies in their local frame.
+        """Set external force and torque to apply on the asset's bodies in their local frame. Optionally, set the position
+        to apply the external wrench at (in the local frame of the bodies).
 
         For many applications, we want to keep the applied external force on rigid bodies constant over a period of
         time (for instance, during the policy control). This function allows us to store the external force and torque
@@ -855,6 +871,7 @@ class Articulation(AssetBase):
         Args:
             forces: External forces in bodies' local frame. Shape is (len(env_ids), len(body_ids), 3).
             torques: External torques in bodies' local frame. Shape is (len(env_ids), len(body_ids), 3).
+            positions: Positions to apply external wrench. Shape is (len(env_ids), len(body_ids), 3). Defaults to None.
             body_ids: Body indices to apply external wrench to. Defaults to None (all bodies).
             env_ids: Environment indices to apply external wrench to. Defaults to None (all instances).
         """
@@ -877,15 +894,15 @@ class Articulation(AssetBase):
         elif not isinstance(body_ids, torch.Tensor):
             body_ids = torch.tensor(body_ids, dtype=torch.long, device=self.device)
 
-        # note: we need to do this complicated indexing since torch doesn't support multi-indexing
-        # create global body indices from env_ids and env_body_ids
-        # (env_id * total_bodies_per_env) + body_id
-        indices = body_ids.repeat(len(env_ids), 1) + env_ids.unsqueeze(1) * self.num_bodies
-        indices = indices.view(-1)
-        # set into internal buffers
-        # note: these are applied in the write_to_sim function
-        self._external_force_b.flatten(0, 1)[indices] = forces.flatten(0, 1)
-        self._external_torque_b.flatten(0, 1)[indices] = torques.flatten(0, 1)
+            # note: we need to do this complicated indexing since torch doesn't support multi-indexing
+            # create global body indices from env_ids and env_body_ids
+            # (env_id * total_bodies_per_env) + body_id
+            indices = body_ids.repeat(len(env_ids), 1) + env_ids.unsqueeze(1) * self.num_bodies
+            indices = indices.view(-1)
+            # set into internal buffers
+            # note: these are applied in the write_to_sim function
+            self._external_force_b.flatten(0, 1)[indices] = forces.flatten(0, 1)
+            self._external_torque_b.flatten(0, 1)[indices] = torques.flatten(0, 1)
 
     def set_joint_position_target(
         self, target: torch.Tensor, joint_ids: Sequence[int] | slice | None = None, env_ids: Sequence[int] | None = None
@@ -1229,8 +1246,10 @@ class Articulation(AssetBase):
 
         # external forces and torques
         self.has_external_wrench = False
+        self.uses_external_wrench_positions = False
         self._external_force_b = torch.zeros((self.num_instances, self.num_bodies, 3), device=self.device)
         self._external_torque_b = torch.zeros_like(self._external_force_b)
+        self._external_wrench_positions_b = torch.zeros_like(self._external_force_b)
 
         # asset named data
         self._data.joint_names = self.joint_names
