@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2024, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -69,7 +69,7 @@ class TestSpawningSensors(unittest.TestCase):
     def test_spawn_fisheye_camera(self):
         """Test spawning a fisheye camera."""
         cfg = sim_utils.FisheyeCameraCfg(
-            projection_type="fisheye_equidistant",
+            projection_type="fisheyePolynomial",
             focal_length=5.0,
             f_stop=10.0,
             clipping_range=(0.1, 1000.0),

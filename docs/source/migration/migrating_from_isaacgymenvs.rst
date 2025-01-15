@@ -814,9 +814,9 @@ The ``progress_buf`` variable has also been renamed to ``episode_length_buf``.
 |                                                                       |                                                                           |
 |                                                                       |     self.joint_pos[env_ids] = joint_pos                                   |
 |                                                                       |                                                                           |
-|                                                                       |     self.cartpole.write_root_pose_to_sim(                                 |
+|                                                                       |     self.cartpole.write_root_link_pose_to_sim(                            |
 |                                                                       |         default_root_state[:, :7], env_ids)                               |
-|                                                                       |     self.cartpole.write_root_velocity_to_sim(                             |
+|                                                                       |     self.cartpole.write_root_com_velocity_to_sim(                         |
 |                                                                       |         default_root_state[:, 7:], env_ids)                               |
 |                                                                       |     self.cartpole.write_joint_state_to_sim(                               |
 |                                                                       |         joint_pos, joint_vel, None, env_ids)                              |

@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2024, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -36,7 +36,7 @@ class ViewerCfg:
     Default is (1280, 720).
     """
 
-    origin_type: Literal["world", "env", "asset_root"] = "world"
+    origin_type: Literal["world", "env", "asset_root", "asset_body"] = "world"
     """The frame in which the camera position (eye) and target (lookat) are defined in. Default is "world".
 
     Available options are:
@@ -44,6 +44,7 @@ class ViewerCfg:
     * ``"world"``: The origin of the world.
     * ``"env"``: The origin of the environment defined by :attr:`env_index`.
     * ``"asset_root"``: The center of the asset defined by :attr:`asset_name` in environment :attr:`env_index`.
+    * ``"asset_body"``: The center of the body defined by :attr:`body_name` in asset defined by :attr:`asset_name` in environment :attr:`env_index`.
     """
 
     env_index: int = 0
@@ -56,6 +57,12 @@ class ViewerCfg:
     """The asset name in the interactive scene for the frame origin. Default is None.
 
     This quantity is only effective if :attr:`origin` is set to "asset_root".
+    """
+
+    body_name: str | None = None
+    """The name of the body in :attr:`asset_name` in the interactive scene for the frame origin. Default is None.
+
+    This quantity is only effective if :attr:`origin` is set to "asset_body".
     """
 
 

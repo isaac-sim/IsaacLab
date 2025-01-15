@@ -38,13 +38,14 @@ repos:
       - id: pyupgrade
         args: ["--py310-plus"]
         # FIXME: This is a hack because Pytorch does not like: torch.Tensor | dict aliasing
-        exclude: "source/extensions/omni.isaac.lab/omni/isaac/lab/envs/common.py"
+        exclude: "source/extensions/omni.isaac.lab/omni/isaac/lab/envs/common.py|source/extensions/omni.isaac.lab/omni/isaac/lab/ui/widgets/image_plot.py"
   - repo: https://github.com/codespell-project/codespell
     rev: v2.2.6
     hooks:
       - id: codespell
         additional_dependencies:
         - tomli
+        exclude: "CONTRIBUTORS.md"
   # FIXME: Figure out why this is getting stuck under VPN.
   # - repo: https://github.com/RobertCraigie/pyright-python
   #   rev: v1.1.315

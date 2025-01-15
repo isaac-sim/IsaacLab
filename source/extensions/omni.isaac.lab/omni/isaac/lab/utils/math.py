@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2024, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -746,7 +746,7 @@ def is_identity_pose(pos: torch.tensor, rot: torch.tensor) -> bool:
     return torch.allclose(pos, pos_identity) and torch.allclose(rot, rot_identity)
 
 
-# @torch.jit.script
+@torch.jit.script
 def combine_frame_transforms(
     t01: torch.Tensor, q01: torch.Tensor, t12: torch.Tensor | None = None, q12: torch.Tensor | None = None
 ) -> tuple[torch.Tensor, torch.Tensor]:

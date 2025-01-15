@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2024, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -94,6 +94,11 @@ def main():
 
     # create isaac environment
     env = gym.make(args_cli.task, cfg=env_cfg, render_mode="rgb_array" if args_cli.video else None)
+
+    # convert to single-agent instance if required by the RL algorithm
+    if isinstance(env.unwrapped, DirectMARLEnv):
+        env = multi_agent_to_single_agent(env)
+
     # wrap for video recording
     if args_cli.video:
         video_kwargs = {
@@ -105,10 +110,6 @@ def main():
         print("[INFO] Recording videos during training.")
         print_dict(video_kwargs, nesting=4)
         env = gym.wrappers.RecordVideo(env, **video_kwargs)
-
-    # convert to single-agent instance if required by the RL algorithm
-    if isinstance(env.unwrapped, DirectMARLEnv):
-        env = multi_agent_to_single_agent(env)
 
     # wrap around environment for rl-games
     env = RlGamesVecEnvWrapper(env, rl_device, clip_obs, clip_actions)
@@ -155,7 +156,7 @@ def main():
             # convert obs to agent format
             obs = agent.obs_to_torch(obs)
             # agent stepping
-            actions = agent.get_action(obs, is_deterministic=True)
+            actions = agent.get_action(obs, is_deterministic=agent.is_deterministic)
             # env stepping
             obs, _, dones, _ = env.step(actions)
 

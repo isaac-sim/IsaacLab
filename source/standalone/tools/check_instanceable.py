@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2024, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -82,12 +82,12 @@ def main():
     sim = SimulationContext(
         stage_units_in_meters=1.0, physics_dt=0.01, rendering_dt=0.01, backend="torch", device="cuda:0"
     )
-    # enable flatcache which avoids passing data over to USD structure
+    # enable fabric which avoids passing data over to USD structure
     # this speeds up the read-write operation of GPU buffers
     if sim.get_physics_context().use_gpu_pipeline:
-        sim.get_physics_context().enable_flatcache(True)
+        sim.get_physics_context().enable_fabric(True)
     # enable hydra scene-graph instancing
-    # this is needed to visualize the scene when flatcache is enabled
+    # this is needed to visualize the scene when fabric is enabled
     set_carb_setting(sim._settings, "/persistent/omnihydra/useSceneGraphInstancing", True)
 
     # Create interface to clone the scene

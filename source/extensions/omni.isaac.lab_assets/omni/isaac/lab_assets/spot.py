@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2024, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -11,15 +11,13 @@ The following configuration parameters are available:
 * :obj:`SPOT_CFG`: The Spot robot with delay PD and remote PD actuators.
 """
 
-import torch
-
 import omni.isaac.lab.sim as sim_utils
 from omni.isaac.lab.actuators import DelayedPDActuatorCfg, RemotizedPDActuatorCfg
 from omni.isaac.lab.assets.articulation import ArticulationCfg
 from omni.isaac.lab.utils.assets import ISAAC_NUCLEUS_DIR
 
 # Note: This data was collected by the Boston Dynamics AI Institute.
-joint_parameter_lookup = torch.tensor([
+joint_parameter_lookup = [
     [-2.792900, -24.776718, 37.165077],
     [-2.767442, -26.290108, 39.435162],
     [-2.741984, -27.793369, 41.690054],
@@ -121,7 +119,7 @@ joint_parameter_lookup = torch.tensor([
     [-0.298016, -24.632576, 36.948864],
     [-0.272558, -22.528547, 33.792821],
     [-0.247100, -20.401667, 30.602500],
-])
+]
 """The lookup table for the knee joint parameters of the Boston Dynamics Spot robot.
 
 This table describes the relationship between the joint angle (rad), the transmission ratio (in/out),

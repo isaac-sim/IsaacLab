@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2024, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -124,16 +124,12 @@ class CubeActionTerm(ActionTerm):
         self._processed_actions[:] = self._raw_actions[:]
 
     def apply_actions(self):
-        # # implement a PD controller to track the target position
-        # pos_error = self._processed_actions - (self._asset.data.root_pos_w - self._env.scene.env_origins)
-        # vel_error = -self._asset.data.root_lin_vel_w
-        # # set velocity targets
-        # self._vel_command[:, :3] = self.p_gain * pos_error + self.d_gain * vel_error
-        # self._asset.write_root_velocity_to_sim(self._vel_command)
-
-        forces = self._processed_actions[..., :3]
-        torques = self._processed_actions[..., 3:]
-        self._asset.set_external_force_and_torque(forces[:, None], torques[:, None])
+        # implement a PD controller to track the target position
+        pos_error = self._processed_actions - (self._asset.data.root_link_pos_w - self._env.scene.env_origins)
+        vel_error = -self._asset.data.root_com_lin_vel_w
+        # set velocity targets
+        self._vel_command[:, :3] = self.p_gain * pos_error + self.d_gain * vel_error
+        self._asset.write_root_com_velocity_to_sim(self._vel_command)
 
 
 @configclass
@@ -158,18 +154,7 @@ def base_position(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg) -> torch.Tens
     """Root linear velocity in the asset's root frame."""
     # extract the used quantities (to enable type-hinting)
     asset: RigidObject = env.scene[asset_cfg.name]
-    root_state_w = asset.data.root_state_w[:, :13]
-    root_state_w[:, :3] -= env.scene.env_origins
-    return root_state_w
-
-
-def sys_params(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg) -> torch.Tensor:
-    """Root linear velocity in the asset's root frame."""
-    # extract the used quantities (to enable type-hinting)
-    asset: RigidObject = env.scene[asset_cfg.name]
-    materials = asset.root_physx_view.get_material_properties()[:, 0]
-    mass = asset.root_physx_view.get_masses()
-    return torch.cat([materials, mass], dim=-1).to(env.device)
+    return asset.data.root_link_pos_w - env.scene.env_origins
 
 
 ##

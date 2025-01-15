@@ -99,6 +99,10 @@ class Articulation(AssetBase):
         super().__init__(cfg)
         self.cached_body_ids = {}
 
+        self._root_state_dep_warn = False
+        self._root_pose_dep_warn = False
+        self._root_vel_dep_warn = False
+
     """
     Properties
     """
@@ -361,12 +365,68 @@ class Articulation(AssetBase):
             root_state: Root state in simulation frame. Shape is (len(env_ids), 13).
             env_ids: Environment indices. If None, then all indices are used.
         """
+
+        # deprecation warning
+        if not self._root_state_dep_warn:
+            omni.log.warn(
+                "DeprecationWarning: Articluation.write_root_state_to_sim will be removed in a future release. Please"
+                " use write_root_link_state_to_sim or write_root_com_state_to_sim instead."
+            )
+            self._root_state_dep_warn = True
+
         # set into simulation
         self.write_root_pose_to_sim(root_state[:, :7], env_ids=env_ids)
         self.write_root_velocity_to_sim(root_state[:, 7:], env_ids=env_ids)
 
+    def write_root_com_state_to_sim(self, root_state: torch.Tensor, env_ids: Sequence[int] | None = None):
+        """Set the root center of mass state over selected environment indices into the simulation.
+
+        The root state comprises of the cartesian position, quaternion orientation in (w, x, y, z), and linear
+        and angular velocity. All the quantities are in the simulation frame.
+
+        Args:
+            root_state: Root state in simulation frame. Shape is (len(env_ids), 13).
+            env_ids: Environment indices. If None, then all indices are used.
+        """
+        # set into simulation
+        self.write_root_com_pose_to_sim(root_state[:, :7], env_ids=env_ids)
+        self.write_root_com_velocity_to_sim(root_state[:, 7:], env_ids=env_ids)
+
+    def write_root_link_state_to_sim(self, root_state: torch.Tensor, env_ids: Sequence[int] | None = None):
+        """Set the root link state over selected environment indices into the simulation.
+
+        The root state comprises of the cartesian position, quaternion orientation in (w, x, y, z), and linear
+        and angular velocity. All the quantities are in the simulation frame.
+
+        Args:
+            root_state: Root state in simulation frame. Shape is (len(env_ids), 13).
+            env_ids: Environment indices. If None, then all indices are used.
+        """
+        # set into simulation
+        self.write_root_link_pose_to_sim(root_state[:, :7], env_ids=env_ids)
+        self.write_root_link_velocity_to_sim(root_state[:, 7:], env_ids=env_ids)
+
     def write_root_pose_to_sim(self, root_pose: torch.Tensor, env_ids: Sequence[int] | None = None):
         """Set the root pose over selected environment indices into the simulation.
+
+        The root pose comprises of the cartesian position and quaternion orientation in (w, x, y, z).
+
+        Args:
+            root_pose: Root poses in simulation frame. Shape is (len(env_ids), 7).
+            env_ids: Environment indices. If None, then all indices are used.
+        """
+        # deprecation warning
+        if not self._root_pose_dep_warn:
+            omni.log.warn(
+                "DeprecationWarning: Articluation.write_root_pos_to_sim will be removed in a future release. Please use"
+                " write_root_link_pose_to_sim or write_root_com_pose_to_sim instead."
+            )
+            self._root_pose_dep_warn = True
+
+        self.write_root_link_pose_to_sim(root_pose, env_ids)
+
+    def write_root_link_pose_to_sim(self, root_pose: torch.Tensor, env_ids: Sequence[int] | None = None):
+        """Set the root link pose over selected environment indices into the simulation.
 
         The root pose comprises of the cartesian position and quaternion orientation in (w, x, y, z).
 
@@ -381,20 +441,28 @@ class Articulation(AssetBase):
             physx_env_ids = self._ALL_INDICES
         # note: we need to do this here since tensors are not set into simulation until step.
         # set into internal buffers
-        self._data.root_state_w[env_ids, :7] = root_pose
+        self._data.root_link_state_w[env_ids, :7] = root_pose.clone()
+        self._data._ignore_dep_warn = True
+        self._data.root_state_w[env_ids, :7] = self._data.root_link_state_w[env_ids, :7]
+        self._data._ignore_dep_warn = False
         # convert root quaternion from wxyz to xyzw
-        root_poses_xyzw = self._data.root_state_w[:, :7].clone()
+        root_poses_xyzw = self._data.root_link_state_w[:, :7].clone()
         root_poses_xyzw[:, 3:] = math_utils.convert_quat(root_poses_xyzw[:, 3:], to="xyzw")
         # Need to invalidate the buffer to trigger the update with the new root pose.
         self._data._body_state_w.timestamp = -1.0
+        self._data._body_link_state_w.timestamp = -1.0
+        self._data._body_com_state_w.timestamp = -1.0
         # set into simulation
         self.root_physx_view.set_root_transforms(root_poses_xyzw, indices=physx_env_ids)
 
-    def write_root_velocity_to_sim(self, root_velocity: torch.Tensor, env_ids: Sequence[int] | None = None):
-        """Set the root velocity over selected environment indices into the simulation.
+    def write_root_com_pose_to_sim(self, root_pose: torch.Tensor, env_ids: Sequence[int] | None = None):
+        """Set the root center of mass pose over selected environment indices into the simulation.
+
+        The root pose comprises of the cartesian position and quaternion orientation in (w, x, y, z).
+        The orientation is the orientation of the principle axes of inertia.
 
         Args:
-            root_velocity: Root velocities in simulation frame. Shape is (len(env_ids), 6).
+            root_pose: Root center of mass poses in simulation frame. Shape is (len(env_ids), 7).
             env_ids: Environment indices. If None, then all indices are used.
         """
         # resolve all indices
@@ -402,12 +470,91 @@ class Articulation(AssetBase):
         if env_ids is None:
             env_ids = slice(None)
             physx_env_ids = self._ALL_INDICES
+
+        com_pos = self.data.com_pos_b[env_ids, 0, :]
+        com_quat = self.data.com_quat_b[env_ids, 0, :]
+
+        root_link_pos, root_link_quat = math_utils.combine_frame_transforms(
+            root_pose[..., :3],
+            root_pose[..., 3:7],
+            math_utils.quat_rotate(math_utils.quat_inv(com_quat), -com_pos),
+            math_utils.quat_inv(com_quat),
+        )
+
+        root_link_pose = torch.cat((root_link_pos, root_link_quat), dim=-1)
+        self.write_root_link_pose_to_sim(root_pose=root_link_pose, env_ids=physx_env_ids)
+
+    def write_root_velocity_to_sim(self, root_velocity: torch.Tensor, env_ids: Sequence[int] | None = None):
+        """Set the root center of mass velocity over selected environment indices into the simulation.
+
+        The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
+        NOTE: This sets the velocity of the root's center of mass rather than the roots frame.
+
+        Args:
+            root_velocity: Root center of mass velocities in simulation world frame. Shape is (len(env_ids), 6).
+            env_ids: Environment indices. If None, then all indices are used.
+        """
+        # deprecation warning
+        if not self._root_vel_dep_warn:
+            omni.log.warn(
+                "DeprecationWarning: Articluation.write_root_velocity_to_sim will be removed in a future release."
+                " Please use write_root_link_velocity_to_sim or write_root_com_velocity_to_sim instead."
+            )
+            self._root_vel_dep_warn = True
+
+        self.write_root_com_velocity_to_sim(root_velocity=root_velocity, env_ids=env_ids)
+
+    def write_root_com_velocity_to_sim(self, root_velocity: torch.Tensor, env_ids: Sequence[int] | None = None):
+        """Set the root center of mass velocity over selected environment indices into the simulation.
+
+        The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
+        NOTE: This sets the velocity of the root's center of mass rather than the roots frame.
+
+        Args:
+            root_velocity: Root center of mass velocities in simulation world frame. Shape is (len(env_ids), 6).
+            env_ids: Environment indices. If None, then all indices are used.
+        """
+
+        # resolve all indices
+        physx_env_ids = env_ids
+        if env_ids is None:
+            env_ids = slice(None)
+            physx_env_ids = self._ALL_INDICES
         # note: we need to do this here since tensors are not set into simulation until step.
         # set into internal buffers
-        self._data.root_state_w[env_ids, 7:] = root_velocity
+        self._data.root_com_state_w[env_ids, 7:] = root_velocity.clone()
+        self._data._ignore_dep_warn = True
+        self._data.root_state_w[env_ids, 7:] = self._data.root_com_state_w[env_ids, 7:]
+        self._data._ignore_dep_warn = False
         self._data.body_acc_w[env_ids] = 0.0
         # set into simulation
-        self.root_physx_view.set_root_velocities(self._data.root_state_w[:, 7:], indices=physx_env_ids)
+        self.root_physx_view.set_root_velocities(self._data.root_com_state_w[:, 7:], indices=physx_env_ids)
+
+    def write_root_link_velocity_to_sim(self, root_velocity: torch.Tensor, env_ids: Sequence[int] | None = None):
+        """Set the root link velocity over selected environment indices into the simulation.
+
+        The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
+        NOTE: This sets the velocity of the root's frame rather than the roots center of mass.
+
+        Args:
+            root_velocity: Root frame velocities in simulation world frame. Shape is (len(env_ids), 6).
+            env_ids: Environment indices. If None, then all indices are used.
+        """
+        # resolve all indices
+        physx_env_ids = env_ids
+        if env_ids is None:
+            env_ids = slice(None)
+            physx_env_ids = self._ALL_INDICES
+
+        root_com_velocity = root_velocity.clone()
+        quat = self.data.root_link_state_w[env_ids, 3:7]
+        com_pos_b = self.data.com_pos_b[env_ids, 0, :]
+        # transform given velocity to center of mass
+        root_com_velocity[:, :3] += torch.linalg.cross(
+            root_com_velocity[:, 3:], math_utils.quat_rotate(quat, com_pos_b), dim=-1
+        )
+        # write center of mass velocity to sim
+        self.write_root_com_velocity_to_sim(root_velocity=root_com_velocity, env_ids=physx_env_ids)
 
     def write_joint_state_to_sim(
         self,
@@ -438,9 +585,11 @@ class Articulation(AssetBase):
         self._data.joint_pos[env_ids, joint_ids] = position
         self._data.joint_vel[env_ids, joint_ids] = velocity
         self._data._previous_joint_vel[env_ids, joint_ids] = velocity
-        # self._data.joint_acc[env_ids, joint_ids] = 0.0
+        self._data.joint_acc[env_ids, joint_ids] = 0.0
         # Need to invalidate the buffer to trigger the update with the new root pose.
         self._data._body_state_w.timestamp = -1.0
+        self._data._body_link_state_w.timestamp = -1.0
+        self._data._body_com_state_w.timestamp = -1.0
         # set into simulation
         self.root_physx_view.set_dof_positions(self._data.joint_pos, indices=physx_env_ids)
         self.root_physx_view.set_dof_velocities(self._data.joint_vel, indices=physx_env_ids)
@@ -452,8 +601,9 @@ class Articulation(AssetBase):
             state: A dictionary containing the root and joint states.
             env_ids: Environment indices. If None, then all indices are used.
         """
+        # TODO: this is deprecated, modify this to use the new api
         root_state, joint_state = state["root_state"], state["joint_state"]
-        self.write_root_state_to_sim(root_state, env_ids)
+        self.write_root_link_state_to_sim(root_state, env_ids)
         self.write_joint_state_to_sim(joint_state["position"], joint_state["velocity"], env_ids=env_ids)
 
         self.set_joint_position_target(joint_state["position_target"], env_ids=env_ids)
@@ -520,6 +670,39 @@ class Articulation(AssetBase):
         self._data.joint_damping[env_ids, joint_ids] = damping
         # set into simulation
         self.root_physx_view.set_dof_dampings(self._data.joint_damping.cpu(), indices=physx_env_ids.cpu())
+
+    def write_joint_velocity_limit_to_sim(
+        self,
+        limits: torch.Tensor | float,
+        joint_ids: Sequence[int] | slice | None = None,
+        env_ids: Sequence[int] | None = None,
+    ):
+        """Write joint max velocity to the simulation.
+
+        Args:
+            limits: Joint max velocity. Shape is (len(env_ids), len(joint_ids)).
+            joint_ids: The joint indices to set the max velocity for. Defaults to None (all joints).
+            env_ids: The environment indices to set the max velocity for. Defaults to None (all environments).
+        """
+        # resolve indices
+        physx_env_ids = env_ids
+        if env_ids is None:
+            env_ids = slice(None)
+            physx_env_ids = self._ALL_INDICES
+        if joint_ids is None:
+            joint_ids = slice(None)
+        # broadcast env_ids if needed to allow double indexing
+        if env_ids != slice(None) and joint_ids != slice(None):
+            env_ids = env_ids[:, None]
+        # move tensor to cpu if needed
+        if isinstance(limits, torch.Tensor):
+            limits = limits.to(self.device)
+
+        # set into internal buffers
+        self._data.joint_velocity_limits = self.root_physx_view.get_dof_max_velocities().to(self.device)
+        self._data.joint_velocity_limits[env_ids, joint_ids] = limits
+        # set into simulation
+        self.root_physx_view.set_dof_max_velocities(self._data.joint_velocity_limits.cpu(), indices=physx_env_ids.cpu())
 
     def write_joint_effort_limit_to_sim(
         self,
@@ -789,7 +972,6 @@ class Articulation(AssetBase):
         if env_ids != slice(None) and joint_ids != slice(None):
             env_ids = env_ids[:, None]
         # set targets
-
         self._data.joint_effort_target[env_ids, joint_ids] = target
 
     """
@@ -1256,6 +1438,7 @@ class Articulation(AssetBase):
                 self.write_joint_stiffness_to_sim(actuator.stiffness, joint_ids=actuator.joint_indices)
                 self.write_joint_damping_to_sim(actuator.damping, joint_ids=actuator.joint_indices)
                 self.write_joint_effort_limit_to_sim(actuator.effort_limit, joint_ids=actuator.joint_indices)
+                self.write_joint_velocity_limit_to_sim(actuator.velocity_limit, joint_ids=actuator.joint_indices)
                 self.write_joint_armature_to_sim(actuator.armature, joint_ids=actuator.joint_indices)
                 self.write_joint_friction_to_sim(actuator.friction, joint_ids=actuator.joint_indices)
             else:
@@ -1264,11 +1447,12 @@ class Articulation(AssetBase):
                 self.write_joint_stiffness_to_sim(0.0, joint_ids=actuator.joint_indices)
                 self.write_joint_damping_to_sim(0.0, joint_ids=actuator.joint_indices)
                 self.write_joint_effort_limit_to_sim(1.0e9, joint_ids=actuator.joint_indices)
+                self.write_joint_velocity_limit_to_sim(actuator.velocity_limit, joint_ids=actuator.joint_indices)
                 self.write_joint_armature_to_sim(actuator.armature, joint_ids=actuator.joint_indices)
                 self.write_joint_friction_to_sim(actuator.friction, joint_ids=actuator.joint_indices)
-                # Store the actual default stiffness and damping values for explicit actuators (not written the sim)
-                self._data.default_joint_stiffness[:, actuator.joint_indices] = actuator.stiffness
-                self._data.default_joint_damping[:, actuator.joint_indices] = actuator.damping
+            # Store the actual default stiffness and damping values for explicit and implicit actuators (not written the sim)
+            self._data.default_joint_stiffness[:, actuator.joint_indices] = actuator.stiffness
+            self._data.default_joint_damping[:, actuator.joint_indices] = actuator.damping
 
         # perform some sanity checks to ensure actuators are prepared correctly
         total_act_joints = sum(actuator.num_joints for actuator in self.actuators.values())

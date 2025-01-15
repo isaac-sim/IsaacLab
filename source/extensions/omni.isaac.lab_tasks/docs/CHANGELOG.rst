@@ -1,6 +1,58 @@
 Changelog
 ---------
 
+0.10.18 (2025-01-03)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the reset of the actions in the function overriding of the low level observations of :class:`omni.isaac.lab_tasks.manager_based.navigation.mdp.PreTrainedPolicyAction`.
+
+
+0.10.17 (2024-12-17)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the configuration of
+  :class:`omni.isaac.lab.envs.mdp.actions.OperationalSpaceControllerAction`
+  inside the ``Isaac-Reach-Franka-OSC-v0`` environment to enable nullspace control.
+
+
+0.10.16 (2024-12-16)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``Factory-Direct-v0`` environment as a direct RL env that
+  implements contact-rich manipulation tasks including peg insertion,
+  gear meshing, and nut threading.
+
+
+0.10.15 (2024-12-16)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``Isaac-Reach-Franka-OSC-v0`` and ``Isaac-Reach-Franka-OSC-Play-v0``
+  variations of the manager based reach environment that uses
+  :class:`omni.isaac.lab.envs.mdp.actions.OperationalSpaceControllerAction`.
+
+
+0.10.14 (2024-12-03)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``Isaac-Stack-Cube-Franka-IK-Rel-v0`` and ``Isaac-Stack-Cube-Instance-Randomize-Franka-IK-Rel-v0`` environments
+  as manager-based RL envs that implement a three cube stacking task.
+
+
 0.10.13 (2024-10-30)
 ~~~~~~~~~~~~~~~~~~~~
 
@@ -29,6 +81,7 @@ Added
 ^^^^^
 
 * Added feature extracted observation cartpole examples.
+
 
 0.10.10 (2024-10-25)
 ~~~~~~~~~~~~~~~~~~~~

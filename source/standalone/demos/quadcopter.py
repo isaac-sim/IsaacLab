@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2024, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -91,8 +91,8 @@ def main():
             # reset dof state
             joint_pos, joint_vel = robot.data.default_joint_pos, robot.data.default_joint_vel
             robot.write_joint_state_to_sim(joint_pos, joint_vel)
-            robot.write_root_pose_to_sim(robot.data.default_root_state[:, :7])
-            robot.write_root_velocity_to_sim(robot.data.default_root_state[:, 7:])
+            robot.write_root_link_pose_to_sim(robot.data.default_root_state[:, :7])
+            robot.write_root_com_velocity_to_sim(robot.data.default_root_state[:, 7:])
             robot.reset()
             # reset command
             print(">>>>>>>> Reset!")

@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2024, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -19,6 +19,7 @@ simulation_app = app_launcher.app
 
 import copy
 import os
+import torch
 import unittest
 from collections.abc import Callable
 from dataclasses import MISSING, asdict, field
@@ -132,6 +133,24 @@ class BasicDemoPostInitCfg:
     def __post_init__(self):
         self.device_id = 1
         self.add_variable = 3
+
+
+@configclass
+class BasicDemoTorchCfg:
+    """Dummy configuration class with a torch tensor ."""
+
+    some_number: int = 0
+    some_tensor: torch.Tensor = torch.Tensor([1, 2, 3])
+
+
+@configclass
+class BasicActuatorCfg:
+    """Dummy configuration class for ActuatorBase config."""
+
+    joint_names_expr: list[str] = ["some_string"]
+    joint_parameter_lookup: list[list[float]] = [[1, 2, 3], [4, 5, 6]]
+    stiffness: float = 1.0
+    damping: float = 2.0
 
 
 """
@@ -514,6 +533,24 @@ class TestConfigClass(unittest.TestCase):
         # internal function
         self.assertDictEqual(cfg.to_dict(), basic_demo_cfg_correct)
         self.assertDictEqual(cfg.env.to_dict(), basic_demo_cfg_correct["env"])
+
+        torch_cfg = BasicDemoTorchCfg()
+        torch_cfg_dict = torch_cfg.to_dict()
+        # We have to do a manual check because torch.Tensor does not work with assertDictEqual.
+        self.assertEqual(torch_cfg_dict["some_number"], 0)
+        self.assertTrue(torch.all(torch_cfg_dict["some_tensor"] == torch.tensor([1, 2, 3])))
+
+    def test_actuator_cfg_dict_conversion(self):
+        """Test dict conversion of ActuatorConfig."""
+        # create a basic RemotizedPDActuator config
+        actuator_cfg = BasicActuatorCfg()
+        # return writable attributes of config object
+        actuator_cfg_dict_attr = actuator_cfg.__dict__
+        # check if __dict__ attribute of config is not empty
+        self.assertTrue(len(actuator_cfg_dict_attr) > 0)
+        # class_to_dict utility function should return a primitive dictionary
+        actuator_cfg_dict = class_to_dict(actuator_cfg)
+        self.assertTrue(isinstance(actuator_cfg_dict, dict))
 
     def test_dict_conversion_order(self):
         """Tests that order is conserved when converting to dictionary."""

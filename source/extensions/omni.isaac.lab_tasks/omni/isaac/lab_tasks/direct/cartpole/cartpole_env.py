@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2024, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -143,8 +143,8 @@ class CartpoleEnv(DirectRLEnv):
         self.joint_pos[env_ids] = joint_pos
         self.joint_vel[env_ids] = joint_vel
 
-        self.cartpole.write_root_pose_to_sim(default_root_state[:, :7], env_ids)
-        self.cartpole.write_root_velocity_to_sim(default_root_state[:, 7:], env_ids)
+        self.cartpole.write_root_link_pose_to_sim(default_root_state[:, :7], env_ids)
+        self.cartpole.write_root_com_velocity_to_sim(default_root_state[:, 7:], env_ids)
         self.cartpole.write_joint_state_to_sim(joint_pos, joint_vel, None, env_ids)
 
 

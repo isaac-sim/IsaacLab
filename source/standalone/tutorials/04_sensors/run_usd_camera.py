@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2024, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -252,7 +252,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene_entities: dict):
             # Derive pointcloud from camera at camera_index
             pointcloud = create_pointcloud_from_depth(
                 intrinsic_matrix=camera.data.intrinsic_matrices[camera_index],
-                depth=camera.data.output[camera_index]["distance_to_image_plane"],
+                depth=camera.data.output["distance_to_image_plane"][camera_index],
                 position=camera.data.pos_w[camera_index],
                 orientation=camera.data.quat_w_ros[camera_index],
                 device=sim.device,

@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2024, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -324,7 +324,7 @@ class RemotizedPDActuator(DelayedPDActuator):
         super().__init__(
             cfg, joint_names, joint_ids, num_envs, device, stiffness, damping, armature, friction, torch.inf, torch.inf
         )
-        self._joint_parameter_lookup = cfg.joint_parameter_lookup.to(device=device)
+        self._joint_parameter_lookup = torch.tensor(cfg.joint_parameter_lookup, device=device)
         # define remotized joint torque limit
         self._torque_limit = LinearInterpolation(self.angle_samples, self.max_torque_samples, device=device)
 

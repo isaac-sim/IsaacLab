@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2024, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -278,6 +278,22 @@ class TiledCamera(Camera):
             # alias rgb as first 3 channels of rgba
             if data_type == "rgba" and "rgb" in self.cfg.data_types:
                 self._data.output["rgb"] = self._data.output["rgba"][..., :3]
+
+            # NOTE: The `distance_to_camera` annotator returns the distance to the camera optical center. However,
+            #       the replicator depth clipping is applied w.r.t. to the image plane which may result in values
+            #       larger than the clipping range in the output. We apply an additional clipping to ensure values
+            #       are within the clipping range for all the annotators.
+            if data_type == "distance_to_camera":
+                self._data.output[data_type][
+                    self._data.output[data_type] > self.cfg.spawn.clipping_range[1]
+                ] = torch.inf
+            # apply defined clipping behavior
+            if (
+                data_type == "distance_to_camera" or data_type == "distance_to_image_plane" or data_type == "depth"
+            ) and self.cfg.depth_clipping_behavior != "none":
+                self._data.output[data_type][torch.isinf(self._data.output[data_type])] = (
+                    0.0 if self.cfg.depth_clipping_behavior == "zero" else self.cfg.spawn.clipping_range[1]
+                )
 
     """
     Private Helpers
