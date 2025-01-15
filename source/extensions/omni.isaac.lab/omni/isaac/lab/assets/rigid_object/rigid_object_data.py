@@ -399,7 +399,7 @@ class RigidObjectData:
 
         This quantity contains the linear and angular velocities of the root rigid body's center of mass frame relative to the world.
         """
-        if self._root_link_state_w.timestamp < self._sim_timestamp:
+        if self._root_com_state_w.timestamp < self._sim_timestamp:
             # read data from simulation
             velocity = self._root_physx_view.get_velocities()
             return velocity
@@ -411,7 +411,7 @@ class RigidObjectData:
 
         This quantity is the linear velocity of the root rigid body's center of mass frame relative to the world.
         """
-        if self._root_link_state_w.timestamp < self._sim_timestamp:
+        if self._root_com_state_w.timestamp < self._sim_timestamp:
             # read data from simulation
             velocity = self._root_physx_view.get_velocities()
             return velocity[:, 0:3]
@@ -423,7 +423,7 @@ class RigidObjectData:
 
         This quantity is the angular velocity of the root rigid body's center of mass frame relative to the world.
         """
-        if self._root_link_state_w.timestamp < self._sim_timestamp:
+        if self._root_com_state_w.timestamp < self._sim_timestamp:
             # read data from simulation
             velocity = self._root_physx_view.get_velocities()
             return velocity[:, 3:6]

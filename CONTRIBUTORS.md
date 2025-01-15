@@ -69,6 +69,7 @@ Guidelines for modifications:
 * Muhong Guo
 * Nicola Loi
 * Nuralem Abizov
+* Ori Gadot
 * Oyindamola Omotuyi
 * Özhan Özen
 * Peter Du
