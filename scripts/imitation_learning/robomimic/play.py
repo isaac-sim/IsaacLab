@@ -89,7 +89,7 @@ def main():
     env_cfg.recorders = None
 
     # Create environment
-    env = gym.make(args_cli.task, cfg=env_cfg)
+    env = gym.make(args_cli.task, cfg=env_cfg).unwrapped
 
     # Set seed
     torch.manual_seed(args_cli.seed)

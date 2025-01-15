@@ -133,7 +133,7 @@ def main():
     env_cfg.terminations = {}
 
     # create environment from loaded config
-    env = gym.make(env_name, cfg=env_cfg)
+    env = gym.make(env_name, cfg=env_cfg).unwrapped
 
     teleop_interface = Se3Keyboard(pos_sensitivity=0.1, rot_sensitivity=0.1)
     teleop_interface.add_callback("N", play_cb)
@@ -161,7 +161,7 @@ def main():
             has_next_action = True
             while has_next_action:
                 # initialize actions with zeros so those without next action will not move
-                actions = torch.zeros(env.unwrapped.action_space.shape)
+                actions = torch.zeros(env.action_space.shape)
                 has_next_action = False
                 for env_id in range(num_envs):
                     env_next_action = env_episode_data_map[env_id].get_next_action()
@@ -177,14 +177,12 @@ def main():
                             replayed_episode_count += 1
                             print(f"{replayed_episode_count :4}: Loading #{next_episode_index} episode to env_{env_id}")
                             episode_data = dataset_file_handler.load_episode(
-                                episode_names[next_episode_index], env.unwrapped.device
+                                episode_names[next_episode_index], env.device
                             )
                             env_episode_data_map[env_id] = episode_data
                             # Set initial state for the new episode
                             initial_state = episode_data.get_initial_state()
-                            env.unwrapped.reset_to(
-                                initial_state, torch.tensor([env_id], device=env.unwrapped.device), is_relative=True
-                            )
+                            env.reset_to(initial_state, torch.tensor([env_id], device=env.device), is_relative=True)
                             # Get the first action for the new episode
                             env_next_action = env_episode_data_map[env_id].get_next_action()
                             has_next_action = True
@@ -197,7 +195,7 @@ def main():
                     first_loop = False
                 else:
                     while is_paused:
-                        env.unwrapped.sim.render()
+                        env.sim.render()
                         continue
                 env.step(actions)
 
@@ -208,7 +206,7 @@ def main():
                             f"Validating states at action-index: {env_episode_data_map[0].next_state_index - 1 :4}",
                             end="",
                         )
-                        current_runtime_state = env.unwrapped.scene.get_state(is_relative=True)
+                        current_runtime_state = env.scene.get_state(is_relative=True)
                         states_matched, comparison_log = compare_states(state_from_dataset, current_runtime_state, 0)
                         if states_matched:
                             print("\t- matched.")
