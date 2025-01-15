@@ -7,6 +7,7 @@ from collections.abc import Sequence
 import omni.isaac.lab.sim as sim_utils
 import omni.isaac.lab.utils.math as math_utils
 from omni.isaac.lab.actuators.actuator_cfg import ImplicitActuatorCfg
+from omni.isaac.lab.markers import VisualizationMarkersCfg, VisualizationMarkers
 from omni.isaac.lab.assets import Articulation, DeformableObject, ArticulationCfg, DeformableObjectCfg, RigidObjectCfg, RigidObject
 from omni.isaac.lab.envs import DirectRLEnv, DirectRLEnvCfg
 from omni.isaac.lab.scene import InteractiveSceneCfg
@@ -18,11 +19,13 @@ from omni.isaac.lab.utils.assets import ISAAC_NUCLEUS_DIR
 from omni.isaac.lab_assets.franka import FRANKA_PANDA_CFG
 
 CUBE_SIZE = 0.1
-CUBE_X_MIN, CUBE_X_MAX = 0.1, 1.0
-CUBE_Y_MIN, CUBE_Y_MAX = -0.5, 0.5
+CUBE_X_MIN, CUBE_X_MAX = 0.0, 1.0
+CUBE_Y_MIN, CUBE_Y_MAX = -0.45, 0.45
 
 # TODO: Edit GPU settings for softbody contact buffer size
 # TODO: mess with deformable object settings
+# TODO: Make sure cube spawns on table
+# TODO: Add some way to detect if cube is in container
 
 def get_robot() -> ArticulationCfg:
 	return ArticulationCfg(
@@ -165,6 +168,55 @@ class DeformableCubeEnvCfg(DirectRLEnvCfg):
 	object_cfg: DeformableObjectCfg = get_object()
 	container_cfg: RigidObjectCfg = get_container()
 
+	# markers
+	table_markers_cfg: VisualizationMarkersCfg = VisualizationMarkersCfg(
+		prim_path="/Visuals/TableMarkers",
+		markers={
+			"table_bottom_left": sim_utils.UsdFileCfg(
+				usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/UIElements/frame_prim.usd",
+				scale=(0.15, 0.15, 0.15),
+			),
+			"table_bottom_right": sim_utils.UsdFileCfg(
+				usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/UIElements/frame_prim.usd",
+				scale=(0.15, 0.15, 0.15),
+			),
+			"table_top_left": sim_utils.UsdFileCfg(
+				usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/UIElements/frame_prim.usd",
+				scale=(0.15, 0.15, 0.15),
+			),
+			"table_top_right": sim_utils.UsdFileCfg(
+				usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/UIElements/frame_prim.usd",
+				scale=(0.15, 0.15, 0.15),
+			),
+		}
+	)
+
+def draw_markers(markers: VisualizationMarkers, origins: torch.Tensor):
+	N_envs = origins.shape[0]
+
+	# table corner markers
+	bottom_left_T = torch.tensor([0.0, 0.45, 1.0], device=origins.device).reshape(1, -1)
+	bottom_right_T = torch.tensor([0.0, -0.45, 1.0], device=origins.device).reshape(1, -1)
+	top_left_T = torch.tensor([1.0, 0.45, 1.0], device=origins.device).reshape(1, -1)
+	top_right_T = torch.tensor([1.0, -0.45, 1.0], device=origins.device).reshape(1, -1)
+
+	bottom_left, bottom_right, top_left, top_right = origins.clone().repeat(4, 1).reshape(4, -1, 3).unbind(0)
+	bottom_left += bottom_left_T
+	bottom_right += bottom_right_T
+	top_left += top_left_T
+	top_right += top_right_T
+
+	r2b2 = math.sqrt(2) / 2
+	bottom_left_quat = torch.tensor([-r2b2, 0.0, 0.0, r2b2], device=origins.device).reshape(1, -1).repeat(N_envs, 1)
+	bottom_right_quat = torch.tensor([1.0, 0.0, 0.0, 0.0], device=origins.device).reshape(1, -1).repeat(N_envs, 1)
+	top_left_quat = torch.tensor([0.0, 0.0, 0.0, 1.0], device=origins.device).reshape(1, -1).repeat(N_envs, 1)
+	top_right_quat = torch.tensor([r2b2, 0.0, 0.0, r2b2], device=origins.device).reshape(1, -1).repeat(N_envs, 1)
+
+	marker_quats = torch.cat([bottom_left_quat, bottom_right_quat, top_left_quat, top_right_quat], dim=0)
+	marker_locs = torch.cat([bottom_left, bottom_right, top_left, top_right], dim=0)
+	marker_idxs = torch.tensor([0, 1, 2, 3]).repeat_interleave(N_envs)
+	markers.visualize(marker_locs, marker_quats, marker_indices=marker_idxs)
+
 
 class DeformableCubeEnv(DirectRLEnv):
 	cfg: DeformableCubeEnvCfg
@@ -187,9 +239,11 @@ class DeformableCubeEnv(DirectRLEnv):
 		self.object = DeformableObject(self.cfg.object_cfg)
 		self.container = RigidObject(self.cfg.container_cfg)
 		self.table = RigidObject(self.cfg.table_cfg)
+		self.table_markers = VisualizationMarkers(self.cfg.table_markers_cfg)
 		self.scene.articulations["robot"] = self.robot
 
 		spawn_ground_plane(prim_path="/World/ground", cfg=GroundPlaneCfg())
+		draw_markers(self.table_markers, self.scene.env_origins)
 
 		# clone, filter, and replicate
 		self.scene.clone_environments(copy_from_source=False)
