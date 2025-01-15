@@ -80,7 +80,7 @@ def main():
         # add termination condition for reaching the goal otherwise the environment won't reset
         env_cfg.terminations.object_reached_goal = DoneTerm(func=mdp.object_reached_goal)
     # create environment
-    env = gym.make(args_cli.task, cfg=env_cfg)
+    env = gym.make(args_cli.task, cfg=env_cfg).unwrapped
     # check environment name (for reach , we don't allow the gripper)
     if "Reach" in args_cli.task:
         omni.log.warn(
@@ -103,7 +103,7 @@ def main():
     elif args_cli.teleop_device.lower() == "handtracking":
         from isaacsim.xr.openxr import OpenXRSpec
 
-        teleop_interface = Se3HandTracking(OpenXRSpec.XrHandEXT.XR_HAND_RIGHT_EXT, False)
+        teleop_interface = Se3HandTracking(OpenXRSpec.XrHandEXT.XR_HAND_RIGHT_EXT, False, True)
         teleop_interface.add_callback("RESET", env.reset)
         viewer = ViewerCfg(eye=(-0.25, -0.3, 0.5), lookat=(0.6, 0, 0), asset_name="viewer")
         ViewportCameraController(env, viewer)
@@ -134,7 +134,7 @@ def main():
             delta_pose, gripper_command = teleop_interface.advance()
             delta_pose = delta_pose.astype("float32")
             # convert to torch
-            delta_pose = torch.tensor(delta_pose, device=env.unwrapped.device).repeat(env.unwrapped.num_envs, 1)
+            delta_pose = torch.tensor(delta_pose, device=env.device).repeat(env.num_envs, 1)
             # pre-process actions
             actions = pre_process_actions(delta_pose, gripper_command)
             # apply actions
