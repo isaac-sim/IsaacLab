@@ -67,3 +67,12 @@ repos:
       - id: rst-backticks
       - id: rst-directive-colons
       - id: rst-inline-touching-normal
+  - repo: local
+    hooks:
+    - id: spellcheck
+      name: Spellcheck
+      entry: issac
+      args: [-i]
+      language: pygrep
+      types: [text]
+      exclude: ".pre-commit-config.yaml|docs/source/_static/refs.bib"
