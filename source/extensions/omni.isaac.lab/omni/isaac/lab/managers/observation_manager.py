@@ -425,7 +425,8 @@ class ObservationManager(ManagerBase):
                 self._group_obs_term_names[group_name].append(term_name)
                 self._group_obs_term_cfgs[group_name].append(term_cfg)
                 # call function the first time to fill up dimensions
-                obs_dims = tuple(term_cfg.func(self._env, **term_cfg.params).shape)
+                raw_obs_dims = tuple(term_cfg.func(self._env, **term_cfg.params).shape)
+                obs_dims = raw_obs_dims
                 # create history buffers and calculate history term dimensions
                 if term_cfg.history_length > 0:
                     group_entry_history_buffer[term_name] = CircularBuffer(
@@ -469,7 +470,7 @@ class ObservationManager(ManagerBase):
                                         f"Modifier function '{mod_cfg.func}' for observation term '{term_name}'"
                                         f" is not a subclass of 'ModifierBase'. Received: '{type(mod_cfg.func)}'."
                                     )
-                                mod_cfg.func = mod_cfg.func(cfg=mod_cfg, data_dim=obs_dims, device=self._env.device)
+                                mod_cfg.func = mod_cfg.func(cfg=mod_cfg, data_dim=raw_obs_dims, device=self._env.device)
 
                                 # add to list of class modifiers
                                 self._group_obs_class_modifiers.append(mod_cfg.func)
