@@ -5,6 +5,7 @@
 
 """Installation script for the 'isaaclab_mimic' python package."""
 
+import itertools
 import os
 import platform
 import toml
@@ -16,6 +17,11 @@ EXTENSION_PATH = os.path.dirname(os.path.realpath(__file__))
 # Read the extension.toml file
 EXTENSION_TOML_DATA = toml.load(os.path.join(EXTENSION_PATH, "config", "extension.toml"))
 
+# Minimum dependencies required prior to installation
+INSTALL_REQUIRES = [
+    "tomli",
+]
+
 # Extra dependencies for IL agents
 EXTRAS_REQUIRE = {"robomimic": []}
 
@@ -23,6 +29,10 @@ EXTRAS_REQUIRE = {"robomimic": []}
 if platform.system() == "Linux":
     EXTRAS_REQUIRE["robomimic"].append("robomimic@git+https://github.com/ARISE-Initiative/robomimic.git")
 
+# Cumulation of all extra-requires
+EXTRAS_REQUIRE["all"] = list(itertools.chain.from_iterable(EXTRAS_REQUIRE.values()))
+# Remove duplicates in the all list to avoid double installations
+EXTRAS_REQUIRE["all"] = list(set(EXTRAS_REQUIRE["all"]))
 
 # Installation operation
 setup(
@@ -34,6 +44,7 @@ setup(
     version=EXTENSION_TOML_DATA["package"]["version"],
     description=EXTENSION_TOML_DATA["package"]["description"],
     keywords=EXTENSION_TOML_DATA["package"]["keywords"],
+    install_requires=INSTALL_REQUIRES,
     extras_require=EXTRAS_REQUIRE,
     license="MIT",
     include_package_data=True,
