@@ -295,8 +295,9 @@ while [[ $# -gt 0 ]]; do
                 framework_name=$2
                 shift # past argument
             fi
-            # install the rl-frameworks specified
+            # install the learning frameworks specified
             ${python_exe} -m pip install -e ${ISAACLAB_PATH}/source/isaaclab_rl["${framework_name}"]
+            ${python_exe} -m pip install -e ${ISAACLAB_PATH}/source/isaaclab_mimic["${framework_name}"]
 
             # check if we are inside a docker container or are building a docker image
             # in that case don't setup VSCode since it asks for EULA agreement which triggers user interaction
