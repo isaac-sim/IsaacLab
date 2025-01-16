@@ -38,10 +38,16 @@ class Se3HandTracking(DeviceBase):
     """
 
     GRIP_HYSTERESIS_METERS: Final[float] = 0.05  # 2.0 inch
-    DELTA_POS_SCALE_FACTOR = 10
-    DELTA_ROT_SCALE_FACTOR = 10
 
-    def __init__(self, hand, abs=True, zero_out_xy_rotation=False, use_wrist_rotation=False):
+    def __init__(
+        self,
+        hand,
+        abs=True,
+        zero_out_xy_rotation=False,
+        use_wrist_rotation=False,
+        delta_pos_scale_factor=10,
+        delta_rot_scale_factor=10,
+    ):
         self._openxr = OpenXR()
         self._previous_pos = np.zeros(3)
         self._previous_rot = np.zeros(3)
@@ -71,6 +77,8 @@ class Se3HandTracking(DeviceBase):
         # Select RTX - RealTime for Renderer
         viewport_api = get_active_viewport()
         viewport_api.set_hd_engine("rtx", "RaytracedLighting")
+        self._delta_pos_scale_factor = delta_pos_scale_factor
+        self._delta_rot_scale_factor = delta_rot_scale_factor
 
     def __del__(self):
         return
@@ -247,7 +255,7 @@ class Se3HandTracking(DeviceBase):
         if not self._tracking:
             return np.zeros(6)
 
-        return np.concatenate([delta_pos * self.DELTA_POS_SCALE_FACTOR, delta_rot * self.DELTA_ROT_SCALE_FACTOR])
+        return np.concatenate([delta_pos * self._delta_pos_scale_factor, delta_rot * self._delta_rot_scale_factor])
 
     def _calculate_gripper_command(self, hand_joints):
         index_tip = hand_joints[OpenXRSpec.HandJointEXT.XR_HAND_JOINT_INDEX_TIP_EXT]
