@@ -306,16 +306,25 @@ Others
 .. table::
     :widths: 33 37 30
 
-    +----------------+---------------------+-----------------------------------------------------------------------------+
-    | World          | Environment ID      | Description                                                                 |
-    +================+=====================+=============================================================================+
-    | |quadcopter|   | |quadcopter-link|   | Fly and hover the Crazyflie copter at a goal point by applying thrust.      |
-    +----------------+---------------------+-----------------------------------------------------------------------------+
+    +----------------+---------------------------+-----------------------------------------------------------------------------+
+    | World          | Environment ID            | Description                                                                 |
+    +================+===========================+=============================================================================+
+    | |quadcopter|   | |quadcopter-link|         | Fly and hover the Crazyflie copter at a goal point by applying thrust.      |
+    +----------------+---------------------------+-----------------------------------------------------------------------------+
+    | |humanoid_amp| | |humanoid_amp_dance-link| | Move a humanoid robot by imitating different pre-recorded human animations  |
+    |                |                           | (Adversarial Motion Priors).                                                |
+    |                | |humanoid_amp_run-link|   |                                                                             |
+    |                |                           |                                                                             |
+    |                | |humanoid_amp_walk-link|  |                                                                             |
+    +----------------+---------------------------+-----------------------------------------------------------------------------+
 
 .. |quadcopter-link| replace:: `Isaac-Quadcopter-Direct-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/direct/quadcopter/quadcopter_env.py>`__
-
+.. |humanoid_amp_dance-link| replace:: `Isaac-Humanoid-AMP-Dance-Direct-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/direct/humanoid_amp/humanoid_amp_env_cfg.py>`__
+.. |humanoid_amp_run-link| replace:: `Isaac-Humanoid-AMP-Run-Direct-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/direct/humanoid_amp/humanoid_amp_env_cfg.py>`__
+.. |humanoid_amp_walk-link| replace:: `Isaac-Humanoid-AMP-Walk-Direct-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/direct/humanoid_amp/humanoid_amp_env_cfg.py>`__
 
 .. |quadcopter| image:: ../_static/tasks/others/quadcopter.jpg
+.. |humanoid_amp| image:: ../_static/tasks/others/humanoid_amp.jpg
 
 
 Multi-agent
@@ -385,11 +394,15 @@ Comprehensive List of Environments
     * - Isaac-Cart-Double-Pendulum-Direct-v0
       -
       - Direct
-      - **rl_games** (PPO), **skrl** (IPPO, MAPPO, PPO)
+      - **rl_games** (PPO), **skrl** (IPPO, PPO, MAPPO)
     * - Isaac-Cartpole-Depth-Camera-Direct-v0
       -
       - Direct
       - **rl_games** (PPO), **skrl** (PPO)
+    * - Isaac-Cartpole-Depth-v0
+      -
+      - Manager Based
+      - **rl_games** (PPO)
     * - Isaac-Cartpole-Direct-v0
       -
       - Direct
@@ -398,6 +411,18 @@ Comprehensive List of Environments
       -
       - Direct
       - **rl_games** (PPO), **skrl** (PPO)
+    * - Isaac-Cartpole-RGB-ResNet18-v0
+      -
+      - Manager Based
+      - **rl_games** (PPO)
+    * - Isaac-Cartpole-RGB-TheiaTiny-v0
+      -
+      - Manager Based
+      - **rl_games** (PPO)
+    * - Isaac-Cartpole-RGB-v0
+      -
+      - Manager Based
+      - **rl_games** (PPO)
     * - Isaac-Cartpole-v0
       -
       - Manager Based
@@ -418,6 +443,18 @@ Comprehensive List of Environments
       -
       - Direct
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
+    * - Isaac-Humanoid-AMP-Dance-Direct-v0
+      -
+      - Direct
+      - **skrl** (AMP)
+    * - Isaac-Humanoid-AMP-Run-Direct-v0
+      -
+      - Direct
+      - **skrl** (AMP)
+    * - Isaac-Humanoid-AMP-Walk-Direct-v0
+      -
+      - Direct
+      - **skrl** (AMP)
     * - Isaac-Humanoid-Direct-v0
       -
       - Direct
@@ -437,7 +474,11 @@ Comprehensive List of Environments
     * - Isaac-Lift-Cube-Franka-v0
       - Isaac-Lift-Cube-Franka-Play-v0
       - Manager Based
-      - **rsl_rl** (PPO), **skrl** (PPO), **rl_games** (PPO)
+      - **rsl_rl** (PPO), **skrl** (PPO), **rl_games** (PPO), **sb3** (PPO)
+    * - Isaac-Lift-Teddy-Bear-Franka-IK-Abs-v0
+      -
+      - Manager Based
+      -
     * - Isaac-Navigation-Flat-Anymal-C-v0
       - Isaac-Navigation-Flat-Anymal-C-Play-v0
       - Manager Based
@@ -509,7 +550,23 @@ Comprehensive List of Environments
     * - Isaac-Shadow-Hand-Over-Direct-v0
       -
       - Direct
-      - **rl_games** (PPO), **skrl** (IPPO, MAPPO, PPO)
+      - **rl_games** (PPO), **skrl** (IPPO, PPO, MAPPO)
+    * - Isaac-Stack-Cube-Franka-IK-Rel-v0
+      -
+      - Manager Based
+      -
+    * - Isaac-Stack-Cube-Franka-v0
+      -
+      - Manager Based
+      -
+    * - Isaac-Stack-Cube-Instance-Randomize-Franka-IK-Rel-v0
+      -
+      - Manager Based
+      -
+    * - Isaac-Stack-Cube-Instance-Randomize-Franka-v0
+      -
+      - Manager Based
+      -
     * - Isaac-Velocity-Flat-Anymal-B-v0
       - Isaac-Velocity-Flat-Anymal-B-Play-v0
       - Manager Based
