@@ -15,62 +15,9 @@ One of the most common operations that needs to be performed within a physics si
 
 The sensory is minimally defined by a source frame and a list of target frames.  These definitions take the form of a prim path (for the source) and list of regex capable prim paths the rigid bodies to be tracked (for the targets).
 
-.. code-block:: python
-
-  @configclass
-  class FrameTransformerSensorSceneCfg(InteractiveSceneCfg):
-      """Design the scene with sensors on the robot."""
-
-      # ground plane
-      ground = AssetBaseCfg(prim_path="/World/defaultGroundPlane", spawn=sim_utils.GroundPlaneCfg())
-
-      # lights
-      dome_light = AssetBaseCfg(
-          prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=3000.0, color=(0.75, 0.75, 0.75))
-      )
-
-      # robot
-      robot = ANYMAL_C_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
-
-      # Rigid Object
-      cube = RigidObjectCfg(
-          prim_path="{ENV_REGEX_NS}/Cube",
-          spawn=sim_utils.CuboidCfg(
-              size=(1,1,1),
-              rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-              mass_props=sim_utils.MassPropertiesCfg(mass=100.0),
-              collision_props=sim_utils.CollisionPropertiesCfg(),
-              physics_material=sim_utils.RigidBodyMaterialCfg(static_friction=1.0),
-              visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 1.0, 0.0), metallic=0.2),
-          ),
-          init_state=RigidObjectCfg.InitialStateCfg(pos=(5, 0, 0.5)),
-      )
-
-      specific_transforms = FrameTransformerCfg(
-          prim_path="{ENV_REGEX_NS}/Robot/base",
-          target_frames=[
-              FrameTransformerCfg.FrameCfg(prim_path="{ENV_REGEX_NS}/Robot/LF_FOOT"),
-              FrameTransformerCfg.FrameCfg(prim_path="{ENV_REGEX_NS}/Robot/RF_FOOT"),
-          ],
-          debug_vis=True,
-      )
-
-      cube_transform = FrameTransformerCfg(
-          prim_path="{ENV_REGEX_NS}/Robot/base",
-          target_frames=[
-              FrameTransformerCfg.FrameCfg(prim_path="{ENV_REGEX_NS}/Cube")
-          ],
-          debug_vis=False,
-      )
-
-      robot_transforms = FrameTransformerCfg(
-          prim_path="{ENV_REGEX_NS}/Robot/base",
-          target_frames=[
-              FrameTransformerCfg.FrameCfg(prim_path="{ENV_REGEX_NS}/Robot/.*")
-          ],
-          debug_vis=False,
-      )
-
+.. literalinclude:: ../../../../source/standalone/demos/sensors/frame_transformer_sensor.py
+    :language: python
+    :lines: 38-86
 
 We can now run the scene and query the sensor for data
 
