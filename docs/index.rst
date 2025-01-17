@@ -7,7 +7,7 @@ Overview
 
 **Isaac Lab** is a unified and modular framework for robot learning that aims to simplify common workflows
 in robotics research (such as reinforcement learning, learning from demonstrations, and motion planning). It is built upon
-`NVIDIA Isaac Sim`_ to leverage the latest simulation capabilities for photo-realistic scenes, and fast
+`NVIDIA Isaac Sim`_ to leverage the latest simulation capabilities for photo-realistic scenes as well as fast
 and efficient simulation.
 
 The core objectives of the framework are:
@@ -21,11 +21,11 @@ Key features available in Isaac Lab include fast and accurate physics simulation
 tiled rendering APIs for vectorized rendering, domain randomization for improving robustness and adaptability,
 and support for running in the cloud.
 
-Additionally, Isaac Lab provides over 26 environments, and we are actively working on adding more environments
+Additionally, Isaac Lab provides a variety of environments, and we are actively working on adding more environments
 to the list. These include classic control tasks, fixed-arm and dexterous manipulation tasks, legged locomotion tasks,
 and navigation tasks. A complete list is available in the `environments <source/overview/environments>`_ section.
 
-The framework also includes over 16 robots. If you are looking to add a new robot, please refer to the
+The framework also includes a collection robots. If you are looking to add a new robot, please refer to the
 :ref:`how-to` section. The current list of robots includes:
 
 - **Classic** Cartpole, Humanoid, Ant

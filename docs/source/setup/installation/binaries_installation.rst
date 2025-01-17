@@ -15,30 +15,40 @@ Please follow the Isaac Sim
 `documentation <https://docs.omniverse.nvidia.com/isaacsim/latest/installation/install_workstation.html>`__
 to install the latest Isaac Sim release.
 
+From Isaac Sim 4.5 release, Isaac Sim binaries can be `downloaded <https://docs.omniverse.nvidia.com/isaacsim/latest/installation/download.html#download-isaac-sim-short>`_ directly as a zip file.
+
 To check the minimum system requirements,refer to the documentation
 `here <https://docs.omniverse.nvidia.com/isaacsim/latest/installation/requirements.html>`__.
 
-.. note::
-   We have tested Isaac Lab with Isaac Sim 4.5 release on Ubuntu
-   22.04LTS with NVIDIA driver 535.129.
+.. tab-set::
+   :sync-group: os
 
-   From Isaac Sim 4.5 release, Isaac Sim binaries can be downloaded directly as a zip file.
-   The below steps assume the Isaac Sim folder was unzipped to the Downloads directory.
+   .. tab-item:: :icon:`fa-brands fa-linux` Linux
+      :sync: linux
 
-   .. tab-set::
-      :sync-group: os
+      .. note::
 
-      .. tab-item:: :icon:`fa-brands fa-linux` Linux
-         :sync: linux
+         We have tested Isaac Lab with Isaac Sim 4.5 release on Ubuntu
+         22.04LTS with NVIDIA driver 535.129.
 
-         On Linux systems, Isaac Sim directory will be named
-         ``${HOME}/Downloads/isaac-sim-standalone@*``, with ``*`` corresponding to the Isaac Sim version.
+         From Isaac Sim 4.5 release, Isaac Sim binaries can be downloaded directly as a zip file.
+         The below steps assume the Isaac Sim folder was unzipped to the Downloads directory.
 
-      .. tab-item:: :icon:`fa-brands fa-windows` Windows
-         :sync: windows
+      On Linux systems, Isaac Sim directory will be named
+      ``${HOME}/Downloads/isaac-sim-standalone@*``, with ``*`` corresponding to the Isaac Sim version.
 
-         On Windows systems, Isaac Sim directory will be named
-         ``%USERPROFILE%/Downloads/isaac-sim-standalone@*``, with ``*`` corresponding to the Isaac Sim version.
+   .. tab-item:: :icon:`fa-brands fa-windows` Windows
+      :sync: windows
+
+      .. note::
+
+         We have tested Isaac Lab with Isaac Sim 4.5 release on Windows11 with NVIDIA driver 552.86.
+
+         From Isaac Sim 4.5 release, Isaac Sim binaries can be downloaded directly as a zip file.
+         The below steps assume the Isaac Sim folder was unzipped to the Downloads directory.
+
+      On Windows systems, Isaac Sim directory will be named
+      ``%USERPROFILE%/Downloads/isaac-sim-standalone@*``, with ``*`` corresponding to the Isaac Sim version.
 
 Verifying the Isaac Sim installation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
