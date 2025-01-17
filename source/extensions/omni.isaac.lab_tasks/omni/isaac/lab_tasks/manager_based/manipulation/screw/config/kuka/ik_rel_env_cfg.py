@@ -255,7 +255,7 @@ def create_fixed_joint(env: ManagerBasedEnv, env_ids: torch.Tensor):
     stage = stage_utils.get_current_stage()
     for i in range(env.num_envs):
         child_prim = stage.GetPrimAtPath(f"/World/envs/env_{i}/Robot/victor_left_tool0")
-        parent_prim = stage.GetPrimAtPath(f"/World/envs/env_{i}/Nut/factory_nut_loose")
+        parent_prim = stage.GetPrimAtPath(f"/World/envs/env_{i}/Nut/factory_nut")
         physx_utils.createJoint(stage, "Fixed", child_prim, parent_prim)
         # physx_utils.createJoint(stage, "Fixed", parent_prim, child_prim)
 
@@ -360,7 +360,7 @@ class IKRelKukaNutThreadEnvCfg(BaseNutThreadEnvCfg):
 
         obs_params = self.params.observations
         obs_params.use_tiled_camera = obs_params.get("use_tiled_camera", False)
-        obs_params.history_length = obs_params.get("history_length", 1)
+        obs_params.hist_len = obs_params.get("hist_len", 1)
         obs_params.include_action = obs_params.get("include_action", True)
         obs_params.include_wrench = obs_params.get("include_wrench", True)
         obs_params.wrench_target_body = obs_params.get("wrench_target_body", "victor_left_tool0")
@@ -477,8 +477,6 @@ class IKRelKukaNutThreadEnvCfg(BaseNutThreadEnvCfg):
             self.scene.nut.spawn.func = spawn_nut_with_rigid_grasp
         # observations
         obs_params = self.params.observations
-        self.observations.policy.history_length = obs_params.history_length
-        self.observations.policy.flatten_history_dim = obs_params.flatten_history_dim
         if obs_params.include_wrench:
             self.observations.policy.wrist_wrench = ObsTerm(
                 func=mdp.body_incoming_wrench,
@@ -499,6 +497,10 @@ class IKRelKukaNutThreadEnvCfg(BaseNutThreadEnvCfg):
             noise_cfg=GaussianNoiseCfg(mean=0.0, std=obs_params.nut_pos.noise_std, operation="add"),
             bias_noise_cfg=GaussianNoiseCfg(mean=0.0, std=obs_params.nut_pos.bias_std, operation="abs"),
         )]
+            
+        for term in self.observations.policy.__dict__.values():
+            if isinstance(term, ObsTerm):
+                term.hist_len = obs_params.hist_len
 
         # for debug only
         if obs_params.use_tiled_camera:
@@ -569,8 +571,8 @@ class IKRelKukaNutThreadEnvCfg(BaseNutThreadEnvCfg):
 
 
         self.scene.contact_sensor = ContactSensorCfg(
-            prim_path="{ENV_REGEX_NS}/Nut/factory_nut_loose",
-            filter_prim_paths_expr=["{ENV_REGEX_NS}/Bolt/factory_bolt_loose"],
+            prim_path="{ENV_REGEX_NS}/Nut/factory_nut",
+            filter_prim_paths_expr=["{ENV_REGEX_NS}/Bolt/factory_bolt"],
             update_period=0.0,
         )
 

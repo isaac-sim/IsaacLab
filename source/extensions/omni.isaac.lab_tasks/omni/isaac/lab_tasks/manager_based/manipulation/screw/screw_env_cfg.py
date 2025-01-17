@@ -119,33 +119,13 @@ asset_factory = {
     "m16_loose": {
         "nut_path": f"{ISAAC_NUCLEUS_DIR}/Props/Factory/factory_nut_m16_loose/factory_nut_m16_loose.usd",
         "bolt_path": f"{ISAAC_NUCLEUS_DIR}/Props/Factory/factory_bolt_m16_loose/factory_bolt_m16_loose.usd",
-        "nut_init_state_tighten": ArticulationCfg.InitialStateCfg(
-            pos=(6.3000e-01, 2.0661e-06, 3.0895e-03), rot=(-2.1609e-01, 6.6671e-05, -6.6467e-05, 9.7637e-01),
-            joint_pos={}, joint_vel={}
+        "nut_init_state_tighten": RigidObjectCfg.InitialStateCfg(
+            pos=(6.3000e-01, 2.0661e-06, 3.0895e-03), rot=(-2.1609e-01, 6.6671e-05, -6.6467e-05, 9.7637e-01)
         ),
-        "nut_init_state_thread": ArticulationCfg.InitialStateCfg(
-            pos=(6.3000e-01, 4.0586e-06, 0.03), rot=(9.9833e-01, 1.2417e-04, -1.2629e-05, 5.7803e-02), 
-            joint_pos={}, joint_vel={}
+        "nut_init_state_thread": RigidObjectCfg.InitialStateCfg(
+            pos=(6.3000e-01, 4.0586e-06, 0.03), rot=(9.9833e-01, 1.2417e-04, -1.2629e-05, 5.7803e-02)
         ),
-        "bolt_init_state": ArticulationCfg.InitialStateCfg(pos=(0.63, 0.0, 0.0), joint_pos={}, joint_vel={}),
-        "nut_frame_offset": OffsetCfg(pos=(0.0, 0.0, 0.0225)),
-        "bolt_bottom_offset": OffsetCfg(pos=(0.0, 0.0, 0.0)),
-        "bolt_tip_offset": OffsetCfg(pos=(0.0, 0.0, 0.041)),
-        "float_gain": 10.0,
-        "float_damp": 0.01,
-    },   
-    "m16": {
-        "nut_path": f"{ISAAC_NUCLEUS_DIR}/IsaacLab/Factory/factory_nut_m16.usd",
-        "bolt_path": f"{ISAAC_NUCLEUS_DIR}/IsaacLab/Factory/factory_bolt_m16.usd",
-        "nut_init_state_tighten": ArticulationCfg.InitialStateCfg(
-            pos=(6.3000e-01, 2.0661e-06, 3.0895e-03), rot=(-2.1609e-01, 6.6671e-05, -6.6467e-05, 9.7637e-01),
-            joint_pos={}, joint_vel={}
-        ),
-        "nut_init_state_thread": ArticulationCfg.InitialStateCfg(
-            pos=(6.3000e-01, 4.0586e-06, 0.03), rot=(9.9833e-01, 1.2417e-04, -1.2629e-05, 5.7803e-02), 
-            joint_pos={}, joint_vel={}
-        ),
-        "bolt_init_state": ArticulationCfg.InitialStateCfg(pos=(0.63, 0.0, 0.0), joint_pos={}, joint_vel={}),
+        "bolt_init_state": RigidObjectCfg.InitialStateCfg(pos=(0.63, 0.0, 0.0)),
         "nut_frame_offset": OffsetCfg(pos=(0.0, 0.0, 0.0225)),
         "bolt_bottom_offset": OffsetCfg(pos=(0.0, 0.0, 0.0)),
         "bolt_tip_offset": OffsetCfg(pos=(0.0, 0.0, 0.041)),
@@ -194,20 +174,18 @@ class ScrewSceneCfg(InteractiveSceneCfg):
         self.robot: ArticulationCfg = MISSING
 
         # objects
-        self.nut: RigidObjectCfg = ArticulationCfg(
+        self.nut: RigidObjectCfg = RigidObjectCfg(
             prim_path="{ENV_REGEX_NS}/Nut",
             spawn=sim_utils.UsdFileCfg(
                 usd_path=self.screw_dict["nut_path"],
                 rigid_props=sim_utils.RigidBodyPropertiesCfg(disable_gravity=True),
             ),
-            actuators={},
         )
 
-        self.bolt: RigidObjectCfg = ArticulationCfg(
+        self.bolt: RigidObjectCfg = RigidObjectCfg(
             prim_path="{ENV_REGEX_NS}/Bolt",
             spawn=sim_utils.UsdFileCfg(usd_path=self.screw_dict["bolt_path"]),
             init_state=self.screw_dict["bolt_init_state"],
-            actuators={},
         )
 
         # lights
@@ -222,8 +200,7 @@ class ScrewSceneCfg(InteractiveSceneCfg):
             visualizer_cfg=PLATE_ARROW_CFG.replace(prim_path="/Visuals/Nut"),
             target_frames=[
                 FrameTransformerCfg.FrameCfg(
-                    # prim_path="{ENV_REGEX_NS}/Nut/factory_nut",
-                    prim_path="{ENV_REGEX_NS}/Nut/factory_nut_loose",
+                    prim_path="{ENV_REGEX_NS}/Nut/factory_nut",
                     name="nut",
                     offset=self.screw_dict["nut_frame_offset"],
                 )
@@ -262,8 +239,7 @@ class BaseObservationsCfg:
         def __post_init__(self):
             self.enable_corruption = False
             self.concatenate_terms = True
-            self.history_length = 1
-            self.flatten_history_dim = True
+            self.hist_len = 1
 
     # observation groups
     policy: PolicyCfg = PolicyCfg()
@@ -423,7 +399,7 @@ class BaseNutTightenEnvCfg(BaseScrewEnvCfg):
             visualizer_cfg=RED_PLATE_MARKER_CFG.replace(prim_path="/Visuals/Bolt"),
             target_frames=[
                 FrameTransformerCfg.FrameCfg(
-                    prim_path="{ENV_REGEX_NS}/Bolt/factory_bolt_loose",
+                    prim_path="{ENV_REGEX_NS}/Bolt/factory_bolt",
                     name="bolt_bottom",
                     offset=screw_dict["bolt_bottom_offset"],
                 ),
@@ -505,7 +481,7 @@ class BaseNutThreadEnvCfg(BaseScrewEnvCfg):
             # visualizer_cfg=PLATE_ARROW_CFG.replace(prim_path="/Visuals/Nut"),
             target_frames=[
                 FrameTransformerCfg.FrameCfg(
-                    prim_path="{ENV_REGEX_NS}/Nut/factory_nut_loose",
+                    prim_path="{ENV_REGEX_NS}/Nut/factory_nut",
                     name="nut",
                     offset=screw_dict["nut_frame_offset"],
                 )
@@ -517,7 +493,7 @@ class BaseNutThreadEnvCfg(BaseScrewEnvCfg):
             visualizer_cfg=RED_PLATE_MARKER_CFG.replace(prim_path="/Visuals/Bolt"),
             target_frames=[
                 FrameTransformerCfg.FrameCfg(
-                    prim_path="{ENV_REGEX_NS}/Bolt/factory_bolt_loose",
+                    prim_path="{ENV_REGEX_NS}/Bolt/factory_bolt",
                     name="bolt_tip",
                     offset=screw_dict["bolt_tip_offset"],
                 )
