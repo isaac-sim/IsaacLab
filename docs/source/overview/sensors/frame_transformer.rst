@@ -3,7 +3,7 @@
 Frame Transformer
 ====================
 
-.. figure:: ../../_static/overview/overview_sensors_frame_transformer.png
+.. figure:: ../../_static/overview/overview_sensors_frame_transformer.jpg
     :align: center
     :figwidth: 100%
     :alt: A diagram outlining the basic geometry of frame transformations
@@ -114,7 +114,7 @@ Let's take a look at the result for tracking specific objects. First, we can tak
   relative orientations: tensor([[[ 0.9623,  0.0072, -0.2717, -0.0020],
           [ 0.9639,  0.0052, -0.2663, -0.0014]]], device='cuda:0')
 
-.. figure:: ../../_static/overview/overview_sensors_ft_visualizer.png
+.. figure:: ../../_static/overview/overview_sensors_ft_visualizer.jpg
     :align: center
     :figwidth: 100%
     :alt: The frame transformer visualizer

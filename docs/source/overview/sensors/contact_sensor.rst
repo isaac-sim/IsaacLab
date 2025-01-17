@@ -3,7 +3,7 @@
 Contact Sensor
 ================
 
-.. figure:: ../../_static/overview/overview_sensors_contact_diagram.png
+.. figure:: ../../_static/overview/overview_sensors_contact_diagram.jpg
     :align: center
     :figwidth: 100%
     :alt: A contact sensor with filtering
