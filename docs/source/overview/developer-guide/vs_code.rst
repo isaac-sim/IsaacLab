@@ -1,7 +1,7 @@
 Setting up Visual Studio Code
 -----------------------------
 
-The following is only applicable for Isaac Sim installed via the Omniverse Launcher.
+The following is only applicable for Isaac Sim installed from binary.
 The Isaac Lab repository includes the VSCode settings to easily allow setting
 up your development environment. These are included in the ``.vscode`` directory
 and include the following files:

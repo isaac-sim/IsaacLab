@@ -45,7 +45,7 @@ the skrl library provides a module to start them.
 
 |
 
-To train with multiple GPUs, use the following command, where ``--proc_per_node`` represents the number of available GPUs:
+To train with multiple GPUs, use the following command, where ``--nproc_per_node`` represents the number of available GPUs:
 
 .. tab-set::
     :sync-group: rl-train
