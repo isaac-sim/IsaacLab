@@ -1,6 +1,33 @@
 Changelog
 ---------
 
+0.30.5 (2025-01-17)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* removed deprecation of :attr:`omni.isaac.lab.assets.ArticulationData.root_state_w` and
+  :attr:`omni.isaac.lab.assets.ArticulationData.body_state_w` derived properties.
+* removed deprecation of :meth:`omni.isaac.lab.assets.Articulation.write_root_state_to_sim`.
+* replaced calls to :attr:`omni.isaac.lab.assets.ArticulationData.root_com_state_w` and
+  :attr:`omni.isaac.lab.assets.ArticulationData.root_link_state_w` with corresponding calls to
+  :attr:`omni.isaac.lab.assets.ArticulationData.root_state_w`.
+* replaced calls to :attr:`omni.isaac.lab.assets.ArticulationData.body_com_state_w` and
+  :attr:`omni.isaac.lab.assets.ArticulationData.body_link_state_w` properties with corresponding calls to
+  :attr:`omni.isaac.lab.assets.ArticulationData.body_state_w` properties.
+* removed deprecation of :attr:`omni.isaac.lab.assets.RigidObjectData.root_state_w` derived properties  .
+* removed deprecation of :meth:`omni.isaac.lab.assets.RigidObject.write_root_state_to_sim`.
+* replaced calls to :attr:`omni.isaac.lab.assets.RigidObjectData.root_com_state_w` and
+  :attr:`omni.isaac.lab.assets.RigidObjectData.root_link_state_w` properties with corresponding calls to
+  :attr:`omni.isaac.lab.assets.RigidObjectData.root_state_w` properties.
+* removed deprecation of :attr:`omni.isaac.lab.assets.RigidObjectCollectionData.root_state_w` derived properties.
+* removed deprecation of :meth:`omni.isaac.lab.assets.RigidObjectCollection.write_root_state_to_sim`.
+* replaced calls to :attr:`omni.isaac.lab.assets.RigidObjectCollectionData.root_com_state_w` and
+  :attr:`omni.isaac.lab.assets.RigidObjectData.root_link_state_w` properties with corresponding calls to
+  :attr:`omni.isaac.lab.assets.RigidObjectData.root_state_w` properties.
+
+
 0.30.4 (2025-01-08)
 ~~~~~~~~~~~~~~~~~~~
 
