@@ -255,7 +255,7 @@ def create_fixed_joint(env: ManagerBasedEnv, env_ids: torch.Tensor):
     stage = stage_utils.get_current_stage()
     for i in range(env.num_envs):
         child_prim = stage.GetPrimAtPath(f"/World/envs/env_{i}/Robot/victor_left_tool0")
-        parent_prim = stage.GetPrimAtPath(f"/World/envs/env_{i}/Nut/factory_nut_loose")
+        parent_prim = stage.GetPrimAtPath(f"/World/envs/env_{i}/Nut/factory_nut")
         physx_utils.createJoint(stage, "Fixed", child_prim, parent_prim)
         # physx_utils.createJoint(stage, "Fixed", parent_prim, child_prim)
 
@@ -406,8 +406,8 @@ class IKRelKukaNutThreadEnvCfg(BaseNutThreadEnvCfg):
             # robot.spawn.usd_path = "assets/victor/victor_left_arm_v2/victor_left_arm_v2.usd"
         robot.init_state.pos = [-0.15, -0.5, -0.8]
 
-        robot.spawn.collision_props.contact_offset = robot_params.contact_offset
-        robot.spawn.collision_props.rest_offset = robot_params.rest_offset
+        # robot.spawn.collision_props.contact_offset = robot_params.contact_offset
+        # robot.spawn.collision_props.rest_offset = robot_params.rest_offset
         robot.spawn.rigid_props.max_depenetration_velocity = robot_params.max_depenetration_velocity
         robot.spawn.rigid_props.sleep_threshold = robot_params.sleep_threshold
         robot.spawn.rigid_props.stabilization_threshold = robot_params.stabilization_threshold
@@ -568,11 +568,7 @@ class IKRelKukaNutThreadEnvCfg(BaseNutThreadEnvCfg):
         self.scene.nut.spawn.activate_contact_sensors = True
 
 
-        self.scene.contact_sensor = ContactSensorCfg(
-            prim_path="{ENV_REGEX_NS}/Nut/factory_nut_loose",
-            filter_prim_paths_expr=["{ENV_REGEX_NS}/Bolt/factory_bolt_loose"],
-            update_period=0.0,
-        )
+
 
         # rewards
         rewards_params = self.params.rewards

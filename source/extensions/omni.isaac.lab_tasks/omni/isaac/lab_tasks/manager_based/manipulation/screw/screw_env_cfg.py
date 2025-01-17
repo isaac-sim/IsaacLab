@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import copy
+import functools
 import torch
 from dataclasses import MISSING
 from typing import Literal
@@ -24,7 +25,7 @@ from omni.isaac.lab.managers import SceneEntityCfg
 from omni.isaac.lab.managers import TerminationTermCfg as DoneTerm
 from omni.isaac.lab.markers.visualization_markers import VisualizationMarkersCfg
 from omni.isaac.lab.scene import InteractiveSceneCfg
-from omni.isaac.lab.sensors import FrameTransformerCfg
+from omni.isaac.lab.sensors import FrameTransformerCfg, ContactSensorCfg
 from omni.isaac.lab.sensors.frame_transformer.frame_transformer_cfg import OffsetCfg
 from omni.isaac.lab.sim.schemas.schemas_cfg import MassPropertiesCfg, RigidBodyPropertiesCfg
 from omni.isaac.lab.sim.simulation_cfg import PhysxCfg, SimulationCfg
@@ -119,18 +120,18 @@ asset_factory = {
     "m16_loose": {
         "nut_path": f"{ISAAC_NUCLEUS_DIR}/Props/Factory/factory_nut_m16_loose/factory_nut_m16_loose.usd",
         "bolt_path": f"{ISAAC_NUCLEUS_DIR}/Props/Factory/factory_bolt_m16_loose/factory_bolt_m16_loose.usd",
-        "nut_init_state_tighten": ArticulationCfg.InitialStateCfg(
-            pos=(6.3000e-01, 2.0661e-06, 3.0895e-03), rot=(-2.1609e-01, 6.6671e-05, -6.6467e-05, 9.7637e-01),
-            joint_pos={}, joint_vel={}
+        "nut_init_state_tighten": RigidObjectCfg.InitialStateCfg(
+            pos=(6.3000e-01, 2.0661e-06, 3.0895e-03), rot=(-2.1609e-01, 6.6671e-05, -6.6467e-05, 9.7637e-01)
         ),
-        "nut_init_state_thread": ArticulationCfg.InitialStateCfg(
-            pos=(6.3000e-01, 4.0586e-06, 0.03), rot=(9.9833e-01, 1.2417e-04, -1.2629e-05, 5.7803e-02), 
-            joint_pos={}, joint_vel={}
+        "nut_init_state_thread": RigidObjectCfg.InitialStateCfg(
+            pos=(6.3000e-01, 4.0586e-06, 0.03), rot=(9.9833e-01, 1.2417e-04, -1.2629e-05, 5.7803e-02)
         ),
-        "bolt_init_state": ArticulationCfg.InitialStateCfg(pos=(0.63, 0.0, 0.0), joint_pos={}, joint_vel={}),
+        "bolt_init_state": RigidObjectCfg.InitialStateCfg(pos=(0.63, 0.0, 0.0)),
         "nut_frame_offset": OffsetCfg(pos=(0.0, 0.0, 0.0225)),
         "bolt_bottom_offset": OffsetCfg(pos=(0.0, 0.0, 0.0)),
         "bolt_tip_offset": OffsetCfg(pos=(0.0, 0.0, 0.041)),
+        "nut_geom_name": "factory_nut",
+        "bolt_geom_name": "factory_bolt",
         "float_gain": 10.0,
         "float_damp": 0.01,
     },   
@@ -149,6 +150,8 @@ asset_factory = {
         "nut_frame_offset": OffsetCfg(pos=(0.0, 0.0, 0.0225)),
         "bolt_bottom_offset": OffsetCfg(pos=(0.0, 0.0, 0.0)),
         "bolt_tip_offset": OffsetCfg(pos=(0.0, 0.0, 0.041)),
+        "nut_geom_name": "factory_nut_loose",
+        "bolt_geom_name": "factory_bolt_loose",
         "float_gain": 10.0,
         "float_damp": 0.01,
     },
@@ -185,7 +188,6 @@ class ScrewSceneCfg(InteractiveSceneCfg):
             prim_path="{ENV_REGEX_NS}/Table",
             spawn=sim_utils.UsdFileCfg(
                 usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/SeattleLabTable/table_instanceable.usd",
-                # usd_path=f"/home/zixuanh/force_tool/assets/table_instanceable.usd",
             ),
             init_state=AssetBaseCfg.InitialStateCfg(pos=(0.55, 0.0, 0.0), rot=(0.70711, 0.0, 0.0, 0.70711)),
         )
@@ -193,21 +195,31 @@ class ScrewSceneCfg(InteractiveSceneCfg):
         # robots: will be populated by agent env cfg
         self.robot: ArticulationCfg = MISSING
 
+        # m16 is the usd in Forge paper, for some reasons, it's created as articulation.
+        # The old factory usd that we used is also problematic after an recent update. 
+        #  - It cannot be created as articulation.
+        #  - It contains articulation root properties.Has to set to false when created as rigid object
+        if self.screw_type == "m16":
+            obj_cfg = functools.partial(ArticulationCfg, actuators={})
+        else:
+            obj_cfg = functools.partial(RigidObjectCfg)
         # objects
-        self.nut: RigidObjectCfg = ArticulationCfg(
+        self.nut: RigidObjectCfg = obj_cfg(
             prim_path="{ENV_REGEX_NS}/Nut",
             spawn=sim_utils.UsdFileCfg(
                 usd_path=self.screw_dict["nut_path"],
                 rigid_props=sim_utils.RigidBodyPropertiesCfg(disable_gravity=True),
+                # articulation_props=sim_utils.ArticulationRootPropertiesCfg(articulation_enabled=False)
             ),
-            actuators={},
         )
 
-        self.bolt: RigidObjectCfg = ArticulationCfg(
+        self.bolt: RigidObjectCfg = obj_cfg(
             prim_path="{ENV_REGEX_NS}/Bolt",
-            spawn=sim_utils.UsdFileCfg(usd_path=self.screw_dict["bolt_path"]),
+            spawn=sim_utils.UsdFileCfg(
+                usd_path=self.screw_dict["bolt_path"],
+                # articulation_props=sim_utils.ArticulationRootPropertiesCfg(articulation_enabled=False)
+                ),
             init_state=self.screw_dict["bolt_init_state"],
-            actuators={},
         )
 
         # lights
@@ -223,7 +235,7 @@ class ScrewSceneCfg(InteractiveSceneCfg):
             target_frames=[
                 FrameTransformerCfg.FrameCfg(
                     # prim_path="{ENV_REGEX_NS}/Nut/factory_nut",
-                    prim_path="{ENV_REGEX_NS}/Nut/factory_nut_loose",
+                    prim_path="{ENV_REGEX_NS}/Nut/" + f"{self.screw_dict['nut_geom_name']}",
                     name="nut",
                     offset=self.screw_dict["nut_frame_offset"],
                 )
@@ -423,7 +435,7 @@ class BaseNutTightenEnvCfg(BaseScrewEnvCfg):
             visualizer_cfg=RED_PLATE_MARKER_CFG.replace(prim_path="/Visuals/Bolt"),
             target_frames=[
                 FrameTransformerCfg.FrameCfg(
-                    prim_path="{ENV_REGEX_NS}/Bolt/factory_bolt_loose",
+                    prim_path="{ENV_REGEX_NS}/Bolt/" + f"{screw_dict['bolt_geom_name']}",
                     name="bolt_bottom",
                     offset=screw_dict["bolt_bottom_offset"],
                 ),
@@ -505,7 +517,7 @@ class BaseNutThreadEnvCfg(BaseScrewEnvCfg):
             # visualizer_cfg=PLATE_ARROW_CFG.replace(prim_path="/Visuals/Nut"),
             target_frames=[
                 FrameTransformerCfg.FrameCfg(
-                    prim_path="{ENV_REGEX_NS}/Nut/factory_nut_loose",
+                    prim_path="{ENV_REGEX_NS}/Nut/" + f"{screw_dict['nut_geom_name']}",
                     name="nut",
                     offset=screw_dict["nut_frame_offset"],
                 )
@@ -517,9 +529,15 @@ class BaseNutThreadEnvCfg(BaseScrewEnvCfg):
             visualizer_cfg=RED_PLATE_MARKER_CFG.replace(prim_path="/Visuals/Bolt"),
             target_frames=[
                 FrameTransformerCfg.FrameCfg(
-                    prim_path="{ENV_REGEX_NS}/Bolt/factory_bolt_loose",
+                    prim_path="{ENV_REGEX_NS}/Bolt/" + f"{screw_dict['bolt_geom_name']}",
                     name="bolt_tip",
                     offset=screw_dict["bolt_tip_offset"],
                 )
             ],
+        )
+        
+        self.scene.contact_sensor = ContactSensorCfg(
+            prim_path="{ENV_REGEX_NS}/Nut/" + f"{screw_dict['nut_geom_name']}",
+            filter_prim_paths_expr=["{ENV_REGEX_NS}/Bolt/" + f"{screw_dict['bolt_geom_name']}"],
+            update_period=0.0,
         )
