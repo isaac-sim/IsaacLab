@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="1.4.0" />
-    <meta name="docbuild:last-update" content="Jan 15, 2025"/>
+    <meta name="docbuild:last-update" content="Jan 17, 2025"/>
   </head>
   
   
@@ -253,6 +253,7 @@
 <li class="toctree-l2 current active"><a class="current reference internal" href="#">Camera</a></li>
 <li class="toctree-l2"><a class="reference internal" href="contact_sensor.html">Contact Sensor</a></li>
 <li class="toctree-l2"><a class="reference internal" href="frame_transformer.html">Frame Transformer</a></li>
+<li class="toctree-l2"><a class="reference internal" href="imu.html">Inertial Measurement Unit (IMU)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="ray_caster.html">Ray Caster</a></li>
 </ul>
 </details></li>
@@ -660,7 +661,7 @@ at larger resolutions. We recommend running 512 cameras in the scene on RTX 4090
 <section id="rgb-and-rgba">
 <h2>RGB and RGBA<a class="headerlink" href="#rgb-and-rgba" title="Permalink to this heading">#</a></h2>
 <figure class="align-center" style="width: 100%">
-<img alt="A scene captured in RGB" src="../../../_images/overview_sensors_rgb.png" />
+<img alt="A scene captured in RGB" src="../../../_images/overview_sensors_rgb.jpg" />
 </figure>
 <p><code class="docutils literal notranslate"><span class="pre">rgb</span></code> data type returns a 3-channel RGB colored image of type <code class="docutils literal notranslate"><span class="pre">torch.uint8</span></code>, with dimension (B, H, W, 3).</p>
 <p><code class="docutils literal notranslate"><span class="pre">rgba</span></code> data type returns a 4-channel RGBA colored image of type <code class="docutils literal notranslate"><span class="pre">torch.uint8</span></code>, with dimension (B, H, W, 4).</p>
@@ -669,7 +670,7 @@ at larger resolutions. We recommend running 512 cameras in the scene on RTX 4090
 <section id="depth-and-distances">
 <h2>Depth and Distances<a class="headerlink" href="#depth-and-distances" title="Permalink to this heading">#</a></h2>
 <figure class="align-center" style="width: 100%">
-<img alt="A scene captured in RGB" src="../../../_images/overview_sensors_depth.png" />
+<img alt="A scene captured in RGB" src="../../../_images/overview_sensors_depth.jpg" />
 </figure>
 <p><code class="docutils literal notranslate"><span class="pre">distance_to_camera</span></code> returns a single-channel depth image with distance to the camera optical center. The dimension for this annotator is (B, H, W, 1) and has type <code class="docutils literal notranslate"><span class="pre">torch.float32</span></code>.</p>
 <p><code class="docutils literal notranslate"><span class="pre">distance_to_image_plane</span></code> returns a single-channel depth image with distances of 3D points from the camera plane along the camera’s Z-axis. The dimension for this annotator is (B, H, W, 1) and has type <code class="docutils literal notranslate"><span class="pre">torch.float32</span></code>.</p>
@@ -678,7 +679,7 @@ at larger resolutions. We recommend running 512 cameras in the scene on RTX 4090
 <section id="normals">
 <h2>Normals<a class="headerlink" href="#normals" title="Permalink to this heading">#</a></h2>
 <figure class="align-center" style="width: 100%">
-<img alt="A scene captured in RGB" src="../../../_images/overview_sensors_normals.png" />
+<img alt="A scene captured in RGB" src="../../../_images/overview_sensors_normals.jpg" />
 </figure>
 <p><code class="docutils literal notranslate"><span class="pre">normals</span></code> returns an image containing the local surface normal vectors at each pixel. The buffer has dimension (B, H, W, 3), containing the (x, y, z) information for each vector, and has data type <code class="docutils literal notranslate"><span class="pre">torch.float32</span></code>.</p>
 </section>
@@ -689,7 +690,7 @@ at larger resolutions. We recommend running 512 cameras in the scene on RTX 4090
 <section id="semantic-segmentation">
 <h2>Semantic Segmentation<a class="headerlink" href="#semantic-segmentation" title="Permalink to this heading">#</a></h2>
 <figure class="align-center" style="width: 100%">
-<img alt="A scene captured in RGB" src="../../../_images/overview_sensors_semantic.png" />
+<img alt="A scene captured in RGB" src="../../../_images/overview_sensors_semantic.jpg" />
 </figure>
 <p><code class="docutils literal notranslate"><span class="pre">semantic_segmentation</span></code> outputs semantic segmentation of each entity in the camera’s viewport that has semantic labels. In addition to the image buffer, an <code class="docutils literal notranslate"><span class="pre">info</span></code> dictionary can be retrieved with <code class="docutils literal notranslate"><span class="pre">tiled_camera.data.info['semantic_segmentation']</span></code> containing ID to labels information.</p>
 <ul class="simple">
@@ -700,7 +701,7 @@ at larger resolutions. We recommend running 512 cameras in the scene on RTX 4090
 <section id="instance-id-segmentation">
 <h2>Instance ID Segmentation<a class="headerlink" href="#instance-id-segmentation" title="Permalink to this heading">#</a></h2>
 <figure class="align-center" style="width: 100%">
-<img alt="A scene captured in RGB" src="../../../_images/overview_sensors_instanceID.png" />
+<img alt="A scene captured in RGB" src="../../../_images/overview_sensors_instanceID.jpg" />
 </figure>
 <p><code class="docutils literal notranslate"><span class="pre">instance_id_segmentation_fast</span></code> outputs instance ID segmentation of each entity in the camera’s viewport. The instance ID is unique for each prim in the scene with different paths. In addition to the image buffer, an <code class="docutils literal notranslate"><span class="pre">info</span></code> dictionary can be retrieved with <code class="docutils literal notranslate"><span class="pre">tiled_camera.data.info['instance_id_segmentation_fast']</span></code> containing ID to labels information.</p>
 <p>The main difference between <code class="docutils literal notranslate"><span class="pre">instance_id_segmentation_fast</span></code> and <code class="docutils literal notranslate"><span class="pre">instance_segmentation_fast</span></code> are that instance segmentation annotator goes down the hierarchy to the lowest level prim which has semantic labels, where instance ID segmentation always goes down to the leaf prim.</p>
@@ -711,7 +712,7 @@ at larger resolutions. We recommend running 512 cameras in the scene on RTX 4090
 <section id="instance-segmentation">
 <h3>Instance Segmentation<a class="headerlink" href="#instance-segmentation" title="Permalink to this heading">#</a></h3>
 <figure class="align-center" style="width: 100%">
-<img alt="A scene captured in RGB" src="../../../_images/overview_sensors_instance.png" />
+<img alt="A scene captured in RGB" src="../../../_images/overview_sensors_instance.jpg" />
 </figure>
 <p><code class="docutils literal notranslate"><span class="pre">instance_segmentation_fast</span></code> outputs instance segmentation of each entity in the camera’s viewport. In addition to the image buffer, an <code class="docutils literal notranslate"><span class="pre">info</span></code> dictionary can be retrieved with <code class="docutils literal notranslate"><span class="pre">tiled_camera.data.info['instance_segmentation_fast']</span></code> containing ID to labels and ID to semantic information.</p>
 <ul class="simple">
@@ -846,7 +847,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jan 15, 2025.
+  Last updated on Jan 17, 2025.
   <br/>
 </p>
   </div>

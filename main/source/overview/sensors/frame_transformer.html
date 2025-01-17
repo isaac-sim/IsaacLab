@@ -56,12 +56,12 @@
     <link rel="icon" href="../../../_static/favicon.ico"/>
     <link rel="index" title="Index" href="../../../genindex.html" />
     <link rel="search" title="Search" href="../../../search.html" />
-    <link rel="next" title="Ray Caster" href="ray_caster.html" />
+    <link rel="next" title="Inertial Measurement Unit (IMU)" href="imu.html" />
     <link rel="prev" title="Contact Sensor" href="contact_sensor.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="1.4.0" />
-    <meta name="docbuild:last-update" content="Jan 15, 2025"/>
+    <meta name="docbuild:last-update" content="Jan 17, 2025"/>
   </head>
   
   
@@ -253,6 +253,7 @@
 <li class="toctree-l2"><a class="reference internal" href="camera.html">Camera</a></li>
 <li class="toctree-l2"><a class="reference internal" href="contact_sensor.html">Contact Sensor</a></li>
 <li class="toctree-l2 current active"><a class="current reference internal" href="#">Frame Transformer</a></li>
+<li class="toctree-l2"><a class="reference internal" href="imu.html">Inertial Measurement Unit (IMU)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="ray_caster.html">Ray Caster</a></li>
 </ul>
 </details></li>
@@ -583,7 +584,7 @@
   <section id="frame-transformer">
 <span id="overview-sensors-frame-transformer"></span><h1>Frame Transformer<a class="headerlink" href="#frame-transformer" title="Permalink to this heading">#</a></h1>
 <figure class="align-center" style="width: 100%">
-<img alt="A diagram outlining the basic geometry of frame transformations" src="../../../_images/overview_sensors_frame_transformer.png" />
+<img alt="A diagram outlining the basic geometry of frame transformations" src="../../../_images/overview_sensors_frame_transformer.jpg" />
 </figure>
 <p>One of the most common operations that needs to be performed within a physics simulation is the frame transformation: rewriting a vector or quaternion in the basis of an arbitrary euclidean coordinate system. There are many ways to accomplish this within Isaac and USD, but these methods can be cumbersome to implement within Isaac Lab’s GPU based simulation and cloned environments. To mitigate this problem, we have designed the Frame Transformer Sensor, that tracks and calculate the relative frame transformations for rigid bodies of interest to the scene.</p>
 <p>The sensory is minimally defined by a source frame and a list of target frames.  These definitions take the form of a prim path (for the source) and list of regex capable prim paths the rigid bodies to be tracked (for the targets).</p>
@@ -606,7 +607,7 @@
     <span class="n">cube</span> <span class="o">=</span> <span class="n">RigidObjectCfg</span><span class="p">(</span>
         <span class="n">prim_path</span><span class="o">=</span><span class="s2">&quot;</span><span class="si">{ENV_REGEX_NS}</span><span class="s2">/Cube&quot;</span><span class="p">,</span>
         <span class="n">spawn</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">CuboidCfg</span><span class="p">(</span>
-            <span class="n">size</span><span class="o">=</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">1</span><span class="p">),</span>
+            <span class="n">size</span><span class="o">=</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span>
             <span class="n">rigid_props</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">RigidBodyPropertiesCfg</span><span class="p">(),</span>
             <span class="n">mass_props</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">MassPropertiesCfg</span><span class="p">(</span><span class="n">mass</span><span class="o">=</span><span class="mf">100.0</span><span class="p">),</span>
             <span class="n">collision_props</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">CollisionPropertiesCfg</span><span class="p">(),</span>
@@ -627,17 +628,13 @@
 
     <span class="n">cube_transform</span> <span class="o">=</span> <span class="n">FrameTransformerCfg</span><span class="p">(</span>
         <span class="n">prim_path</span><span class="o">=</span><span class="s2">&quot;</span><span class="si">{ENV_REGEX_NS}</span><span class="s2">/Robot/base&quot;</span><span class="p">,</span>
-        <span class="n">target_frames</span><span class="o">=</span><span class="p">[</span>
-            <span class="n">FrameTransformerCfg</span><span class="o">.</span><span class="n">FrameCfg</span><span class="p">(</span><span class="n">prim_path</span><span class="o">=</span><span class="s2">&quot;</span><span class="si">{ENV_REGEX_NS}</span><span class="s2">/Cube&quot;</span><span class="p">)</span>
-        <span class="p">],</span>
+        <span class="n">target_frames</span><span class="o">=</span><span class="p">[</span><span class="n">FrameTransformerCfg</span><span class="o">.</span><span class="n">FrameCfg</span><span class="p">(</span><span class="n">prim_path</span><span class="o">=</span><span class="s2">&quot;</span><span class="si">{ENV_REGEX_NS}</span><span class="s2">/Cube&quot;</span><span class="p">)],</span>
         <span class="n">debug_vis</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
     <span class="p">)</span>
 
     <span class="n">robot_transforms</span> <span class="o">=</span> <span class="n">FrameTransformerCfg</span><span class="p">(</span>
         <span class="n">prim_path</span><span class="o">=</span><span class="s2">&quot;</span><span class="si">{ENV_REGEX_NS}</span><span class="s2">/Robot/base&quot;</span><span class="p">,</span>
-        <span class="n">target_frames</span><span class="o">=</span><span class="p">[</span>
-            <span class="n">FrameTransformerCfg</span><span class="o">.</span><span class="n">FrameCfg</span><span class="p">(</span><span class="n">prim_path</span><span class="o">=</span><span class="s2">&quot;</span><span class="si">{ENV_REGEX_NS}</span><span class="s2">/Robot/.*&quot;</span><span class="p">)</span>
-        <span class="p">],</span>
+        <span class="n">target_frames</span><span class="o">=</span><span class="p">[</span><span class="n">FrameTransformerCfg</span><span class="o">.</span><span class="n">FrameCfg</span><span class="p">(</span><span class="n">prim_path</span><span class="o">=</span><span class="s2">&quot;</span><span class="si">{ENV_REGEX_NS}</span><span class="s2">/Robot/.*&quot;</span><span class="p">)],</span>
         <span class="n">debug_vis</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
     <span class="p">)</span>
 </pre></div>
@@ -681,7 +678,7 @@ relative<span class="w"> </span>orientations:<span class="w"> </span>tensor<span
 </pre></div>
 </div>
 <figure class="align-center" style="width: 100%">
-<img alt="The frame transformer visualizer" src="../../../_images/overview_sensors_ft_visualizer.png" />
+<img alt="The frame transformer visualizer" src="../../../_images/overview_sensors_ft_visualizer.jpg" />
 </figure>
 <p>By activating the visualizer, we can see that the frames of the feet are rotated “upward” slightly.  We can also see the explicit relative positions and rotations by querying the sensor for data, which returns these values as a list with the same order as the tracked frames.  This becomes even more apparent if we examine the transforms specified by regex.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>-------------------------------
@@ -911,11 +908,11 @@ relative<span class="w"> </span>transforms:<span class="w"> </span>tensor<span c
       </div>
     </a>
     <a class="right-next"
-       href="ray_caster.html"
+       href="imu.html"
        title="next page">
       <div class="prev-next-info">
         <p class="prev-next-subtitle">next</p>
-        <p class="prev-next-title">Ray Caster</p>
+        <p class="prev-next-title">Inertial Measurement Unit (IMU)</p>
       </div>
       <i class="fa-solid fa-angle-right"></i>
     </a>
@@ -954,7 +951,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jan 15, 2025.
+  Last updated on Jan 17, 2025.
   <br/>
 </p>
   </div>

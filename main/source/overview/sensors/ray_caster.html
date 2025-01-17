@@ -57,11 +57,11 @@
     <link rel="index" title="Index" href="../../../genindex.html" />
     <link rel="search" title="Search" href="../../../search.html" />
     <link rel="next" title="Available Environments" href="../environments.html" />
-    <link rel="prev" title="Frame Transformer" href="frame_transformer.html" />
+    <link rel="prev" title="Inertial Measurement Unit (IMU)" href="imu.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="1.4.0" />
-    <meta name="docbuild:last-update" content="Jan 15, 2025"/>
+    <meta name="docbuild:last-update" content="Jan 17, 2025"/>
   </head>
   
   
@@ -253,6 +253,7 @@
 <li class="toctree-l2"><a class="reference internal" href="camera.html">Camera</a></li>
 <li class="toctree-l2"><a class="reference internal" href="contact_sensor.html">Contact Sensor</a></li>
 <li class="toctree-l2"><a class="reference internal" href="frame_transformer.html">Frame Transformer</a></li>
+<li class="toctree-l2"><a class="reference internal" href="imu.html">Inertial Measurement Unit (IMU)</a></li>
 <li class="toctree-l2 current active"><a class="current reference internal" href="#">Ray Caster</a></li>
 </ul>
 </details></li>
@@ -583,7 +584,7 @@
   <section id="ray-caster">
 <span id="overview-sensors-ray-caster"></span><h1>Ray Caster<a class="headerlink" href="#ray-caster" title="Permalink to this heading">#</a></h1>
 <figure class="align-center" style="width: 100%">
-<img alt="A diagram outlining the basic geometry of frame transformations" src="../../../_images/overview_sensors_rc_patterns.png" />
+<img alt="A diagram outlining the basic geometry of frame transformations" src="../../../_images/overview_sensors_rc_patterns.jpg" />
 </figure>
 <p>The Ray Caster sensor (and the ray caster camera) are similar to RTX based rendering in that they both involve casting rays.  The difference here is that the rays cast by the Ray Caster sensor return strictly collision information along the cast, and the direction of each individual ray can be specified.  They do not bounce, nor are they affected by things like materials or opacity. For each ray specified by the sensor, a line is traced along the path of the ray and the location of first collision with the specified mesh is returned. This is the method used by some of our quadruped examples to measure the local height field.</p>
 <p>To keep the sensor performant when there are many cloned environments, the line tracing is done directly in <a class="reference external" href="https://nvidia.github.io/warp/">Warp</a>. This is the reason why specific meshes need to be identified to cast against: that mesh data is loaded onto the device by warp when the sensor is initialized. As a consequence, the current iteration of this sensor only works for literally static meshes (meshes that <em>are not changed from the defaults specified in their USD file</em>).  This constraint will be removed in future releases.</p>
@@ -592,13 +593,13 @@
 <span class="k">class</span><span class="w"> </span><span class="nc">RaycasterSensorSceneCfg</span><span class="p">(</span><span class="n">InteractiveSceneCfg</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Design the scene with sensors on the robot.&quot;&quot;&quot;</span>
 
-    <span class="c1"># ground plane with texture for interesting casting results</span>
+    <span class="c1"># ground plane</span>
     <span class="n">ground</span> <span class="o">=</span> <span class="n">AssetBaseCfg</span><span class="p">(</span>
         <span class="n">prim_path</span><span class="o">=</span><span class="s2">&quot;/World/Ground&quot;</span><span class="p">,</span>
         <span class="n">spawn</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">UsdFileCfg</span><span class="p">(</span>
             <span class="n">usd_path</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">ISAAC_NUCLEUS_DIR</span><span class="si">}</span><span class="s2">/Environments/Terrains/rough_plane.usd&quot;</span><span class="p">,</span>
-            <span class="n">scale</span> <span class="o">=</span> <span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">1</span><span class="p">),</span>
-        <span class="p">)</span>
+            <span class="n">scale</span><span class="o">=</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span>
+        <span class="p">),</span>
     <span class="p">)</span>
 
     <span class="c1"># lights</span>
@@ -611,22 +612,20 @@
 
     <span class="n">ray_caster</span> <span class="o">=</span> <span class="n">RayCasterCfg</span><span class="p">(</span>
         <span class="n">prim_path</span><span class="o">=</span><span class="s2">&quot;</span><span class="si">{ENV_REGEX_NS}</span><span class="s2">/Robot/base/lidar_cage&quot;</span><span class="p">,</span>
-        <span class="n">update_period</span> <span class="o">=</span> <span class="mi">1</span><span class="o">/</span><span class="mi">60</span><span class="p">,</span>
-        <span class="n">offset</span><span class="o">=</span><span class="n">RayCasterCfg</span><span class="o">.</span><span class="n">OffsetCfg</span><span class="p">(</span><span class="n">pos</span><span class="o">=</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mf">0.5</span><span class="p">)),</span>
+        <span class="n">update_period</span><span class="o">=</span><span class="mi">1</span> <span class="o">/</span> <span class="mi">60</span><span class="p">,</span>
+        <span class="n">offset</span><span class="o">=</span><span class="n">RayCasterCfg</span><span class="o">.</span><span class="n">OffsetCfg</span><span class="p">(</span><span class="n">pos</span><span class="o">=</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">)),</span>
         <span class="n">mesh_prim_paths</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;/World/Ground&quot;</span><span class="p">],</span>
         <span class="n">attach_yaw_only</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
         <span class="n">pattern_cfg</span><span class="o">=</span><span class="n">patterns</span><span class="o">.</span><span class="n">LidarPatternCfg</span><span class="p">(</span>
-          <span class="n">channels</span> <span class="o">=</span> <span class="mi">100</span><span class="p">,</span>
-          <span class="n">vertical_fov_range</span><span class="o">=</span><span class="p">[</span><span class="o">-</span><span class="mi">90</span><span class="p">,</span> <span class="mi">90</span><span class="p">],</span>
-          <span class="n">horizontal_fov_range</span> <span class="o">=</span> <span class="p">[</span><span class="o">-</span><span class="mi">90</span><span class="p">,</span><span class="mi">90</span><span class="p">],</span>
-          <span class="n">horizontal_res</span><span class="o">=</span><span class="mf">1.0</span><span class="p">),</span>
-        <span class="n">debug_vis</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+            <span class="n">channels</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span> <span class="n">vertical_fov_range</span><span class="o">=</span><span class="p">[</span><span class="o">-</span><span class="mi">90</span><span class="p">,</span> <span class="mi">90</span><span class="p">],</span> <span class="n">horizontal_fov_range</span><span class="o">=</span><span class="p">[</span><span class="o">-</span><span class="mi">90</span><span class="p">,</span> <span class="mi">90</span><span class="p">],</span> <span class="n">horizontal_res</span><span class="o">=</span><span class="mf">1.0</span>
+        <span class="p">),</span>
+        <span class="n">debug_vis</span><span class="o">=</span><span class="ow">not</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">headless</span><span class="p">,</span>
     <span class="p">)</span>
 </pre></div>
 </div>
 <p>Notice that the units on the pattern config is in degrees! Also, we enable visualization here to explicitly show the pattern in the rendering, but this is not required and should be disabled for performance tuning.</p>
 <figure class="align-center" style="width: 100%">
-<img alt="Lidar Pattern visualized" src="../../../_images/overview_sensors_rc_visualizer.png" />
+<img alt="Lidar Pattern visualized" src="../../../_images/overview_sensors_rc_visualizer.jpg" />
 </figure>
 <p>Querying the sensor for data can be done at simulation run time like any other sensor.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span><span class="w"> </span><span class="nf">run_simulator</span><span class="p">(</span><span class="n">sim</span><span class="p">:</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">SimulationContext</span><span class="p">,</span> <span class="n">scene</span><span class="p">:</span> <span class="n">InteractiveScene</span><span class="p">):</span>
@@ -663,7 +662,7 @@ Ray<span class="w"> </span>cast<span class="w"> </span>hit<span class="w"> </spa
 </pre></div>
 </div>
 <p>Here we can see the data returned by the sensor itself.  Notice first that there are 3 closed brackets at the beginning and the end: this is because the data returned is batched by the number of sensors. The ray cast pattern itself has also been flattened, and so the dimensions of the array are <code class="docutils literal notranslate"><span class="pre">[N,</span> <span class="pre">B,</span> <span class="pre">3]</span></code> where <code class="docutils literal notranslate"><span class="pre">N</span></code> is the number of sensors, <code class="docutils literal notranslate"><span class="pre">B</span></code> is the number of cast rays in the pattern, and 3 is the dimension of the casting space. Finally, notice that the first several values in this casting pattern are the same: this is because the lidar pattern is spherical and we have specified our FOV  to be hemispherical, which includes the poles. In this configuration, the “flattening pattern” becomes apparent: the first 180 entries will be the same because it’s the bottom pole of this hemisphere, and there will be 180 of them because our horizontal FOV is 180 degrees with a resolution of 1 degree.</p>
-<p>You can use this script to experiment with pattern configurations and build an intuition about how the data is stored by altering the <code class="docutils literal notranslate"><span class="pre">triggered</span></code> variable on line 99.</p>
+<p>You can use this script to experiment with pattern configurations and build an intuition about how the data is stored by altering the <code class="docutils literal notranslate"><span class="pre">triggered</span></code> variable on line 81.</p>
 <details class="sd-sphinx-override sd-dropdown sd-card sd-mb-3">
 <summary class="sd-summary-title sd-card-header">
 <span class="sd-summary-icon"><svg version="1.1" width="1.0em" height="1.0em" class="sd-octicon sd-octicon-code" viewBox="0 0 16 16" aria-hidden="true"><path d="m11.28 3.22 4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.749.749 0 0 1-1.275-.326.749.749 0 0 1 .215-.734L13.94 8l-3.72-3.72a.749.749 0 0 1 .326-1.275.749.749 0 0 1 .734.215Zm-6.56 0a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042L2.06 8l3.72 3.72a.749.749 0 0 1-.326 1.275.749.749 0 0 1-.734-.215L.47 8.53a.75.75 0 0 1 0-1.06Z"></path></svg></span><span class="sd-summary-text">Code for raycaster_sensor.py</span><span class="sd-summary-state-marker sd-summary-chevron-right"><svg version="1.1" width="1.5em" height="1.5em" class="sd-octicon sd-octicon-chevron-right" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.72 18.78a.75.75 0 0 1 0-1.06L14.44 12 8.72 6.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018l6.25 6.25a.75.75 0 0 1 0 1.06l-6.25 6.25a.75.75 0 0 1-1.06 0Z"></path></svg></span></summary><div class="sd-summary-content sd-card-body docutils">
@@ -846,12 +845,12 @@ Ray<span class="w"> </span>cast<span class="w"> </span>hit<span class="w"> </spa
                   
 <div class="prev-next-area">
     <a class="left-prev"
-       href="frame_transformer.html"
+       href="imu.html"
        title="previous page">
       <i class="fa-solid fa-angle-left"></i>
       <div class="prev-next-info">
         <p class="prev-next-subtitle">previous</p>
-        <p class="prev-next-title">Frame Transformer</p>
+        <p class="prev-next-title">Inertial Measurement Unit (IMU)</p>
       </div>
     </a>
     <a class="right-next"
@@ -898,7 +897,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jan 15, 2025.
+  Last updated on Jan 17, 2025.
   <br/>
 </p>
   </div>
