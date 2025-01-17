@@ -17,4 +17,5 @@ The following pages describe the available sensors in more detail:
     camera
     contact_sensor
     frame_transformer
+    imu
     ray_caster
