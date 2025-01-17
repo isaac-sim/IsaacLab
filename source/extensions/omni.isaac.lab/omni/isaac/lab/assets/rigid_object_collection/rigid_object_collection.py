@@ -105,10 +105,6 @@ class RigidObjectCollection(AssetBase):
 
         self._debug_vis_handle = None
 
-        self._root_state_dep_warn = False
-        self._root_pose_dep_warn = False
-        self._root_vel_dep_warn = False
-
     """
     Properties
     """
@@ -226,13 +222,6 @@ class RigidObjectCollection(AssetBase):
             env_ids: Environment indices. If None, then all indices are used.
             object_ids: Object indices. If None, then all indices are used.
         """
-        # deprecation warning
-        if not self._root_state_dep_warn:
-            omni.log.warn(
-                "DeprecationWarning: RigidObjectCollection.write_object_state_to_sim will be removed in a future"
-                " release. Please use write_object_link_state_to_sim or write_object_com_state_to_sim instead."
-            )
-            self._root_state_dep_warn = True
 
         # set into simulation
         self.write_object_pose_to_sim(object_state[..., :7], env_ids=env_ids, object_ids=object_ids)
@@ -291,13 +280,6 @@ class RigidObjectCollection(AssetBase):
             env_ids: Environment indices. If None, then all indices are used.
             object_ids: Object indices. If None, then all indices are used.
         """
-        # deprecation warning
-        if not self._root_pose_dep_warn:
-            omni.log.warn(
-                "DeprecationWarning: RigidObjectCollection.write_object_pose_to_sim will be removed in a future"
-                " release. Please use write_object_link_pose_to_sim or write_object_com_pose_to_sim instead."
-            )
-            self._root_pose_dep_warn = True
 
         self.write_object_link_pose_to_sim(object_pose, env_ids, object_ids)
 
@@ -388,13 +370,6 @@ class RigidObjectCollection(AssetBase):
             env_ids: Environment indices. If None, then all indices are used.
             object_ids: Object indices. If None, then all indices are used.
         """
-        # deprecation warning
-        if not self._root_vel_dep_warn:
-            omni.log.warn(
-                "DeprecationWarning: RigidObjectCollection.write_object_velocity_to_sim will be removed in a future"
-                " release. Please use write_object_link_velocity_to_sim or write_object_com_velocity_to_sim instead."
-            )
-            self._root_vel_dep_warn = True
 
         self.write_object_com_velocity_to_sim(object_velocity=object_velocity, env_ids=env_ids, object_ids=object_ids)
 
