@@ -86,6 +86,9 @@ def main():
     # this speeds up the read-write operation of GPU buffers
     if sim.get_physics_context().use_gpu_pipeline:
         sim.get_physics_context().enable_fabric(True)
+    # increase GPU buffer dimensions
+    sim.get_physics_context().set_gpu_found_lost_aggregate_pairs_capacity(2**25)
+    sim.get_physics_context().set_gpu_total_aggregate_pairs_capacity(2**21)
     # enable hydra scene-graph instancing
     # this is needed to visualize the scene when fabric is enabled
     set_carb_setting(sim._settings, "/persistent/omnihydra/useSceneGraphInstancing", True)

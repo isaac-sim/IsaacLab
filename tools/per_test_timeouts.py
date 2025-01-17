@@ -21,4 +21,5 @@ PER_TEST_TIMEOUTS = {
     "test_sb3_wrapper.py": 200,
     "test_skrl_wrapper.py": 200,
     "test_operational_space.py": 300,
+    "test_terrain_importer.py": 200,
 }
