@@ -10,7 +10,7 @@ from omni.isaac.lab.controllers import DifferentialIKControllerCfg, OperationalS
 from omni.isaac.lab.managers.action_manager import ActionTerm, ActionTermCfg
 from omni.isaac.lab.utils import configclass
 
-from . import binary_joint_actions, joint_actions, joint_actions_to_limits, non_holonomic_actions, task_space_actions, robotiq_3f_actions
+from . import binary_joint_actions, joint_actions, joint_actions_to_limits, non_holonomic_actions, task_space_actions
 
 ##
 # Joint actions.
