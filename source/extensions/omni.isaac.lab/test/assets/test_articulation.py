@@ -407,7 +407,7 @@ class TestArticulation(unittest.TestCase):
                     with build_simulation_context(device=device, add_ground_plane=True, auto_add_lighting=True) as sim:
                         articulation_cfg = generate_articulation_cfg(articulation_type="anymal")
                         # Fix root link
-                        articulation_cfg.spawn.articulation_props.fix_root = True
+                        articulation_cfg.spawn.articulation_props.fix_root_link = True
                         articulation, translations = generate_articulation(articulation_cfg, num_articulations, device)
 
                         # Check that boundedness of articulation is correct
@@ -462,7 +462,7 @@ class TestArticulation(unittest.TestCase):
                     with build_simulation_context(device=device, add_ground_plane=True, auto_add_lighting=True) as sim:
                         articulation_cfg = generate_articulation_cfg(articulation_type="panda")
                         # Unfix root link
-                        articulation_cfg.spawn.articulation_props.fix_root = False
+                        articulation_cfg.spawn.articulation_props.fix_root_link = False
                         articulation, _ = generate_articulation(articulation_cfg, num_articulations, device)
 
                         # Check that boundedness of articulation is correct
