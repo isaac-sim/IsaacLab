@@ -42,9 +42,10 @@ parser.add_argument(
     "--algorithm",
     type=str,
     default="PPO",
-    choices=["PPO", "IPPO", "MAPPO"],
+    choices=["AMP", "PPO", "IPPO", "MAPPO"],
     help="The RL algorithm used for training the skrl agent.",
 )
+parser.add_argument("--real-time", action="store_true", default=False, help="Run in real-time, if possible.")
 
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
@@ -61,13 +62,14 @@ simulation_app = app_launcher.app
 
 import gymnasium as gym
 import os
+import time
 import torch
 
 import skrl
 from packaging import version
 
 # check for minimum supported skrl version
-SKRL_VERSION = "1.3.0"
+SKRL_VERSION = "1.4.0"
 if version.parse(skrl.__version__) < version.parse(SKRL_VERSION):
     skrl.logger.error(
         f"Unsupported skrl version: {skrl.__version__}. "
@@ -133,6 +135,12 @@ def main():
     if isinstance(env.unwrapped, DirectMARLEnv) and algorithm in ["ppo"]:
         env = multi_agent_to_single_agent(env)
 
+    # get environment (physics) dt for real-time evaluation
+    try:
+        dt = env.physics_dt
+    except AttributeError:
+        dt = env.unwrapped.physics_dt
+
     # wrap for video recording
     if args_cli.video:
         video_kwargs = {
@@ -165,17 +173,25 @@ def main():
     timestep = 0
     # simulate environment
     while simulation_app.is_running():
+        start_time = time.time()
+
         # run everything in inference mode
         with torch.inference_mode():
             # agent stepping
-            actions = runner.agent.act(obs, timestep=0, timesteps=0)[0]
+            outputs = runner.agent.act(obs, timestep=0, timesteps=0)
+            actions = outputs[-1].get("mean_actions", outputs[0])
             # env stepping
             obs, _, _, _, _ = env.step(actions)
         if args_cli.video:
             timestep += 1
-            # Exit the play loop after recording one video
+            # exit the play loop after recording one video
             if timestep == args_cli.video_length:
                 break
+
+        # time delay for real-time evaluation
+        sleep_time = dt - (time.time() - start_time)
+        if args_cli.real_time and sleep_time > 0:
+            time.sleep(sleep_time)
 
     # close the simulator
     env.close()

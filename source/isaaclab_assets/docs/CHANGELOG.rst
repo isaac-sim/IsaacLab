@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.2.1 (2025-01-14)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added configuration for the Humanoid-28 robot.
+
+
 0.2.0 (2024-12-27)
 ~~~~~~~~~~~~~~~~~~
 

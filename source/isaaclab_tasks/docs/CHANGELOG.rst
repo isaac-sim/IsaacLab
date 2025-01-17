@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.10.22 (2025-01-14)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``Isaac-Humanoid-AMP-Dance-Direct-v0``, ``Isaac-Humanoid-AMP-Run-Direct-v0`` and ``Isaac-Humanoid-AMP-Walk-Direct-v0``
+  environments as a direct RL env that implements the Humanoid AMP task.
+
+
 0.10.21 (2025-01-03)
 ~~~~~~~~~~~~~~~~~~~~
 
