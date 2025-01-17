@@ -10,7 +10,7 @@ Inertial Measurement Unit (IMU)
 
 Inertial Measurement Units (IMUs) are a type of sensor for measuring the acceleration of an object.  These sensors are traditionally designed report linear accelerations and angular velocities, and function on similar principles to that of a digital scale: They report accelerations derived from **net force acting on the sensor**.
 
-A naive implementation of an IMU would report a negative acceleration due to gravity while the sensor is at rest in some local gravitational field. This is not generally needed for most practical applications, and so most real IMU sensors often include a **gravity bias** and assume that the device is operating on the surface of the Earth.  The IMU we provide in Isaac Lab includes a similar bias term, which defaults to +g.  This means that if you add an IMU to your simulation, and do not change this bias term, you will detect an acceleration of :math:`+ 9.81 m/s^{2}`.
+A naive implementation of an IMU would report a negative acceleration due to gravity while the sensor is at rest in some local gravitational field. This is not generally needed for most practical applications, and so most real IMU sensors often include a **gravity bias** and assume that the device is operating on the surface of the Earth.  The IMU we provide in Isaac Lab includes a similar bias term, which defaults to +g.  This means that if you add an IMU to your simulation, and do not change this bias term, you will detect an acceleration of :math:`+ 9.81 m/s^{2}` anti-parallel to gravity acceleration.
 
 Consider a simple environment with an Anymal Quadruped equipped with an IMU on each of its two front feet.
 
