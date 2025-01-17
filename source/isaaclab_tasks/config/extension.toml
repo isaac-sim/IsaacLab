@@ -15,26 +15,5 @@ keywords = ["robotics", "rl", "il", "learning"]
 "isaaclab" = {}
 "isaaclab_assets" = {}
 
-[python.pipapi]
-requirements = [
-    "h5py",
-    "tensorboard",
-    "stable-baselines3>=2.1",
-    "rl-games==1.6.1",
-    "rsl-rl@git+https://github.com/leggedrobotics/rsl_rl.git",
-    "skrl>=1.3.0"
-]
-
-modules = [
-    "h5py",
-    "tensorboard",
-    "stable_baselines3",
-    "rl_games",
-    "rsl_rl",
-    "skrl"
-]
-
-use_online_index=true
-
 [[python.module]]
 name = "isaaclab_tasks"
