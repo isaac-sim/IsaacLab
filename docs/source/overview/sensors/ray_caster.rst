@@ -3,7 +3,7 @@
 Ray Caster
 =============
 
-.. figure:: ../../_static/overview/overview_sensors_rc_patterns.png
+.. figure:: ../../_static/overview/overview_sensors_rc_patterns.jpg
     :align: center
     :figwidth: 100%
     :alt: A diagram outlining the basic geometry of frame transformations
@@ -20,7 +20,7 @@ Using a ray caster sensor requires a **pattern** and a parent xform to be attach
 
 Notice that the units on the pattern config is in degrees! Also, we enable visualization here to explicitly show the pattern in the rendering, but this is not required and should be disabled for performance tuning.
 
-.. figure:: ../../_static/overview/overview_sensors_rc_visualizer.png
+.. figure:: ../../_static/overview/overview_sensors_rc_visualizer.jpg
     :align: center
     :figwidth: 100%
     :alt: Lidar Pattern visualized

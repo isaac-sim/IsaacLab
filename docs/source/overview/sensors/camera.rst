@@ -71,7 +71,7 @@ Both :class:`~sensors.TiledCamera` and :class:`~sensors.Camera` classes provide 
 RGB and RGBA
 ~~~~~~~~~~~~
 
-.. figure:: ../../_static/overview/overview_sensors_rgb.png
+.. figure:: ../../_static/overview/overview_sensors_rgb.jpg
     :align: center
     :figwidth: 100%
     :alt: A scene captured in RGB
@@ -85,7 +85,7 @@ To convert the ``torch.uint8`` data to ``torch.float32``, divide the buffer by 2
 Depth and Distances
 ~~~~~~~~~~~~~~~~~~~
 
-.. figure:: ../../_static/overview/overview_sensors_depth.png
+.. figure:: ../../_static/overview/overview_sensors_depth.jpg
     :align: center
     :figwidth: 100%
     :alt: A scene captured in RGB
@@ -99,7 +99,7 @@ Depth and Distances
 Normals
 ~~~~~~~
 
-.. figure:: ../../_static/overview/overview_sensors_normals.png
+.. figure:: ../../_static/overview/overview_sensors_normals.jpg
     :align: center
     :figwidth: 100%
     :alt: A scene captured in RGB
@@ -114,7 +114,7 @@ Motion Vectors
 Semantic Segmentation
 ~~~~~~~~~~~~~~~~~~~~~
 
-.. figure:: ../../_static/overview/overview_sensors_semantic.png
+.. figure:: ../../_static/overview/overview_sensors_semantic.jpg
     :align: center
     :figwidth: 100%
     :alt: A scene captured in RGB
@@ -128,7 +128,7 @@ Semantic Segmentation
 Instance ID Segmentation
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. figure:: ../../_static/overview/overview_sensors_instanceID.png
+.. figure:: ../../_static/overview/overview_sensors_instanceID.jpg
     :align: center
     :figwidth: 100%
     :alt: A scene captured in RGB
@@ -144,7 +144,7 @@ The main difference between ``instance_id_segmentation_fast`` and ``instance_seg
 Instance Segmentation
 """""""""""""""""""""
 
-.. figure:: ../../_static/overview/overview_sensors_instance.png
+.. figure:: ../../_static/overview/overview_sensors_instance.jpg
     :align: center
     :figwidth: 100%
     :alt: A scene captured in RGB
