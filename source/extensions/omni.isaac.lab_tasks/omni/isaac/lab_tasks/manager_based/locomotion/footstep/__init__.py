@@ -3,7 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Locomotion environments for legged robots."""
+"""Locomotion environments with footstep-tracking commands.
 
-from .velocity import *  # noqa
-from .footstep import *  # noqa
+"""
