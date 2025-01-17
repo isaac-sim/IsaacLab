@@ -360,7 +360,7 @@ class IKRelKukaNutThreadEnvCfg(BaseNutThreadEnvCfg):
 
         obs_params = self.params.observations
         obs_params.use_tiled_camera = obs_params.get("use_tiled_camera", False)
-        obs_params.history_length = obs_params.get("history_length", 1)
+        obs_params.hist_len = obs_params.get("hist_len", 1)
         obs_params.include_action = obs_params.get("include_action", True)
         obs_params.include_wrench = obs_params.get("include_wrench", True)
         obs_params.wrench_target_body = obs_params.get("wrench_target_body", "victor_left_tool0")
@@ -477,8 +477,6 @@ class IKRelKukaNutThreadEnvCfg(BaseNutThreadEnvCfg):
             self.scene.nut.spawn.func = spawn_nut_with_rigid_grasp
         # observations
         obs_params = self.params.observations
-        self.observations.policy.history_length = obs_params.history_length
-        self.observations.policy.flatten_history_dim = obs_params.flatten_history_dim
         if obs_params.include_wrench:
             self.observations.policy.wrist_wrench = ObsTerm(
                 func=mdp.body_incoming_wrench,
@@ -499,6 +497,10 @@ class IKRelKukaNutThreadEnvCfg(BaseNutThreadEnvCfg):
             noise_cfg=GaussianNoiseCfg(mean=0.0, std=obs_params.nut_pos.noise_std, operation="add"),
             bias_noise_cfg=GaussianNoiseCfg(mean=0.0, std=obs_params.nut_pos.bias_std, operation="abs"),
         )]
+            
+        for term in self.observations.policy.__dict__.values():
+            if isinstance(term, ObsTerm):
+                term.hist_len = obs_params.hist_len
 
         # for debug only
         if obs_params.use_tiled_camera:
@@ -566,9 +568,6 @@ class IKRelKukaNutThreadEnvCfg(BaseNutThreadEnvCfg):
         if termination_params.far_from_bolt:
             self.terminations.far_from_bolt = DoneTerm(func=terminate_if_far_from_bolt)
         self.scene.nut.spawn.activate_contact_sensors = True
-
-
-
 
         # rewards
         rewards_params = self.params.rewards
