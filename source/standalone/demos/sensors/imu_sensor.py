@@ -26,7 +26,7 @@ simulation_app = app_launcher.app
 import torch
 
 import omni.isaac.lab.sim as sim_utils
-from omni.isaac.lab.assets import AssetBaseCfg, RigidObjectCfg
+from omni.isaac.lab.assets import AssetBaseCfg
 from omni.isaac.lab.scene import InteractiveScene, InteractiveSceneCfg
 from omni.isaac.lab.sensors import ImuCfg
 from omni.isaac.lab.utils import configclass
@@ -35,6 +35,7 @@ from omni.isaac.lab.utils import configclass
 # Pre-defined configs
 ##
 from omni.isaac.lab_assets.anymal import ANYMAL_C_CFG  # isort: skip
+
 
 @configclass
 class ImuSensorSceneCfg(InteractiveSceneCfg):
@@ -51,16 +52,10 @@ class ImuSensorSceneCfg(InteractiveSceneCfg):
     # robot
     robot = ANYMAL_C_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
 
-    imu_RF = ImuCfg(
-        prim_path="{ENV_REGEX_NS}/Robot/LF_FOOT",
-        debug_vis=True
-    )
+    imu_RF = ImuCfg(prim_path="{ENV_REGEX_NS}/Robot/LF_FOOT", debug_vis=True)
 
-    imu_LF = ImuCfg(
-        prim_path="{ENV_REGEX_NS}/Robot/RF_FOOT",
-        gravity_bias=(0,0,0),
-        debug_vis=True
-    )
+    imu_LF = ImuCfg(prim_path="{ENV_REGEX_NS}/Robot/RF_FOOT", gravity_bias=(0, 0, 0), debug_vis=True)
+
 
 def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
     """Run the simulator."""
@@ -121,7 +116,6 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
         print("Received angular velocity: ", scene["imu_RF"].data.ang_vel_b)
         print("Received linear acceleration: ", scene["imu_RF"].data.lin_acc_b)
         print("Received angular acceleration: ", scene["imu_RF"].data.ang_acc_b)
-
 
 
 def main():
