@@ -31,6 +31,7 @@ Guidelines for modifications:
 * Nikita Rudin
 * Pascal Roth
 * Sheikh Dawood
+* Ossama Ahmed
 
 ## Contributors
 
