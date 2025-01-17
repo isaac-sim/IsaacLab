@@ -115,7 +115,7 @@ class TestTiledCamera(unittest.TestCase):
                 if im_type == "rgb":
                     self.assertEqual(im_data.shape, (1, self.camera_cfg.height, self.camera_cfg.width, 3))
                     self.assertGreater((im_data / 255.0).mean().item(), 0.0)
-                elif im_type == "depth":
+                elif im_type == "distance_to_camera":
                     self.assertEqual(im_data.shape, (1, self.camera_cfg.height, self.camera_cfg.width, 1))
                     self.assertGreater(im_data.mean().item(), 0.0)
         del camera
@@ -278,7 +278,7 @@ class TestTiledCamera(unittest.TestCase):
                     self.assertEqual(im_data.shape, (num_cameras, self.camera_cfg.height, self.camera_cfg.width, 3))
                     for i in range(4):
                         self.assertGreater((im_data[i] / 255.0).mean().item(), 0.0)
-                elif im_type == "depth":
+                elif im_type == "distance_to_camera":
                     self.assertEqual(im_data.shape, (num_cameras, self.camera_cfg.height, self.camera_cfg.width, 1))
                     for i in range(4):
                         self.assertGreater(im_data[i].mean().item(), 0.0)
@@ -1316,7 +1316,7 @@ class TestTiledCamera(unittest.TestCase):
                 if im_type == "rgb":
                     self.assertEqual(im_data.shape, (1, camera_cfg.height, camera_cfg.width, 3))
                     self.assertGreater((im_data / 255.0).mean().item(), 0.0)
-                elif im_type == "depth":
+                elif im_type == "distance_to_camera":
                     self.assertEqual(im_data.shape, (1, camera_cfg.height, camera_cfg.width, 1))
                     self.assertGreater(im_data.mean().item(), 0.0)
         del camera
@@ -1459,7 +1459,7 @@ class TestTiledCamera(unittest.TestCase):
 
         # check difference is above threshold
         self.assertGreater(
-            torch.abs((image_after - image_before).mean()), 0.05
+            torch.abs(image_after - image_before).mean(), 0.05
         )  # images of same color should be below 0.001
 
     def test_frame_offset_large_resolution(self):
@@ -1504,7 +1504,7 @@ class TestTiledCamera(unittest.TestCase):
 
         # check difference is above threshold
         self.assertGreater(
-            torch.abs((image_after - image_before).mean()), 0.05
+            torch.abs(image_after - image_before).mean(), 0.05
         )  # images of same color should be below 0.001
 
     """
