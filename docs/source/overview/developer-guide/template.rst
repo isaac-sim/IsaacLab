@@ -51,7 +51,7 @@ Using a python interpreter that has Isaac Lab installed, install the library:
 
 .. code:: bash
 
-	python -m pip install -e exts/ext_template
+	python -m pip install -e source/ext_template
 
 
 For more details, please follow the instructions in the `extension template repository <https://github.com/isaac-sim/IsaacLabExtensionTemplate>`_.
