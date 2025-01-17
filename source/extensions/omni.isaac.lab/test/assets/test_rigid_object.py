@@ -760,8 +760,8 @@ class TestRigidObject(unittest.TestCase):
 
                                 # get state properties
                                 root_state_w = cube_object.data.root_state_w
-                                root_link_state_w = cube_object.data.root_state_w
-                                root_com_state_w = cube_object.data.root_state_w
+                                root_link_state_w = cube_object.data.root_link_state_w
+                                root_com_state_w = cube_object.data.root_com_state_w
                                 body_state_w = cube_object.data.body_state_w
                                 body_link_state_w = cube_object.data.body_link_state_w
                                 body_com_state_w = cube_object.data.body_com_state_w

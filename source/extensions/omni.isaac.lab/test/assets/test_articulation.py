@@ -974,8 +974,8 @@ class TestArticulation(unittest.TestCase):
 
                                 # get state properties
                                 root_state_w = articulation.data.root_state_w
-                                root_state_w = articulation.data.root_state_w
-                                root_com_state_w = articulation.data.root_state_w
+                                root_link_state_w = articulation.data.root_link_state_w
+                                root_com_state_w = articulation.data.root_com_state_w
                                 body_state_w = articulation.data.body_state_w
                                 body_link_state_w = articulation.data.body_link_state_w
                                 body_com_state_w = articulation.data.body_com_state_w
@@ -987,7 +987,7 @@ class TestArticulation(unittest.TestCase):
 
                                     # LINK state
                                     # pose
-                                    torch.testing.assert_close(root_state_w[..., :7], root_state_w[..., :7])
+                                    torch.testing.assert_close(root_state_w[..., :7], root_link_state_w[..., :7])
                                     torch.testing.assert_close(body_state_w[..., :7], body_link_state_w[..., :7])
 
                                     # lin_vel arm
@@ -999,7 +999,7 @@ class TestArticulation(unittest.TestCase):
 
                                     # linear velocity of root link should be zero
                                     torch.testing.assert_close(
-                                        lin_vel_gt[:, 0, :], root_state_w[..., 7:10], atol=1e-3, rtol=1e-1
+                                        lin_vel_gt[:, 0, :], root_link_state_w[..., 7:10], atol=1e-3, rtol=1e-1
                                     )
                                     # linear velocity of pendulum link should be
                                     torch.testing.assert_close(
@@ -1007,7 +1007,7 @@ class TestArticulation(unittest.TestCase):
                                     )
 
                                     # ang_vel
-                                    torch.testing.assert_close(root_state_w[..., 10:], root_state_w[..., 10:])
+                                    torch.testing.assert_close(root_state_w[..., 10:], root_link_state_w[..., 10:])
                                     torch.testing.assert_close(body_state_w[..., 10:], body_link_state_w[..., 10:])
 
                                     # COM state
@@ -1034,7 +1034,7 @@ class TestArticulation(unittest.TestCase):
                                     torch.testing.assert_close(body_state_w[..., 7:], body_com_state_w[..., 7:])
                                 else:
                                     # single joint center of masses are at link frames so they will be the same
-                                    torch.testing.assert_close(root_state_w, root_state_w)
+                                    torch.testing.assert_close(root_state_w, root_link_state_w)
                                     torch.testing.assert_close(root_state_w, root_com_state_w)
                                     torch.testing.assert_close(body_state_w, body_link_state_w)
                                     torch.testing.assert_close(body_state_w, body_com_state_w)
