@@ -3,7 +3,7 @@
 Contact Sensor
 ================
 
-.. figure:: ../../_static/overview/overview_sensors_contact_diagram.png
+.. figure:: ../../_static/overview/overview_sensors_contact_diagram.jpg
     :align: center
     :figwidth: 100%
     :alt: A contact sensor with filtering
@@ -14,59 +14,9 @@ By default, the reported force is the total contact force, but your application 
 
 Consider a simple environment with an Anymal Quadruped and a block
 
-.. code-block:: python
-
-  @configclass
-  class ContactSensorsSceneCfg(InteractiveSceneCfg):
-      """Design the scene with sensors on the robot."""
-
-      # ground plane
-      ground = AssetBaseCfg(prim_path="/World/defaultGroundPlane", spawn=sim_utils.GroundPlaneCfg())
-
-      # lights
-      dome_light = AssetBaseCfg(
-          prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=3000.0, color=(0.75, 0.75, 0.75))
-      )
-
-      # robot
-      robot = ANYMAL_C_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
-
-      # Rigid Object
-      cube = RigidObjectCfg(
-          prim_path="{ENV_REGEX_NS}/Cube",
-          spawn=sim_utils.CuboidCfg(
-              size=(0.5,0.5,0.1),
-              rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-              mass_props=sim_utils.MassPropertiesCfg(mass=100.0),
-              collision_props=sim_utils.CollisionPropertiesCfg(),
-              physics_material=sim_utils.RigidBodyMaterialCfg(static_friction=1.0),
-              visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 1.0, 0.0), metallic=0.2),
-          ),
-          init_state=RigidObjectCfg.InitialStateCfg(pos=(0.5, 0.5, 0.05)),
-      )
-
-      contact_forces_LF = ContactSensorCfg(
-          prim_path="{ENV_REGEX_NS}/Robot/LF_FOOT",
-          update_period=0.0,
-          history_length=6,
-          debug_vis=True,
-          filter_prim_paths_expr=["{ENV_REGEX_NS}/Cube"],
-      )
-
-      contact_forces_RF = ContactSensorCfg(
-          prim_path="{ENV_REGEX_NS}/Robot/RF_FOOT",
-          update_period=0.0,
-          history_length=6,
-          debug_vis=True,
-          filter_prim_paths_expr=["{ENV_REGEX_NS}/Cube"],
-      )
-
-      contact_forces_H = ContactSensorCfg(
-          prim_path="{ENV_REGEX_NS}/Robot/.*H_FOOT",
-          update_period=0.0,
-          history_length=6,
-          debug_vis=True,
-      )
+.. literalinclude:: ../../../../source/standalone/demos/sensors/contact_sensor.py
+    :language: python
+    :lines: 40-90
 
 We define the sensors on the feet of the robot in two different ways.  The front feet are independent sensors (one sensor body per foot) and the "Cube" is placed under the left foot.  The hind feet are defined as a single sensor with multiple bodies.
 
