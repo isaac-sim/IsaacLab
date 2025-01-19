@@ -815,10 +815,13 @@ def repeated_objects_terrain(
     ])
     platform_corners[0, :] *= 1 - platform_clearance
     platform_corners[1, :] *= 1 + platform_clearance
-    # sample center for objects
+    # sample valid center for objects
     object_centers = np.zeros((num_objects, 3))
+    # use a mask to track invalid objects that still require sampling
     mask_objects_left = np.ones((num_objects,), dtype=bool)
+    # loop until no objects are left to sample
     while np.any(mask_objects_left):
+        # only sample the centers of the remaining invalid objects
         num_objects_left = mask_objects_left.sum()
         object_centers[mask_objects_left, 0] = np.random.uniform(0, cfg.size[0], num_objects_left)
         object_centers[mask_objects_left, 1] = np.random.uniform(0, cfg.size[1], num_objects_left)
@@ -831,6 +834,7 @@ def repeated_objects_terrain(
             object_centers[mask_objects_left, 1] >= platform_corners[0, 1],
             object_centers[mask_objects_left, 1] <= platform_corners[1, 1],
         )
+        # update the mask to track the validity of the objects sampled in this iteration
         mask_objects_left[mask_objects_left] = np.logical_and(is_within_platform_x, is_within_platform_y)
 
     # generate obstacles (but keep platform clean)
