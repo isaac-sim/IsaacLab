@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.30.5 (2025-01-14)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the respawn of only wrong object samples in :func:`repeated_objects_terrain` of :mod:`omni.isaac.lab.terrains.trimesh` module. Previously, the function was respawning all objects in the scene instead of only the wrong object samples, which in worst case could lead to infinite respawn loop.
+
+
 0.30.4 (2025-01-08)
 ~~~~~~~~~~~~~~~~~~~
 
