@@ -303,6 +303,15 @@ Navigation
 Others
 ~~~~~~
 
+.. note::
+
+    Adversarial Motion Priors (AMP) training is only available with the `skrl` library, as it is the only one of the currently
+    integrated libraries that supports it out-of-the-box (for the other libraries, it is necessary to implement the algorithm and architectures).
+    See the `skrl's AMP Documentation <https://skrl.readthedocs.io/en/latest/api/agents/amp.html>`_ for more information.
+    The AMP algorithm can be activated by adding the command line input ``--algorithm AMP`` to the train/play script.
+
+    For evaluation, the play script's command line input ``--real-time`` allows the interaction loop between the environment and the agent to run in real time, if possible.
+
 .. table::
     :widths: 33 37 30
 
