@@ -132,11 +132,7 @@ class EventManager(ManagerBase):
         if "interval" in self._mode_class_term_cfgs:
             for index, term_cfg in enumerate(self._mode_class_term_cfgs["interval"]):
                 # sample a new interval and set that as time left
-                if term_cfg.is_global_time:
-                    lower, upper = term_cfg.interval_range_s
-                    sampled_interval = torch.rand(1) * (upper - lower) + lower
-                    self._interval_term_time_left[index][:] = sampled_interval
-                else:
+                if not term_cfg.is_global_time:
                     lower, upper = term_cfg.interval_range_s
                     sampled_interval = torch.rand(num_envs, device=self.device) * (upper - lower) + lower
                     self._interval_term_time_left[index][env_ids] = sampled_interval
