@@ -3,7 +3,7 @@
 Ray Caster
 =============
 
-.. figure:: ../../_static/overview/overview_sensors_rc_patterns.png
+.. figure:: ../../_static/overview/overview_sensors_rc_patterns.jpg
     :align: center
     :figwidth: 100%
     :alt: A diagram outlining the basic geometry of frame transformations
@@ -14,47 +14,13 @@ To keep the sensor performant when there are many cloned environments, the line 
 
 Using a ray caster sensor requires a **pattern** and a parent xform to be attached to.  The pattern defines how the rays are cast, while the prim properties defines the orientation and position of the sensor (additional offsets can be specified for more exact placement).  Isaac Lab supports a number of ray casting pattern configurations, including a generic LIDAR and grid pattern.
 
-.. code-block:: python
-
-  @configclass
-  class RaycasterSensorSceneCfg(InteractiveSceneCfg):
-      """Design the scene with sensors on the robot."""
-
-      # ground plane with texture for interesting casting results
-      ground = AssetBaseCfg(
-          prim_path="/World/Ground",
-          spawn=sim_utils.UsdFileCfg(
-              usd_path=f"{ISAAC_NUCLEUS_DIR}/Environments/Terrains/rough_plane.usd",
-              scale = (1,1,1),
-          )
-      )
-
-      # lights
-      dome_light = AssetBaseCfg(
-          prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=3000.0, color=(0.75, 0.75, 0.75))
-      )
-
-      # robot
-      robot = ANYMAL_C_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
-
-      ray_caster = RayCasterCfg(
-          prim_path="{ENV_REGEX_NS}/Robot/base/lidar_cage",
-          update_period = 1/60,
-          offset=RayCasterCfg.OffsetCfg(pos=(0,0,0.5)),
-          mesh_prim_paths=["/World/Ground"],
-          attach_yaw_only=True,
-          pattern_cfg=patterns.LidarPatternCfg(
-            channels = 100,
-            vertical_fov_range=[-90, 90],
-            horizontal_fov_range = [-90,90],
-            horizontal_res=1.0),
-          debug_vis=True,
-      )
-
+.. literalinclude:: ../../../../source/standalone/demos/sensors/raycaster_sensor.py
+    :language: python
+    :lines: 40-71
 
 Notice that the units on the pattern config is in degrees! Also, we enable visualization here to explicitly show the pattern in the rendering, but this is not required and should be disabled for performance tuning.
 
-.. figure:: ../../_static/overview/overview_sensors_rc_visualizer.png
+.. figure:: ../../_static/overview/overview_sensors_rc_visualizer.jpg
     :align: center
     :figwidth: 100%
     :alt: Lidar Pattern visualized
@@ -99,7 +65,7 @@ Querying the sensor for data can be done at simulation run time like any other s
 
 Here we can see the data returned by the sensor itself.  Notice first that there are 3 closed brackets at the beginning and the end: this is because the data returned is batched by the number of sensors. The ray cast pattern itself has also been flattened, and so the dimensions of the array are ``[N, B, 3]`` where ``N`` is the number of sensors, ``B`` is the number of cast rays in the pattern, and 3 is the dimension of the casting space. Finally, notice that the first several values in this casting pattern are the same: this is because the lidar pattern is spherical and we have specified our FOV  to be hemispherical, which includes the poles. In this configuration, the "flattening pattern" becomes apparent: the first 180 entries will be the same because it's the bottom pole of this hemisphere, and there will be 180 of them because our horizontal FOV is 180 degrees with a resolution of 1 degree.
 
-You can use this script to experiment with pattern configurations and build an intuition about how the data is stored by altering the ``triggered`` variable on line 99.
+You can use this script to experiment with pattern configurations and build an intuition about how the data is stored by altering the ``triggered`` variable on line 81.
 
 .. dropdown:: Code for raycaster_sensor.py
    :icon: code

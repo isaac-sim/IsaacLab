@@ -130,7 +130,7 @@ class AnymalCEnv(DirectRLEnv):
         air_time = torch.sum((last_air_time - 0.5) * first_contact, dim=1) * (
             torch.norm(self._commands[:, :2], dim=1) > 0.1
         )
-        # undersired contacts
+        # undesired contacts
         net_contact_forces = self._contact_sensor.data.net_forces_w_history
         is_contact = (
             torch.max(torch.norm(net_contact_forces[:, :, self._undesired_contact_body_ids], dim=-1), dim=1)[0] > 1.0
@@ -148,7 +148,7 @@ class AnymalCEnv(DirectRLEnv):
             "dof_acc_l2": joint_accel * self.cfg.joint_accel_reward_scale * self.step_dt,
             "action_rate_l2": action_rate * self.cfg.action_rate_reward_scale * self.step_dt,
             "feet_air_time": air_time * self.cfg.feet_air_time_reward_scale * self.step_dt,
-            "undesired_contacts": contacts * self.cfg.undersired_contact_reward_scale * self.step_dt,
+            "undesired_contacts": contacts * self.cfg.undesired_contact_reward_scale * self.step_dt,
             "flat_orientation_l2": flat_orientation * self.cfg.flat_orientation_reward_scale * self.step_dt,
         }
         reward = torch.sum(torch.stack(list(rewards.values())), dim=0)
