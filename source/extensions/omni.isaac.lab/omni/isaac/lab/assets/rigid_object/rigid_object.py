@@ -246,10 +246,11 @@ class RigidObject(AssetBase):
             root_pose: Root center of mass poses in simulation frame. Shape is (len(env_ids), 7).
             env_ids: Environment indices. If None, then all indices are used.
         """
-
         # resolve all indices
         if env_ids is None:
-            local_env_ids = slice(None)
+            local_env_ids = slice(env_ids)
+        else:
+            local_env_ids = env_ids
 
         com_pos = self.data.com_pos_b[local_env_ids, 0, :]
         com_quat = self.data.com_quat_b[local_env_ids, 0, :]
@@ -322,7 +323,9 @@ class RigidObject(AssetBase):
         """
         # resolve all indices
         if env_ids is None:
-            local_env_ids = slice(None)
+            local_env_ids = slice(env_ids)
+        else:
+            local_env_ids = env_ids
 
         root_com_velocity = root_velocity.clone()
         quat = self.data.root_link_state_w[local_env_ids, 3:7]

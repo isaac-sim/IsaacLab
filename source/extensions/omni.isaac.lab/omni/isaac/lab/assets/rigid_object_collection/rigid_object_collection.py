@@ -356,8 +356,8 @@ class RigidObjectCollection(AssetBase):
         else:
             local_object_ids = object_ids
 
-        com_pos = self.data.com_pos_b[local_env_ids, local_object_ids, :]
-        com_quat = self.data.com_quat_b[local_env_ids, local_object_ids, :]
+        com_pos = self.data.com_pos_b[local_env_ids][:, local_object_ids, :]
+        com_quat = self.data.com_quat_b[local_env_ids][:, local_object_ids, :]
 
         object_link_pos, object_link_quat = math_utils.combine_frame_transforms(
             object_pose[..., :3],
@@ -455,8 +455,8 @@ class RigidObjectCollection(AssetBase):
             local_object_ids = object_ids
 
         object_com_velocity = object_velocity.clone()
-        quat = self.data.object_link_state_w[local_env_ids, local_object_ids, 3:7]
-        com_pos_b = self.data.com_pos_b[local_env_ids, local_object_ids, :]
+        quat = self.data.object_link_state_w[local_env_ids][:, local_object_ids, 3:7]
+        com_pos_b = self.data.com_pos_b[local_env_ids][:, local_object_ids, :]
         # transform given velocity to center of mass
         object_com_velocity[..., :3] += torch.linalg.cross(
             object_com_velocity[..., 3:], math_utils.quat_rotate(quat, com_pos_b), dim=-1
