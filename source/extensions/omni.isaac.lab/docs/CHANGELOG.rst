@@ -1,7 +1,7 @@
 Changelog
 ---------
 
-0.30.5 (2025-01-17)
+0.30.6 (2025-01-17)
 ~~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -26,6 +26,17 @@ Fixed
 * replaced calls to :attr:`omni.isaac.lab.assets.RigidObjectCollectionData.root_com_state_w` and
   :attr:`omni.isaac.lab.assets.RigidObjectData.root_link_state_w` properties with corresponding calls to
   :attr:`omni.isaac.lab.assets.RigidObjectData.root_state_w` properties.
+* fixed indexing issue in ``write_root_link_velocity_to_sim`` in :class:`omni.isaac.lab.assets.RigidObject`
+* fixed index broadcasting in ``write_object_link_velocity_to_sim`` and ``write_object_com_pose_to_sim`` in :class:`omni.isaac.lab.assets.RigidObjectCollection`
+
+
+0.30.5 (2025-01-14)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the respawn of only wrong object samples in :func:`repeated_objects_terrain` of :mod:`omni.isaac.lab.terrains.trimesh` module. Previously, the function was respawning all objects in the scene instead of only the wrong object samples, which in worst case could lead to infinite respawn loop.
 
 
 0.30.4 (2025-01-08)
