@@ -122,6 +122,25 @@ class EventManager(ManagerBase):
         for mode_cfg in self._mode_class_term_cfgs.values():
             for term_cfg in mode_cfg:
                 term_cfg.func.reset(env_ids=env_ids)
+
+        # resolve number of environments
+        if env_ids is None:
+            num_envs = self._env.num_envs
+        else:
+            num_envs = len(env_ids)
+        # if we are doing interval based events then we need to reset the time left when the episode starts
+        if "interval" in self._mode_class_term_cfgs:
+            for index, term_cfg in enumerate(self._mode_class_term_cfgs["interval"]):
+                # sample a new interval and set that as time left
+                if term_cfg.is_global_time:
+                    lower, upper = term_cfg.interval_range_s
+                    sampled_interval = torch.rand(1) * (upper - lower) + lower
+                    self._interval_term_time_left[index][:] = sampled_interval
+                else:
+                    lower, upper = term_cfg.interval_range_s
+                    sampled_interval = torch.rand(num_envs, device=self.device) * (upper - lower) + lower
+                    self._interval_term_time_left[index][env_ids] = sampled_interval
+
         # nothing to log here
         return {}
 
