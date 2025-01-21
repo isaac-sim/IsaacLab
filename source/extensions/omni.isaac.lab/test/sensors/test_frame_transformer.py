@@ -175,8 +175,8 @@ class TestFrameTransformer(unittest.TestCase):
                 joint_vel = scene.articulations["robot"].data.default_joint_vel
                 # -- set root state
                 # -- robot
-                scene.articulations["robot"].write_root_link_pose_to_sim(root_state[:, :7])
-                scene.articulations["robot"].write_root_com_velocity_to_sim(root_state[:, 7:])
+                scene.articulations["robot"].write_root_pose_to_sim(root_state[:, :7])
+                scene.articulations["robot"].write_root_velocity_to_sim(root_state[:, 7:])
                 scene.articulations["robot"].write_joint_state_to_sim(joint_pos, joint_vel)
                 # reset buffers
                 scene.reset()
@@ -193,9 +193,9 @@ class TestFrameTransformer(unittest.TestCase):
 
             # check absolute frame transforms in world frame
             # -- ground-truth
-            root_pose_w = scene.articulations["robot"].data.root_link_state_w[:, :7]
-            feet_pos_w_gt = scene.articulations["robot"].data.body_link_pos_w[:, feet_indices]
-            feet_quat_w_gt = scene.articulations["robot"].data.body_link_quat_w[:, feet_indices]
+            root_pose_w = scene.articulations["robot"].data.root_state_w[:, :7]
+            feet_pos_w_gt = scene.articulations["robot"].data.body_pos_w[:, feet_indices]
+            feet_quat_w_gt = scene.articulations["robot"].data.body_quat_w[:, feet_indices]
             # -- frame transformer
             source_pos_w_tf = scene.sensors["frame_transformer"].data.source_pos_w
             source_quat_w_tf = scene.sensors["frame_transformer"].data.source_quat_w
@@ -276,8 +276,8 @@ class TestFrameTransformer(unittest.TestCase):
                 joint_vel = scene.articulations["robot"].data.default_joint_vel
                 # -- set root state
                 # -- robot
-                scene.articulations["robot"].write_root_link_pose_to_sim(root_state[:, :7])
-                scene.articulations["robot"].write_root_com_velocity_to_sim(root_state[:, 7:])
+                scene.articulations["robot"].write_root_pose_to_sim(root_state[:, :7])
+                scene.articulations["robot"].write_root_velocity_to_sim(root_state[:, 7:])
                 scene.articulations["robot"].write_joint_state_to_sim(joint_pos, joint_vel)
                 # reset buffers
                 scene.reset()
@@ -294,9 +294,9 @@ class TestFrameTransformer(unittest.TestCase):
 
             # check absolute frame transforms in world frame
             # -- ground-truth
-            source_pose_w_gt = scene.articulations["robot"].data.body_link_state_w[:, source_frame_index, :7]
-            feet_pos_w_gt = scene.articulations["robot"].data.body_link_pos_w[:, feet_indices]
-            feet_quat_w_gt = scene.articulations["robot"].data.body_link_quat_w[:, feet_indices]
+            source_pose_w_gt = scene.articulations["robot"].data.body_state_w[:, source_frame_index, :7]
+            feet_pos_w_gt = scene.articulations["robot"].data.body_pos_w[:, feet_indices]
+            feet_quat_w_gt = scene.articulations["robot"].data.body_quat_w[:, feet_indices]
             # -- frame transformer
             source_pos_w_tf = scene.sensors["frame_transformer"].data.source_pos_w
             source_quat_w_tf = scene.sensors["frame_transformer"].data.source_quat_w
@@ -358,8 +358,8 @@ class TestFrameTransformer(unittest.TestCase):
                 joint_vel = scene.articulations["robot"].data.default_joint_vel
                 # -- set root state
                 # -- robot
-                scene.articulations["robot"].write_root_link_pose_to_sim(root_state[:, :7])
-                scene.articulations["robot"].write_root_com_velocity_to_sim(root_state[:, 7:])
+                scene.articulations["robot"].write_root_pose_to_sim(root_state[:, :7])
+                scene.articulations["robot"].write_root_velocity_to_sim(root_state[:, 7:])
                 scene.articulations["robot"].write_joint_state_to_sim(joint_pos, joint_vel)
                 # reset buffers
                 scene.reset()
@@ -376,9 +376,9 @@ class TestFrameTransformer(unittest.TestCase):
 
             # check absolute frame transforms in world frame
             # -- ground-truth
-            root_pose_w = scene.articulations["robot"].data.root_link_state_w[:, :7]
-            cube_pos_w_gt = scene.rigid_objects["cube"].data.root_link_state_w[:, :3]
-            cube_quat_w_gt = scene.rigid_objects["cube"].data.root_link_state_w[:, 3:7]
+            root_pose_w = scene.articulations["robot"].data.root_state_w[:, :7]
+            cube_pos_w_gt = scene.rigid_objects["cube"].data.root_state_w[:, :3]
+            cube_quat_w_gt = scene.rigid_objects["cube"].data.root_state_w[:, 3:7]
             # -- frame transformer
             source_pos_w_tf = scene.sensors["frame_transformer"].data.source_pos_w
             source_quat_w_tf = scene.sensors["frame_transformer"].data.source_quat_w
@@ -450,8 +450,8 @@ class TestFrameTransformer(unittest.TestCase):
                 root_state[:, :3] += scene.env_origins
                 # -- set root state
                 # -- cube
-                scene["cube"].write_root_link_pose_to_sim(root_state[:, :7])
-                scene["cube"].write_root_com_velocity_to_sim(root_state[:, 7:])
+                scene["cube"].write_root_pose_to_sim(root_state[:, :7])
+                scene["cube"].write_root_velocity_to_sim(root_state[:, 7:])
                 # reset buffers
                 scene.reset()
 
@@ -464,8 +464,8 @@ class TestFrameTransformer(unittest.TestCase):
 
             # check absolute frame transforms in world frame
             # -- ground-truth
-            cube_pos_w_gt = scene["cube"].data.root_link_state_w[:, :3]
-            cube_quat_w_gt = scene["cube"].data.root_link_state_w[:, 3:7]
+            cube_pos_w_gt = scene["cube"].data.root_state_w[:, :3]
+            cube_quat_w_gt = scene["cube"].data.root_state_w[:, 3:7]
             # -- frame transformer
             source_pos_w_tf = scene.sensors["frame_transformer"].data.source_pos_w
             source_quat_w_tf = scene.sensors["frame_transformer"].data.source_quat_w
@@ -538,8 +538,8 @@ class TestFrameTransformer(unittest.TestCase):
                 joint_vel = scene.articulations["robot"].data.default_joint_vel
                 # -- set root state
                 # -- robot
-                scene.articulations["robot"].write_root_link_pose_to_sim(root_state[:, :7])
-                scene.articulations["robot"].write_root_com_velocity_to_sim(root_state[:, 7:])
+                scene.articulations["robot"].write_root_pose_to_sim(root_state[:, :7])
+                scene.articulations["robot"].write_root_velocity_to_sim(root_state[:, 7:])
                 scene.articulations["robot"].write_joint_state_to_sim(joint_pos, joint_vel)
                 # reset buffers
                 scene.reset()
@@ -556,9 +556,9 @@ class TestFrameTransformer(unittest.TestCase):
 
             # check absolute frame transforms in world frame
             # -- ground-truth
-            root_pose_w = scene.articulations["robot"].data.root_link_state_w[:, :7]
-            bodies_pos_w_gt = scene.articulations["robot"].data.body_link_pos_w
-            bodies_quat_w_gt = scene.articulations["robot"].data.body_link_quat_w
+            root_pose_w = scene.articulations["robot"].data.root_state_w[:, :7]
+            bodies_pos_w_gt = scene.articulations["robot"].data.body_pos_w
+            bodies_quat_w_gt = scene.articulations["robot"].data.body_quat_w
 
             # -- frame transformer
             source_pos_w_tf = scene.sensors["frame_transformer"].data.source_pos_w

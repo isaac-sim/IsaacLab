@@ -6,7 +6,6 @@
 import torch
 import weakref
 
-import omni.log
 import omni.physics.tensors.impl.api as physx
 
 import omni.isaac.lab.utils.math as math_utils
@@ -74,11 +73,6 @@ class ArticulationData:
         self._joint_pos = TimestampedBuffer()
         self._joint_acc = TimestampedBuffer()
         self._joint_vel = TimestampedBuffer()
-
-        # deprecation warning check
-        self._root_state_dep_warn = False
-        self._body_state_dep_warn = False
-        self._ignore_dep_warn = False
 
     def update(self, dt: float):
         # update the simulation timestamp
@@ -274,13 +268,6 @@ class ArticulationData:
         the linear and angular velocities are of the articulation root's center of mass frame.
         """
 
-        if not self._root_state_dep_warn and not self._ignore_dep_warn:
-            omni.log.warn(
-                "DeprecationWarning: root_state_w and it's derived properties will be deprecated in a future release."
-                " Please use root_link_state_w or root_com_state_w."
-            )
-            self._root_state_dep_warn = True
-
         if self._root_state_w.timestamp < self._sim_timestamp:
             # read data from simulation
             pose = self._root_physx_view.get_root_transforms().clone()
@@ -346,13 +333,6 @@ class ArticulationData:
         The position and quaternion are of all the articulation links's actor frame. Meanwhile, the linear and angular
         velocities are of the articulation links's center of mass frame.
         """
-
-        if not self._body_state_dep_warn and not self._ignore_dep_warn:
-            omni.log.warn(
-                "DeprecationWarning: body_state_w and it's derived properties will be deprecated in a future release."
-                " Please use body_link_state_w or body_com_state_w."
-            )
-            self._body_state_dep_warn = True
 
         if self._body_state_w.timestamp < self._sim_timestamp:
             self._physics_sim_view.update_articulations_kinematic()

@@ -109,8 +109,8 @@ def run_simulator(sim: sim_utils.SimulationContext, scene_entities: dict):
         # Reset the scene
         if step_count % 250 == 0:
             # reset the balls
-            balls.write_root_link_pose_to_sim(ball_default_state[:, :7])
-            balls.write_root_com_velocity_to_sim(ball_default_state[:, 7:])
+            balls.write_root_pose_to_sim(ball_default_state[:, :7])
+            balls.write_root_velocity_to_sim(ball_default_state[:, 7:])
             # reset the sensor
             ray_caster.reset()
             # reset the counter

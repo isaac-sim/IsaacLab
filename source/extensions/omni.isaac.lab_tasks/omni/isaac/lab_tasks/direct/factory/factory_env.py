@@ -189,18 +189,16 @@ class FactoryEnv(DirectRLEnv):
     def _compute_intermediate_values(self, dt):
         """Get values computed from raw tensors. This includes adding noise."""
         # TODO: A lot of these can probably only be set once?
-        self.fixed_pos = self._fixed_asset.data.root_link_pos_w - self.scene.env_origins
-        self.fixed_quat = self._fixed_asset.data.root_link_quat_w
+        self.fixed_pos = self._fixed_asset.data.root_pos_w - self.scene.env_origins
+        self.fixed_quat = self._fixed_asset.data.root_quat_w
 
-        self.held_pos = self._held_asset.data.root_link_pos_w - self.scene.env_origins
-        self.held_quat = self._held_asset.data.root_link_quat_w
+        self.held_pos = self._held_asset.data.root_pos_w - self.scene.env_origins
+        self.held_quat = self._held_asset.data.root_quat_w
 
-        self.fingertip_midpoint_pos = (
-            self._robot.data.body_link_pos_w[:, self.fingertip_body_idx] - self.scene.env_origins
-        )
-        self.fingertip_midpoint_quat = self._robot.data.body_link_quat_w[:, self.fingertip_body_idx]
-        self.fingertip_midpoint_linvel = self._robot.data.body_com_lin_vel_w[:, self.fingertip_body_idx]
-        self.fingertip_midpoint_angvel = self._robot.data.body_com_ang_vel_w[:, self.fingertip_body_idx]
+        self.fingertip_midpoint_pos = self._robot.data.body_pos_w[:, self.fingertip_body_idx] - self.scene.env_origins
+        self.fingertip_midpoint_quat = self._robot.data.body_quat_w[:, self.fingertip_body_idx]
+        self.fingertip_midpoint_linvel = self._robot.data.body_lin_vel_w[:, self.fingertip_body_idx]
+        self.fingertip_midpoint_angvel = self._robot.data.body_ang_vel_w[:, self.fingertip_body_idx]
 
         jacobians = self._robot.root_physx_view.get_jacobians()
 
@@ -554,15 +552,15 @@ class FactoryEnv(DirectRLEnv):
         held_state = self._held_asset.data.default_root_state.clone()[env_ids]
         held_state[:, 0:3] += self.scene.env_origins[env_ids]
         held_state[:, 7:] = 0.0
-        self._held_asset.write_root_link_pose_to_sim(held_state[:, 0:7], env_ids=env_ids)
-        self._held_asset.write_root_com_velocity_to_sim(held_state[:, 7:], env_ids=env_ids)
+        self._held_asset.write_root_pose_to_sim(held_state[:, 0:7], env_ids=env_ids)
+        self._held_asset.write_root_velocity_to_sim(held_state[:, 7:], env_ids=env_ids)
         self._held_asset.reset()
 
         fixed_state = self._fixed_asset.data.default_root_state.clone()[env_ids]
         fixed_state[:, 0:3] += self.scene.env_origins[env_ids]
         fixed_state[:, 7:] = 0.0
-        self._fixed_asset.write_root_link_pose_to_sim(fixed_state[:, 0:7], env_ids=env_ids)
-        self._fixed_asset.write_root_com_velocity_to_sim(fixed_state[:, 7:], env_ids=env_ids)
+        self._fixed_asset.write_root_pose_to_sim(fixed_state[:, 0:7], env_ids=env_ids)
+        self._fixed_asset.write_root_velocity_to_sim(fixed_state[:, 7:], env_ids=env_ids)
         self._fixed_asset.reset()
 
     def set_pos_inverse_kinematics(self, env_ids):
@@ -685,8 +683,8 @@ class FactoryEnv(DirectRLEnv):
         # (1.c.) Velocity
         fixed_state[:, 7:] = 0.0  # vel
         # (1.d.) Update values.
-        self._fixed_asset.write_root_link_pose_to_sim(fixed_state[:, 0:7], env_ids=env_ids)
-        self._fixed_asset.write_root_com_velocity_to_sim(fixed_state[:, 7:], env_ids=env_ids)
+        self._fixed_asset.write_root_pose_to_sim(fixed_state[:, 0:7], env_ids=env_ids)
+        self._fixed_asset.write_root_velocity_to_sim(fixed_state[:, 7:], env_ids=env_ids)
         self._fixed_asset.reset()
 
         # (1.e.) Noisy position observation.
@@ -772,15 +770,15 @@ class FactoryEnv(DirectRLEnv):
             small_gear_state = self._small_gear_asset.data.default_root_state.clone()[env_ids]
             small_gear_state[:, 0:7] = fixed_state[:, 0:7]
             small_gear_state[:, 7:] = 0.0  # vel
-            self._small_gear_asset.write_root_link_pose_to_sim(small_gear_state[:, 0:7], env_ids=env_ids)
-            self._small_gear_asset.write_root_com_velocity_to_sim(small_gear_state[:, 7:], env_ids=env_ids)
+            self._small_gear_asset.write_root_pose_to_sim(small_gear_state[:, 0:7], env_ids=env_ids)
+            self._small_gear_asset.write_root_velocity_to_sim(small_gear_state[:, 7:], env_ids=env_ids)
             self._small_gear_asset.reset()
 
             large_gear_state = self._large_gear_asset.data.default_root_state.clone()[env_ids]
             large_gear_state[:, 0:7] = fixed_state[:, 0:7]
             large_gear_state[:, 7:] = 0.0  # vel
-            self._large_gear_asset.write_root_link_pose_to_sim(large_gear_state[:, 0:7], env_ids=env_ids)
-            self._large_gear_asset.write_root_com_velocity_to_sim(large_gear_state[:, 7:], env_ids=env_ids)
+            self._large_gear_asset.write_root_pose_to_sim(large_gear_state[:, 0:7], env_ids=env_ids)
+            self._large_gear_asset.write_root_velocity_to_sim(large_gear_state[:, 7:], env_ids=env_ids)
             self._large_gear_asset.reset()
 
         # (3) Randomize asset-in-gripper location.
@@ -822,8 +820,8 @@ class FactoryEnv(DirectRLEnv):
         held_state[:, 0:3] = translated_held_asset_pos + self.scene.env_origins
         held_state[:, 3:7] = translated_held_asset_quat
         held_state[:, 7:] = 0.0
-        self._held_asset.write_root_link_pose_to_sim(held_state[:, 0:7])
-        self._held_asset.write_root_com_velocity_to_sim(held_state[:, 7:])
+        self._held_asset.write_root_pose_to_sim(held_state[:, 0:7])
+        self._held_asset.write_root_velocity_to_sim(held_state[:, 7:])
         self._held_asset.reset()
 
         #  Close hand

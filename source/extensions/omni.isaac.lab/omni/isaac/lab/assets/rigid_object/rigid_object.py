@@ -55,9 +55,6 @@ class RigidObject(AssetBase):
             cfg: A configuration instance.
         """
         super().__init__(cfg)
-        self._root_state_dep_warn = False
-        self._root_pose_dep_warn = False
-        self._root_vel_dep_warn = False
 
     """
     Properties
@@ -159,13 +156,6 @@ class RigidObject(AssetBase):
             root_state: Root state in simulation frame. Shape is (len(env_ids), 13).
             env_ids: Environment indices. If None, then all indices are used.
         """
-        # deprecation warning
-        if not self._root_state_dep_warn:
-            omni.log.warn(
-                "DeprecationWarning: RigidObject.write_root_state_to_sim will be removed in a future release. Please"
-                " use write_root_link_state_to_sim or write_root_com_state_to_sim instead."
-            )
-            self._root_state_dep_warn = True
 
         # set into simulation
         self.write_root_pose_to_sim(root_state[:, :7], env_ids=env_ids)
@@ -208,15 +198,19 @@ class RigidObject(AssetBase):
             root_pose: Root poses in simulation frame. Shape is (len(env_ids), 7).
             env_ids: Environment indices. If None, then all indices are used.
         """
-        # deprecation warning
-        if not self._root_pose_dep_warn:
-            omni.log.warn(
-                "DeprecationWarning: RigidObject.write_root_pose_to_sim will be removed in a future release. Please use"
-                " write_root_link_pose_to_sim or write_root_com_pose_to_sim instead."
-            )
-            self._root_pose_dep_warn = True
-
-        self.write_root_link_pose_to_sim(root_pose, env_ids)
+        # resolve all indices
+        physx_env_ids = env_ids
+        if env_ids is None:
+            env_ids = slice(None)
+            physx_env_ids = self._ALL_INDICES
+        # note: we need to do this here since tensors are not set into simulation until step.
+        # set into internal buffers
+        self._data.root_state_w[env_ids, :7] = root_pose.clone()
+        # convert root quaternion from wxyz to xyzw
+        root_poses_xyzw = self._data.root_state_w[:, :7].clone()
+        root_poses_xyzw[:, 3:] = math_utils.convert_quat(root_poses_xyzw[:, 3:], to="xyzw")
+        # set into simulation
+        self.root_physx_view.set_transforms(root_poses_xyzw, indices=physx_env_ids)
 
     def write_root_link_pose_to_sim(self, root_pose: torch.Tensor, env_ids: Sequence[int] | None = None):
         """Set the root link pose over selected environment indices into the simulation.
@@ -235,9 +229,7 @@ class RigidObject(AssetBase):
         # note: we need to do this here since tensors are not set into simulation until step.
         # set into internal buffers
         self._data.root_link_state_w[env_ids, :7] = root_pose.clone()
-        self._data._ignore_dep_warn = True
         self._data.root_state_w[env_ids, :7] = self._data.root_link_state_w[env_ids, :7]
-        self._data._ignore_dep_warn = False
         # convert root quaternion from wxyz to xyzw
         root_poses_xyzw = self._data.root_link_state_w[:, :7].clone()
         root_poses_xyzw[:, 3:] = math_utils.convert_quat(root_poses_xyzw[:, 3:], to="xyzw")
@@ -254,10 +246,11 @@ class RigidObject(AssetBase):
             root_pose: Root center of mass poses in simulation frame. Shape is (len(env_ids), 7).
             env_ids: Environment indices. If None, then all indices are used.
         """
-
         # resolve all indices
         if env_ids is None:
-            local_env_ids = slice(None)
+            local_env_ids = slice(env_ids)
+        else:
+            local_env_ids = env_ids
 
         com_pos = self.data.com_pos_b[local_env_ids, 0, :]
         com_quat = self.data.com_quat_b[local_env_ids, 0, :]
@@ -282,15 +275,17 @@ class RigidObject(AssetBase):
             root_velocity: Root center of mass velocities in simulation world frame. Shape is (len(env_ids), 6).
             env_ids: Environment indices. If None, then all indices are used.
         """
-        # deprecation warning
-        if not self._root_vel_dep_warn:
-            omni.log.warn(
-                "DeprecationWarning: RigidObject.write_root_velocity_to_sim will be removed in a future release. Please"
-                " use write_root_link_velocity_to_sim or write_root_com_velocity_to_sim instead."
-            )
-            self._root_vel_dep_warn = True
-
-        self.write_root_com_velocity_to_sim(root_velocity=root_velocity, env_ids=env_ids)
+        # resolve all indices
+        physx_env_ids = env_ids
+        if env_ids is None:
+            env_ids = slice(None)
+            physx_env_ids = self._ALL_INDICES
+        # note: we need to do this here since tensors are not set into simulation until step.
+        # set into internal buffers
+        self._data.root_state_w[env_ids, 7:] = root_velocity.clone()
+        self._data.body_acc_w[env_ids] = 0.0
+        # set into simulation
+        self.root_physx_view.set_velocities(self._data.root_state_w[:, 7:], indices=physx_env_ids)
 
     def write_root_com_velocity_to_sim(self, root_velocity: torch.Tensor, env_ids: Sequence[int] | None = None):
         """Set the root center of mass velocity over selected environment indices into the simulation.
@@ -311,9 +306,7 @@ class RigidObject(AssetBase):
         # note: we need to do this here since tensors are not set into simulation until step.
         # set into internal buffers
         self._data.root_com_state_w[env_ids, 7:] = root_velocity.clone()
-        self._data._ignore_dep_warn = True
         self._data.root_state_w[env_ids, 7:] = self._data.root_com_state_w[env_ids, 7:]
-        self._data._ignore_dep_warn = False
         self._data.body_acc_w[env_ids] = 0.0
         # set into simulation
         self.root_physx_view.set_velocities(self._data.root_com_state_w[:, 7:], indices=physx_env_ids)
@@ -330,7 +323,9 @@ class RigidObject(AssetBase):
         """
         # resolve all indices
         if env_ids is None:
-            local_env_ids = slice(None)
+            local_env_ids = slice(env_ids)
+        else:
+            local_env_ids = env_ids
 
         root_com_velocity = root_velocity.clone()
         quat = self.data.root_link_state_w[local_env_ids, 3:7]

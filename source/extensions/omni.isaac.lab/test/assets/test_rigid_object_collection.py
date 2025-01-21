@@ -513,6 +513,8 @@ class TestRigidObjectCollection(unittest.TestCase):
                                         num_envs=num_envs, num_cubes=num_cubes, height=0.0, device=device
                                     )
                                     view_ids = torch.tensor([x for x in range(num_cubes * num_cubes)])
+                                    env_ids = torch.tensor([x for x in range(num_envs)])
+                                    object_ids = torch.tensor([x for x in range(num_cubes)])
 
                                     # Play sim
                                     sim.reset()
@@ -547,6 +549,8 @@ class TestRigidObjectCollection(unittest.TestCase):
                                     # make quaternion a unit vector
                                     rand_state[..., 3:7] = torch.nn.functional.normalize(rand_state[..., 3:7], dim=-1)
 
+                                    env_ids = env_ids.to(device)
+                                    object_ids = object_ids.to(device)
                                     for i in range(10):
 
                                         # perform step
@@ -555,9 +559,19 @@ class TestRigidObjectCollection(unittest.TestCase):
                                         cube_object.update(sim.cfg.dt)
 
                                         if state_location == "com":
-                                            cube_object.write_object_com_state_to_sim(rand_state)
+                                            if i % 2 == 0:
+                                                cube_object.write_object_com_state_to_sim(rand_state)
+                                            else:
+                                                cube_object.write_object_com_state_to_sim(
+                                                    rand_state, env_ids=env_ids, object_ids=object_ids
+                                                )
                                         elif state_location == "link":
-                                            cube_object.write_object_link_state_to_sim(rand_state)
+                                            if i % 2 == 0:
+                                                cube_object.write_object_link_state_to_sim(rand_state)
+                                            else:
+                                                cube_object.write_object_link_state_to_sim(
+                                                    rand_state, env_ids=env_ids, object_ids=object_ids
+                                                )
 
                                         if state_location == "com":
                                             torch.testing.assert_close(rand_state, cube_object.data.object_com_state_w)

@@ -843,26 +843,24 @@ class TestOperationalSpaceController(unittest.TestCase):
         gravity = robot.root_physx_view.get_generalized_gravity_forces()[:, arm_joint_ids]
         # Convert the Jacobian from world to root frame
         jacobian_b = jacobian_w.clone()
-        root_rot_matrix = matrix_from_quat(quat_inv(robot.data.root_link_quat_w))
+        root_rot_matrix = matrix_from_quat(quat_inv(robot.data.root_quat_w))
         jacobian_b[:, :3, :] = torch.bmm(root_rot_matrix, jacobian_b[:, :3, :])
         jacobian_b[:, 3:, :] = torch.bmm(root_rot_matrix, jacobian_b[:, 3:, :])
 
         # Compute current pose of the end-effector
-        root_pose_w = robot.data.root_link_state_w[:, 0:7]
-        ee_pose_w = robot.data.body_link_state_w[:, ee_frame_idx, 0:7]
+        root_pose_w = robot.data.root_state_w[:, 0:7]
+        ee_pose_w = robot.data.body_state_w[:, ee_frame_idx, 0:7]
         ee_pos_b, ee_quat_b = subtract_frame_transforms(
             root_pose_w[:, 0:3], root_pose_w[:, 3:7], ee_pose_w[:, 0:3], ee_pose_w[:, 3:7]
         )
         ee_pose_b = torch.cat([ee_pos_b, ee_quat_b], dim=-1)
 
         # Compute the current velocity of the end-effector
-        ee_vel_w = robot.data.body_com_vel_w[:, ee_frame_idx, :]  # Extract end-effector velocity in the world frame
-        root_vel_w = robot.data.root_com_vel_w  # Extract root velocity in the world frame
+        ee_vel_w = robot.data.body_vel_w[:, ee_frame_idx, :]  # Extract end-effector velocity in the world frame
+        root_vel_w = robot.data.root_vel_w  # Extract root velocity in the world frame
         relative_vel_w = ee_vel_w - root_vel_w  # Compute the relative velocity in the world frame
-        ee_lin_vel_b = quat_rotate_inverse(
-            robot.data.root_link_quat_w, relative_vel_w[:, 0:3]
-        )  # From world to root frame
-        ee_ang_vel_b = quat_rotate_inverse(robot.data.root_link_quat_w, relative_vel_w[:, 3:6])
+        ee_lin_vel_b = quat_rotate_inverse(robot.data.root_quat_w, relative_vel_w[:, 0:3])  # From world to root frame
+        ee_ang_vel_b = quat_rotate_inverse(robot.data.root_quat_w, relative_vel_w[:, 3:6])
         ee_vel_b = torch.cat([ee_lin_vel_b, ee_ang_vel_b], dim=-1)
 
         # Calculate the contact force

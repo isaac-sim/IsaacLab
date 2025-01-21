@@ -6,7 +6,6 @@
 import torch
 import weakref
 
-import omni.log
 import omni.physics.tensors.impl.api as physx
 
 import omni.isaac.lab.utils.math as math_utils
@@ -74,10 +73,6 @@ class RigidObjectCollectionData:
         self._object_com_state_w = TimestampedBuffer()
         self._object_acc_w = TimestampedBuffer()
 
-        # deprecation warning check
-        self._root_state_dep_warn = False
-        self._ignore_dep_warn = False
-
     def update(self, dt: float):
         """Updates the data for the rigid object collection.
 
@@ -126,13 +121,6 @@ class RigidObjectCollectionData:
         The position and orientation are of the rigid body's actor frame. Meanwhile, the linear and angular
         velocities are of the rigid body's center of mass frame.
         """
-
-        if not self._root_state_dep_warn and not self._ignore_dep_warn:
-            omni.log.warn(
-                "DeprecationWarning: object_state_w and it's derived properties will be deprecated in a future release."
-                " Please use object_link_state_w or object_com_state_w."
-            )
-            self._root_state_dep_warn = True
 
         if self._object_state_w.timestamp < self._sim_timestamp:
             # read data from simulation
