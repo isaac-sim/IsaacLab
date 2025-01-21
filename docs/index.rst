@@ -25,14 +25,16 @@ Additionally, Isaac Lab provides over 26 environments, and we are actively worki
 to the list. These include classic control tasks, fixed-arm and dexterous manipulation tasks, legged locomotion tasks,
 and navigation tasks. A complete list is available in the `environments <source/overview/environments>`_ section.
 
-The framework also includes over 16 robots. If you are looking to add a new robot, please refer to the
-:ref:`how-to` section. The current list of robots includes:
+Isaac lab is developed with specific robot assets that are now **Batteries-included** as part of the platform and are ready to learn! These robots include... 
 
 - **Classic** Cartpole, Humanoid, Ant
 - **Fixed-Arm and Hands**: UR10, Franka, Allegro, Shadow Hand
 - **Quadrupeds**: Anybotics Anymal-B, Anymal-C, Anymal-D, Unitree A1, Unitree Go1, Unitree Go2, Boston Dynamics Spot
 - **Humanoids**: Unitree H1, Unitree G1
 - **Quadcopter**: Crazyflie
+
+The platform is also designed so that you can add your own robots! please refer to the
+:ref:`how-to` section for details.
 
 For more information about the framework, please refer to the `paper <https://arxiv.org/abs/2301.04195>`_
 :cite:`mittal2023orbit`. For clarifications on NVIDIA Isaac ecosystem, please check out the
