@@ -217,9 +217,7 @@ class randomize_visual_texture_material(ManagerTermBase):
 
         # Create the omni-graph node for the randomization term
         def rep_texture_randomization():
-            prims_group = rep.get.prims(
-                path_pattern=f"{asset_entity.cfg.prim_path}/{body_names_regex}/visuals"
-            )
+            prims_group = rep.get.prims(path_pattern=f"{asset_entity.cfg.prim_path}/{body_names_regex}/visuals")
 
             with prims_group:
                 rep.randomizer.texture(
@@ -227,6 +225,7 @@ class randomize_visual_texture_material(ManagerTermBase):
                 )
 
             return prims_group.node
+
         # Register the event to the replicator
         with rep.trigger.on_custom_event(event_name=event_name):
             rep_texture_randomization()
@@ -239,7 +238,7 @@ class randomize_visual_texture_material(ManagerTermBase):
         asset_cfg: SceneEntityCfg,
         replicate_physics: bool,
         texture_paths: list[str],
-        texture_rotation: tuple[float, float] = (0.0, 0.0)
+        texture_rotation: tuple[float, float] = (0.0, 0.0),
     ):
         # import replicator
         import omni.replicator.core as rep
@@ -248,7 +247,6 @@ class randomize_visual_texture_material(ManagerTermBase):
         # note: This triggers the nodes for all the environments.
         #   We need to investigate how to make it happen only for a subset based on env_ids.
         rep.utils.send_og_event(event_name)
-        
 
 
 def randomize_rigid_body_mass(

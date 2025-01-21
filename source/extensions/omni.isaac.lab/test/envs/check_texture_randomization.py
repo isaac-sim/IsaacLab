@@ -17,7 +17,9 @@ from omni.isaac.lab.app import AppLauncher
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Check applying texture randomization to the cartpole scene.")
 parser.add_argument("--num_envs", type=int, default=16, help="Number of environments to spawn.")
-parser.add_argument("--replicate_physics", type=bool, default=False, help="Replicates physics properties across all environments.")
+parser.add_argument(
+    "--replicate_physics", type=bool, default=False, help="Replicates physics properties across all environments."
+)
 
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
@@ -33,15 +35,16 @@ simulation_app = app_launcher.app
 import math
 import torch
 
-from omni.isaac.lab.assets import AssetBaseCfg
-import omni.isaac.lab.sim as sim_utils
 import omni.isaac.lab.envs.mdp as mdp
-from omni.isaac.lab_tasks.manager_based.classic.cartpole.cartpole_env_cfg import CartpoleSceneCfg
-from omni.isaac.lab.utils.assets import NVIDIA_NUCLEUS_DIR
+import omni.isaac.lab.sim as sim_utils
+from omni.isaac.lab.assets import AssetBaseCfg
 from omni.isaac.lab.envs import ManagerBasedEnv, ManagerBasedEnvCfg
 from omni.isaac.lab.managers import EventTermCfg as EventTerm
 from omni.isaac.lab.managers import SceneEntityCfg
 from omni.isaac.lab.utils import configclass
+from omni.isaac.lab.utils.assets import NVIDIA_NUCLEUS_DIR
+
+from omni.isaac.lab_tasks.manager_based.classic.cartpole.cartpole_env_cfg import CartpoleSceneCfg
 
 
 @configclass
@@ -71,10 +74,10 @@ class EventCfg:
             ],
             "event_name": "cart_texture_randomizer",
             "texture_rotation": (math.pi / 2, math.pi / 2),
-            "replicate_physics": args_cli.replicate_physics
+            "replicate_physics": args_cli.replicate_physics,
         },
     )
-    
+
     pole_texture_randomizer = EventTerm(
         func=mdp.randomize_visual_texture_material,
         mode="reset",
@@ -90,7 +93,7 @@ class EventCfg:
             ],
             "event_name": "pole_texture_randomizer",
             "texture_rotation": (math.pi / 2, math.pi / 2),
-            "replicate_physics": args_cli.replicate_physics
+            "replicate_physics": args_cli.replicate_physics,
         },
     )
 
@@ -121,7 +124,7 @@ class CartpoleEnvCfg(ManagerBasedEnvCfg):
 
     # Scene settings
     scene = CartpoleSceneCfg(env_spacing=2.5)
-    
+
     # Basic settings
     actions = ActionsCfg()
     events = EventCfg()
@@ -141,8 +144,8 @@ class CartpoleEnvCfg(ManagerBasedEnvCfg):
             spawn=sim_utils.DomeLightCfg(
                 color=(0.5, 0.5, 0.5),
                 intensity=2000.0,
+            ),
         )
-    )
 
 
 def main():
@@ -152,11 +155,9 @@ def main():
     env_cfg.scene.num_envs = args_cli.num_envs
     env_cfg.scene.replicate_physics = args_cli.replicate_physics
 
-    
-
     # setup base environment
     env = ManagerBasedEnv(cfg=env_cfg)
-    
+
     # simulate physics
     count = 0
     while simulation_app.is_running():
