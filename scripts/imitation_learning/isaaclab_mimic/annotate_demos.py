@@ -164,11 +164,20 @@ def main():
 
     env_cfg = parse_env_cfg(env_name, device=args_cli.device, num_envs=1)
 
+    env_cfg.env_name = args_cli.task
+
+    # extract success checking function to invoke manually
+    success_term = None
+    if hasattr(env_cfg.terminations, "success"):
+        success_term = env_cfg.terminations.success
+        env_cfg.terminations.success = None
+    else:
+        raise NotImplementedError("No success termination term was found in the environment.")
+
     # Disable all termination terms
-    env_cfg.terminations = {}
+    env_cfg.terminations = None
 
     # Set up recorder terms for mimic annotations
-    env_cfg.env_name = args_cli.task
     env_cfg.recorders: MimicRecorderManagerCfg = MimicRecorderManagerCfg()
     if not args_cli.auto:
         # disable subtask term signals recorder term if in manual mode
@@ -203,10 +212,13 @@ def main():
         keyboard_interface.reset()
 
     # simulate environment -- run everything in inference mode
+    exported_episode_count = 0
+    processed_episode_count = 0
     with contextlib.suppress(KeyboardInterrupt) and torch.inference_mode():
         while simulation_app.is_running() and not simulation_app.is_exiting():
             # Iterate over the episodes in the loaded dataset file
             for episode_index, episode_name in enumerate(dataset_file_handler.get_episode_names()):
+                processed_episode_count += 1
                 subtask_indices = []
                 print(f"\nAnnotating episode #{episode_index} ({episode_name})")
                 episode = dataset_file_handler.load_episode(episode_name, env.unwrapped.device)
@@ -231,6 +243,7 @@ def main():
                     action_tensor = torch.Tensor(action).reshape([1, action.shape[0]])
                     env.step(torch.Tensor(action_tensor))
 
+                is_episode_annotated_successfully = False
                 if not args_cli.auto:
                     print(f"\tSubtasks marked at action indices: {subtask_indices}")
                     if len(args_cli.signals) != len(subtask_indices):
@@ -246,15 +259,38 @@ def main():
                         annotated_episode.add(
                             f"obs/datagen_info/subtask_term_signals/{args_cli.signals[subtask_index]}", subtask_signals
                         )
+                    is_episode_annotated_successfully = True
+                else:
+                    # check if all the subtask term signals are annotated
+                    annotated_episode = env.unwrapped.recorder_manager.get_episode(0)
+                    subtask_term_signal_dict = annotated_episode.data["obs"]["datagen_info"]["subtask_term_signals"]
+                    is_episode_annotated_successfully = True
+                    for signal_name, signal_flags in subtask_term_signal_dict.items():
+                        if not torch.any(signal_flags):
+                            is_episode_annotated_successfully = False
+                            print(f'\tDid not detect completion for the subtask "{signal_name}".')
 
-                # set success to the recorded episode data and export to file
-                env.unwrapped.recorder_manager.set_success_to_episodes(
-                    None, torch.tensor([[True]], dtype=torch.bool, device=env.unwrapped.device)
-                )
-                env.unwrapped.recorder_manager.export_episodes()
-                print("\tExported annotated episode.")
+                if not bool(success_term.func(env, **success_term.params)[0]):
+                    is_episode_annotated_successfully = False
+                    print("\tThe final task was not completed.")
 
+                if is_episode_annotated_successfully:
+                    # set success to the recorded episode data and export to file
+                    env.unwrapped.recorder_manager.set_success_to_episodes(
+                        None, torch.tensor([[True]], dtype=torch.bool, device=env.unwrapped.device)
+                    )
+                    env.unwrapped.recorder_manager.export_episodes()
+                    exported_episode_count += 1
+                    print("\tExported the annotated episode.")
+                else:
+                    print("\tSkipped exporting the episode due to incomplete subtask annotations.")
             break
+
+    print(
+        f"\nExported {exported_episode_count} (out of {processed_episode_count}) annotated"
+        f" episode{'s' if exported_episode_count > 1 else ''}."
+    )
+    print("Exiting the app.")
 
     # Close environment after annotation is complete
     env.close()
