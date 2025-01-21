@@ -56,7 +56,7 @@ extract_isaacsim_path() {
 # extract the python from isaacsim
 extract_python_exe() {
     if [ -z "${PYTHON_VERSION+x}" ]; then
-        echo "[ERROR] Desired python version PYTHON_VERSION needs to be set, exiting." >&2
+        echo "[ERROR] Desired python version PYTHON_VERSION needs to be set but is not, exiting." >&2
         exit 1
     fi
 
