@@ -6,7 +6,7 @@ Welcome to Isaac Lab!
    :alt: H1 Humanoid example using Isaac Lab
 
 **Isaac Lab** is a unified and modular framework for robot learning that aims to simplify common workflows
-in robotics research (such as reinforcement learning, learning from demonstrations, and motion planning). It is built upon
+in robotics research (such as reinforcement learning, learning from demonstrations, and motion planning). It is built on
 `NVIDIA Isaac Sim`_ to leverage the latest simulation capabilities for photo-realistic scenes, and fast
 and efficient simulation.
 
@@ -15,7 +15,7 @@ The core objectives of the framework are:
 - **Modularity**: Easily customize and add new environments, robots, and sensors.
 - **Agility**: Adapt to the changing needs of the community.
 - **Openness**: Remain open-sourced to allow the community to contribute and extend the framework.
-- **Battery-included**: Include a number of environments, sensors, and tasks that are ready to use.
+- **Batteries-included**: Include a number of environments, sensors, and tasks that are ready to use.
 
 Key features available in Isaac Lab include fast and accurate physics simulation provided by PhysX,
 tiled rendering APIs for vectorized rendering, domain randomization for improving robustness and adaptability,

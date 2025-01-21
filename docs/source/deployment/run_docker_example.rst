@@ -22,7 +22,7 @@ To build the Isaac Lab container from the root of the Isaac Lab repository, we w
 
 
 The terminal will first pull the base IsaacSim image, build the Isaac Lab image's additional layers on top of it, and run the Isaac Lab container.
-This should take several minutes upon the first build but will be shorter in subsequent runs as Docker's caching prevents repeated work.
+This should take several minutes for the first build but will be shorter in subsequent runs as Docker's caching prevents repeated work.
 If we run the command ``docker container ls`` on the terminal, the output will list the containers that are running on the system. If
 everything has been set up correctly, a container with the ``NAME`` **isaac-lab-base** should appear, similar to below:
 
