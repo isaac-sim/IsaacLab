@@ -364,10 +364,10 @@ class InteractiveScene:
         state["articulation"] = dict()
         for asset_name, articulation in self._articulations.items():
             asset_state = dict()
-            asset_state["root_pose"] = articulation.data.root_link_state_w[:, :7].clone()
+            asset_state["root_pose"] = articulation.data.root_state_w[:, :7].clone()
             if is_relative:
                 asset_state["root_pose"][:, :3] -= self.env_origins
-            asset_state["root_velocity"] = articulation.data.root_com_vel_w.clone()
+            asset_state["root_velocity"] = articulation.data.root_vel_w.clone()
             asset_state["joint_position"] = articulation.data.joint_pos.clone()
             asset_state["joint_velocity"] = articulation.data.joint_vel.clone()
             state["articulation"][asset_name] = asset_state
@@ -384,10 +384,10 @@ class InteractiveScene:
         state["rigid_object"] = dict()
         for asset_name, rigid_object in self._rigid_objects.items():
             asset_state = dict()
-            asset_state["root_pose"] = rigid_object.data.root_link_state_w[:, :7].clone()
+            asset_state["root_pose"] = rigid_object.data.root_state_w[:, :7].clone()
             if is_relative:
                 asset_state["root_pose"][:, :3] -= self.env_origins
-            asset_state["root_velocity"] = rigid_object.data.root_com_vel_w.clone()
+            asset_state["root_velocity"] = rigid_object.data.root_vel_w.clone()
             state["rigid_object"][asset_name] = asset_state
         return state
 
@@ -439,8 +439,8 @@ class InteractiveScene:
             if is_relative:
                 root_pose[:, :3] += self.env_origins[env_ids]
             root_velocity = asset_state["root_velocity"].clone()
-            articulation.write_root_link_pose_to_sim(root_pose, env_ids=env_ids)
-            articulation.write_root_com_velocity_to_sim(root_velocity, env_ids=env_ids)
+            articulation.write_root_pose_to_sim(root_pose, env_ids=env_ids)
+            articulation.write_root_velocity_to_sim(root_velocity, env_ids=env_ids)
             # joint state
             joint_position = asset_state["joint_position"].clone()
             joint_velocity = asset_state["joint_velocity"].clone()
@@ -463,8 +463,8 @@ class InteractiveScene:
             if is_relative:
                 root_pose[:, :3] += self.env_origins[env_ids]
             root_velocity = asset_state["root_velocity"].clone()
-            rigid_object.write_root_link_pose_to_sim(root_pose, env_ids=env_ids)
-            rigid_object.write_root_com_velocity_to_sim(root_velocity, env_ids=env_ids)
+            rigid_object.write_root_pose_to_sim(root_pose, env_ids=env_ids)
+            rigid_object.write_root_velocity_to_sim(root_velocity, env_ids=env_ids)
         self.write_data_to_sim()
 
     def write_data_to_sim(self):
