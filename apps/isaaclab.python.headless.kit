@@ -183,11 +183,12 @@ enabled=true # Enable this for DLSS
 # Isaac Lab Extensions #
 ########################
 
-"isaaclab" = {}
-"isaaclab_assets" = {}
-"isaaclab_tasks" = {}
-"isaaclab_mimic" = {}
-"isaaclab_rl" = {}
+# Load Isaac Lab extensions last
+"isaaclab" = {order = 1000}
+"isaaclab_assets" = {order = 1000}
+"isaaclab_tasks" = {order = 1000}
+"isaaclab_mimic" = {order = 1000}
+"isaaclab_rl" = {order = 1000}
 
 # Asset path
 # set the S3 directory manually to the latest published S3

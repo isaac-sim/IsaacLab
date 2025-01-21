@@ -139,6 +139,8 @@ class SimulationContext(_SimulationContext):
         # reference: https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/docs/Geometry.html?highlight=capsule#geometry
         carb_settings_iface.set_bool("/physics/collisionConeCustomGeometry", False)
         carb_settings_iface.set_bool("/physics/collisionCylinderCustomGeometry", False)
+        # hide the Simulation Settings window
+        carb_settings_iface.set_bool("/physis/autoPopupSimulationOutputWindow", False)
         # note: we read this once since it is not expected to change during runtime
         # read flag for whether a local GUI is enabled
         self._local_gui = carb_settings_iface.get("/app/window/enabled")

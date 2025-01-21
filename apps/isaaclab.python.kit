@@ -103,11 +103,12 @@ keywords = ["experience", "app", "usd"]
 # Isaac Lab Extensions #
 ########################
 
-"isaaclab" = {}
-"isaaclab_assets" = {}
-"isaaclab_tasks" = {}
-"isaaclab_mimic" = {}
-"isaaclab_rl" = {}
+# Load Isaac Lab extensions last
+"isaaclab" = {order = 1000}
+"isaaclab_assets" = {order = 1000}
+"isaaclab_tasks" = {order = 1000}
+"isaaclab_mimic" = {order = 1000}
+"isaaclab_rl" = {order = 1000}
 
 [settings]
 exts."omni.kit.material.library".ui_show_list = [
@@ -235,7 +236,6 @@ resourcemonitor.timeBetweenQueries = 100 # improves performance
 simulation.defaultMetersPerUnit = 1.0 # Meters default
 omni.replicator.captureOnPlay = true
 
-
 [settings]
 ### async rendering settings
 omni.replicator.asyncRendering = false
@@ -279,7 +279,7 @@ folders = [
 ]
 
 [settings.physics]
-autoPopupSimulationOutputWindow=false
+autoPopupSimulationOutputWindow = false
 updateToUsd = false
 updateVelocitiesToUsd = false
 updateParticlesToUsd = false
@@ -288,7 +288,6 @@ updateForceSensorsToUsd = false
 outputVelocitiesLocalSpace = false
 useFastCache = false
 visualizationDisplayJoints = false
-visualizationSimulationOutput = false
 fabricUpdateTransformations = false
 fabricUpdateVelocities = false
 fabricUpdateForceSensors = false
