@@ -55,6 +55,11 @@ extract_isaacsim_path() {
 
 # extract the python from isaacsim
 extract_python_exe() {
+    if [ -z "${PYTHON_VERSION+x}" ]; then
+        echo "[ERROR] Desired python version PYTHON_VERSION needs to be set, exiting." >&2
+        exit 1
+    fi
+
     # check if using conda
     if ! [[ -z "${CONDA_PREFIX}" ]]; then
         # use conda python
@@ -282,6 +287,7 @@ while [[ $# -gt 0 ]]; do
             python_exe=$(extract_python_exe)
             # recursively look into directories and install them
             # this does not check dependencies between extensions
+            export PYTHON_VERSION # For use in extract_python_exe.
             export -f extract_python_exe
             export -f install_isaaclab_extension
             # source directory
