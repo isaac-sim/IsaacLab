@@ -198,7 +198,7 @@ class randomize_visual_texture_material(ManagerTermBase):
         replicate_physics = cfg.params.get("replicate_physics")
 
         # check to make sure replicate_physics is set to False, else raise warning
-        if replicate_physics == True:
+        if replicate_physics:
             raise Warning("replicate_physics is set to True, meaning all environments will have same textures applied.")
 
         # convert from radians to degrees
