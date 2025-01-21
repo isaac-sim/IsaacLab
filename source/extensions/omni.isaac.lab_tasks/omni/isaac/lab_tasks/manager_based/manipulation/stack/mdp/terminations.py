@@ -39,8 +39,8 @@ def cubes_stacked(
     cube_2: RigidObject = env.scene[cube_2_cfg.name]
     cube_3: RigidObject = env.scene[cube_3_cfg.name]
 
-    pos_diff_c12 = cube_1.data.root_link_pos_w - cube_2.data.root_link_pos_w
-    pos_diff_c23 = cube_2.data.root_link_pos_w - cube_3.data.root_link_pos_w
+    pos_diff_c12 = cube_1.data.root_pos_w - cube_2.data.root_pos_w
+    pos_diff_c23 = cube_2.data.root_pos_w - cube_3.data.root_pos_w
 
     # Compute cube position difference in x-y plane
     xy_dist_c12 = torch.norm(pos_diff_c12[:, :2], dim=1)
