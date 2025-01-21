@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="1.4.0" />
-    <meta name="docbuild:last-update" content="Jan 20, 2025"/>
+    <meta name="docbuild:last-update" content="Jan 21, 2025"/>
   </head>
   
   
@@ -572,10 +572,7 @@
 <span class="sd">        Args:</span>
 <span class="sd">            cfg: A configuration instance.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">cfg</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_root_state_dep_warn</span> <span class="o">=</span> <span class="kc">False</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_root_pose_dep_warn</span> <span class="o">=</span> <span class="kc">False</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_root_vel_dep_warn</span> <span class="o">=</span> <span class="kc">False</span></div>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">cfg</span><span class="p">)</span></div>
 
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Properties</span>
@@ -677,13 +674,6 @@
 <span class="sd">            root_state: Root state in simulation frame. Shape is (len(env_ids), 13).</span>
 <span class="sd">            env_ids: Environment indices. If None, then all indices are used.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="c1"># deprecation warning</span>
-        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_root_state_dep_warn</span><span class="p">:</span>
-            <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
-                <span class="s2">&quot;DeprecationWarning: RigidObject.write_root_state_to_sim will be removed in a future release. Please&quot;</span>
-                <span class="s2">&quot; use write_root_link_state_to_sim or write_root_com_state_to_sim instead.&quot;</span>
-            <span class="p">)</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_root_state_dep_warn</span> <span class="o">=</span> <span class="kc">True</span>
 
         <span class="c1"># set into simulation</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">write_root_pose_to_sim</span><span class="p">(</span><span class="n">root_state</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">7</span><span class="p">],</span> <span class="n">env_ids</span><span class="o">=</span><span class="n">env_ids</span><span class="p">)</span>
@@ -726,15 +716,19 @@
 <span class="sd">            root_pose: Root poses in simulation frame. Shape is (len(env_ids), 7).</span>
 <span class="sd">            env_ids: Environment indices. If None, then all indices are used.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="c1"># deprecation warning</span>
-        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_root_pose_dep_warn</span><span class="p">:</span>
-            <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
-                <span class="s2">&quot;DeprecationWarning: RigidObject.write_root_pose_to_sim will be removed in a future release. Please use&quot;</span>
-                <span class="s2">&quot; write_root_link_pose_to_sim or write_root_com_pose_to_sim instead.&quot;</span>
-            <span class="p">)</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_root_pose_dep_warn</span> <span class="o">=</span> <span class="kc">True</span>
-
-        <span class="bp">self</span><span class="o">.</span><span class="n">write_root_link_pose_to_sim</span><span class="p">(</span><span class="n">root_pose</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">)</span></div>
+        <span class="c1"># resolve all indices</span>
+        <span class="n">physx_env_ids</span> <span class="o">=</span> <span class="n">env_ids</span>
+        <span class="k">if</span> <span class="n">env_ids</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">env_ids</span> <span class="o">=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
+            <span class="n">physx_env_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ALL_INDICES</span>
+        <span class="c1"># note: we need to do this here since tensors are not set into simulation until step.</span>
+        <span class="c1"># set into internal buffers</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">root_state_w</span><span class="p">[</span><span class="n">env_ids</span><span class="p">,</span> <span class="p">:</span><span class="mi">7</span><span class="p">]</span> <span class="o">=</span> <span class="n">root_pose</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+        <span class="c1"># convert root quaternion from wxyz to xyzw</span>
+        <span class="n">root_poses_xyzw</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">root_state_w</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">7</span><span class="p">]</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+        <span class="n">root_poses_xyzw</span><span class="p">[:,</span> <span class="mi">3</span><span class="p">:]</span> <span class="o">=</span> <span class="n">math_utils</span><span class="o">.</span><span class="n">convert_quat</span><span class="p">(</span><span class="n">root_poses_xyzw</span><span class="p">[:,</span> <span class="mi">3</span><span class="p">:],</span> <span class="n">to</span><span class="o">=</span><span class="s2">&quot;xyzw&quot;</span><span class="p">)</span>
+        <span class="c1"># set into simulation</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">set_transforms</span><span class="p">(</span><span class="n">root_poses_xyzw</span><span class="p">,</span> <span class="n">indices</span><span class="o">=</span><span class="n">physx_env_ids</span><span class="p">)</span></div>
 
 <div class="viewcode-block" id="RigidObject.write_root_link_pose_to_sim"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.RigidObject.write_root_link_pose_to_sim">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">write_root_link_pose_to_sim</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">root_pose</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Set the root link pose over selected environment indices into the simulation.</span>
@@ -753,9 +747,7 @@
         <span class="c1"># note: we need to do this here since tensors are not set into simulation until step.</span>
         <span class="c1"># set into internal buffers</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">root_link_state_w</span><span class="p">[</span><span class="n">env_ids</span><span class="p">,</span> <span class="p">:</span><span class="mi">7</span><span class="p">]</span> <span class="o">=</span> <span class="n">root_pose</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">_ignore_dep_warn</span> <span class="o">=</span> <span class="kc">True</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">root_state_w</span><span class="p">[</span><span class="n">env_ids</span><span class="p">,</span> <span class="p">:</span><span class="mi">7</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">root_link_state_w</span><span class="p">[</span><span class="n">env_ids</span><span class="p">,</span> <span class="p">:</span><span class="mi">7</span><span class="p">]</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">_ignore_dep_warn</span> <span class="o">=</span> <span class="kc">False</span>
         <span class="c1"># convert root quaternion from wxyz to xyzw</span>
         <span class="n">root_poses_xyzw</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">root_link_state_w</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">7</span><span class="p">]</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
         <span class="n">root_poses_xyzw</span><span class="p">[:,</span> <span class="mi">3</span><span class="p">:]</span> <span class="o">=</span> <span class="n">math_utils</span><span class="o">.</span><span class="n">convert_quat</span><span class="p">(</span><span class="n">root_poses_xyzw</span><span class="p">[:,</span> <span class="mi">3</span><span class="p">:],</span> <span class="n">to</span><span class="o">=</span><span class="s2">&quot;xyzw&quot;</span><span class="p">)</span>
@@ -772,10 +764,11 @@
 <span class="sd">            root_pose: Root center of mass poses in simulation frame. Shape is (len(env_ids), 7).</span>
 <span class="sd">            env_ids: Environment indices. If None, then all indices are used.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-
         <span class="c1"># resolve all indices</span>
         <span class="k">if</span> <span class="n">env_ids</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="n">local_env_ids</span> <span class="o">=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
+            <span class="n">local_env_ids</span> <span class="o">=</span> <span class="nb">slice</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">local_env_ids</span> <span class="o">=</span> <span class="n">env_ids</span>
 
         <span class="n">com_pos</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">com_pos_b</span><span class="p">[</span><span class="n">local_env_ids</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="p">:]</span>
         <span class="n">com_quat</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">com_quat_b</span><span class="p">[</span><span class="n">local_env_ids</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="p">:]</span>
@@ -800,15 +793,17 @@
 <span class="sd">            root_velocity: Root center of mass velocities in simulation world frame. Shape is (len(env_ids), 6).</span>
 <span class="sd">            env_ids: Environment indices. If None, then all indices are used.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="c1"># deprecation warning</span>
-        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_root_vel_dep_warn</span><span class="p">:</span>
-            <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
-                <span class="s2">&quot;DeprecationWarning: RigidObject.write_root_velocity_to_sim will be removed in a future release. Please&quot;</span>
-                <span class="s2">&quot; use write_root_link_velocity_to_sim or write_root_com_velocity_to_sim instead.&quot;</span>
-            <span class="p">)</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_root_vel_dep_warn</span> <span class="o">=</span> <span class="kc">True</span>
-
-        <span class="bp">self</span><span class="o">.</span><span class="n">write_root_com_velocity_to_sim</span><span class="p">(</span><span class="n">root_velocity</span><span class="o">=</span><span class="n">root_velocity</span><span class="p">,</span> <span class="n">env_ids</span><span class="o">=</span><span class="n">env_ids</span><span class="p">)</span></div>
+        <span class="c1"># resolve all indices</span>
+        <span class="n">physx_env_ids</span> <span class="o">=</span> <span class="n">env_ids</span>
+        <span class="k">if</span> <span class="n">env_ids</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">env_ids</span> <span class="o">=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
+            <span class="n">physx_env_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ALL_INDICES</span>
+        <span class="c1"># note: we need to do this here since tensors are not set into simulation until step.</span>
+        <span class="c1"># set into internal buffers</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">root_state_w</span><span class="p">[</span><span class="n">env_ids</span><span class="p">,</span> <span class="mi">7</span><span class="p">:]</span> <span class="o">=</span> <span class="n">root_velocity</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">body_acc_w</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.0</span>
+        <span class="c1"># set into simulation</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">set_velocities</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">root_state_w</span><span class="p">[:,</span> <span class="mi">7</span><span class="p">:],</span> <span class="n">indices</span><span class="o">=</span><span class="n">physx_env_ids</span><span class="p">)</span></div>
 
 <div class="viewcode-block" id="RigidObject.write_root_com_velocity_to_sim"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.RigidObject.write_root_com_velocity_to_sim">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">write_root_com_velocity_to_sim</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">root_velocity</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Set the root center of mass velocity over selected environment indices into the simulation.</span>
@@ -829,9 +824,7 @@
         <span class="c1"># note: we need to do this here since tensors are not set into simulation until step.</span>
         <span class="c1"># set into internal buffers</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">root_com_state_w</span><span class="p">[</span><span class="n">env_ids</span><span class="p">,</span> <span class="mi">7</span><span class="p">:]</span> <span class="o">=</span> <span class="n">root_velocity</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">_ignore_dep_warn</span> <span class="o">=</span> <span class="kc">True</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">root_state_w</span><span class="p">[</span><span class="n">env_ids</span><span class="p">,</span> <span class="mi">7</span><span class="p">:]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">root_com_state_w</span><span class="p">[</span><span class="n">env_ids</span><span class="p">,</span> <span class="mi">7</span><span class="p">:]</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">_ignore_dep_warn</span> <span class="o">=</span> <span class="kc">False</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">body_acc_w</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.0</span>
         <span class="c1"># set into simulation</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">set_velocities</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">root_com_state_w</span><span class="p">[:,</span> <span class="mi">7</span><span class="p">:],</span> <span class="n">indices</span><span class="o">=</span><span class="n">physx_env_ids</span><span class="p">)</span></div>
@@ -848,7 +841,9 @@
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="c1"># resolve all indices</span>
         <span class="k">if</span> <span class="n">env_ids</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="n">local_env_ids</span> <span class="o">=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
+            <span class="n">local_env_ids</span> <span class="o">=</span> <span class="nb">slice</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">local_env_ids</span> <span class="o">=</span> <span class="n">env_ids</span>
 
         <span class="n">root_com_velocity</span> <span class="o">=</span> <span class="n">root_velocity</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
         <span class="n">quat</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">root_link_state_w</span><span class="p">[</span><span class="n">local_env_ids</span><span class="p">,</span> <span class="mi">3</span><span class="p">:</span><span class="mi">7</span><span class="p">]</span>
@@ -1074,7 +1069,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jan 20, 2025.
+  Last updated on Jan 21, 2025.
   <br/>
 </p>
   </div>

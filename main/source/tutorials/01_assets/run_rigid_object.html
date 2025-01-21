@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="1.4.0" />
-    <meta name="docbuild:last-update" content="Jan 20, 2025"/>
+    <meta name="docbuild:last-update" content="Jan 21, 2025"/>
   </head>
   
   
@@ -718,8 +718,8 @@ with a rigid object. For this, we will use the <a class="reference internal" hre
 </span><span class="hll"><span class="linenos">103</span>                <span class="n">radius</span><span class="o">=</span><span class="mf">0.1</span><span class="p">,</span> <span class="n">h_range</span><span class="o">=</span><span class="p">(</span><span class="mf">0.25</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">),</span> <span class="n">size</span><span class="o">=</span><span class="n">cone_object</span><span class="o">.</span><span class="n">num_instances</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">cone_object</span><span class="o">.</span><span class="n">device</span>
 </span><span class="hll"><span class="linenos">104</span>            <span class="p">)</span>
 </span><span class="hll"><span class="linenos">105</span>            <span class="c1"># write root state to simulation</span>
-</span><span class="hll"><span class="linenos">106</span>            <span class="n">cone_object</span><span class="o">.</span><span class="n">write_root_link_pose_to_sim</span><span class="p">(</span><span class="n">root_state</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">7</span><span class="p">])</span>
-</span><span class="hll"><span class="linenos">107</span>            <span class="n">cone_object</span><span class="o">.</span><span class="n">write_root_com_velocity_to_sim</span><span class="p">(</span><span class="n">root_state</span><span class="p">[:,</span> <span class="mi">7</span><span class="p">:])</span>
+</span><span class="hll"><span class="linenos">106</span>            <span class="n">cone_object</span><span class="o">.</span><span class="n">write_root_pose_to_sim</span><span class="p">(</span><span class="n">root_state</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">7</span><span class="p">])</span>
+</span><span class="hll"><span class="linenos">107</span>            <span class="n">cone_object</span><span class="o">.</span><span class="n">write_root_velocity_to_sim</span><span class="p">(</span><span class="n">root_state</span><span class="p">[:,</span> <span class="mi">7</span><span class="p">:])</span>
 </span><span class="hll"><span class="linenos">108</span>            <span class="c1"># reset buffers</span>
 </span><span class="linenos">109</span>            <span class="n">cone_object</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
 <span class="linenos">110</span>            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;----------------------------------------&quot;</span><span class="p">)</span>
@@ -735,7 +735,7 @@ with a rigid object. For this, we will use the <a class="reference internal" hre
 </span><span class="linenos">120</span>        <span class="n">cone_object</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">sim_dt</span><span class="p">)</span>
 <span class="linenos">121</span>        <span class="c1"># print the root position</span>
 <span class="linenos">122</span>        <span class="k">if</span> <span class="n">count</span> <span class="o">%</span> <span class="mi">50</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
-<span class="linenos">123</span>            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Root position (in world): </span><span class="si">{</span><span class="n">cone_object</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">root_link_state_w</span><span class="p">[:,</span><span class="w"> </span><span class="p">:</span><span class="mi">3</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="linenos">123</span>            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Root position (in world): </span><span class="si">{</span><span class="n">cone_object</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">root_state_w</span><span class="p">[:,</span><span class="w"> </span><span class="p">:</span><span class="mi">3</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 <span class="linenos">124</span>
 <span class="linenos">125</span>
 <span class="linenos">126</span><span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">():</span>
@@ -842,7 +842,7 @@ desired state of the rigid object prim into the world frame before setting it.</
 <p>We use the <code class="xref py py-attr docutils literal notranslate"><span class="pre">assets.RigidObject.data.default_root_state</span></code> attribute to get the default root state of the
 spawned rigid object prims. This default state can be configured from the <a class="reference internal" href="../../api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.RigidObjectCfg.init_state" title="omni.isaac.lab.assets.RigidObjectCfg.init_state"><code class="xref py py-attr docutils literal notranslate"><span class="pre">assets.RigidObjectCfg.init_state</span></code></a>
 attribute, which we left as identity in this tutorial. We then randomize the translation of the root state and
-set the desired state of the rigid object prim using the <a class="reference internal" href="../../api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.RigidObject.write_root_link_pose_to_sim" title="omni.isaac.lab.assets.RigidObject.write_root_link_pose_to_sim"><code class="xref py py-meth docutils literal notranslate"><span class="pre">assets.RigidObject.write_root_link_pose_to_sim()</span></code></a> and <a class="reference internal" href="../../api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.RigidObject.write_root_com_velocity_to_sim" title="omni.isaac.lab.assets.RigidObject.write_root_com_velocity_to_sim"><code class="xref py py-meth docutils literal notranslate"><span class="pre">assets.RigidObject.write_root_com_velocity_to_sim()</span></code></a> methods.
+set the desired state of the rigid object prim using the <a class="reference internal" href="../../api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.RigidObject.write_root_pose_to_sim" title="omni.isaac.lab.assets.RigidObject.write_root_pose_to_sim"><code class="xref py py-meth docutils literal notranslate"><span class="pre">assets.RigidObject.write_root_pose_to_sim()</span></code></a> and <a class="reference internal" href="../../api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.RigidObject.write_root_velocity_to_sim" title="omni.isaac.lab.assets.RigidObject.write_root_velocity_to_sim"><code class="xref py py-meth docutils literal notranslate"><span class="pre">assets.RigidObject.write_root_velocity_to_sim()</span></code></a> methods.
 As the name suggests, this method writes the root state of the rigid object prim into the simulation buffer.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span>            <span class="c1"># reset root state</span>
             <span class="n">root_state</span> <span class="o">=</span> <span class="n">cone_object</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_root_state</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
@@ -852,8 +852,8 @@ As the name suggests, this method writes the root state of the rigid object prim
                 <span class="n">radius</span><span class="o">=</span><span class="mf">0.1</span><span class="p">,</span> <span class="n">h_range</span><span class="o">=</span><span class="p">(</span><span class="mf">0.25</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">),</span> <span class="n">size</span><span class="o">=</span><span class="n">cone_object</span><span class="o">.</span><span class="n">num_instances</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">cone_object</span><span class="o">.</span><span class="n">device</span>
             <span class="p">)</span>
             <span class="c1"># write root state to simulation</span>
-            <span class="n">cone_object</span><span class="o">.</span><span class="n">write_root_link_pose_to_sim</span><span class="p">(</span><span class="n">root_state</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">7</span><span class="p">])</span>
-            <span class="n">cone_object</span><span class="o">.</span><span class="n">write_root_com_velocity_to_sim</span><span class="p">(</span><span class="n">root_state</span><span class="p">[:,</span> <span class="mi">7</span><span class="p">:])</span>
+            <span class="n">cone_object</span><span class="o">.</span><span class="n">write_root_pose_to_sim</span><span class="p">(</span><span class="n">root_state</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">7</span><span class="p">])</span>
+            <span class="n">cone_object</span><span class="o">.</span><span class="n">write_root_velocity_to_sim</span><span class="p">(</span><span class="n">root_state</span><span class="p">[:,</span> <span class="mi">7</span><span class="p">:])</span>
             <span class="c1"># reset buffers</span>
             <span class="n">cone_object</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
 </pre></div>
@@ -989,7 +989,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jan 20, 2025.
+  Last updated on Jan 21, 2025.
   <br/>
 </p>
   </div>

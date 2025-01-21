@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="1.4.0" />
-    <meta name="docbuild:last-update" content="Jan 20, 2025"/>
+    <meta name="docbuild:last-update" content="Jan 21, 2025"/>
   </head>
   
   
@@ -524,7 +524,6 @@
 <span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">weakref</span>
 
-<span class="kn">import</span><span class="w"> </span><span class="nn">omni.log</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">omni.physics.tensors.impl.api</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">physx</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">omni.isaac.lab.utils.math</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">math_utils</span>
@@ -592,10 +591,6 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">_object_com_state_w</span> <span class="o">=</span> <span class="n">TimestampedBuffer</span><span class="p">()</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_object_acc_w</span> <span class="o">=</span> <span class="n">TimestampedBuffer</span><span class="p">()</span>
 
-        <span class="c1"># deprecation warning check</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_root_state_dep_warn</span> <span class="o">=</span> <span class="kc">False</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_ignore_dep_warn</span> <span class="o">=</span> <span class="kc">False</span>
-
 <div class="viewcode-block" id="RigidObjectCollectionData.update"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.RigidObjectCollectionData.update">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">update</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dt</span><span class="p">:</span> <span class="nb">float</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Updates the data for the rigid object collection.</span>
 
@@ -644,13 +639,6 @@
 <span class="sd">        The position and orientation are of the rigid body&#39;s actor frame. Meanwhile, the linear and angular</span>
 <span class="sd">        velocities are of the rigid body&#39;s center of mass frame.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-
-        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_root_state_dep_warn</span> <span class="ow">and</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ignore_dep_warn</span><span class="p">:</span>
-            <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
-                <span class="s2">&quot;DeprecationWarning: object_state_w and it&#39;s derived properties will be deprecated in a future release.&quot;</span>
-                <span class="s2">&quot; Please use object_link_state_w or object_com_state_w.&quot;</span>
-            <span class="p">)</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_root_state_dep_warn</span> <span class="o">=</span> <span class="kc">True</span>
 
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_object_state_w</span><span class="o">.</span><span class="n">timestamp</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sim_timestamp</span><span class="p">:</span>
             <span class="c1"># read data from simulation</span>
@@ -1032,7 +1020,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jan 20, 2025.
+  Last updated on Jan 21, 2025.
   <br/>
 </p>
   </div>

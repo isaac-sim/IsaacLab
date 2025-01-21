@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="1.4.0" />
-    <meta name="docbuild:last-update" content="Jan 20, 2025"/>
+    <meta name="docbuild:last-update" content="Jan 21, 2025"/>
   </head>
   
   
@@ -768,8 +768,8 @@ for scene creation, actions, resets, rewards and observations.</p>
 <span class="linenos">143</span>        <span class="bp">self</span><span class="o">.</span><span class="n">joint_pos</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span> <span class="o">=</span> <span class="n">joint_pos</span>
 <span class="linenos">144</span>        <span class="bp">self</span><span class="o">.</span><span class="n">joint_vel</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span> <span class="o">=</span> <span class="n">joint_vel</span>
 <span class="linenos">145</span>
-<span class="linenos">146</span>        <span class="bp">self</span><span class="o">.</span><span class="n">cartpole</span><span class="o">.</span><span class="n">write_root_link_pose_to_sim</span><span class="p">(</span><span class="n">default_root_state</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">7</span><span class="p">],</span> <span class="n">env_ids</span><span class="p">)</span>
-<span class="linenos">147</span>        <span class="bp">self</span><span class="o">.</span><span class="n">cartpole</span><span class="o">.</span><span class="n">write_root_com_velocity_to_sim</span><span class="p">(</span><span class="n">default_root_state</span><span class="p">[:,</span> <span class="mi">7</span><span class="p">:],</span> <span class="n">env_ids</span><span class="p">)</span>
+<span class="linenos">146</span>        <span class="bp">self</span><span class="o">.</span><span class="n">cartpole</span><span class="o">.</span><span class="n">write_root_pose_to_sim</span><span class="p">(</span><span class="n">default_root_state</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">7</span><span class="p">],</span> <span class="n">env_ids</span><span class="p">)</span>
+<span class="linenos">147</span>        <span class="bp">self</span><span class="o">.</span><span class="n">cartpole</span><span class="o">.</span><span class="n">write_root_velocity_to_sim</span><span class="p">(</span><span class="n">default_root_state</span><span class="p">[:,</span> <span class="mi">7</span><span class="p">:],</span> <span class="n">env_ids</span><span class="p">)</span>
 <span class="linenos">148</span>        <span class="bp">self</span><span class="o">.</span><span class="n">cartpole</span><span class="o">.</span><span class="n">write_joint_state_to_sim</span><span class="p">(</span><span class="n">joint_pos</span><span class="p">,</span> <span class="n">joint_vel</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">)</span>
 <span class="linenos">149</span>
 <span class="linenos">150</span>
@@ -967,8 +967,8 @@ for the environments requiring reset should be set directly into simulation.</p>
         <span class="bp">self</span><span class="o">.</span><span class="n">joint_pos</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span> <span class="o">=</span> <span class="n">joint_pos</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">joint_vel</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span> <span class="o">=</span> <span class="n">joint_vel</span>
 
-        <span class="bp">self</span><span class="o">.</span><span class="n">cartpole</span><span class="o">.</span><span class="n">write_root_link_pose_to_sim</span><span class="p">(</span><span class="n">default_root_state</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">7</span><span class="p">],</span> <span class="n">env_ids</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">cartpole</span><span class="o">.</span><span class="n">write_root_com_velocity_to_sim</span><span class="p">(</span><span class="n">default_root_state</span><span class="p">[:,</span> <span class="mi">7</span><span class="p">:],</span> <span class="n">env_ids</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">cartpole</span><span class="o">.</span><span class="n">write_root_pose_to_sim</span><span class="p">(</span><span class="n">default_root_state</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">7</span><span class="p">],</span> <span class="n">env_ids</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">cartpole</span><span class="o">.</span><span class="n">write_root_velocity_to_sim</span><span class="p">(</span><span class="n">default_root_state</span><span class="p">[:,</span> <span class="mi">7</span><span class="p">:],</span> <span class="n">env_ids</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">cartpole</span><span class="o">.</span><span class="n">write_joint_state_to_sim</span><span class="p">(</span><span class="n">joint_pos</span><span class="p">,</span> <span class="n">joint_vel</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">)</span>
 </pre></div>
 </div>
@@ -1199,7 +1199,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jan 20, 2025.
+  Last updated on Jan 21, 2025.
   <br/>
 </p>
   </div>

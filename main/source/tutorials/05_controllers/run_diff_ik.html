@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="1.4.0" />
-    <meta name="docbuild:last-update" content="Jan 20, 2025"/>
+    <meta name="docbuild:last-update" content="Jan 21, 2025"/>
   </head>
   
   
@@ -776,8 +776,8 @@ end-effector pose command.</p>
 <span class="linenos">160</span>        <span class="k">else</span><span class="p">:</span>
 <span class="hll"><span class="linenos">161</span>            <span class="c1"># obtain quantities from simulation</span>
 </span><span class="hll"><span class="linenos">162</span>            <span class="n">jacobian</span> <span class="o">=</span> <span class="n">robot</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">get_jacobians</span><span class="p">()[:,</span> <span class="n">ee_jacobi_idx</span><span class="p">,</span> <span class="p">:,</span> <span class="n">robot_entity_cfg</span><span class="o">.</span><span class="n">joint_ids</span><span class="p">]</span>
-</span><span class="hll"><span class="linenos">163</span>            <span class="n">ee_pose_w</span> <span class="o">=</span> <span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">body_link_state_w</span><span class="p">[:,</span> <span class="n">robot_entity_cfg</span><span class="o">.</span><span class="n">body_ids</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="mi">0</span><span class="p">:</span><span class="mi">7</span><span class="p">]</span>
-</span><span class="hll"><span class="linenos">164</span>            <span class="n">root_pose_w</span> <span class="o">=</span> <span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">root_link_state_w</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">:</span><span class="mi">7</span><span class="p">]</span>
+</span><span class="hll"><span class="linenos">163</span>            <span class="n">ee_pose_w</span> <span class="o">=</span> <span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">body_state_w</span><span class="p">[:,</span> <span class="n">robot_entity_cfg</span><span class="o">.</span><span class="n">body_ids</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="mi">0</span><span class="p">:</span><span class="mi">7</span><span class="p">]</span>
+</span><span class="hll"><span class="linenos">164</span>            <span class="n">root_pose_w</span> <span class="o">=</span> <span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">root_state_w</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">:</span><span class="mi">7</span><span class="p">]</span>
 </span><span class="hll"><span class="linenos">165</span>            <span class="n">joint_pos</span> <span class="o">=</span> <span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">joint_pos</span><span class="p">[:,</span> <span class="n">robot_entity_cfg</span><span class="o">.</span><span class="n">joint_ids</span><span class="p">]</span>
 </span><span class="hll"><span class="linenos">166</span>            <span class="c1"># compute frame in root frame</span>
 </span><span class="hll"><span class="linenos">167</span>            <span class="n">ee_pos_b</span><span class="p">,</span> <span class="n">ee_quat_b</span> <span class="o">=</span> <span class="n">subtract_frame_transforms</span><span class="p">(</span>
@@ -797,7 +797,7 @@ end-effector pose command.</p>
 <span class="linenos">181</span>        <span class="n">scene</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">sim_dt</span><span class="p">)</span>
 <span class="linenos">182</span>
 <span class="linenos">183</span>        <span class="c1"># obtain quantities from simulation</span>
-<span class="linenos">184</span>        <span class="n">ee_pose_w</span> <span class="o">=</span> <span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">body_link_state_w</span><span class="p">[:,</span> <span class="n">robot_entity_cfg</span><span class="o">.</span><span class="n">body_ids</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="mi">0</span><span class="p">:</span><span class="mi">7</span><span class="p">]</span>
+<span class="linenos">184</span>        <span class="n">ee_pose_w</span> <span class="o">=</span> <span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">body_state_w</span><span class="p">[:,</span> <span class="n">robot_entity_cfg</span><span class="o">.</span><span class="n">body_ids</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="mi">0</span><span class="p">:</span><span class="mi">7</span><span class="p">]</span>
 <span class="linenos">185</span>        <span class="c1"># update marker positions</span>
 <span class="linenos">186</span>        <span class="n">ee_marker</span><span class="o">.</span><span class="n">visualize</span><span class="p">(</span><span class="n">ee_pose_w</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">:</span><span class="mi">3</span><span class="p">],</span> <span class="n">ee_pose_w</span><span class="p">[:,</span> <span class="mi">3</span><span class="p">:</span><span class="mi">7</span><span class="p">])</span>
 <span class="linenos">187</span>        <span class="n">goal_marker</span><span class="o">.</span><span class="n">visualize</span><span class="p">(</span><span class="n">ik_commands</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">:</span><span class="mi">3</span><span class="p">]</span> <span class="o">+</span> <span class="n">scene</span><span class="o">.</span><span class="n">env_origins</span><span class="p">,</span> <span class="n">ik_commands</span><span class="p">[:,</span> <span class="mi">3</span><span class="p">:</span><span class="mi">7</span><span class="p">])</span>
@@ -872,7 +872,7 @@ user to provide the necessary information about the robot. This includes the rob
 joint positions, current end-effector pose, and the Jacobian matrix.</p>
 <p>While the attribute <a class="reference internal" href="../../api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.ArticulationData.joint_pos" title="omni.isaac.lab.assets.ArticulationData.joint_pos"><code class="xref py py-attr docutils literal notranslate"><span class="pre">assets.ArticulationData.joint_pos</span></code></a> provides the joint positions,
 we only want the joint positions of the robot’s arm, and not the gripper. Similarly, while
-the attribute <a class="reference internal" href="../../api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.ArticulationData.body_link_state_w" title="omni.isaac.lab.assets.ArticulationData.body_link_state_w"><code class="xref py py-attr docutils literal notranslate"><span class="pre">assets.ArticulationData.body_link_state_w</span></code></a> provides the state of all the
+the attribute <code class="xref py py-attr docutils literal notranslate"><span class="pre">assets.Articulationdata.body_state_w</span></code> provides the state of all the
 robot’s bodies, we only want the state of the robot’s end-effector. Thus, we need to
 index into these arrays to obtain the desired quantities.</p>
 <p>For this, the articulation class provides the methods <a class="reference internal" href="../../api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.Articulation.find_joints" title="omni.isaac.lab.assets.Articulation.find_joints"><code class="xref py py-meth docutils literal notranslate"><span class="pre">find_joints()</span></code></a>
@@ -924,8 +924,8 @@ current joint positions. We read the Jacobian matrix from the robot’s data, wh
 its value computed from the physics engine.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span>            <span class="c1"># obtain quantities from simulation</span>
             <span class="n">jacobian</span> <span class="o">=</span> <span class="n">robot</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">get_jacobians</span><span class="p">()[:,</span> <span class="n">ee_jacobi_idx</span><span class="p">,</span> <span class="p">:,</span> <span class="n">robot_entity_cfg</span><span class="o">.</span><span class="n">joint_ids</span><span class="p">]</span>
-            <span class="n">ee_pose_w</span> <span class="o">=</span> <span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">body_link_state_w</span><span class="p">[:,</span> <span class="n">robot_entity_cfg</span><span class="o">.</span><span class="n">body_ids</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="mi">0</span><span class="p">:</span><span class="mi">7</span><span class="p">]</span>
-            <span class="n">root_pose_w</span> <span class="o">=</span> <span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">root_link_state_w</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">:</span><span class="mi">7</span><span class="p">]</span>
+            <span class="n">ee_pose_w</span> <span class="o">=</span> <span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">body_state_w</span><span class="p">[:,</span> <span class="n">robot_entity_cfg</span><span class="o">.</span><span class="n">body_ids</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="mi">0</span><span class="p">:</span><span class="mi">7</span><span class="p">]</span>
+            <span class="n">root_pose_w</span> <span class="o">=</span> <span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">root_state_w</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">:</span><span class="mi">7</span><span class="p">]</span>
             <span class="n">joint_pos</span> <span class="o">=</span> <span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">joint_pos</span><span class="p">[:,</span> <span class="n">robot_entity_cfg</span><span class="o">.</span><span class="n">joint_ids</span><span class="p">]</span>
             <span class="c1"># compute frame in root frame</span>
             <span class="n">ee_pos_b</span><span class="p">,</span> <span class="n">ee_quat_b</span> <span class="o">=</span> <span class="n">subtract_frame_transforms</span><span class="p">(</span>
@@ -1047,7 +1047,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jan 20, 2025.
+  Last updated on Jan 21, 2025.
   <br/>
 </p>
   </div>

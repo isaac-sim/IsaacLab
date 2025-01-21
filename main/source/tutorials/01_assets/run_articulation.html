@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="1.4.0" />
-    <meta name="docbuild:last-update" content="Jan 20, 2025"/>
+    <meta name="docbuild:last-update" content="Jan 21, 2025"/>
   </head>
   
   
@@ -711,8 +711,8 @@ directory.</p>
 </span><span class="hll"><span class="linenos"> 94</span>            <span class="c1"># if this is not done, then the robots will be spawned at the (0, 0, 0) of the simulation world</span>
 </span><span class="hll"><span class="linenos"> 95</span>            <span class="n">root_state</span> <span class="o">=</span> <span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_root_state</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
 </span><span class="hll"><span class="linenos"> 96</span>            <span class="n">root_state</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">3</span><span class="p">]</span> <span class="o">+=</span> <span class="n">origins</span>
-</span><span class="hll"><span class="linenos"> 97</span>            <span class="n">robot</span><span class="o">.</span><span class="n">write_root_link_pose_to_sim</span><span class="p">(</span><span class="n">root_state</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">7</span><span class="p">])</span>
-</span><span class="hll"><span class="linenos"> 98</span>            <span class="n">robot</span><span class="o">.</span><span class="n">write_root_com_velocity_to_sim</span><span class="p">(</span><span class="n">root_state</span><span class="p">[:,</span> <span class="mi">7</span><span class="p">:])</span>
+</span><span class="hll"><span class="linenos"> 97</span>            <span class="n">robot</span><span class="o">.</span><span class="n">write_root_pose_to_sim</span><span class="p">(</span><span class="n">root_state</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">7</span><span class="p">])</span>
+</span><span class="hll"><span class="linenos"> 98</span>            <span class="n">robot</span><span class="o">.</span><span class="n">write_root_velocity_to_sim</span><span class="p">(</span><span class="n">root_state</span><span class="p">[:,</span> <span class="mi">7</span><span class="p">:])</span>
 </span><span class="hll"><span class="linenos"> 99</span>            <span class="c1"># set joint positions with some noise</span>
 </span><span class="hll"><span class="linenos">100</span>            <span class="n">joint_pos</span><span class="p">,</span> <span class="n">joint_vel</span> <span class="o">=</span> <span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_joint_pos</span><span class="o">.</span><span class="n">clone</span><span class="p">(),</span> <span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_joint_vel</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
 </span><span class="hll"><span class="linenos">101</span>            <span class="n">joint_pos</span> <span class="o">+=</span> <span class="n">torch</span><span class="o">.</span><span class="n">rand_like</span><span class="p">(</span><span class="n">joint_pos</span><span class="p">)</span> <span class="o">*</span> <span class="mf">0.1</span>
@@ -801,7 +801,7 @@ step the simulation, and update the articulation’s internal buffers.</p>
 <p>Similar to a rigid object, an articulation also has a root state. This state corresponds to the root body in the
 articulation tree. On top of the root state, an articulation also has joint states. These states correspond to the
 joint positions and velocities.</p>
-<p>To reset the articulation, we first set the root state by calling the <code class="xref py py-meth docutils literal notranslate"><span class="pre">Articulation.write_root_link_pose_to_sim()</span></code> and <code class="xref py py-meth docutils literal notranslate"><span class="pre">Articulation.write_root_com_velocity_to_sim()</span></code>
+<p>To reset the articulation, we first set the root state by calling the <code class="xref py py-meth docutils literal notranslate"><span class="pre">Articulation.write_root_pose_to_sim()</span></code> and <code class="xref py py-meth docutils literal notranslate"><span class="pre">Articulation.write_root_velocity_to_sim()</span></code>
 methods. Similarly, we set the joint states by calling the <code class="xref py py-meth docutils literal notranslate"><span class="pre">Articulation.write_joint_state_to_sim()</span></code> method.
 Finally, we call the <code class="xref py py-meth docutils literal notranslate"><span class="pre">Articulation.reset()</span></code> method to reset any internal buffers and caches.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span>            <span class="c1"># reset the scene entities</span>
@@ -810,8 +810,8 @@ Finally, we call the <code class="xref py py-meth docutils literal notranslate">
             <span class="c1"># if this is not done, then the robots will be spawned at the (0, 0, 0) of the simulation world</span>
             <span class="n">root_state</span> <span class="o">=</span> <span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_root_state</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
             <span class="n">root_state</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">3</span><span class="p">]</span> <span class="o">+=</span> <span class="n">origins</span>
-            <span class="n">robot</span><span class="o">.</span><span class="n">write_root_link_pose_to_sim</span><span class="p">(</span><span class="n">root_state</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">7</span><span class="p">])</span>
-            <span class="n">robot</span><span class="o">.</span><span class="n">write_root_com_velocity_to_sim</span><span class="p">(</span><span class="n">root_state</span><span class="p">[:,</span> <span class="mi">7</span><span class="p">:])</span>
+            <span class="n">robot</span><span class="o">.</span><span class="n">write_root_pose_to_sim</span><span class="p">(</span><span class="n">root_state</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">7</span><span class="p">])</span>
+            <span class="n">robot</span><span class="o">.</span><span class="n">write_root_velocity_to_sim</span><span class="p">(</span><span class="n">root_state</span><span class="p">[:,</span> <span class="mi">7</span><span class="p">:])</span>
             <span class="c1"># set joint positions with some noise</span>
             <span class="n">joint_pos</span><span class="p">,</span> <span class="n">joint_vel</span> <span class="o">=</span> <span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_joint_pos</span><span class="o">.</span><span class="n">clone</span><span class="p">(),</span> <span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_joint_vel</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
             <span class="n">joint_pos</span> <span class="o">+=</span> <span class="n">torch</span><span class="o">.</span><span class="n">rand_like</span><span class="p">(</span><span class="n">joint_pos</span><span class="p">)</span> <span class="o">*</span> <span class="mf">0.1</span>
@@ -974,7 +974,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jan 20, 2025.
+  Last updated on Jan 21, 2025.
   <br/>
 </p>
   </div>
