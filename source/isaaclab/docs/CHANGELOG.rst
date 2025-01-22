@@ -1,8 +1,8 @@
 Changelog
 ---------
 
-0.33.9 (2025-01-30)
-~~~~~~~~~~~~~~~~~~~
+0.33.10 (2025-01-30)
+~~~~~~~~~~~~~~~~~~~~
 
 Fixed
 ^^^^^
@@ -10,6 +10,15 @@ Fixed
 * Fixed resampling of interval time left for the next event in the :class:`~omni.isaac.lab.managers.EventManager`
   class. Earlier, the time left for interval-based events was not being resampled on episodic resets. This led
   to the event being triggered at the wrong time after the reset.
+
+
+0.33.9 (2025-01-22)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed typo in /physics/autoPopupSimulationOutputWindow setting in :class:`~isaaclab.sim.SimulationContext`
 
 
 0.33.8 (2025-01-17)
