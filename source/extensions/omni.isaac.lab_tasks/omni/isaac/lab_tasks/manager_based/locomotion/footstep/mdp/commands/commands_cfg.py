@@ -11,17 +11,18 @@ from omni.isaac.lab.markers import VisualizationMarkersCfg
 from omni.isaac.lab.utils import configclass
 from omni.isaac.lab.utils.assets import ISAAC_NUCLEUS_DIR
 
-from .orientation_command import InHandReOrientationCommand
+from .footstep_pose_command import FootstepPoseCommand
 
 
 @configclass
-class InHandReOrientationCommandCfg(CommandTermCfg):
+class FootstepPoseCommandCfg(CommandTermCfg):
     """Configuration for the uniform 3D orientation command term.
 
-    Please refer to the :class:`InHandReOrientationCommand` class for more details.
+    Please refer to the :class:`FootstepPoseCommand` class for more details.
     """
 
-    class_type: type = InHandReOrientationCommand
+    class_type: type = FootstepPoseCommand
+    # resampling_time_range: tuple[float, float] = (1e6, 1e6)  # no resampling based on time
 
     asset_name: str = MISSING
     """Name of the asset in the environment for which the commands are generated."""

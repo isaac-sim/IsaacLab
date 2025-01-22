@@ -53,11 +53,6 @@ class MySceneCfg(InteractiveSceneCfg):
             static_friction=1.0,
             dynamic_friction=1.0,
         ),
-        # visual_material=sim_utils.MdlFileCfg(
-        #     mdl_path=f"{ISAACLAB_NUCLEUS_DIR}/Materials/TilesMarbleSpiderWhiteBrickBondHoned/TilesMarbleSpiderWhiteBrickBondHoned.mdl",
-        #     project_uvw=True,
-        #     texture_scale=(0.25, 0.25),
-        # ),
         debug_vis=False,
     )
     # robots
@@ -77,7 +72,6 @@ class MySceneCfg(InteractiveSceneCfg):
         prim_path="/World/skyLight",
         spawn=sim_utils.DomeLightCfg(
             intensity=1500.0,
-            # texture_file=f"{ISAAC_NUCLEUS_DIR}/Materials/Textures/Skies/PolyHaven/kloofendal_43d_clear_puresky_4k.hdr",
         ),
     )
 
@@ -104,6 +98,7 @@ class CommandsCfg:
         ),
     )
 
+    next_footstep = 
 
 @configclass
 class ActionsCfg:
