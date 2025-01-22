@@ -114,7 +114,7 @@ def base_height_l2(
     if sensor_cfg is not None:
         sensor: RayCaster = env.scene[sensor_cfg.name]
         # Adjust the target height using the sensor data
-        adjusted_target_height = target_height + sensor.data.pos_w[:, 2]
+        adjusted_target_height = target_height + torch.mean(sensor.data.ray_hits_w[..., 2], dim=1)
     else:
         # Use the provided target height directly for flat terrain
         adjusted_target_height = target_height
