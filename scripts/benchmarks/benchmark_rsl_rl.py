@@ -13,11 +13,13 @@
 """Launch Isaac Sim Simulator first."""
 
 import argparse
+import os
 import sys
 import time
 
 from isaaclab.app import AppLauncher
 
+sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "../.."))
 import scripts.reinforcement_learning.rsl_rl.cli_args as cli_args  # isort: skip
 
 # add argparse arguments
@@ -63,7 +65,6 @@ imports_time_begin = time.perf_counter_ns()
 
 import gymnasium as gym
 import numpy as np
-import os
 import torch
 from datetime import datetime
 
@@ -84,8 +85,6 @@ from isaacsim.core.utils.extensions import enable_extension
 
 enable_extension("isaacsim.benchmark.services")
 from isaacsim.benchmark.services import BaseIsaacBenchmark
-
-sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "../.."))
 
 from isaaclab.utils.timer import Timer
 from scripts.benchmarks.utils import (
