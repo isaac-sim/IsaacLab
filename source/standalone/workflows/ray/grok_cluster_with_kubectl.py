@@ -103,7 +103,7 @@ def get_mlflow_info(namespace: str = None, cluster_prefix: str = "isaacray") -> 
         cluster_ip = fields[2]
         port = "5000"  # Default MLflow port
 
-        return f"http://{cluster_ip}:{port}"
+        return f"https://{cluster_ip}:{port}"
     except subprocess.CalledProcessError as e:
         raise ValueError(f"Could not grok MLflow: {e}")  # Fixed f-string
 

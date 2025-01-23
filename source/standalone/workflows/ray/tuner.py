@@ -17,8 +17,9 @@ from ray.tune.search.repeater import Repeater
 """
 This script breaks down an aggregate tuning job, as defined by a hyperparameter sweep configuration,
 into individual jobs (shell commands) to run on the GPU-enabled nodes of the cluster.
-By default, (unless combined as a sub-job in a resource-wrapped aggregate job), one worker is created
-for each GPU-enabled node in the cluster for each individual job.
+By default, one worker is created for each GPU-enabled node in the cluster for each individual job.
+To use more than one worker per node (likely the case for multi-GPU machines), supply the 
+num_workers_per_node argument.
 
 Each hyperparameter sweep configuration should include the workflow,
 runner arguments, and hydra arguments to vary.
@@ -221,9 +222,23 @@ class JobCfg:
     at a minimum, the tune job should inherit from this class."""
 
     def __init__(self, cfg):
+        '''
+        Runner args include command line arguments passed to the task.
+        For example:
+        cfg["runner_args"]["headless_singleton"] = "--headless"
+        cfg["runner_args"]["enable_cameras_singleton"] = "--enable_cameras"
+        '''
         assert "runner_args" in cfg, "No runner arguments specified."
+        '''
+        Task is the desired task to train on. For example:
+        cfg["runner_args"]["--task"] = tune.choice(["Isaac-Cartpole-RGB-TheiaTiny-v0"])
+        '''
         assert "--task" in cfg["runner_args"], "No task specified."
-        assert "hydra_args" in cfg, "No hypeparameters specified."
+        '''
+        Hydra args define the hyperparameters varied within the sweep. For example:
+        cfg["hydra_args"]["agent.params.network.cnn.activation"] = tune.choice(["relu", "elu"])
+        '''
+        assert "hydra_args" in cfg, "No hyperparameters specified."
         self.cfg = cfg
 
 

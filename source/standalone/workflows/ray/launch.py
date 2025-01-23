@@ -11,7 +11,7 @@ import yaml
 from jinja2 import Environment, FileSystemLoader
 from kubernetes import config
 
-import source.standalone.workflows.ray.util as util
+import util
 
 """This script helps create one or more KubeRay clusters.
 
@@ -53,7 +53,7 @@ def apply_manifest(args: argparse.Namespace) -> None:
     # Set up Jinja2 environment for loading templates
     templates_dir = RAY_DIR / "cluster_configs" / args.cluster_host
     file_loader = FileSystemLoader(str(templates_dir))
-    jinja_env = Environment(loader=file_loader, keep_trailing_newline=True)
+    jinja_env = Environment(loader=file_loader, keep_trailing_newline=True, autoescape=True)
 
     # Define template filename
     template_file = "kuberay.yaml.jinja"
