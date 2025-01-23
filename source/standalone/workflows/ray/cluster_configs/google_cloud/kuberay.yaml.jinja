@@ -30,7 +30,7 @@ spec:
       apiVersion: v1
       kind: Service
       metadata:
-        name: head
+        name: {{ name }}-head
       spec:
         type: LoadBalancer
     template:
@@ -130,7 +130,7 @@ spec:
               volumeMounts:
                 - mountPath: /tmp/ray
                   name: ray-logs
-              command: ["/bin/bash", "-c", "ray start --address=head.{{ namespace }}.svc.cluster.local:6379 && tail -f /dev/null"]
+              command: ["/bin/bash", "-c", "ray start --address={{name}}-head.{{ namespace }}.svc.cluster.local:6379 && tail -f /dev/null"]
             - image: fluent/fluent-bit:1.9.6
               name: fluentbit
               resources:

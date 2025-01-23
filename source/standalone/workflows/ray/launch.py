@@ -79,6 +79,7 @@ def apply_manifest(args: argparse.Namespace) -> None:
 
     # Apply the Kubernetes manifest using kubectl
     try:
+        print(cleaned_yaml_string)
         subprocess.run(["kubectl", "apply", "-f", "-"], input=cleaned_yaml_string, text=True, check=True)
     except subprocess.CalledProcessError as e:
         exit(f"An error occurred while running `kubectl`: {e}")

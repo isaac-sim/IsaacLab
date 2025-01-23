@@ -427,4 +427,5 @@ recreated! For KubeRay clusters, this can be done as follows.
 
   kubectl get raycluster | egrep 'isaacray' | awk '{print $1}' | xargs kubectl delete raycluster &&
   kubectl get deployments | egrep 'mlflow' | awk '{print $1}' | xargs kubectl delete deployment &&
-  kubectl get services | egrep 'mlflow' | awk '{print $1}' | xargs kubectl delete service
+  kubectl get services | egrep 'mlflow' | awk '{print $1}' | xargs kubectl delete service &&
+  kubectl get services | egrep 'isaacray' | awk '{print $1}' | xargs kubectl delete service
