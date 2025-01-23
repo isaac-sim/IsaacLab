@@ -436,7 +436,9 @@ def randomize_joint_parameters(
                 " upper joint limits."
             )
 
-        asset.write_joint_limits_to_sim(dof_limits[env_ids][:, joint_ids], joint_ids=joint_ids, env_ids=env_ids)
+        asset.write_joint_limits_to_sim(
+            dof_limits[env_ids][:, joint_ids], joint_ids=joint_ids, env_ids=env_ids, warn_limit_violation=False
+        )
 
 
 def randomize_fixed_tendon_parameters(

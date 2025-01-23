@@ -1,7 +1,7 @@
 Changelog
 ---------
 
-0.33.10 (2025-01-30)
+0.33.11 (2025-01-30)
 ~~~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -10,6 +10,15 @@ Fixed
 * Fixed resampling of interval time left for the next event in the :class:`~omni.isaac.lab.managers.EventManager`
   class. Earlier, the time left for interval-based events was not being resampled on episodic resets. This led
   to the event being triggered at the wrong time after the reset.
+
+
+0.33.10 (2025-01-22)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* In :meth:`omni.isaac.lab.assets.Articulation.write_joint_limits_to_sim`, we previously added a check for if default joint positions exceed the new limits being set. When this is True, we log a warning message to indicate that the default joint positions will be clipped to be within the range of the new limits. However, the warning message can become overly verbose in a randomization setting where this API is called on every environment reset. We now default to only writing the message to info level logging if called within randomization, and expose a parameter that can be used to choose the logging level desired.
 
 
 0.33.9 (2025-01-22)

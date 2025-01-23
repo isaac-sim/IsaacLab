@@ -692,6 +692,7 @@ class Articulation(AssetBase):
         limits: torch.Tensor | float,
         joint_ids: Sequence[int] | slice | None = None,
         env_ids: Sequence[int] | None = None,
+        warn_limit_violation: bool = True,
     ):
         """Write joint limits into the simulation.
 
@@ -699,6 +700,7 @@ class Articulation(AssetBase):
             limits: Joint limits. Shape is (len(env_ids), len(joint_ids), 2).
             joint_ids: The joint indices to set the limits for. Defaults to None (all joints).
             env_ids: The environment indices to set the limits for. Defaults to None (all environments).
+            warn_limit_violation: Whether to use warning or info level logging when default joint positions exceed the new limits. Defaults to True.
         """
         # note: This function isn't setting the values for actuator models. (#128)
         # resolve indices
@@ -721,10 +723,16 @@ class Articulation(AssetBase):
             self._data.default_joint_pos[env_ids, joint_ids] = torch.clamp(
                 self._data.default_joint_pos[env_ids, joint_ids], limits[..., 0], limits[..., 1]
             )
-            omni.log.warn(
+            violation_message = (
                 "Some default joint positions are outside of the range of the new joint limits. Default joint positions"
                 " will be clamped to be within the new joint limits."
             )
+            if warn_limit_violation:
+                # warn level will show in console
+                omni.log.warn(violation_message)
+            else:
+                # info level is only written to log file
+                omni.log.info(violation_message)
         # set into simulation
         self.root_physx_view.set_dof_limits(self._data.joint_limits.cpu(), indices=physx_env_ids.cpu())
 
