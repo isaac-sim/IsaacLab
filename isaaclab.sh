@@ -40,7 +40,7 @@ extract_isaacsim_path() {
         # Use the python executable to get the path
         local python_exe=$(extract_python_exe)
         # Retrieve the path importing isaac sim and getting the environment path
-        if [ $(${python_exe} -m pip list | grep -c 'isaacsim-rl') ]; then
+        if [ $(${python_exe} -m pip list | grep -c 'isaacsim-rl') -gt 0 ]; then
             local isaac_path=$(${python_exe} -c "import isaacsim; import os; print(os.environ['ISAAC_PATH'])")
         fi
     fi
@@ -73,7 +73,7 @@ extract_python_exe() {
             # note: we need to check system python for cases such as docker
             # inside docker, if user installed into system python, we need to use that
             # otherwise, use the python from the kit
-            if [ $(python -m pip list | grep -c 'isaacsim-rl') ]; then
+            if [ $(python -m pip list | grep -c 'isaacsim-rl') -gt 0 ]; then
                 local python_exe=$(which python)
             fi
         fi
@@ -95,11 +95,13 @@ extract_python_exe() {
 extract_isaacsim_exe() {
     # obtain the isaac sim path
     local isaac_path=$(extract_isaacsim_path)
-    # python executable to use
+    # isaac sim executable to use
     local isaacsim_exe=${isaac_path}/isaac-sim.sh
     # check if there is a python path available
     if [ ! -f "${isaacsim_exe}" ]; then
         # check for installation using Isaac Sim pip
+        # note: pip installed Isaac Sim can only come from a direct
+        # python environment, so we can directly use 'python' here
         if [ $(python -m pip list | grep -c 'isaacsim-rl') -gt 0 ]; then
             # Isaac Sim - Python packages entry point
             local isaacsim_exe="isaacsim isaacsim.exp.full"
