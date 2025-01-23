@@ -31,18 +31,13 @@ The Isaac Lab repository is structured as follows:
    ├── tools
    └── VERSION
 
-The ``source`` directory contains the source code for all Isaac Lab *extensions*
-and *standalone applications*. The two are the different development workflows
-supported in `Isaac Sim <https://docs.omniverse.nvidia.com/isaacsim/latest/introductory_tutorials/tutorial_intro_workflows.html>`__.
+Isaac Lab is built on the same back end of Isaac Sim.  As such, it exists as a collection of **extensions** that can be assembled into **applications**. The ``source`` directory contains the source code for all Isaac Lab, with ``source/extensions`` containing the specific extensions that compose Isaac lab, and ``source/standalone`` containing python scripts for launching customized standalone apps (Like our workflows). These are the two primary ways of interacting with the simulation: building a custom application or using your extension within an existing one, and Isaac lab supports both! Checkout this `Isaac Sim introduction to workflows <https://docs.omniverse.nvidia.com/isaacsim/latest/introductory_tutorials/tutorial_intro_workflows.html>`__ for more details.
 
 
 Extensions
 ~~~~~~~~~~
 
-Extensions are modularized packages that formulate the Omniverse ecosystem. In Isaac Lab. these are written
-into the ``source/extensions`` directory. To simplify the build process, Isaac Lab directly use the
-`setuptools <https://setuptools.readthedocs.io/en/latest/>`__ python package to build the python module
-provided by the extensions. This is done by the ``setup.py`` file in the extension directory.
+Extensions are the atomic component of Omniverse.  Everything in Omniverse is either an extension, or a collection of extensions (an app). The extensions that compose Isaac Lab are kept in the ``source/extensions`` directory. To simplify the build process, Isaac Lab directly use `setuptools <https://setuptools.readthedocs.io/en/latest/>`__. It is strongly recommend that you adhere to this process if you create your own extensions using Isaac Lab.
 
 The extensions are organized as follows:
 
