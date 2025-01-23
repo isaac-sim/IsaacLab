@@ -88,6 +88,7 @@ Guidelines for modifications:
 * Yujian Zhang
 * Zhengyu Zhang
 * Ziqi Fan
+* Dhananjay Shendre
 
 ## Acknowledgements
 

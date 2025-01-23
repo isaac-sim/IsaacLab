@@ -172,6 +172,15 @@ class EventCfg:
             "operation": "add",
         },
     )
+    
+    com_randomize = EventTerm(
+        func=mdp.randomize_body_coms,
+        mode="startup",
+        params={
+            "asset_cfg": SceneEntityCfg("robot", body_names="trunk"),
+            "com_range": {"x": (-0.05, 0.05), "y": (-0.05, 0.05), "z": (-0.01, 0.01)},
+        },
+    )
 
     # reset
     base_external_force_torque = EventTerm(
