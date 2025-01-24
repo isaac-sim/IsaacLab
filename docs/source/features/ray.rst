@@ -240,11 +240,8 @@ For example, see the following Cartpole Example configurations.
 
 To view the logs, simply run ``tensorboard --logdir=<LOCAL_STORAGE_PATH_READ_FROM_OUTPUT>`` .
 
-Remote Ray Cluster
-''''''''''''''''''
-
-**Setup Overview: Cluster Configuration**
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Remote Ray Clusters
+'''''''''''''''''''
 
 Select one of the following methods to create a Ray cluster to accept and execute dispatched jobs.
 
@@ -271,7 +268,7 @@ any cloud provider should work if one configures the following.
   provided that your account or organization has been granted a GPU-budget. It is recommended
   to use manual kubernetes services as opposed to "autopilot" services for cost-effective
   experimentation as this way clusters can be completely shut down when not in use, although
-  this may require installing the `Nvidia GPU Operator <https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/latest/google-gke.html>`_
+  this may require installing the `Nvidia GPU Operator <https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/latest/google-gke.html>`_ .
 - An MLFlow server that your cluster has access to.
 - A ``kuberay.yaml.ninja`` file that describes how to allocate resources (already included for
   Google Cloud, which can be referenced for the format and MLFlow integration).
@@ -286,10 +283,6 @@ See the `Ray Clusters Overview <https://docs.ray.io/en/latest/cluster/getting-st
 `Anyscale <https://www.anyscale.com/product>`_ for more information.
 
 
-This guide assumes that one desires to create a cluster on a remote host or server. This
-guide includes shared steps, and KubeRay or Ray specific steps. Follow all shared steps (part I and II), and then
-only the KubeRay or Ray steps depending on your desired configuration, in order of shared steps part I, then
-the configuration specific steps, then shared steps part II.
 
 Shared Steps Between KubeRay and Pure Ray Part I
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -305,8 +298,8 @@ Shared Steps Between KubeRay and Pure Ray Part I
   # Push the image to your registry of choice.
   docker push <REGISTRY/IMAGE_NAME>
 
-KubeRay Specific
-~~~~~~~~~~~~~~~~
+KubeRay Clusters Only
+~~~~~~~~~~~~~~~~~~~~~
 `k9s <https://github.com/derailed/k9s>`_ is a great tool for monitoring your clusters that can
 easily be installed with ``snap install k9s --devmode``.
 
@@ -355,8 +348,8 @@ printed.
     :language: python
     :emphasize-lines: 14-26
 
-Ray Specific
-~~~~~~~~~~~~
+Ray Clusters Only (Without Kubernetes)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 
 1.) Verify cluster access.
@@ -409,11 +402,11 @@ For example, see the following Cartpole Example configurations.
 Tuning jobs can also be submitted via ``submit_job.py`` .
 
 To view the tuning results, view the MLFlow dashboard of the server that you created.
-For KubeRay, this can be done through port forwarding the MLFlow dashboard, with
+For KubeRay, this can be done through port forwarding the MLFlow dashboard with the following.
 
 ``kubectl port-forward service/isaacray-mlflow 5000:5000``
 
-and visiting the following address in a browser.
+Then visit the following address in a browser.
 
 ``localhost:5000``
 
