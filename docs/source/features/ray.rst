@@ -380,8 +380,8 @@ this following command.
 --uri http://localhost:5000 --experiment-name IsaacRay-<CLASS_JOB_CFG>-tune --download-dir test``
 
 
-**Kubernetes Cluster Cleanup**
-''''''''''''''''''''''''''''''
+Kubernetes Cluster Cleanup
+''''''''''''''''''''''''''
 
 For the sake of conserving resources, and potentially freeing precious GPU resources for other people to use
 on shared compute platforms, please destroy the Ray cluster after use. They can be easily
