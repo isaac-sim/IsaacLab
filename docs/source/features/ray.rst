@@ -107,8 +107,8 @@ Then, run the following steps to start a tuning run.
   python3 docker/container.py start && python3 docker/container.py stop
   # Build the tuning image with extra deps
   docker build -t isaacray -f source/standalone/workflows/ray/cluster_configs/Dockerfile .
-  # Start the tuning image
-  docker run -it --gpus all --net=host --entrypoint /bin/bash isaacray
+  # Start the tuning image - symlink so that changes in the source folder show up in the container
+  docker run -v $(pwd)/source:/workspace/isaaclab/source -it --gpus all --net=host --entrypoint /bin/bash isaacray
   # Start the Ray server within the tuning image
   echo "import ray; ray.init(); import time; [time.sleep(10) for _ in iter(int, 1)]" | ./isaaclab.sh -p
 
@@ -150,16 +150,6 @@ Submitting resource-wrapped individual jobs instead of automatic tuning runs is 
     :language: python
     :emphasize-lines: 14-66
 
-
-.. code-block:: bash
-
-  # In a new terminal (don't close the above) , enter the image with a new shell.
-  docker container ps
-  docker exec -it <ISAAC_RAY_IMAGE_ID_FROM_CONTAINER_PS> /bin/bash
-  # Start a tuning run, with one parallel worker per GPU
-  tensorboard --logdir=.
-
-
 Transferring files from the running container can be done as follows.
 
 .. code-block:: bash
@@ -194,13 +184,25 @@ Select one of the following methods to create a Ray cluster to accept and execut
 
 KubeRay Setup
 ~~~~~~~~~~~~~
+
+If using KubeRay clusters on Google GKE with the batteries-included cluster launch file,
+the following dependencies are also needed.
+
+.. code-block:: bash
+
+  python3 -p -m pip install kubernetes Jinja2
+
+For use on Kubernetes clusters with KubeRay,
+such as Google Kubernetes Engine or Amazon Elastic Kubernetes Service, ``kubectl`` is required, and can
+be installed via the `Kubernetes website <https://kubernetes.io/docs/tasks/tools/>`_ .
+
+Google Cloud is currently the only platform tested, although
+any cloud provider should work if one configures the following.
+
 .. attention::
   The ``ray`` command should be modified to use Isaac python, which could be achieved in a fashion similar to
   ``sed -i "1i $(echo "#!/workspace/isaaclab/_isaac_sim/python.sh")" \
   /isaac-sim/kit/python/bin/ray && ln -s /isaac-sim/kit/python/bin/ray /usr/local/bin/ray``.
-
-Google Cloud is currently the only platform tested, although
-any cloud provider should work if one configures the following.
 
 - An container registry (NGC, GCS artifact registry, AWS ECR, etc) with
   an Isaac Lab image configured to support Ray. See ``cluster_configs/Dockerfile`` to see how to modify the ``isaac-lab-base``
@@ -216,21 +218,10 @@ any cloud provider should work if one configures the following.
   to use manual kubernetes services as opposed to "autopilot" services for cost-effective
   experimentation as this way clusters can be completely shut down when not in use, although
   this may require installing the `Nvidia GPU Operator <https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/latest/google-gke.html>`_ .
-- An MLFlow server that your cluster has access to.
+- An `MLFlow server <https://mlflow.org/docs/latest/getting-started/logging-first-model/step1-tracking-server.html>`_ that your cluster has access to
+  (already included for Google Cloud, which can be referenced for the format and MLFlow integration).
 - A ``kuberay.yaml.ninja`` file that describes how to allocate resources (already included for
   Google Cloud, which can be referenced for the format and MLFlow integration).
-
-
-For use on Kubernetes clusters with KubeRay,
-such as Google Kubernetes Engine or Amazon Elastic Kubernetes Service, ``kubectl`` is required, and can
-be installed via the `Kubernetes website <https://kubernetes.io/docs/tasks/tools/>`_ .
-
-If using KubeRay clusters on Google GKE with the batteries-included cluster launch file,
-the following dependencies are also needed.
-
-.. code-block:: bash
-
-  python3 -p -m pip install kubernetes Jinja2
 
 Ray Clusters (Without Kubernetes) Setup
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -241,8 +232,8 @@ Ray Clusters (Without Kubernetes) Setup
 See the `Ray Clusters Overview <https://docs.ray.io/en/latest/cluster/getting-started.html>`_ or
 `Anyscale <https://www.anyscale.com/product>`_ for more information.
 
-This likely requires a `local installation of Ray <https://docs.ray.io/en/latest/ray-overview/installation.html>`_ to interface with the cluster.
-
+Also, create an `MLFlow server <https://mlflow.org/docs/latest/getting-started/logging-first-model/step1-tracking-server.html>`_ that your local
+host and cluster have access to.
 
 Shared Steps Between KubeRay and Pure Ray Part I
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -258,7 +249,7 @@ Shared Steps Between KubeRay and Pure Ray Part I
 .. code-block:: bash
 
   # Login with NGC (nvcr.io) registry first, see docker steps in repo.
-  ./isaaclab.sh -p docker/container.py start
+  python3 docker/container.py start
   # Build the special Isaac Lab Ray Image
   docker build -t <REGISTRY/IMAGE_NAME> -f source/standalone/workflows/ray/cluster_configs/Dockerfile .
   # Push the image to your registry of choice.
