@@ -18,18 +18,18 @@ Usage:
 
 .. code-block:: bash
     # If the head node is stuck on container creating, make sure to create a secret
-    ./isaaclab.sh -p source/standalone/workflows/ray/launch.py -h
+    python3 source/standalone/workflows/ray/launch.py -h
 
     # Examples
 
     # The following creates 8 GPUx1 nvidia l4 workers
-    ./isaaclab.sh -p source/standalone/workflows/ray/launch.py --cluster_host google_cloud \
+    python3 source/standalone/workflows/ray/launch.py --cluster_host google_cloud \
     --namespace <NAMESPACE> --image <YOUR_ISAAC_RAY_IMAGE> \
     --num_workers 8 --num_clusters 1 --worker_accelerator nvidia-l4 --gpu_per_worker 1
 
     # The following creates 1 GPUx1 nvidia l4 worker, 2 GPUx2 nvidia-tesla-t4 workers,
     # and 2 GPUx4 nvidia-tesla-t4 GPU workers
-    ./isaaclab.sh -p source/standalone/workflows/ray/launch.py --cluster_host google_cloud \
+    python3 source/standalone/workflows/ray/launch.py --cluster_host google_cloud \
     --namespace <NAMESPACE> --image <YOUR_ISAAC_RAY_IMAGE> \
     --num_workers 1 2 --num_clusters 1 \
     --worker_accelerator nvidia-l4 nvidia-tesla-t4 --gpu_per_worker 1 2 4

@@ -21,7 +21,7 @@ Usage:
 
 .. code-block:: bash
 
-    ./isaaclab.sh -p source/standalone/workflows/ray/grok_cluster_with_kubectl.py
+    python3 source/standalone/workflows/ray/grok_cluster_with_kubectl.py
     # For options, supply -h arg
 """
 

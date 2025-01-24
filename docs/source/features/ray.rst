@@ -130,6 +130,43 @@ In a different terminal, run the following.
     --num_workers_per_node <NUMBER_OF_GPUS_IN_COMPUTER>
 
 
+To view the training logs, in a different terminal, run the following and visit ``localhost:6006`` in a browser afterwards.
+
+.. code-block:: bash
+
+  # In a new terminal (don't close the above) , enter the image with a new shell.
+  docker container ps
+  docker exec -it <ISAAC_RAY_IMAGE_ID_FROM_CONTAINER_PS> /bin/bash
+  # Start a tuning run, with one parallel worker per GPU
+  tensorboard --logdir=.
+
+
+Submitting resource-wrapped individual jobs instead of automatic tuning runs is described in the following file.
+
+.. dropdown:: source/standalone/workflows/ray/wrap_resources.py
+  :icon: code
+
+  .. literalinclude:: ../../../source/standalone/workflows/ray/wrap_resources.py
+    :language: python
+    :emphasize-lines: 14-66
+
+
+.. code-block:: bash
+
+  # In a new terminal (don't close the above) , enter the image with a new shell.
+  docker container ps
+  docker exec -it <ISAAC_RAY_IMAGE_ID_FROM_CONTAINER_PS> /bin/bash
+  # Start a tuning run, with one parallel worker per GPU
+  tensorboard --logdir=.
+
+
+Transferring files from the running container can be done as follows.
+
+.. code-block:: bash
+
+  docker container ps
+  docker cp <ISAAC_RAY_IMAGE_ID_FROM_CONTAINER_PS>:</path/in/container/file>  </path/on/host/>
+
 
 For tuning jobs, specify the tuning job / hyperparameter sweep as child class of :class:`JobCfg` .
 
@@ -149,104 +186,14 @@ For example, see the following Cartpole Example configurations.
   .. literalinclude:: ../../../source/standalone/workflows/ray/hyperparameter_tuning/vision_cartpole_cfg.py
     :language: python
 
-**Installation**
-----------------
 
-The Ray functionality requires additional dependencies be installed.
-
-To use Ray without Kubernetes, like on a local computer or VM,
-``kubectl`` is not required. For use on Kubernetes clusters with KubeRay,
-such as Google Kubernetes Engine or Amazon Elastic Kubernetes Service, ``kubectl`` is required, and can
-be installed via the `Kubernetes website <https://kubernetes.io/docs/tasks/tools/>`_ .
-
-The pythonic dependencies can be installed with the following.
-
-.. code-block:: bash
-
-  # For multi-run support and resource isolation
-  ./isaaclab.sh -p -m pip install ray[default]==2.31.0
-  # For hyperparameter tuning
-  ./isaaclab.sh -p -m pip install ray[tune]==2.31.0
-  ./isaaclab.sh -p -m pip install optuna bayesian-optimization
-  # MLFlow is needed only for fetching logs on clusters, not needed for local
-  ./isaaclab.sh -p -m pip install mlflow
-
-If using KubeRay clusters on Google GKE with the batteries-included cluster launch file,
-the following dependencies are also needed.
-
-.. code-block:: bash
-
-  ./isaaclab.sh -p -m pip install kubernetes Jinja2
-
-
-**Dispatching Jobs and Tuning**
--------------------------------
-
-Select one of the following guides that matches your desired cluster configuration.
-
-Simple Ray Cluster (Local/VM)
-'''''''''''''''''''''''''''''
-
-1.) Start a Ray cluster.
-
-.. code-block:: bash
-
-  echo "import ray; ray.init(); import time; [time.sleep(10) for _ in iter(int, 1)]" | ./isaaclab.sh -p
-
-2.) Testing that the cluster works can be done as follows.
-
-.. code-block:: bash
-
-  ./isaaclab.sh -p source/standalone/workflows/ray/wrap_resources.py --test
-
-3.) Submitting resource-wrapped individual can be done as described in the following file.
-
-.. dropdown:: source/standalone/workflows/ray/wrap_resources.py
-  :icon: code
-
-  .. literalinclude:: ../../../source/standalone/workflows/ray/wrap_resources.py
-    :language: python
-    :emphasize-lines: 14-66
-
-
-4.) For tuning jobs, specify the tuning job / hyperparameter sweep as child class of :class:`JobCfg` .
-
-
-.. dropdown:: source/standalone/workflows/ray/tuner.py  (JobCfg definition)
-  :icon: code
-
-  .. literalinclude:: ../../../source/standalone/workflows/ray/tuner.py
-    :language: python
-    :start-at: class JobCfg
-    :end-at: self.cfg = cfg
-
-For example, see the following Cartpole Example configurations.
-
-.. dropdown:: source/standalone/workflows/ray/hyperparameter_tuning/vision_cartpole_cfg.py
-  :icon: code
-
-  .. literalinclude:: ../../../source/standalone/workflows/ray/hyperparameter_tuning/vision_cartpole_cfg.py
-    :language: python
-
-
-5.) Then, see the local examples in the following file to see how to start a tuning run.
-
-.. dropdown:: source/standalone/workflows/ray/tuner.py
-  :icon: code
-
-  .. literalinclude:: ../../../source/standalone/workflows/ray/tuner.py
-    :language: python
-    :emphasize-lines: 18-53
-
-To view the logs, simply run ``tensorboard --logdir=<LOCAL_STORAGE_PATH_READ_FROM_OUTPUT>`` .
-
-Remote Ray Clusters
-'''''''''''''''''''
+**Remote Clusters**
+-------------------------
 
 Select one of the following methods to create a Ray cluster to accept and execute dispatched jobs.
 
-KubeRay Clusters
-~~~~~~~~~~~~~~~~
+KubeRay Setup
+~~~~~~~~~~~~~
 .. attention::
   The ``ray`` command should be modified to use Isaac python, which could be achieved in a fashion similar to
   ``sed -i "1i $(echo "#!/workspace/isaaclab/_isaac_sim/python.sh")" \
@@ -273,8 +220,20 @@ any cloud provider should work if one configures the following.
 - A ``kuberay.yaml.ninja`` file that describes how to allocate resources (already included for
   Google Cloud, which can be referenced for the format and MLFlow integration).
 
-Ray Clusters (Without Kubernetes)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+For use on Kubernetes clusters with KubeRay,
+such as Google Kubernetes Engine or Amazon Elastic Kubernetes Service, ``kubectl`` is required, and can
+be installed via the `Kubernetes website <https://kubernetes.io/docs/tasks/tools/>`_ .
+
+If using KubeRay clusters on Google GKE with the batteries-included cluster launch file,
+the following dependencies are also needed.
+
+.. code-block:: bash
+
+  python3 -p -m pip install kubernetes Jinja2
+
+Ray Clusters (Without Kubernetes) Setup
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 .. attention::
   Modify the Ray command to use Isaac Python like in KubeRay clusters, and follow the same
   steps for creating an image/cluster permissions.
@@ -282,12 +241,19 @@ Ray Clusters (Without Kubernetes)
 See the `Ray Clusters Overview <https://docs.ray.io/en/latest/cluster/getting-started.html>`_ or
 `Anyscale <https://www.anyscale.com/product>`_ for more information.
 
+This likely requires a `local installation of Ray <https://docs.ray.io/en/latest/ray-overview/installation.html>`_ to interface with the cluster.
 
 
 Shared Steps Between KubeRay and Pure Ray Part I
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-1.) Build the Isaac Ray image, and upload it to your container registry of choice.
+1.) Install Ray on your local machine.
+
+.. code-block:: bash
+
+  python3 -p -m pip install ray[default]==2.31.0
+
+2.) Build the Isaac Ray image, and upload it to your container registry of choice.
 
 .. code-block:: bash
 
@@ -322,11 +288,7 @@ easily be installed with ``snap install k9s --devmode``.
 2.) Create the KubeRay cluster and an MLFlow server for receiving logs
 that your cluster has access to.
 This can be done automatically for Google GKE,
-where instructions are included in the following creation file. More than once cluster
-can be created at once. Each cluster can have heterogeneous resources if so desired,
-although only
-For other cloud services, the ``kuberay.yaml.ninja`` will be similar to that of
-Google's.
+where instructions are included in the following creation file.
 
 .. dropdown:: source/standalone/workflows/ray/launch.py
   :icon: code
@@ -334,6 +296,18 @@ Google's.
   .. literalinclude:: ../../../source/standalone/workflows/ray/launch.py
     :language: python
     :emphasize-lines: 15-37
+
+For other cloud services, the ``kuberay.yaml.ninja`` will be similar to that of
+Google's.
+
+
+.. dropdown:: source/standalone/workflows/ray/cluster_configs/google_cloud/kuberay.yaml.ninja
+  :icon: code
+
+  .. literalinclude:: ../../../source/standalone/workflows/ray/cluster_configs/google_cloud/kuberay.yaml.jinja
+      :language: python
+
+
 
 3.) Fetch the KubeRay cluster IP addresses, and the MLFLow Server IP.
 This can be done automatically for KubeRay clusters,
@@ -360,8 +334,8 @@ a new line for each unique cluster. For one cluster, there should only be one li
 3.) Start an MLFLow Server to receive the logs that the ray cluster has access to,
 and determine the server URI.
 
-Shared Steps Between KubeRay and Pure Ray Part II
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Dispatching Steps Shared Between KubeRay and Pure Ray Part II
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 
 1.) Test that your cluster is operational with the following.
@@ -369,10 +343,9 @@ Shared Steps Between KubeRay and Pure Ray Part II
 .. code-block:: bash
 
   # Test that NVIDIA GPUs are visible and that Ray is operation with the following command:
-  ./isaaclab.sh -p source/standalone/workflows/ray/wrap_resources.py
-	--jobs wrap_resources.py --test
+  python3 source/standalone/workflows/ray/submit_job.py --aggregate_jobs wrap_resources.py --test
 
-2.) Submitting Jobs can be done in the following manner, with the following script.
+2.) Submitting tuning and/or resource-wrapped jobs is described in the :file:`submit_job.py` file.
 
 .. dropdown:: source/standalone/workflows/ray/submit_job.py
   :icon: code
@@ -399,7 +372,6 @@ For example, see the following Cartpole Example configurations.
   .. literalinclude:: ../../../source/standalone/workflows/ray/hyperparameter_tuning/vision_cartpole_cfg.py
     :language: python
 
-Tuning jobs can also be submitted via ``submit_job.py`` .
 
 To view the tuning results, view the MLFlow dashboard of the server that you created.
 For KubeRay, this can be done through port forwarding the MLFlow dashboard with the following.
@@ -417,8 +389,8 @@ this following command.
 --uri http://localhost:5000 --experiment-name IsaacRay-<CLASS_JOB_CFG>-tune --download-dir test``
 
 
-**Cluster Cleanup**
-'''''''''''''''''''
+**Kubernetes Cluster Cleanup**
+''''''''''''''''''''''''''''''
 
 For the sake of conserving resources, and potentially freeing precious GPU resources for other people to use
 on shared compute platforms, please destroy the Ray cluster after use. They can be easily
