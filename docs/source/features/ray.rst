@@ -127,6 +127,7 @@ In a different terminal, run the following.
     --cfg_file source/standalone/workflows/ray/hyperparameter_tuning/vision_cartpole_cfg.py \
     --cfg_class CartpoleTheiaJobCfg \
     --run_mode local \
+    --workflow source/standalone/workflows/rl_games/train.py
     --num_workers_per_node <NUMBER_OF_GPUS_IN_COMPUTER>
 
 
@@ -159,6 +160,9 @@ Transferring files from the running container can be done as follows.
 
 
 For tuning jobs, specify the tuning job / hyperparameter sweep as child class of :class:`JobCfg` .
+The included :class:`JobCfg` only supports the ``rl_games`` workflow due to differences in
+environment entrypoints and hydra arguments, although other workflows will work if provided a compatible
+:class:`JobCfg`.
 
 .. dropdown:: source/standalone/workflows/ray/tuner.py (JobCfg definition)
   :icon: code
@@ -346,6 +350,9 @@ Dispatching Steps Shared Between KubeRay and Pure Ray Part II
     :emphasize-lines: 12-53
 
 3.) For tuning jobs, specify the tuning job / hyperparameter sweep as a :class:`JobCfg` .
+  The included :class:`JobCfg` only supports the ``rl_games`` workflow due to differences in
+  environment entrypoints and hydra arguments, although other workflows will work if provided a compatible
+  :class:`JobCfg`.
 
 .. dropdown:: source/standalone/workflows/ray/tuner.py (JobCfg definition)
   :icon: code

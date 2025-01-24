@@ -14,7 +14,8 @@ from tensorboard.backend.event_processing.event_accumulator import EventAccumula
 
 
 def load_tensorboard_logs(directory: str) -> dict:
-    """From a tensorboard directory, get the latest scalar values.
+    """From a tensorboard directory, get the latest scalar values. If the logs can't be
+    found, check the summaries sublevel.
 
     Args:
         directory: The directory of the tensorboard logging.
@@ -22,19 +23,23 @@ def load_tensorboard_logs(directory: str) -> dict:
     Returns:
         The latest available scalar values.
     """
-    # Initialize the event accumulator with a size guidance for only the latest entry
-    size_guidance = {"scalars": 1}  # Load only the latest entry for scalars
-    event_acc = EventAccumulator(directory, size_guidance=size_guidance)
-    event_acc.Reload()  # Load all data from the directory
 
-    # Extract the latest scalars logged
-    latest_scalars = {}
-    for tag in event_acc.Tags()["scalars"]:
-        events = event_acc.Scalars(tag)
-        if events:  # Check if there is at least one entry
-            latest_event = events[-1]  # Get the latest entry
-            latest_scalars[tag] = latest_event.value
-    return latest_scalars
+    # Initialize the event accumulator with a size guidance for only the latest entry
+    def get_latest_scalars(path: str) -> dict:
+        event_acc = EventAccumulator(path, size_guidance={"scalars": 1})
+        try:
+            event_acc.Reload()
+            if event_acc.Tags()["scalars"]:
+                return {
+                    tag: event_acc.Scalars(tag)[-1].value
+                    for tag in event_acc.Tags()["scalars"]
+                    if event_acc.Scalars(tag)
+                }
+        except (KeyError, OSError, RuntimeError):
+            return {}
+
+    scalars = get_latest_scalars(directory)
+    return scalars or get_latest_scalars(os.path.join(directory, "summaries"))
 
 
 def get_invocation_command_from_cfg(
