@@ -95,7 +95,7 @@ class IsaacLabTuneTrainable(tune.Trainable):
             self.proc = experiment["proc"]
             self.experiment_name = experiment["experiment_name"]
             self.isaac_logdir = experiment["logdir"]
-            self.tensorboard_logdir = self.isaac_logdir + {self.experiment_name}
+            self.tensorboard_logdir = self.isaac_logdir + self.experiment_name
             self.done = False
 
         if self.proc is None:
