@@ -277,7 +277,7 @@ Ray Clusters (Without Kubernetes)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 .. attention::
   Modify the Ray command to use Isaac Python like in KubeRay clusters, and follow the same
-  steps for creating an image/cluster permissions/bucket access.
+  steps for creating an image/cluster permissions
 
 See the `Ray Clusters Overview <https://docs.ray.io/en/latest/cluster/getting-started.html>`_ or
 `Anyscale <https://www.anyscale.com/product>`_ for more information.
