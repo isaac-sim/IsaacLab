@@ -6,18 +6,7 @@ Task Design Workflows
 
 .. currentmodule:: omni.isaac.lab
 
-Environments define the interface between the agent and the simulation. In the simplest case, the environment provides
-the agent with the current observations and executes the actions provided by the agent. In a Markov Decision Process
-(MDP) formulation, the environment can also provide additional information such as the current reward, done flag, and
-information about the current episode.
-
-While the environment interface is simple to understand, its implementation can vary significantly depending on the
-complexity of the task. In the context of reinforcement learning (RL), the environment implementation can be broken down
-into several components, such as the reward function, observation function, termination function, and reset function.
-Each of these components can be implemented in different ways depending on the complexity of the task and the desired
-level of modularity.
-
-We provide two different workflows for designing environments with the framework:
+An environment provides an agent with the current observations and executes the actions provided by an agent, updating the simulation to the next time step. You can think of it as a function that consumes the action to be taken by the agent, and returns updated observations, rewards, and additional information. There are common methods for doing the calculations involved in running the environment, especially in managing a vectorized simulation on the GPU. To meet this need, Isaac Lab provides the ability to build your environments within our **Manager-based** system, allowing you to be sure that you experiments will scale appropriately on the various distributed cloud systems Isaac Lab may run on. However, we also recognize the need exert granular control over the environment, especially during development. For this need, we also provide a **Direct** interface into the simulation, giving you full control!
 
 * **Manager-based**: The environment is decomposed into individual components (or managers) that handle different
   aspects of the environment (such as computing observations, applying actions, and applying randomization). The
@@ -36,9 +25,8 @@ or when implementing complex logic that is difficult to decompose into separate 
 Manager-Based Environments
 --------------------------
 
-A majority of environment implementations follow a similar structure. The environment processes the input actions,
-steps through the simulation, computes observations and reward signals, applies randomization, and resets the terminated
-environments. Motivated by this, the environment can be decomposed into individual components that handle each of these tasks.
+The interface defined in Reinforcement Learning (RL) for environments 
+
 For example, the observation manager is responsible for computing the observations, the reward manager is responsible for
 computing the rewards, and the termination manager is responsible for computing the termination signal. This approach
 is known as the manager-based environment design in the framework.
