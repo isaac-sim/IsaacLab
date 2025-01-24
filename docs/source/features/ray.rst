@@ -157,7 +157,7 @@ The Ray functionality requires additional dependencies be installed.
 To use Ray without Kubernetes, like on a local computer or VM,
 ``kubectl`` is not required. For use on Kubernetes clusters with KubeRay,
 such as Google Kubernetes Engine or Amazon Elastic Kubernetes Service, ``kubectl`` is required, and can
-be installed via the `Kubernetes website <https://kubernetes.io/docs/tasks/tools/>`_
+be installed via the `Kubernetes website <https://kubernetes.io/docs/tasks/tools/>`_ .
 
 The pythonic dependencies can be installed with the following.
 
