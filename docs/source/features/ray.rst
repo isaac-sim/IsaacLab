@@ -208,8 +208,9 @@ Simple Ray Cluster (Local/VM)
     :language: python
     :emphasize-lines: 14-66
 
-4.) For tuning jobs, specify the tuning job / hyperparameter sweep as child class of
-  :class:`JobCfg` .
+
+4.) For tuning jobs, specify the tuning job / hyperparameter sweep as child class of :class:`JobCfg` .
+
 
 .. dropdown:: source/standalone/workflows/ray/tuner.py  (JobCfg definition)
   :icon: code
