@@ -10,6 +10,7 @@ from datetime import datetime
 from math import isclose
 
 import ray
+from tensorboard.backend.event_processing.directory_watcher import DirectoryDeletedError
 from tensorboard.backend.event_processing.event_accumulator import EventAccumulator
 
 
@@ -35,7 +36,7 @@ def load_tensorboard_logs(directory: str) -> dict:
                     for tag in event_acc.Tags()["scalars"]
                     if event_acc.Scalars(tag)
                 }
-        except (KeyError, OSError, RuntimeError):
+        except (KeyError, OSError, RuntimeError, DirectoryDeletedError):
             return {}
 
     scalars = get_latest_scalars(directory)
