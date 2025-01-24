@@ -32,7 +32,7 @@ To setup the IDE, please follow these instructions:
 
 
 .. note::
-   If this is your first time running tasks in VS Code, you may be prompted to select how to handle warnings. Simply follow 
+   If this is your first time running tasks in VS Code, you may be prompted to select how to handle warnings. Simply follow
    the prompts until the task window closes.
 
 If everything executes correctly, it should create the following files:

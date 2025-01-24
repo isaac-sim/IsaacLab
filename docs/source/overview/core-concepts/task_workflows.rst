@@ -27,7 +27,7 @@ or when implementing complex logic that is difficult to decompose into separate 
 Manager-Based Environments
 --------------------------
 
-The interface defined in Reinforcement Learning (RL) for environments 
+The interface defined in Reinforcement Learning (RL) for environments
 
 For example, the observation manager is responsible for computing the observations, the reward manager is responsible for
 computing the rewards, and the termination manager is responsible for computing the termination signal. This approach

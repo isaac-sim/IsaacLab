@@ -235,6 +235,63 @@ Clone the Isaac Lab repository into your workspace:
                -d, --docs           Build the documentation from source using sphinx.
                -c, --conda [NAME]   Create the conda environment for Isaac Lab. Default name is 'isaaclab'.
 
+Setting up the conda environment (optional)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. attention::
+   This step is optional. If you are using the bundled python with Isaac Sim, you can skip this step.
+
+.. note::
+
+   If you use Conda, we recommend using `Miniconda <https://docs.anaconda.com/miniconda/miniconda-other-installer-links/>`_.
+
+The executable ``isaaclab.sh`` automatically fetches the python bundled with Isaac
+Sim, using ``./isaaclab.sh -p`` command (unless inside a virtual environment). This executable
+behaves like a python executable, and can be used to run any python script or
+module with the simulator. For more information, please refer to the
+`documentation <https://docs.omniverse.nvidia.com/isaacsim/latest/manual_standalone_python.html#isaac-sim-python-environment>`__.
+
+To install ``conda``, please follow the instructions `here <https://docs.conda.io/projects/conda/en/latest/user-guide/install/index.html>`__.
+In case you want to use ``conda`` to create a virtual environment, you can
+use the following command:
+
+.. tab-set::
+   :sync-group: os
+
+   .. tab-item:: :icon:`fa-brands fa-linux` Linux
+      :sync: linux
+
+      .. code:: bash
+
+         # Option 1: Default name for conda environment is 'isaaclab'
+         ./isaaclab.sh --conda  # or "./isaaclab.sh -c"
+         # Option 2: Custom name for conda environment
+         ./isaaclab.sh --conda my_env  # or "./isaaclab.sh -c my_env"
+
+   .. tab-item:: :icon:`fa-brands fa-windows` Windows
+      :sync: windows
+
+      .. code:: batch
+
+         :: Option 1: Default name for conda environment is 'isaaclab'
+         isaaclab.bat --conda  :: or "isaaclab.bat -c"
+         :: Option 2: Custom name for conda environment
+         isaaclab.bat --conda my_env  :: or "isaaclab.bat -c my_env"
+
+
+If you are using ``conda`` to create a virtual environment, make sure to
+activate the environment before running any scripts. For example:
+
+.. code:: bash
+
+   conda activate isaaclab  # or "conda activate my_env"
+
+Once you are in the virtual environment, you do not need to use ``./isaaclab.sh -p`` / ``isaaclab.bat -p``
+to run python scripts. You can use the default python executable in your environment
+by running ``python`` or ``python3``. However, for the rest of the documentation,
+we will assume that you are using ``./isaaclab.sh -p`` / ``isaaclab.bat -p`` to run python scripts. This command
+is equivalent to running ``python`` or ``python3`` in your virtual environment.
+
 Installation
 ~~~~~~~~~~~~
 
@@ -339,7 +396,7 @@ If you see this, then the installation was successful! |:tada:|
 Train a robot!
 ~~~~~~~~~~~~~~~
 
-You can now use Isaac Lab to train a robot through Reinforcement Learning! The quickest way to use Isaac Lab is through the predefined workflows using one of our **Batteries-included** robots. Execute the following command to quickly train a robotic 
+You can now use Isaac Lab to train a robot through Reinforcement Learning! The quickest way to use Isaac Lab is through the predefined workflows using one of our **Batteries-included** robots. Execute the following command to quickly train a robotic
 hand to orient a cube!
 
 .. tab-set::
@@ -369,7 +426,7 @@ hand to orient a cube!
 
       .. code:: bash
 
-         ./isaaclab.sh -p source/standalone/workflows/rsl_rl/train.py --task=Isaac-Velocity-Rough-Anymal-C-v0 
+         ./isaaclab.sh -p source/standalone/workflows/rsl_rl/train.py --task=Isaac-Velocity-Rough-Anymal-C-v0
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
