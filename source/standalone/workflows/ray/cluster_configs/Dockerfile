@@ -1,8 +1,8 @@
 FROM isaac-lab-base:latest
 
 # WGet is needed so that GCS or other cloud providers can mark the container as ready.
-# Otherwise the liveliness checks fail.
-RUN apt-get install wget
+# Otherwise the Ray liveliness checks fail.
+RUN apt-get update && apt-get install wget
 
 # Set NVIDIA paths
 ENV PATH="/usr/local/nvidia/bin:$PATH"

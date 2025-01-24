@@ -8,10 +8,9 @@ import pathlib
 import subprocess
 import yaml
 
+import util
 from jinja2 import Environment, FileSystemLoader
 from kubernetes import config
-
-import util
 
 """This script helps create one or more KubeRay clusters.
 

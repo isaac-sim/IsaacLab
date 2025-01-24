@@ -6,9 +6,8 @@
 import argparse
 
 import ray
-from ray.util.scheduling_strategies import NodeAffinitySchedulingStrategy
-
 import util
+from ray.util.scheduling_strategies import NodeAffinitySchedulingStrategy
 
 """
 This script dispatches sub-job(s) (individual jobs, use :file:`tuner.py` for tuning jobs)

@@ -20,34 +20,33 @@ the general workflow is the same.
   :depth: 3
   :local:
 
-Overview
---------
+**Overview**
+------------
 
-The Ray integration is useful for the following:
+The Ray integration is useful for the following.
 
-- Dispatching several training jobs in parallel or sequentially with minimal interaction
-- Tuning hyperparameters; in parallel or sequentially with support for multiple GPUs and/or multiple GPU Nodes
-- Using the same training setup everywhere (on cloud and local) with minimal overhead
-- Resource Isolation for training jobs
+- Dispatching several training jobs in parallel or sequentially with minimal interaction.
+- Tuning hyperparameters; in parallel or sequentially with support for multiple GPUs and/or multiple GPU Nodes.
+- Using the same training setup everywhere (on cloud and local) with minimal overhead.
+- Resource Isolation for training jobs (resource-wrapped jobs).
 
 The core functionality of the Ray workflow consists of two main scripts that enable the orchestration
-of resource-wrapped and tuning aggregate jobs. These scripts facilitate the decomposition of
-aggregate jobs (overarching experiments) into individual jobs, which are discrete commands
-executed on the cluster. An aggregate job can include multiple individual jobs.
+of resource-wrapped and tuning aggregate jobs. In resource-wrapped aggregate jobs, each sub-job and its
+resource requirements are defined manually, enabling resource isolation.
+For tuning aggregate jobs, individual jobs are generated automatically based on a hyperparameter
+sweep configuration.
+
 Both resource-wrapped and tuning aggregate jobs dispatch individual jobs to a designated Ray
 cluster, which leverages the cluster's resources (e.g., a single workstation node or multiple nodes)
-to execute these jobs with workers in parallel and/or sequentially. 
+to execute these jobs with workers in parallel and/or sequentially.
 
 By default, jobs use all \
 available resources on each available GPU-enabled node for each sub-job worker. This can be changed through
 specifying the ``--num_workers`` argument for resource-wrapped jobs, or ``--num_workers_per_node``
 for tuning jobs, which is especially critical for parallel aggregate
-job processing on local/virtual multi-GPU machines.
+job processing on local/virtual multi-GPU machines. Tuning jobs assume homogeneous node resource composition for nodes with GPUs.
 
-In resource-wrapped aggregate jobs, each sub-job and its
-resource requirements are defined manually, enabling resource isolation.
-For tuning aggregate jobs, individual jobs are generated automatically based on a hyperparameter
-sweep configuration. Tuning jobs assume homogeneous node resource composition for nodes with GPUs.
+The two following files contain the core functionality of the Ray integration.
 
 .. dropdown:: source/standalone/workflows/ray/wrap_resources.py
   :icon: code
@@ -94,39 +93,47 @@ The following script can be used to easily create clusters on Google GKE.
     :language: python
     :emphasize-lines: 16-37
 
-** Docker-based Local Quickstart **
+**Docker-based Local Quickstart**
 -----------------------------------
 
-First, follow the `Docker Guide <https://isaac-sim.github.io/IsaacLab/main/source/deployment/docker.html>`
+First, follow the `Docker Guide <https://isaac-sim.github.io/IsaacLab/main/source/deployment/docker.html>`_
 to set up the NVIDIA Container Toolkit and Docker Compose.
 
-Then, try the following steps to start your first tuning run.
+Then, run the following steps to start a tuning run.
 
 .. code-block:: bash
 
-  # Build the base image
-  ./isaaclab.sh docker/container.py start
+  # Build the base image, but we don't need to run it
+  python3 docker/container.py start && python3 docker/container.py stop
   # Build the tuning image with extra deps
   docker build -t isaacray -f source/standalone/workflows/ray/cluster_configs/Dockerfile .
   # Start the tuning image
   docker run -it --gpus all --net=host --entrypoint /bin/bash isaacray
-  # Start the Ray server within the tuning image 
+  # Start the Ray server within the tuning image
   echo "import ray; ray.init(); import time; [time.sleep(10) for _ in iter(int, 1)]" | ./isaaclab.sh -p
-  
+
+
+
+In a different terminal, run the following.
+
+
+.. code-block:: bash
+
   # In a new terminal (don't close the above) , enter the image with a new shell.
   docker container ps
   docker exec -it <ISAAC_RAY_IMAGE_ID_FROM_CONTAINER_PS> /bin/bash
-  # Start a tuning run, with one parallel worker per GPU 
-  /isaaclab.sh -p source/standalone/workflows/ray/tuner.py \
+  # Start a tuning run, with one parallel worker per GPU
+  ./isaaclab.sh -p source/standalone/workflows/ray/tuner.py \
     --cfg_file source/standalone/workflows/ray/hyperparameter_tuning/vision_cartpole_cfg.py \
     --cfg_class CartpoleTheiaJobCfg \
+    --run_mode local \
     --num_workers_per_node <NUMBER_OF_GPUS_IN_COMPUTER>
 
 
-For tuning jobs, specify the tuning job / hyperparameter sweep as child class of
-  :class:`JobCfg` .
 
-.. dropdown:: source/standalone/workflows/ray/tuner.py JobCfg definition
+For tuning jobs, specify the tuning job / hyperparameter sweep as child class of :class:`JobCfg` .
+
+.. dropdown:: source/standalone/workflows/ray/tuner.py (JobCfg definition)
   :icon: code
 
   .. literalinclude:: ../../../source/standalone/workflows/ray/tuner.py
@@ -204,7 +211,7 @@ Simple Ray Cluster (Local/VM)
 4.) For tuning jobs, specify the tuning job / hyperparameter sweep as child class of
   :class:`JobCfg` .
 
-.. dropdown:: source/standalone/workflows/ray/tuner.py
+.. dropdown:: source/standalone/workflows/ray/tuner.py  (JobCfg definition)
   :icon: code
 
   .. literalinclude:: ../../../source/standalone/workflows/ray/tuner.py
@@ -275,7 +282,7 @@ Ray Clusters (Without Kubernetes)
   steps for creating an image/cluster permissions/bucket access.
 
 See the `Ray Clusters Overview <https://docs.ray.io/en/latest/cluster/getting-started.html>`_ or
-`Anyscale <https://www.anyscale.com/product>`_ for more information
+`Anyscale <https://www.anyscale.com/product>`_ for more information.
 
 
 This guide assumes that one desires to create a cluster on a remote host or server. This
@@ -382,7 +389,7 @@ Shared Steps Between KubeRay and Pure Ray Part II
 
 3.) For tuning jobs, specify the tuning job / hyperparameter sweep as a :class:`JobCfg` .
 
-.. dropdown:: source/standalone/workflows/ray/tuner.py
+.. dropdown:: source/standalone/workflows/ray/tuner.py (JobCfg definition)
   :icon: code
 
   .. literalinclude:: ../../../source/standalone/workflows/ray/tuner.py
