@@ -350,9 +350,9 @@ Dispatching Steps Shared Between KubeRay and Pure Ray Part II
     :emphasize-lines: 12-53
 
 3.) For tuning jobs, specify the tuning job / hyperparameter sweep as a :class:`JobCfg` .
-  The included :class:`JobCfg` only supports the ``rl_games`` workflow due to differences in
-  environment entrypoints and hydra arguments, although other workflows will work if provided a compatible
-  :class:`JobCfg`.
+The included :class:`JobCfg` only supports the ``rl_games`` workflow due to differences in
+environment entrypoints and hydra arguments, although other workflows will work if provided a compatible
+:class:`JobCfg`.
 
 .. dropdown:: source/standalone/workflows/ray/tuner.py (JobCfg definition)
   :icon: code
