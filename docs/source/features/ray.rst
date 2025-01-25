@@ -127,7 +127,7 @@ In a different terminal, run the following.
     --cfg_file source/standalone/workflows/ray/hyperparameter_tuning/vision_cartpole_cfg.py \
     --cfg_class CartpoleTheiaJobCfg \
     --run_mode local \
-    --workflow source/standalone/workflows/rl_games/train.py
+    --workflow source/standalone/workflows/rl_games/train.py \
     --num_workers_per_node <NUMBER_OF_GPUS_IN_COMPUTER>
 
 
