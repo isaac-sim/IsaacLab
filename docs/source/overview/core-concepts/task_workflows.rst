@@ -6,7 +6,7 @@ Task Design Workflows
 
 .. currentmodule:: omni.isaac.lab
 
-A **Task** is defined by an environment with specific interfaces for observations to and actions from a specific agent (robot). The environment is what provides an agent with the current observations and executes that agent's actions by updating the simulation forward in time. There are many common components of simulating a robot in an environment, regardless of what you might want that robot to do or how it might be trained to do it. 
+A **Task** is defined by an environment with specific interfaces for observations to and actions from a specific agent (robot). The environment is what provides an agent with the current observations and executes that agent's actions by updating the simulation forward in time. There are many common components of simulating a robot in an environment, regardless of what you might want that robot to do or how it might be trained to do it.
 
 This is especially true of Reinforcement Learning (RL), where managing the actions, observations, rewards, etc... across a vectorized GPU simulation can be daunting to even think about! To meet this need, Isaac Lab provides the ability to build your RL environments within our **Manager-based** system, allowing you to trust various minutia the appropriate manager classes. However, we also recognize the need to exert granular control over an environment, especially during development. For this need, we also provide a **Direct** interface into the simulation, giving you full control!
 
@@ -14,7 +14,7 @@ This is especially true of Reinforcement Learning (RL), where managing the actio
   aspects of the environment (such as computing observations, applying actions, and applying randomization). The
   user defines configuration classes for each component and the environment is responsible for coordinating the
   managers and calling their functions.
-  
+
 * **Direct**: The user defines a single class that implements the entire environment directly without the need for
   separate managers. This class is responsible for computing observations, applying actions, and computing rewards.
 
@@ -77,7 +77,7 @@ Direct Environments
 The direct-style environment aligns more closely with traditional implementations of environments from other libraries.
 A single class implements the reward function, observation function, resets, and all the other components
 of the environment. This approach does not require the manager classes. Instead, users are provided the complete freedom
-to implement their task through the APIs from the base classes :class:`envs.DirectRLEnv` or :class:`envs.DirectMARLEnv`. 
+to implement their task through the APIs from the base classes :class:`envs.DirectRLEnv` or :class:`envs.DirectMARLEnv`.
 Direct environments still require configurations to be defined, specifically by inheriting from either :class:`envs.DirectRLEnvCfg` or :class:`envs.DirectMARLEnvCfg`.
 This workflow may be the most familiar for users migrating from the `IsaacGymEnvs`_ and `OmniIsaacGymEnvs`_ frameworks.
 
