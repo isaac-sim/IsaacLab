@@ -1,34 +1,71 @@
 from __future__ import annotations
 import math
 import torch
-from dataclasses import MISSING
 from collections.abc import Sequence
 
 import omni.isaac.lab.sim as sim_utils
-import omni.isaac.lab.utils.math as math_utils
 from omni.isaac.lab.actuators.actuator_cfg import ImplicitActuatorCfg
 from omni.isaac.lab.markers import VisualizationMarkersCfg, VisualizationMarkers
 from omni.isaac.lab.assets import Articulation, DeformableObject, ArticulationCfg, DeformableObjectCfg, RigidObjectCfg, RigidObject
 from omni.isaac.lab.envs import DirectRLEnv, DirectRLEnvCfg
 from omni.isaac.lab.scene import InteractiveSceneCfg
 from omni.isaac.lab.sim import SimulationCfg
-from omni.isaac.lab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_plane, UsdFileCfg
+from omni.isaac.lab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_plane 
 from omni.isaac.lab.utils import configclass
+from omni.isaac.lab.utils.math import subtract_frame_transforms
 
 from omni.isaac.lab.utils.assets import ISAAC_NUCLEUS_DIR
-from omni.isaac.lab_assets.franka import FRANKA_PANDA_CFG
 
 CUBE_SIZE = 0.1
-CUBE_X_MIN, CUBE_X_MAX = 0.0, 1.0
-CUBE_Y_MIN, CUBE_Y_MAX = -0.45, 0.45
+SPAWN_X_BOUNDS = (0.05, 0.90)
+SPAWN_Y_BOUNDS = (-0.42, 0.42)
+SPAWN_Z_LEVEL = 1.0
 
 # TODO: Edit GPU settings for softbody contact buffer size
 # TODO: mess with deformable object settings
-# TODO: Make sure cube spawns on table
 # TODO: Add some way to detect if cube is in container
 
-def get_robot() -> ArticulationCfg:
-	return ArticulationCfg(
+@configclass
+class DeformableCubeEnvCfg(DirectRLEnvCfg):
+	num_envs = 4
+	env_spacing = 3.0
+	dt = 1 / 120
+	observation_space = 15
+	action_space = 9
+	state_space = 0
+	action_scale = 7.5
+
+	# env
+	decimation = 1
+	episode_length_s = 5.0
+
+	# simulation
+	sim: SimulationCfg = SimulationCfg(dt=dt, render_interval=decimation)
+	scene: InteractiveSceneCfg = InteractiveSceneCfg(
+		num_envs=num_envs, 
+		env_spacing=env_spacing, 
+		replicate_physics=False,
+	)
+
+	# entities
+	table_cfg: RigidObjectCfg = RigidObjectCfg(
+		prim_path="/World/envs/env_.*/Table",
+		spawn=sim_utils.UsdFileCfg(
+			usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/SeattleLabTable/table_instanceable.usd",
+			rigid_props=sim_utils.RigidBodyPropertiesCfg(
+				disable_gravity=False,
+			),
+			collision_props=sim_utils.CollisionPropertiesCfg(
+				collision_enabled=True,
+			),
+		),
+		init_state=RigidObjectCfg.InitialStateCfg(
+			pos=(0.5, 0.0, 1.0),
+			rot=(0.707, 0.0, 0.0, 0.707)
+		),
+	)
+
+	robot_cfg: ArticulationCfg = ArticulationCfg(
 		prim_path="/World/envs/env_.*/Robot",
 		spawn=sim_utils.UsdFileCfg(
 			usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/Franka/franka_instanceable.usd",
@@ -80,8 +117,7 @@ def get_robot() -> ArticulationCfg:
 		},
 	)
 
-def get_object() -> DeformableObjectCfg:
-	return DeformableObjectCfg(
+	object_cfg: DeformableObjectCfg = DeformableObjectCfg(
 		prim_path="/World/envs/env_.*/Cube",
 		spawn=sim_utils.MeshCuboidCfg(
 			size=(CUBE_SIZE, CUBE_SIZE, CUBE_SIZE),
@@ -97,12 +133,11 @@ def get_object() -> DeformableObjectCfg:
 				youngs_modulus=1e5
 			),
 		),
-		init_state=DeformableObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 1.0 + CUBE_SIZE / 1.9)),
+		init_state=DeformableObjectCfg.InitialStateCfg(pos=(0.0, 0.0, SPAWN_Z_LEVEL + CUBE_SIZE / 1.9)),
 		debug_vis=True,
 	)
 
-def get_container() -> RigidObjectCfg:
-	return RigidObjectCfg(
+	container_cfg: RigidObjectCfg = RigidObjectCfg(
 		prim_path="/World/envs/env_.*/Container",
 		spawn=sim_utils.UsdFileCfg(
 			usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/KLT_Bin/small_KLT_visual_collision.usd",
@@ -121,52 +156,6 @@ def get_container() -> RigidObjectCfg:
 		),
 	)
 
-def get_table() -> RigidObjectCfg:
-	return RigidObjectCfg(
-		prim_path="/World/envs/env_.*/Table",
-		spawn=sim_utils.UsdFileCfg(
-			usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/SeattleLabTable/table_instanceable.usd",
-			rigid_props=sim_utils.RigidBodyPropertiesCfg(
-				disable_gravity=False,
-			),
-			collision_props=sim_utils.CollisionPropertiesCfg(
-				collision_enabled=True,
-			),
-		),
-		init_state=RigidObjectCfg.InitialStateCfg(
-			pos=(0.5, 0.0, 1.0),
-			rot=(0.707, 0.0, 0.0, 0.707)
-		),
-	)
-
-
-@configclass
-class DeformableCubeEnvCfg(DirectRLEnvCfg):
-	num_envs = 32
-	env_spacing = 3.0
-	dt = 1 / 120
-	observation_space = 15
-	action_space = 9
-	state_space = 0
-	action_scale = 7.5
-
-	# env
-	decimation = 1
-	episode_length_s = 5.0
-
-	# simulation
-	sim: SimulationCfg = SimulationCfg(dt=dt, render_interval=decimation)
-	scene: InteractiveSceneCfg = InteractiveSceneCfg(
-		num_envs=num_envs, 
-		env_spacing=env_spacing, 
-		replicate_physics=False,
-	)
-
-	# entities
-	table_cfg: RigidObjectCfg = get_table()
-	robot_cfg: ArticulationCfg = get_robot()
-	object_cfg: DeformableObjectCfg = get_object()
-	container_cfg: RigidObjectCfg = get_container()
 
 	# markers
 	table_markers_cfg: VisualizationMarkersCfg = VisualizationMarkersCfg(
@@ -191,14 +180,22 @@ class DeformableCubeEnvCfg(DirectRLEnvCfg):
 		}
 	)
 
-def draw_markers(markers: VisualizationMarkers, origins: torch.Tensor):
+
+# draws frame markers to bound the region where objects can spawn
+def draw_spawn_bounds(
+		markers: VisualizationMarkers,
+		origins: torch.Tensor, 
+		x_bounds: tuple[float, float], 
+		y_bounds: tuple[float, float],
+		z_val: float
+):
 	N_envs = origins.shape[0]
 
-	# table corner markers
-	bottom_left_T = torch.tensor([0.0, 0.45, 1.0], device=origins.device).reshape(1, -1)
-	bottom_right_T = torch.tensor([0.0, -0.45, 1.0], device=origins.device).reshape(1, -1)
-	top_left_T = torch.tensor([1.0, 0.45, 1.0], device=origins.device).reshape(1, -1)
-	top_right_T = torch.tensor([1.0, -0.45, 1.0], device=origins.device).reshape(1, -1)
+	# spawn corner markers
+	bottom_left_T = torch.tensor([x_bounds[0], y_bounds[1], z_val], device=origins.device).reshape(1, -1)
+	bottom_right_T = torch.tensor([x_bounds[0], y_bounds[0], z_val], device=origins.device).reshape(1, -1)
+	top_left_T = torch.tensor([x_bounds[1], y_bounds[1], z_val], device=origins.device).reshape(1, -1)
+	top_right_T = torch.tensor([x_bounds[1], y_bounds[0], z_val], device=origins.device).reshape(1, -1)
 
 	bottom_left, bottom_right, top_left, top_right = origins.clone().repeat(4, 1).reshape(4, -1, 3).unbind(0)
 	bottom_left += bottom_left_T
@@ -223,9 +220,6 @@ class DeformableCubeEnv(DirectRLEnv):
 
 	def __init__(self, cfg: DeformableCubeEnvCfg, render_mode: str | None = None, **kwargs):
 		super().__init__(cfg, render_mode, **kwargs)
-
-		self.dt = self.cfg.sim.dt * self.cfg.decimation
-
 		self.robot_dof_lower_limits = self.robot.data.soft_joint_pos_limits[0, :, 0].to(device=self.device)
 		self.robot_dof_upper_limits = self.robot.data.soft_joint_pos_limits[0, :, 1].to(device=self.device)
 
@@ -236,14 +230,19 @@ class DeformableCubeEnv(DirectRLEnv):
 
 	def _setup_scene(self):
 		self.robot = Articulation(self.cfg.robot_cfg)
-		self.object = DeformableObject(self.cfg.object_cfg)
-		self.container = RigidObject(self.cfg.container_cfg)
-		self.table = RigidObject(self.cfg.table_cfg)
-		self.table_markers = VisualizationMarkers(self.cfg.table_markers_cfg)
 		self.scene.articulations["robot"] = self.robot
 
+		self.object = DeformableObject(self.cfg.object_cfg)
+		self.container = RigidObject(self.cfg.container_cfg)
+
+		self.table = RigidObject(self.cfg.table_cfg)
+		self.table_markers = VisualizationMarkers(self.cfg.table_markers_cfg)
+		draw_spawn_bounds(
+			self.table_markers, self.scene.env_origins, 
+			SPAWN_X_BOUNDS, SPAWN_Y_BOUNDS, SPAWN_Z_LEVEL
+		)
+
 		spawn_ground_plane(prim_path="/World/ground", cfg=GroundPlaneCfg())
-		draw_markers(self.table_markers, self.scene.env_origins)
 
 		# clone, filter, and replicate
 		self.scene.clone_environments(copy_from_source=False)
@@ -255,20 +254,30 @@ class DeformableCubeEnv(DirectRLEnv):
 
 	def _pre_physics_step(self, actions: torch.Tensor) -> None:
 		self.actions = actions.clone().clamp(-1.0, 1.0)
-		targets = self.robot_dof_targets + self.robot_dof_speed_scales * self.dt * self.actions * self.cfg.action_scale
+		targets = self.robot_dof_targets + self.robot_dof_speed_scales * self.step_dt * self.actions * self.cfg.action_scale
 		self.robot_dof_targets[:] = torch.clamp(targets, self.robot_dof_lower_limits, self.robot_dof_upper_limits)
 
 	def _apply_action(self) -> None:
 		self.robot.set_joint_position_target(self.robot_dof_targets)
 
 	def _get_observations(self) -> dict:
-		pass
+		joint_pos_rel = (self.robot.data.joint_pos - self.robot.data.default_joint_pos).clone()
+		joint_vel_rel = (self.robot.data.joint_vel - self.robot.data.default_joint_vel).clone()
+		object_pos, object_quat = subtract_frame_transforms(
+			self.robot.data.root_link_state_w[:, :3],
+			self.robot.data.root_link_state_w[:, 3:7],
+			self.object.data.root_pos_w
+		)
+		container_pos = self.container.data.root_link_pos_w.clone()
+		last_action = self.actions.clone()
+		print(joint_pos_rel.shape, joint_vel_rel.shape, object_pos.shape, object_quat.shape, container_pos.shape, last_action.shape)
 
 	def _get_rewards(self) -> torch.Tensor:
 		pass
 
 	def _get_dones(self) -> tuple[torch.Tensor, torch.Tensor]:
-		out_of_bounds = torch.full((self.cfg.num_envs,), fill_value=False, dtype=bool)
+		self.object.update(self.step_dt)
+		out_of_bounds = self.object.data.root_pos_w[:, -1] < 0.5 # if object falls
 		time_out = self.episode_length_buf >= self.max_episode_length - 1
 		return out_of_bounds, time_out
 
@@ -278,8 +287,8 @@ class DeformableCubeEnv(DirectRLEnv):
 
 		# reset objects
 		x_offset, y_offset = torch.rand(2, len(env_ids), 1, device=self.device)
-		x_offset = x_offset * (CUBE_X_MAX - CUBE_X_MIN) + CUBE_X_MIN
-		y_offset = y_offset * (CUBE_Y_MAX - CUBE_Y_MIN) + CUBE_Y_MIN
+		x_offset = x_offset * (SPAWN_X_BOUNDS[1] - SPAWN_X_BOUNDS[0]) + SPAWN_X_BOUNDS[0]
+		y_offset = y_offset * (SPAWN_Y_BOUNDS[1] - SPAWN_Y_BOUNDS[0]) + SPAWN_Y_BOUNDS[0]
 		pos_t = torch.cat([x_offset, y_offset, torch.zeros_like(x_offset)], dim=-1)
 
 		quat_t = torch.zeros(len(env_ids), 4, device=self.device)
@@ -294,10 +303,4 @@ class DeformableCubeEnv(DirectRLEnv):
 		# reset robots
 		joint_pos = self.robot.data.default_joint_pos[env_ids]
 		joint_vel = torch.zeros_like(joint_pos)
-		# self.robot.set_joint_position_target(joint_pos, env_ids=env_ids)
 		self.robot.write_joint_state_to_sim(position=joint_pos, velocity=joint_vel, env_ids=env_ids)
-
-		# reset containers
-		# container_pose = self.container.data.default_root_state[env_ids, :]
-		# container_pose[:, :3] += self.scene.env_origins
-		# self.container.write_root_state_to_sim(container_pose, env_ids)
