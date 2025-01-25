@@ -6,14 +6,15 @@ Task Design Workflows
 
 .. currentmodule:: omni.isaac.lab
 
-The environment provides an agent with the current observations and executes the actions provided by an agent, updating the simulation to the next time step. You can think of it as a function that consumes the action to be taken by the agent, and returns updated observations, rewards, and additional information. A **Task** is defined by an environment with specific interfaces for observations to and actions from a specific agent.
+A **Task** is defined by an environment with specific interfaces for observations to and actions from a specific agent (robot). The environment is what provides an agent with the current observations and executes that agent's actions by updating the simulation forward in time. There are many common components of simulating a robot in an environment, regardless of what you might want that robot to do or how it might be trained to do it. 
 
-There are common methods for doing the calculations involved in running a task, especially in managing a vectorized simulation on the GPU. To meet this need, Isaac Lab provides the ability to build your environments within our **Manager-based** system, allowing you to be sure that you experiments will scale appropriately on the various distributed cloud systems Isaac Lab may run on. However, we also recognize the need exert granular control over the environment, especially during development. For this need, we also provide a **Direct** interface into the simulation, giving you full control!
+This is especially true of Reinforcement Learning (RL), where managing the actions, observations, rewards, etc... across a vectorized GPU simulation can be daunting to even think about! To meet this need, Isaac Lab provides the ability to build your RL environments within our **Manager-based** system, allowing you to trust various minutia the appropriate manager classes. However, we also recognize the need to exert granular control over an environment, especially during development. For this need, we also provide a **Direct** interface into the simulation, giving you full control!
 
 * **Manager-based**: The environment is decomposed into individual components (or managers) that handle different
   aspects of the environment (such as computing observations, applying actions, and applying randomization). The
   user defines configuration classes for each component and the environment is responsible for coordinating the
   managers and calling their functions.
+  
 * **Direct**: The user defines a single class that implements the entire environment directly without the need for
   separate managers. This class is responsible for computing observations, applying actions, and computing rewards.
 
@@ -27,12 +28,6 @@ or when implementing complex logic that is difficult to decompose into separate 
 Manager-Based Environments
 --------------------------
 
-The interface defined in Reinforcement Learning (RL) for environments
-
-For example, the observation manager is responsible for computing the observations, the reward manager is responsible for
-computing the rewards, and the termination manager is responsible for computing the termination signal. This approach
-is known as the manager-based environment design in the framework.
-
 .. image:: ../../_static/task-workflows/manager-based-light.svg
     :class: only-light
     :align: center
@@ -43,22 +38,10 @@ is known as the manager-based environment design in the framework.
     :align: center
     :alt: Manager-based Task Workflow
 
-Manager-based environments promote modular implementations of tasks by decomposing the task into individual
-components that are managed by separate classes. Each component of the task, such as rewards, observations,
-termination can all be specified as individual configuration classes that are then passed to the corresponding
-manager classes. The manager is then responsible for parsing the configurations and processing the contents specified
-in its configuration.
+Manager-based environments promote modular implementations of tasks by decomposing it into individually managed components. Each component of the task, such as calculating rewards, observations, etc... can be specified as configurations a corresponding manager. These managers define configurable functions that are responsible for executing the specific computations as needed. Coordinating a collection of different managers is handled by an Environment class that inherits from :class:`envs.ManagerBasedEnv`. Configurations likewise must all inherit from :class:`envs.ManagerBasedEnvCfg`.
 
-The coordination between the different managers is orchestrated by the class :class:`envs.ManagerBasedRLEnv`.
-It takes in a task configuration class instance (:class:`envs.ManagerBasedRLEnvCfg`) that contains the configurations
-for each of the components of the task. Based on the configurations, the scene is set up and the task is initialized.
-Afterwards, while stepping through the environment, all the managers are called sequentially to perform the necessary
-operations.
-
-For their own tasks, we expect the user to mainly define the task configuration class and use the existing
-:class:`envs.ManagerBasedRLEnv` class for the task implementation. The task configuration class should inherit from
-the base class :class:`envs.ManagerBasedRLEnvCfg` and contain variables assigned to various configuration classes
-for each component (such as the ``ObservationCfg`` and ``RewardCfg``).
+For reinforcement learning, much of this has been done for you already! In most cases, it will be enough to simply inherit from
+:class:`envs.ManagerBasedRLEnv` and :class:`envs.ManagerBasedRLEnvCfg` for your environment and configurations respectively.
 
 .. dropdown:: Example for defining the reward function for the Cartpole task using the manager-style
     :icon: plus
@@ -72,13 +55,6 @@ for each component (such as the ``ObservationCfg`` and ``RewardCfg``).
         :language: python
         :pyobject: RewardsCfg
 
-
-Through this approach, it is possible to easily vary the implementations of the task by switching some components
-while leaving the remaining of the code intact. This flexibility is desirable when prototyping the environment and
-experimenting with different configurations. It also allows for easy collaborating with others on implementing an
-environment, since contributors may choose to use different combinations of configurations for their own task
-specifications.
-
 .. seealso::
 
     We provide a more detailed tutorial for setting up an environment using the manager-based workflow at
@@ -87,12 +63,6 @@ specifications.
 
 Direct Environments
 -------------------
-
-The direct-style environment aligns more closely with traditional implementations of environments,
-where a single script directly implements the reward function, observation function, resets, and all the other components
-of the environment. This approach does not require the manager classes. Instead, users are provided the complete freedom
-to implement their task through the APIs from the base classes :class:`envs.DirectRLEnv` or :class:`envs.DirectMARLEnv`.
-For users migrating from the `IsaacGymEnvs`_ and `OmniIsaacGymEnvs`_ framework, this workflow may be more familiar.
 
 .. image:: ../../_static/task-workflows/direct-based-light.svg
     :class: only-light
@@ -104,11 +74,12 @@ For users migrating from the `IsaacGymEnvs`_ and `OmniIsaacGymEnvs`_ framework, 
     :align: center
     :alt: Direct-based Task Workflow
 
-When defining an environment with the direct-style implementation, we expect the user define a single class that
-implements the entire environment. The task class should inherit from the base classes :class:`envs.DirectRLEnv` or
-:class:`envs.DirectMARLEnv` and should have its corresponding configuration class that inherits from
-:class:`envs.DirectRLEnvCfg` or :class:`envs.DirectMARLEnvCfg` respectively. The task class is responsible
-for setting up the scene, processing the actions, computing the rewards, observations, resets, and termination signals.
+The direct-style environment aligns more closely with traditional implementations of environments from other libraries.
+A single class implements the reward function, observation function, resets, and all the other components
+of the environment. This approach does not require the manager classes. Instead, users are provided the complete freedom
+to implement their task through the APIs from the base classes :class:`envs.DirectRLEnv` or :class:`envs.DirectMARLEnv`. 
+Direct environments still require configurations to be defined, specifically by inheriting from either :class:`envs.DirectRLEnvCfg` or :class:`envs.DirectMARLEnvCfg`.
+This workflow may be the most familiar for users migrating from the `IsaacGymEnvs`_ and `OmniIsaacGymEnvs`_ frameworks.
 
 .. dropdown:: Example for defining the reward function for the Cartpole task using the direct-style
     :icon: plus
@@ -125,13 +96,6 @@ for setting up the scene, processing the actions, computing the rewards, observa
     .. literalinclude:: ../../../../source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/direct/cartpole/cartpole_env.py
         :language: python
         :pyobject: compute_rewards
-
-This approach provides more transparency in the implementations of the environments, as logic is defined within the task
-class instead of abstracted with the use of managers. This may be beneficial when implementing complex logic that is
-difficult to decompose into separate components. Additionally, the direct-style implementation may bring more performance
-benefits for the environment, as it allows implementing large chunks of logic with optimized frameworks such as
-`PyTorch JIT`_ or `Warp`_. This may be valuable when scaling up training tremendously which requires optimizing individual
-operations in the environment.
 
 .. seealso::
 

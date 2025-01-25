@@ -37,3 +37,4 @@ Local Installation
 
     Pip installation (recommended for Ubuntu 22.04 and Windows) <pip_installation>
     Binary installation (recommended for Ubuntu 20.04) <binaries_installation>
+    VS Code <vs_code>

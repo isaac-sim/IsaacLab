@@ -1,8 +1,6 @@
 Repository organization
 -----------------------
 
-The Isaac Lab repository is structured as follows:
-
 .. code-block:: bash
 
    IsaacLab
@@ -31,13 +29,13 @@ The Isaac Lab repository is structured as follows:
    ├── tools
    └── VERSION
 
-Isaac Lab is built on the same back end of Isaac Sim.  As such, it exists as a collection of **extensions** that can be assembled into **applications**. The ``source`` directory contains the source code for all Isaac Lab, with ``source/extensions`` containing the specific extensions that compose Isaac lab, and ``source/standalone`` containing python scripts for launching customized standalone apps (Like our workflows). These are the two primary ways of interacting with the simulation: building a custom application or using your extension within an existing one, and Isaac lab supports both! Checkout this `Isaac Sim introduction to workflows <https://docs.omniverse.nvidia.com/isaacsim/latest/introductory_tutorials/tutorial_intro_workflows.html>`__ for more details.
+Isaac Lab is built on the same back end as Isaac Sim.  As such, it exists as a collection of **extensions** that can be assembled into **applications**. The ``source`` directory contains the majority of the code in the repository, with ``source/extensions`` containing the specific extensions that compose Isaac lab, and ``source/standalone`` containing python scripts for launching customized standalone apps (Like our workflows). These are the two primary ways of interacting with the simulation and Isaac lab supports both! Checkout this `Isaac Sim introduction to workflows <https://docs.omniverse.nvidia.com/isaacsim/latest/introductory_tutorials/tutorial_intro_workflows.html>`__ for more details.
 
 
 Extensions
 ~~~~~~~~~~
 
-Extensions are the atomic component of Omniverse.  Everything in Omniverse is either an extension, or a collection of extensions (an app). The extensions that compose Isaac Lab are kept in the ``source/extensions`` directory. To simplify the build process, Isaac Lab directly use `setuptools <https://setuptools.readthedocs.io/en/latest/>`__. It is strongly recommend that you adhere to this process if you create your own extensions using Isaac Lab.
+The extensions that compose Isaac Lab are kept in the ``source/extensions`` directory. To simplify the build process, Isaac Lab directly use `setuptools <https://setuptools.readthedocs.io/en/latest/>`__. It is strongly recommend that you adhere to this process if you create your own extensions using Isaac Lab.
 
 The extensions are organized as follows:
 

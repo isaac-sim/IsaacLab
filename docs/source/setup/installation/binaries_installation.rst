@@ -422,7 +422,7 @@ If you see this, then the installation was successful! |:tada:|
 Train a robot!
 ~~~~~~~~~~~~~~~
 
-You can now use Isaac Lab to train a robot through Reinforcement Learning! The quickest way to use Isaac Lab is through the predefined workflows using one of our **Batteries-included** robots. Execute the following command to quickly train a robotic
+You can now use Isaac Lab to train a robot through Reinforcement Learning! The quickest way to use Isaac Lab is through the predefined workflows using one of our **Batteries-included** robot tasks. Execute the following command to quickly train a robotic
 hand to orient a cube!
 
 .. tab-set::

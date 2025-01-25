@@ -1,10 +1,7 @@
-Application Development
+Extension Development
 =======================
 
-Extensions
-~~~~~~~~~~
-
-Extensions form the core functionality of Isaac Sim and therefore Isaac Lab. They are
+Everything in Omniverse is either an extension, or a collection of extensions (an application). They are
 modularized packages that form the atoms of the Omniverse ecosystem. Each extension
 provides a set of functionalities that can be used by other extensions or
 standalone applications. A folder is recognized as an extension if it contains

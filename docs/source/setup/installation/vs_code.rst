@@ -1,9 +1,7 @@
 Setting up Visual Studio Code
 -----------------------------
 
-`Visual Studio Code <https://code.visualstudio.com/>`_ has proven an invaluable tool for the development of Isaac Lab. The repository includes the VSCode settings to easily allow setting
-up your development environment. These are included in the ``.vscode`` directory
-and include the following files:
+`Visual Studio Code <https://code.visualstudio.com/>`_ has proven an invaluable tool for the development of Isaac Lab. The Isaac Lab repository includes the VSCode files for setting up your development environment. These are included in the ``.vscode`` directory and include the following files:
 
 .. code-block:: bash
 
