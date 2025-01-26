@@ -100,10 +100,10 @@ class IsaacLabTuneTrainable(tune.Trainable):
 
         if self.proc is None:
             raise ValueError("Could not start trial.")
-
-        if self.proc.poll() is not None:  # process finished, signal finish
+        proc_status = self.proc.poll()
+        if proc_status is not None:  # process finished, signal finish
             self.data["done"] = True
-            print("[INFO]: Process finished, returning...")
+            print(f"[INFO]: Process finished with {proc_status}, returning...")
         else:  # wait until the logs are ready or fresh
             data = util.load_tensorboard_logs(self.tensorboard_logdir)
 

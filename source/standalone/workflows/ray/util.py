@@ -6,6 +6,7 @@ import argparse
 import os
 import re
 import subprocess
+import threading
 from datetime import datetime
 from math import isclose
 
@@ -196,47 +197,62 @@ def execute_job(
         experiment_info_pattern = re.compile("Exact experiment name requested from command line: (.+)")
         logdir_pattern = re.compile(r"\[INFO\] Logging experiment in directory: (.+)$")
         err_pattern = re.compile("There was an error (.+)$")
-        with process.stdout as stdout:
-            for line in iter(stdout.readline, ""):
+
+        def stream_reader(stream, identifier_string, result_details):
+            for line in iter(stream.readline, ""):
                 line = line.strip()
-                result_details.append(f"{identifier_string}: {line} \n")
+                result_details.append(f"{identifier_string}: {line}\n")
                 if log_all_output:
                     print(f"{identifier_string}: {line}")
 
-                if extract_experiment:
-                    exp_match = experiment_info_pattern.search(line)
-                    log_match = logdir_pattern.search(line)
-                    err_match = err_pattern.search(line)
-                    if err_match:
-                        raise ValueError(f"Encountered an error during trial run. {' '.join(result_details)}")
-
-                    if exp_match:
-                        experiment_name = exp_match.group(1)
-                    if log_match:
-                        logdir = log_match.group(1)
-
-                    if experiment_name and logdir:
-                        result = {
-                            "experiment_name": experiment_name,
-                            "logdir": logdir,
-                            "proc": process,
-                            "result": " ".join(result_details),
-                        }
-                        return result
-
-        with process.stderr as stderr:
-            for line in iter(stderr.readline, ""):
-                line = line.strip()
-                result_details.append(f"{identifier_string}: {line}")
+        # Read stdout until we find experiment info
+        # Do some careful handling prevent overflowing the pipe reading buffer with error 141
+        for line in iter(process.stdout.readline, ""):
+            line = line.strip()
+            result_details.append(f"{identifier_string}: {line} \n")
+            if log_all_output:
                 print(f"{identifier_string}: {line}")
 
-        process.wait()  # Wait for the subprocess to finish naturally if not exited early
+            if extract_experiment:
+                exp_match = experiment_info_pattern.search(line)
+                log_match = logdir_pattern.search(line)
+                err_match = err_pattern.search(line)
 
-    now = datetime.now().strftime("%H:%M:%S.%f")
-    completion_info = f"\n[INFO]: {identifier_string}: Job Started at {start_time}, completed at {now}\n"
-    print(completion_info)
-    result_details.append(completion_info)
-    return " ".join(result_details)
+                if err_match:
+                    raise ValueError(f"Encountered an error during trial run. {' '.join(result_details)}")
+
+                if exp_match:
+                    experiment_name = exp_match.group(1)
+                if log_match:
+                    logdir = log_match.group(1)
+
+                if experiment_name and logdir:
+                    # Start stderr reader after finding experiment info
+                    stderr_thread = threading.Thread(
+                        target=stream_reader, args=(process.stderr, identifier_string, result_details)
+                    )
+                    stderr_thread.daemon = True
+                    stderr_thread.start()
+
+                    # Start stdout reader to continue reading after yield
+                    stdout_thread = threading.Thread(
+                        target=stream_reader, args=(process.stdout, identifier_string, result_details)
+                    )
+                    stdout_thread.daemon = True
+                    stdout_thread.start()
+
+                    return {
+                        "experiment_name": experiment_name,
+                        "logdir": logdir,
+                        "proc": process,
+                        "result": " ".join(result_details),
+                    }
+        process.wait()
+        now = datetime.now().strftime("%H:%M:%S.%f")
+        completion_info = f"\n[INFO]: {identifier_string}: Job Started at {start_time}, completed at {now}\n"
+        print(completion_info)
+        result_details.append(completion_info)
+        return " ".join(result_details)
 
 
 def get_gpu_node_resources(
