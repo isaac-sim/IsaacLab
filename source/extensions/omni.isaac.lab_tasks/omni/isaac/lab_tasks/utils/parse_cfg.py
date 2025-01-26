@@ -52,7 +52,8 @@ def load_cfg_from_registry(task_name: str, entry_point_key: str) -> dict | objec
         ValueError: If the entry point key is not available in the gym registry for the task.
     """
     # obtain the configuration entry point
-    cfg_entry_point = gym.spec(task_name).kwargs.get(entry_point_key)
+    task_id = gym.envs.registration._find_spec(task_name).id
+    cfg_entry_point = gym.spec(task_id).kwargs.get(entry_point_key)
     # check if entry point exists
     if cfg_entry_point is None:
         raise ValueError(
