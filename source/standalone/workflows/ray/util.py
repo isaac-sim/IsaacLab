@@ -234,7 +234,7 @@ def execute_job(
                     stderr_thread.daemon = True
                     stderr_thread.start()
 
-                    # Start stdout reader to continue reading after yield
+                    # Start stdout reader to continue reading to flush buffer
                     stdout_thread = threading.Thread(
                         target=stream_reader, args=(process.stdout, identifier_string, result_details)
                     )
