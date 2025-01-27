@@ -89,7 +89,11 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     env_cfg.sim.device = args_cli.device if args_cli.device is not None else env_cfg.sim.device
 
     # directory for logging into
-    log_dir = os.path.join("logs", "sb3", args_cli.task, datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
+    run_info = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    log_root_path = os.path.abspath(os.path.join("logs", "sb3", args_cli.task))
+    print(f"[INFO] Logging experiment in directory: {log_root_path}")
+    print(f"Exact experiment name requested from command line: {run_info}")
+    log_dir = os.path.join(log_root_path, run_info)
     # dump the configuration into log-directory
     dump_yaml(os.path.join(log_dir, "params", "env.yaml"), env_cfg)
     dump_yaml(os.path.join(log_dir, "params", "agent.yaml"), agent_cfg)
