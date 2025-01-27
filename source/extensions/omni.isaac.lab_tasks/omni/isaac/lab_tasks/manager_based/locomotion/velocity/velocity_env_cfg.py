@@ -174,7 +174,7 @@ class EventCfg:
     )
     
     base_com = EventTerm(
-        func=mdp.randomize_body_coms,
+        func=mdp.randomize_rigid_body_com,
         mode="startup",
         params={
             "asset_cfg": SceneEntityCfg("robot", body_names="base"),
