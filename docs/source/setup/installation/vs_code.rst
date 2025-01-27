@@ -49,7 +49,7 @@ Configuring the python interpreter
 ----------------------------------
 
 In the provided configuration, we set the default python interpreter to use the
-python executable provided by Omniverse. This is specified in the
+python executable provided by the Omniverse Launcher. This is specified in the
 ``.vscode/settings.json`` file:
 
 .. code-block:: json
