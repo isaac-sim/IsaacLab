@@ -1,7 +1,7 @@
 Changelog
 ---------
 
-0.33.11 (2025-01-30)
+0.33.12 (2025-01-30)
 ~~~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -12,13 +12,27 @@ Fixed
   to the event being triggered at the wrong time after the reset.
 
 
+0.33.11 (2025-01-25)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :attr:`isaaclab.scene.InteractiveSceneCfg.filter_collisions` to allow specifying whether collision masking across environments is desired.
+
+Changed
+^^^^^^^
+
+* Automatic collision filtering now happens as part of the replicate_physics call. When replicate_physics is not enabled, we call the previous ``filter_collisions`` API to mask collisions between environments.
+
+
 0.33.10 (2025-01-22)
 ~~~~~~~~~~~~~~~~~~~~
 
 Changed
 ^^^^^^^
 
-* In :meth:`omni.isaac.lab.assets.Articulation.write_joint_limits_to_sim`, we previously added a check for if default joint positions exceed the new limits being set. When this is True, we log a warning message to indicate that the default joint positions will be clipped to be within the range of the new limits. However, the warning message can become overly verbose in a randomization setting where this API is called on every environment reset. We now default to only writing the message to info level logging if called within randomization, and expose a parameter that can be used to choose the logging level desired.
+* In :meth:`isaaclab.assets.Articulation.write_joint_limits_to_sim`, we previously added a check for if default joint positions exceed the new limits being set. When this is True, we log a warning message to indicate that the default joint positions will be clipped to be within the range of the new limits. However, the warning message can become overly verbose in a randomization setting where this API is called on every environment reset. We now default to only writing the message to info level logging if called within randomization, and expose a parameter that can be used to choose the logging level desired.
 
 
 0.33.9 (2025-01-22)
@@ -36,6 +50,7 @@ Fixed
 Fixed
 ^^^^^
 
+<<<<<<< HEAD
 * Removed deprecation of :attr:`omni.isaac.lab.assets.ArticulationData.root_state_w` and
   :attr:`omni.isaac.lab.assets.ArticulationData.body_state_w` derived properties.
 * Removed deprecation of :meth:`omni.isaac.lab.assets.Articulation.write_root_state_to_sim`.
@@ -58,6 +73,29 @@ Fixed
 * Fixed indexing issue in ``write_root_link_velocity_to_sim`` in :class:`omni.isaac.lab.assets.RigidObject`
 * Fixed index broadcasting in ``write_object_link_velocity_to_sim`` and ``write_object_com_pose_to_sim`` in
   the :class:`omni.isaac.lab.assets.RigidObjectCollection` class.
+=======
+* removed deprecation of :attr:`isaaclab.assets.ArticulationData.root_state_w` and
+  :attr:`isaaclab.assets.ArticulationData.body_state_w` derived properties.
+* removed deprecation of :meth:`isaaclab.assets.Articulation.write_root_state_to_sim`.
+* replaced calls to :attr:`isaaclab.assets.ArticulationData.root_com_state_w` and
+  :attr:`isaaclab.assets.ArticulationData.root_link_state_w` with corresponding calls to
+  :attr:`isaaclab.assets.ArticulationData.root_state_w`.
+* replaced calls to :attr:`isaaclab.assets.ArticulationData.body_com_state_w` and
+  :attr:`isaaclab.assets.ArticulationData.body_link_state_w` properties with corresponding calls to
+  :attr:`isaaclab.assets.ArticulationData.body_state_w` properties.
+* removed deprecation of :attr:`isaaclab.assets.RigidObjectData.root_state_w` derived properties  .
+* removed deprecation of :meth:`isaaclab.assets.RigidObject.write_root_state_to_sim`.
+* replaced calls to :attr:`isaaclab.assets.RigidObjectData.root_com_state_w` and
+  :attr:`isaaclab.assets.RigidObjectData.root_link_state_w` properties with corresponding calls to
+  :attr:`isaaclab.assets.RigidObjectData.root_state_w` properties.
+* removed deprecation of :attr:`isaaclab.assets.RigidObjectCollectionData.root_state_w` derived properties.
+* removed deprecation of :meth:`isaaclab.assets.RigidObjectCollection.write_root_state_to_sim`.
+* replaced calls to :attr:`isaaclab.assets.RigidObjectCollectionData.root_com_state_w` and
+  :attr:`isaaclab.assets.RigidObjectData.root_link_state_w` properties with corresponding calls to
+  :attr:`isaaclab.assets.RigidObjectData.root_state_w` properties.
+* fixed indexing issue in ``write_root_link_velocity_to_sim`` in :class:`isaaclab.assets.RigidObject`
+* fixed index broadcasting in ``write_object_link_velocity_to_sim`` and ``write_object_com_pose_to_sim`` in :class:`isaaclab.assets.RigidObjectCollection`
+>>>>>>> e9a3c6c55 (Adds option to filter collisions and real-time playback (#253))
 
 
 0.33.7 (2025-01-14)
@@ -66,7 +104,7 @@ Fixed
 Fixed
 ^^^^^
 
-* Fixed the respawn of only wrong object samples in :func:`repeated_objects_terrain` of :mod:`omni.isaac.lab.terrains.trimesh` module. Previously, the function was respawning all objects in the scene instead of only the wrong object samples, which in worst case could lead to infinite respawn loop.
+* Fixed the respawn of only wrong object samples in :func:`repeated_objects_terrain` of :mod:`isaaclab.terrains.trimesh` module. Previously, the function was respawning all objects in the scene instead of only the wrong object samples, which in worst case could lead to infinite respawn loop.
 
 
 0.33.6 (2025-01-16)
@@ -104,7 +142,7 @@ Changed
 Fixed
 ^^^^^
 
-* Fixed docstring in articulation data :class:`omni.isaac.lab.assets.ArticulationData`.
+* Fixed docstring in articulation data :class:`isaaclab.assets.ArticulationData`.
   In body properties sections, the second dimension should be num_bodies but was documented as 1.
 
 
@@ -114,7 +152,7 @@ Fixed
 Added
 ^^^^^
 
-* Added body tracking as an origin type to :class:`omni.isaac.lab.envs.ViewerCfg` and :class:`omni.isaac.lab.envs.ui.ViewportCameraController`.
+* Added body tracking as an origin type to :class:`isaaclab.envs.ViewerCfg` and :class:`isaaclab.envs.ui.ViewportCameraController`.
 
 
 0.33.1 (2024-12-26)
@@ -133,7 +171,7 @@ Changed
 Fixed
 ^^^^^
 
-* Fixed populating default_joint_stiffness and default_joint_damping values for ImplicitActuator instances in :class:`omni.isaac.lab.assets.Articulation`
+* Fixed populating default_joint_stiffness and default_joint_damping values for ImplicitActuator instances in :class:`isaaclab.assets.Articulation`
 
 
 0.32.2 (2024-12-17)

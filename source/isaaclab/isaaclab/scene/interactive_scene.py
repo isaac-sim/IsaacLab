@@ -138,7 +138,7 @@ class InteractiveScene:
                 prim_paths=self.env_prim_paths,
                 replicate_physics=False,
                 copy_from_source=True,
-                enable_env_ids=True,  # this automatically filters collisions between environments
+                enable_env_ids=self.cfg.filter_collisions,  # this won't do anything because we are not replicating physics
             )
             self._default_env_origins = torch.tensor(env_origins, device=self.device, dtype=torch.float32)
         else:
@@ -160,8 +160,13 @@ class InteractiveScene:
                     prim_paths=self.env_prim_paths,
                     base_env_path=self.env_ns,
                     root_path=self.env_regex_ns.replace(".*", ""),
-                    enable_env_ids=True,
+                    enable_env_ids=self.cfg.filter_collisions,
                 )
+
+            # since env_ids is only applicable when replicating physics, we have to fallback to the previous method
+            # to filter collisions if replicate_physics is not enabled
+            if not self.cfg.replicate_physics and self.cfg.filter_collisions:
+                self.filter_collisions(self._global_prim_paths)
 
     def clone_environments(self, copy_from_source: bool = False):
         """Creates clones of the environment ``/World/envs/env_0``.
@@ -188,8 +193,16 @@ class InteractiveScene:
             prim_paths=self.env_prim_paths,
             replicate_physics=self.cfg.replicate_physics,
             copy_from_source=copy_from_source,
-            enable_env_ids=True,  # this automatically filters collisions between environments
+            enable_env_ids=self.cfg.filter_collisions,  # this automatically filters collisions between environments
         )
+
+        # since env_ids is only applicable when replicating physics, we have to fallback to the previous method
+        # to filter collisions if replicate_physics is not enabled
+        if not self.cfg.replicate_physics and self.cfg.filter_collisions:
+            omni.log.warn(
+                "Collision filtering can only be automatically enabled when replicate_physics=True."
+                " Please call scene.filter_collisions(global_prim_paths) to filter collisions across environments."
+            )
 
         # in case of heterogeneous cloning, the env origins is specified at init
         if self._default_env_origins is None:
