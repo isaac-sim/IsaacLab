@@ -6,12 +6,11 @@
 import argparse
 
 import ray
+import util
 from ray.util.scheduling_strategies import NodeAffinitySchedulingStrategy
 
-import source.standalone.workflows.ray.util as util
-
 """
-This script dispatches sub-job(s) (either individual jobs or tuning aggregate jobs)
+This script dispatches sub-job(s) (individual jobs, use :file:`tuner.py` for tuning jobs)
 to worker(s) on GPU-enabled node(s) of a specific cluster as part of an resource-wrapped aggregate
 job. If no desired compute resources for each sub-job are specified,
 this script creates one worker per available node for each node with GPU(s) in the cluster.
