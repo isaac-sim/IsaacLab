@@ -74,7 +74,6 @@ class EventCfg:
             ],
             "event_name": "cart_texture_randomizer",
             "texture_rotation": (math.pi / 2, math.pi / 2),
-            "replicate_physics": args_cli.replicate_physics,
         },
     )
 
@@ -93,7 +92,6 @@ class EventCfg:
             ],
             "event_name": "pole_texture_randomizer",
             "texture_rotation": (math.pi / 2, math.pi / 2),
-            "replicate_physics": args_cli.replicate_physics,
         },
     )
 

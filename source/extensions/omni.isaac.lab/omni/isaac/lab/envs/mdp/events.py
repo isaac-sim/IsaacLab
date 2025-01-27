@@ -195,10 +195,9 @@ class randomize_visual_texture_material(ManagerTermBase):
         texture_paths = cfg.params.get("texture_paths")
         event_name = cfg.params.get("event_name")
         texture_rotation = cfg.params.get("texture_rotation", (0.0, 0.0))
-        replicate_physics = cfg.params.get("replicate_physics")
 
         # check to make sure replicate_physics is set to False, else raise warning
-        if replicate_physics:
+        if env.cfg.scene.replicate_physics:
             raise Warning("replicate_physics is set to True, meaning all environments will have same textures applied.")
 
         # convert from radians to degrees
@@ -236,7 +235,6 @@ class randomize_visual_texture_material(ManagerTermBase):
         env_ids: torch.Tensor,
         event_name: str,
         asset_cfg: SceneEntityCfg,
-        replicate_physics: bool,
         texture_paths: list[str],
         texture_rotation: tuple[float, float] = (0.0, 0.0),
     ):
