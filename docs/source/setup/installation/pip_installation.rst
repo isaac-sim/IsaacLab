@@ -252,8 +252,7 @@ module with the simulator. For more information, please refer to the
 `documentation <https://docs.omniverse.nvidia.com/isaacsim/latest/manual_standalone_python.html#isaac-sim-python-environment>`__.
 
 To install ``conda``, please follow the instructions `here <https://docs.conda.io/projects/conda/en/latest/user-guide/install/index.html>`__.
-In case you want to use ``conda`` to create a virtual environment, you can
-use the following command:
+You can create the Isaac Lab environment using the following commands.
 
 .. tab-set::
    :sync-group: os
@@ -279,8 +278,7 @@ use the following command:
          isaaclab.bat --conda my_env  :: or "isaaclab.bat -c my_env"
 
 
-If you are using ``conda`` to create a virtual environment, make sure to
-activate the environment before running any scripts. For example:
+Once created, be sure to activate the environment before proceeding!
 
 .. code:: bash
 
