@@ -18,7 +18,10 @@ from omni.isaac.lab.app import AppLauncher
 parser = argparse.ArgumentParser(description="Check applying texture randomization to the cartpole scene.")
 parser.add_argument("--num_envs", type=int, default=16, help="Number of environments to spawn.")
 parser.add_argument(
-    "--replicate_physics", type=bool, default=False, help="Replicates physics properties across all environments."
+    "--replicate_physics",
+    type=bool,
+    default=False,
+    help="Replicates physics properties across all environments. For texture randomization, it must be set to False.",
 )
 
 # append AppLauncher cli args

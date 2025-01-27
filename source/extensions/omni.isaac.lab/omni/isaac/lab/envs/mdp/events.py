@@ -198,7 +198,10 @@ class randomize_visual_texture_material(ManagerTermBase):
 
         # check to make sure replicate_physics is set to False, else raise warning
         if env.cfg.scene.replicate_physics:
-            raise Warning("replicate_physics is set to True, meaning all environments will have same textures applied.")
+            raise ValueError(
+                "Unable to randomize visual texture material - ensure InteractiveSceneCfg's replicate_physics parameter"
+                " is set to False."
+            )
 
         # convert from radians to degrees
         texture_rotation = tuple(math.degrees(angle) for angle in texture_rotation)
