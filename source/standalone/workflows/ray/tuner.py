@@ -17,8 +17,9 @@ from ray.tune.search.repeater import Repeater
 """
 This script breaks down an aggregate tuning job, as defined by a hyperparameter sweep configuration,
 into individual jobs (shell commands) to run on the GPU-enabled nodes of the cluster.
-By default, (unless combined as a sub-job in a resource-wrapped aggregate job), one worker is created
-for each GPU-enabled node in the cluster for each individual job.
+By default, one worker is created for each GPU-enabled node in the cluster for each individual job.
+To use more than one worker per node (likely the case for multi-GPU machines), supply the
+num_workers_per_node argument.
 
 Each hyperparameter sweep configuration should include the workflow,
 runner arguments, and hydra arguments to vary.
@@ -39,16 +40,15 @@ Usage:
     ./isaaclab.sh -p source/standalone/workflows/ray/tuner.py -h
 
     # Examples
-    # Local (not within a docker container, when within a local docker container, do not supply run_mode argument)
+    # Local
     ./isaaclab.sh -p source/standalone/workflows/ray/tuner.py --run_mode local \
     --cfg_file source/standalone/workflows/ray/hyperparameter_tuning/vision_cartpole_cfg.py \
-    --cfg_class CartpoleRGBNoTuneJobCfg
-    # Local docker: start the ray server and run above command in the same running container without run_mode arg
+    --cfg_class CartpoleTheiaJobCfg
     # Remote (run grok cluster or create config file mentioned in :file:`submit_job.py`)
     ./isaaclab.sh -p source/standalone/workflows/ray/submit_job.py \
     --aggregate_jobs tuner.py \
     --cfg_file hyperparameter_tuning/vision_cartpole_cfg.py \
-    --cfg_class CartpoleRGBNoTuneJobCfg --mlflow_uri <MLFLOW_URI_FROM_GROK_OR_MANUAL>
+    --cfg_class CartpoleTheiaJobCfg --mlflow_uri <MLFLOW_URI_FROM_GROK_OR_MANUAL>
 
 """
 
@@ -74,7 +74,7 @@ class IsaacLabTuneTrainable(tune.Trainable):
         print(f"[INFO]: Recovered invocation with {self.invoke_cmd}")
         self.experiment = None
 
-    def reset_config(self, new_config):
+    def reset_config(self, new_config: dict):
         """Allow environments to be re-used by fetching a new invocation command"""
         self.setup(new_config)
         return True
@@ -95,15 +95,15 @@ class IsaacLabTuneTrainable(tune.Trainable):
             self.proc = experiment["proc"]
             self.experiment_name = experiment["experiment_name"]
             self.isaac_logdir = experiment["logdir"]
-            self.tensorboard_logdir = self.isaac_logdir + f"/{self.experiment_name}/summaries"
+            self.tensorboard_logdir = self.isaac_logdir + "/" + self.experiment_name
             self.done = False
 
         if self.proc is None:
             raise ValueError("Could not start trial.")
-
-        if self.proc.poll() is not None:  # process finished, signal finish
+        proc_status = self.proc.poll()
+        if proc_status is not None:  # process finished, signal finish
             self.data["done"] = True
-            print("[INFO]: Process finished, returning...")
+            print(f"[INFO]: Process finished with {proc_status}, returning...")
         else:  # wait until the logs are ready or fresh
             data = util.load_tensorboard_logs(self.tensorboard_logdir)
 
@@ -220,10 +220,24 @@ class JobCfg:
     """To be compatible with :meth: invoke_tuning_run and :class:IsaacLabTuneTrainable,
     at a minimum, the tune job should inherit from this class."""
 
-    def __init__(self, cfg):
+    def __init__(self, cfg: dict):
+        """
+        Runner args include command line arguments passed to the task.
+        For example:
+        cfg["runner_args"]["headless_singleton"] = "--headless"
+        cfg["runner_args"]["enable_cameras_singleton"] = "--enable_cameras"
+        """
         assert "runner_args" in cfg, "No runner arguments specified."
+        """
+        Task is the desired task to train on. For example:
+        cfg["runner_args"]["--task"] = tune.choice(["Isaac-Cartpole-RGB-TheiaTiny-v0"])
+        """
         assert "--task" in cfg["runner_args"], "No task specified."
-        assert "hydra_args" in cfg, "No hypeparameters specified."
+        """
+        Hydra args define the hyperparameters varied within the sweep. For example:
+        cfg["hydra_args"]["agent.params.network.cnn.activation"] = tune.choice(["relu", "elu"])
+        """
+        assert "hydra_args" in cfg, "No hyperparameters specified."
         self.cfg = cfg
 
 
