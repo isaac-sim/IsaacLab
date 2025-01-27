@@ -14,7 +14,7 @@ By default, the reported force is the total contact force, but your application 
 
 Consider a simple environment with an Anymal Quadruped and a block
 
-.. literalinclude:: ../../../../source/standalone/demos/sensors/contact_sensor.py
+.. literalinclude:: ../../../../scripts/demos/sensors/contact_sensor.py
     :language: python
     :lines: 40-90
 

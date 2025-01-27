@@ -14,7 +14,7 @@ A naive implementation of an IMU would report a negative acceleration due to gra
 
 Consider a simple environment with an Anymal Quadruped equipped with an IMU on each of its two front feet.
 
-.. literalinclude:: ../../../../source/standalone/demos/sensors/imu_sensor.py
+.. literalinclude:: ../../../../scripts/demos/sensors/imu_sensor.py
   :language: python
   :lines: 39-63
 
@@ -82,6 +82,6 @@ The oscillations in the values reported by the sensor are a direct result of of 
 .. dropdown:: Code for imu_sensor.py
    :icon: code
 
-   .. literalinclude:: ../../../../source/standalone/demos/sensors/imu_sensor.py
+   .. literalinclude:: ../../../../scripts/demos/sensors/imu_sensor.py
       :language: python
       :linenos:

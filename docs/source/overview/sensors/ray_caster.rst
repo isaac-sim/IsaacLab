@@ -14,7 +14,7 @@ To keep the sensor performant when there are many cloned environments, the line 
 
 Using a ray caster sensor requires a **pattern** and a parent xform to be attached to.  The pattern defines how the rays are cast, while the prim properties defines the orientation and position of the sensor (additional offsets can be specified for more exact placement).  Isaac Lab supports a number of ray casting pattern configurations, including a generic LIDAR and grid pattern.
 
-.. literalinclude:: ../../../../source/standalone/demos/sensors/raycaster_sensor.py
+.. literalinclude:: ../../../../scripts/demos/sensors/raycaster_sensor.py
     :language: python
     :lines: 40-71
 
