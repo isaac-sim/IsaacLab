@@ -43,6 +43,7 @@ Guidelines for modifications:
 * Chenyu Yang
 * CY (Chien-Ying) Chen
 * David Yang
+* Dhananjay Shendre
 * Dorsa Rohani
 * Felix Yu
 * Gary Lvov
@@ -88,7 +89,6 @@ Guidelines for modifications:
 * Yujian Zhang
 * Zhengyu Zhang
 * Ziqi Fan
-* Dhananjay Shendre
 
 ## Acknowledgements
 
