@@ -17,7 +17,7 @@ Added
 Fixed
 ^^^^^
 
-* Fixed the reset of the actions in the function overriding of the low level observations of :class:`omni.isaac.lab_tasks.manager_based.navigation.mdp.PreTrainedPolicyAction`.
+* Fixed the reset of the actions in the function overriding of the low level observations of :class:`isaaclab_tasks.manager_based.navigation.mdp.PreTrainedPolicyAction`.
 
 
 0.10.20 (2024-12-17)

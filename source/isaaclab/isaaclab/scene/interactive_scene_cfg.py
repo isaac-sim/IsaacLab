@@ -97,3 +97,15 @@ class InteractiveSceneCfg:
         Optimized parsing of certain prim types (such as deformable objects) is not currently supported
         by the physics engine. In these cases, this flag needs to be set to False.
     """
+
+    filter_collisions: bool = True
+    """Enable/disable collision filtering between cloned environments. Default is True.
+
+    If True, collisions will not occur between cloned environments.
+
+    If False, the simulation will generate collisions between environments.
+
+    .. note::
+        Collisions can only be filtered automatically in direct workflows when physics replication is enabled.
+        If ``replicated_physics=False`` and collision filtering is desired, make sure to call ``scene.filter_collisions()``.
+    """
