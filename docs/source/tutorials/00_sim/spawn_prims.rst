@@ -7,7 +7,7 @@ Spawning prims into the scene
 .. currentmodule:: isaaclab
 
 This tutorial explores how to spawn various objects (or prims) into the scene in Isaac Lab from Python.
-It builds upon the previous tutorial on running the simulator from a standalone script and
+It builds on the previous tutorial on running the simulator from a standalone script and
 demonstrates how to spawn a ground plane, lights, primitive shapes, and meshes from USD files.
 
 

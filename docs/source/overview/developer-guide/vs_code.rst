@@ -1,10 +1,9 @@
 Setting up Visual Studio Code
 -----------------------------
 
-The following is only applicable for Isaac Sim installed from binary.
-The Isaac Lab repository includes the VSCode settings to easily allow setting
-up your development environment. These are included in the ``.vscode`` directory
-and include the following files:
+**This is optional.  You do not need to use VScode to use Isaac Lab**
+
+`Visual Studio Code <https://code.visualstudio.com/>`_ has proven an invaluable tool for the development of Isaac Lab. The Isaac Lab repository includes the VSCode files for setting up your development environment. These are included in the ``.vscode`` directory and include the following files:
 
 .. code-block:: bash
 
@@ -30,6 +29,11 @@ To setup the IDE, please follow these instructions:
       :width: 600px
       :align: center
       :alt: VSCode Tasks
+
+
+.. note::
+   If this is your first time running tasks in VS Code, you may be prompted to select how to handle warnings. Simply follow
+   the prompts until the task window closes.
 
 If everything executes correctly, it should create the following files:
 
