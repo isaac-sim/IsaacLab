@@ -10,7 +10,7 @@ using VSCode.
 .. toctree::
   :maxdepth: 1
 
-  vs_code
+  VS Code <vs_code>
   repo_structure
   development
   template

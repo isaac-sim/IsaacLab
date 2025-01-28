@@ -210,7 +210,7 @@ To view the contents of these volumes, you can use the following command:
 Isaac Lab Image Extensions
 --------------------------
 
-The produced image depends upon the arguments passed to ``container.py start`` and ``container.py stop``. These
+The produced image depends on the arguments passed to ``container.py start`` and ``container.py stop``. These
 commands accept an image extension parameter as an additional argument. If no argument is passed, then this
 parameter defaults to ``base``. Currently, the only valid values are (``base``, ``ros2``).
 Only one image extension can be passed at a time. The produced container will be named ``isaac-lab-${profile}``,
