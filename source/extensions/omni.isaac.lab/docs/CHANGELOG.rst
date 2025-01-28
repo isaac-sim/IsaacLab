@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.30.7 (2025-01-28)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :attr:`omni.isaac.lab.sensors.ContactSensorData.force_matrix_w_history` that tracks the history of the filtered contact forces in the world frame.
+
+
 0.30.6 (2025-01-17)
 ~~~~~~~~~~~~~~~~~~~
 
