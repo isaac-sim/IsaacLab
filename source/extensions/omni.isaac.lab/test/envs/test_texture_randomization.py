@@ -15,7 +15,7 @@ from omni.isaac.lab.app import AppLauncher, run_tests
 HEADLESS = True
 
 # launch omniverse app
-app_launcher = AppLauncher(headless=HEADLESS)
+app_launcher = AppLauncher(headless=HEADLESS, enable_cameras=True)
 simulation_app = app_launcher.app
 
 """Rest everything follows."""
@@ -27,11 +27,40 @@ import unittest
 import omni.isaac.lab.envs.mdp as mdp
 from omni.isaac.lab.envs import ManagerBasedEnv, ManagerBasedEnvCfg
 from omni.isaac.lab.managers import EventTermCfg as EventTerm
+from omni.isaac.lab.managers import ObservationGroupCfg as ObsGroup
+from omni.isaac.lab.managers import ObservationTermCfg as ObsTerm
 from omni.isaac.lab.managers import SceneEntityCfg
 from omni.isaac.lab.utils import configclass
 from omni.isaac.lab.utils.assets import NVIDIA_NUCLEUS_DIR
 
 from omni.isaac.lab_tasks.manager_based.classic.cartpole.cartpole_env_cfg import CartpoleSceneCfg
+
+
+@configclass
+class ActionsCfg:
+    """Action specifications for the environment."""
+
+    joint_efforts = mdp.JointEffortActionCfg(asset_name="robot", joint_names=["slider_to_cart"], scale=5.0)
+
+
+@configclass
+class ObservationsCfg:
+    """Observation specifications for the environment."""
+
+    @configclass
+    class PolicyCfg(ObsGroup):
+        """Observations for policy group."""
+
+        # observation terms (order preserved)
+        joint_pos_rel = ObsTerm(func=mdp.joint_pos_rel)
+        joint_vel_rel = ObsTerm(func=mdp.joint_vel_rel)
+
+        def __post_init__(self) -> None:
+            self.enable_corruption = False
+            self.concatenate_terms = True
+
+    # observation groups
+    policy: PolicyCfg = PolicyCfg()
 
 
 @configclass
@@ -75,6 +104,26 @@ class EventCfg:
         },
     )
 
+    reset_cart_position = EventTerm(
+        func=mdp.reset_joints_by_offset,
+        mode="reset",
+        params={
+            "asset_cfg": SceneEntityCfg("robot", joint_names=["slider_to_cart"]),
+            "position_range": (-1.0, 1.0),
+            "velocity_range": (-0.1, 0.1),
+        },
+    )
+
+    reset_pole_position = EventTerm(
+        func=mdp.reset_joints_by_offset,
+        mode="reset",
+        params={
+            "asset_cfg": SceneEntityCfg("robot", joint_names=["cart_to_pole"]),
+            "position_range": (-0.125 * math.pi, 0.125 * math.pi),
+            "velocity_range": (-0.01 * math.pi, 0.01 * math.pi),
+        },
+    )
+
 
 @configclass
 class CartpoleEnvCfg(ManagerBasedEnvCfg):
@@ -84,6 +133,8 @@ class CartpoleEnvCfg(ManagerBasedEnvCfg):
     scene = CartpoleSceneCfg(env_spacing=2.5)
 
     # Basic settings
+    actions = ActionsCfg()
+    observations = ObservationsCfg()
     events = EventCfg()
 
     def __post_init__(self):

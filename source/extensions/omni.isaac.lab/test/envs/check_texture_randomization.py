@@ -39,10 +39,10 @@ import math
 import torch
 
 import omni.isaac.lab.envs.mdp as mdp
-import omni.isaac.lab.sim as sim_utils
-from omni.isaac.lab.assets import AssetBaseCfg
 from omni.isaac.lab.envs import ManagerBasedEnv, ManagerBasedEnvCfg
 from omni.isaac.lab.managers import EventTermCfg as EventTerm
+from omni.isaac.lab.managers import ObservationGroupCfg as ObsGroup
+from omni.isaac.lab.managers import ObservationTermCfg as ObsTerm
 from omni.isaac.lab.managers import SceneEntityCfg
 from omni.isaac.lab.utils import configclass
 from omni.isaac.lab.utils.assets import NVIDIA_NUCLEUS_DIR
@@ -55,6 +55,26 @@ class ActionsCfg:
     """Action specifications for the environment."""
 
     joint_efforts = mdp.JointEffortActionCfg(asset_name="robot", joint_names=["slider_to_cart"], scale=5.0)
+
+
+@configclass
+class ObservationsCfg:
+    """Observation specifications for the environment."""
+
+    @configclass
+    class PolicyCfg(ObsGroup):
+        """Observations for policy group."""
+
+        # observation terms (order preserved)
+        joint_pos_rel = ObsTerm(func=mdp.joint_pos_rel)
+        joint_vel_rel = ObsTerm(func=mdp.joint_vel_rel)
+
+        def __post_init__(self) -> None:
+            self.enable_corruption = False
+            self.concatenate_terms = True
+
+    # observation groups
+    policy: PolicyCfg = PolicyCfg()
 
 
 @configclass
@@ -128,6 +148,7 @@ class CartpoleEnvCfg(ManagerBasedEnvCfg):
 
     # Basic settings
     actions = ActionsCfg()
+    observations = ObservationsCfg()
     events = EventCfg()
 
     def __post_init__(self):
@@ -139,14 +160,6 @@ class CartpoleEnvCfg(ManagerBasedEnvCfg):
         self.decimation = 4  # env step every 4 sim steps: 200Hz / 4 = 50Hz
         # simulation settings
         self.sim.dt = 0.005  # sim step every 5ms: 200Hz
-
-        self.scene.ligh1 = AssetBaseCfg(
-            prim_path="/World/Dome",
-            spawn=sim_utils.DomeLightCfg(
-                color=(0.5, 0.5, 0.5),
-                intensity=2000.0,
-            ),
-        )
 
 
 def main():
