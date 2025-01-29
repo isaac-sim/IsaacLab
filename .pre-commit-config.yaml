@@ -38,7 +38,7 @@ repos:
       - id: pyupgrade
         args: ["--py310-plus"]
         # FIXME: This is a hack because Pytorch does not like: torch.Tensor | dict aliasing
-        exclude: "source/isaaclab/isaaclab/envs/common.py|source/isaaclab/isaaclab/ui/widgets/image_plot.py"
+        exclude: "source/isaaclab/isaaclab/envs/common.py|source/isaaclab/isaaclab/ui/widgets/image_plot.py|source/isaaclab_tasks/isaaclab_tasks/direct/humanoid_amp/motions/motion_loader.py"
   - repo: https://github.com/codespell-project/codespell
     rev: v2.2.6
     hooks:

@@ -137,7 +137,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     world_rank = 0
     if args_cli.distributed:
         env_cfg.sim.device = f"cuda:{app_launcher.local_rank}"
-        agent_cfg.device = f"cuda:{app_launcher.local_rank}"
+        agent_cfg["params"]["config"]["device"] = f"cuda:{app_launcher.local_rank}"
         world_rank = app_launcher.global_rank
 
     # specify directory for logging experiments

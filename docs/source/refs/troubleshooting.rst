@@ -9,6 +9,28 @@ Tricks and Troubleshooting
     assistance.
 
 
+Debugging physics simulation stability issues
+---------------------------------------------
+
+When importing new robots into Isaac Lab or setting up a new environment, simulation instability
+can often appear if the assets have not been tuned with reasonable simulation parameters.
+In reinforcement learning scenarios, this will often result in NaNs propagating into the learning pipeline
+due to invalid states in the simulation.
+
+If this happens, we recommend consulting the
+`Articulation and Robot Simulation Stability Guide <https://docs.omniverse.nvidia.com/kit/docs/omni_physics/latest/dev_guide/guides/articulation_stability_guide.html>`_
+which recommends various simulation parameters and best practices to achieve better stability in robot simulations.
+
+Additionally, `Omniverse PhysX Visual Debugger <https://docs.omniverse.nvidia.com/kit/docs/omni_physics/latest/extensions/ux/source/omni.physx.pvd/docs/dev_guide/physx_visual_debugger.html>`_
+allows for recording of data of PhysX simulations, which can often help simulation issues and aid the debugging process.
+
+To enable OmniPVD capture in Isaac Lab, add the relevant kit arguments to the command line prompt when launching an Isaac Lab process
+
+.. code:: bash
+
+    ./isaaclab.sh -p scripts/demos/bipeds.py --kit_args "--/persistent/physics/omniPvdOvdRecordingDirectory=/tmp/ --/physics/omniPvdOutputEnabled=true" --headless
+
+
 Checking the internal logs from the simulator
 ---------------------------------------------
 
