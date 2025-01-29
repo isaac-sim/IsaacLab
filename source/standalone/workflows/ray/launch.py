@@ -8,10 +8,9 @@ import pathlib
 import subprocess
 import yaml
 
+import util
 from jinja2 import Environment, FileSystemLoader
 from kubernetes import config
-
-import source.standalone.workflows.ray.util as util
 
 """This script helps create one or more KubeRay clusters.
 
@@ -19,18 +18,18 @@ Usage:
 
 .. code-block:: bash
     # If the head node is stuck on container creating, make sure to create a secret
-    ./isaaclab.sh -p source/standalone/workflows/ray/launch.py -h
+    python3 source/standalone/workflows/ray/launch.py -h
 
     # Examples
 
     # The following creates 8 GPUx1 nvidia l4 workers
-    ./isaaclab.sh -p source/standalone/workflows/ray/launch.py --cluster_host google_cloud \
+    python3 source/standalone/workflows/ray/launch.py --cluster_host google_cloud \
     --namespace <NAMESPACE> --image <YOUR_ISAAC_RAY_IMAGE> \
     --num_workers 8 --num_clusters 1 --worker_accelerator nvidia-l4 --gpu_per_worker 1
 
     # The following creates 1 GPUx1 nvidia l4 worker, 2 GPUx2 nvidia-tesla-t4 workers,
     # and 2 GPUx4 nvidia-tesla-t4 GPU workers
-    ./isaaclab.sh -p source/standalone/workflows/ray/launch.py --cluster_host google_cloud \
+    python3 source/standalone/workflows/ray/launch.py --cluster_host google_cloud \
     --namespace <NAMESPACE> --image <YOUR_ISAAC_RAY_IMAGE> \
     --num_workers 1 2 --num_clusters 1 \
     --worker_accelerator nvidia-l4 nvidia-tesla-t4 --gpu_per_worker 1 2 4
@@ -53,7 +52,7 @@ def apply_manifest(args: argparse.Namespace) -> None:
     # Set up Jinja2 environment for loading templates
     templates_dir = RAY_DIR / "cluster_configs" / args.cluster_host
     file_loader = FileSystemLoader(str(templates_dir))
-    jinja_env = Environment(loader=file_loader, keep_trailing_newline=True)
+    jinja_env = Environment(loader=file_loader, keep_trailing_newline=True, autoescape=True)
 
     # Define template filename
     template_file = "kuberay.yaml.jinja"
@@ -79,6 +78,7 @@ def apply_manifest(args: argparse.Namespace) -> None:
 
     # Apply the Kubernetes manifest using kubectl
     try:
+        print(cleaned_yaml_string)
         subprocess.run(["kubectl", "apply", "-f", "-"], input=cleaned_yaml_string, text=True, check=True)
     except subprocess.CalledProcessError as e:
         exit(f"An error occurred while running `kubectl`: {e}")

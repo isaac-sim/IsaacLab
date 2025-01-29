@@ -21,7 +21,7 @@ Usage:
 
 .. code-block:: bash
 
-    ./isaaclab.sh -p source/standalone/workflows/ray/grok_cluster_with_kubectl.py
+    python3 source/standalone/workflows/ray/grok_cluster_with_kubectl.py
     # For options, supply -h arg
 """
 
@@ -67,9 +67,10 @@ def get_clusters(pods: list, cluster_name_prefix: str) -> set:
 
         match = re.match(r"(" + re.escape(cluster_name_prefix) + r"[-\w]+)", pod_name)
         if match:
-            # Get base name without head/worker suffix
-            base_name = match.group(1).split("-head")[0].split("-worker")[0]
-            clusters.add(base_name)
+            # Get base name without head/worker suffix (skip workers)
+            if "head" in pod_name:
+                base_name = match.group(1).split("-head")[0]
+                clusters.add(base_name)
     return sorted(clusters)
 
 
@@ -90,9 +91,7 @@ def get_mlflow_info(namespace: str = None, cluster_prefix: str = "isaacray") -> 
     clusters = get_clusters(pods=pods, cluster_name_prefix=cluster_prefix)
     if len(clusters) > 1:
         raise ValueError("More than one cluster matches prefix, could not automatically determine mlflow info.")
-
-    base_name = cluster_prefix.split("-head")[0].split("-worker")[0]
-    mlflow_name = f"{base_name}-mlflow"
+    mlflow_name = f"{cluster_prefix}-mlflow"
 
     cmd = ["kubectl", "get", "svc", mlflow_name, "-n", namespace, "--no-headers"]
     try:
@@ -102,7 +101,8 @@ def get_mlflow_info(namespace: str = None, cluster_prefix: str = "isaacray") -> 
         # Get cluster IP
         cluster_ip = fields[2]
         port = "5000"  # Default MLflow port
-
+        # This needs to be http to be resolved. HTTPS can't be resolved
+        # This should be fine as it is on a subnet on the cluster regardless
         return f"http://{cluster_ip}:{port}"
     except subprocess.CalledProcessError as e:
         raise ValueError(f"Could not grok MLflow: {e}")  # Fixed f-string
