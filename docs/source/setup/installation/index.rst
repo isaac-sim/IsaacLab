@@ -59,3 +59,4 @@ For users getting started with Isaac Lab, we recommend installing Isaac Lab by c
     Pip installation (recommended for Ubuntu 22.04 and Windows) <pip_installation>
     Binary installation (recommended for Ubuntu 20.04) <binaries_installation>
     Advanced installation (Isaac Lab pip) <isaaclab_pip_installation>
+    Asset caching <asset_caching>

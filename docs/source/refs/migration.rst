@@ -1,3 +1,5 @@
+.. _migration_guide:
+
 Migration Guide (Isaac Sim)
 ===========================
 
@@ -73,7 +75,7 @@ Articulation, RigidPrim, XFormPrim, and others. Single-object classes are now pr
 ``Single``, such as ``SingleArticulation``, while tensorized View classes now have the ``View``
 suffix removed.
 
-The exact renamings of the classes are as follow:
+The exact renaming of the classes are as follow:
 
 * ``Articulation`` --> ``SingleArticulation``
 * ``ArticulationView`` --> ``Articulation``

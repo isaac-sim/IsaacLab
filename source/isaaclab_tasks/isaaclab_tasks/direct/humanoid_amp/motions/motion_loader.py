@@ -6,6 +6,7 @@
 import numpy as np
 import os
 import torch
+from typing import Optional
 
 
 class MotionLoader:
@@ -70,10 +71,10 @@ class MotionLoader:
         self,
         a: torch.Tensor,
         *,
-        b: torch.Tensor | None = None,
-        blend: torch.Tensor | None = None,
-        start: np.ndarray | None = None,
-        end: np.ndarray | None = None,
+        b: Optional[torch.Tensor] = None,
+        blend: Optional[torch.Tensor] = None,
+        start: Optional[np.ndarray] = None,
+        end: Optional[np.ndarray] = None,
     ) -> torch.Tensor:
         """Linear interpolation between consecutive values.
 
@@ -101,10 +102,10 @@ class MotionLoader:
         self,
         q0: torch.Tensor,
         *,
-        q1: torch.Tensor | None = None,
-        blend: torch.Tensor | None = None,
-        start: np.ndarray | None = None,
-        end: np.ndarray | None = None,
+        q1: Optional[torch.Tensor] = None,
+        blend: Optional[torch.Tensor] = None,
+        start: Optional[np.ndarray] = None,
+        end: Optional[np.ndarray] = None,
     ) -> torch.Tensor:
         """Interpolation between consecutive rotations (Spherical Linear Interpolation).
 
@@ -195,7 +196,7 @@ class MotionLoader:
         return duration * np.random.uniform(low=0.0, high=1.0, size=num_samples)
 
     def sample(
-        self, num_samples: int, times: np.ndarray | None = None, duration: float | None = None
+        self, num_samples: int, times: Optional[np.ndarray] = None, duration: float | None = None
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         """Sample motion data.
 

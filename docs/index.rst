@@ -137,8 +137,9 @@ Table of Contents
    source/refs/additional_resources
    source/refs/contributing
    source/refs/troubleshooting
-   source/refs/migration.rst
+   source/refs/migration
    source/refs/issues
+   source/refs/release_notes
    source/refs/changelog
    source/refs/license
    source/refs/bibliography
