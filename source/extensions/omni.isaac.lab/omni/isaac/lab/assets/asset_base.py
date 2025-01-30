@@ -13,9 +13,9 @@ from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
+import omni.isaac.core.utils.prims as prim_utils
 import omni.kit.app
 import omni.timeline
-import omni.isaac.core.utils.prims as prim_utils
 
 import omni.isaac.lab.sim as sim_utils
 
@@ -188,7 +188,7 @@ class AssetBase(ABC):
         # note: we only want to find the prims once since this is a costly operation
         if not hasattr(self, "_prims"):
             self._prims = sim_utils.find_matching_prims(self.cfg.prim_path)
-        
+
         # iterate over the environment ids
         for env_id in env_ids:
             prim_utils.set_prim_visibility(self._prims[env_id], visible)

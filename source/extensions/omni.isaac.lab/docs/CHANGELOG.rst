@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.30.7 (2025-01-30)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added method :meth:`omni.isaac.lab.assets.AssetBase.set_visibility` to set the visibility of the asset
+  in the simulation.
+
+
 0.30.6 (2025-01-17)
 ~~~~~~~~~~~~~~~~~~~
 
