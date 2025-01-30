@@ -1,15 +1,21 @@
 Changelog
 ---------
 
-0.33.12 (2025-01-30)
+0.33.13 (2025-01-30)
 ~~~~~~~~~~~~~~~~~~~~
+
+* Fixed resampling of interval time left for the next event in the :class:`~isaaclab.managers.EventManager`
+  class. Earlier, the time left for interval-based events was not being resampled on episodic resets. This led
+  to the event being triggered at the wrong time after the reset.
+
+
+0.33.12 (2025-01-28)
+~~~~~~~~~~~~~~~~~~~
 
 Fixed
 ^^^^^
 
-* Fixed resampling of interval time left for the next event in the :class:`~omni.isaac.lab.managers.EventManager`
-  class. Earlier, the time left for interval-based events was not being resampled on episodic resets. This led
-  to the event being triggered at the wrong time after the reset.
+* Fixed missing import in ``line_plot.py``
 
 
 0.33.11 (2025-01-25)
@@ -50,52 +56,28 @@ Fixed
 Fixed
 ^^^^^
 
-<<<<<<< HEAD
-* Removed deprecation of :attr:`omni.isaac.lab.assets.ArticulationData.root_state_w` and
-  :attr:`omni.isaac.lab.assets.ArticulationData.body_state_w` derived properties.
-* Removed deprecation of :meth:`omni.isaac.lab.assets.Articulation.write_root_state_to_sim`.
-* Replaced calls to :attr:`omni.isaac.lab.assets.ArticulationData.root_com_state_w` and
-  :attr:`omni.isaac.lab.assets.ArticulationData.root_link_state_w` with corresponding calls to
-  :attr:`omni.isaac.lab.assets.ArticulationData.root_state_w`.
-* Replaced calls to :attr:`omni.isaac.lab.assets.ArticulationData.body_com_state_w` and
-  :attr:`omni.isaac.lab.assets.ArticulationData.body_link_state_w` properties with corresponding calls to
-  :attr:`omni.isaac.lab.assets.ArticulationData.body_state_w` properties.
-* Removed deprecation of :attr:`omni.isaac.lab.assets.RigidObjectData.root_state_w` derived properties.
-* Removed deprecation of :meth:`omni.isaac.lab.assets.RigidObject.write_root_state_to_sim`.
-* Replaced calls to :attr:`omni.isaac.lab.assets.RigidObjectData.root_com_state_w` and
-  :attr:`omni.isaac.lab.assets.RigidObjectData.root_link_state_w` properties with corresponding calls to
-  :attr:`omni.isaac.lab.assets.RigidObjectData.root_state_w` properties.
-* Removed deprecation of :attr:`omni.isaac.lab.assets.RigidObjectCollectionData.root_state_w` derived properties.
-* Removed deprecation of :meth:`omni.isaac.lab.assets.RigidObjectCollection.write_root_state_to_sim`.
-* Replaced calls to :attr:`omni.isaac.lab.assets.RigidObjectCollectionData.root_com_state_w` and
-  :attr:`omni.isaac.lab.assets.RigidObjectData.root_link_state_w` properties with corresponding calls to
-  :attr:`omni.isaac.lab.assets.RigidObjectData.root_state_w` properties.
-* Fixed indexing issue in ``write_root_link_velocity_to_sim`` in :class:`omni.isaac.lab.assets.RigidObject`
-* Fixed index broadcasting in ``write_object_link_velocity_to_sim`` and ``write_object_com_pose_to_sim`` in
-  the :class:`omni.isaac.lab.assets.RigidObjectCollection` class.
-=======
-* removed deprecation of :attr:`isaaclab.assets.ArticulationData.root_state_w` and
+]* Removed deprecation of :attr:`isaaclab.assets.ArticulationData.root_state_w` and
   :attr:`isaaclab.assets.ArticulationData.body_state_w` derived properties.
-* removed deprecation of :meth:`isaaclab.assets.Articulation.write_root_state_to_sim`.
-* replaced calls to :attr:`isaaclab.assets.ArticulationData.root_com_state_w` and
+* Removed deprecation of :meth:`isaaclab.assets.Articulation.write_root_state_to_sim`.
+* Replaced calls to :attr:`isaaclab.assets.ArticulationData.root_com_state_w` and
   :attr:`isaaclab.assets.ArticulationData.root_link_state_w` with corresponding calls to
   :attr:`isaaclab.assets.ArticulationData.root_state_w`.
-* replaced calls to :attr:`isaaclab.assets.ArticulationData.body_com_state_w` and
+* Replaced calls to :attr:`isaaclab.assets.ArticulationData.body_com_state_w` and
   :attr:`isaaclab.assets.ArticulationData.body_link_state_w` properties with corresponding calls to
   :attr:`isaaclab.assets.ArticulationData.body_state_w` properties.
-* removed deprecation of :attr:`isaaclab.assets.RigidObjectData.root_state_w` derived properties  .
-* removed deprecation of :meth:`isaaclab.assets.RigidObject.write_root_state_to_sim`.
-* replaced calls to :attr:`isaaclab.assets.RigidObjectData.root_com_state_w` and
+* Removed deprecation of :attr:`isaaclab.assets.RigidObjectData.root_state_w` derived properties.
+* Removed deprecation of :meth:`isaaclab.assets.RigidObject.write_root_state_to_sim`.
+* Replaced calls to :attr:`isaaclab.assets.RigidObjectData.root_com_state_w` and
   :attr:`isaaclab.assets.RigidObjectData.root_link_state_w` properties with corresponding calls to
   :attr:`isaaclab.assets.RigidObjectData.root_state_w` properties.
-* removed deprecation of :attr:`isaaclab.assets.RigidObjectCollectionData.root_state_w` derived properties.
-* removed deprecation of :meth:`isaaclab.assets.RigidObjectCollection.write_root_state_to_sim`.
-* replaced calls to :attr:`isaaclab.assets.RigidObjectCollectionData.root_com_state_w` and
+* Removed deprecation of :attr:`isaaclab.assets.RigidObjectCollectionData.root_state_w` derived properties.
+* Removed deprecation of :meth:`isaaclab.assets.RigidObjectCollection.write_root_state_to_sim`.
+* Replaced calls to :attr:`isaaclab.assets.RigidObjectCollectionData.root_com_state_w` and
   :attr:`isaaclab.assets.RigidObjectData.root_link_state_w` properties with corresponding calls to
   :attr:`isaaclab.assets.RigidObjectData.root_state_w` properties.
-* fixed indexing issue in ``write_root_link_velocity_to_sim`` in :class:`isaaclab.assets.RigidObject`
-* fixed index broadcasting in ``write_object_link_velocity_to_sim`` and ``write_object_com_pose_to_sim`` in :class:`isaaclab.assets.RigidObjectCollection`
->>>>>>> e9a3c6c55 (Adds option to filter collisions and real-time playback (#253))
+* Fixed indexing issue in ``write_root_link_velocity_to_sim`` in :class:`isaaclab.assets.RigidObject`
+* Fixed index broadcasting in ``write_object_link_velocity_to_sim`` and ``write_object_com_pose_to_sim`` in
+  the :class:`isaaclab.assets.RigidObjectCollection` class.
 
 
 0.33.7 (2025-01-14)
@@ -207,7 +189,7 @@ Changed
 Changed
 ^^^^^^^
 
-* Previously, physx returns the rigid bodies and articulations velocities in the com of bodies rather than the link frame, while poses are in link frames. We now explicitly provide :attr:`body_link_state` and :attr:`body_com_state` APIs replacing the previous :attr:`body_state` API. Previous APIs are now marked as deprecated. Please update any code using the previous pose and velocity APIs to use the new ``*_link_*`` or ``*_com_*`` APIs in :attr:`omni.isaac_lab.assets.RigidBody`, :attr:`omni.isaac_lab.assets.RigidBodyCollection`, and :attr:`omni.isaac_lab.assets.Articulation`.
+* Previously, physx returns the rigid bodies and articulations velocities in the com of bodies rather than the link frame, while poses are in link frames. We now explicitly provide :attr:`body_link_state` and :attr:`body_com_state` APIs replacing the previous :attr:`body_state` API. Previous APIs are now marked as deprecated. Please update any code using the previous pose and velocity APIs to use the new ``*_link_*`` or ``*_com_*`` APIs in :attr:`isaaclab.assets.RigidBody`, :attr:`isaaclab.assets.RigidBodyCollection`, and :attr:`isaaclab.assets.Articulation`.
 
 
 0.31.0 (2024-12-16)
@@ -388,7 +370,7 @@ Changed
 ^^^^^^^
 
 * If a USD that contains an articulation root is loaded using a
-  :attr:`omni.isaac_lab.assets.RigidBody` we now fail unless the articulation root is explicitly
+  :attr:`isaaclab.assets.RigidBody` we now fail unless the articulation root is explicitly
   disabled. Using an articulation root for rigid bodies is not needed and decreases overall performance.
 
 
