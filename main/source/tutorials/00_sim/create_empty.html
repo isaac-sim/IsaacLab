@@ -60,7 +60,7 @@
     <link rel="prev" title="Tutorials" href="../index.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-  <meta name="docsearch:version" content="1.4.1" />
+  <meta name="docsearch:version" content="2.0.0" />
     <meta name="docbuild:last-update" content="Jan 30, 2025"/>
   </head>
   
@@ -192,7 +192,7 @@
           
           
           
-          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.2.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.5.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
         </li>
         <li class="nav-item">
           
@@ -230,6 +230,8 @@
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../setup/installation/index.html">Local Installation</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2"><a class="reference internal" href="../../setup/installation/pip_installation.html">Pip installation (recommended for Ubuntu 22.04 and Windows)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../setup/installation/binaries_installation.html">Binary installation (recommended for Ubuntu 20.04)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/installation/isaaclab_pip_installation.html">Advanced installation (Isaac Lab pip)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/installation/asset_caching.html">Asset caching</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1"><a class="reference internal" href="../../setup/installation/cloud_installation.html">Running Isaac Lab in the Cloud</a></li>
@@ -241,7 +243,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../../overview/developer-guide/vs_code.html">Setting up Visual Studio Code</a></li>
 
 <li class="toctree-l2"><a class="reference internal" href="../../overview/developer-guide/repo_structure.html">Repository organization</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../overview/developer-guide/development.html">Application Development</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/developer-guide/development.html">Extension Development</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../overview/developer-guide/template.html">Building your Own Project</a></li>
 </ul>
 </details></li>
@@ -264,6 +266,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../../overview/reinforcement-learning/rl_existing_scripts.html">Reinforcement Learning Wrappers</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../overview/reinforcement-learning/rl_frameworks.html">Reinforcement Learning Library Comparison</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../overview/reinforcement-learning/performance_benchmarks.html">Performance Benchmarks</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/reinforcement-learning/training_guide.html">Debugging and Training Guide</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1"><a class="reference internal" href="../../overview/teleop_imitation.html">Teleoperation and Imitation Learning</a></li>
@@ -294,6 +297,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../03_envs/register_rl_env_gym.html">Registering an Environment</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../03_envs/run_rl_training.html">Training with an RL Agent</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../03_envs/modify_direct_rl_env.html">Modifying an existing Direct RL Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../03_envs/policy_inference_in_usd.html">Policy Inference in USD Environment</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../04_sensors/add_sensors_on_robot.html">Adding sensors on a robot</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../05_controllers/run_diff_ik.html">Using a task-space controller</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../05_controllers/run_osc.html">Using an operational space controller</a></li>
@@ -330,28 +334,27 @@
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Source API</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../api/index.html">API Reference</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.app.html">omni.isaac.lab.app</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.actuators.html">omni.isaac.lab.actuators</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.assets.html">omni.isaac.lab.assets</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.controllers.html">omni.isaac.lab.controllers</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.devices.html">omni.isaac.lab.devices</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.envs.html">omni.isaac.lab.envs</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.managers.html">omni.isaac.lab.managers</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.markers.html">omni.isaac.lab.markers</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.scene.html">omni.isaac.lab.scene</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.sensors.html">omni.isaac.lab.sensors</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.sim.html">omni.isaac.lab.sim</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.terrains.html">omni.isaac.lab.terrains</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.utils.html">omni.isaac.lab.utils</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.envs.mdp.html">omni.isaac.lab.envs.mdp</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.envs.ui.html">omni.isaac.lab.envs.ui</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.sensors.patterns.html">omni.isaac.lab.sensors.patterns</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.sim.converters.html">omni.isaac.lab.sim.converters</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.sim.schemas.html">omni.isaac.lab.sim.schemas</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.sim.spawners.html">omni.isaac.lab.sim.spawners</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab_tasks/omni.isaac.lab_tasks.utils.html">omni.isaac.lab_tasks.utils</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab_tasks/omni.isaac.lab_tasks.utils.wrappers.html">omni.isaac.lab_tasks.utils.wrappers</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab_tasks/omni.isaac.lab_tasks.utils.data_collector.html">omni.isaac.lab_tasks.utils.data_collector</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.app.html">isaaclab.app</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.actuators.html">isaaclab.actuators</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.assets.html">isaaclab.assets</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.controllers.html">isaaclab.controllers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.devices.html">isaaclab.devices</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.envs.html">isaaclab.envs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.managers.html">isaaclab.managers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.markers.html">isaaclab.markers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.scene.html">isaaclab.scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.sensors.html">isaaclab.sensors</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.sim.html">isaaclab.sim</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.terrains.html">isaaclab.terrains</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.utils.html">isaaclab.utils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.envs.mdp.html">isaaclab.envs.mdp</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.envs.ui.html">isaaclab.envs.ui</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.sensors.patterns.html">isaaclab.sensors.patterns</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.sim.converters.html">isaaclab.sim.converters</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.sim.schemas.html">isaaclab.sim.schemas</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.sim.spawners.html">isaaclab.sim.spawners</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab_tasks/isaaclab_tasks.utils.html">isaaclab_tasks.utils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab_mimic/isaaclab_mimic.datagen.html">isaaclab_mimic.datagen</a></li>
 </ul>
 </details></li>
 </ul>
@@ -361,7 +364,15 @@
 <li class="toctree-l1"><a class="reference internal" href="../../refs/additional_resources.html">Additional Resources</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../refs/contributing.html">Contribution Guidelines</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../refs/troubleshooting.html">Tricks and Troubleshooting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../refs/migration.html">Migration Guide (Isaac Sim)</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../refs/issues.html">Known Issues</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../refs/release_notes.html">Release Notes</a></li>
+
+
+
+
+
+
 <li class="toctree-l1"><a class="reference internal" href="../../refs/changelog.html">Extensions Changelog</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../refs/license.html">License</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../refs/bibliography.html">Bibliography</a></li>
@@ -369,7 +380,7 @@
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Project Links</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference external" href="https://github.com/isaac-sim/IsaacLab">GitHub</a></li>
-<li class="toctree-l1"><a class="reference external" href="https://docs.omniverse.nvidia.com/isaacsim/latest/index.html">NVIDIA Isaac Sim</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/latest/index.html">NVIDIA Isaac Sim</a></li>
 <li class="toctree-l1"><a class="reference external" href="https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/index.html">NVIDIA PhysX</a></li>
 </ul>
 
@@ -604,13 +615,13 @@
   <section id="creating-an-empty-scene">
 <h1>Creating an empty scene<a class="headerlink" href="#creating-an-empty-scene" title="Permalink to this heading">#</a></h1>
 <p>This tutorial shows how to launch and control Isaac Sim simulator from a standalone Python script. It sets up an
-empty scene in Isaac Lab and introduces the two main classes used in the framework, <a class="reference internal" href="../../api/lab/omni.isaac.lab.app.html#omni.isaac.lab.app.AppLauncher" title="omni.isaac.lab.app.AppLauncher"><code class="xref py py-class docutils literal notranslate"><span class="pre">app.AppLauncher</span></code></a> and
-<a class="reference internal" href="../../api/lab/omni.isaac.lab.sim.html#omni.isaac.lab.sim.SimulationContext" title="omni.isaac.lab.sim.SimulationContext"><code class="xref py py-class docutils literal notranslate"><span class="pre">sim.SimulationContext</span></code></a>.</p>
-<p>Please review <a class="reference external" href="https://docs.omniverse.nvidia.com/isaacsim/latest/introductory_tutorials/tutorial_intro_interface.html#isaac-sim-app-tutorial-intro-interface">Isaac Sim Interface</a> and <a class="reference external" href="https://docs.omniverse.nvidia.com/isaacsim/latest/introductory_tutorials/tutorial_intro_workflows.html">Isaac Sim Workflows</a> prior to beginning this tutorial to get
+empty scene in Isaac Lab and introduces the two main classes used in the framework, <a class="reference internal" href="../../api/lab/isaaclab.app.html#isaaclab.app.AppLauncher" title="isaaclab.app.AppLauncher"><code class="xref py py-class docutils literal notranslate"><span class="pre">app.AppLauncher</span></code></a> and
+<a class="reference internal" href="../../api/lab/isaaclab.sim.html#isaaclab.sim.SimulationContext" title="isaaclab.sim.SimulationContext"><code class="xref py py-class docutils literal notranslate"><span class="pre">sim.SimulationContext</span></code></a>.</p>
+<p>Please review <a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/latest/introduction/workflows.html">Isaac Sim Workflows</a> prior to beginning this tutorial to get
 an initial understanding of working with the simulator.</p>
 <section id="the-code">
 <h2>The Code<a class="headerlink" href="#the-code" title="Permalink to this heading">#</a></h2>
-<p>The tutorial corresponds to the <code class="docutils literal notranslate"><span class="pre">create_empty.py</span></code> script in the <code class="docutils literal notranslate"><span class="pre">source/standalone/tutorials/00_sim</span></code> directory.</p>
+<p>The tutorial corresponds to the <code class="docutils literal notranslate"><span class="pre">create_empty.py</span></code> script in the <code class="docutils literal notranslate"><span class="pre">scripts/tutorials/00_sim</span></code> directory.</p>
 <details class="sd-sphinx-override sd-dropdown sd-card sd-mb-3">
 <summary class="sd-summary-title sd-card-header">
 <span class="sd-summary-icon"><svg version="1.1" width="1.0em" height="1.0em" class="sd-octicon sd-octicon-code" viewBox="0 0 16 16" aria-hidden="true"><path d="m11.28 3.22 4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.749.749 0 0 1-1.275-.326.749.749 0 0 1 .215-.734L13.94 8l-3.72-3.72a.749.749 0 0 1 .326-1.275.749.749 0 0 1 .734.215Zm-6.56 0a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042L2.06 8l3.72 3.72a.749.749 0 0 1-.326 1.275.749.749 0 0 1-.734-.215L.47 8.53a.75.75 0 0 1 0-1.06Z"></path></svg></span><span class="sd-summary-text">Code for create_empty.py</span><span class="sd-summary-state-marker sd-summary-chevron-right"><svg version="1.1" width="1.5em" height="1.5em" class="sd-octicon sd-octicon-chevron-right" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.72 18.78a.75.75 0 0 1 0-1.06L14.44 12 8.72 6.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018l6.25 6.25a.75.75 0 0 1 0 1.06l-6.25 6.25a.75.75 0 0 1-1.06 0Z"></path></svg></span></summary><div class="sd-summary-content sd-card-body docutils">
@@ -624,7 +635,7 @@ an initial understanding of working with the simulator.</p>
 <span class="linenos"> 8</span><span class="sd">.. code-block:: bash</span>
 <span class="linenos"> 9</span>
 <span class="linenos">10</span><span class="sd">    # Usage</span>
-<span class="linenos">11</span><span class="sd">    ./isaaclab.sh -p source/standalone/tutorials/00_sim/create_empty.py</span>
+<span class="linenos">11</span><span class="sd">    ./isaaclab.sh -p scripts/tutorials/00_sim/create_empty.py</span>
 <span class="linenos">12</span>
 <span class="linenos">13</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="linenos">14</span>
@@ -633,7 +644,7 @@ an initial understanding of working with the simulator.</p>
 <span class="linenos">17</span>
 <span class="hll"><span class="linenos">18</span><span class="kn">import</span><span class="w"> </span><span class="nn">argparse</span>
 </span><span class="hll"><span class="linenos">19</span>
-</span><span class="hll"><span class="linenos">20</span><span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.app</span><span class="w"> </span><span class="kn">import</span> <span class="n">AppLauncher</span>
+</span><span class="hll"><span class="linenos">20</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.app</span><span class="w"> </span><span class="kn">import</span> <span class="n">AppLauncher</span>
 </span><span class="hll"><span class="linenos">21</span>
 </span><span class="hll"><span class="linenos">22</span><span class="c1"># create argparser</span>
 </span><span class="hll"><span class="linenos">23</span><span class="n">parser</span> <span class="o">=</span> <span class="n">argparse</span><span class="o">.</span><span class="n">ArgumentParser</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="s2">&quot;Tutorial on creating an empty stage.&quot;</span><span class="p">)</span>
@@ -647,7 +658,7 @@ an initial understanding of working with the simulator.</p>
 </span><span class="linenos">31</span>
 <span class="linenos">32</span><span class="sd">&quot;&quot;&quot;Rest everything follows.&quot;&quot;&quot;</span>
 <span class="linenos">33</span>
-<span class="hll"><span class="linenos">34</span><span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.sim</span><span class="w"> </span><span class="kn">import</span> <span class="n">SimulationCfg</span><span class="p">,</span> <span class="n">SimulationContext</span>
+<span class="hll"><span class="linenos">34</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.sim</span><span class="w"> </span><span class="kn">import</span> <span class="n">SimulationCfg</span><span class="p">,</span> <span class="n">SimulationContext</span>
 </span><span class="linenos">35</span>
 <span class="linenos">36</span>
 <span class="linenos">37</span><span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">():</span>
@@ -686,17 +697,17 @@ an initial understanding of working with the simulator.</p>
 <p>The first step when working with standalone Python scripts is to launch the simulation application.
 This is necessary to do at the start since various dependency modules of Isaac Sim are only available
 after the simulation app is running.</p>
-<p>This can be done by importing the <a class="reference internal" href="../../api/lab/omni.isaac.lab.app.html#omni.isaac.lab.app.AppLauncher" title="omni.isaac.lab.app.AppLauncher"><code class="xref py py-class docutils literal notranslate"><span class="pre">app.AppLauncher</span></code></a> class. This utility class wraps around
-<code class="xref py py-class docutils literal notranslate"><span class="pre">omni.isaac.kit.SimulationApp</span></code> class to launch the simulator. It provides mechanisms to
+<p>This can be done by importing the <a class="reference internal" href="../../api/lab/isaaclab.app.html#isaaclab.app.AppLauncher" title="isaaclab.app.AppLauncher"><code class="xref py py-class docutils literal notranslate"><span class="pre">app.AppLauncher</span></code></a> class. This utility class wraps around
+<a class="reference external" href="https://docs.omniverse.nvidia.com/py/isaacsim/source/extensions/omni.isaac.kit/docs/index.html#isaacsim.SimulationApp" title="(in isaac_sim)"><code class="xref py py-class docutils literal notranslate"><span class="pre">isaacsim.SimulationApp</span></code></a> class to launch the simulator. It provides mechanisms to
 configure the simulator using command-line arguments and environment variables.</p>
 <p>For this tutorial, we mainly look at adding the command-line options to a user-defined
 <a class="reference external" href="https://docs.python.org/3/library/argparse.html#argparse.ArgumentParser" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">argparse.ArgumentParser</span></code></a>. This is done by passing the parser instance to the
-<a class="reference internal" href="../../api/lab/omni.isaac.lab.app.html#omni.isaac.lab.app.AppLauncher.add_app_launcher_args" title="omni.isaac.lab.app.AppLauncher.add_app_launcher_args"><code class="xref py py-meth docutils literal notranslate"><span class="pre">app.AppLauncher.add_app_launcher_args()</span></code></a> method, which appends different parameters
+<a class="reference internal" href="../../api/lab/isaaclab.app.html#isaaclab.app.AppLauncher.add_app_launcher_args" title="isaaclab.app.AppLauncher.add_app_launcher_args"><code class="xref py py-meth docutils literal notranslate"><span class="pre">app.AppLauncher.add_app_launcher_args()</span></code></a> method, which appends different parameters
 to it. These include launching the app headless, configuring different Livestream options,
 and enabling off-screen rendering.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">argparse</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.app</span><span class="w"> </span><span class="kn">import</span> <span class="n">AppLauncher</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.app</span><span class="w"> </span><span class="kn">import</span> <span class="n">AppLauncher</span>
 
 <span class="c1"># create argparser</span>
 <span class="n">parser</span> <span class="o">=</span> <span class="n">argparse</span><span class="o">.</span><span class="n">ArgumentParser</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="s2">&quot;Tutorial on creating an empty stage.&quot;</span><span class="p">)</span>
@@ -715,9 +726,9 @@ and enabling off-screen rendering.</p>
 <p>Once the simulation app is running, it is possible to import different Python modules from
 Isaac Sim and other libraries. Here we import the following module:</p>
 <ul class="simple">
-<li><p><a class="reference internal" href="../../api/lab/omni.isaac.lab.sim.html#module-omni.isaac.lab.sim" title="omni.isaac.lab.sim"><code class="xref py py-mod docutils literal notranslate"><span class="pre">omni.isaac.lab.sim</span></code></a>: A sub-package in Isaac Lab for all the core simulator-related operations.</p></li>
+<li><p><a class="reference internal" href="../../api/lab/isaaclab.sim.html#module-isaaclab.sim" title="isaaclab.sim"><code class="xref py py-mod docutils literal notranslate"><span class="pre">isaaclab.sim</span></code></a>: A sub-package in Isaac Lab for all the core simulator-related operations.</p></li>
 </ul>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.sim</span><span class="w"> </span><span class="kn">import</span> <span class="n">SimulationCfg</span><span class="p">,</span> <span class="n">SimulationContext</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.sim</span><span class="w"> </span><span class="kn">import</span> <span class="n">SimulationCfg</span><span class="p">,</span> <span class="n">SimulationContext</span>
 </pre></div>
 </div>
 </section>
@@ -727,11 +738,11 @@ Isaac Sim and other libraries. Here we import the following module:</p>
 pausing and stepping the simulator. All these operations are handled through the <strong>simulation
 context</strong>. It takes care of various timeline events and also configures the <a class="reference external" href="https://docs.omniverse.nvidia.com/prod_extensions/prod_extensions/ext_physics.html#physics-scene">physics scene</a> for
 simulation.</p>
-<p>In Isaac Lab, the <a class="reference internal" href="../../api/lab/omni.isaac.lab.sim.html#omni.isaac.lab.sim.SimulationContext" title="omni.isaac.lab.sim.SimulationContext"><code class="xref py py-class docutils literal notranslate"><span class="pre">sim.SimulationContext</span></code></a> class inherits from Isaac Sim’s
-<a class="reference external" href="https://docs.omniverse.nvidia.com/py/isaacsim/source/extensions/omni.isaac.core/docs/index.html#omni.isaac.core.simulation_context.SimulationContext" title="(in isaac_sim)"><code class="xref py py-class docutils literal notranslate"><span class="pre">omni.isaac.core.simulation_context.SimulationContext</span></code></a> to allow configuring the simulation
+<p>In Isaac Lab, the <a class="reference internal" href="../../api/lab/isaaclab.sim.html#isaaclab.sim.SimulationContext" title="isaaclab.sim.SimulationContext"><code class="xref py py-class docutils literal notranslate"><span class="pre">sim.SimulationContext</span></code></a> class inherits from Isaac Sim’s
+<code class="xref py py-class docutils literal notranslate"><span class="pre">isaacsim.core.api.simulation_context.SimulationContext</span></code> to allow configuring the simulation
 through Python’s <code class="docutils literal notranslate"><span class="pre">dataclass</span></code> object and handle certain intricacies of the simulation stepping.</p>
 <p>For this tutorial, we set the physics and rendering time step to 0.01 seconds. This is done
-by passing these quantities to the <a class="reference internal" href="../../api/lab/omni.isaac.lab.sim.html#omni.isaac.lab.sim.SimulationCfg" title="omni.isaac.lab.sim.SimulationCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">sim.SimulationCfg</span></code></a>, which is then used to create an
+by passing these quantities to the <a class="reference internal" href="../../api/lab/isaaclab.sim.html#isaaclab.sim.SimulationCfg" title="isaaclab.sim.SimulationCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">sim.SimulationCfg</span></code></a>, which is then used to create an
 instance of the simulation context.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span>    <span class="c1"># Initialize the simulation context</span>
     <span class="n">sim_cfg</span> <span class="o">=</span> <span class="n">SimulationCfg</span><span class="p">(</span><span class="n">dt</span><span class="o">=</span><span class="mf">0.01</span><span class="p">)</span>
@@ -763,7 +774,7 @@ properly.</p>
 only plays the timeline and does not initializes the physics handles.</p>
 </div>
 <p>After playing the simulation timeline, we set up a simple simulation loop where the simulator is stepped repeatedly
-while the simulation app is running. The method <a class="reference internal" href="../../api/lab/omni.isaac.lab.sim.html#omni.isaac.lab.sim.SimulationContext.step" title="omni.isaac.lab.sim.SimulationContext.step"><code class="xref py py-meth docutils literal notranslate"><span class="pre">sim.SimulationContext.step()</span></code></a> takes in as argument <code class="xref py py-attr docutils literal notranslate"><span class="pre">render</span></code>,
+while the simulation app is running. The method <a class="reference internal" href="../../api/lab/isaaclab.sim.html#isaaclab.sim.SimulationContext.step" title="isaaclab.sim.SimulationContext.step"><code class="xref py py-meth docutils literal notranslate"><span class="pre">sim.SimulationContext.step()</span></code></a> takes in as argument <code class="xref py py-attr docutils literal notranslate"><span class="pre">render</span></code>,
 which dictates whether the step includes updating the rendering-related events or not. By default, this flag is
 set to True.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span>    <span class="c1"># Play the simulator</span>
@@ -781,7 +792,7 @@ set to True.</p>
 <section id="exiting-the-simulation">
 <h3>Exiting the simulation<a class="headerlink" href="#exiting-the-simulation" title="Permalink to this heading">#</a></h3>
 <p>Lastly, the simulation application is stopped and its window is closed by calling
-<code class="xref py py-meth docutils literal notranslate"><span class="pre">omni.isaac.kit.SimulationApp.close()</span></code> method.</p>
+<a class="reference external" href="https://docs.omniverse.nvidia.com/py/isaacsim/source/extensions/omni.isaac.kit/docs/index.html#isaacsim.SimulationApp.close" title="(in isaac_sim)"><code class="xref py py-meth docutils literal notranslate"><span class="pre">isaacsim.SimulationApp.close()</span></code></a> method.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span>    <span class="c1"># close sim app</span>
     <span class="n">simulation_app</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
 </pre></div>
@@ -791,7 +802,7 @@ set to True.</p>
 <section id="the-code-execution">
 <h2>The Code Execution<a class="headerlink" href="#the-code-execution" title="Permalink to this heading">#</a></h2>
 <p>Now that we have gone through the code, let’s run the script and see the result:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>source/standalone/tutorials/00_sim/create_empty.py
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/tutorials/00_sim/create_empty.py
 </pre></div>
 </div>
 <p>The simulation should be playing, and the stage should be rendering. To stop the simulation,
@@ -800,9 +811,9 @@ you can either close the window, or press <code class="docutils literal notransl
 <img alt="result of create_empty.py" src="../../../_images/tutorial_create_empty.jpg" />
 </figure>
 <p>Passing <code class="docutils literal notranslate"><span class="pre">--help</span></code> to the above script will show the different command-line arguments added
-earlier by the <a class="reference internal" href="../../api/lab/omni.isaac.lab.app.html#omni.isaac.lab.app.AppLauncher" title="omni.isaac.lab.app.AppLauncher"><code class="xref py py-class docutils literal notranslate"><span class="pre">app.AppLauncher</span></code></a> class. To run the script headless, you can execute the
+earlier by the <a class="reference internal" href="../../api/lab/isaaclab.app.html#isaaclab.app.AppLauncher" title="isaaclab.app.AppLauncher"><code class="xref py py-class docutils literal notranslate"><span class="pre">app.AppLauncher</span></code></a> class. To run the script headless, you can execute the
 following:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>source/standalone/tutorials/00_sim/create_empty.py<span class="w"> </span>--headless
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/tutorials/00_sim/create_empty.py<span class="w"> </span>--headless
 </pre></div>
 </div>
 <p>Now that we have a basic understanding of how to run a simulation, let’s move on to the

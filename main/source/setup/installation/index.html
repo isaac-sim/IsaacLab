@@ -56,11 +56,11 @@
     <link rel="icon" href="../../../_static/favicon.ico"/>
     <link rel="index" title="Index" href="../../../genindex.html" />
     <link rel="search" title="Search" href="../../../search.html" />
-    <link rel="next" title="Installation using pip" href="pip_installation.html" />
+    <link rel="next" title="Installation using Isaac Sim pip" href="pip_installation.html" />
     <link rel="prev" title="Isaac Lab Ecosystem" href="../ecosystem.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-  <meta name="docsearch:version" content="1.4.1" />
+  <meta name="docsearch:version" content="2.0.0" />
     <meta name="docbuild:last-update" content="Jan 30, 2025"/>
   </head>
   
@@ -192,7 +192,7 @@
           
           
           
-          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.2.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.5.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
         </li>
         <li class="nav-item">
           
@@ -230,6 +230,8 @@
 <li class="toctree-l1 current active has-children"><a class="current reference internal" href="#">Local Installation</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2"><a class="reference internal" href="pip_installation.html">Pip installation (recommended for Ubuntu 22.04 and Windows)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="binaries_installation.html">Binary installation (recommended for Ubuntu 20.04)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="isaaclab_pip_installation.html">Advanced installation (Isaac Lab pip)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="asset_caching.html">Asset caching</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1"><a class="reference internal" href="cloud_installation.html">Running Isaac Lab in the Cloud</a></li>
@@ -241,7 +243,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../../overview/developer-guide/vs_code.html">Setting up Visual Studio Code</a></li>
 
 <li class="toctree-l2"><a class="reference internal" href="../../overview/developer-guide/repo_structure.html">Repository organization</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../overview/developer-guide/development.html">Application Development</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/developer-guide/development.html">Extension Development</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../overview/developer-guide/template.html">Building your Own Project</a></li>
 </ul>
 </details></li>
@@ -264,6 +266,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../../overview/reinforcement-learning/rl_existing_scripts.html">Reinforcement Learning Wrappers</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../overview/reinforcement-learning/rl_frameworks.html">Reinforcement Learning Library Comparison</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../overview/reinforcement-learning/performance_benchmarks.html">Performance Benchmarks</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/reinforcement-learning/training_guide.html">Debugging and Training Guide</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1"><a class="reference internal" href="../../overview/teleop_imitation.html">Teleoperation and Imitation Learning</a></li>
@@ -294,6 +297,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../../tutorials/03_envs/register_rl_env_gym.html">Registering an Environment</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../tutorials/03_envs/run_rl_training.html">Training with an RL Agent</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../tutorials/03_envs/modify_direct_rl_env.html">Modifying an existing Direct RL Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/03_envs/policy_inference_in_usd.html">Policy Inference in USD Environment</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../tutorials/04_sensors/add_sensors_on_robot.html">Adding sensors on a robot</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../tutorials/05_controllers/run_diff_ik.html">Using a task-space controller</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../tutorials/05_controllers/run_osc.html">Using an operational space controller</a></li>
@@ -330,28 +334,27 @@
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Source API</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../api/index.html">API Reference</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.app.html">omni.isaac.lab.app</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.actuators.html">omni.isaac.lab.actuators</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.assets.html">omni.isaac.lab.assets</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.controllers.html">omni.isaac.lab.controllers</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.devices.html">omni.isaac.lab.devices</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.envs.html">omni.isaac.lab.envs</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.managers.html">omni.isaac.lab.managers</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.markers.html">omni.isaac.lab.markers</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.scene.html">omni.isaac.lab.scene</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.sensors.html">omni.isaac.lab.sensors</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.sim.html">omni.isaac.lab.sim</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.terrains.html">omni.isaac.lab.terrains</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.utils.html">omni.isaac.lab.utils</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.envs.mdp.html">omni.isaac.lab.envs.mdp</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.envs.ui.html">omni.isaac.lab.envs.ui</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.sensors.patterns.html">omni.isaac.lab.sensors.patterns</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.sim.converters.html">omni.isaac.lab.sim.converters</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.sim.schemas.html">omni.isaac.lab.sim.schemas</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.sim.spawners.html">omni.isaac.lab.sim.spawners</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab_tasks/omni.isaac.lab_tasks.utils.html">omni.isaac.lab_tasks.utils</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab_tasks/omni.isaac.lab_tasks.utils.wrappers.html">omni.isaac.lab_tasks.utils.wrappers</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab_tasks/omni.isaac.lab_tasks.utils.data_collector.html">omni.isaac.lab_tasks.utils.data_collector</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.app.html">isaaclab.app</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.actuators.html">isaaclab.actuators</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.assets.html">isaaclab.assets</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.controllers.html">isaaclab.controllers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.devices.html">isaaclab.devices</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.envs.html">isaaclab.envs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.managers.html">isaaclab.managers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.markers.html">isaaclab.markers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.scene.html">isaaclab.scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.sensors.html">isaaclab.sensors</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.sim.html">isaaclab.sim</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.terrains.html">isaaclab.terrains</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.utils.html">isaaclab.utils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.envs.mdp.html">isaaclab.envs.mdp</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.envs.ui.html">isaaclab.envs.ui</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.sensors.patterns.html">isaaclab.sensors.patterns</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.sim.converters.html">isaaclab.sim.converters</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.sim.schemas.html">isaaclab.sim.schemas</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.sim.spawners.html">isaaclab.sim.spawners</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab_tasks/isaaclab_tasks.utils.html">isaaclab_tasks.utils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab_mimic/isaaclab_mimic.datagen.html">isaaclab_mimic.datagen</a></li>
 </ul>
 </details></li>
 </ul>
@@ -361,7 +364,15 @@
 <li class="toctree-l1"><a class="reference internal" href="../../refs/additional_resources.html">Additional Resources</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../refs/contributing.html">Contribution Guidelines</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../refs/troubleshooting.html">Tricks and Troubleshooting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../refs/migration.html">Migration Guide (Isaac Sim)</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../refs/issues.html">Known Issues</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../refs/release_notes.html">Release Notes</a></li>
+
+
+
+
+
+
 <li class="toctree-l1"><a class="reference internal" href="../../refs/changelog.html">Extensions Changelog</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../refs/license.html">License</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../refs/bibliography.html">Bibliography</a></li>
@@ -369,7 +380,7 @@
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Project Links</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference external" href="https://github.com/isaac-sim/IsaacLab">GitHub</a></li>
-<li class="toctree-l1"><a class="reference external" href="https://docs.omniverse.nvidia.com/isaacsim/latest/index.html">NVIDIA Isaac Sim</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/latest/index.html">NVIDIA Isaac Sim</a></li>
 <li class="toctree-l1"><a class="reference external" href="https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/index.html">NVIDIA PhysX</a></li>
 </ul>
 
@@ -584,23 +595,37 @@
                   
   <section id="local-installation">
 <h1>Local Installation<a class="headerlink" href="#local-installation" title="Permalink to this heading">#</a></h1>
-<a class="reference external image-reference" href="https://developer.nvidia.com/isaac-sim"><img alt="IsaacSim 4.2.0" src="https://img.shields.io/badge/IsaacSim-4.2.0-silver.svg" /></a>
+<a class="reference external image-reference" href="https://developer.nvidia.com/isaac-sim"><img alt="IsaacSim 4.5.0" src="https://img.shields.io/badge/IsaacSim-4.5.0-silver.svg" /></a>
 <a class="reference external image-reference" href="https://www.python.org/downloads/release/python-31013/"><img alt="Python 3.10" src="https://img.shields.io/badge/python-3.10-blue.svg" /></a>
 <a class="reference external image-reference" href="https://releases.ubuntu.com/20.04/"><img alt="Ubuntu 20.04" src="https://img.shields.io/badge/platform-linux--64-orange.svg" /></a>
 <a class="reference external image-reference" href="https://www.microsoft.com/en-ca/windows/windows-11"><img alt="Windows 11" src="https://img.shields.io/badge/platform-windows--64-orange.svg" /></a>
 <div class="admonition caution">
 <p class="admonition-title">Caution</p>
-<p>We have dropped support for Isaac Sim versions 4.0.0 and below. We recommend using the latest
-Isaac Sim 4.2.0 release to benefit from the latest features and improvements.</p>
+<p>We have dropped support for Isaac Sim versions 4.2.0 and below. We recommend using the latest
+Isaac Sim 4.5.0 release to benefit from the latest features and improvements.</p>
 <p>For more information, please refer to the
-<a class="reference external" href="https://docs.omniverse.nvidia.com/isaacsim/latest/release_notes.html">Isaac Sim release notes</a>.</p>
+<a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/latest/overview/release_notes.html#">Isaac Sim release notes</a>.</p>
 </div>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>We recommend system requirements with at least 32GB RAM and 16GB VRAM for Isaac Lab.
 For the full list of system requirements for Isaac Sim, please refer to the
-<a class="reference external" href="https://docs.omniverse.nvidia.com/isaacsim/latest/installation/requirements.html#system-requirements">Isaac Sim system requirements</a>.</p>
+<a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/latest/installation/requirements.html#system-requirements">Isaac Sim system requirements</a>.</p>
 </div>
+<p>Isaac Lab is built on top of the Isaac Sim platform. Therefore, it is required to first install Isaac Sim
+before using Isaac Lab.</p>
+<p>Both Isaac Sim and Isaac Lab provide two ways of installation:
+either through binary download/source file, or through Python’s package installer <code class="docutils literal notranslate"><span class="pre">pip</span></code>.</p>
+<p>The method of installation may depend on the use case and the level of customization desired from users.
+For example, installing Isaac Sim from pip will be a simpler process than installing it from binaries,
+but the source code will then only be accessible through the installed source package and not through the direct binary download.</p>
+<p>Similarly, installing Isaac Lab through pip is only recommended for workflows that use external launch scripts outside of Isaac Lab.
+The Isaac Lab pip packages only provide the core framework extensions for Isaac Lab and does not include any of the
+standalone training, inferencing, and example scripts. Therefore, this workflow is recommended for projects that are
+built as external extensions outside of Isaac Lab, which utilizes user-defined runner scripts.</p>
+<p>For Ubuntu 22.04 and Windows systems, we recommend using Isaac Sim pip installation.
+For Ubuntu 20.04 systems, we recommend installing Isaac Sim through binaries.</p>
+<p>For users getting started with Isaac Lab, we recommend installing Isaac Lab by cloning the repo.</p>
 <div class="toctree-wrapper compound">
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="pip_installation.html">Pip installation (recommended for Ubuntu 22.04 and Windows)</a><ul>
@@ -611,6 +636,15 @@ For the full list of system requirements for Isaac Sim, please refer to the
 <li class="toctree-l1"><a class="reference internal" href="binaries_installation.html">Binary installation (recommended for Ubuntu 20.04)</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="binaries_installation.html#installing-isaac-sim">Installing Isaac Sim</a></li>
 <li class="toctree-l2"><a class="reference internal" href="binaries_installation.html#installing-isaac-lab">Installing Isaac Lab</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="isaaclab_pip_installation.html">Advanced installation (Isaac Lab pip)</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="isaaclab_pip_installation.html#verifying-the-isaac-sim-installation">Verifying the Isaac Sim installation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="isaaclab_pip_installation.html#running-isaac-lab-scripts">Running Isaac Lab Scripts</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="asset_caching.html">Asset caching</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="asset_caching.html#nucleus">Nucleus</a></li>
 </ul>
 </li>
 </ul>
@@ -642,7 +676,7 @@ For the full list of system requirements for Isaac Sim, please refer to the
        title="next page">
       <div class="prev-next-info">
         <p class="prev-next-subtitle">next</p>
-        <p class="prev-next-title">Installation using pip</p>
+        <p class="prev-next-title">Installation using Isaac Sim pip</p>
       </div>
       <i class="fa-solid fa-angle-right"></i>
     </a>

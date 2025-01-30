@@ -9,7 +9,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
 
-    <title>Overview &#8212; Isaac Lab Documentation</title>
+    <title>Welcome to Isaac Lab! &#8212; Isaac Lab Documentation</title>
   
   
   
@@ -59,7 +59,7 @@
     <link rel="next" title="Isaac Lab Ecosystem" href="source/setup/ecosystem.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-  <meta name="docsearch:version" content="1.4.1" />
+  <meta name="docsearch:version" content="2.0.0" />
     <meta name="docbuild:last-update" content="Jan 30, 2025"/>
   </head>
   
@@ -193,7 +193,7 @@
           
           
           
-          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.2.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.5.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
         </li>
         <li class="nav-item">
           
@@ -231,6 +231,8 @@
 <li class="toctree-l1 has-children"><a class="reference internal" href="source/setup/installation/index.html">Local Installation</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2"><a class="reference internal" href="source/setup/installation/pip_installation.html">Pip installation (recommended for Ubuntu 22.04 and Windows)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/setup/installation/binaries_installation.html">Binary installation (recommended for Ubuntu 20.04)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/setup/installation/isaaclab_pip_installation.html">Advanced installation (Isaac Lab pip)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/setup/installation/asset_caching.html">Asset caching</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1"><a class="reference internal" href="source/setup/installation/cloud_installation.html">Running Isaac Lab in the Cloud</a></li>
@@ -242,7 +244,7 @@
 <li class="toctree-l2"><a class="reference internal" href="source/overview/developer-guide/vs_code.html">Setting up Visual Studio Code</a></li>
 
 <li class="toctree-l2"><a class="reference internal" href="source/overview/developer-guide/repo_structure.html">Repository organization</a></li>
-<li class="toctree-l2"><a class="reference internal" href="source/overview/developer-guide/development.html">Application Development</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/overview/developer-guide/development.html">Extension Development</a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/overview/developer-guide/template.html">Building your Own Project</a></li>
 </ul>
 </details></li>
@@ -265,6 +267,7 @@
 <li class="toctree-l2"><a class="reference internal" href="source/overview/reinforcement-learning/rl_existing_scripts.html">Reinforcement Learning Wrappers</a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/overview/reinforcement-learning/rl_frameworks.html">Reinforcement Learning Library Comparison</a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/overview/reinforcement-learning/performance_benchmarks.html">Performance Benchmarks</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/overview/reinforcement-learning/training_guide.html">Debugging and Training Guide</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1"><a class="reference internal" href="source/overview/teleop_imitation.html">Teleoperation and Imitation Learning</a></li>
@@ -295,6 +298,7 @@
 <li class="toctree-l2"><a class="reference internal" href="source/tutorials/03_envs/register_rl_env_gym.html">Registering an Environment</a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/tutorials/03_envs/run_rl_training.html">Training with an RL Agent</a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/tutorials/03_envs/modify_direct_rl_env.html">Modifying an existing Direct RL Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/tutorials/03_envs/policy_inference_in_usd.html">Policy Inference in USD Environment</a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/tutorials/04_sensors/add_sensors_on_robot.html">Adding sensors on a robot</a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/tutorials/05_controllers/run_diff_ik.html">Using a task-space controller</a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/tutorials/05_controllers/run_osc.html">Using an operational space controller</a></li>
@@ -331,28 +335,27 @@
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Source API</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1 has-children"><a class="reference internal" href="source/api/index.html">API Reference</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
-<li class="toctree-l2"><a class="reference internal" href="source/api/lab/omni.isaac.lab.app.html">omni.isaac.lab.app</a></li>
-<li class="toctree-l2"><a class="reference internal" href="source/api/lab/omni.isaac.lab.actuators.html">omni.isaac.lab.actuators</a></li>
-<li class="toctree-l2"><a class="reference internal" href="source/api/lab/omni.isaac.lab.assets.html">omni.isaac.lab.assets</a></li>
-<li class="toctree-l2"><a class="reference internal" href="source/api/lab/omni.isaac.lab.controllers.html">omni.isaac.lab.controllers</a></li>
-<li class="toctree-l2"><a class="reference internal" href="source/api/lab/omni.isaac.lab.devices.html">omni.isaac.lab.devices</a></li>
-<li class="toctree-l2"><a class="reference internal" href="source/api/lab/omni.isaac.lab.envs.html">omni.isaac.lab.envs</a></li>
-<li class="toctree-l2"><a class="reference internal" href="source/api/lab/omni.isaac.lab.managers.html">omni.isaac.lab.managers</a></li>
-<li class="toctree-l2"><a class="reference internal" href="source/api/lab/omni.isaac.lab.markers.html">omni.isaac.lab.markers</a></li>
-<li class="toctree-l2"><a class="reference internal" href="source/api/lab/omni.isaac.lab.scene.html">omni.isaac.lab.scene</a></li>
-<li class="toctree-l2"><a class="reference internal" href="source/api/lab/omni.isaac.lab.sensors.html">omni.isaac.lab.sensors</a></li>
-<li class="toctree-l2"><a class="reference internal" href="source/api/lab/omni.isaac.lab.sim.html">omni.isaac.lab.sim</a></li>
-<li class="toctree-l2"><a class="reference internal" href="source/api/lab/omni.isaac.lab.terrains.html">omni.isaac.lab.terrains</a></li>
-<li class="toctree-l2"><a class="reference internal" href="source/api/lab/omni.isaac.lab.utils.html">omni.isaac.lab.utils</a></li>
-<li class="toctree-l2"><a class="reference internal" href="source/api/lab/omni.isaac.lab.envs.mdp.html">omni.isaac.lab.envs.mdp</a></li>
-<li class="toctree-l2"><a class="reference internal" href="source/api/lab/omni.isaac.lab.envs.ui.html">omni.isaac.lab.envs.ui</a></li>
-<li class="toctree-l2"><a class="reference internal" href="source/api/lab/omni.isaac.lab.sensors.patterns.html">omni.isaac.lab.sensors.patterns</a></li>
-<li class="toctree-l2"><a class="reference internal" href="source/api/lab/omni.isaac.lab.sim.converters.html">omni.isaac.lab.sim.converters</a></li>
-<li class="toctree-l2"><a class="reference internal" href="source/api/lab/omni.isaac.lab.sim.schemas.html">omni.isaac.lab.sim.schemas</a></li>
-<li class="toctree-l2"><a class="reference internal" href="source/api/lab/omni.isaac.lab.sim.spawners.html">omni.isaac.lab.sim.spawners</a></li>
-<li class="toctree-l2"><a class="reference internal" href="source/api/lab_tasks/omni.isaac.lab_tasks.utils.html">omni.isaac.lab_tasks.utils</a></li>
-<li class="toctree-l2"><a class="reference internal" href="source/api/lab_tasks/omni.isaac.lab_tasks.utils.wrappers.html">omni.isaac.lab_tasks.utils.wrappers</a></li>
-<li class="toctree-l2"><a class="reference internal" href="source/api/lab_tasks/omni.isaac.lab_tasks.utils.data_collector.html">omni.isaac.lab_tasks.utils.data_collector</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/api/lab/isaaclab.app.html">isaaclab.app</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/api/lab/isaaclab.actuators.html">isaaclab.actuators</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/api/lab/isaaclab.assets.html">isaaclab.assets</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/api/lab/isaaclab.controllers.html">isaaclab.controllers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/api/lab/isaaclab.devices.html">isaaclab.devices</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/api/lab/isaaclab.envs.html">isaaclab.envs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/api/lab/isaaclab.managers.html">isaaclab.managers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/api/lab/isaaclab.markers.html">isaaclab.markers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/api/lab/isaaclab.scene.html">isaaclab.scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/api/lab/isaaclab.sensors.html">isaaclab.sensors</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/api/lab/isaaclab.sim.html">isaaclab.sim</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/api/lab/isaaclab.terrains.html">isaaclab.terrains</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/api/lab/isaaclab.utils.html">isaaclab.utils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/api/lab/isaaclab.envs.mdp.html">isaaclab.envs.mdp</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/api/lab/isaaclab.envs.ui.html">isaaclab.envs.ui</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/api/lab/isaaclab.sensors.patterns.html">isaaclab.sensors.patterns</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/api/lab/isaaclab.sim.converters.html">isaaclab.sim.converters</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/api/lab/isaaclab.sim.schemas.html">isaaclab.sim.schemas</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/api/lab/isaaclab.sim.spawners.html">isaaclab.sim.spawners</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/api/lab_tasks/isaaclab_tasks.utils.html">isaaclab_tasks.utils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/api/lab_mimic/isaaclab_mimic.datagen.html">isaaclab_mimic.datagen</a></li>
 </ul>
 </details></li>
 </ul>
@@ -362,7 +365,15 @@
 <li class="toctree-l1"><a class="reference internal" href="source/refs/additional_resources.html">Additional Resources</a></li>
 <li class="toctree-l1"><a class="reference internal" href="source/refs/contributing.html">Contribution Guidelines</a></li>
 <li class="toctree-l1"><a class="reference internal" href="source/refs/troubleshooting.html">Tricks and Troubleshooting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="source/refs/migration.html">Migration Guide (Isaac Sim)</a></li>
 <li class="toctree-l1"><a class="reference internal" href="source/refs/issues.html">Known Issues</a></li>
+<li class="toctree-l1"><a class="reference internal" href="source/refs/release_notes.html">Release Notes</a></li>
+
+
+
+
+
+
 <li class="toctree-l1"><a class="reference internal" href="source/refs/changelog.html">Extensions Changelog</a></li>
 <li class="toctree-l1"><a class="reference internal" href="source/refs/license.html">License</a></li>
 <li class="toctree-l1"><a class="reference internal" href="source/refs/bibliography.html">Bibliography</a></li>
@@ -370,7 +381,7 @@
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Project Links</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference external" href="https://github.com/isaac-sim/IsaacLab">GitHub</a></li>
-<li class="toctree-l1"><a class="reference external" href="https://docs.omniverse.nvidia.com/isaacsim/latest/index.html">NVIDIA Isaac Sim</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/latest/index.html">NVIDIA Isaac Sim</a></li>
 <li class="toctree-l1"><a class="reference external" href="https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/index.html">NVIDIA PhysX</a></li>
 </ul>
 
@@ -571,7 +582,7 @@
               
 
 <div id="jb-print-docs-body" class="onlyprint">
-    <h1>Overview</h1>
+    <h1>Welcome to Isaac Lab!</h1>
     <!-- Table of contents -->
     <div id="print-main-content">
         <div id="jb-print-toc">
@@ -581,7 +592,7 @@
             </div>
             <nav aria-label="Page">
                 <ul class="visible nav section-nav flex-column">
-<li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#">Overview</a></li>
+<li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#">Welcome to Isaac Lab!</a></li>
 <li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#license">License</a></li>
 <li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#acknowledgement">Acknowledgement</a></li>
 <li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#table-of-contents">Table of Contents</a><ul class="visible nav section-nav flex-column">
@@ -600,30 +611,29 @@
 <div id="searchbox"></div>
                 <article class="bd-article">
                   
-  <section id="overview">
-<h1>Overview<a class="headerlink" href="#overview" title="Permalink to this heading">#</a></h1>
+  <section id="welcome-to-isaac-lab">
+<h1>Welcome to Isaac Lab!<a class="headerlink" href="#welcome-to-isaac-lab" title="Permalink to this heading">#</a></h1>
 <figure class="align-default">
 <a class="reference internal image-reference" href="_images/isaaclab.jpg"><img alt="H1 Humanoid example using Isaac Lab" src="_images/isaaclab.jpg" style="width: 100%;" /></a>
 </figure>
 <p><strong>Isaac Lab</strong> is a unified and modular framework for robot learning that aims to simplify common workflows
-in robotics research (such as reinforcement learning, learning from demonstrations, and motion planning). It is built upon
-<a class="reference external" href="https://docs.omniverse.nvidia.com/isaacsim/latest/index.html">NVIDIA Isaac Sim</a> to leverage the latest simulation capabilities for photo-realistic scenes, and fast
+in robotics research (such as reinforcement learning, learning from demonstrations, and motion planning). It is built on
+<a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/latest/index.html">NVIDIA Isaac Sim</a> to leverage the latest simulation capabilities for photo-realistic scenes, and fast
 and efficient simulation.</p>
 <p>The core objectives of the framework are:</p>
 <ul class="simple">
 <li><p><strong>Modularity</strong>: Easily customize and add new environments, robots, and sensors.</p></li>
 <li><p><strong>Agility</strong>: Adapt to the changing needs of the community.</p></li>
 <li><p><strong>Openness</strong>: Remain open-sourced to allow the community to contribute and extend the framework.</p></li>
-<li><p><strong>Battery-included</strong>: Include a number of environments, sensors, and tasks that are ready to use.</p></li>
+<li><p><strong>Batteries-included</strong>: Include a number of environments, sensors, and tasks that are ready to use.</p></li>
 </ul>
 <p>Key features available in Isaac Lab include fast and accurate physics simulation provided by PhysX,
 tiled rendering APIs for vectorized rendering, domain randomization for improving robustness and adaptability,
 and support for running in the cloud.</p>
-<p>Additionally, Isaac Lab provides over 26 environments, and we are actively working on adding more environments
+<p>Additionally, Isaac Lab provides a variety of environments, and we are actively working on adding more environments
 to the list. These include classic control tasks, fixed-arm and dexterous manipulation tasks, legged locomotion tasks,
 and navigation tasks. A complete list is available in the <a class="reference external" href="source/overview/environments">environments</a> section.</p>
-<p>The framework also includes over 16 robots. If you are looking to add a new robot, please refer to the
-<a class="reference internal" href="source/how-to/index.html#how-to"><span class="std std-ref">How-to Guides</span></a> section. The current list of robots includes:</p>
+<p>Isaac lab is developed with specific robot assets that are now <strong>Batteries-included</strong> as part of the platform and are ready to learn! These robots include…</p>
 <ul class="simple">
 <li><p><strong>Classic</strong> Cartpole, Humanoid, Ant</p></li>
 <li><p><strong>Fixed-Arm and Hands</strong>: UR10, Franka, Allegro, Shadow Hand</p></li>
@@ -631,6 +641,8 @@ and navigation tasks. A complete list is available in the <a class="reference ex
 <li><p><strong>Humanoids</strong>: Unitree H1, Unitree G1</p></li>
 <li><p><strong>Quadcopter</strong>: Crazyflie</p></li>
 </ul>
+<p>The platform is also designed so that you can add your own robots! please refer to the
+<a class="reference internal" href="source/how-to/index.html#how-to"><span class="std std-ref">How-to Guides</span></a> section for details.</p>
 <p>For more information about the framework, please refer to the <a class="reference external" href="https://arxiv.org/abs/2301.04195">paper</a>
 <span id="id1">[<a class="reference internal" href="source/refs/bibliography.html#id16" title="Mayank Mittal, Calvin Yu, Qinxi Yu, Jingzhou Liu, Nikita Rudin, David Hoeller, Jia Lin Yuan, Ritvik Singh, Yunrong Guo, Hammad Mazhar, Ajay Mandlekar, Buck Babich, Gavriel State, Marco Hutter, and Animesh Garg. Orbit: a unified simulation framework for interactive robot learning environments. IEEE Robotics and Automation Letters, 8(6):3740-3747, 2023. doi:10.1109/LRA.2023.3270034.">MYY+23</a>]</span>. For clarifications on NVIDIA Isaac ecosystem, please check out the
 <a class="reference internal" href="source/setup/faq.html"><span class="doc">Frequently Asked Questions</span></a> section.</p>
@@ -668,6 +680,8 @@ Please refer to <a class="reference internal" href="source/refs/license.html#lic
 <li class="toctree-l1"><a class="reference internal" href="source/setup/installation/index.html">Local Installation</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="source/setup/installation/pip_installation.html">Pip installation (recommended for Ubuntu 22.04 and Windows)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/setup/installation/binaries_installation.html">Binary installation (recommended for Ubuntu 20.04)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/setup/installation/isaaclab_pip_installation.html">Advanced installation (Isaac Lab pip)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/setup/installation/asset_caching.html">Asset caching</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="source/setup/installation/cloud_installation.html">Running Isaac Lab in the Cloud</a><ul>
@@ -691,7 +705,7 @@ Please refer to <a class="reference internal" href="source/refs/license.html#lic
 <li class="toctree-l2"><a class="reference internal" href="source/overview/developer-guide/vs_code.html">Setting up Visual Studio Code</a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/overview/developer-guide/vs_code.html#configuring-the-python-interpreter">Configuring the python interpreter</a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/overview/developer-guide/repo_structure.html">Repository organization</a></li>
-<li class="toctree-l2"><a class="reference internal" href="source/overview/developer-guide/development.html">Application Development</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/overview/developer-guide/development.html">Extension Development</a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/overview/developer-guide/template.html">Building your Own Project</a></li>
 </ul>
 </li>
@@ -714,6 +728,7 @@ Please refer to <a class="reference internal" href="source/refs/license.html#lic
 <li class="toctree-l2"><a class="reference internal" href="source/overview/reinforcement-learning/rl_existing_scripts.html">Reinforcement Learning Wrappers</a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/overview/reinforcement-learning/rl_frameworks.html">Reinforcement Learning Library Comparison</a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/overview/reinforcement-learning/performance_benchmarks.html">Performance Benchmarks</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/overview/reinforcement-learning/training_guide.html">Debugging and Training Guide</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="source/overview/teleop_imitation.html">Teleoperation and Imitation Learning</a></li>
@@ -746,9 +761,9 @@ Please refer to <a class="reference internal" href="source/refs/license.html#lic
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="source/features/ray.html">Ray Job Dispatch and Tuning</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="source/features/ray.html#overview"><strong>Overview</strong></a></li>
-<li class="toctree-l2"><a class="reference internal" href="source/features/ray.html#docker-based-local-quickstart"><strong>Docker-based Local Quickstart</strong></a></li>
-<li class="toctree-l2"><a class="reference internal" href="source/features/ray.html#remote-clusters"><strong>Remote Clusters</strong></a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/features/ray.html#overview">Overview</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/features/ray.html#docker-based-local-quickstart">Docker-based Local Quickstart</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/features/ray.html#remote-clusters">Remote Clusters</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="source/features/reproducibility.html">Reproducibility and Determinism</a></li>
@@ -783,7 +798,15 @@ Please refer to <a class="reference internal" href="source/refs/license.html#lic
 <li class="toctree-l1"><a class="reference internal" href="source/refs/additional_resources.html">Additional Resources</a></li>
 <li class="toctree-l1"><a class="reference internal" href="source/refs/contributing.html">Contribution Guidelines</a></li>
 <li class="toctree-l1"><a class="reference internal" href="source/refs/troubleshooting.html">Tricks and Troubleshooting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="source/refs/migration.html">Migration Guide (Isaac Sim)</a></li>
 <li class="toctree-l1"><a class="reference internal" href="source/refs/issues.html">Known Issues</a></li>
+<li class="toctree-l1"><a class="reference internal" href="source/refs/release_notes.html">Release Notes</a></li>
+<li class="toctree-l1"><a class="reference internal" href="source/refs/release_notes.html#v2-0-0">v2.0.0</a></li>
+<li class="toctree-l1"><a class="reference internal" href="source/refs/release_notes.html#v1-4-0">v1.4.0</a></li>
+<li class="toctree-l1"><a class="reference internal" href="source/refs/release_notes.html#v1-3-0">v1.3.0</a></li>
+<li class="toctree-l1"><a class="reference internal" href="source/refs/release_notes.html#v1-2-0">v1.2.0</a></li>
+<li class="toctree-l1"><a class="reference internal" href="source/refs/release_notes.html#v1-1-0">v1.1.0</a></li>
+<li class="toctree-l1"><a class="reference internal" href="source/refs/release_notes.html#v1-0-0">v1.0.0</a></li>
 <li class="toctree-l1"><a class="reference internal" href="source/refs/changelog.html">Extensions Changelog</a></li>
 <li class="toctree-l1"><a class="reference internal" href="source/refs/license.html">License</a></li>
 <li class="toctree-l1"><a class="reference internal" href="source/refs/bibliography.html">Bibliography</a></li>
@@ -838,7 +861,7 @@ Please refer to <a class="reference internal" href="source/refs/license.html#lic
   </div>
   <nav class="bd-toc-nav page-toc">
     <ul class="visible nav section-nav flex-column">
-<li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#">Overview</a></li>
+<li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#">Welcome to Isaac Lab!</a></li>
 <li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#license">License</a></li>
 <li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#acknowledgement">Acknowledgement</a></li>
 <li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#table-of-contents">Table of Contents</a><ul class="visible nav section-nav flex-column">

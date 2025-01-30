@@ -192,7 +192,7 @@
           
           
           
-          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.2.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.5.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
         </li>
         <li class="nav-item">
           
@@ -684,7 +684,7 @@ parameter<span class="w"> </span>to<span class="w"> </span><span class="m">3072<
 </div>
 <p>In this case, you need to increase the size of the buffers passed to the
 <a class="reference internal" href="../api/lab/omni.isaac.lab.sim.html#omni.isaac.lab.sim.SimulationContext" title="omni.isaac.lab.sim.SimulationContext"><code class="xref py py-class docutils literal notranslate"><span class="pre">SimulationContext</span></code></a> class. The size of the buffers can be increased by setting
-the <a class="reference internal" href="../api/lab/omni.isaac.lab.sim.html#omni.isaac.lab.sim.PhysxCfg.gpu_found_lost_pairs_capacity" title="omni.isaac.lab.sim.PhysxCfg.gpu_found_lost_pairs_capacity"><code class="xref py py-attr docutils literal notranslate"><span class="pre">gpu_found_lost_pairs_capacity</span></code></a> parameter in the
+the <code class="xref py py-attr docutils literal notranslate"><span class="pre">gpu_found_lost_pairs_capacity</span></code> parameter in the
 <a class="reference internal" href="../api/lab/omni.isaac.lab.sim.html#omni.isaac.lab.sim.PhysxCfg" title="omni.isaac.lab.sim.PhysxCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">PhysxCfg</span></code></a> class. For example, to increase the size of the buffers to
 4096, you can use the following code:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">omni.isaac.lab.sim</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">sim_utils</span>

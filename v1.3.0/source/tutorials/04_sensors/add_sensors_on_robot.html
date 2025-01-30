@@ -192,7 +192,7 @@
           
           
           
-          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.2.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.5.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
         </li>
         <li class="nav-item">
           
@@ -804,7 +804,7 @@ where we learned about the <a class="reference internal" href="../../api/lab/omn
 to the scene using the scene configuration. All sensors inherit from the <a class="reference internal" href="../../api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.SensorBase" title="omni.isaac.lab.sensors.SensorBase"><code class="xref py py-class docutils literal notranslate"><span class="pre">sensors.SensorBase</span></code></a> class
 and are configured through their respective config classes. Each sensor instance can define its own
 update period, which is the frequency at which the sensor is updated. The update period is specified
-in seconds through the <a class="reference internal" href="../../api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.SensorBaseCfg.update_period" title="omni.isaac.lab.sensors.SensorBaseCfg.update_period"><code class="xref py py-attr docutils literal notranslate"><span class="pre">sensors.SensorBaseCfg.update_period</span></code></a> attribute.</p>
+in seconds through the <code class="xref py py-attr docutils literal notranslate"><span class="pre">sensors.SensorBaseCfg.update_period</span></code> attribute.</p>
 <p>Depending on the specified path and the sensor type, the sensors are attached to the prims in the scene.
 They may have an associated prim that is created in the scene or they may be attached to an existing prim.
 For instance, the camera sensor has a corresponding prim that is created in the scene, whereas for the
@@ -818,15 +818,15 @@ the different data types are captured using Omniverse Replicator API. Since it h
 in the scene, the prims are created in the scene at the specified prim path.</p>
 <p>The configuration of the camera sensor includes the following parameters:</p>
 <ul class="simple">
-<li><p><a class="reference internal" href="../../api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.CameraCfg.spawn" title="omni.isaac.lab.sensors.CameraCfg.spawn"><code class="xref py py-attr docutils literal notranslate"><span class="pre">spawn</span></code></a>: The type of USD camera to create. This can be either
+<li><p><code class="xref py py-attr docutils literal notranslate"><span class="pre">spawn</span></code>: The type of USD camera to create. This can be either
 <a class="reference internal" href="../../api/lab/omni.isaac.lab.sim.spawners.html#omni.isaac.lab.sim.spawners.sensors.PinholeCameraCfg" title="omni.isaac.lab.sim.spawners.sensors.PinholeCameraCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">PinholeCameraCfg</span></code></a> or <a class="reference internal" href="../../api/lab/omni.isaac.lab.sim.spawners.html#omni.isaac.lab.sim.spawners.sensors.FisheyeCameraCfg" title="omni.isaac.lab.sim.spawners.sensors.FisheyeCameraCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">FisheyeCameraCfg</span></code></a>.</p></li>
-<li><p><a class="reference internal" href="../../api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.CameraCfg.offset" title="omni.isaac.lab.sensors.CameraCfg.offset"><code class="xref py py-attr docutils literal notranslate"><span class="pre">offset</span></code></a>: The offset of the camera sensor from the parent prim.</p></li>
-<li><p><a class="reference internal" href="../../api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.CameraCfg.data_types" title="omni.isaac.lab.sensors.CameraCfg.data_types"><code class="xref py py-attr docutils literal notranslate"><span class="pre">data_types</span></code></a>: The data types to capture. This can be <code class="docutils literal notranslate"><span class="pre">rgb</span></code>,
+<li><p><code class="xref py py-attr docutils literal notranslate"><span class="pre">offset</span></code>: The offset of the camera sensor from the parent prim.</p></li>
+<li><p><code class="xref py py-attr docutils literal notranslate"><span class="pre">data_types</span></code>: The data types to capture. This can be <code class="docutils literal notranslate"><span class="pre">rgb</span></code>,
 <code class="docutils literal notranslate"><span class="pre">distance_to_image_plane</span></code>, <code class="docutils literal notranslate"><span class="pre">normals</span></code>, or other types supported by the USD Camera sensor.</p></li>
 </ul>
 <p>To attach an RGB-D camera sensor to the head of the robot, we specify an offset relative to the base
 frame of the robot. The offset is specified as a translation and rotation relative to the base frame,
-and the <a class="reference internal" href="../../api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.CameraCfg.OffsetCfg.convention" title="omni.isaac.lab.sensors.CameraCfg.OffsetCfg.convention"><code class="xref py py-attr docutils literal notranslate"><span class="pre">convention</span></code></a> in which the offset is specified.</p>
+and the <code class="xref py py-attr docutils literal notranslate"><span class="pre">convention</span></code> in which the offset is specified.</p>
 <p>In the following, we show the configuration of the camera sensor used in this tutorial. We set the
 update period to 0.1s, which means that the camera sensor is updated at 10Hz. The prim path expression is
 set to <code class="docutils literal notranslate"><span class="pre">{ENV_REGEX_NS}/Robot/base/front_cam</span></code> where the <code class="docutils literal notranslate"><span class="pre">{ENV_REGEX_NS}</span></code> is the environment namespace,
@@ -857,9 +857,9 @@ used to specify the location of the sensor.</p>
 The pattern of rays is specified using the <code class="xref py py-attr docutils literal notranslate"><span class="pre">pattern</span></code> attribute. For
 a uniform grid pattern, we specify the pattern using <a class="reference internal" href="../../api/lab/omni.isaac.lab.sensors.patterns.html#omni.isaac.lab.sensors.patterns.GridPatternCfg" title="omni.isaac.lab.sensors.patterns.GridPatternCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">GridPatternCfg</span></code></a>.
 Since we only care about the height information, we do not need to consider the roll and pitch
-of the robot. Hence, we set the <a class="reference internal" href="../../api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.RayCasterCfg.attach_yaw_only" title="omni.isaac.lab.sensors.RayCasterCfg.attach_yaw_only"><code class="xref py py-attr docutils literal notranslate"><span class="pre">attach_yaw_only</span></code></a> to true.</p>
+of the robot. Hence, we set the <code class="xref py py-attr docutils literal notranslate"><span class="pre">attach_yaw_only</span></code> to true.</p>
 <p>For the height-scanner, you can visualize the points where the rays hit the mesh. This is done
-by setting the <a class="reference internal" href="../../api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.SensorBaseCfg.debug_vis" title="omni.isaac.lab.sensors.SensorBaseCfg.debug_vis"><code class="xref py py-attr docutils literal notranslate"><span class="pre">debug_vis</span></code></a> attribute to true.</p>
+by setting the <code class="xref py py-attr docutils literal notranslate"><span class="pre">debug_vis</span></code> attribute to true.</p>
 <p>The entire configuration of the height-scanner is as follows:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span>    <span class="n">height_scanner</span> <span class="o">=</span> <span class="n">RayCasterCfg</span><span class="p">(</span>
         <span class="n">prim_path</span><span class="o">=</span><span class="s2">&quot;</span><span class="si">{ENV_REGEX_NS}</span><span class="s2">/Robot/base&quot;</span><span class="p">,</span>
@@ -878,7 +878,7 @@ by setting the <a class="reference internal" href="../../api/lab/omni.isaac.lab.
 <p>Contact sensors wrap around the PhysX contact reporting API to obtain the contact information of the robot
 with the environment. Since it relies of PhysX, the contact sensor expects the contact reporting API
 to be enabled on the rigid bodies of the robot. This can be done by setting the
-<a class="reference internal" href="../../api/lab/omni.isaac.lab.sim.spawners.html#omni.isaac.lab.sim.spawners.RigidObjectSpawnerCfg.activate_contact_sensors" title="omni.isaac.lab.sim.spawners.RigidObjectSpawnerCfg.activate_contact_sensors"><code class="xref py py-attr docutils literal notranslate"><span class="pre">activate_contact_sensors</span></code></a> to true in the asset configuration.</p>
+<code class="xref py py-attr docutils literal notranslate"><span class="pre">activate_contact_sensors</span></code> to true in the asset configuration.</p>
 <p>Through the <a class="reference internal" href="../../api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.ContactSensorCfg" title="omni.isaac.lab.sensors.ContactSensorCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">sensors.ContactSensorCfg</span></code></a>, it is possible to specify the prims for which we want to
 obtain the contact information. Additional flags can be set to obtain more information about
 the contact, such as the contact air time, contact forces between filtered prims, etc.</p>

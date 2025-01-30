@@ -192,7 +192,7 @@
           
           
           
-          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.2.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.5.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
         </li>
         <li class="nav-item">
           
@@ -814,7 +814,7 @@ end-effector pose command.</p>
 quantities are in the correct frames. When parallelizing environment instances, they are
 all existing in the same unique simulation world frame. However, typically, we want each
 environment itself to have its own local frame. This is accessible through the
-<a class="reference internal" href="../../api/lab/omni.isaac.lab.scene.html#omni.isaac.lab.scene.InteractiveScene.env_origins" title="omni.isaac.lab.scene.InteractiveScene.env_origins"><code class="xref py py-attr docutils literal notranslate"><span class="pre">scene.InteractiveScene.env_origins</span></code></a> attribute.</p>
+<code class="xref py py-attr docutils literal notranslate"><span class="pre">scene.InteractiveScene.env_origins</span></code> attribute.</p>
 <p>In our APIs, we use the following notation for frames:</p>
 <ul class="simple">
 <li><p>The simulation world frame (denoted as <code class="docutils literal notranslate"><span class="pre">w</span></code>), which is the frame of the entire simulation.</p></li>
@@ -832,7 +832,7 @@ positions for a robot to reach a desired end-effector pose. The included impleme
 performs the computation in a batched format and uses PyTorch operations. It supports
 different types of inverse kinematics solvers, including the damped least-squares method
 and the pseudo-inverse method. These solvers can be specified using the
-<a class="reference internal" href="../../api/lab/omni.isaac.lab.controllers.html#omni.isaac.lab.controllers.DifferentialIKControllerCfg.ik_method" title="omni.isaac.lab.controllers.DifferentialIKControllerCfg.ik_method"><code class="xref py py-attr docutils literal notranslate"><span class="pre">ik_method</span></code></a> argument.
+<code class="xref py py-attr docutils literal notranslate"><span class="pre">ik_method</span></code> argument.
 Additionally, the controller can handle commands as both relative and absolute poses.</p>
 <p>In this tutorial, we will use the damped least-squares method to compute the desired
 joint positions. Additionally, since we want to track desired end-effector poses, we
@@ -848,13 +848,13 @@ will use the absolute pose command mode.</p>
 <p>The IK controller implementation is a computation-only class. Thus, it expects the
 user to provide the necessary information about the robot. This includes the robot’s
 joint positions, current end-effector pose, and the Jacobian matrix.</p>
-<p>While the attribute <a class="reference internal" href="../../api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.ArticulationData.joint_pos" title="omni.isaac.lab.assets.ArticulationData.joint_pos"><code class="xref py py-attr docutils literal notranslate"><span class="pre">assets.ArticulationData.joint_pos</span></code></a> provides the joint positions,
+<p>While the attribute <code class="xref py py-attr docutils literal notranslate"><span class="pre">assets.ArticulationData.joint_pos</span></code> provides the joint positions,
 we only want the joint positions of the robot’s arm, and not the gripper. Similarly, while
-the attribute <a class="reference internal" href="../../api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.ArticulationData.body_state_w" title="omni.isaac.lab.assets.ArticulationData.body_state_w"><code class="xref py py-attr docutils literal notranslate"><span class="pre">assets.ArticulationData.body_state_w</span></code></a> provides the state of all the
+the attribute <code class="xref py py-attr docutils literal notranslate"><span class="pre">assets.ArticulationData.body_state_w</span></code> provides the state of all the
 robot’s bodies, we only want the state of the robot’s end-effector. Thus, we need to
 index into these arrays to obtain the desired quantities.</p>
-<p>For this, the articulation class provides the methods <a class="reference internal" href="../../api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.Articulation.find_joints" title="omni.isaac.lab.assets.Articulation.find_joints"><code class="xref py py-meth docutils literal notranslate"><span class="pre">find_joints()</span></code></a>
-and <a class="reference internal" href="../../api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.Articulation.find_bodies" title="omni.isaac.lab.assets.Articulation.find_bodies"><code class="xref py py-meth docutils literal notranslate"><span class="pre">find_bodies()</span></code></a>. These methods take in the names of the joints
+<p>For this, the articulation class provides the methods <code class="xref py py-meth docutils literal notranslate"><span class="pre">find_joints()</span></code>
+and <code class="xref py py-meth docutils literal notranslate"><span class="pre">find_bodies()</span></code>. These methods take in the names of the joints
 and bodies and return their corresponding indices.</p>
 <p>While you may directly use these methods to obtain the indices, we recommend using the
 <a class="reference internal" href="../../api/lab/omni.isaac.lab.managers.html#omni.isaac.lab.managers.SceneEntityCfg" title="omni.isaac.lab.managers.SceneEntityCfg"><code class="xref py py-attr docutils literal notranslate"><span class="pre">SceneEntityCfg</span></code></a> class to resolve the indices. This class is used in various
@@ -887,7 +887,7 @@ this class.</p>
 <p>The IK controller separates the operation of setting the desired command and
 computing the desired joint positions. This is done to allow for the user to
 run the IK controller at a different frequency than the robot’s control frequency.</p>
-<p>The <a class="reference internal" href="../../api/lab/omni.isaac.lab.controllers.html#omni.isaac.lab.controllers.DifferentialIKController.set_command" title="omni.isaac.lab.controllers.DifferentialIKController.set_command"><code class="xref py py-meth docutils literal notranslate"><span class="pre">set_command()</span></code></a> method takes in
+<p>The <code class="xref py py-meth docutils literal notranslate"><span class="pre">set_command()</span></code> method takes in
 the desired end-effector pose as a single batched array. The pose is specified in
 the robot’s base frame.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span>            <span class="c1"># reset controller</span>
@@ -896,7 +896,7 @@ the robot’s base frame.</p>
 </pre></div>
 </div>
 <p>We can then compute the desired joint positions using the
-<a class="reference internal" href="../../api/lab/omni.isaac.lab.controllers.html#omni.isaac.lab.controllers.DifferentialIKController.compute" title="omni.isaac.lab.controllers.DifferentialIKController.compute"><code class="xref py py-meth docutils literal notranslate"><span class="pre">compute()</span></code></a> method.
+<code class="xref py py-meth docutils literal notranslate"><span class="pre">compute()</span></code> method.
 The method takes in the current end-effector pose (in base frame), Jacobian, and
 current joint positions. We read the Jacobian matrix from the robot’s data, which uses
 its value computed from the physics engine.</p>

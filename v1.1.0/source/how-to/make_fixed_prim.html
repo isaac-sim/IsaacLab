@@ -192,7 +192,7 @@
           
           
           
-          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.2.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.5.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
         </li>
         <li class="nav-item">
           
@@ -603,7 +603,7 @@ using the physics tensor API (i.e., through the <a class="reference internal" hr
 <section id="rigid-object">
 <h2>Rigid object<a class="headerlink" href="#rigid-object" title="Permalink to this heading">#</a></h2>
 <p>Rigid objects (i.e. object only has a single body) can be made static by setting the parameter
-<a class="reference internal" href="../api/lab/omni.isaac.lab.sim.schemas.html#omni.isaac.lab.sim.schemas.RigidBodyPropertiesCfg.kinematic_enabled" title="omni.isaac.lab.sim.schemas.RigidBodyPropertiesCfg.kinematic_enabled"><code class="xref py py-attr docutils literal notranslate"><span class="pre">sim.schemas.RigidBodyPropertiesCfg.kinematic_enabled</span></code></a> as True. This will make the object
+<code class="xref py py-attr docutils literal notranslate"><span class="pre">sim.schemas.RigidBodyPropertiesCfg.kinematic_enabled</span></code> as True. This will make the object
 kinematic and it will not be affected by physics.</p>
 <p>For instance, to spawn a cone static in the simulation world but with rigid body schema on it,
 the following code can be used:</p>
@@ -626,7 +626,7 @@ the following code can be used:</p>
 <section id="articulation">
 <h2>Articulation<a class="headerlink" href="#articulation" title="Permalink to this heading">#</a></h2>
 <p>Fixing the root of an articulation requires having a fixed joint to the root rigid body link of the articulation.
-This can be achieved by setting the parameter <a class="reference internal" href="../api/lab/omni.isaac.lab.sim.schemas.html#omni.isaac.lab.sim.schemas.ArticulationRootPropertiesCfg.fix_root_link" title="omni.isaac.lab.sim.schemas.ArticulationRootPropertiesCfg.fix_root_link"><code class="xref py py-attr docutils literal notranslate"><span class="pre">sim.schemas.ArticulationRootPropertiesCfg.fix_root_link</span></code></a>
+This can be achieved by setting the parameter <code class="xref py py-attr docutils literal notranslate"><span class="pre">sim.schemas.ArticulationRootPropertiesCfg.fix_root_link</span></code>
 as True. Based on the value of this parameter, the following cases are possible:</p>
 <ul class="simple">
 <li><p>If set to <a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">None</span></code></a>, the root link is not modified.</p></li>
@@ -715,7 +715,7 @@ PhysX considering the articulation as a fixed-base system. Hence, the simulation
 root properties. However, directly connecting this prim to the world frame will cause the simulation
 to consider the fixed joint as a part of the maximal coordinate tree. This is different from PhysX
 considering the articulation as a fixed-base system.</p>
-<p>Internally, when the parameter <a class="reference internal" href="../api/lab/omni.isaac.lab.sim.schemas.html#omni.isaac.lab.sim.schemas.ArticulationRootPropertiesCfg.fix_root_link" title="omni.isaac.lab.sim.schemas.ArticulationRootPropertiesCfg.fix_root_link"><code class="xref py py-attr docutils literal notranslate"><span class="pre">sim.schemas.ArticulationRootPropertiesCfg.fix_root_link</span></code></a> is set to True
+<p>Internally, when the parameter <code class="xref py py-attr docutils literal notranslate"><span class="pre">sim.schemas.ArticulationRootPropertiesCfg.fix_root_link</span></code> is set to True
 and the articulation is detected as a floating-base system, the fixed joint is created between the world frame
 the root rigid body link of the articulation. However, to make the PhysX parser consider the articulation as a
 fixed-base system, the articulation root properties are removed from the root rigid body prim and applied to

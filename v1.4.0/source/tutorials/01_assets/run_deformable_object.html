@@ -192,7 +192,7 @@
           
           
           
-          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.2.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.5.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
         </li>
         <li class="nav-item">
           
@@ -843,9 +843,9 @@ to the deformable body, step the simulation, and update the deformable object’
 <h4>Resetting the simulation state<a class="headerlink" href="#resetting-the-simulation-state" title="Permalink to this heading">#</a></h4>
 <p>Unlike rigid bodies and articulations, deformable objects have a different state representation. The state of a
 deformable object is defined by the nodal positions and velocities of the mesh. The nodal positions and velocities
-are defined in the <strong>simulation world frame</strong> and are stored in the <a class="reference internal" href="../../api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.DeformableObject.data" title="omni.isaac.lab.assets.DeformableObject.data"><code class="xref py py-attr docutils literal notranslate"><span class="pre">assets.DeformableObject.data</span></code></a> attribute.</p>
+are defined in the <strong>simulation world frame</strong> and are stored in the <code class="xref py py-attr docutils literal notranslate"><span class="pre">assets.DeformableObject.data</span></code> attribute.</p>
 <p>We use the <code class="xref py py-attr docutils literal notranslate"><span class="pre">assets.DeformableObject.data.default_nodal_state_w</span></code> attribute to get the default nodal state of the
-spawned object prims. This default state can be configured from the <a class="reference internal" href="../../api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.DeformableObjectCfg.init_state" title="omni.isaac.lab.assets.DeformableObjectCfg.init_state"><code class="xref py py-attr docutils literal notranslate"><span class="pre">assets.DeformableObjectCfg.init_state</span></code></a>
+spawned object prims. This default state can be configured from the <code class="xref py py-attr docutils literal notranslate"><span class="pre">assets.DeformableObjectCfg.init_state</span></code>
 attribute, which we left as identity in this tutorial.</p>
 <div class="admonition attention">
 <p class="admonition-title">Attention</p>
@@ -862,12 +862,12 @@ obtained when the simulation is played for the first time.</p>
             <span class="n">nodal_state</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="p">:</span><span class="mi">3</span><span class="p">]</span> <span class="o">=</span> <span class="n">cube_object</span><span class="o">.</span><span class="n">transform_nodal_pos</span><span class="p">(</span><span class="n">nodal_state</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="p">:</span><span class="mi">3</span><span class="p">],</span> <span class="n">pos_w</span><span class="p">,</span> <span class="n">quat_w</span><span class="p">)</span>
 </pre></div>
 </div>
-<p>To reset the deformable object, we first set the nodal state by calling the <a class="reference internal" href="../../api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.DeformableObject.write_nodal_state_to_sim" title="omni.isaac.lab.assets.DeformableObject.write_nodal_state_to_sim"><code class="xref py py-meth docutils literal notranslate"><span class="pre">assets.DeformableObject.write_nodal_state_to_sim()</span></code></a>
+<p>To reset the deformable object, we first set the nodal state by calling the <code class="xref py py-meth docutils literal notranslate"><span class="pre">assets.DeformableObject.write_nodal_state_to_sim()</span></code>
 method. This method writes the nodal state of the deformable object prim into the simulation buffer.
 Additionally, we free all the kinematic targets set for the nodes in the previous simulation step by calling
-the <a class="reference internal" href="../../api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.DeformableObject.write_nodal_kinematic_target_to_sim" title="omni.isaac.lab.assets.DeformableObject.write_nodal_kinematic_target_to_sim"><code class="xref py py-meth docutils literal notranslate"><span class="pre">assets.DeformableObject.write_nodal_kinematic_target_to_sim()</span></code></a> method. We explain the
+the <code class="xref py py-meth docutils literal notranslate"><span class="pre">assets.DeformableObject.write_nodal_kinematic_target_to_sim()</span></code> method. We explain the
 kinematic targets in the next section.</p>
-<p>Finally, we call the <a class="reference internal" href="../../api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.DeformableObject.reset" title="omni.isaac.lab.assets.DeformableObject.reset"><code class="xref py py-meth docutils literal notranslate"><span class="pre">assets.DeformableObject.reset()</span></code></a> method to reset any internal buffers and caches.</p>
+<p>Finally, we call the <code class="xref py py-meth docutils literal notranslate"><span class="pre">assets.DeformableObject.reset()</span></code> method to reset any internal buffers and caches.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span>            <span class="c1"># write nodal state to simulation</span>
             <span class="n">cube_object</span><span class="o">.</span><span class="n">write_nodal_state_to_sim</span><span class="p">(</span><span class="n">nodal_state</span><span class="p">)</span>
 
@@ -890,7 +890,7 @@ is useful for applications where the user wants to interact with the deformable 
 targets for the node at index 0 (bottom-left corner) to move the cube along the z-axis.</p>
 <p>At every step, we increment the kinematic position target for the node by a small value. Additionally,
 we set the flag to indicate that the target is a kinematic target for that node in the simulation buffer.
-These are set into the simulation buffer by calling the <a class="reference internal" href="../../api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.DeformableObject.write_nodal_kinematic_target_to_sim" title="omni.isaac.lab.assets.DeformableObject.write_nodal_kinematic_target_to_sim"><code class="xref py py-meth docutils literal notranslate"><span class="pre">assets.DeformableObject.write_nodal_kinematic_target_to_sim()</span></code></a>
+These are set into the simulation buffer by calling the <code class="xref py py-meth docutils literal notranslate"><span class="pre">assets.DeformableObject.write_nodal_kinematic_target_to_sim()</span></code>
 method.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span>        <span class="c1"># update the kinematic target for cubes at index 0 and 3</span>
         <span class="c1"># we slightly move the cube in the z-direction by picking the vertex at index 0</span>
@@ -902,7 +902,7 @@ method.</p>
         <span class="n">cube_object</span><span class="o">.</span><span class="n">write_nodal_kinematic_target_to_sim</span><span class="p">(</span><span class="n">nodal_kinematic_target</span><span class="p">)</span>
 </pre></div>
 </div>
-<p>Similar to the rigid object and articulation, we perform the <a class="reference internal" href="../../api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.DeformableObject.write_data_to_sim" title="omni.isaac.lab.assets.DeformableObject.write_data_to_sim"><code class="xref py py-meth docutils literal notranslate"><span class="pre">assets.DeformableObject.write_data_to_sim()</span></code></a> method
+<p>Similar to the rigid object and articulation, we perform the <code class="xref py py-meth docutils literal notranslate"><span class="pre">assets.DeformableObject.write_data_to_sim()</span></code> method
 before stepping the simulation. For deformable objects, this method does not apply any external forces to the object.
 However, we keep this method for completeness and future extensions.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span>        <span class="c1"># write internal data to simulation</span>
@@ -913,7 +913,7 @@ However, we keep this method for completeness and future extensions.</p>
 <section id="updating-the-state">
 <h4>Updating the state<a class="headerlink" href="#updating-the-state" title="Permalink to this heading">#</a></h4>
 <p>After stepping the simulation, we update the internal buffers of the deformable object prims to reflect their new state
-inside the <a class="reference internal" href="../../api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.DeformableObject.data" title="omni.isaac.lab.assets.DeformableObject.data"><code class="xref py py-class docutils literal notranslate"><span class="pre">assets.DeformableObject.data</span></code></a> attribute. This is done using the <a class="reference internal" href="../../api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.DeformableObject.update" title="omni.isaac.lab.assets.DeformableObject.update"><code class="xref py py-meth docutils literal notranslate"><span class="pre">assets.DeformableObject.update()</span></code></a> method.</p>
+inside the <code class="xref py py-class docutils literal notranslate"><span class="pre">assets.DeformableObject.data</span></code> attribute. This is done using the <code class="xref py py-meth docutils literal notranslate"><span class="pre">assets.DeformableObject.update()</span></code> method.</p>
 <p>At a fixed interval, we print the root position of the deformable object to the terminal. As mentioned
 earlier, there is no concept of a root state for deformable objects. However, we compute the root position as
 the average position of all the nodes in the mesh.</p>

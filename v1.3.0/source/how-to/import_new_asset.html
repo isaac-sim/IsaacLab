@@ -192,7 +192,7 @@
           
           
           
-          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.2.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.5.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
         </li>
         <li class="nav-item">
           
@@ -633,13 +633,13 @@ when set, the importer will create instanceable assets, otherwise it will defaul
 <li><p><code class="xref py py-attr docutils literal notranslate"><span class="pre">merge_fixed_joints*</span></code> - Whether to merge the fixed joints.
 Usually, this should be set to <code class="docutils literal notranslate"><span class="pre">True</span></code> to reduce the asset complexity. The command-line flag is
 <code class="docutils literal notranslate"><span class="pre">--merge-joints</span></code> where when set, the importer will merge the fixed joints, otherwise it will default to not merging the fixed joints.</p></li>
-<li><p><a class="reference internal" href="../api/lab/omni.isaac.lab.sim.converters.html#omni.isaac.lab.sim.converters.UrdfConverterCfg.default_drive_type" title="omni.isaac.lab.sim.converters.UrdfConverterCfg.default_drive_type"><code class="xref py py-attr docutils literal notranslate"><span class="pre">default_drive_type</span></code></a> - The drive-type for the joints.
+<li><p><code class="xref py py-attr docutils literal notranslate"><span class="pre">default_drive_type</span></code> - The drive-type for the joints.
 We recommend this to always be <code class="docutils literal notranslate"><span class="pre">&quot;none&quot;</span></code>. This allows changing the drive configuration using the
 actuator models.</p></li>
-<li><p><a class="reference internal" href="../api/lab/omni.isaac.lab.sim.converters.html#omni.isaac.lab.sim.converters.UrdfConverterCfg.default_drive_stiffness" title="omni.isaac.lab.sim.converters.UrdfConverterCfg.default_drive_stiffness"><code class="xref py py-attr docutils literal notranslate"><span class="pre">default_drive_stiffness</span></code></a> - The drive stiffness for the joints.
+<li><p><code class="xref py py-attr docutils literal notranslate"><span class="pre">default_drive_stiffness</span></code> - The drive stiffness for the joints.
 We recommend this to always be <code class="docutils literal notranslate"><span class="pre">0.0</span></code>. This allows changing the drive configuration using the
 actuator models.</p></li>
-<li><p><a class="reference internal" href="../api/lab/omni.isaac.lab.sim.converters.html#omni.isaac.lab.sim.converters.UrdfConverterCfg.default_drive_damping" title="omni.isaac.lab.sim.converters.UrdfConverterCfg.default_drive_damping"><code class="xref py py-attr docutils literal notranslate"><span class="pre">default_drive_damping</span></code></a> - The drive damping for the joints.
+<li><p><code class="xref py py-attr docutils literal notranslate"><span class="pre">default_drive_damping</span></code> - The drive damping for the joints.
 Similar to the stiffness, we recommend this to always be <code class="docutils literal notranslate"><span class="pre">0.0</span></code>.</p></li>
 </ul>
 <p>Note that when instanceable option is selected, the

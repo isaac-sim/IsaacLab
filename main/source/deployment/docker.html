@@ -60,7 +60,7 @@
     <link rel="prev" title="Container Deployment" href="index.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-  <meta name="docsearch:version" content="1.4.1" />
+  <meta name="docsearch:version" content="2.0.0" />
     <meta name="docbuild:last-update" content="Jan 30, 2025"/>
   </head>
   
@@ -192,7 +192,7 @@
           
           
           
-          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.2.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.5.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
         </li>
         <li class="nav-item">
           
@@ -230,6 +230,8 @@
 <li class="toctree-l1 has-children"><a class="reference internal" href="../setup/installation/index.html">Local Installation</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2"><a class="reference internal" href="../setup/installation/pip_installation.html">Pip installation (recommended for Ubuntu 22.04 and Windows)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../setup/installation/binaries_installation.html">Binary installation (recommended for Ubuntu 20.04)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../setup/installation/isaaclab_pip_installation.html">Advanced installation (Isaac Lab pip)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../setup/installation/asset_caching.html">Asset caching</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1"><a class="reference internal" href="../setup/installation/cloud_installation.html">Running Isaac Lab in the Cloud</a></li>
@@ -241,7 +243,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../overview/developer-guide/vs_code.html">Setting up Visual Studio Code</a></li>
 
 <li class="toctree-l2"><a class="reference internal" href="../overview/developer-guide/repo_structure.html">Repository organization</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../overview/developer-guide/development.html">Application Development</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/developer-guide/development.html">Extension Development</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../overview/developer-guide/template.html">Building your Own Project</a></li>
 </ul>
 </details></li>
@@ -264,6 +266,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../overview/reinforcement-learning/rl_existing_scripts.html">Reinforcement Learning Wrappers</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../overview/reinforcement-learning/rl_frameworks.html">Reinforcement Learning Library Comparison</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../overview/reinforcement-learning/performance_benchmarks.html">Performance Benchmarks</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/reinforcement-learning/training_guide.html">Debugging and Training Guide</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1"><a class="reference internal" href="../overview/teleop_imitation.html">Teleoperation and Imitation Learning</a></li>
@@ -294,6 +297,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../tutorials/03_envs/register_rl_env_gym.html">Registering an Environment</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../tutorials/03_envs/run_rl_training.html">Training with an RL Agent</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../tutorials/03_envs/modify_direct_rl_env.html">Modifying an existing Direct RL Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/03_envs/policy_inference_in_usd.html">Policy Inference in USD Environment</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../tutorials/04_sensors/add_sensors_on_robot.html">Adding sensors on a robot</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../tutorials/05_controllers/run_diff_ik.html">Using a task-space controller</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../tutorials/05_controllers/run_osc.html">Using an operational space controller</a></li>
@@ -330,28 +334,27 @@
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Source API</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1 has-children"><a class="reference internal" href="../api/index.html">API Reference</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
-<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.app.html">omni.isaac.lab.app</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.actuators.html">omni.isaac.lab.actuators</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.assets.html">omni.isaac.lab.assets</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.controllers.html">omni.isaac.lab.controllers</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.devices.html">omni.isaac.lab.devices</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.envs.html">omni.isaac.lab.envs</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.managers.html">omni.isaac.lab.managers</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.markers.html">omni.isaac.lab.markers</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.scene.html">omni.isaac.lab.scene</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.sensors.html">omni.isaac.lab.sensors</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.sim.html">omni.isaac.lab.sim</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.terrains.html">omni.isaac.lab.terrains</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.utils.html">omni.isaac.lab.utils</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.envs.mdp.html">omni.isaac.lab.envs.mdp</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.envs.ui.html">omni.isaac.lab.envs.ui</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.sensors.patterns.html">omni.isaac.lab.sensors.patterns</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.sim.converters.html">omni.isaac.lab.sim.converters</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.sim.schemas.html">omni.isaac.lab.sim.schemas</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.sim.spawners.html">omni.isaac.lab.sim.spawners</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../api/lab_tasks/omni.isaac.lab_tasks.utils.html">omni.isaac.lab_tasks.utils</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../api/lab_tasks/omni.isaac.lab_tasks.utils.wrappers.html">omni.isaac.lab_tasks.utils.wrappers</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../api/lab_tasks/omni.isaac.lab_tasks.utils.data_collector.html">omni.isaac.lab_tasks.utils.data_collector</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.app.html">isaaclab.app</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.actuators.html">isaaclab.actuators</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.assets.html">isaaclab.assets</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.controllers.html">isaaclab.controllers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.devices.html">isaaclab.devices</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.envs.html">isaaclab.envs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.managers.html">isaaclab.managers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.markers.html">isaaclab.markers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.scene.html">isaaclab.scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.sensors.html">isaaclab.sensors</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.sim.html">isaaclab.sim</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.terrains.html">isaaclab.terrains</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.utils.html">isaaclab.utils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.envs.mdp.html">isaaclab.envs.mdp</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.envs.ui.html">isaaclab.envs.ui</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.sensors.patterns.html">isaaclab.sensors.patterns</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.sim.converters.html">isaaclab.sim.converters</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.sim.schemas.html">isaaclab.sim.schemas</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.sim.spawners.html">isaaclab.sim.spawners</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab_tasks/isaaclab_tasks.utils.html">isaaclab_tasks.utils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab_mimic/isaaclab_mimic.datagen.html">isaaclab_mimic.datagen</a></li>
 </ul>
 </details></li>
 </ul>
@@ -361,7 +364,15 @@
 <li class="toctree-l1"><a class="reference internal" href="../refs/additional_resources.html">Additional Resources</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../refs/contributing.html">Contribution Guidelines</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../refs/troubleshooting.html">Tricks and Troubleshooting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../refs/migration.html">Migration Guide (Isaac Sim)</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../refs/issues.html">Known Issues</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../refs/release_notes.html">Release Notes</a></li>
+
+
+
+
+
+
 <li class="toctree-l1"><a class="reference internal" href="../refs/changelog.html">Extensions Changelog</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../refs/license.html">License</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../refs/bibliography.html">Bibliography</a></li>
@@ -369,7 +380,7 @@
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Project Links</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference external" href="https://github.com/isaac-sim/IsaacLab">GitHub</a></li>
-<li class="toctree-l1"><a class="reference external" href="https://docs.omniverse.nvidia.com/isaacsim/latest/index.html">NVIDIA Isaac Sim</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/latest/index.html">NVIDIA Isaac Sim</a></li>
 <li class="toctree-l1"><a class="reference external" href="https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/index.html">NVIDIA PhysX</a></li>
 </ul>
 
@@ -582,7 +593,6 @@
                 <ul class="visible nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#setup-instructions">Setup Instructions</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#docker-and-docker-compose">Docker and Docker Compose</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#obtaining-the-isaac-sim-container">Obtaining the Isaac Sim Container</a></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#directory-organization">Directory Organization</a></li>
@@ -596,10 +606,7 @@
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#ros2-image-extension">ROS2 Image Extension</a></li>
 </ul>
 </li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#known-issues">Known Issues</a><ul class="nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#webrtc-streaming">WebRTC Streaming</a></li>
-</ul>
-</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#running-pre-built-isaac-lab-container">Running Pre-Built Isaac Lab Container</a></li>
 </ul>
             </nav>
         </div>
@@ -642,38 +649,6 @@ Please follow the instructions on the <a class="reference external" href="https:
 <p>Due to limitations with <a class="reference external" href="https://snapcraft.io/docs/home-outside-home">snap</a>, please make sure
 the Isaac Lab directory is placed under the <code class="docutils literal notranslate"><span class="pre">/home</span></code> directory tree when using docker.</p>
 </div>
-</section>
-<section id="obtaining-the-isaac-sim-container">
-<h3>Obtaining the Isaac Sim Container<a class="headerlink" href="#obtaining-the-isaac-sim-container" title="Permalink to this heading">#</a></h3>
-<ul>
-<li><p>Get access to the <a class="reference external" href="https://catalog.ngc.nvidia.com/orgs/nvidia/containers/isaac-sim">Isaac Sim container</a> by joining the NVIDIA Developer Program credentials.</p></li>
-<li><p>Generate your <a class="reference external" href="https://docs.nvidia.com/ngc/gpu-cloud/ngc-user-guide/index.html#generating-api-key">NGC API key</a> to access locked container images from NVIDIA GPU Cloud (NGC).</p>
-<ul>
-<li><p>This step requires you to create an NGC account if you do not already have one.</p></li>
-<li><p>You would also need to install the NGC CLI to perform operations from the command line.</p></li>
-<li><p>Once you have your generated API key and have installed the NGC CLI, you need to log in to NGC
-from the terminal.</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ngc<span class="w"> </span>config<span class="w"> </span><span class="nb">set</span>
-</pre></div>
-</div>
-</li>
-</ul>
-</li>
-<li><p>Use the command line to pull the Isaac Sim container image from NGC.</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>docker<span class="w"> </span>login<span class="w"> </span>nvcr.io
-</pre></div>
-</div>
-<ul>
-<li><p>For the username, enter <code class="docutils literal notranslate"><span class="pre">$oauthtoken</span></code> exactly as shown. It is a special username that is used to
-authenticate with NGC.</p>
-<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>Username: $oauthtoken
-Password: &lt;Your NGC API Key&gt;
-</pre></div>
-</div>
-</li>
-</ul>
-</li>
-</ul>
 </section>
 </section>
 <section id="directory-organization">
@@ -847,7 +822,7 @@ docker<span class="w"> </span>volume<span class="w"> </span>inspect<span class="
 </section>
 <section id="isaac-lab-image-extensions">
 <h2>Isaac Lab Image Extensions<a class="headerlink" href="#isaac-lab-image-extensions" title="Permalink to this heading">#</a></h2>
-<p>The produced image depends upon the arguments passed to <code class="docutils literal notranslate"><span class="pre">container.py</span> <span class="pre">start</span></code> and <code class="docutils literal notranslate"><span class="pre">container.py</span> <span class="pre">stop</span></code>. These
+<p>The produced image depends on the arguments passed to <code class="docutils literal notranslate"><span class="pre">container.py</span> <span class="pre">start</span></code> and <code class="docutils literal notranslate"><span class="pre">container.py</span> <span class="pre">stop</span></code>. These
 commands accept an image extension parameter as an additional argument. If no argument is passed, then this
 parameter defaults to <code class="docutils literal notranslate"><span class="pre">base</span></code>. Currently, the only valid values are (<code class="docutils literal notranslate"><span class="pre">base</span></code>, <code class="docutils literal notranslate"><span class="pre">ros2</span></code>).
 Only one image extension can be passed at a time. The produced container will be named <code class="docutils literal notranslate"><span class="pre">isaac-lab-${profile}</span></code>,
@@ -892,19 +867,37 @@ including variables defining the <a class="reference external" href="https://doc
 </div>
 </details></section>
 </section>
-<section id="known-issues">
-<h2>Known Issues<a class="headerlink" href="#known-issues" title="Permalink to this heading">#</a></h2>
-<section id="webrtc-streaming">
-<h3>WebRTC Streaming<a class="headerlink" href="#webrtc-streaming" title="Permalink to this heading">#</a></h3>
-<p>When streaming the GUI from Isaac Sim, there are <a class="reference external" href="https://docs.omniverse.nvidia.com/isaacsim/latest/installation/manual_livestream_clients.html">several streaming clients</a> available. There is a <a class="reference external" href="https://forums.developer.nvidia.com/t/unable-to-use-webrtc-when-i-run-runheadless-webrtc-sh-in-remote-headless-container/222916">known issue</a> when
-attempting to use WebRTC streaming client on Google Chrome and Safari while running Isaac Sim inside a container.
-To avoid this problem, we suggest using the Native Streaming Client or using the
-Mozilla Firefox browser on which WebRTC works.</p>
-<p>Streaming is the only supported method for visualizing the Isaac GUI from within the container. The Omniverse Streaming Client
-is freely available from the Omniverse app, and is easy to use. The other streaming methods similarly require only a web browser.
-If users want to use X11 forwarding in order to have the apps behave as local GUI windows, they can uncomment the relevant portions
-in docker-compose.yaml.</p>
-</section>
+<section id="running-pre-built-isaac-lab-container">
+<h2>Running Pre-Built Isaac Lab Container<a class="headerlink" href="#running-pre-built-isaac-lab-container" title="Permalink to this heading">#</a></h2>
+<p>In Isaac Lab 2.0 release, we introduced a minimal pre-built container that contains a very minimal set
+of Isaac Sim and Omniverse dependencies, along with Isaac Lab 2.0 pre-built into the container.
+This container allows users to pull the container directly from NGC without requiring a local build of
+the docker image. The Isaac Lab 2.0 source code will be available in this container under <code class="docutils literal notranslate"><span class="pre">/workspace/IsaacLab</span></code>.</p>
+<p>This container is designed for running <strong>headless</strong> only and does not allow for X11 forwarding or running
+with the GUI. Please only use this container for headless training. For other use cases, we recommend
+following the above steps to build your own Isaac Lab docker image.</p>
+<p>To pull the minimal Isaac Lab container, run:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>docker<span class="w"> </span>pull<span class="w"> </span>nvcr.io/nvidia/isaac-lab:2.0.0
+</pre></div>
+</div>
+<p>To run the Isaac Lab container with an interactive bash session, run:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>docker<span class="w"> </span>run<span class="w"> </span>--name<span class="w"> </span>isaac-lab<span class="w"> </span>--entrypoint<span class="w"> </span>bash<span class="w"> </span>-it<span class="w"> </span>--gpus<span class="w"> </span>all<span class="w"> </span>-e<span class="w"> </span><span class="s2">&quot;ACCEPT_EULA=Y&quot;</span><span class="w"> </span>--rm<span class="w"> </span>--network<span class="o">=</span>host<span class="w"> </span><span class="se">\</span>
+<span class="w">   </span>-e<span class="w"> </span><span class="s2">&quot;PRIVACY_CONSENT=Y&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">   </span>-v<span class="w"> </span>~/docker/isaac-sim/cache/kit:/isaac-sim/kit/cache:rw<span class="w"> </span><span class="se">\</span>
+<span class="w">   </span>-v<span class="w"> </span>~/docker/isaac-sim/cache/ov:/root/.cache/ov:rw<span class="w"> </span><span class="se">\</span>
+<span class="w">   </span>-v<span class="w"> </span>~/docker/isaac-sim/cache/pip:/root/.cache/pip:rw<span class="w"> </span><span class="se">\</span>
+<span class="w">   </span>-v<span class="w"> </span>~/docker/isaac-sim/cache/glcache:/root/.cache/nvidia/GLCache:rw<span class="w"> </span><span class="se">\</span>
+<span class="w">   </span>-v<span class="w"> </span>~/docker/isaac-sim/cache/computecache:/root/.nv/ComputeCache:rw<span class="w"> </span><span class="se">\</span>
+<span class="w">   </span>-v<span class="w"> </span>~/docker/isaac-sim/logs:/root/.nvidia-omniverse/logs:rw<span class="w"> </span><span class="se">\</span>
+<span class="w">   </span>-v<span class="w"> </span>~/docker/isaac-sim/data:/root/.local/share/ov/data:rw<span class="w"> </span><span class="se">\</span>
+<span class="w">   </span>-v<span class="w"> </span>~/docker/isaac-sim/documents:/root/Documents:rw<span class="w"> </span><span class="se">\</span>
+<span class="w">   </span>nvcr.io/nvidia/isaac-lab:2.0.0
+</pre></div>
+</div>
+<p>To run an example within the container, run:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/tutorials/00_sim/log_time.py<span class="w"> </span>--headless
+</pre></div>
+</div>
 </section>
 </section>
 
@@ -956,7 +949,6 @@ in docker-compose.yaml.</p>
     <ul class="visible nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#setup-instructions">Setup Instructions</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#docker-and-docker-compose">Docker and Docker Compose</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#obtaining-the-isaac-sim-container">Obtaining the Isaac Sim Container</a></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#directory-organization">Directory Organization</a></li>
@@ -970,10 +962,7 @@ in docker-compose.yaml.</p>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#ros2-image-extension">ROS2 Image Extension</a></li>
 </ul>
 </li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#known-issues">Known Issues</a><ul class="nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#webrtc-streaming">WebRTC Streaming</a></li>
-</ul>
-</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#running-pre-built-isaac-lab-container">Running Pre-Built Isaac Lab Container</a></li>
 </ul>
   </nav></div>
 

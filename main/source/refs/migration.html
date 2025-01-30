@@ -56,9 +56,11 @@
     <link rel="icon" href="../../_static/favicon.ico"/>
     <link rel="index" title="Index" href="../../genindex.html" />
     <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="Known Issues" href="issues.html" />
+    <link rel="prev" title="Tricks and Troubleshooting" href="troubleshooting.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-  <meta name="docsearch:version" content="1.4.1" />
+  <meta name="docsearch:version" content="2.0.0" />
     <meta name="docbuild:last-update" content="Jan 30, 2025"/>
   </head>
   
@@ -107,8 +109,6 @@
     <div class="bd-container__inner bd-page-width">
       
       
-      
-        
       
       <dialog id="pst-primary-sidebar-modal"></dialog>
       <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
@@ -192,7 +192,7 @@
           
           
           
-          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.2.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.5.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
         </li>
         <li class="nav-item">
           
@@ -230,6 +230,8 @@
 <li class="toctree-l1 has-children"><a class="reference internal" href="../setup/installation/index.html">Local Installation</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2"><a class="reference internal" href="../setup/installation/pip_installation.html">Pip installation (recommended for Ubuntu 22.04 and Windows)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../setup/installation/binaries_installation.html">Binary installation (recommended for Ubuntu 20.04)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../setup/installation/isaaclab_pip_installation.html">Advanced installation (Isaac Lab pip)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../setup/installation/asset_caching.html">Asset caching</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1"><a class="reference internal" href="../setup/installation/cloud_installation.html">Running Isaac Lab in the Cloud</a></li>
@@ -241,7 +243,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../overview/developer-guide/vs_code.html">Setting up Visual Studio Code</a></li>
 
 <li class="toctree-l2"><a class="reference internal" href="../overview/developer-guide/repo_structure.html">Repository organization</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../overview/developer-guide/development.html">Application Development</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/developer-guide/development.html">Extension Development</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../overview/developer-guide/template.html">Building your Own Project</a></li>
 </ul>
 </details></li>
@@ -264,6 +266,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../overview/reinforcement-learning/rl_existing_scripts.html">Reinforcement Learning Wrappers</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../overview/reinforcement-learning/rl_frameworks.html">Reinforcement Learning Library Comparison</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../overview/reinforcement-learning/performance_benchmarks.html">Performance Benchmarks</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/reinforcement-learning/training_guide.html">Debugging and Training Guide</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1"><a class="reference internal" href="../overview/teleop_imitation.html">Teleoperation and Imitation Learning</a></li>
@@ -294,6 +297,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../tutorials/03_envs/register_rl_env_gym.html">Registering an Environment</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../tutorials/03_envs/run_rl_training.html">Training with an RL Agent</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../tutorials/03_envs/modify_direct_rl_env.html">Modifying an existing Direct RL Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/03_envs/policy_inference_in_usd.html">Policy Inference in USD Environment</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../tutorials/04_sensors/add_sensors_on_robot.html">Adding sensors on a robot</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../tutorials/05_controllers/run_diff_ik.html">Using a task-space controller</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../tutorials/05_controllers/run_osc.html">Using an operational space controller</a></li>
@@ -330,38 +334,45 @@
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Source API</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1 has-children"><a class="reference internal" href="../api/index.html">API Reference</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
-<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.app.html">omni.isaac.lab.app</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.actuators.html">omni.isaac.lab.actuators</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.assets.html">omni.isaac.lab.assets</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.controllers.html">omni.isaac.lab.controllers</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.devices.html">omni.isaac.lab.devices</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.envs.html">omni.isaac.lab.envs</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.managers.html">omni.isaac.lab.managers</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.markers.html">omni.isaac.lab.markers</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.scene.html">omni.isaac.lab.scene</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.sensors.html">omni.isaac.lab.sensors</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.sim.html">omni.isaac.lab.sim</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.terrains.html">omni.isaac.lab.terrains</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.utils.html">omni.isaac.lab.utils</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.envs.mdp.html">omni.isaac.lab.envs.mdp</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.envs.ui.html">omni.isaac.lab.envs.ui</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.sensors.patterns.html">omni.isaac.lab.sensors.patterns</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.sim.converters.html">omni.isaac.lab.sim.converters</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.sim.schemas.html">omni.isaac.lab.sim.schemas</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.sim.spawners.html">omni.isaac.lab.sim.spawners</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../api/lab_tasks/omni.isaac.lab_tasks.utils.html">omni.isaac.lab_tasks.utils</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../api/lab_tasks/omni.isaac.lab_tasks.utils.wrappers.html">omni.isaac.lab_tasks.utils.wrappers</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../api/lab_tasks/omni.isaac.lab_tasks.utils.data_collector.html">omni.isaac.lab_tasks.utils.data_collector</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.app.html">isaaclab.app</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.actuators.html">isaaclab.actuators</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.assets.html">isaaclab.assets</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.controllers.html">isaaclab.controllers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.devices.html">isaaclab.devices</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.envs.html">isaaclab.envs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.managers.html">isaaclab.managers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.markers.html">isaaclab.markers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.scene.html">isaaclab.scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.sensors.html">isaaclab.sensors</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.sim.html">isaaclab.sim</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.terrains.html">isaaclab.terrains</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.utils.html">isaaclab.utils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.envs.mdp.html">isaaclab.envs.mdp</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.envs.ui.html">isaaclab.envs.ui</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.sensors.patterns.html">isaaclab.sensors.patterns</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.sim.converters.html">isaaclab.sim.converters</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.sim.schemas.html">isaaclab.sim.schemas</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.sim.spawners.html">isaaclab.sim.spawners</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab_tasks/isaaclab_tasks.utils.html">isaaclab_tasks.utils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab_mimic/isaaclab_mimic.datagen.html">isaaclab_mimic.datagen</a></li>
 </ul>
 </details></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">References</span></p>
-<ul class="nav bd-sidenav">
+<ul class="current nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="reference_architecture/index.html">Reference Architecture</a></li>
 <li class="toctree-l1"><a class="reference internal" href="additional_resources.html">Additional Resources</a></li>
 <li class="toctree-l1"><a class="reference internal" href="contributing.html">Contribution Guidelines</a></li>
 <li class="toctree-l1"><a class="reference internal" href="troubleshooting.html">Tricks and Troubleshooting</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">Migration Guide (Isaac Sim)</a></li>
 <li class="toctree-l1"><a class="reference internal" href="issues.html">Known Issues</a></li>
+<li class="toctree-l1"><a class="reference internal" href="release_notes.html">Release Notes</a></li>
+
+
+
+
+
+
 <li class="toctree-l1"><a class="reference internal" href="changelog.html">Extensions Changelog</a></li>
 <li class="toctree-l1"><a class="reference internal" href="license.html">License</a></li>
 <li class="toctree-l1"><a class="reference internal" href="bibliography.html">Bibliography</a></li>
@@ -369,7 +380,7 @@
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Project Links</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference external" href="https://github.com/isaac-sim/IsaacLab">GitHub</a></li>
-<li class="toctree-l1"><a class="reference external" href="https://docs.omniverse.nvidia.com/isaacsim/latest/index.html">NVIDIA Isaac Sim</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/latest/index.html">NVIDIA Isaac Sim</a></li>
 <li class="toctree-l1"><a class="reference external" href="https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/index.html">NVIDIA PhysX</a></li>
 </ul>
 
@@ -580,9 +591,12 @@
             </div>
             <nav aria-label="Page">
                 <ul class="visible nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#renaming-of-physx-flatcache-to-physx-fabric">Renaming of PhysX Flatcache to PhysX Fabric</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#renaming-of-isaac-sim-extensions">Renaming of Isaac Sim Extensions</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#renaming-of-the-urdf-and-mjcf-importers">Renaming of the URDF and MJCF Importers</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#deprecation-of-usdlux-light-api">Deprecation of <code class="xref py py-class docutils literal notranslate"><span class="pre">UsdLux.Light</span></code> API</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#changes-in-urdf-importer">Changes in URDF Importer</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#renaming-of-omni-isaac-core-classes">Renaming of omni.isaac.core Classes</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#renaming-of-isaac-lab-extensions-and-folders">Renaming of Isaac Lab Extensions and Folders</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#restructuring-of-isaac-lab-extensions">Restructuring of Isaac Lab Extensions</a></li>
 </ul>
             </nav>
         </div>
@@ -595,84 +609,110 @@
                 <article class="bd-article">
                   
   <section id="migration-guide-isaac-sim">
-<h1>Migration Guide (Isaac Sim)<a class="headerlink" href="#migration-guide-isaac-sim" title="Permalink to this heading">#</a></h1>
-<p>Moving from Isaac Sim 2022.2.1 to 2023.1.0 and later brings in a number of changes to the
-APIs and the way the application is built. This document outlines the changes
-and how to migrate your code to the new APIs. Many of these changes attribute to
-the underlying Omniverse Kit upgrade from 104.2 to 105.1. The new upgrade brings
-the following notable changes:</p>
+<span id="migration-guide"></span><h1>Migration Guide (Isaac Sim)<a class="headerlink" href="#migration-guide-isaac-sim" title="Permalink to this heading">#</a></h1>
+<p>Moving from Isaac Sim 4.2 to 4.5 and later brings in a number of changes to the
+APIs and Isaac Sim extensions and classes. This document outlines the changes
+and how to migrate your code to the new APIs.</p>
+<section id="renaming-of-isaac-sim-extensions">
+<h2>Renaming of Isaac Sim Extensions<a class="headerlink" href="#renaming-of-isaac-sim-extensions" title="Permalink to this heading">#</a></h2>
+<p>Previously, Isaac Sim extensions have been following the convention of <code class="docutils literal notranslate"><span class="pre">omni.isaac.*</span></code>,
+such as <code class="docutils literal notranslate"><span class="pre">omni.isaac.core</span></code>. In Isaac Sim 4.5, Isaac Sim extensions have been renamed
+to use the prefix <code class="docutils literal notranslate"><span class="pre">isaacsim</span></code>, replacing <code class="docutils literal notranslate"><span class="pre">omni.isaac</span></code>. In addition, many extensions
+have been renamed and split into multiple extensions to prepare for a more modular
+framework that can be customized by users through the use of app templates.</p>
+<p>Notably, the following commonly used Isaac Sim extensions in Isaac Lab are renamed as follow:</p>
 <ul class="simple">
-<li><p>Update to USD 22.11</p></li>
-<li><p>Upgrading the Python from 3.7 to 3.10</p></li>
-</ul>
-<section id="renaming-of-physx-flatcache-to-physx-fabric">
-<h2>Renaming of PhysX Flatcache to PhysX Fabric<a class="headerlink" href="#renaming-of-physx-flatcache-to-physx-fabric" title="Permalink to this heading">#</a></h2>
-<p>The PhysX Flatcache has been renamed to PhysX Fabric. The new name is more
-descriptive of the functionality and is consistent with the naming convention
-used by Omniverse called <a class="reference external" href="https://docs.omniverse.nvidia.com/kit/docs/usdrt/latest/docs/usd_fabric_usdrt.html">Fabric</a>. Consequently, the Python module name has
-also been changed from <code class="xref py py-mod docutils literal notranslate"><span class="pre">omni.physxflatcache</span></code> to <code class="xref py py-mod docutils literal notranslate"><span class="pre">omni.physxfabric</span></code>.</p>
-<p>Following this, on the Isaac Sim side, various renaming have occurred:</p>
-<ul class="simple">
-<li><p>The parameter passed to <code class="xref py py-class docutils literal notranslate"><span class="pre">SimulationContext</span></code> constructor via the keyword <code class="xref py py-obj docutils literal notranslate"><span class="pre">sim_params</span></code>
-now expects the key <code class="docutils literal notranslate"><span class="pre">use_fabric</span></code> instead of <code class="docutils literal notranslate"><span class="pre">use_flatcache</span></code>.</p></li>
-<li><p>The Python attribute <code class="xref py py-attr docutils literal notranslate"><span class="pre">SimulationContext.get_physics_context().use_flatcache</span></code> is now
-<code class="xref py py-attr docutils literal notranslate"><span class="pre">SimulationContext.get_physics_context().use_fabric</span></code>.</p></li>
-<li><p>The Python function <code class="xref py py-meth docutils literal notranslate"><span class="pre">SimulationContext.get_physics_context().enable_flatcache()</span></code> is now
-<code class="xref py py-meth docutils literal notranslate"><span class="pre">SimulationContext.get_physics_context().enable_fabric()</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">omni.isaac.cloner</span></code> –&gt; <code class="docutils literal notranslate"><span class="pre">isaacsim.core.cloner</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">omni.isaac.core.prims</span></code> –&gt; <code class="docutils literal notranslate"><span class="pre">isaacsim.core.prims</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">omni.isaac.core.simulation_context</span></code> –&gt; <code class="docutils literal notranslate"><span class="pre">isaacsim.core.api.simulation_context</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">omni.isaac.core.utils</span></code> –&gt; <code class="docutils literal notranslate"><span class="pre">isaacsim.core.utils</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">omni.isaac.core.world</span></code> –&gt; <code class="docutils literal notranslate"><span class="pre">isaacsim.core.api.world</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">omni.isaac.kit.SimulationApp</span></code> –&gt; <code class="docutils literal notranslate"><span class="pre">isaacsim.SimulationApp</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">omni.isaac.ui</span></code> –&gt; <code class="docutils literal notranslate"><span class="pre">isaacsim.gui.components</span></code></p></li>
 </ul>
 </section>
 <section id="renaming-of-the-urdf-and-mjcf-importers">
 <h2>Renaming of the URDF and MJCF Importers<a class="headerlink" href="#renaming-of-the-urdf-and-mjcf-importers" title="Permalink to this heading">#</a></h2>
-<p>Starting from Isaac Sim 2023.1, the URDF and MJCF importers have been renamed to be more consistent
-with the other asset importers in Omniverse. The importers are now available on NVIDIA-Omniverse GitHub
+<p>Starting from Isaac Sim 4.5, the URDF and MJCF importers have been renamed to be more consistent
+with the other extensions in Isaac Sim. The importers are available on isaac-sim GitHub
 as open source projects.</p>
 <p>Due to the extension name change, the Python module names have also been changed:</p>
 <ul class="simple">
-<li><p>URDF Importer: <code class="xref py py-mod docutils literal notranslate"><span class="pre">omni.importer.urdf</span></code> (previously <code class="xref py py-mod docutils literal notranslate"><span class="pre">omni.isaac.urdf</span></code>)</p></li>
-<li><p>MJCF Importer: <code class="xref py py-mod docutils literal notranslate"><span class="pre">omni.importer.mjcf</span></code> (previously <code class="xref py py-mod docutils literal notranslate"><span class="pre">omni.isaac.mjcf</span></code>)</p></li>
+<li><p>URDF Importer: <code class="xref py py-mod docutils literal notranslate"><span class="pre">isaacsim.asset.importer.urdf</span></code> (previously <code class="xref py py-mod docutils literal notranslate"><span class="pre">omni.importer.urdf</span></code>)</p></li>
+<li><p>MJCF Importer: <code class="xref py py-mod docutils literal notranslate"><span class="pre">isaacsim.asset.importer.mjcf</span></code> (previously <code class="xref py py-mod docutils literal notranslate"><span class="pre">omni.importer.mjcf</span></code>)</p></li>
+</ul>
+<p>From the Isaac Sim UI, both URDF and MJCF importers can now be accessed directly from the File &gt; Import
+menu when selecting a corresponding .urdf or .xml file in the file browser.</p>
+</section>
+<section id="changes-in-urdf-importer">
+<h2>Changes in URDF Importer<a class="headerlink" href="#changes-in-urdf-importer" title="Permalink to this heading">#</a></h2>
+<p>Isaac Sim 4.5 brings some updates to the URDF Importer, with a fresh UI to allow for better configurations
+when importing robots from URDF. As a result, the Isaac Lab URDF Converter has also been updated to
+reflect these changes. The <code class="xref py py-class docutils literal notranslate"><span class="pre">UrdfConverterCfg</span></code> includes some new settings, such as <code class="xref py py-class docutils literal notranslate"><span class="pre">PDGainsCfg</span></code>
+and <code class="xref py py-class docutils literal notranslate"><span class="pre">NaturalFrequencyGainsCfg</span></code> classes for configuring the gains of the drives.</p>
+<p>One breaking change to note is that the <code class="xref py py-attr docutils literal notranslate"><span class="pre">UrdfConverterCfg.JointDriveCfg.gains</span></code> attribute must
+be of class type <code class="xref py py-class docutils literal notranslate"><span class="pre">PDGainsCfg</span></code> or <code class="xref py py-class docutils literal notranslate"><span class="pre">NaturalFrequencyGainsCfg</span></code>.</p>
+<p>The stiffness of the <code class="xref py py-class docutils literal notranslate"><span class="pre">PDGainsCfg</span></code> must be specified, as such:</p>
+<p>The <code class="xref py py-attr docutils literal notranslate"><span class="pre">natural_frequency</span></code> must be specified for <code class="xref py py-class docutils literal notranslate"><span class="pre">NaturalFrequencyGainsCfg</span></code>.</p>
+</section>
+<section id="renaming-of-omni-isaac-core-classes">
+<h2>Renaming of omni.isaac.core Classes<a class="headerlink" href="#renaming-of-omni-isaac-core-classes" title="Permalink to this heading">#</a></h2>
+<p>Isaac Sim 4.5 introduced some naming changes to the core prim classes that are commonly
+used in Isaac Lab. These affect the single and <code class="docutils literal notranslate"><span class="pre">View</span></code> variations of the prim classes, including
+Articulation, RigidPrim, XFormPrim, and others. Single-object classes are now prefixed with
+<code class="docutils literal notranslate"><span class="pre">Single</span></code>, such as <code class="docutils literal notranslate"><span class="pre">SingleArticulation</span></code>, while tensorized View classes now have the <code class="docutils literal notranslate"><span class="pre">View</span></code>
+suffix removed.</p>
+<p>The exact renaming of the classes are as follow:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">Articulation</span></code> –&gt; <code class="docutils literal notranslate"><span class="pre">SingleArticulation</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">ArticulationView</span></code> –&gt; <code class="docutils literal notranslate"><span class="pre">Articulation</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">ClothPrim</span></code> –&gt; <code class="docutils literal notranslate"><span class="pre">SingleClothPrim</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">ClothPrimView</span></code> –&gt; <code class="docutils literal notranslate"><span class="pre">ClothPrim</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">DeformablePrim</span></code> –&gt; <code class="docutils literal notranslate"><span class="pre">SingleDeformablePrim</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">DeformablePrimView</span></code> –&gt; <code class="docutils literal notranslate"><span class="pre">DeformablePrim</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">GeometryPrim</span></code> –&gt; <code class="docutils literal notranslate"><span class="pre">SingleGeometryPrim</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">GeometryPrimView</span></code> –&gt; <code class="docutils literal notranslate"><span class="pre">GeometryPrim</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">ParticleSystem</span></code> –&gt; <code class="docutils literal notranslate"><span class="pre">SingleParticleSystem</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">ParticleSystemView</span></code> –&gt; <code class="docutils literal notranslate"><span class="pre">ParticleSystem</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">RigidPrim</span></code> –&gt; <code class="docutils literal notranslate"><span class="pre">SingleRigidPrim</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">RigidPrimView</span></code> –&gt; <code class="docutils literal notranslate"><span class="pre">RigidPrim</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">XFormPrim</span></code> –&gt; <code class="docutils literal notranslate"><span class="pre">SingleXFormPrim</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">XFormPrimView</span></code> –&gt; <code class="docutils literal notranslate"><span class="pre">XFormPrim</span></code></p></li>
 </ul>
 </section>
-<section id="deprecation-of-usdlux-light-api">
-<h2>Deprecation of <code class="xref py py-class docutils literal notranslate"><span class="pre">UsdLux.Light</span></code> API<a class="headerlink" href="#deprecation-of-usdlux-light-api" title="Permalink to this heading">#</a></h2>
-<p>As highlighted in the release notes of <a class="reference external" href="https://github.com/PixarAnimationStudios/OpenUSD/blob/release/CHANGELOG.md">USD 22.11</a>, the <code class="docutils literal notranslate"><span class="pre">UsdLux.Light</span></code> API has
-been deprecated in favor of the new <code class="docutils literal notranslate"><span class="pre">UsdLuxLightAPI</span></code> API. In the new API the attributes
-are prefixed with <code class="docutils literal notranslate"><span class="pre">inputs:</span></code>. For example, the <code class="docutils literal notranslate"><span class="pre">intensity</span></code> attribute is now available as
-<code class="docutils literal notranslate"><span class="pre">inputs:intensity</span></code>.</p>
-<p>The following example shows how to create a sphere light using the old API and
-the new API.</p>
-<details class="sd-sphinx-override sd-dropdown sd-card sd-mb-3">
-<summary class="sd-summary-title sd-card-header">
-<span class="sd-summary-icon"><svg version="1.1" width="1.0em" height="1.0em" class="sd-octicon sd-octicon-code" viewBox="0 0 16 16" aria-hidden="true"><path d="m11.28 3.22 4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.749.749 0 0 1-1.275-.326.749.749 0 0 1 .215-.734L13.94 8l-3.72-3.72a.749.749 0 0 1 .326-1.275.749.749 0 0 1 .734.215Zm-6.56 0a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042L2.06 8l3.72 3.72a.749.749 0 0 1-.326 1.275.749.749 0 0 1-.734-.215L.47 8.53a.75.75 0 0 1 0-1.06Z"></path></svg></span><span class="sd-summary-text">Code for Isaac Sim 2022.2.1 and below</span><span class="sd-summary-state-marker sd-summary-chevron-right"><svg version="1.1" width="1.5em" height="1.5em" class="sd-octicon sd-octicon-chevron-right" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.72 18.78a.75.75 0 0 1 0-1.06L14.44 12 8.72 6.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018l6.25 6.25a.75.75 0 0 1 0 1.06l-6.25 6.25a.75.75 0 0 1-1.06 0Z"></path></svg></span></summary><div class="sd-summary-content sd-card-body docutils">
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">omni.isaac.core.utils.prims</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">prim_utils</span>
-
-<span class="n">prim_utils</span><span class="o">.</span><span class="n">create_prim</span><span class="p">(</span>
-  <span class="s2">&quot;/World/Light/GreySphere&quot;</span><span class="p">,</span>
-  <span class="s2">&quot;SphereLight&quot;</span><span class="p">,</span>
-  <span class="n">translation</span><span class="o">=</span><span class="p">(</span><span class="mf">4.5</span><span class="p">,</span> <span class="mf">3.5</span><span class="p">,</span> <span class="mf">10.0</span><span class="p">),</span>
-  <span class="n">attributes</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;radius&quot;</span><span class="p">:</span> <span class="mf">2.5</span><span class="p">,</span> <span class="s2">&quot;intensity&quot;</span><span class="p">:</span> <span class="mf">600.0</span><span class="p">,</span> <span class="s2">&quot;color&quot;</span><span class="p">:</span> <span class="p">(</span><span class="mf">0.75</span><span class="p">,</span> <span class="mf">0.75</span><span class="p">,</span> <span class="mf">0.75</span><span class="p">)},</span>
-<span class="p">)</span>
-</pre></div>
-</div>
-</div>
-</details><details class="sd-sphinx-override sd-dropdown sd-card sd-mb-3">
-<summary class="sd-summary-title sd-card-header">
-<span class="sd-summary-icon"><svg version="1.1" width="1.0em" height="1.0em" class="sd-octicon sd-octicon-code" viewBox="0 0 16 16" aria-hidden="true"><path d="m11.28 3.22 4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.749.749 0 0 1-1.275-.326.749.749 0 0 1 .215-.734L13.94 8l-3.72-3.72a.749.749 0 0 1 .326-1.275.749.749 0 0 1 .734.215Zm-6.56 0a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042L2.06 8l3.72 3.72a.749.749 0 0 1-.326 1.275.749.749 0 0 1-.734-.215L.47 8.53a.75.75 0 0 1 0-1.06Z"></path></svg></span><span class="sd-summary-text">Code for Isaac Sim 2023.1.0 and above</span><span class="sd-summary-state-marker sd-summary-chevron-right"><svg version="1.1" width="1.5em" height="1.5em" class="sd-octicon sd-octicon-chevron-right" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.72 18.78a.75.75 0 0 1 0-1.06L14.44 12 8.72 6.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018l6.25 6.25a.75.75 0 0 1 0 1.06l-6.25 6.25a.75.75 0 0 1-1.06 0Z"></path></svg></span></summary><div class="sd-summary-content sd-card-body docutils">
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">omni.isaac.core.utils.prims</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">prim_utils</span>
-
-<span class="n">prim_utils</span><span class="o">.</span><span class="n">create_prim</span><span class="p">(</span>
-    <span class="s2">&quot;/World/Light/WhiteSphere&quot;</span><span class="p">,</span>
-    <span class="s2">&quot;SphereLight&quot;</span><span class="p">,</span>
-    <span class="n">translation</span><span class="o">=</span><span class="p">(</span><span class="o">-</span><span class="mf">4.5</span><span class="p">,</span> <span class="mf">3.5</span><span class="p">,</span> <span class="mf">10.0</span><span class="p">),</span>
-    <span class="n">attributes</span><span class="o">=</span><span class="p">{</span>
-      <span class="s2">&quot;inputs:radius&quot;</span><span class="p">:</span> <span class="mf">2.5</span><span class="p">,</span>
-      <span class="s2">&quot;inputs:intensity&quot;</span><span class="p">:</span> <span class="mf">600.0</span><span class="p">,</span>
-      <span class="s2">&quot;inputs:color&quot;</span><span class="p">:</span> <span class="p">(</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">)</span>
-    <span class="p">},</span>
-<span class="p">)</span>
-</pre></div>
-</div>
-</div>
-</details></section>
+<section id="renaming-of-isaac-lab-extensions-and-folders">
+<h2>Renaming of Isaac Lab Extensions and Folders<a class="headerlink" href="#renaming-of-isaac-lab-extensions-and-folders" title="Permalink to this heading">#</a></h2>
+<p>Corresponding to Isaac Sim 4.5 changes, we have also made some updates to the Isaac Lab directories and extensions.
+All extensions that were previously under <code class="docutils literal notranslate"><span class="pre">source/extensions</span></code> are now under the <code class="docutils literal notranslate"><span class="pre">source/</span></code> directory directly.
+The <code class="docutils literal notranslate"><span class="pre">source/apps</span></code> and <code class="docutils literal notranslate"><span class="pre">source/standalone</span></code> folders have been moved to the root directory and are now called
+<code class="docutils literal notranslate"><span class="pre">apps/</span></code> and <code class="docutils literal notranslate"><span class="pre">scripts/</span></code>.</p>
+<p>Isaac Lab extensions have been renamed to:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">omni.isaac.lab</span></code> –&gt; <code class="docutils literal notranslate"><span class="pre">isaaclab</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">omni.isaac.lab_assets</span></code> –&gt; <code class="docutils literal notranslate"><span class="pre">isaaclab_assets</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">omni.isaac.lab_tasks</span></code> –&gt; <code class="docutils literal notranslate"><span class="pre">isaaclab_tasks</span></code></p></li>
+</ul>
+<p>In addition, we have split up the previous <code class="docutils literal notranslate"><span class="pre">source/standalone/workflows</span></code> directory into <code class="docutils literal notranslate"><span class="pre">scripts/imitation_learning</span></code>
+and <code class="docutils literal notranslate"><span class="pre">scripts/reinforcement_learning</span></code> directories. The RSL RL, Stable-Baselines, RL_Games, SKRL, and Ray directories
+are under <code class="docutils literal notranslate"><span class="pre">scripts/reinforcement_learning</span></code>, while Robomimic and the new Isaac Lab Mimic directories are under
+<code class="docutils literal notranslate"><span class="pre">scripts/imitation_learning</span></code>.</p>
+<p>To assist with the renaming of Isaac Lab extensions in your project, we have provided a <a class="reference external" href="https://gist.github.com/kellyguo11/3e8f73f739b1c013b1069ad372277a85">simple script</a> that will traverse
+through the <code class="docutils literal notranslate"><span class="pre">source</span></code> and <code class="docutils literal notranslate"><span class="pre">docs</span></code> directories in your local Isaac Lab project and replace any instance of the renamed
+directories and imports. <strong>Please use the script at your own risk as it will overwrite source files directly.</strong></p>
+</section>
+<section id="restructuring-of-isaac-lab-extensions">
+<h2>Restructuring of Isaac Lab Extensions<a class="headerlink" href="#restructuring-of-isaac-lab-extensions" title="Permalink to this heading">#</a></h2>
+<p>With the introduction of <code class="docutils literal notranslate"><span class="pre">isaaclab_mimic</span></code>, designed for supporting data generation workflows for imitation learning,
+we have also split out the previous <code class="docutils literal notranslate"><span class="pre">wrappers</span></code> folder under <code class="docutils literal notranslate"><span class="pre">isaaclab_tasks</span></code> to its own module, named <code class="docutils literal notranslate"><span class="pre">isaaclab_rl</span></code>.
+This new extension will contain reinforcement learning specific wrappers for the various RL libraries supported by Isaac Lab.</p>
+<p>The new <code class="docutils literal notranslate"><span class="pre">isaaclab_mimic</span></code> extension will also replace the previous imitation learning scripts under the <code class="docutils literal notranslate"><span class="pre">robomimic</span></code> folder.
+We have removed the old scripts for data collection and dataset preparation in favor of the new mimic workflow. For users
+who prefer to use the previous scripts, they will be available in previous release branches.</p>
+<p>Additionally, we have also restructured the <code class="docutils literal notranslate"><span class="pre">isaaclab_assets</span></code> extension to be split into <code class="docutils literal notranslate"><span class="pre">robots</span></code> and <code class="docutils literal notranslate"><span class="pre">sensors</span></code>
+subdirectories. This allows for clearer separation between the pre-defined configurations provided in the extension.
+For any existing imports such as <code class="docutils literal notranslate"><span class="pre">from</span> <span class="pre">omni.isaac.lab_assets.anymal</span> <span class="pre">import</span> <span class="pre">ANYMAL_C_CFG</span></code>, please replace it with
+<code class="docutils literal notranslate"><span class="pre">from</span> <span class="pre">isaaclab.robots.anymal</span> <span class="pre">import</span> <span class="pre">ANYMAL_C_CFG</span></code>.</p>
+</section>
 </section>
 
 
@@ -686,6 +726,24 @@ the new API.</p>
                 <footer class="prev-next-footer d-print-none">
                   
 <div class="prev-next-area">
+    <a class="left-prev"
+       href="troubleshooting.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">Tricks and Troubleshooting</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="issues.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Known Issues</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
 </div>
                 </footer>
               
@@ -703,9 +761,12 @@ the new API.</p>
   </div>
   <nav class="bd-toc-nav page-toc">
     <ul class="visible nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#renaming-of-physx-flatcache-to-physx-fabric">Renaming of PhysX Flatcache to PhysX Fabric</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#renaming-of-isaac-sim-extensions">Renaming of Isaac Sim Extensions</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#renaming-of-the-urdf-and-mjcf-importers">Renaming of the URDF and MJCF Importers</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#deprecation-of-usdlux-light-api">Deprecation of <code class="xref py py-class docutils literal notranslate"><span class="pre">UsdLux.Light</span></code> API</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#changes-in-urdf-importer">Changes in URDF Importer</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#renaming-of-omni-isaac-core-classes">Renaming of omni.isaac.core Classes</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#renaming-of-isaac-lab-extensions-and-folders">Renaming of Isaac Lab Extensions and Folders</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#restructuring-of-isaac-lab-extensions">Restructuring of Isaac Lab Extensions</a></li>
 </ul>
   </nav></div>
 

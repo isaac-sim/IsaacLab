@@ -60,7 +60,7 @@
     <link rel="prev" title="Creating a Manager-Based RL Environment" href="create_manager_rl_env.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-  <meta name="docsearch:version" content="1.4.1" />
+  <meta name="docsearch:version" content="2.0.0" />
     <meta name="docbuild:last-update" content="Jan 30, 2025"/>
   </head>
   
@@ -192,7 +192,7 @@
           
           
           
-          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.2.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.5.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
         </li>
         <li class="nav-item">
           
@@ -230,6 +230,8 @@
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../setup/installation/index.html">Local Installation</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2"><a class="reference internal" href="../../setup/installation/pip_installation.html">Pip installation (recommended for Ubuntu 22.04 and Windows)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../setup/installation/binaries_installation.html">Binary installation (recommended for Ubuntu 20.04)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/installation/isaaclab_pip_installation.html">Advanced installation (Isaac Lab pip)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/installation/asset_caching.html">Asset caching</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1"><a class="reference internal" href="../../setup/installation/cloud_installation.html">Running Isaac Lab in the Cloud</a></li>
@@ -241,7 +243,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../../overview/developer-guide/vs_code.html">Setting up Visual Studio Code</a></li>
 
 <li class="toctree-l2"><a class="reference internal" href="../../overview/developer-guide/repo_structure.html">Repository organization</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../overview/developer-guide/development.html">Application Development</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/developer-guide/development.html">Extension Development</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../overview/developer-guide/template.html">Building your Own Project</a></li>
 </ul>
 </details></li>
@@ -264,6 +266,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../../overview/reinforcement-learning/rl_existing_scripts.html">Reinforcement Learning Wrappers</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../overview/reinforcement-learning/rl_frameworks.html">Reinforcement Learning Library Comparison</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../overview/reinforcement-learning/performance_benchmarks.html">Performance Benchmarks</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/reinforcement-learning/training_guide.html">Debugging and Training Guide</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1"><a class="reference internal" href="../../overview/teleop_imitation.html">Teleoperation and Imitation Learning</a></li>
@@ -294,6 +297,7 @@
 <li class="toctree-l2"><a class="reference internal" href="register_rl_env_gym.html">Registering an Environment</a></li>
 <li class="toctree-l2"><a class="reference internal" href="run_rl_training.html">Training with an RL Agent</a></li>
 <li class="toctree-l2"><a class="reference internal" href="modify_direct_rl_env.html">Modifying an existing Direct RL Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="policy_inference_in_usd.html">Policy Inference in USD Environment</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../04_sensors/add_sensors_on_robot.html">Adding sensors on a robot</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../05_controllers/run_diff_ik.html">Using a task-space controller</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../05_controllers/run_osc.html">Using an operational space controller</a></li>
@@ -330,28 +334,27 @@
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Source API</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../api/index.html">API Reference</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.app.html">omni.isaac.lab.app</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.actuators.html">omni.isaac.lab.actuators</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.assets.html">omni.isaac.lab.assets</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.controllers.html">omni.isaac.lab.controllers</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.devices.html">omni.isaac.lab.devices</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.envs.html">omni.isaac.lab.envs</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.managers.html">omni.isaac.lab.managers</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.markers.html">omni.isaac.lab.markers</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.scene.html">omni.isaac.lab.scene</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.sensors.html">omni.isaac.lab.sensors</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.sim.html">omni.isaac.lab.sim</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.terrains.html">omni.isaac.lab.terrains</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.utils.html">omni.isaac.lab.utils</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.envs.mdp.html">omni.isaac.lab.envs.mdp</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.envs.ui.html">omni.isaac.lab.envs.ui</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.sensors.patterns.html">omni.isaac.lab.sensors.patterns</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.sim.converters.html">omni.isaac.lab.sim.converters</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.sim.schemas.html">omni.isaac.lab.sim.schemas</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.sim.spawners.html">omni.isaac.lab.sim.spawners</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab_tasks/omni.isaac.lab_tasks.utils.html">omni.isaac.lab_tasks.utils</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab_tasks/omni.isaac.lab_tasks.utils.wrappers.html">omni.isaac.lab_tasks.utils.wrappers</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab_tasks/omni.isaac.lab_tasks.utils.data_collector.html">omni.isaac.lab_tasks.utils.data_collector</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.app.html">isaaclab.app</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.actuators.html">isaaclab.actuators</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.assets.html">isaaclab.assets</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.controllers.html">isaaclab.controllers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.devices.html">isaaclab.devices</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.envs.html">isaaclab.envs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.managers.html">isaaclab.managers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.markers.html">isaaclab.markers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.scene.html">isaaclab.scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.sensors.html">isaaclab.sensors</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.sim.html">isaaclab.sim</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.terrains.html">isaaclab.terrains</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.utils.html">isaaclab.utils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.envs.mdp.html">isaaclab.envs.mdp</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.envs.ui.html">isaaclab.envs.ui</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.sensors.patterns.html">isaaclab.sensors.patterns</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.sim.converters.html">isaaclab.sim.converters</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.sim.schemas.html">isaaclab.sim.schemas</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.sim.spawners.html">isaaclab.sim.spawners</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab_tasks/isaaclab_tasks.utils.html">isaaclab_tasks.utils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab_mimic/isaaclab_mimic.datagen.html">isaaclab_mimic.datagen</a></li>
 </ul>
 </details></li>
 </ul>
@@ -361,7 +364,15 @@
 <li class="toctree-l1"><a class="reference internal" href="../../refs/additional_resources.html">Additional Resources</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../refs/contributing.html">Contribution Guidelines</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../refs/troubleshooting.html">Tricks and Troubleshooting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../refs/migration.html">Migration Guide (Isaac Sim)</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../refs/issues.html">Known Issues</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../refs/release_notes.html">Release Notes</a></li>
+
+
+
+
+
+
 <li class="toctree-l1"><a class="reference internal" href="../../refs/changelog.html">Extensions Changelog</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../refs/license.html">License</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../refs/bibliography.html">Bibliography</a></li>
@@ -369,7 +380,7 @@
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Project Links</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference external" href="https://github.com/isaac-sim/IsaacLab">GitHub</a></li>
-<li class="toctree-l1"><a class="reference external" href="https://docs.omniverse.nvidia.com/isaacsim/latest/index.html">NVIDIA Isaac Sim</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/latest/index.html">NVIDIA Isaac Sim</a></li>
 <li class="toctree-l1"><a class="reference external" href="https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/index.html">NVIDIA PhysX</a></li>
 </ul>
 
@@ -607,8 +618,8 @@
                   
   <section id="creating-a-direct-workflow-rl-environment">
 <span id="tutorial-create-direct-rl-env"></span><h1>Creating a Direct Workflow RL Environment<a class="headerlink" href="#creating-a-direct-workflow-rl-environment" title="Permalink to this heading">#</a></h1>
-<p>In addition to the <a class="reference internal" href="../../api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.ManagerBasedRLEnv" title="omni.isaac.lab.envs.ManagerBasedRLEnv"><code class="xref py py-class docutils literal notranslate"><span class="pre">envs.ManagerBasedRLEnv</span></code></a> class, which encourages the use of configuration classes
-for more modular environments, the <a class="reference internal" href="../../api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectRLEnv" title="omni.isaac.lab.envs.DirectRLEnv"><code class="xref py py-class docutils literal notranslate"><span class="pre">DirectRLEnv</span></code></a> class allows for more direct control
+<p>In addition to the <a class="reference internal" href="../../api/lab/isaaclab.envs.html#isaaclab.envs.ManagerBasedRLEnv" title="isaaclab.envs.ManagerBasedRLEnv"><code class="xref py py-class docutils literal notranslate"><span class="pre">envs.ManagerBasedRLEnv</span></code></a> class, which encourages the use of configuration classes
+for more modular environments, the <a class="reference internal" href="../../api/lab/isaaclab.envs.html#isaaclab.envs.DirectRLEnv" title="isaaclab.envs.DirectRLEnv"><code class="xref py py-class docutils literal notranslate"><span class="pre">DirectRLEnv</span></code></a> class allows for more direct control
 in the scripting of environment.</p>
 <p>Instead of using Manager classes for defining rewards and observations, the direct workflow tasks
 implement the full reward and observation functions directly in the task script.
@@ -620,7 +631,7 @@ for balancing the pole upright. We will learn how to specify the task using by i
 for scene creation, actions, resets, rewards and observations.</p>
 <section id="the-code">
 <h2>The Code<a class="headerlink" href="#the-code" title="Permalink to this heading">#</a></h2>
-<p>For this tutorial, we use the cartpole environment defined in <code class="docutils literal notranslate"><span class="pre">omni.isaac.lab_tasks.direct.cartpole</span></code> module.</p>
+<p>For this tutorial, we use the cartpole environment defined in <code class="docutils literal notranslate"><span class="pre">isaaclab_tasks.direct.cartpole</span></code> module.</p>
 <details class="sd-sphinx-override sd-dropdown sd-card sd-mb-3">
 <summary class="sd-summary-title sd-card-header">
 <span class="sd-summary-icon"><svg version="1.1" width="1.0em" height="1.0em" class="sd-octicon sd-octicon-code" viewBox="0 0 16 16" aria-hidden="true"><path d="m11.28 3.22 4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.749.749 0 0 1-1.275-.326.749.749 0 0 1 .215-.734L13.94 8l-3.72-3.72a.749.749 0 0 1 .326-1.275.749.749 0 0 1 .734.215Zm-6.56 0a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042L2.06 8l3.72 3.72a.749.749 0 0 1-.326 1.275.749.749 0 0 1-.734-.215L.47 8.53a.75.75 0 0 1 0-1.06Z"></path></svg></span><span class="sd-summary-text">Code for cartpole_env.py</span><span class="sd-summary-state-marker sd-summary-chevron-right"><svg version="1.1" width="1.5em" height="1.5em" class="sd-octicon sd-octicon-chevron-right" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.72 18.78a.75.75 0 0 1 0-1.06L14.44 12 8.72 6.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018l6.25 6.25a.75.75 0 0 1 0 1.06l-6.25 6.25a.75.75 0 0 1-1.06 0Z"></path></svg></span></summary><div class="sd-summary-content sd-card-body docutils">
@@ -635,16 +646,16 @@ for scene creation, actions, resets, rewards and observations.</p>
 <span class="linenos">  9</span><span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
 <span class="linenos"> 10</span><span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Sequence</span>
 <span class="linenos"> 11</span>
-<span class="linenos"> 12</span><span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab_assets.cartpole</span><span class="w"> </span><span class="kn">import</span> <span class="n">CARTPOLE_CFG</span>
+<span class="linenos"> 12</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab_assets.robots.cartpole</span><span class="w"> </span><span class="kn">import</span> <span class="n">CARTPOLE_CFG</span>
 <span class="linenos"> 13</span>
-<span class="linenos"> 14</span><span class="kn">import</span><span class="w"> </span><span class="nn">omni.isaac.lab.sim</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">sim_utils</span>
-<span class="linenos"> 15</span><span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.assets</span><span class="w"> </span><span class="kn">import</span> <span class="n">Articulation</span><span class="p">,</span> <span class="n">ArticulationCfg</span>
-<span class="linenos"> 16</span><span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.envs</span><span class="w"> </span><span class="kn">import</span> <span class="n">DirectRLEnv</span><span class="p">,</span> <span class="n">DirectRLEnvCfg</span>
-<span class="linenos"> 17</span><span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.scene</span><span class="w"> </span><span class="kn">import</span> <span class="n">InteractiveSceneCfg</span>
-<span class="linenos"> 18</span><span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.sim</span><span class="w"> </span><span class="kn">import</span> <span class="n">SimulationCfg</span>
-<span class="linenos"> 19</span><span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.sim.spawners.from_files</span><span class="w"> </span><span class="kn">import</span> <span class="n">GroundPlaneCfg</span><span class="p">,</span> <span class="n">spawn_ground_plane</span>
-<span class="linenos"> 20</span><span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">configclass</span>
-<span class="linenos"> 21</span><span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.utils.math</span><span class="w"> </span><span class="kn">import</span> <span class="n">sample_uniform</span>
+<span class="linenos"> 14</span><span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab.sim</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">sim_utils</span>
+<span class="linenos"> 15</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.assets</span><span class="w"> </span><span class="kn">import</span> <span class="n">Articulation</span><span class="p">,</span> <span class="n">ArticulationCfg</span>
+<span class="linenos"> 16</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.envs</span><span class="w"> </span><span class="kn">import</span> <span class="n">DirectRLEnv</span><span class="p">,</span> <span class="n">DirectRLEnvCfg</span>
+<span class="linenos"> 17</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.scene</span><span class="w"> </span><span class="kn">import</span> <span class="n">InteractiveSceneCfg</span>
+<span class="linenos"> 18</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.sim</span><span class="w"> </span><span class="kn">import</span> <span class="n">SimulationCfg</span>
+<span class="linenos"> 19</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.sim.spawners.from_files</span><span class="w"> </span><span class="kn">import</span> <span class="n">GroundPlaneCfg</span><span class="p">,</span> <span class="n">spawn_ground_plane</span>
+<span class="linenos"> 20</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">configclass</span>
+<span class="linenos"> 21</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils.math</span><span class="w"> </span><span class="kn">import</span> <span class="n">sample_uniform</span>
 <span class="linenos"> 22</span>
 <span class="linenos"> 23</span>
 <span class="linenos"> 24</span><span class="nd">@configclass</span>
@@ -697,103 +708,102 @@ for scene creation, actions, resets, rewards and observations.</p>
 <span class="linenos"> 71</span>        <span class="bp">self</span><span class="o">.</span><span class="n">cartpole</span> <span class="o">=</span> <span class="n">Articulation</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">robot_cfg</span><span class="p">)</span>
 <span class="linenos"> 72</span>        <span class="c1"># add ground plane</span>
 <span class="linenos"> 73</span>        <span class="n">spawn_ground_plane</span><span class="p">(</span><span class="n">prim_path</span><span class="o">=</span><span class="s2">&quot;/World/ground&quot;</span><span class="p">,</span> <span class="n">cfg</span><span class="o">=</span><span class="n">GroundPlaneCfg</span><span class="p">())</span>
-<span class="linenos"> 74</span>        <span class="c1"># clone, filter, and replicate</span>
+<span class="linenos"> 74</span>        <span class="c1"># clone and replicate</span>
 <span class="linenos"> 75</span>        <span class="bp">self</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">clone_environments</span><span class="p">(</span><span class="n">copy_from_source</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
-<span class="linenos"> 76</span>        <span class="bp">self</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">filter_collisions</span><span class="p">(</span><span class="n">global_prim_paths</span><span class="o">=</span><span class="p">[])</span>
-<span class="linenos"> 77</span>        <span class="c1"># add articulation to scene</span>
-<span class="linenos"> 78</span>        <span class="bp">self</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">articulations</span><span class="p">[</span><span class="s2">&quot;cartpole&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cartpole</span>
-<span class="linenos"> 79</span>        <span class="c1"># add lights</span>
-<span class="linenos"> 80</span>        <span class="n">light_cfg</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">DomeLightCfg</span><span class="p">(</span><span class="n">intensity</span><span class="o">=</span><span class="mf">2000.0</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="p">(</span><span class="mf">0.75</span><span class="p">,</span> <span class="mf">0.75</span><span class="p">,</span> <span class="mf">0.75</span><span class="p">))</span>
-<span class="linenos"> 81</span>        <span class="n">light_cfg</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="s2">&quot;/World/Light&quot;</span><span class="p">,</span> <span class="n">light_cfg</span><span class="p">)</span>
-<span class="linenos"> 82</span>
-<span class="linenos"> 83</span>    <span class="k">def</span><span class="w"> </span><span class="nf">_pre_physics_step</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">actions</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<span class="linenos"> 84</span>        <span class="bp">self</span><span class="o">.</span><span class="n">actions</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">action_scale</span> <span class="o">*</span> <span class="n">actions</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
-<span class="linenos"> 85</span>
-<span class="linenos"> 86</span>    <span class="k">def</span><span class="w"> </span><span class="nf">_apply_action</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<span class="linenos"> 87</span>        <span class="bp">self</span><span class="o">.</span><span class="n">cartpole</span><span class="o">.</span><span class="n">set_joint_effort_target</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">actions</span><span class="p">,</span> <span class="n">joint_ids</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_cart_dof_idx</span><span class="p">)</span>
-<span class="linenos"> 88</span>
-<span class="linenos"> 89</span>    <span class="k">def</span><span class="w"> </span><span class="nf">_get_observations</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
-<span class="linenos"> 90</span>        <span class="n">obs</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">(</span>
-<span class="linenos"> 91</span>            <span class="p">(</span>
-<span class="linenos"> 92</span>                <span class="bp">self</span><span class="o">.</span><span class="n">joint_pos</span><span class="p">[:,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_pole_dof_idx</span><span class="p">[</span><span class="mi">0</span><span class="p">]]</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">),</span>
-<span class="linenos"> 93</span>                <span class="bp">self</span><span class="o">.</span><span class="n">joint_vel</span><span class="p">[:,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_pole_dof_idx</span><span class="p">[</span><span class="mi">0</span><span class="p">]]</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">),</span>
-<span class="linenos"> 94</span>                <span class="bp">self</span><span class="o">.</span><span class="n">joint_pos</span><span class="p">[:,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cart_dof_idx</span><span class="p">[</span><span class="mi">0</span><span class="p">]]</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">),</span>
-<span class="linenos"> 95</span>                <span class="bp">self</span><span class="o">.</span><span class="n">joint_vel</span><span class="p">[:,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cart_dof_idx</span><span class="p">[</span><span class="mi">0</span><span class="p">]]</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">),</span>
-<span class="linenos"> 96</span>            <span class="p">),</span>
-<span class="linenos"> 97</span>            <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">,</span>
-<span class="linenos"> 98</span>        <span class="p">)</span>
-<span class="linenos"> 99</span>        <span class="n">observations</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;policy&quot;</span><span class="p">:</span> <span class="n">obs</span><span class="p">}</span>
-<span class="linenos">100</span>        <span class="k">return</span> <span class="n">observations</span>
-<span class="linenos">101</span>
-<span class="linenos">102</span>    <span class="k">def</span><span class="w"> </span><span class="nf">_get_rewards</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
-<span class="linenos">103</span>        <span class="n">total_reward</span> <span class="o">=</span> <span class="n">compute_rewards</span><span class="p">(</span>
-<span class="linenos">104</span>            <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">rew_scale_alive</span><span class="p">,</span>
-<span class="linenos">105</span>            <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">rew_scale_terminated</span><span class="p">,</span>
-<span class="linenos">106</span>            <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">rew_scale_pole_pos</span><span class="p">,</span>
-<span class="linenos">107</span>            <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">rew_scale_cart_vel</span><span class="p">,</span>
-<span class="linenos">108</span>            <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">rew_scale_pole_vel</span><span class="p">,</span>
-<span class="linenos">109</span>            <span class="bp">self</span><span class="o">.</span><span class="n">joint_pos</span><span class="p">[:,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_pole_dof_idx</span><span class="p">[</span><span class="mi">0</span><span class="p">]],</span>
-<span class="linenos">110</span>            <span class="bp">self</span><span class="o">.</span><span class="n">joint_vel</span><span class="p">[:,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_pole_dof_idx</span><span class="p">[</span><span class="mi">0</span><span class="p">]],</span>
-<span class="linenos">111</span>            <span class="bp">self</span><span class="o">.</span><span class="n">joint_pos</span><span class="p">[:,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cart_dof_idx</span><span class="p">[</span><span class="mi">0</span><span class="p">]],</span>
-<span class="linenos">112</span>            <span class="bp">self</span><span class="o">.</span><span class="n">joint_vel</span><span class="p">[:,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cart_dof_idx</span><span class="p">[</span><span class="mi">0</span><span class="p">]],</span>
-<span class="linenos">113</span>            <span class="bp">self</span><span class="o">.</span><span class="n">reset_terminated</span><span class="p">,</span>
-<span class="linenos">114</span>        <span class="p">)</span>
-<span class="linenos">115</span>        <span class="k">return</span> <span class="n">total_reward</span>
-<span class="linenos">116</span>
-<span class="linenos">117</span>    <span class="k">def</span><span class="w"> </span><span class="nf">_get_dones</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]:</span>
-<span class="linenos">118</span>        <span class="bp">self</span><span class="o">.</span><span class="n">joint_pos</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cartpole</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">joint_pos</span>
-<span class="linenos">119</span>        <span class="bp">self</span><span class="o">.</span><span class="n">joint_vel</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cartpole</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">joint_vel</span>
-<span class="linenos">120</span>
-<span class="linenos">121</span>        <span class="n">time_out</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">episode_length_buf</span> <span class="o">&gt;=</span> <span class="bp">self</span><span class="o">.</span><span class="n">max_episode_length</span> <span class="o">-</span> <span class="mi">1</span>
-<span class="linenos">122</span>        <span class="n">out_of_bounds</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">any</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">joint_pos</span><span class="p">[:,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cart_dof_idx</span><span class="p">])</span> <span class="o">&gt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">max_cart_pos</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
-<span class="linenos">123</span>        <span class="n">out_of_bounds</span> <span class="o">=</span> <span class="n">out_of_bounds</span> <span class="o">|</span> <span class="n">torch</span><span class="o">.</span><span class="n">any</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">joint_pos</span><span class="p">[:,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_pole_dof_idx</span><span class="p">])</span> <span class="o">&gt;</span> <span class="n">math</span><span class="o">.</span><span class="n">pi</span> <span class="o">/</span> <span class="mi">2</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
-<span class="linenos">124</span>        <span class="k">return</span> <span class="n">out_of_bounds</span><span class="p">,</span> <span class="n">time_out</span>
-<span class="linenos">125</span>
-<span class="linenos">126</span>    <span class="k">def</span><span class="w"> </span><span class="nf">_reset_idx</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">):</span>
-<span class="linenos">127</span>        <span class="k">if</span> <span class="n">env_ids</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-<span class="linenos">128</span>            <span class="n">env_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cartpole</span><span class="o">.</span><span class="n">_ALL_INDICES</span>
-<span class="linenos">129</span>        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">_reset_idx</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span>
-<span class="linenos">130</span>
-<span class="linenos">131</span>        <span class="n">joint_pos</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cartpole</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_joint_pos</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span>
-<span class="linenos">132</span>        <span class="n">joint_pos</span><span class="p">[:,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_pole_dof_idx</span><span class="p">]</span> <span class="o">+=</span> <span class="n">sample_uniform</span><span class="p">(</span>
-<span class="linenos">133</span>            <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">initial_pole_angle_range</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="n">math</span><span class="o">.</span><span class="n">pi</span><span class="p">,</span>
-<span class="linenos">134</span>            <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">initial_pole_angle_range</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">*</span> <span class="n">math</span><span class="o">.</span><span class="n">pi</span><span class="p">,</span>
-<span class="linenos">135</span>            <span class="n">joint_pos</span><span class="p">[:,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_pole_dof_idx</span><span class="p">]</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span>
-<span class="linenos">136</span>            <span class="n">joint_pos</span><span class="o">.</span><span class="n">device</span><span class="p">,</span>
-<span class="linenos">137</span>        <span class="p">)</span>
-<span class="linenos">138</span>        <span class="n">joint_vel</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cartpole</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_joint_vel</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span>
-<span class="linenos">139</span>
-<span class="linenos">140</span>        <span class="n">default_root_state</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cartpole</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_root_state</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span>
-<span class="linenos">141</span>        <span class="n">default_root_state</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">3</span><span class="p">]</span> <span class="o">+=</span> <span class="bp">self</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">env_origins</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span>
-<span class="linenos">142</span>
-<span class="linenos">143</span>        <span class="bp">self</span><span class="o">.</span><span class="n">joint_pos</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span> <span class="o">=</span> <span class="n">joint_pos</span>
-<span class="linenos">144</span>        <span class="bp">self</span><span class="o">.</span><span class="n">joint_vel</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span> <span class="o">=</span> <span class="n">joint_vel</span>
-<span class="linenos">145</span>
-<span class="linenos">146</span>        <span class="bp">self</span><span class="o">.</span><span class="n">cartpole</span><span class="o">.</span><span class="n">write_root_pose_to_sim</span><span class="p">(</span><span class="n">default_root_state</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">7</span><span class="p">],</span> <span class="n">env_ids</span><span class="p">)</span>
-<span class="linenos">147</span>        <span class="bp">self</span><span class="o">.</span><span class="n">cartpole</span><span class="o">.</span><span class="n">write_root_velocity_to_sim</span><span class="p">(</span><span class="n">default_root_state</span><span class="p">[:,</span> <span class="mi">7</span><span class="p">:],</span> <span class="n">env_ids</span><span class="p">)</span>
-<span class="linenos">148</span>        <span class="bp">self</span><span class="o">.</span><span class="n">cartpole</span><span class="o">.</span><span class="n">write_joint_state_to_sim</span><span class="p">(</span><span class="n">joint_pos</span><span class="p">,</span> <span class="n">joint_vel</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">)</span>
+<span class="linenos"> 76</span>        <span class="c1"># add articulation to scene</span>
+<span class="linenos"> 77</span>        <span class="bp">self</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">articulations</span><span class="p">[</span><span class="s2">&quot;cartpole&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cartpole</span>
+<span class="linenos"> 78</span>        <span class="c1"># add lights</span>
+<span class="linenos"> 79</span>        <span class="n">light_cfg</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">DomeLightCfg</span><span class="p">(</span><span class="n">intensity</span><span class="o">=</span><span class="mf">2000.0</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="p">(</span><span class="mf">0.75</span><span class="p">,</span> <span class="mf">0.75</span><span class="p">,</span> <span class="mf">0.75</span><span class="p">))</span>
+<span class="linenos"> 80</span>        <span class="n">light_cfg</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="s2">&quot;/World/Light&quot;</span><span class="p">,</span> <span class="n">light_cfg</span><span class="p">)</span>
+<span class="linenos"> 81</span>
+<span class="linenos"> 82</span>    <span class="k">def</span><span class="w"> </span><span class="nf">_pre_physics_step</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">actions</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="linenos"> 83</span>        <span class="bp">self</span><span class="o">.</span><span class="n">actions</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">action_scale</span> <span class="o">*</span> <span class="n">actions</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+<span class="linenos"> 84</span>
+<span class="linenos"> 85</span>    <span class="k">def</span><span class="w"> </span><span class="nf">_apply_action</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="linenos"> 86</span>        <span class="bp">self</span><span class="o">.</span><span class="n">cartpole</span><span class="o">.</span><span class="n">set_joint_effort_target</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">actions</span><span class="p">,</span> <span class="n">joint_ids</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_cart_dof_idx</span><span class="p">)</span>
+<span class="linenos"> 87</span>
+<span class="linenos"> 88</span>    <span class="k">def</span><span class="w"> </span><span class="nf">_get_observations</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+<span class="linenos"> 89</span>        <span class="n">obs</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">(</span>
+<span class="linenos"> 90</span>            <span class="p">(</span>
+<span class="linenos"> 91</span>                <span class="bp">self</span><span class="o">.</span><span class="n">joint_pos</span><span class="p">[:,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_pole_dof_idx</span><span class="p">[</span><span class="mi">0</span><span class="p">]]</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">),</span>
+<span class="linenos"> 92</span>                <span class="bp">self</span><span class="o">.</span><span class="n">joint_vel</span><span class="p">[:,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_pole_dof_idx</span><span class="p">[</span><span class="mi">0</span><span class="p">]]</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">),</span>
+<span class="linenos"> 93</span>                <span class="bp">self</span><span class="o">.</span><span class="n">joint_pos</span><span class="p">[:,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cart_dof_idx</span><span class="p">[</span><span class="mi">0</span><span class="p">]]</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">),</span>
+<span class="linenos"> 94</span>                <span class="bp">self</span><span class="o">.</span><span class="n">joint_vel</span><span class="p">[:,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cart_dof_idx</span><span class="p">[</span><span class="mi">0</span><span class="p">]]</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">),</span>
+<span class="linenos"> 95</span>            <span class="p">),</span>
+<span class="linenos"> 96</span>            <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">,</span>
+<span class="linenos"> 97</span>        <span class="p">)</span>
+<span class="linenos"> 98</span>        <span class="n">observations</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;policy&quot;</span><span class="p">:</span> <span class="n">obs</span><span class="p">}</span>
+<span class="linenos"> 99</span>        <span class="k">return</span> <span class="n">observations</span>
+<span class="linenos">100</span>
+<span class="linenos">101</span>    <span class="k">def</span><span class="w"> </span><span class="nf">_get_rewards</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="linenos">102</span>        <span class="n">total_reward</span> <span class="o">=</span> <span class="n">compute_rewards</span><span class="p">(</span>
+<span class="linenos">103</span>            <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">rew_scale_alive</span><span class="p">,</span>
+<span class="linenos">104</span>            <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">rew_scale_terminated</span><span class="p">,</span>
+<span class="linenos">105</span>            <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">rew_scale_pole_pos</span><span class="p">,</span>
+<span class="linenos">106</span>            <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">rew_scale_cart_vel</span><span class="p">,</span>
+<span class="linenos">107</span>            <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">rew_scale_pole_vel</span><span class="p">,</span>
+<span class="linenos">108</span>            <span class="bp">self</span><span class="o">.</span><span class="n">joint_pos</span><span class="p">[:,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_pole_dof_idx</span><span class="p">[</span><span class="mi">0</span><span class="p">]],</span>
+<span class="linenos">109</span>            <span class="bp">self</span><span class="o">.</span><span class="n">joint_vel</span><span class="p">[:,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_pole_dof_idx</span><span class="p">[</span><span class="mi">0</span><span class="p">]],</span>
+<span class="linenos">110</span>            <span class="bp">self</span><span class="o">.</span><span class="n">joint_pos</span><span class="p">[:,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cart_dof_idx</span><span class="p">[</span><span class="mi">0</span><span class="p">]],</span>
+<span class="linenos">111</span>            <span class="bp">self</span><span class="o">.</span><span class="n">joint_vel</span><span class="p">[:,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cart_dof_idx</span><span class="p">[</span><span class="mi">0</span><span class="p">]],</span>
+<span class="linenos">112</span>            <span class="bp">self</span><span class="o">.</span><span class="n">reset_terminated</span><span class="p">,</span>
+<span class="linenos">113</span>        <span class="p">)</span>
+<span class="linenos">114</span>        <span class="k">return</span> <span class="n">total_reward</span>
+<span class="linenos">115</span>
+<span class="linenos">116</span>    <span class="k">def</span><span class="w"> </span><span class="nf">_get_dones</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]:</span>
+<span class="linenos">117</span>        <span class="bp">self</span><span class="o">.</span><span class="n">joint_pos</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cartpole</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">joint_pos</span>
+<span class="linenos">118</span>        <span class="bp">self</span><span class="o">.</span><span class="n">joint_vel</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cartpole</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">joint_vel</span>
+<span class="linenos">119</span>
+<span class="linenos">120</span>        <span class="n">time_out</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">episode_length_buf</span> <span class="o">&gt;=</span> <span class="bp">self</span><span class="o">.</span><span class="n">max_episode_length</span> <span class="o">-</span> <span class="mi">1</span>
+<span class="linenos">121</span>        <span class="n">out_of_bounds</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">any</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">joint_pos</span><span class="p">[:,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cart_dof_idx</span><span class="p">])</span> <span class="o">&gt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">max_cart_pos</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+<span class="linenos">122</span>        <span class="n">out_of_bounds</span> <span class="o">=</span> <span class="n">out_of_bounds</span> <span class="o">|</span> <span class="n">torch</span><span class="o">.</span><span class="n">any</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">joint_pos</span><span class="p">[:,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_pole_dof_idx</span><span class="p">])</span> <span class="o">&gt;</span> <span class="n">math</span><span class="o">.</span><span class="n">pi</span> <span class="o">/</span> <span class="mi">2</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+<span class="linenos">123</span>        <span class="k">return</span> <span class="n">out_of_bounds</span><span class="p">,</span> <span class="n">time_out</span>
+<span class="linenos">124</span>
+<span class="linenos">125</span>    <span class="k">def</span><span class="w"> </span><span class="nf">_reset_idx</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">):</span>
+<span class="linenos">126</span>        <span class="k">if</span> <span class="n">env_ids</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+<span class="linenos">127</span>            <span class="n">env_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cartpole</span><span class="o">.</span><span class="n">_ALL_INDICES</span>
+<span class="linenos">128</span>        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">_reset_idx</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span>
+<span class="linenos">129</span>
+<span class="linenos">130</span>        <span class="n">joint_pos</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cartpole</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_joint_pos</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span>
+<span class="linenos">131</span>        <span class="n">joint_pos</span><span class="p">[:,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_pole_dof_idx</span><span class="p">]</span> <span class="o">+=</span> <span class="n">sample_uniform</span><span class="p">(</span>
+<span class="linenos">132</span>            <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">initial_pole_angle_range</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="n">math</span><span class="o">.</span><span class="n">pi</span><span class="p">,</span>
+<span class="linenos">133</span>            <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">initial_pole_angle_range</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">*</span> <span class="n">math</span><span class="o">.</span><span class="n">pi</span><span class="p">,</span>
+<span class="linenos">134</span>            <span class="n">joint_pos</span><span class="p">[:,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_pole_dof_idx</span><span class="p">]</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span>
+<span class="linenos">135</span>            <span class="n">joint_pos</span><span class="o">.</span><span class="n">device</span><span class="p">,</span>
+<span class="linenos">136</span>        <span class="p">)</span>
+<span class="linenos">137</span>        <span class="n">joint_vel</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cartpole</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_joint_vel</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span>
+<span class="linenos">138</span>
+<span class="linenos">139</span>        <span class="n">default_root_state</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cartpole</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_root_state</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span>
+<span class="linenos">140</span>        <span class="n">default_root_state</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">3</span><span class="p">]</span> <span class="o">+=</span> <span class="bp">self</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">env_origins</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span>
+<span class="linenos">141</span>
+<span class="linenos">142</span>        <span class="bp">self</span><span class="o">.</span><span class="n">joint_pos</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span> <span class="o">=</span> <span class="n">joint_pos</span>
+<span class="linenos">143</span>        <span class="bp">self</span><span class="o">.</span><span class="n">joint_vel</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span> <span class="o">=</span> <span class="n">joint_vel</span>
+<span class="linenos">144</span>
+<span class="linenos">145</span>        <span class="bp">self</span><span class="o">.</span><span class="n">cartpole</span><span class="o">.</span><span class="n">write_root_pose_to_sim</span><span class="p">(</span><span class="n">default_root_state</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">7</span><span class="p">],</span> <span class="n">env_ids</span><span class="p">)</span>
+<span class="linenos">146</span>        <span class="bp">self</span><span class="o">.</span><span class="n">cartpole</span><span class="o">.</span><span class="n">write_root_velocity_to_sim</span><span class="p">(</span><span class="n">default_root_state</span><span class="p">[:,</span> <span class="mi">7</span><span class="p">:],</span> <span class="n">env_ids</span><span class="p">)</span>
+<span class="linenos">147</span>        <span class="bp">self</span><span class="o">.</span><span class="n">cartpole</span><span class="o">.</span><span class="n">write_joint_state_to_sim</span><span class="p">(</span><span class="n">joint_pos</span><span class="p">,</span> <span class="n">joint_vel</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">)</span>
+<span class="linenos">148</span>
 <span class="linenos">149</span>
-<span class="linenos">150</span>
-<span class="linenos">151</span><span class="nd">@torch</span><span class="o">.</span><span class="n">jit</span><span class="o">.</span><span class="n">script</span>
-<span class="linenos">152</span><span class="k">def</span><span class="w"> </span><span class="nf">compute_rewards</span><span class="p">(</span>
-<span class="linenos">153</span>    <span class="n">rew_scale_alive</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
-<span class="linenos">154</span>    <span class="n">rew_scale_terminated</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
-<span class="linenos">155</span>    <span class="n">rew_scale_pole_pos</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
-<span class="linenos">156</span>    <span class="n">rew_scale_cart_vel</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
-<span class="linenos">157</span>    <span class="n">rew_scale_pole_vel</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
-<span class="linenos">158</span>    <span class="n">pole_pos</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
-<span class="linenos">159</span>    <span class="n">pole_vel</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
-<span class="linenos">160</span>    <span class="n">cart_pos</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
-<span class="linenos">161</span>    <span class="n">cart_vel</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
-<span class="linenos">162</span>    <span class="n">reset_terminated</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
-<span class="linenos">163</span><span class="p">):</span>
-<span class="linenos">164</span>    <span class="n">rew_alive</span> <span class="o">=</span> <span class="n">rew_scale_alive</span> <span class="o">*</span> <span class="p">(</span><span class="mf">1.0</span> <span class="o">-</span> <span class="n">reset_terminated</span><span class="o">.</span><span class="n">float</span><span class="p">())</span>
-<span class="linenos">165</span>    <span class="n">rew_termination</span> <span class="o">=</span> <span class="n">rew_scale_terminated</span> <span class="o">*</span> <span class="n">reset_terminated</span><span class="o">.</span><span class="n">float</span><span class="p">()</span>
-<span class="linenos">166</span>    <span class="n">rew_pole_pos</span> <span class="o">=</span> <span class="n">rew_scale_pole_pos</span> <span class="o">*</span> <span class="n">torch</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">square</span><span class="p">(</span><span class="n">pole_pos</span><span class="p">)</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">),</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
-<span class="linenos">167</span>    <span class="n">rew_cart_vel</span> <span class="o">=</span> <span class="n">rew_scale_cart_vel</span> <span class="o">*</span> <span class="n">torch</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">cart_vel</span><span class="p">)</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">),</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
-<span class="linenos">168</span>    <span class="n">rew_pole_vel</span> <span class="o">=</span> <span class="n">rew_scale_pole_vel</span> <span class="o">*</span> <span class="n">torch</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">pole_vel</span><span class="p">)</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">),</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
-<span class="linenos">169</span>    <span class="n">total_reward</span> <span class="o">=</span> <span class="n">rew_alive</span> <span class="o">+</span> <span class="n">rew_termination</span> <span class="o">+</span> <span class="n">rew_pole_pos</span> <span class="o">+</span> <span class="n">rew_cart_vel</span> <span class="o">+</span> <span class="n">rew_pole_vel</span>
-<span class="linenos">170</span>    <span class="k">return</span> <span class="n">total_reward</span>
+<span class="linenos">150</span><span class="nd">@torch</span><span class="o">.</span><span class="n">jit</span><span class="o">.</span><span class="n">script</span>
+<span class="linenos">151</span><span class="k">def</span><span class="w"> </span><span class="nf">compute_rewards</span><span class="p">(</span>
+<span class="linenos">152</span>    <span class="n">rew_scale_alive</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+<span class="linenos">153</span>    <span class="n">rew_scale_terminated</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+<span class="linenos">154</span>    <span class="n">rew_scale_pole_pos</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+<span class="linenos">155</span>    <span class="n">rew_scale_cart_vel</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+<span class="linenos">156</span>    <span class="n">rew_scale_pole_vel</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+<span class="linenos">157</span>    <span class="n">pole_pos</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+<span class="linenos">158</span>    <span class="n">pole_vel</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+<span class="linenos">159</span>    <span class="n">cart_pos</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+<span class="linenos">160</span>    <span class="n">cart_vel</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+<span class="linenos">161</span>    <span class="n">reset_terminated</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+<span class="linenos">162</span><span class="p">):</span>
+<span class="linenos">163</span>    <span class="n">rew_alive</span> <span class="o">=</span> <span class="n">rew_scale_alive</span> <span class="o">*</span> <span class="p">(</span><span class="mf">1.0</span> <span class="o">-</span> <span class="n">reset_terminated</span><span class="o">.</span><span class="n">float</span><span class="p">())</span>
+<span class="linenos">164</span>    <span class="n">rew_termination</span> <span class="o">=</span> <span class="n">rew_scale_terminated</span> <span class="o">*</span> <span class="n">reset_terminated</span><span class="o">.</span><span class="n">float</span><span class="p">()</span>
+<span class="linenos">165</span>    <span class="n">rew_pole_pos</span> <span class="o">=</span> <span class="n">rew_scale_pole_pos</span> <span class="o">*</span> <span class="n">torch</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">square</span><span class="p">(</span><span class="n">pole_pos</span><span class="p">)</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">),</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+<span class="linenos">166</span>    <span class="n">rew_cart_vel</span> <span class="o">=</span> <span class="n">rew_scale_cart_vel</span> <span class="o">*</span> <span class="n">torch</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">cart_vel</span><span class="p">)</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">),</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+<span class="linenos">167</span>    <span class="n">rew_pole_vel</span> <span class="o">=</span> <span class="n">rew_scale_pole_vel</span> <span class="o">*</span> <span class="n">torch</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">pole_vel</span><span class="p">)</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">),</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+<span class="linenos">168</span>    <span class="n">total_reward</span> <span class="o">=</span> <span class="n">rew_alive</span> <span class="o">+</span> <span class="n">rew_termination</span> <span class="o">+</span> <span class="n">rew_pole_pos</span> <span class="o">+</span> <span class="n">rew_cart_vel</span> <span class="o">+</span> <span class="n">rew_pole_vel</span>
+<span class="linenos">169</span>    <span class="k">return</span> <span class="n">total_reward</span>
 </pre></div>
 </div>
 </div>
@@ -802,7 +812,7 @@ for scene creation, actions, resets, rewards and observations.</p>
 <h2>The Code Explained<a class="headerlink" href="#the-code-explained" title="Permalink to this heading">#</a></h2>
 <p>Similar to the manager-based environments, a configuration class is defined for the task to hold settings
 for the simulation parameters, the scene, the actors, and the task. With the direct workflow implementation,
-the <a class="reference internal" href="../../api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectRLEnvCfg" title="omni.isaac.lab.envs.DirectRLEnvCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">envs.DirectRLEnvCfg</span></code></a> class is used as the base class for configurations.
+the <a class="reference internal" href="../../api/lab/isaaclab.envs.html#isaaclab.envs.DirectRLEnvCfg" title="isaaclab.envs.DirectRLEnvCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">envs.DirectRLEnvCfg</span></code></a> class is used as the base class for configurations.
 Since the direct workflow implementation does not use Action and Observation managers, the task
 config should define the number of actions and observations for the environment.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="nd">@configclass</span>
@@ -830,7 +840,7 @@ and thresholds for reset conditions.</p>
    <span class="n">rew_scale_pole_vel</span> <span class="o">=</span> <span class="o">-</span><span class="mf">0.005</span>
 </pre></div>
 </div>
-<p>When creating a new environment, the code should define a new class that inherits from <a class="reference internal" href="../../api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectRLEnv" title="omni.isaac.lab.envs.DirectRLEnv"><code class="xref py py-class docutils literal notranslate"><span class="pre">DirectRLEnv</span></code></a>.</p>
+<p>When creating a new environment, the code should define a new class that inherits from <a class="reference internal" href="../../api/lab/isaaclab.envs.html#isaaclab.envs.DirectRLEnv" title="isaaclab.envs.DirectRLEnv"><code class="xref py py-class docutils literal notranslate"><span class="pre">DirectRLEnv</span></code></a>.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">class</span><span class="w"> </span><span class="nc">CartpoleEnv</span><span class="p">(</span><span class="n">DirectRLEnv</span><span class="p">):</span>
    <span class="n">cfg</span><span class="p">:</span> <span class="n">CartpoleEnvCfg</span>
 
@@ -852,9 +862,8 @@ scene, such as ground plane and lights. These operations should be implemented i
         <span class="bp">self</span><span class="o">.</span><span class="n">cartpole</span> <span class="o">=</span> <span class="n">Articulation</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">robot_cfg</span><span class="p">)</span>
         <span class="c1"># add ground plane</span>
         <span class="n">spawn_ground_plane</span><span class="p">(</span><span class="n">prim_path</span><span class="o">=</span><span class="s2">&quot;/World/ground&quot;</span><span class="p">,</span> <span class="n">cfg</span><span class="o">=</span><span class="n">GroundPlaneCfg</span><span class="p">())</span>
-        <span class="c1"># clone, filter, and replicate</span>
+        <span class="c1"># clone and replicate</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">clone_environments</span><span class="p">(</span><span class="n">copy_from_source</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">filter_collisions</span><span class="p">(</span><span class="n">global_prim_paths</span><span class="o">=</span><span class="p">[])</span>
         <span class="c1"># add articulation to scene</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">articulations</span><span class="p">[</span><span class="s2">&quot;cartpole&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cartpole</span>
         <span class="c1"># add lights</span>
@@ -995,7 +1004,7 @@ for each physics step.</p>
 <section id="the-code-execution">
 <h2>The Code Execution<a class="headerlink" href="#the-code-execution" title="Permalink to this heading">#</a></h2>
 <p>To run training for the direct workflow Cartpole environment, we can use the following command:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>source/standalone/workflows/rl_games/train.py<span class="w"> </span>--task<span class="o">=</span>Isaac-Cartpole-Direct-v0
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/reinforcement_learning/rl_games/train.py<span class="w"> </span>--task<span class="o">=</span>Isaac-Cartpole-Direct-v0
 </pre></div>
 </div>
 <figure class="align-center" style="width: 100%">
@@ -1005,8 +1014,8 @@ for each physics step.</p>
 </section>
 <section id="domain-randomization">
 <h2>Domain Randomization<a class="headerlink" href="#domain-randomization" title="Permalink to this heading">#</a></h2>
-<p>In the direct workflow, domain randomization configuration uses the <a class="reference internal" href="../../api/lab/omni.isaac.lab.utils.html#module-omni.isaac.lab.utils.configclass" title="omni.isaac.lab.utils.configclass"><code class="xref py py-class docutils literal notranslate"><span class="pre">configclass</span></code></a> module
-to specify a configuration class consisting of <a class="reference internal" href="../../api/lab/omni.isaac.lab.managers.html#omni.isaac.lab.managers.EventTermCfg" title="omni.isaac.lab.managers.EventTermCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">EventTermCfg</span></code></a> variables.</p>
+<p>In the direct workflow, domain randomization configuration uses the <a class="reference internal" href="../../api/lab/isaaclab.utils.html#module-isaaclab.utils.configclass" title="isaaclab.utils.configclass"><code class="xref py py-class docutils literal notranslate"><span class="pre">configclass</span></code></a> module
+to specify a configuration class consisting of <a class="reference internal" href="../../api/lab/isaaclab.managers.html#isaaclab.managers.EventTermCfg" title="isaaclab.managers.EventTermCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">EventTermCfg</span></code></a> variables.</p>
 <p>Below is an example of a configuration class for domain randomization:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="nd">@configclass</span>
 <span class="k">class</span><span class="w"> </span><span class="nc">EventCfg</span><span class="p">:</span>
@@ -1045,11 +1054,11 @@ to specify a configuration class consisting of <a class="reference internal" hre
   <span class="p">)</span>
 </pre></div>
 </div>
-<p>Each <code class="docutils literal notranslate"><span class="pre">EventTerm</span></code> object is of the <a class="reference internal" href="../../api/lab/omni.isaac.lab.managers.html#omni.isaac.lab.managers.EventTermCfg" title="omni.isaac.lab.managers.EventTermCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">EventTermCfg</span></code></a> class and takes in a <code class="docutils literal notranslate"><span class="pre">func</span></code> parameter
+<p>Each <code class="docutils literal notranslate"><span class="pre">EventTerm</span></code> object is of the <a class="reference internal" href="../../api/lab/isaaclab.managers.html#isaaclab.managers.EventTermCfg" title="isaaclab.managers.EventTermCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">EventTermCfg</span></code></a> class and takes in a <code class="docutils literal notranslate"><span class="pre">func</span></code> parameter
 for specifying the function to call during randomization, a <code class="docutils literal notranslate"><span class="pre">mode</span></code> parameter, which can be <code class="docutils literal notranslate"><span class="pre">startup</span></code>,
 <code class="docutils literal notranslate"><span class="pre">reset</span></code> or <code class="docutils literal notranslate"><span class="pre">interval</span></code>. THe <code class="docutils literal notranslate"><span class="pre">params</span></code> dictionary should provide the necessary arguments to the
 function that is specified in the <code class="docutils literal notranslate"><span class="pre">func</span></code> parameter.
-Functions specified as <code class="docutils literal notranslate"><span class="pre">func</span></code> for the <code class="docutils literal notranslate"><span class="pre">EventTerm</span></code> can be found in the <a class="reference internal" href="../../api/lab/omni.isaac.lab.envs.mdp.html#module-omni.isaac.lab.envs.mdp.events" title="omni.isaac.lab.envs.mdp.events"><code class="xref py py-class docutils literal notranslate"><span class="pre">events</span></code></a> module.</p>
+Functions specified as <code class="docutils literal notranslate"><span class="pre">func</span></code> for the <code class="docutils literal notranslate"><span class="pre">EventTerm</span></code> can be found in the <a class="reference internal" href="../../api/lab/isaaclab.envs.mdp.html#module-isaaclab.envs.mdp.events" title="isaaclab.envs.mdp.events"><code class="xref py py-class docutils literal notranslate"><span class="pre">events</span></code></a> module.</p>
 <p>Note that as part of the <code class="docutils literal notranslate"><span class="pre">&quot;asset_cfg&quot;:</span> <span class="pre">SceneEntityCfg(&quot;robot&quot;,</span> <span class="pre">body_names=&quot;.*&quot;)</span></code> parameter, the name of
 the actor <code class="docutils literal notranslate"><span class="pre">&quot;robot&quot;</span></code> is provided, along with the body or joint names specified as a regex expression,
 which will be the actors and bodies/joints that will have randomization applied.</p>
@@ -1062,7 +1071,7 @@ to the base config class for the task and be assigned to the variable <code clas
 </div>
 <section id="action-and-observation-noise">
 <h3>Action and Observation Noise<a class="headerlink" href="#action-and-observation-noise" title="Permalink to this heading">#</a></h3>
-<p>Actions and observation noise can also be added using the <a class="reference internal" href="../../api/lab/omni.isaac.lab.utils.html#module-omni.isaac.lab.utils.configclass" title="omni.isaac.lab.utils.configclass"><code class="xref py py-class docutils literal notranslate"><span class="pre">configclass</span></code></a> module.
+<p>Actions and observation noise can also be added using the <a class="reference internal" href="../../api/lab/isaaclab.utils.html#module-isaaclab.utils.configclass" title="isaaclab.utils.configclass"><code class="xref py py-class docutils literal notranslate"><span class="pre">configclass</span></code></a> module.
 Action and observation noise configs must be added to the main task config using the
 <code class="docutils literal notranslate"><span class="pre">action_noise_model</span></code> and <code class="docutils literal notranslate"><span class="pre">observation_noise_model</span></code> variables:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="nd">@configclass</span>
@@ -1081,7 +1090,7 @@ Action and observation noise configs must be added to the main task config using
     <span class="p">)</span>
 </pre></div>
 </div>
-<p><a class="reference internal" href="../../api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.noise.NoiseModelWithAdditiveBiasCfg" title="omni.isaac.lab.utils.noise.NoiseModelWithAdditiveBiasCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">NoiseModelWithAdditiveBiasCfg</span></code></a> can be used to sample both uncorrelated noise
+<p><a class="reference internal" href="../../api/lab/isaaclab.utils.html#isaaclab.utils.noise.NoiseModelWithAdditiveBiasCfg" title="isaaclab.utils.noise.NoiseModelWithAdditiveBiasCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">NoiseModelWithAdditiveBiasCfg</span></code></a> can be used to sample both uncorrelated noise
 per step as well as correlated noise that is re-sampled at reset time.</p>
 <p>The <code class="docutils literal notranslate"><span class="pre">noise_cfg</span></code> term specifies the Gaussian distribution that will be sampled at each
 step for all environments. This noise will be added to the corresponding actions and
@@ -1090,7 +1099,7 @@ observations buffers at every step.</p>
 that will be sampled at reset time for the environments being reset. The same noise
 will be applied each step for the remaining of the episode for the environments and
 resampled at the next reset.</p>
-<p>If only per-step noise is desired, <a class="reference internal" href="../../api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.noise.GaussianNoiseCfg" title="omni.isaac.lab.utils.noise.GaussianNoiseCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">GaussianNoiseCfg</span></code></a> can be used
+<p>If only per-step noise is desired, <a class="reference internal" href="../../api/lab/isaaclab.utils.html#isaaclab.utils.noise.GaussianNoiseCfg" title="isaaclab.utils.noise.GaussianNoiseCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">GaussianNoiseCfg</span></code></a> can be used
 to specify an additive Gaussian distribution that adds the sampled noise to the input buffer.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="nd">@configclass</span>
 <span class="k">class</span><span class="w"> </span><span class="nc">MyTaskConfig</span><span class="p">:</span>
@@ -1099,7 +1108,7 @@ to specify an additive Gaussian distribution that adds the sampled noise to the 
 </div>
 <p>In this tutorial, we learnt how to create a direct workflow task environment for reinforcement learning. We do this
 by extending the base environment to include the scene setup, actions, dones, reset, reward and observaion functions.</p>
-<p>While it is possible to manually create an instance of <a class="reference internal" href="../../api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectRLEnv" title="omni.isaac.lab.envs.DirectRLEnv"><code class="xref py py-class docutils literal notranslate"><span class="pre">DirectRLEnv</span></code></a> class for a desired task,
+<p>While it is possible to manually create an instance of <a class="reference internal" href="../../api/lab/isaaclab.envs.html#isaaclab.envs.DirectRLEnv" title="isaaclab.envs.DirectRLEnv"><code class="xref py py-class docutils literal notranslate"><span class="pre">DirectRLEnv</span></code></a> class for a desired task,
 this is not scalable as it requires specialized scripts for each task. Thus, we exploit the
 <code class="xref py py-meth docutils literal notranslate"><span class="pre">gymnasium.make()</span></code> function to create the environment with the gym interface. We will learn how to do this
 in the next tutorial.</p>

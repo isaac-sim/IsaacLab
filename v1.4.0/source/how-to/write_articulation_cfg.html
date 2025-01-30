@@ -192,7 +192,7 @@
           
           
           
-          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.2.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.5.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
         </li>
         <li class="nav-item">
           
@@ -673,9 +673,9 @@ Cartpole from a USD file.</p>
 <p>When spawning an asset from a USD file, we define its <a class="reference internal" href="../api/lab/omni.isaac.lab.sim.spawners.html#omni.isaac.lab.sim.spawners.from_files.UsdFileCfg" title="omni.isaac.lab.sim.spawners.from_files.UsdFileCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">UsdFileCfg</span></code></a>.
 This configuration object takes in the following parameters:</p>
 <ul class="simple">
-<li><p><a class="reference internal" href="../api/lab/omni.isaac.lab.sim.spawners.html#omni.isaac.lab.sim.spawners.from_files.UsdFileCfg.usd_path" title="omni.isaac.lab.sim.spawners.from_files.UsdFileCfg.usd_path"><code class="xref py py-class docutils literal notranslate"><span class="pre">usd_path</span></code></a>: The USD file path to spawn from</p></li>
-<li><p><a class="reference internal" href="../api/lab/omni.isaac.lab.sim.spawners.html#omni.isaac.lab.sim.spawners.from_files.UsdFileCfg.rigid_props" title="omni.isaac.lab.sim.spawners.from_files.UsdFileCfg.rigid_props"><code class="xref py py-class docutils literal notranslate"><span class="pre">rigid_props</span></code></a>: The properties of the articulation’s root</p></li>
-<li><p><a class="reference internal" href="../api/lab/omni.isaac.lab.sim.spawners.html#omni.isaac.lab.sim.spawners.from_files.UsdFileCfg.articulation_props" title="omni.isaac.lab.sim.spawners.from_files.UsdFileCfg.articulation_props"><code class="xref py py-class docutils literal notranslate"><span class="pre">articulation_props</span></code></a>: The properties of all the articulation’s links</p></li>
+<li><p><code class="xref py py-class docutils literal notranslate"><span class="pre">usd_path</span></code>: The USD file path to spawn from</p></li>
+<li><p><code class="xref py py-class docutils literal notranslate"><span class="pre">rigid_props</span></code>: The properties of the articulation’s root</p></li>
+<li><p><code class="xref py py-class docutils literal notranslate"><span class="pre">articulation_props</span></code>: The properties of all the articulation’s links</p></li>
 </ul>
 <p>The last two parameters are optional. If not specified, they are kept at their default values in the USD file.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">spawn</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">UsdFileCfg</span><span class="p">(</span>
@@ -712,7 +712,7 @@ state needs to be reset.</p>
 be transformed into the global simulation frame when resetting the asset’s state. For more
 details, please check the <a class="reference internal" href="../tutorials/01_assets/run_articulation.html#tutorial-interact-articulation"><span class="std std-ref">Interacting with an articulation</span></a> tutorial.</p>
 </div>
-<p>For an articulation, the <a class="reference internal" href="../api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.ArticulationCfg.InitialStateCfg" title="omni.isaac.lab.assets.ArticulationCfg.InitialStateCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">InitialStateCfg</span></code></a> object defines the
+<p>For an articulation, the <code class="xref py py-class docutils literal notranslate"><span class="pre">InitialStateCfg</span></code> object defines the
 initial state of the root of the articulation and the initial state of all its joints. In this
 example, we will spawn the Cartpole at the origin of the XY plane at a Z height of 2.0 meters.
 Meanwhile, the joint positions and velocities are set to 0.0.</p>

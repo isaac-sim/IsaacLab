@@ -60,7 +60,7 @@
     <link rel="prev" title="omni.isaac.lab.managers" href="omni.isaac.lab.managers.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-  <meta name="docsearch:version" content="1.4.0" />
+  <meta name="docsearch:version" content="1.4.1" />
     <meta name="docbuild:last-update" content="Jan 30, 2025"/>
   </head>
   
@@ -156,7 +156,7 @@
             <label for="version-select" style="font-weight: bold; display: block;">Version</label>
           </div>
           <select id="version-select" class="version-dropdown" style="margin: 0 auto; display: block;" onchange="location = this.value;">
-            <option value="../../../../main/source/api/lab/omni.isaac.lab.markers.html" >main</option>
+            <option value="../../../../main/index.html" >main</option>
             <option value="omni.isaac.lab.markers.html" selected>v1.4.1</option>
             <option value="../../../../v1.4.0/source/api/lab/omni.isaac.lab.markers.html" >v1.4.0</option>
             <option value="../../../../v1.3.0/source/api/lab/omni.isaac.lab.markers.html" >v1.3.0</option>
@@ -192,7 +192,7 @@
           
           
           
-          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.2.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.5.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
         </li>
         <li class="nav-item">
           
@@ -581,20 +581,8 @@
             <nav aria-label="Page">
                 <ul class="visible nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#visualization-markers">Visualization Markers</a><ul class="nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.markers.VisualizationMarkers"><code class="docutils literal notranslate"><span class="pre">VisualizationMarkers</span></code></a><ul class="nav section-nav flex-column">
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.markers.VisualizationMarkers.__init__"><code class="docutils literal notranslate"><span class="pre">VisualizationMarkers.__init__()</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.markers.VisualizationMarkers.num_prototypes"><code class="docutils literal notranslate"><span class="pre">VisualizationMarkers.num_prototypes</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.markers.VisualizationMarkers.count"><code class="docutils literal notranslate"><span class="pre">VisualizationMarkers.count</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.markers.VisualizationMarkers.set_visibility"><code class="docutils literal notranslate"><span class="pre">VisualizationMarkers.set_visibility()</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.markers.VisualizationMarkers.is_visible"><code class="docutils literal notranslate"><span class="pre">VisualizationMarkers.is_visible()</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.markers.VisualizationMarkers.visualize"><code class="docutils literal notranslate"><span class="pre">VisualizationMarkers.visualize()</span></code></a></li>
-</ul>
-</li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.markers.VisualizationMarkersCfg"><code class="docutils literal notranslate"><span class="pre">VisualizationMarkersCfg</span></code></a><ul class="nav section-nav flex-column">
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.markers.VisualizationMarkersCfg.prim_path"><code class="docutils literal notranslate"><span class="pre">VisualizationMarkersCfg.prim_path</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.markers.VisualizationMarkersCfg.markers"><code class="docutils literal notranslate"><span class="pre">VisualizationMarkersCfg.markers</span></code></a></li>
-</ul>
-</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.markers.VisualizationMarkers"><code class="docutils literal notranslate"><span class="pre">VisualizationMarkers</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.markers.VisualizationMarkersCfg"><code class="docutils literal notranslate"><span class="pre">VisualizationMarkersCfg</span></code></a></li>
 </ul>
 </li>
 </ul>
@@ -610,25 +598,14 @@
                   
   <section id="module-omni.isaac.lab.markers">
 <span id="omni-isaac-lab-markers"></span><h1>omni.isaac.lab.markers<a class="headerlink" href="#module-omni.isaac.lab.markers" title="Permalink to this heading">#</a></h1>
-<p>Sub-package for marker utilities to simplify creation of UI elements in the GUI.</p>
-<p>Currently, the sub-package provides the following classes:</p>
-<ul class="simple">
-<li><p><a class="reference internal" href="#omni.isaac.lab.markers.VisualizationMarkers" title="omni.isaac.lab.markers.VisualizationMarkers"><code class="xref py py-class docutils literal notranslate"><span class="pre">VisualizationMarkers</span></code></a> for creating a group of markers using <a class="reference external" href="https://graphics.pixar.com/usd/dev/api/class_usd_geom_point_instancer.html">UsdGeom.PointInstancer</a>.</p></li>
-</ul>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>For some simple use-cases, it may be sufficient to use the debug drawing utilities from Isaac Sim.
-The debug drawing API is available in the <a class="reference external" href="https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/ext_omni_isaac_debug_drawing.html">omni.isaac.debug_drawing</a> module. It allows drawing of
-points and splines efficiently on the UI.</p>
-</div>
 <p class="rubric">Classes</p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
 <tbody>
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.markers.VisualizationMarkers" title="omni.isaac.lab.markers.VisualizationMarkers"><code class="xref py py-obj docutils literal notranslate"><span class="pre">VisualizationMarkers</span></code></a></p></td>
-<td><p>A class to coordinate groups of visual markers (loaded from USD).</p></td>
+<td><p></p></td>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.markers.VisualizationMarkersCfg" title="omni.isaac.lab.markers.VisualizationMarkersCfg"><code class="xref py py-obj docutils literal notranslate"><span class="pre">VisualizationMarkersCfg</span></code></a></p></td>
-<td><p>A class to configure a <a class="reference internal" href="#omni.isaac.lab.markers.VisualizationMarkers" title="omni.isaac.lab.markers.VisualizationMarkers"><code class="xref py py-class docutils literal notranslate"><span class="pre">VisualizationMarkers</span></code></a>.</p></td>
+<td><p></p></td>
 </tr>
 </tbody>
 </table>
@@ -637,249 +614,14 @@ points and splines efficiently on the UI.</p>
 <h2>Visualization Markers<a class="headerlink" href="#visualization-markers" title="Permalink to this heading">#</a></h2>
 <dl class="py class">
 <dt class="sig sig-object py" id="omni.isaac.lab.markers.VisualizationMarkers">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.markers.</span></span><span class="sig-name descname"><span class="pre">VisualizationMarkers</span></span><a class="reference internal" href="../../../_modules/omni/isaac/lab/markers/visualization_markers.html#VisualizationMarkers"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.markers.VisualizationMarkers" title="Permalink to this definition">#</a></dt>
-<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
-<p>A class to coordinate groups of visual markers (loaded from USD).</p>
-<p>This class allows visualization of different UI markers in the scene, such as points and frames.
-The class wraps around the <a class="reference external" href="https://graphics.pixar.com/usd/dev/api/class_usd_geom_point_instancer.html">UsdGeom.PointInstancer</a> for efficient handling of objects
-in the stage via instancing the created marker prototype prims.</p>
-<p>A marker prototype prim is a reusable template prim used for defining variations of objects
-in the scene. For example, a sphere prim can be used as a marker prototype prim to create
-multiple sphere prims in the scene at different locations. Thus, prototype prims are useful
-for creating multiple instances of the same prim in the scene.</p>
-<p>The class parses the configuration to create different the marker prototypes into the stage. Each marker
-prototype prim is created as a child of the <code class="xref py py-class docutils literal notranslate"><span class="pre">UsdGeom.PointInstancer</span></code> prim. The prim path for the
-the marker prim is resolved using the key of the marker in the <a class="reference internal" href="#omni.isaac.lab.markers.VisualizationMarkersCfg.markers" title="omni.isaac.lab.markers.VisualizationMarkersCfg.markers"><code class="xref py py-attr docutils literal notranslate"><span class="pre">VisualizationMarkersCfg.markers</span></code></a>
-dictionary. The marker prototypes are created using the <code class="xref py py-meth docutils literal notranslate"><span class="pre">omni.isaac.core.utils.create_prim()</span></code>
-function, and then then instanced using <code class="xref py py-class docutils literal notranslate"><span class="pre">UsdGeom.PointInstancer</span></code> prim to allow creating multiple
-instances of the marker prims.</p>
-<p>Switching between different marker prototypes is possible by calling the <a class="reference internal" href="#omni.isaac.lab.markers.VisualizationMarkers.visualize" title="omni.isaac.lab.markers.VisualizationMarkers.visualize"><code class="xref py py-meth docutils literal notranslate"><span class="pre">visualize()</span></code></a> method with
-the prototype indices corresponding to the marker prototype. The prototype indices are based on the order
-in the <a class="reference internal" href="#omni.isaac.lab.markers.VisualizationMarkersCfg.markers" title="omni.isaac.lab.markers.VisualizationMarkersCfg.markers"><code class="xref py py-attr docutils literal notranslate"><span class="pre">VisualizationMarkersCfg.markers</span></code></a> dictionary. For example, if the dictionary has two markers,
-“marker1” and “marker2”, then their prototype indices are 0 and 1 respectively. The prototype indices
-can be passed as a list or array of integers.</p>
-<dl>
-<dt>Usage:</dt><dd><p>The following snippet shows how to create 24 sphere markers with a radius of 1.0 at random translations
-within the range [-1.0, 1.0]. The first 12 markers will be colored red and the rest will be colored green.</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">omni.isaac.lab.sim</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">sim_utils</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.markers</span><span class="w"> </span><span class="kn">import</span> <span class="n">VisualizationMarkersCfg</span><span class="p">,</span> <span class="n">VisualizationMarkers</span>
-
-<span class="c1"># Create the markers configuration</span>
-<span class="c1"># This creates two marker prototypes, &quot;marker1&quot; and &quot;marker2&quot; which are spheres with a radius of 1.0.</span>
-<span class="c1"># The color of &quot;marker1&quot; is red and the color of &quot;marker2&quot; is green.</span>
-<span class="n">cfg</span> <span class="o">=</span> <span class="n">VisualizationMarkersCfg</span><span class="p">(</span>
-    <span class="n">prim_path</span><span class="o">=</span><span class="s2">&quot;/World/Visuals/testMarkers&quot;</span><span class="p">,</span>
-    <span class="n">markers</span><span class="o">=</span><span class="p">{</span>
-        <span class="s2">&quot;marker1&quot;</span><span class="p">:</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">SphereCfg</span><span class="p">(</span>
-            <span class="n">radius</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span>
-            <span class="n">visual_material</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">PreviewSurfaceCfg</span><span class="p">(</span><span class="n">diffuse_color</span><span class="o">=</span><span class="p">(</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">)),</span>
-        <span class="p">),</span>
-        <span class="s2">&quot;marker2&quot;</span><span class="p">:</span> <span class="n">VisualizationMarkersCfg</span><span class="o">.</span><span class="n">SphereCfg</span><span class="p">(</span>
-            <span class="n">radius</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span>
-            <span class="n">visual_material</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">PreviewSurfaceCfg</span><span class="p">(</span><span class="n">diffuse_color</span><span class="o">=</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">)),</span>
-        <span class="p">),</span>
-    <span class="p">}</span>
-<span class="p">)</span>
-<span class="c1"># Create the markers instance</span>
-<span class="c1"># This will create a UsdGeom.PointInstancer prim at the given path along with the marker prototypes.</span>
-<span class="n">marker</span> <span class="o">=</span> <span class="n">VisualizationMarkers</span><span class="p">(</span><span class="n">cfg</span><span class="p">)</span>
-
-<span class="c1"># Set position of the marker</span>
-<span class="c1"># -- randomly sample translations between -1.0 and 1.0</span>
-<span class="n">marker_translations</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">uniform</span><span class="p">(</span><span class="o">-</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">,</span> <span class="p">(</span><span class="mi">24</span><span class="p">,</span> <span class="mi">3</span><span class="p">))</span>
-<span class="c1"># -- this will create 24 markers at the given translations</span>
-<span class="c1"># note: the markers will all be `marker1` since the marker indices are not given</span>
-<span class="n">marker</span><span class="o">.</span><span class="n">visualize</span><span class="p">(</span><span class="n">translations</span><span class="o">=</span><span class="n">marker_translations</span><span class="p">)</span>
-
-<span class="c1"># alter the markers based on their prototypes indices</span>
-<span class="c1"># first 12 markers will be marker1 and the rest will be marker2</span>
-<span class="c1"># 0 -&gt; marker1, 1 -&gt; marker2</span>
-<span class="n">marker_indices</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="mi">12</span> <span class="o">+</span> <span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">*</span> <span class="mi">12</span>
-<span class="c1"># this will change the marker prototypes at the given indices</span>
-<span class="c1"># note: the translations of the markers will not be changed from the previous call</span>
-<span class="c1">#  since the translations are not given.</span>
-<span class="n">marker</span><span class="o">.</span><span class="n">visualize</span><span class="p">(</span><span class="n">marker_indices</span><span class="o">=</span><span class="n">marker_indices</span><span class="p">)</span>
-
-<span class="c1"># alter the markers based on their prototypes indices and translations</span>
-<span class="n">marker</span><span class="o">.</span><span class="n">visualize</span><span class="p">(</span><span class="n">marker_indices</span><span class="o">=</span><span class="n">marker_indices</span><span class="p">,</span> <span class="n">translations</span><span class="o">=</span><span class="n">marker_translations</span><span class="p">)</span>
-</pre></div>
-</div>
-</dd>
-</dl>
-<p><strong>Methods:</strong></p>
-<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
-<tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.markers.VisualizationMarkers.__init__" title="omni.isaac.lab.markers.VisualizationMarkers.__init__"><code class="xref py py-obj docutils literal notranslate"><span class="pre">__init__</span></code></a>(cfg)</p></td>
-<td><p>Initialize the class.</p></td>
-</tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.markers.VisualizationMarkers.set_visibility" title="omni.isaac.lab.markers.VisualizationMarkers.set_visibility"><code class="xref py py-obj docutils literal notranslate"><span class="pre">set_visibility</span></code></a>(visible)</p></td>
-<td><p>Sets the visibility of the markers.</p></td>
-</tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.markers.VisualizationMarkers.is_visible" title="omni.isaac.lab.markers.VisualizationMarkers.is_visible"><code class="xref py py-obj docutils literal notranslate"><span class="pre">is_visible</span></code></a>()</p></td>
-<td><p>Checks the visibility of the markers.</p></td>
-</tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.markers.VisualizationMarkers.visualize" title="omni.isaac.lab.markers.VisualizationMarkers.visualize"><code class="xref py py-obj docutils literal notranslate"><span class="pre">visualize</span></code></a>([translations, orientations, ...])</p></td>
-<td><p>Update markers in the viewport.</p></td>
-</tr>
-</tbody>
-</table>
-</div>
-<p><strong>Attributes:</strong></p>
-<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
-<tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.markers.VisualizationMarkers.num_prototypes" title="omni.isaac.lab.markers.VisualizationMarkers.num_prototypes"><code class="xref py py-obj docutils literal notranslate"><span class="pre">num_prototypes</span></code></a></p></td>
-<td><p>The number of marker prototypes available.</p></td>
-</tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.markers.VisualizationMarkers.count" title="omni.isaac.lab.markers.VisualizationMarkers.count"><code class="xref py py-obj docutils literal notranslate"><span class="pre">count</span></code></a></p></td>
-<td><p>The total number of marker instances.</p></td>
-</tr>
-</tbody>
-</table>
-</div>
-<dl class="py method">
-<dt class="sig sig-object py" id="omni.isaac.lab.markers.VisualizationMarkers.__init__">
-<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cfg</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#omni.isaac.lab.markers.VisualizationMarkersCfg" title="omni.isaac.lab.markers.visualization_markers.VisualizationMarkersCfg"><span class="pre">VisualizationMarkersCfg</span></a></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/omni/isaac/lab/markers/visualization_markers.html#VisualizationMarkers.__init__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.markers.VisualizationMarkers.__init__" title="Permalink to this definition">#</a></dt>
-<dd><p>Initialize the class.</p>
-<p>When the class is initialized, the <code class="xref py py-class docutils literal notranslate"><span class="pre">UsdGeom.PointInstancer</span></code> is created into the stage
-and the marker prims are registered into it.</p>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>If a prim already exists at the given path, the function will find the next free path
-and create the <code class="xref py py-class docutils literal notranslate"><span class="pre">UsdGeom.PointInstancer</span></code> prim there.</p>
-</div>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>cfg</strong> – The configuration for the markers.</p>
-</dd>
-<dt class="field-even">Raises<span class="colon">:</span></dt>
-<dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.13)"><strong>ValueError</strong></a> – When no markers are provided in the <code class="xref py py-obj docutils literal notranslate"><span class="pre">cfg</span></code>.</p>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py property">
-<dt class="sig sig-object py" id="omni.isaac.lab.markers.VisualizationMarkers.num_prototypes">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">num_prototypes</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><span class="pre">int</span></a></em><a class="headerlink" href="#omni.isaac.lab.markers.VisualizationMarkers.num_prototypes" title="Permalink to this definition">#</a></dt>
-<dd><p>The number of marker prototypes available.</p>
-</dd></dl>
-
-<dl class="py property">
-<dt class="sig sig-object py" id="omni.isaac.lab.markers.VisualizationMarkers.count">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">count</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><span class="pre">int</span></a></em><a class="headerlink" href="#omni.isaac.lab.markers.VisualizationMarkers.count" title="Permalink to this definition">#</a></dt>
-<dd><p>The total number of marker instances.</p>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="omni.isaac.lab.markers.VisualizationMarkers.set_visibility">
-<span class="sig-name descname"><span class="pre">set_visibility</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">visible</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/omni/isaac/lab/markers/visualization_markers.html#VisualizationMarkers.set_visibility"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.markers.VisualizationMarkers.set_visibility" title="Permalink to this definition">#</a></dt>
-<dd><p>Sets the visibility of the markers.</p>
-<p>The method does this through the USD API.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>visible</strong> – flag to set the visibility.</p>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="omni.isaac.lab.markers.VisualizationMarkers.is_visible">
-<span class="sig-name descname"><span class="pre">is_visible</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a></span></span><a class="reference internal" href="../../../_modules/omni/isaac/lab/markers/visualization_markers.html#VisualizationMarkers.is_visible"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.markers.VisualizationMarkers.is_visible" title="Permalink to this definition">#</a></dt>
-<dd><p>Checks the visibility of the markers.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Returns<span class="colon">:</span></dt>
-<dd class="field-odd"><p>True if the markers are visible, False otherwise.</p>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="omni.isaac.lab.markers.VisualizationMarkers.visualize">
-<span class="sig-name descname"><span class="pre">visualize</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">translations</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">np.ndarray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.6)"><span class="pre">torch.Tensor</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">orientations</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">np.ndarray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.6)"><span class="pre">torch.Tensor</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scales</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">np.ndarray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.6)"><span class="pre">torch.Tensor</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">marker_indices</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.13)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><span class="pre">int</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">np.ndarray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.6)"><span class="pre">torch.Tensor</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/omni/isaac/lab/markers/visualization_markers.html#VisualizationMarkers.visualize"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.markers.VisualizationMarkers.visualize" title="Permalink to this definition">#</a></dt>
-<dd><p>Update markers in the viewport.</p>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>If the prim <cite>PointInstancer</cite> is hidden in the stage, the function will simply return
-without updating the markers. This helps in unnecessary computation when the markers
-are not visible.</p>
-</div>
-<p>Whenever updating the markers, the input arrays must have the same number of elements
-in the first dimension. If the number of elements is different, the <cite>UsdGeom.PointInstancer</cite>
-will raise an error complaining about the mismatch.</p>
-<p>Additionally, the function supports dynamic update of the markers. This means that the
-number of markers can change between calls. For example, if you have 24 points that you
-want to visualize, you can pass 24 translations, orientations, and scales. If you want to
-visualize only 12 points, you can pass 12 translations, orientations, and scales. The
-function will automatically update the number of markers in the scene.</p>
-<p>The function will also update the marker prototypes based on their prototype indices. For instance,
-if you have two marker prototypes, and you pass the following marker indices: [0, 1, 0, 1], the function
-will update the first and third markers with the first prototype, and the second and fourth markers
-with the second prototype. This is useful when you want to visualize different markers in the same
-scene. The list of marker indices must have the same number of elements as the translations, orientations,
-or scales. If the number of elements is different, the function will raise an error.</p>
-<div class="admonition caution">
-<p class="admonition-title">Caution</p>
-<p>This function will update all the markers instanced from the prototypes. That means
-if you have 24 markers, you will need to pass 24 translations, orientations, and scales.</p>
-<p>If you want to update only a subset of the markers, you will need to handle the indices
-yourself and pass the complete arrays to this function.</p>
-</div>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>translations</strong> – Translations w.r.t. parent prim frame. Shape is (M, 3).
-Defaults to None, which means left unchanged.</p></li>
-<li><p><strong>orientations</strong> – Quaternion orientations (w, x, y, z) w.r.t. parent prim frame. Shape is (M, 4).
-Defaults to None, which means left unchanged.</p></li>
-<li><p><strong>scales</strong> – Scale applied before any rotation is applied. Shape is (M, 3).
-Defaults to None, which means left unchanged.</p></li>
-<li><p><strong>marker_indices</strong> – Decides which marker prototype to visualize. Shape is (M).
-Defaults to None, which means left unchanged provided that the total number of markers
-is the same as the previous call. If the number of markers is different, the function
-will update the number of markers in the scene.</p></li>
-</ul>
-</dd>
-<dt class="field-even">Raises<span class="colon">:</span></dt>
-<dd class="field-even"><ul class="simple">
-<li><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.13)"><strong>ValueError</strong></a> – When input arrays do not follow the expected shapes.</p></li>
-<li><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.13)"><strong>ValueError</strong></a> – When the function is called with all None arguments.</p></li>
-</ul>
-</dd>
-</dl>
-</dd></dl>
-
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.markers.</span></span><span class="sig-name descname"><span class="pre">VisualizationMarkers</span></span><a class="headerlink" href="#omni.isaac.lab.markers.VisualizationMarkers" title="Permalink to this definition">#</a></dt>
+<dd><p>Bases:</p>
 </dd></dl>
 
 <dl class="py class">
 <dt class="sig sig-object py" id="omni.isaac.lab.markers.VisualizationMarkersCfg">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.markers.</span></span><span class="sig-name descname"><span class="pre">VisualizationMarkersCfg</span></span><a class="reference internal" href="../../../_modules/omni/isaac/lab/markers/visualization_markers.html#VisualizationMarkersCfg"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.markers.VisualizationMarkersCfg" title="Permalink to this definition">#</a></dt>
-<dd><p>A class to configure a <a class="reference internal" href="#omni.isaac.lab.markers.VisualizationMarkers" title="omni.isaac.lab.markers.VisualizationMarkers"><code class="xref py py-class docutils literal notranslate"><span class="pre">VisualizationMarkers</span></code></a>.</p>
-<p><strong>Attributes:</strong></p>
-<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
-<tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.markers.VisualizationMarkersCfg.prim_path" title="omni.isaac.lab.markers.VisualizationMarkersCfg.prim_path"><code class="xref py py-obj docutils literal notranslate"><span class="pre">prim_path</span></code></a></p></td>
-<td><p>The prim path where the <code class="xref py py-class docutils literal notranslate"><span class="pre">UsdGeom.PointInstancer</span></code> will be created.</p></td>
-</tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.markers.VisualizationMarkersCfg.markers" title="omni.isaac.lab.markers.VisualizationMarkersCfg.markers"><code class="xref py py-obj docutils literal notranslate"><span class="pre">markers</span></code></a></p></td>
-<td><p>The dictionary of marker configurations.</p></td>
-</tr>
-</tbody>
-</table>
-</div>
-<dl class="py attribute">
-<dt class="sig sig-object py" id="omni.isaac.lab.markers.VisualizationMarkersCfg.prim_path">
-<span class="sig-name descname"><span class="pre">prim_path</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a></em><a class="headerlink" href="#omni.isaac.lab.markers.VisualizationMarkersCfg.prim_path" title="Permalink to this definition">#</a></dt>
-<dd><p>The prim path where the <code class="xref py py-class docutils literal notranslate"><span class="pre">UsdGeom.PointInstancer</span></code> will be created.</p>
-</dd></dl>
-
-<dl class="py attribute">
-<dt class="sig sig-object py" id="omni.isaac.lab.markers.VisualizationMarkersCfg.markers">
-<span class="sig-name descname"><span class="pre">markers</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.13)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference internal" href="omni.isaac.lab.sim.spawners.html#omni.isaac.lab.sim.spawners.SpawnerCfg" title="omni.isaac.lab.sim.spawners.spawner_cfg.SpawnerCfg"><span class="pre">omni.isaac.lab.sim.spawners.spawner_cfg.SpawnerCfg</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#omni.isaac.lab.markers.VisualizationMarkersCfg.markers" title="Permalink to this definition">#</a></dt>
-<dd><p>The dictionary of marker configurations.</p>
-<p>The key is the name of the marker, and the value is the configuration of the marker.
-The key is used to identify the marker in the class.</p>
-</dd></dl>
-
-</dd></dl>
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.markers.</span></span><span class="sig-name descname"><span class="pre">VisualizationMarkersCfg</span></span><a class="headerlink" href="#omni.isaac.lab.markers.VisualizationMarkersCfg" title="Permalink to this definition">#</a></dt>
+<dd></dd></dl>
 
 </section>
 </section>
@@ -931,20 +673,8 @@ The key is used to identify the marker in the class.</p>
   <nav class="bd-toc-nav page-toc">
     <ul class="visible nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#visualization-markers">Visualization Markers</a><ul class="nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.markers.VisualizationMarkers"><code class="docutils literal notranslate"><span class="pre">VisualizationMarkers</span></code></a><ul class="nav section-nav flex-column">
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.markers.VisualizationMarkers.__init__"><code class="docutils literal notranslate"><span class="pre">VisualizationMarkers.__init__()</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.markers.VisualizationMarkers.num_prototypes"><code class="docutils literal notranslate"><span class="pre">VisualizationMarkers.num_prototypes</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.markers.VisualizationMarkers.count"><code class="docutils literal notranslate"><span class="pre">VisualizationMarkers.count</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.markers.VisualizationMarkers.set_visibility"><code class="docutils literal notranslate"><span class="pre">VisualizationMarkers.set_visibility()</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.markers.VisualizationMarkers.is_visible"><code class="docutils literal notranslate"><span class="pre">VisualizationMarkers.is_visible()</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.markers.VisualizationMarkers.visualize"><code class="docutils literal notranslate"><span class="pre">VisualizationMarkers.visualize()</span></code></a></li>
-</ul>
-</li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.markers.VisualizationMarkersCfg"><code class="docutils literal notranslate"><span class="pre">VisualizationMarkersCfg</span></code></a><ul class="nav section-nav flex-column">
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.markers.VisualizationMarkersCfg.prim_path"><code class="docutils literal notranslate"><span class="pre">VisualizationMarkersCfg.prim_path</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.markers.VisualizationMarkersCfg.markers"><code class="docutils literal notranslate"><span class="pre">VisualizationMarkersCfg.markers</span></code></a></li>
-</ul>
-</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.markers.VisualizationMarkers"><code class="docutils literal notranslate"><span class="pre">VisualizationMarkers</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.markers.VisualizationMarkersCfg"><code class="docutils literal notranslate"><span class="pre">VisualizationMarkersCfg</span></code></a></li>
 </ul>
 </li>
 </ul>

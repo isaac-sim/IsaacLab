@@ -56,11 +56,11 @@
     <link rel="icon" href="../../_static/favicon.ico"/>
     <link rel="index" title="Index" href="../../genindex.html" />
     <link rel="search" title="Search" href="../../search.html" />
-    <link rel="next" title="omni.isaac.lab.app" href="lab/omni.isaac.lab.app.html" />
+    <link rel="next" title="isaaclab.app" href="lab/isaaclab.app.html" />
     <link rel="prev" title="From Orbit" href="../migration/migrating_from_orbit.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-  <meta name="docsearch:version" content="1.4.1" />
+  <meta name="docsearch:version" content="2.0.0" />
     <meta name="docbuild:last-update" content="Jan 30, 2025"/>
   </head>
   
@@ -192,7 +192,7 @@
           
           
           
-          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.2.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.5.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
         </li>
         <li class="nav-item">
           
@@ -230,6 +230,8 @@
 <li class="toctree-l1 has-children"><a class="reference internal" href="../setup/installation/index.html">Local Installation</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2"><a class="reference internal" href="../setup/installation/pip_installation.html">Pip installation (recommended for Ubuntu 22.04 and Windows)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../setup/installation/binaries_installation.html">Binary installation (recommended for Ubuntu 20.04)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../setup/installation/isaaclab_pip_installation.html">Advanced installation (Isaac Lab pip)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../setup/installation/asset_caching.html">Asset caching</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1"><a class="reference internal" href="../setup/installation/cloud_installation.html">Running Isaac Lab in the Cloud</a></li>
@@ -241,7 +243,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../overview/developer-guide/vs_code.html">Setting up Visual Studio Code</a></li>
 
 <li class="toctree-l2"><a class="reference internal" href="../overview/developer-guide/repo_structure.html">Repository organization</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../overview/developer-guide/development.html">Application Development</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/developer-guide/development.html">Extension Development</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../overview/developer-guide/template.html">Building your Own Project</a></li>
 </ul>
 </details></li>
@@ -264,6 +266,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../overview/reinforcement-learning/rl_existing_scripts.html">Reinforcement Learning Wrappers</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../overview/reinforcement-learning/rl_frameworks.html">Reinforcement Learning Library Comparison</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../overview/reinforcement-learning/performance_benchmarks.html">Performance Benchmarks</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/reinforcement-learning/training_guide.html">Debugging and Training Guide</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1"><a class="reference internal" href="../overview/teleop_imitation.html">Teleoperation and Imitation Learning</a></li>
@@ -294,6 +297,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../tutorials/03_envs/register_rl_env_gym.html">Registering an Environment</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../tutorials/03_envs/run_rl_training.html">Training with an RL Agent</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../tutorials/03_envs/modify_direct_rl_env.html">Modifying an existing Direct RL Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/03_envs/policy_inference_in_usd.html">Policy Inference in USD Environment</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../tutorials/04_sensors/add_sensors_on_robot.html">Adding sensors on a robot</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../tutorials/05_controllers/run_diff_ik.html">Using a task-space controller</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../tutorials/05_controllers/run_osc.html">Using an operational space controller</a></li>
@@ -330,28 +334,27 @@
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Source API</span></p>
 <ul class="current nav bd-sidenav">
 <li class="toctree-l1 current active has-children"><a class="current reference internal" href="#">API Reference</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
-<li class="toctree-l2"><a class="reference internal" href="lab/omni.isaac.lab.app.html">omni.isaac.lab.app</a></li>
-<li class="toctree-l2"><a class="reference internal" href="lab/omni.isaac.lab.actuators.html">omni.isaac.lab.actuators</a></li>
-<li class="toctree-l2"><a class="reference internal" href="lab/omni.isaac.lab.assets.html">omni.isaac.lab.assets</a></li>
-<li class="toctree-l2"><a class="reference internal" href="lab/omni.isaac.lab.controllers.html">omni.isaac.lab.controllers</a></li>
-<li class="toctree-l2"><a class="reference internal" href="lab/omni.isaac.lab.devices.html">omni.isaac.lab.devices</a></li>
-<li class="toctree-l2"><a class="reference internal" href="lab/omni.isaac.lab.envs.html">omni.isaac.lab.envs</a></li>
-<li class="toctree-l2"><a class="reference internal" href="lab/omni.isaac.lab.managers.html">omni.isaac.lab.managers</a></li>
-<li class="toctree-l2"><a class="reference internal" href="lab/omni.isaac.lab.markers.html">omni.isaac.lab.markers</a></li>
-<li class="toctree-l2"><a class="reference internal" href="lab/omni.isaac.lab.scene.html">omni.isaac.lab.scene</a></li>
-<li class="toctree-l2"><a class="reference internal" href="lab/omni.isaac.lab.sensors.html">omni.isaac.lab.sensors</a></li>
-<li class="toctree-l2"><a class="reference internal" href="lab/omni.isaac.lab.sim.html">omni.isaac.lab.sim</a></li>
-<li class="toctree-l2"><a class="reference internal" href="lab/omni.isaac.lab.terrains.html">omni.isaac.lab.terrains</a></li>
-<li class="toctree-l2"><a class="reference internal" href="lab/omni.isaac.lab.utils.html">omni.isaac.lab.utils</a></li>
-<li class="toctree-l2"><a class="reference internal" href="lab/omni.isaac.lab.envs.mdp.html">omni.isaac.lab.envs.mdp</a></li>
-<li class="toctree-l2"><a class="reference internal" href="lab/omni.isaac.lab.envs.ui.html">omni.isaac.lab.envs.ui</a></li>
-<li class="toctree-l2"><a class="reference internal" href="lab/omni.isaac.lab.sensors.patterns.html">omni.isaac.lab.sensors.patterns</a></li>
-<li class="toctree-l2"><a class="reference internal" href="lab/omni.isaac.lab.sim.converters.html">omni.isaac.lab.sim.converters</a></li>
-<li class="toctree-l2"><a class="reference internal" href="lab/omni.isaac.lab.sim.schemas.html">omni.isaac.lab.sim.schemas</a></li>
-<li class="toctree-l2"><a class="reference internal" href="lab/omni.isaac.lab.sim.spawners.html">omni.isaac.lab.sim.spawners</a></li>
-<li class="toctree-l2"><a class="reference internal" href="lab_tasks/omni.isaac.lab_tasks.utils.html">omni.isaac.lab_tasks.utils</a></li>
-<li class="toctree-l2"><a class="reference internal" href="lab_tasks/omni.isaac.lab_tasks.utils.wrappers.html">omni.isaac.lab_tasks.utils.wrappers</a></li>
-<li class="toctree-l2"><a class="reference internal" href="lab_tasks/omni.isaac.lab_tasks.utils.data_collector.html">omni.isaac.lab_tasks.utils.data_collector</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lab/isaaclab.app.html">isaaclab.app</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lab/isaaclab.actuators.html">isaaclab.actuators</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lab/isaaclab.assets.html">isaaclab.assets</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lab/isaaclab.controllers.html">isaaclab.controllers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lab/isaaclab.devices.html">isaaclab.devices</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lab/isaaclab.envs.html">isaaclab.envs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lab/isaaclab.managers.html">isaaclab.managers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lab/isaaclab.markers.html">isaaclab.markers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lab/isaaclab.scene.html">isaaclab.scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lab/isaaclab.sensors.html">isaaclab.sensors</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lab/isaaclab.sim.html">isaaclab.sim</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lab/isaaclab.terrains.html">isaaclab.terrains</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lab/isaaclab.utils.html">isaaclab.utils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lab/isaaclab.envs.mdp.html">isaaclab.envs.mdp</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lab/isaaclab.envs.ui.html">isaaclab.envs.ui</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lab/isaaclab.sensors.patterns.html">isaaclab.sensors.patterns</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lab/isaaclab.sim.converters.html">isaaclab.sim.converters</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lab/isaaclab.sim.schemas.html">isaaclab.sim.schemas</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lab/isaaclab.sim.spawners.html">isaaclab.sim.spawners</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lab_tasks/isaaclab_tasks.utils.html">isaaclab_tasks.utils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lab_mimic/isaaclab_mimic.datagen.html">isaaclab_mimic.datagen</a></li>
 </ul>
 </details></li>
 </ul>
@@ -361,7 +364,15 @@
 <li class="toctree-l1"><a class="reference internal" href="../refs/additional_resources.html">Additional Resources</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../refs/contributing.html">Contribution Guidelines</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../refs/troubleshooting.html">Tricks and Troubleshooting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../refs/migration.html">Migration Guide (Isaac Sim)</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../refs/issues.html">Known Issues</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../refs/release_notes.html">Release Notes</a></li>
+
+
+
+
+
+
 <li class="toctree-l1"><a class="reference internal" href="../refs/changelog.html">Extensions Changelog</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../refs/license.html">License</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../refs/bibliography.html">Bibliography</a></li>
@@ -369,7 +380,7 @@
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Project Links</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference external" href="https://github.com/isaac-sim/IsaacLab">GitHub</a></li>
-<li class="toctree-l1"><a class="reference external" href="https://docs.omniverse.nvidia.com/isaacsim/latest/index.html">NVIDIA Isaac Sim</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/latest/index.html">NVIDIA Isaac Sim</a></li>
 <li class="toctree-l1"><a class="reference external" href="https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/index.html">NVIDIA PhysX</a></li>
 </ul>
 
@@ -580,12 +591,12 @@
             </div>
             <nav aria-label="Page">
                 <ul class="visible nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#omni-isaac-lab-extension">omni.isaac.lab extension</a><ul class="nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab-extension">isaaclab extension</a><ul class="nav section-nav flex-column">
 </ul>
 </li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#omni-isaac-lab-tasks-extension">omni.isaac.lab_tasks extension</a><ul class="nav section-nav flex-column">
-</ul>
-</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab-tasks-extension">isaaclab_tasks extension</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab-rl-extension">isaaclab_rl extension</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab-mimic-extension">isaaclab_mimic extension</a></li>
 </ul>
             </nav>
         </div>
@@ -600,48 +611,48 @@
   <section id="api-reference">
 <h1>API Reference<a class="headerlink" href="#api-reference" title="Permalink to this heading">#</a></h1>
 <p>This page gives an overview of all the modules and classes in the Isaac Lab extensions.</p>
-<section id="omni-isaac-lab-extension">
-<h2>omni.isaac.lab extension<a class="headerlink" href="#omni-isaac-lab-extension" title="Permalink to this heading">#</a></h2>
-<p>The following modules are available in the <code class="docutils literal notranslate"><span class="pre">omni.isaac.lab</span></code> extension:</p>
+<section id="isaaclab-extension">
+<h2>isaaclab extension<a class="headerlink" href="#isaaclab-extension" title="Permalink to this heading">#</a></h2>
+<p>The following modules are available in the <code class="docutils literal notranslate"><span class="pre">isaaclab</span></code> extension:</p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
 <tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="lab/omni.isaac.lab.app.html#module-omni.isaac.lab.app" title="omni.isaac.lab.app"><code class="xref py py-obj docutils literal notranslate"><span class="pre">app</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="lab/isaaclab.app.html#module-isaaclab.app" title="isaaclab.app"><code class="xref py py-obj docutils literal notranslate"><span class="pre">app</span></code></a></p></td>
 <td><p>Sub-package containing app-specific functionalities.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="lab/omni.isaac.lab.actuators.html#module-omni.isaac.lab.actuators" title="omni.isaac.lab.actuators"><code class="xref py py-obj docutils literal notranslate"><span class="pre">actuators</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="lab/isaaclab.actuators.html#module-isaaclab.actuators" title="isaaclab.actuators"><code class="xref py py-obj docutils literal notranslate"><span class="pre">actuators</span></code></a></p></td>
 <td><p>Sub-package for different actuator models.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="lab/omni.isaac.lab.assets.html#module-omni.isaac.lab.assets" title="omni.isaac.lab.assets"><code class="xref py py-obj docutils literal notranslate"><span class="pre">assets</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="lab/isaaclab.assets.html#module-isaaclab.assets" title="isaaclab.assets"><code class="xref py py-obj docutils literal notranslate"><span class="pre">assets</span></code></a></p></td>
 <td><p>Sub-package for different assets, such as rigid objects and articulations.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="lab/omni.isaac.lab.controllers.html#module-omni.isaac.lab.controllers" title="omni.isaac.lab.controllers"><code class="xref py py-obj docutils literal notranslate"><span class="pre">controllers</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="lab/isaaclab.controllers.html#module-isaaclab.controllers" title="isaaclab.controllers"><code class="xref py py-obj docutils literal notranslate"><span class="pre">controllers</span></code></a></p></td>
 <td><p>Sub-package for different controllers and motion-generators.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="lab/omni.isaac.lab.devices.html#module-omni.isaac.lab.devices" title="omni.isaac.lab.devices"><code class="xref py py-obj docutils literal notranslate"><span class="pre">devices</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="lab/isaaclab.devices.html#module-isaaclab.devices" title="isaaclab.devices"><code class="xref py py-obj docutils literal notranslate"><span class="pre">devices</span></code></a></p></td>
 <td><p>Sub-package providing interfaces to different teleoperation devices.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="lab/omni.isaac.lab.envs.html#module-omni.isaac.lab.envs" title="omni.isaac.lab.envs"><code class="xref py py-obj docutils literal notranslate"><span class="pre">envs</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="lab/isaaclab.envs.html#module-isaaclab.envs" title="isaaclab.envs"><code class="xref py py-obj docutils literal notranslate"><span class="pre">envs</span></code></a></p></td>
 <td><p>Sub-package for environment definitions.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="lab/omni.isaac.lab.managers.html#module-omni.isaac.lab.managers" title="omni.isaac.lab.managers"><code class="xref py py-obj docutils literal notranslate"><span class="pre">managers</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="lab/isaaclab.managers.html#module-isaaclab.managers" title="isaaclab.managers"><code class="xref py py-obj docutils literal notranslate"><span class="pre">managers</span></code></a></p></td>
 <td><p>Sub-module for environment managers.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="lab/omni.isaac.lab.markers.html#module-omni.isaac.lab.markers" title="omni.isaac.lab.markers"><code class="xref py py-obj docutils literal notranslate"><span class="pre">markers</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="lab/isaaclab.markers.html#module-isaaclab.markers" title="isaaclab.markers"><code class="xref py py-obj docutils literal notranslate"><span class="pre">markers</span></code></a></p></td>
 <td><p>Sub-package for marker utilities to simplify creation of UI elements in the GUI.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="lab/omni.isaac.lab.scene.html#module-omni.isaac.lab.scene" title="omni.isaac.lab.scene"><code class="xref py py-obj docutils literal notranslate"><span class="pre">scene</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="lab/isaaclab.scene.html#module-isaaclab.scene" title="isaaclab.scene"><code class="xref py py-obj docutils literal notranslate"><span class="pre">scene</span></code></a></p></td>
 <td><p>Sub-package containing an interactive scene definition.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="lab/omni.isaac.lab.sensors.html#module-omni.isaac.lab.sensors" title="omni.isaac.lab.sensors"><code class="xref py py-obj docutils literal notranslate"><span class="pre">sensors</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="lab/isaaclab.sensors.html#module-isaaclab.sensors" title="isaaclab.sensors"><code class="xref py py-obj docutils literal notranslate"><span class="pre">sensors</span></code></a></p></td>
 <td><p>Sub-package containing various sensor classes implementations.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="lab/omni.isaac.lab.sim.html#module-omni.isaac.lab.sim" title="omni.isaac.lab.sim"><code class="xref py py-obj docutils literal notranslate"><span class="pre">sim</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="lab/isaaclab.sim.html#module-isaaclab.sim" title="isaaclab.sim"><code class="xref py py-obj docutils literal notranslate"><span class="pre">sim</span></code></a></p></td>
 <td><p>Sub-package containing simulation-specific functionalities.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="lab/omni.isaac.lab.terrains.html#module-omni.isaac.lab.terrains" title="omni.isaac.lab.terrains"><code class="xref py py-obj docutils literal notranslate"><span class="pre">terrains</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="lab/isaaclab.terrains.html#module-isaaclab.terrains" title="isaaclab.terrains"><code class="xref py py-obj docutils literal notranslate"><span class="pre">terrains</span></code></a></p></td>
 <td><p>Sub-package with utilities for creating terrains procedurally.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="lab/omni.isaac.lab.utils.html#module-omni.isaac.lab.utils" title="omni.isaac.lab.utils"><code class="xref py py-obj docutils literal notranslate"><span class="pre">utils</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="lab/isaaclab.utils.html#module-isaaclab.utils" title="isaaclab.utils"><code class="xref py py-obj docutils literal notranslate"><span class="pre">utils</span></code></a></p></td>
 <td><p>Sub-package containing utilities for common operations and helper functions.</p></td>
 </tr>
 </tbody>
@@ -650,18 +661,37 @@
 <div class="toctree-wrapper compound">
 </div>
 </section>
-<section id="omni-isaac-lab-tasks-extension">
-<h2>omni.isaac.lab_tasks extension<a class="headerlink" href="#omni-isaac-lab-tasks-extension" title="Permalink to this heading">#</a></h2>
-<p>The following modules are available in the <code class="docutils literal notranslate"><span class="pre">omni.isaac.lab_tasks</span></code> extension:</p>
+<section id="isaaclab-tasks-extension">
+<h2>isaaclab_tasks extension<a class="headerlink" href="#isaaclab-tasks-extension" title="Permalink to this heading">#</a></h2>
+<p>The following modules are available in the <code class="docutils literal notranslate"><span class="pre">isaaclab_tasks</span></code> extension:</p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
 <tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="lab_tasks/omni.isaac.lab_tasks.utils.html#module-omni.isaac.lab_tasks.utils" title="omni.isaac.lab_tasks.utils"><code class="xref py py-obj docutils literal notranslate"><span class="pre">utils</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="lab_tasks/isaaclab_tasks.utils.html#module-isaaclab_tasks.utils" title="isaaclab_tasks.utils"><code class="xref py py-obj docutils literal notranslate"><span class="pre">utils</span></code></a></p></td>
 <td><p>Sub-package with utilities, data collectors and environment wrappers.</p></td>
 </tr>
 </tbody>
 </table>
 </div>
-<div class="toctree-wrapper compound">
+</section>
+<section id="isaaclab-rl-extension">
+<h2>isaaclab_rl extension<a class="headerlink" href="#isaaclab-rl-extension" title="Permalink to this heading">#</a></h2>
+<p>The following wrappers are available in the <code class="docutils literal notranslate"><span class="pre">isaaclab_rl</span></code> extension:</p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+</tbody>
+</table>
+</div>
+</section>
+<section id="isaaclab-mimic-extension">
+<h2>isaaclab_mimic extension<a class="headerlink" href="#isaaclab-mimic-extension" title="Permalink to this heading">#</a></h2>
+<p>The following modules are available in the <code class="docutils literal notranslate"><span class="pre">isaaclab_mimic</span></code> extension:</p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="lab_mimic/isaaclab_mimic.datagen.html#module-isaaclab_mimic.datagen" title="isaaclab_mimic.datagen"><code class="xref py py-obj docutils literal notranslate"><span class="pre">datagen</span></code></a></p></td>
+<td><p>Sub-package with core implementation logic for Isaac Lab Mimic.</p></td>
+</tr>
+</tbody>
+</table>
 </div>
 </section>
 </section>
@@ -687,11 +717,11 @@
       </div>
     </a>
     <a class="right-next"
-       href="lab/omni.isaac.lab.app.html"
+       href="lab/isaaclab.app.html"
        title="next page">
       <div class="prev-next-info">
         <p class="prev-next-subtitle">next</p>
-        <p class="prev-next-title">omni.isaac.lab.app</p>
+        <p class="prev-next-title">isaaclab.app</p>
       </div>
       <i class="fa-solid fa-angle-right"></i>
     </a>
@@ -712,12 +742,12 @@
   </div>
   <nav class="bd-toc-nav page-toc">
     <ul class="visible nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#omni-isaac-lab-extension">omni.isaac.lab extension</a><ul class="nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab-extension">isaaclab extension</a><ul class="nav section-nav flex-column">
 </ul>
 </li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#omni-isaac-lab-tasks-extension">omni.isaac.lab_tasks extension</a><ul class="nav section-nav flex-column">
-</ul>
-</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab-tasks-extension">isaaclab_tasks extension</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab-rl-extension">isaaclab_rl extension</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab-mimic-extension">isaaclab_mimic extension</a></li>
 </ul>
   </nav></div>
 

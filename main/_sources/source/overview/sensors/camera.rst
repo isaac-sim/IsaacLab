@@ -49,7 +49,7 @@ When working with rendering, make sure to add the ``--enable_cameras`` argument 
 
 .. code-block:: shell
 
-    python source/standalone/workflows/rl_games/train.py --task=Isaac-Cartpole-RGB-Camera-Direct-v0 --headless --enable_cameras
+    python scripts/reinforcement_learning/rl_games/train.py --task=Isaac-Cartpole-RGB-Camera-Direct-v0 --headless --enable_cameras
 
 
 Annotators
@@ -161,34 +161,9 @@ The info ``idToLabels`` dictionary will be the mapping from color to USD prim pa
 Current Limitations
 -------------------
 
-Due to current limitations in the renderer, we can have only **one** :class:`~sensors.TiledCamera` instance in the scene.
-For use cases that require a setup with more than one camera, we can imitate the multi-camera behavior by moving the location
-of the camera in between render calls in a step.
-
-For example, in a stereo vision setup, the below snippet can be implemented:
-
-.. code-block:: python
-
-    # render image from "first" camera
-    camera_data_1 = self._tiled_camera.data.output["rgb"].clone() / 255.0
-    # update camera transform to the "second" camera location
-    self._tiled_camera.set_world_poses(
-        positions=pos,
-        orientations=rot,
-        convention="world"
-    )
-    # step the renderer
-    self.sim.render()
-    self._tiled_camera.update(0, force_recompute=True)
-    # render image from "second" camera
-    camera_data_2 = self._tiled_camera.data.output["rgb"].clone() / 255.0
-
-Note that this approach still limits the rendering resolution to be identical for all cameras. Currently, there is no workaround
-to achieve different resolution images using :class:`~sensors.TiledCamera`. The best approach is to use the largest resolution out of all of the
-desired resolutions and add additional scaling or cropping operations to the rendered output as a post-processing step.
-
-In addition, there may be visible quality differences when comparing render outputs of different numbers of environments.
-Currently, any combined resolution that has a width less than 265 pixels or height less than 265 will automatically switch
-to the DLAA anti-aliasing mode, which does not perform up-sampling during anti-aliasing. For resolutions larger than 265 in both
-width and height dimensions, we default to using the "performance" DLSS mode for anti-aliasing for performance benefits.
-Anti-aliasing modes and other rendering parameters can be specified in the :class:`~sim.RenderCfg`.
+For performance reasons, we default to using DLSS for denoising, which generally provides better performance.
+This may result in renders of lower quality, which may be especially evident at lower resolutions.
+Due to this, we recommend using per-tile or per-camera resolution of at least 100 x 100.
+For renders at lower resolutions, we advice setting the ``antialiasing_mode`` attribute in :class:`~sim.RenderCfg` to
+``DLAA``, and also potentially enabling ``enable_dl_denoiser``. Both of these settings should help improve render
+quality, but also comes at a cost of performance. Additional rendering parameters can also be specified in :class:`~sim.RenderCfg`.

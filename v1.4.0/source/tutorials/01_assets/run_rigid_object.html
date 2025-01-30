@@ -192,7 +192,7 @@
           
           
           
-          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.2.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.5.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
         </li>
         <li class="nav-item">
           
@@ -840,9 +840,9 @@ is defined in the <strong>simulation world frame</strong>, and not of their pare
 engine only understands the world frame and not the parent Xform prim’s frame. Thus, we need to transform
 desired state of the rigid object prim into the world frame before setting it.</p>
 <p>We use the <code class="xref py py-attr docutils literal notranslate"><span class="pre">assets.RigidObject.data.default_root_state</span></code> attribute to get the default root state of the
-spawned rigid object prims. This default state can be configured from the <a class="reference internal" href="../../api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.RigidObjectCfg.init_state" title="omni.isaac.lab.assets.RigidObjectCfg.init_state"><code class="xref py py-attr docutils literal notranslate"><span class="pre">assets.RigidObjectCfg.init_state</span></code></a>
+spawned rigid object prims. This default state can be configured from the <code class="xref py py-attr docutils literal notranslate"><span class="pre">assets.RigidObjectCfg.init_state</span></code>
 attribute, which we left as identity in this tutorial. We then randomize the translation of the root state and
-set the desired state of the rigid object prim using the <a class="reference internal" href="../../api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.RigidObject.write_root_link_pose_to_sim" title="omni.isaac.lab.assets.RigidObject.write_root_link_pose_to_sim"><code class="xref py py-meth docutils literal notranslate"><span class="pre">assets.RigidObject.write_root_link_pose_to_sim()</span></code></a> and <a class="reference internal" href="../../api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.RigidObject.write_root_com_velocity_to_sim" title="omni.isaac.lab.assets.RigidObject.write_root_com_velocity_to_sim"><code class="xref py py-meth docutils literal notranslate"><span class="pre">assets.RigidObject.write_root_com_velocity_to_sim()</span></code></a> methods.
+set the desired state of the rigid object prim using the <code class="xref py py-meth docutils literal notranslate"><span class="pre">assets.RigidObject.write_root_link_pose_to_sim()</span></code> and <code class="xref py py-meth docutils literal notranslate"><span class="pre">assets.RigidObject.write_root_com_velocity_to_sim()</span></code> methods.
 As the name suggests, this method writes the root state of the rigid object prim into the simulation buffer.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span>            <span class="c1"># reset root state</span>
             <span class="n">root_state</span> <span class="o">=</span> <span class="n">cone_object</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_root_state</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
@@ -861,7 +861,7 @@ As the name suggests, this method writes the root state of the rigid object prim
 </section>
 <section id="stepping-the-simulation">
 <h4>Stepping the simulation<a class="headerlink" href="#stepping-the-simulation" title="Permalink to this heading">#</a></h4>
-<p>Before stepping the simulation, we perform the <a class="reference internal" href="../../api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.RigidObject.write_data_to_sim" title="omni.isaac.lab.assets.RigidObject.write_data_to_sim"><code class="xref py py-meth docutils literal notranslate"><span class="pre">assets.RigidObject.write_data_to_sim()</span></code></a> method. This method
+<p>Before stepping the simulation, we perform the <code class="xref py py-meth docutils literal notranslate"><span class="pre">assets.RigidObject.write_data_to_sim()</span></code> method. This method
 writes other data, such as external forces, into the simulation buffer. In this tutorial, we do not apply any
 external forces to the rigid object, so this method is not necessary. However, it is included for completeness.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span>        <span class="c1"># apply sim data</span>
@@ -872,7 +872,7 @@ external forces to the rigid object, so this method is not necessary. However, i
 <section id="updating-the-state">
 <h4>Updating the state<a class="headerlink" href="#updating-the-state" title="Permalink to this heading">#</a></h4>
 <p>After stepping the simulation, we update the internal buffers of the rigid object prims to reflect their new state
-inside the <a class="reference internal" href="../../api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.RigidObject.data" title="omni.isaac.lab.assets.RigidObject.data"><code class="xref py py-class docutils literal notranslate"><span class="pre">assets.RigidObject.data</span></code></a> attribute. This is done using the <a class="reference internal" href="../../api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.RigidObject.update" title="omni.isaac.lab.assets.RigidObject.update"><code class="xref py py-meth docutils literal notranslate"><span class="pre">assets.RigidObject.update()</span></code></a> method.</p>
+inside the <code class="xref py py-class docutils literal notranslate"><span class="pre">assets.RigidObject.data</span></code> attribute. This is done using the <code class="xref py py-meth docutils literal notranslate"><span class="pre">assets.RigidObject.update()</span></code> method.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span>        <span class="c1"># update buffers</span>
         <span class="n">cone_object</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">sim_dt</span><span class="p">)</span>
 </pre></div>

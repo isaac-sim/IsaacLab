@@ -192,7 +192,7 @@
           
           
           
-          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.2.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.5.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
         </li>
         <li class="nav-item">
           
@@ -770,7 +770,7 @@ the environment and wrapping it with the Stable-Baselines3 wrapper.</p>
 <li><p><a class="reference external" href="https://gymnasium.farama.org/api/wrappers/misc_wrappers/#gymnasium.wrappers.RecordVideo" title="(in Gymnasium)"><code class="xref py py-class docutils literal notranslate"><span class="pre">gymnasium.wrappers.RecordVideo</span></code></a>: This wrapper records a video of the environment
 and saves it to the specified directory. This is useful for visualizing the agent’s behavior
 during training.</p></li>
-<li><p><a class="reference internal" href="../../api/lab_tasks/omni.isaac.lab_tasks.utils.wrappers.html#omni.isaac.lab_tasks.utils.wrappers.sb3.Sb3VecEnvWrapper" title="omni.isaac.lab_tasks.utils.wrappers.sb3.Sb3VecEnvWrapper"><code class="xref py py-class docutils literal notranslate"><span class="pre">wrappers.sb3.Sb3VecEnvWrapper</span></code></a>: This wrapper converts the environment
+<li><p><code class="xref py py-class docutils literal notranslate"><span class="pre">wrappers.sb3.Sb3VecEnvWrapper</span></code>: This wrapper converts the environment
 into a Stable-Baselines3 compatible environment.</p></li>
 <li><p><a class="reference external" href="https://stable-baselines3.readthedocs.io/en/master/guide/vec_envs.html#vecnormalize">stable_baselines3.common.vec_env.VecNormalize</a>: This wrapper normalizes the
 environment’s observations and rewards.</p></li>
@@ -819,7 +819,7 @@ training script as follows:</p>
 will slow down the training process since the simulation is rendered on the screen. As a workaround, you
 can switch between different render modes in the <code class="docutils literal notranslate"><span class="pre">&quot;Isaac</span> <span class="pre">Lab&quot;</span></code> window that is docked on the bottom-right
 corner of the screen. To learn more about these render modes, please check the
-<a class="reference internal" href="../../api/lab/omni.isaac.lab.sim.html#omni.isaac.lab.sim.SimulationContext.RenderMode" title="omni.isaac.lab.sim.SimulationContext.RenderMode"><code class="xref py py-class docutils literal notranslate"><span class="pre">sim.SimulationContext.RenderMode</span></code></a> class.</p>
+<code class="xref py py-class docutils literal notranslate"><span class="pre">sim.SimulationContext.RenderMode</span></code> class.</p>
 </section>
 </section>
 <section id="viewing-the-logs">

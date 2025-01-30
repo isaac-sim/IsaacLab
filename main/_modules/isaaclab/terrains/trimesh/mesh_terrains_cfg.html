@@ -1,0 +1,871 @@
+
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>isaaclab.terrains.trimesh.mesh_terrains_cfg &#8212; Isaac Lab Documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../../../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../../../../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../../../_static/pygments.css" />
+    <link rel="stylesheet" href="../../../../_static/styles/sphinx-book-theme.css?digest=14f4ca6b54d191a8c7657f6c759bf11a5fb86285" type="text/css" />
+    <link rel="stylesheet" type="text/css" href="/opt/hostedtoolcache/Python/3.10.16/x64/lib/python3.10/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/css/all.min.css" />
+    <link rel="stylesheet" type="text/css" href="../../../../_static/copybutton.css" />
+    <link rel="stylesheet" type="text/css" href="../../../../_static/custom.css" />
+    <link rel="stylesheet" type="text/css" href="../../../../_static/sphinx-design.4cbf315f70debaebd550c87a6162cf0f.min.css" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../../../../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../../../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script data-url_root="../../../../" id="documentation_options" src="../../../../_static/documentation_options.js"></script>
+    <script src="../../../../_static/doctools.js"></script>
+    <script src="../../../../_static/sphinx_highlight.js"></script>
+    <script src="/opt/hostedtoolcache/Python/3.10.16/x64/lib/python3.10/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/js/all.min.js"></script>
+    <script src="../../../../_static/clipboard.min.js"></script>
+    <script src="../../../../_static/copybutton.js"></script>
+    <script src="../../../../_static/scripts/sphinx-book-theme.js?digest=5a5c038af52cf7bc1a1ec88eea08e6366ee68824"></script>
+    <script src="../../../../_static/design-tabs.js"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = '_modules/isaaclab/terrains/trimesh/mesh_terrains_cfg';</script>
+    <link rel="icon" href="../../../../_static/favicon.ico"/>
+    <link rel="index" title="Index" href="../../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../../search.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="2.0.0" />
+    <meta name="docbuild:last-update" content="Jan 30, 2025"/>
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+        
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+    
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../../../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../../../../_static/NVIDIA-logo-white.png" class="logo__image only-light" alt=""/>
+    <img src="../../../../_static/NVIDIA-logo-black.png" class="logo__image only-dark pst-js-only" alt=""/>
+  
+  
+    <p class="title logo__title">Isaac Lab Documentation</p>
+  
+</a></div>
+        <div class="sidebar-primary-item">
+<nav class="bd-links bd-docs-nav">
+    <div class="bd-toc-item navbar-nav">
+      <ul class="nav bd-sidenav">
+        <li class="toctree-l1 has-children" style="display: flex; justify-content: center; align-items: center; flex-direction: column;">
+          <div  style ="text-align:center;">
+            <label for="version-select" style="font-weight: bold; display: block;">Version</label>
+          </div>
+          <select id="version-select" class="version-dropdown" style="margin: 0 auto; display: block;" onchange="location = this.value;">
+            <option value="mesh_terrains_cfg.html" selected>main</option>
+            <option value="../../../../../v1.4.1/index.html" >v1.4.1</option>
+            <option value="../../../../../v1.4.0/index.html" >v1.4.0</option>
+            <option value="../../../../../v1.3.0/index.html" >v1.3.0</option>
+            <option value="../../../../../v1.2.0/index.html" >v1.2.0</option>
+            <option value="../../../../../v1.1.0/index.html" >v1.1.0</option>
+            <option value="../../../../../v1.0.0/index.html" >v1.0.0</option>
+          </select>
+        </li>
+      </ul>
+    </div>
+</nav>
+</div>
+        <div class="sidebar-primary-item"><ul class="navbar-icon-links"
+    aria-label="Quick Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/isaac-sim/IsaacLab" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.5.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+        </li>
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://img.shields.io/github/stars/isaac-sim/IsaacLab?color=fedcba" title="Stars" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/github/stars/isaac-sim/IsaacLab?color=fedcba" class="icon-link-image" alt="Stars"/></a>
+        </li>
+</ul></div>
+        <div class="sidebar-primary-item">
+<form class="bd-search d-flex align-items-center"
+      action="../../../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form></div>
+        <div class="sidebar-primary-item"><nav class="bd-links" id="bd-docs-nav" aria-label="Main">
+    <div class="bd-toc-item navbar-nav active">
+        <p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/setup/ecosystem.html">Isaac Lab Ecosystem</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../../source/setup/installation/index.html">Local Installation</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/setup/installation/pip_installation.html">Pip installation (recommended for Ubuntu 22.04 and Windows)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/setup/installation/binaries_installation.html">Binary installation (recommended for Ubuntu 20.04)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/setup/installation/isaaclab_pip_installation.html">Advanced installation (Isaac Lab pip)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/setup/installation/asset_caching.html">Asset caching</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/setup/installation/cloud_installation.html">Running Isaac Lab in the Cloud</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/setup/faq.html">Frequently Asked Questions</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Overview</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../../source/overview/developer-guide/index.html">Developer’s Guide</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/overview/developer-guide/vs_code.html">Setting up Visual Studio Code</a></li>
+
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/overview/developer-guide/repo_structure.html">Repository organization</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/overview/developer-guide/development.html">Extension Development</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/overview/developer-guide/template.html">Building your Own Project</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../../source/overview/core-concepts/index.html">Core Concepts</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/overview/core-concepts/task_workflows.html">Task Design Workflows</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/overview/core-concepts/actuators.html">Actuators</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../../source/overview/sensors/index.html">Sensors</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/overview/sensors/camera.html">Camera</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/overview/sensors/contact_sensor.html">Contact Sensor</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/overview/sensors/frame_transformer.html">Frame Transformer</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/overview/sensors/imu.html">Inertial Measurement Unit (IMU)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/overview/sensors/ray_caster.html">Ray Caster</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/overview/environments.html">Available Environments</a></li>
+
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../../source/overview/reinforcement-learning/index.html">Reinforcement Learning</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/overview/reinforcement-learning/rl_existing_scripts.html">Reinforcement Learning Wrappers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/overview/reinforcement-learning/rl_frameworks.html">Reinforcement Learning Library Comparison</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/overview/reinforcement-learning/performance_benchmarks.html">Performance Benchmarks</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/overview/reinforcement-learning/training_guide.html">Debugging and Training Guide</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/overview/teleop_imitation.html">Teleoperation and Imitation Learning</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/overview/showroom.html">Showroom Demos</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/overview/simple_agents.html">Simple Agents</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Features</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/features/hydra.html">Hydra Configuration System</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/features/multi_gpu.html">Multi-GPU and Multi-Node Training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/overview/sensors/camera.html">Tiled Rendering</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/features/ray.html">Ray Job Dispatch and Tuning</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/features/reproducibility.html">Reproducibility and Determinism</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Resources</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../../source/tutorials/index.html">Tutorials</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/tutorials/00_sim/create_empty.html">Creating an empty scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/tutorials/00_sim/spawn_prims.html">Spawning prims into the scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/tutorials/00_sim/launch_app.html">Deep-dive into AppLauncher</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/tutorials/01_assets/run_rigid_object.html">Interacting with a rigid object</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/tutorials/01_assets/run_articulation.html">Interacting with an articulation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/tutorials/01_assets/run_deformable_object.html">Interacting with a deformable object</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/tutorials/02_scene/create_scene.html">Using the Interactive Scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/tutorials/03_envs/create_manager_base_env.html">Creating a Manager-Based Base Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/tutorials/03_envs/create_manager_rl_env.html">Creating a Manager-Based RL Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/tutorials/03_envs/create_direct_rl_env.html">Creating a Direct Workflow RL Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/tutorials/03_envs/register_rl_env_gym.html">Registering an Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/tutorials/03_envs/run_rl_training.html">Training with an RL Agent</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/tutorials/03_envs/modify_direct_rl_env.html">Modifying an existing Direct RL Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/tutorials/03_envs/policy_inference_in_usd.html">Policy Inference in USD Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/tutorials/04_sensors/add_sensors_on_robot.html">Adding sensors on a robot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/tutorials/05_controllers/run_diff_ik.html">Using a task-space controller</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/tutorials/05_controllers/run_osc.html">Using an operational space controller</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../../source/how-to/index.html">How-to Guides</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/how-to/import_new_asset.html">Importing a New Asset</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/how-to/write_articulation_cfg.html">Writing an Asset Configuration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/how-to/make_fixed_prim.html">Making a physics prim fixed in the simulation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/how-to/multi_asset_spawning.html">Spawning Multiple Assets</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/how-to/save_camera_output.html">Saving rendered images and 3D re-projection</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/how-to/estimate_how_many_cameras_can_run.html">Find How Many/What Cameras You Should Train With</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/how-to/draw_markers.html">Creating Visualization Markers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/how-to/wrap_rl_env.html">Wrapping environments</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/how-to/add_own_library.html">Adding your own learning library</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/how-to/record_animation.html">Recording Animations of Simulations</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/how-to/record_video.html">Recording video clips during training</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/how-to/master_omniverse.html">Mastering Omniverse for Robotics</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../../source/deployment/index.html">Container Deployment</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/deployment/docker.html">Docker Guide</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/deployment/cluster.html">Cluster Guide</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/deployment/run_docker_example.html">Running an example with Docker</a></li>
+</ul>
+</details></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Migration Guides</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/migration/migrating_from_isaacgymenvs.html">From IsaacGymEnvs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/migration/migrating_from_omniisaacgymenvs.html">From OmniIsaacGymEnvs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/migration/migrating_from_orbit.html">From Orbit</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Source API</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../../source/api/index.html">API Reference</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab/isaaclab.app.html">isaaclab.app</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab/isaaclab.actuators.html">isaaclab.actuators</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab/isaaclab.assets.html">isaaclab.assets</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab/isaaclab.controllers.html">isaaclab.controllers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab/isaaclab.devices.html">isaaclab.devices</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab/isaaclab.envs.html">isaaclab.envs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab/isaaclab.managers.html">isaaclab.managers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab/isaaclab.markers.html">isaaclab.markers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab/isaaclab.scene.html">isaaclab.scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab/isaaclab.sensors.html">isaaclab.sensors</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab/isaaclab.sim.html">isaaclab.sim</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab/isaaclab.terrains.html">isaaclab.terrains</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab/isaaclab.utils.html">isaaclab.utils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab/isaaclab.envs.mdp.html">isaaclab.envs.mdp</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab/isaaclab.envs.ui.html">isaaclab.envs.ui</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab/isaaclab.sensors.patterns.html">isaaclab.sensors.patterns</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab/isaaclab.sim.converters.html">isaaclab.sim.converters</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab/isaaclab.sim.schemas.html">isaaclab.sim.schemas</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab/isaaclab.sim.spawners.html">isaaclab.sim.spawners</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab_tasks/isaaclab_tasks.utils.html">isaaclab_tasks.utils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab_mimic/isaaclab_mimic.datagen.html">isaaclab_mimic.datagen</a></li>
+</ul>
+</details></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">References</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/refs/reference_architecture/index.html">Reference Architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/refs/additional_resources.html">Additional Resources</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/refs/contributing.html">Contribution Guidelines</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/refs/troubleshooting.html">Tricks and Troubleshooting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/refs/migration.html">Migration Guide (Isaac Sim)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/refs/issues.html">Known Issues</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/refs/release_notes.html">Release Notes</a></li>
+
+
+
+
+
+
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/refs/changelog.html">Extensions Changelog</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/refs/license.html">License</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/refs/bibliography.html">Bibliography</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Project Links</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference external" href="https://github.com/isaac-sim/IsaacLab">GitHub</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/latest/index.html">NVIDIA Isaac Sim</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/index.html">NVIDIA PhysX</a></li>
+</ul>
+
+    </div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+
+<div class="sbt-scroll-pixel-helper"></div>
+
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item"><label class="sidebar-toggle primary-toggle btn btn-sm" for="__primary" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <span class="fa-solid fa-bars"></span>
+</label></div>
+      
+    </div>
+  
+  
+    <div class="header-article-items__end">
+      
+        <div class="header-article-item">
+
+<div class="article-header-buttons">
+
+
+
+
+
+<div class="dropdown dropdown-source-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Source repositories">
+    <i class="fab fa-github"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="https://github.com/isaac-sim/IsaacLab" target="_blank"
+   class="btn btn-sm btn-source-repository-button dropdown-item"
+   title="Source repository"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fab fa-github"></i>
+  </span>
+<span class="btn__text-container">Repository</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li><a href="https://github.com/isaac-sim/IsaacLab/issues/new?title=Issue%20on%20page%20%2F_modules/isaaclab/terrains/trimesh/mesh_terrains_cfg.html&body=Your%20issue%20content%20here." target="_blank"
+   class="btn btn-sm btn-source-issues-button dropdown-item"
+   title="Open an issue"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-lightbulb"></i>
+  </span>
+<span class="btn__text-container">Open issue</span>
+</a>
+</li>
+      
+  </ul>
+</div>
+
+
+
+
+<button onclick="toggleFullScreen()"
+  class="btn btn-sm btn-fullscreen-button"
+  title="Fullscreen mode"
+  data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-expand"></i>
+  </span>
+
+</button>
+
+
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button>
+
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+
+</div></div>
+      
+    </div>
+  
+</div>
+</div>
+              
+              
+
+<div id="jb-print-docs-body" class="onlyprint">
+    <h1></h1>
+    <!-- Table of contents -->
+    <div id="print-main-content">
+        <div id="jb-print-toc">
+            
+        </div>
+    </div>
+</div>
+
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <h1>Source code for isaaclab.terrains.trimesh.mesh_terrains_cfg</h1><div class="highlight"><pre>
+<span></span><span class="c1"># Copyright (c) 2022-2025, The Isaac Lab Project Developers.</span>
+<span class="c1"># All rights reserved.</span>
+<span class="c1">#</span>
+<span class="c1"># SPDX-License-Identifier: BSD-3-Clause</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">MISSING</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Literal</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab.terrains.trimesh.mesh_terrains</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">mesh_terrains</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab.terrains.trimesh.utils</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">mesh_utils_terrains</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">configclass</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">..terrain_generator_cfg</span><span class="w"> </span><span class="kn">import</span> <span class="n">SubTerrainBaseCfg</span>
+
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Different trimesh terrain configurations.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+
+<div class="viewcode-block" id="MeshPlaneTerrainCfg"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.terrains.html#isaaclab.terrains.trimesh.mesh_terrains_cfg.MeshPlaneTerrainCfg">[docs]</a><span class="nd">@configclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">MeshPlaneTerrainCfg</span><span class="p">(</span><span class="n">SubTerrainBaseCfg</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for a plane mesh terrain.&quot;&quot;&quot;</span>
+
+    <span class="n">function</span> <span class="o">=</span> <span class="n">mesh_terrains</span><span class="o">.</span><span class="n">flat_terrain</span></div>
+
+
+<div class="viewcode-block" id="MeshPyramidStairsTerrainCfg"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.terrains.html#isaaclab.terrains.trimesh.mesh_terrains_cfg.MeshPyramidStairsTerrainCfg">[docs]</a><span class="nd">@configclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">MeshPyramidStairsTerrainCfg</span><span class="p">(</span><span class="n">SubTerrainBaseCfg</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for a pyramid stair mesh terrain.&quot;&quot;&quot;</span>
+
+    <span class="n">function</span> <span class="o">=</span> <span class="n">mesh_terrains</span><span class="o">.</span><span class="n">pyramid_stairs_terrain</span>
+
+    <span class="n">border_width</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The width of the border around the terrain (in m). Defaults to 0.0.</span>
+
+<span class="sd">    The border is a flat terrain with the same height as the terrain.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">step_height_range</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="n">MISSING</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The minimum and maximum height of the steps (in m).&quot;&quot;&quot;</span>
+    <span class="n">step_width</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">MISSING</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The width of the steps (in m).&quot;&quot;&quot;</span>
+    <span class="n">platform_width</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The width of the square platform at the center of the terrain. Defaults to 1.0.&quot;&quot;&quot;</span>
+    <span class="n">holes</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;If True, the terrain will have holes in the steps. Defaults to False.</span>
+
+<span class="sd">    If :obj:`holes` is True, the terrain will have pyramid stairs of length or width</span>
+<span class="sd">    :obj:`platform_width` (depending on the direction) with no steps in the remaining area. Additionally,</span>
+<span class="sd">    no border will be added.</span>
+<span class="sd">    &quot;&quot;&quot;</span></div>
+
+
+<div class="viewcode-block" id="MeshInvertedPyramidStairsTerrainCfg"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.terrains.html#isaaclab.terrains.trimesh.mesh_terrains_cfg.MeshInvertedPyramidStairsTerrainCfg">[docs]</a><span class="nd">@configclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">MeshInvertedPyramidStairsTerrainCfg</span><span class="p">(</span><span class="n">MeshPyramidStairsTerrainCfg</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for an inverted pyramid stair mesh terrain.</span>
+
+<span class="sd">    Note:</span>
+<span class="sd">        This is the same as :class:`MeshPyramidStairsTerrainCfg` except that the steps are inverted.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">function</span> <span class="o">=</span> <span class="n">mesh_terrains</span><span class="o">.</span><span class="n">inverted_pyramid_stairs_terrain</span></div>
+
+
+<div class="viewcode-block" id="MeshRandomGridTerrainCfg"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.terrains.html#isaaclab.terrains.trimesh.mesh_terrains_cfg.MeshRandomGridTerrainCfg">[docs]</a><span class="nd">@configclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">MeshRandomGridTerrainCfg</span><span class="p">(</span><span class="n">SubTerrainBaseCfg</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for a random grid mesh terrain.&quot;&quot;&quot;</span>
+
+    <span class="n">function</span> <span class="o">=</span> <span class="n">mesh_terrains</span><span class="o">.</span><span class="n">random_grid_terrain</span>
+
+    <span class="n">grid_width</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">MISSING</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The width of the grid cells (in m).&quot;&quot;&quot;</span>
+    <span class="n">grid_height_range</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="n">MISSING</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The minimum and maximum height of the grid cells (in m).&quot;&quot;&quot;</span>
+    <span class="n">platform_width</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The width of the square platform at the center of the terrain. Defaults to 1.0.&quot;&quot;&quot;</span>
+    <span class="n">holes</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;If True, the terrain will have holes in the steps. Defaults to False.</span>
+
+<span class="sd">    If :obj:`holes` is True, the terrain will have randomized grid cells only along the plane extending</span>
+<span class="sd">    from the platform (like a plus sign). The remaining area remains empty and no border will be added.</span>
+<span class="sd">    &quot;&quot;&quot;</span></div>
+
+
+<div class="viewcode-block" id="MeshRailsTerrainCfg"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.terrains.html#isaaclab.terrains.trimesh.mesh_terrains_cfg.MeshRailsTerrainCfg">[docs]</a><span class="nd">@configclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">MeshRailsTerrainCfg</span><span class="p">(</span><span class="n">SubTerrainBaseCfg</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for a terrain with box rails as extrusions.&quot;&quot;&quot;</span>
+
+    <span class="n">function</span> <span class="o">=</span> <span class="n">mesh_terrains</span><span class="o">.</span><span class="n">rails_terrain</span>
+
+    <span class="n">rail_thickness_range</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="n">MISSING</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The thickness of the inner and outer rails (in m).&quot;&quot;&quot;</span>
+    <span class="n">rail_height_range</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="n">MISSING</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The minimum and maximum height of the rails (in m).&quot;&quot;&quot;</span>
+    <span class="n">platform_width</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The width of the square platform at the center of the terrain. Defaults to 1.0.&quot;&quot;&quot;</span></div>
+
+
+<div class="viewcode-block" id="MeshPitTerrainCfg"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.terrains.html#isaaclab.terrains.trimesh.mesh_terrains_cfg.MeshPitTerrainCfg">[docs]</a><span class="nd">@configclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">MeshPitTerrainCfg</span><span class="p">(</span><span class="n">SubTerrainBaseCfg</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for a terrain with a pit that leads out of the pit.&quot;&quot;&quot;</span>
+
+    <span class="n">function</span> <span class="o">=</span> <span class="n">mesh_terrains</span><span class="o">.</span><span class="n">pit_terrain</span>
+
+    <span class="n">pit_depth_range</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="n">MISSING</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The minimum and maximum height of the pit (in m).&quot;&quot;&quot;</span>
+    <span class="n">platform_width</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The width of the square platform at the center of the terrain. Defaults to 1.0.&quot;&quot;&quot;</span>
+    <span class="n">double_pit</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;If True, the pit contains two levels of stairs. Defaults to False.&quot;&quot;&quot;</span></div>
+
+
+<div class="viewcode-block" id="MeshBoxTerrainCfg"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.terrains.html#isaaclab.terrains.trimesh.mesh_terrains_cfg.MeshBoxTerrainCfg">[docs]</a><span class="nd">@configclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">MeshBoxTerrainCfg</span><span class="p">(</span><span class="n">SubTerrainBaseCfg</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for a terrain with boxes (similar to a pyramid).&quot;&quot;&quot;</span>
+
+    <span class="n">function</span> <span class="o">=</span> <span class="n">mesh_terrains</span><span class="o">.</span><span class="n">box_terrain</span>
+
+    <span class="n">box_height_range</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="n">MISSING</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The minimum and maximum height of the box (in m).&quot;&quot;&quot;</span>
+    <span class="n">platform_width</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The width of the square platform at the center of the terrain. Defaults to 1.0.&quot;&quot;&quot;</span>
+    <span class="n">double_box</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;If True, the pit contains two levels of stairs/boxes. Defaults to False.&quot;&quot;&quot;</span></div>
+
+
+<div class="viewcode-block" id="MeshGapTerrainCfg"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.terrains.html#isaaclab.terrains.trimesh.mesh_terrains_cfg.MeshGapTerrainCfg">[docs]</a><span class="nd">@configclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">MeshGapTerrainCfg</span><span class="p">(</span><span class="n">SubTerrainBaseCfg</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for a terrain with a gap around the platform.&quot;&quot;&quot;</span>
+
+    <span class="n">function</span> <span class="o">=</span> <span class="n">mesh_terrains</span><span class="o">.</span><span class="n">gap_terrain</span>
+
+    <span class="n">gap_width_range</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="n">MISSING</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The minimum and maximum width of the gap (in m).&quot;&quot;&quot;</span>
+    <span class="n">platform_width</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The width of the square platform at the center of the terrain. Defaults to 1.0.&quot;&quot;&quot;</span></div>
+
+
+<div class="viewcode-block" id="MeshFloatingRingTerrainCfg"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.terrains.html#isaaclab.terrains.trimesh.mesh_terrains_cfg.MeshFloatingRingTerrainCfg">[docs]</a><span class="nd">@configclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">MeshFloatingRingTerrainCfg</span><span class="p">(</span><span class="n">SubTerrainBaseCfg</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for a terrain with a floating ring around the center.&quot;&quot;&quot;</span>
+
+    <span class="n">function</span> <span class="o">=</span> <span class="n">mesh_terrains</span><span class="o">.</span><span class="n">floating_ring_terrain</span>
+
+    <span class="n">ring_width_range</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="n">MISSING</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The minimum and maximum width of the ring (in m).&quot;&quot;&quot;</span>
+    <span class="n">ring_height_range</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="n">MISSING</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The minimum and maximum height of the ring (in m).&quot;&quot;&quot;</span>
+    <span class="n">ring_thickness</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">MISSING</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The thickness (along z) of the ring (in m).&quot;&quot;&quot;</span>
+    <span class="n">platform_width</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The width of the square platform at the center of the terrain. Defaults to 1.0.&quot;&quot;&quot;</span></div>
+
+
+<div class="viewcode-block" id="MeshStarTerrainCfg"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.terrains.html#isaaclab.terrains.trimesh.mesh_terrains_cfg.MeshStarTerrainCfg">[docs]</a><span class="nd">@configclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">MeshStarTerrainCfg</span><span class="p">(</span><span class="n">SubTerrainBaseCfg</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for a terrain with a star pattern.&quot;&quot;&quot;</span>
+
+    <span class="n">function</span> <span class="o">=</span> <span class="n">mesh_terrains</span><span class="o">.</span><span class="n">star_terrain</span>
+
+    <span class="n">num_bars</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">MISSING</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The number of bars per-side the star. Must be greater than 2.&quot;&quot;&quot;</span>
+    <span class="n">bar_width_range</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="n">MISSING</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The minimum and maximum width of the bars in the star (in m).&quot;&quot;&quot;</span>
+    <span class="n">bar_height_range</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="n">MISSING</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The minimum and maximum height of the bars in the star (in m).&quot;&quot;&quot;</span>
+    <span class="n">platform_width</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The width of the cylindrical platform at the center of the terrain. Defaults to 1.0.&quot;&quot;&quot;</span></div>
+
+
+<div class="viewcode-block" id="MeshRepeatedObjectsTerrainCfg"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.terrains.html#isaaclab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedObjectsTerrainCfg">[docs]</a><span class="nd">@configclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">MeshRepeatedObjectsTerrainCfg</span><span class="p">(</span><span class="n">SubTerrainBaseCfg</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Base configuration for a terrain with repeated objects.&quot;&quot;&quot;</span>
+
+<div class="viewcode-block" id="MeshRepeatedObjectsTerrainCfg.ObjectCfg"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.terrains.html#isaaclab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedObjectsTerrainCfg.ObjectCfg">[docs]</a>    <span class="nd">@configclass</span>
+    <span class="k">class</span><span class="w"> </span><span class="nc">ObjectCfg</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Configuration of repeated objects.&quot;&quot;&quot;</span>
+
+        <span class="n">num_objects</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">MISSING</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;The number of objects to add to the terrain.&quot;&quot;&quot;</span>
+        <span class="n">height</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">MISSING</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;The height (along z) of the object (in m).&quot;&quot;&quot;</span></div>
+
+    <span class="n">function</span> <span class="o">=</span> <span class="n">mesh_terrains</span><span class="o">.</span><span class="n">repeated_objects_terrain</span>
+
+    <span class="n">object_type</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;cylinder&quot;</span><span class="p">,</span> <span class="s2">&quot;box&quot;</span><span class="p">,</span> <span class="s2">&quot;cone&quot;</span><span class="p">]</span> <span class="o">|</span> <span class="nb">callable</span> <span class="o">=</span> <span class="n">MISSING</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The type of object to generate.</span>
+
+<span class="sd">    The type can be a string or a callable. If it is a string, the function will look for a function called</span>
+<span class="sd">    ``make_{object_type}`` in the current module scope. If it is a callable, the function will</span>
+<span class="sd">    use the callable to generate the object.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">object_params_start</span><span class="p">:</span> <span class="n">ObjectCfg</span> <span class="o">=</span> <span class="n">MISSING</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The object curriculum parameters at the start of the curriculum.&quot;&quot;&quot;</span>
+    <span class="n">object_params_end</span><span class="p">:</span> <span class="n">ObjectCfg</span> <span class="o">=</span> <span class="n">MISSING</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The object curriculum parameters at the end of the curriculum.&quot;&quot;&quot;</span>
+
+    <span class="n">max_height_noise</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The maximum amount of noise to add to the height of the objects (in m). Defaults to 0.0.&quot;&quot;&quot;</span>
+    <span class="n">platform_width</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The width of the cylindrical platform at the center of the terrain. Defaults to 1.0.&quot;&quot;&quot;</span></div>
+
+
+<div class="viewcode-block" id="MeshRepeatedPyramidsTerrainCfg"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.terrains.html#isaaclab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedPyramidsTerrainCfg">[docs]</a><span class="nd">@configclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">MeshRepeatedPyramidsTerrainCfg</span><span class="p">(</span><span class="n">MeshRepeatedObjectsTerrainCfg</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for a terrain with repeated pyramids.&quot;&quot;&quot;</span>
+
+<div class="viewcode-block" id="MeshRepeatedPyramidsTerrainCfg.ObjectCfg"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.terrains.html#isaaclab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedPyramidsTerrainCfg.ObjectCfg">[docs]</a>    <span class="nd">@configclass</span>
+    <span class="k">class</span><span class="w"> </span><span class="nc">ObjectCfg</span><span class="p">(</span><span class="n">MeshRepeatedObjectsTerrainCfg</span><span class="o">.</span><span class="n">ObjectCfg</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Configuration for a curriculum of repeated pyramids.&quot;&quot;&quot;</span>
+
+        <span class="n">radius</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">MISSING</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;The radius of the pyramids (in m).&quot;&quot;&quot;</span>
+        <span class="n">max_yx_angle</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;The maximum angle along the y and x axis. Defaults to 0.0.&quot;&quot;&quot;</span>
+        <span class="n">degrees</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Whether the angle is in degrees. Defaults to True.&quot;&quot;&quot;</span></div>
+
+    <span class="n">object_type</span> <span class="o">=</span> <span class="n">mesh_utils_terrains</span><span class="o">.</span><span class="n">make_cone</span>
+
+    <span class="n">object_params_start</span><span class="p">:</span> <span class="n">ObjectCfg</span> <span class="o">=</span> <span class="n">MISSING</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The object curriculum parameters at the start of the curriculum.&quot;&quot;&quot;</span>
+    <span class="n">object_params_end</span><span class="p">:</span> <span class="n">ObjectCfg</span> <span class="o">=</span> <span class="n">MISSING</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The object curriculum parameters at the end of the curriculum.&quot;&quot;&quot;</span></div>
+
+
+<div class="viewcode-block" id="MeshRepeatedBoxesTerrainCfg"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.terrains.html#isaaclab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedBoxesTerrainCfg">[docs]</a><span class="nd">@configclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">MeshRepeatedBoxesTerrainCfg</span><span class="p">(</span><span class="n">MeshRepeatedObjectsTerrainCfg</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for a terrain with repeated boxes.&quot;&quot;&quot;</span>
+
+<div class="viewcode-block" id="MeshRepeatedBoxesTerrainCfg.ObjectCfg"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.terrains.html#isaaclab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedBoxesTerrainCfg.ObjectCfg">[docs]</a>    <span class="nd">@configclass</span>
+    <span class="k">class</span><span class="w"> </span><span class="nc">ObjectCfg</span><span class="p">(</span><span class="n">MeshRepeatedObjectsTerrainCfg</span><span class="o">.</span><span class="n">ObjectCfg</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Configuration for repeated boxes.&quot;&quot;&quot;</span>
+
+        <span class="n">size</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="n">MISSING</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;The width (along x) and length (along y) of the box (in m).&quot;&quot;&quot;</span>
+        <span class="n">max_yx_angle</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;The maximum angle along the y and x axis. Defaults to 0.0.&quot;&quot;&quot;</span>
+        <span class="n">degrees</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Whether the angle is in degrees. Defaults to True.&quot;&quot;&quot;</span></div>
+
+    <span class="n">object_type</span> <span class="o">=</span> <span class="n">mesh_utils_terrains</span><span class="o">.</span><span class="n">make_box</span>
+
+    <span class="n">object_params_start</span><span class="p">:</span> <span class="n">ObjectCfg</span> <span class="o">=</span> <span class="n">MISSING</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The box curriculum parameters at the start of the curriculum.&quot;&quot;&quot;</span>
+    <span class="n">object_params_end</span><span class="p">:</span> <span class="n">ObjectCfg</span> <span class="o">=</span> <span class="n">MISSING</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The box curriculum parameters at the end of the curriculum.&quot;&quot;&quot;</span></div>
+
+
+<div class="viewcode-block" id="MeshRepeatedCylindersTerrainCfg"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.terrains.html#isaaclab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedCylindersTerrainCfg">[docs]</a><span class="nd">@configclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">MeshRepeatedCylindersTerrainCfg</span><span class="p">(</span><span class="n">MeshRepeatedObjectsTerrainCfg</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for a terrain with repeated cylinders.&quot;&quot;&quot;</span>
+
+<div class="viewcode-block" id="MeshRepeatedCylindersTerrainCfg.ObjectCfg"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.terrains.html#isaaclab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedCylindersTerrainCfg.ObjectCfg">[docs]</a>    <span class="nd">@configclass</span>
+    <span class="k">class</span><span class="w"> </span><span class="nc">ObjectCfg</span><span class="p">(</span><span class="n">MeshRepeatedObjectsTerrainCfg</span><span class="o">.</span><span class="n">ObjectCfg</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Configuration for repeated cylinder.&quot;&quot;&quot;</span>
+
+        <span class="n">radius</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">MISSING</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;The radius of the pyramids (in m).&quot;&quot;&quot;</span>
+        <span class="n">max_yx_angle</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;The maximum angle along the y and x axis. Defaults to 0.0.&quot;&quot;&quot;</span>
+        <span class="n">degrees</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Whether the angle is in degrees. Defaults to True.&quot;&quot;&quot;</span></div>
+
+    <span class="n">object_type</span> <span class="o">=</span> <span class="n">mesh_utils_terrains</span><span class="o">.</span><span class="n">make_cylinder</span>
+
+    <span class="n">object_params_start</span><span class="p">:</span> <span class="n">ObjectCfg</span> <span class="o">=</span> <span class="n">MISSING</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The box curriculum parameters at the start of the curriculum.&quot;&quot;&quot;</span>
+    <span class="n">object_params_end</span><span class="p">:</span> <span class="n">ObjectCfg</span> <span class="o">=</span> <span class="n">MISSING</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The box curriculum parameters at the end of the curriculum.&quot;&quot;&quot;</span></div>
+</pre></div>
+
+                </article>
+              
+
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+<div class="bd-footer-content__inner container">
+  
+  <div class="footer-item">
+    
+<p class="component-author">
+By The Isaac Lab Project Developers.
+</p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+
+  <p class="copyright">
+    
+      © Copyright 2022-2025, The Isaac Lab Project Developers..
+      <br/>
+    
+  </p>
+
+  </div>
+  
+  <div class="footer-item">
+    <p class="last-updated">
+  Last updated on Jan 30, 2025.
+  <br/>
+</p>
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+</div>
+          </footer>
+        
+
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../../../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+  </footer>
+  </body>
+</html>

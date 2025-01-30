@@ -57,10 +57,10 @@
     <link rel="index" title="Index" href="../../genindex.html" />
     <link rel="search" title="Search" href="../../search.html" />
     <link rel="next" title="Showroom Demos" href="showroom.html" />
-    <link rel="prev" title="Performance Benchmarks" href="reinforcement-learning/performance_benchmarks.html" />
+    <link rel="prev" title="Debugging and Training Guide" href="reinforcement-learning/training_guide.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-  <meta name="docsearch:version" content="1.4.1" />
+  <meta name="docsearch:version" content="2.0.0" />
     <meta name="docbuild:last-update" content="Jan 30, 2025"/>
   </head>
   
@@ -192,7 +192,7 @@
           
           
           
-          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.2.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.5.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
         </li>
         <li class="nav-item">
           
@@ -230,6 +230,8 @@
 <li class="toctree-l1 has-children"><a class="reference internal" href="../setup/installation/index.html">Local Installation</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2"><a class="reference internal" href="../setup/installation/pip_installation.html">Pip installation (recommended for Ubuntu 22.04 and Windows)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../setup/installation/binaries_installation.html">Binary installation (recommended for Ubuntu 20.04)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../setup/installation/isaaclab_pip_installation.html">Advanced installation (Isaac Lab pip)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../setup/installation/asset_caching.html">Asset caching</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1"><a class="reference internal" href="../setup/installation/cloud_installation.html">Running Isaac Lab in the Cloud</a></li>
@@ -241,7 +243,7 @@
 <li class="toctree-l2"><a class="reference internal" href="developer-guide/vs_code.html">Setting up Visual Studio Code</a></li>
 
 <li class="toctree-l2"><a class="reference internal" href="developer-guide/repo_structure.html">Repository organization</a></li>
-<li class="toctree-l2"><a class="reference internal" href="developer-guide/development.html">Application Development</a></li>
+<li class="toctree-l2"><a class="reference internal" href="developer-guide/development.html">Extension Development</a></li>
 <li class="toctree-l2"><a class="reference internal" href="developer-guide/template.html">Building your Own Project</a></li>
 </ul>
 </details></li>
@@ -264,6 +266,7 @@
 <li class="toctree-l2"><a class="reference internal" href="reinforcement-learning/rl_existing_scripts.html">Reinforcement Learning Wrappers</a></li>
 <li class="toctree-l2"><a class="reference internal" href="reinforcement-learning/rl_frameworks.html">Reinforcement Learning Library Comparison</a></li>
 <li class="toctree-l2"><a class="reference internal" href="reinforcement-learning/performance_benchmarks.html">Performance Benchmarks</a></li>
+<li class="toctree-l2"><a class="reference internal" href="reinforcement-learning/training_guide.html">Debugging and Training Guide</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1 current active"><a class="current reference internal" href="#">Teleoperation and Imitation Learning</a></li>
@@ -294,6 +297,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../tutorials/03_envs/register_rl_env_gym.html">Registering an Environment</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../tutorials/03_envs/run_rl_training.html">Training with an RL Agent</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../tutorials/03_envs/modify_direct_rl_env.html">Modifying an existing Direct RL Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/03_envs/policy_inference_in_usd.html">Policy Inference in USD Environment</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../tutorials/04_sensors/add_sensors_on_robot.html">Adding sensors on a robot</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../tutorials/05_controllers/run_diff_ik.html">Using a task-space controller</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../tutorials/05_controllers/run_osc.html">Using an operational space controller</a></li>
@@ -330,28 +334,27 @@
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Source API</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1 has-children"><a class="reference internal" href="../api/index.html">API Reference</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
-<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.app.html">omni.isaac.lab.app</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.actuators.html">omni.isaac.lab.actuators</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.assets.html">omni.isaac.lab.assets</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.controllers.html">omni.isaac.lab.controllers</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.devices.html">omni.isaac.lab.devices</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.envs.html">omni.isaac.lab.envs</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.managers.html">omni.isaac.lab.managers</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.markers.html">omni.isaac.lab.markers</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.scene.html">omni.isaac.lab.scene</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.sensors.html">omni.isaac.lab.sensors</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.sim.html">omni.isaac.lab.sim</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.terrains.html">omni.isaac.lab.terrains</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.utils.html">omni.isaac.lab.utils</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.envs.mdp.html">omni.isaac.lab.envs.mdp</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.envs.ui.html">omni.isaac.lab.envs.ui</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.sensors.patterns.html">omni.isaac.lab.sensors.patterns</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.sim.converters.html">omni.isaac.lab.sim.converters</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.sim.schemas.html">omni.isaac.lab.sim.schemas</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.sim.spawners.html">omni.isaac.lab.sim.spawners</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../api/lab_tasks/omni.isaac.lab_tasks.utils.html">omni.isaac.lab_tasks.utils</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../api/lab_tasks/omni.isaac.lab_tasks.utils.wrappers.html">omni.isaac.lab_tasks.utils.wrappers</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../api/lab_tasks/omni.isaac.lab_tasks.utils.data_collector.html">omni.isaac.lab_tasks.utils.data_collector</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.app.html">isaaclab.app</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.actuators.html">isaaclab.actuators</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.assets.html">isaaclab.assets</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.controllers.html">isaaclab.controllers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.devices.html">isaaclab.devices</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.envs.html">isaaclab.envs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.managers.html">isaaclab.managers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.markers.html">isaaclab.markers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.scene.html">isaaclab.scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.sensors.html">isaaclab.sensors</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.sim.html">isaaclab.sim</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.terrains.html">isaaclab.terrains</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.utils.html">isaaclab.utils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.envs.mdp.html">isaaclab.envs.mdp</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.envs.ui.html">isaaclab.envs.ui</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.sensors.patterns.html">isaaclab.sensors.patterns</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.sim.converters.html">isaaclab.sim.converters</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.sim.schemas.html">isaaclab.sim.schemas</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.sim.spawners.html">isaaclab.sim.spawners</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab_tasks/isaaclab_tasks.utils.html">isaaclab_tasks.utils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab_mimic/isaaclab_mimic.datagen.html">isaaclab_mimic.datagen</a></li>
 </ul>
 </details></li>
 </ul>
@@ -361,7 +364,15 @@
 <li class="toctree-l1"><a class="reference internal" href="../refs/additional_resources.html">Additional Resources</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../refs/contributing.html">Contribution Guidelines</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../refs/troubleshooting.html">Tricks and Troubleshooting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../refs/migration.html">Migration Guide (Isaac Sim)</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../refs/issues.html">Known Issues</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../refs/release_notes.html">Release Notes</a></li>
+
+
+
+
+
+
 <li class="toctree-l1"><a class="reference internal" href="../refs/changelog.html">Extensions Changelog</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../refs/license.html">License</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../refs/bibliography.html">Bibliography</a></li>
@@ -369,7 +380,7 @@
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Project Links</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference external" href="https://github.com/isaac-sim/IsaacLab">GitHub</a></li>
-<li class="toctree-l1"><a class="reference external" href="https://docs.omniverse.nvidia.com/isaacsim/latest/index.html">NVIDIA Isaac Sim</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/latest/index.html">NVIDIA Isaac Sim</a></li>
 <li class="toctree-l1"><a class="reference external" href="https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/index.html">NVIDIA PhysX</a></li>
 </ul>
 
@@ -581,7 +592,24 @@
             <nav aria-label="Page">
                 <ul class="visible nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#teleoperation">Teleoperation</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#imitation-learning">Imitation Learning</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#imitation-learning">Imitation Learning</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#collecting-demonstrations">Collecting demonstrations</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#pre-recorded-demonstrations">Pre-recorded demonstrations</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#generating-additional-demonstrations">Generating additional demonstrations</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#robomimic-setup">Robomimic setup</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#training-an-agent">Training an agent</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#visualizing-results">Visualizing results</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#common-pitfalls-when-generating-data">Common Pitfalls when Generating Data</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#creating-your-own-isaac-lab-mimic-compatible-environments">Creating Your Own Isaac Lab Mimic Compatible Environments</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#how-it-works">How it works</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#configuration-and-subtask-definition">Configuration and subtask definition</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#subtask-annotation">Subtask annotation</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#helpers-for-demonstration-generation">Helpers for demonstration generation</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#registering-the-environment">Registering the environment</a></li>
+</ul>
+</li>
 </ul>
             </nav>
         </div>
@@ -602,63 +630,225 @@ for robot control. In case of SE(2) teleoperation, the returned command
 is the linear x-y velocity and yaw rate, while in SE(3), the returned
 command is a 6-D vector representing the change in pose.</p>
 <p>To play inverse kinematics (IK) control with a keyboard device:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>source/standalone/environments/teleoperation/teleop_se3_agent.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Lift-Cube-Franka-IK-Rel-v0<span class="w"> </span>--num_envs<span class="w"> </span><span class="m">1</span><span class="w"> </span>--teleop_device<span class="w"> </span>keyboard
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/environments/teleoperation/teleop_se3_agent.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Lift-Cube-Franka-IK-Rel-v0<span class="w"> </span>--num_envs<span class="w"> </span><span class="m">1</span><span class="w"> </span>--teleop_device<span class="w"> </span>keyboard
 </pre></div>
+</div>
+<p>For smoother operation and off-axis operation, we recommend using a SpaceMouse as the input device. Providing smoother demonstrations will make it easier for the policy to clone the behavior. To use a SpaceMouse, simply change the teleop device accordingly:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/environments/teleoperation/teleop_se3_agent.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Lift-Cube-Franka-IK-Rel-v0<span class="w"> </span>--num_envs<span class="w"> </span><span class="m">1</span><span class="w"> </span>--teleop_device<span class="w"> </span>spacemouse
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>If the SpaceMouse is not detected, you may need to grant additional user permissions by running <code class="docutils literal notranslate"><span class="pre">sudo</span> <span class="pre">chmod</span> <span class="pre">666</span> <span class="pre">/dev/hidraw&lt;#&gt;</span></code> where <code class="docutils literal notranslate"><span class="pre">&lt;#&gt;</span></code> corresponds to the device index
+of the connected SpaceMouse.</p>
+<p>To determine the device index, list all <code class="docutils literal notranslate"><span class="pre">hidraw</span></code> devices by running <code class="docutils literal notranslate"><span class="pre">ls</span> <span class="pre">-l</span> <span class="pre">/dev/hidraw*</span></code>.
+Identify the device corresponding to the SpaceMouse by running <code class="docutils literal notranslate"><span class="pre">cat</span> <span class="pre">/sys/class/hidraw/hidraw&lt;#&gt;/device/uevent</span></code> on each of the devices listed
+from the prior step.</p>
+<p>Only compatible with the SpaceMouse Wireless and SpaceMouse Compact models from 3Dconnexion.</p>
 </div>
 <p>The script prints the teleoperation events configured. For keyboard,
 these are as follows:</p>
 <div class="highlight-text notranslate"><div class="highlight"><pre><span></span>Keyboard Controller for SE(3): Se3Keyboard
-    Reset all commands: L
-    Toggle gripper (open/close): K
-    Move arm along x-axis: W/S
-    Move arm along y-axis: A/D
-    Move arm along z-axis: Q/E
-    Rotate arm along x-axis: Z/X
-    Rotate arm along y-axis: T/G
-    Rotate arm along z-axis: C/V
+   Reset all commands: R
+   Toggle gripper (open/close): K
+   Move arm along x-axis: W/S
+   Move arm along y-axis: A/D
+   Move arm along z-axis: Q/E
+   Rotate arm along x-axis: Z/X
+   Rotate arm along y-axis: T/G
+   Rotate arm along z-axis: C/V
 </pre></div>
 </div>
+<p>For SpaceMouse, these are as follows:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>SpaceMouse Controller for SE(3): Se3SpaceMouse
+   Reset all commands: Right click
+   Toggle gripper (open/close): Click the left button on the SpaceMouse
+   Move arm along x/y-axis: Tilt the SpaceMouse
+   Move arm along z-axis: Push or pull the SpaceMouse
+   Rotate arm: Twist the SpaceMouse
+</pre></div>
+</div>
+<p>The next section describes how teleoperation devices can be used for data collection for imitation learning.</p>
 </section>
 <section id="imitation-learning">
 <h2>Imitation Learning<a class="headerlink" href="#imitation-learning" title="Permalink to this heading">#</a></h2>
 <p>Using the teleoperation devices, it is also possible to collect data for
-learning from demonstrations (LfD). For this, we support the learning
-framework <a class="reference external" href="https://robomimic.github.io/">Robomimic</a> (Linux only) and allow saving
-data in
-<a class="reference external" href="https://robomimic.github.io/docs/tutorials/dataset_contents.html#viewing-hdf5-dataset-structure">HDF5</a>
-format.</p>
-<ol class="arabic">
-<li><p>Collect demonstrations with teleoperation for the environment
-<code class="docutils literal notranslate"><span class="pre">Isaac-Lift-Cube-Franka-IK-Rel-v0</span></code>:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># step a: collect data with keyboard</span>
-./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>source/standalone/workflows/robomimic/collect_demonstrations.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Lift-Cube-Franka-IK-Rel-v0<span class="w"> </span>--num_envs<span class="w"> </span><span class="m">1</span><span class="w"> </span>--num_demos<span class="w"> </span><span class="m">10</span><span class="w"> </span>--teleop_device<span class="w"> </span>keyboard
-<span class="c1"># step b: inspect the collected dataset</span>
-./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>source/standalone/workflows/robomimic/tools/inspect_demonstrations.py<span class="w"> </span>logs/robomimic/Isaac-Lift-Cube-Franka-IK-Rel-v0/hdf_dataset.hdf5
+learning from demonstrations (LfD). For this, we provide scripts to collect data into the open HDF5 format.</p>
+<section id="collecting-demonstrations">
+<h3>Collecting demonstrations<a class="headerlink" href="#collecting-demonstrations" title="Permalink to this heading">#</a></h3>
+<p>To collect demonstrations with teleoperation for the environment <code class="docutils literal notranslate"><span class="pre">Isaac-Stack-Cube-Franka-IK-Rel-v0</span></code>, use the following commands:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># step a: create folder for datasets</span>
+mkdir<span class="w"> </span>-p<span class="w"> </span>datasets
+<span class="c1"># step b: collect data with a selected teleoperation device. Replace &lt;teleop_device&gt; with your preferred input device.</span>
+<span class="c1"># Available options: spacemouse, keyboard</span>
+./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/tools/record_demos.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Stack-Cube-Franka-IK-Rel-v0<span class="w"> </span>--teleop_device<span class="w"> </span>&lt;teleop_device&gt;<span class="w"> </span>--dataset_file<span class="w"> </span>./datasets/dataset.hdf5<span class="w"> </span>--num_demos<span class="w"> </span><span class="m">10</span>
+<span class="c1"># step a: replay the collected dataset</span>
+./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/tools/replay_demos.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Stack-Cube-Franka-IK-Rel-v0<span class="w"> </span>--dataset_file<span class="w"> </span>./datasets/dataset.hdf5
 </pre></div>
 </div>
-</li>
-<li><p>Split the dataset into train and validation set:</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The order of the stacked cubes should be blue (bottom), red (middle), green (top).</p>
+</div>
+<p>About 10 successful demonstrations are required in order for the following steps to succeed.</p>
+<p>Here are some tips to perform demonstrations that lead to successful policy training:</p>
+<ul class="simple">
+<li><p>Keep demonstrations short. Shorter demonstrations mean fewer decisions for the policy, making training easier.</p></li>
+<li><p>Take a direct path. Do not follow along arbitrary axis, but move straight toward the goal.</p></li>
+<li><p>Do not pause. Perform smooth, continuous motions instead. It is not obvious for a policy why and when to pause, hence continuous motions are easier to learn.</p></li>
+</ul>
+<p>If, while performing a demonstration, a mistake is made, or the current demonstration should not be recorded for some other reason, press the <code class="docutils literal notranslate"><span class="pre">R</span></code> key to discard the current demonstration, and reset to a new starting position.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Non-determinism may be observed during replay as physics in IsaacLab are not determimnistically reproducible when using <code class="docutils literal notranslate"><span class="pre">env.reset</span></code>.</p>
+</div>
+</section>
+<section id="pre-recorded-demonstrations">
+<h3>Pre-recorded demonstrations<a class="headerlink" href="#pre-recorded-demonstrations" title="Permalink to this heading">#</a></h3>
+<p>We provide a pre-recorded <code class="docutils literal notranslate"><span class="pre">dataset.hdf5</span></code> containing 10 human demonstrations for <code class="docutils literal notranslate"><span class="pre">Isaac-Stack-Cube-Franka-IK-Rel-v0</span></code> <a class="reference external" href="https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/4.5/Isaac/IsaacLab/Mimic/dataset.hdf5">here</a>.
+This dataset may be downloaded and used in the remaining tutorial steps if you do not wish to collect your own demonstrations.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Use of the pre-recorded dataset is optional.</p>
+</div>
+</section>
+<section id="generating-additional-demonstrations">
+<h3>Generating additional demonstrations<a class="headerlink" href="#generating-additional-demonstrations" title="Permalink to this heading">#</a></h3>
+<p>Additional demonstrations can be generated using Isaac Lab Mimic.</p>
+<p>Isaac Lab Mimic is a feature in Isaac Lab that allows generation of additional demonstrations automatically, allowing a policy to learn successfully even from just a handful of manual demonstrations.</p>
+<p>In order to use Isaac Lab Mimic with the recorded dataset, first annotate the subtasks in the recording:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/imitation_learning/isaaclab_mimic/annotate_demos.py<span class="w"> </span>--input_file<span class="w"> </span>./datasets/dataset.hdf5<span class="w"> </span>--output_file<span class="w"> </span>./datasets/annotated_dataset.hdf5<span class="w"> </span>--task<span class="w"> </span>Isaac-Stack-Cube-Franka-IK-Rel-Mimic-v0<span class="w"> </span>--auto
+</pre></div>
+</div>
+<p>Then, use Isaac Lab Mimic to generate some additional demonstrations:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/imitation_learning/isaaclab_mimic/generate_dataset.py<span class="w"> </span>--input_file<span class="w"> </span>./datasets/annotated_dataset.hdf5<span class="w"> </span>--output_file<span class="w"> </span>./datasets/generated_dataset_small.hdf5<span class="w"> </span>--num_envs<span class="w"> </span><span class="m">10</span><span class="w"> </span>--generation_num_trials<span class="w"> </span><span class="m">10</span>
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The output_file of the <code class="docutils literal notranslate"><span class="pre">annotate_demos.py</span></code> script is the input_file to the <code class="docutils literal notranslate"><span class="pre">generate_dataset.py</span></code> script</p>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Isaac Lab is designed to work with manipulators with grippers. The gripper commands in the demonstrations are extracted separately and temporally replayed during the generation of additional demonstrations.</p>
+</div>
+<p>Inspect the output of generated data (filename: <code class="docutils literal notranslate"><span class="pre">generated_dataset_small.hdf5</span></code>), and if satisfactory, generate the full dataset:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/imitation_learning/isaaclab_mimic/generate_dataset.py<span class="w"> </span>--input_file<span class="w"> </span>./datasets/annotated_dataset.hdf5<span class="w"> </span>--output_file<span class="w"> </span>./datasets/generated_dataset.hdf5<span class="w"> </span>--num_envs<span class="w"> </span><span class="m">10</span><span class="w"> </span>--generation_num_trials<span class="w"> </span><span class="m">1000</span><span class="w"> </span>--headless
+</pre></div>
+</div>
+<p>The number of demonstrations can be increased or decreased, 1000 demonstrations have been shown to provide good training results for this task.</p>
+<p>Additionally, the number of environments in the <code class="docutils literal notranslate"><span class="pre">--num_envs</span></code> parameter can be adjusted to speed up data generation. The suggested number of 10 can be executed even on a laptop GPU. On a more powerful desktop machine, set it to 100 or higher for significant speedup of this step.</p>
+</section>
+<section id="robomimic-setup">
+<h3>Robomimic setup<a class="headerlink" href="#robomimic-setup" title="Permalink to this heading">#</a></h3>
+<p>As an example, we will train a BC agent implemented in <a class="reference external" href="https://robomimic.github.io/">Robomimic</a> to train a policy. Any other framework or training method could be used.</p>
+<p>To install the robomimic framework, use the following commands:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># install the dependencies</span>
 sudo<span class="w"> </span>apt<span class="w"> </span>install<span class="w"> </span>cmake<span class="w"> </span>build-essential
 <span class="c1"># install python module (for robomimic)</span>
 ./isaaclab.sh<span class="w"> </span>-i<span class="w"> </span>robomimic
-<span class="c1"># split data</span>
-./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>source/standalone/workflows/robomimic/tools/split_train_val.py<span class="w"> </span>logs/robomimic/Isaac-Lift-Cube-Franka-IK-Rel-v0/hdf_dataset.hdf5<span class="w"> </span>--ratio<span class="w"> </span><span class="m">0</span>.2
 </pre></div>
 </div>
-</li>
-<li><p>Train a BC agent for <code class="docutils literal notranslate"><span class="pre">Isaac-Lift-Cube-Franka-IK-Rel-v0</span></code> with
-<a class="reference external" href="https://robomimic.github.io/">Robomimic</a>:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>source/standalone/workflows/robomimic/train.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Lift-Cube-Franka-IK-Rel-v0<span class="w"> </span>--algo<span class="w"> </span>bc<span class="w"> </span>--dataset<span class="w"> </span>logs/robomimic/Isaac-Lift-Cube-Franka-IK-Rel-v0/hdf_dataset.hdf5
+</section>
+<section id="training-an-agent">
+<h3>Training an agent<a class="headerlink" href="#training-an-agent" title="Permalink to this heading">#</a></h3>
+<p>We can now train a BC agent for <code class="docutils literal notranslate"><span class="pre">Isaac-Stack-Cube-Franka-IK-Rel-v0</span></code> using the Mimic generated data:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/imitation_learning/robomimic/train.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Stack-Cube-Franka-IK-Rel-v0<span class="w"> </span>--algo<span class="w"> </span>bc<span class="w"> </span>--dataset<span class="w"> </span>./datasets/generated_dataset.hdf5
 </pre></div>
 </div>
-</li>
-<li><p>Play the learned model to visualize results:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>source/standalone/workflows/robomimic/play.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Lift-Cube-Franka-IK-Rel-v0<span class="w"> </span>--checkpoint<span class="w"> </span>/PATH/TO/model.pth
+<p>By default, the training script will save a model checkpoint every 100 epochs. The trained models and logs will be saved to logs/robomimic/Isaac-Stack-Cube-Franka-IK-Rel-v0/bc</p>
+</section>
+<section id="visualizing-results">
+<h3>Visualizing results<a class="headerlink" href="#visualizing-results" title="Permalink to this heading">#</a></h3>
+<p>By inferencing using the generated model, we can visualize the results of the policy in the same environment:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/imitation_learning/robomimic/play.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Stack-Cube-Franka-IK-Rel-v0<span class="w"> </span>--num_rollouts<span class="w"> </span><span class="m">50</span><span class="w"> </span>--checkpoint<span class="w"> </span>/PATH/TO/desired_model_checkpoint.pth
 </pre></div>
 </div>
-</li>
-</ol>
+</section>
+</section>
+<section id="common-pitfalls-when-generating-data">
+<h2>Common Pitfalls when Generating Data<a class="headerlink" href="#common-pitfalls-when-generating-data" title="Permalink to this heading">#</a></h2>
+<p><strong>Demonstrations are too long:</strong></p>
+<ul class="simple">
+<li><p>Longer time horizon is harder to learn for a policy</p></li>
+<li><p>Start close to the first object and minimize motions</p></li>
+</ul>
+<p><strong>Demonstrations are not smooth:</strong></p>
+<ul class="simple">
+<li><p>Irregular motion is hard for policy to decipher</p></li>
+<li><p>Better teleop devices result in better data (i.e. SpaceMouse is better than Keyboard)</p></li>
+</ul>
+<p><strong>Pauses in demonstrations:</strong></p>
+<ul class="simple">
+<li><p>Pauses are difficult to learn</p></li>
+<li><p>Keep the human motions smooth and fluid</p></li>
+</ul>
+<p><strong>Excessive number of subtasks:</strong></p>
+<ul class="simple">
+<li><p>Minimize the number of defined subtasks for completing a given task</p></li>
+<li><p>Less subtacks results in less stitching of trajectories, yielding higher data generation success rate</p></li>
+</ul>
+<p><strong>Lack of action noise:</strong></p>
+<ul class="simple">
+<li><p>Action noise makes policies more robust</p></li>
+</ul>
+<p><strong>Recording cropped too tight:</strong></p>
+<ul class="simple">
+<li><p>If recording stops on the frame the success term triggers, it may not re-trigger during replay</p></li>
+<li><p>Allow for some buffer at the end of recording</p></li>
+</ul>
+<p><strong>Non-deterministic replay:</strong></p>
+<ul class="simple">
+<li><p>Physics in IsaacLab are not deterministically reproducible when using <code class="docutils literal notranslate"><span class="pre">env.reset</span></code> so demonstrations may fail on replay</p></li>
+<li><p>Collect more human demos than needed, use the ones that succeed during annotation</p></li>
+<li><p>All data in Isaac Lab Mimic generated HDF5 file represent a successful demo and can be used for training (even if non-determinism causes failure when replayed)</p></li>
+</ul>
+</section>
+<section id="creating-your-own-isaac-lab-mimic-compatible-environments">
+<h2>Creating Your Own Isaac Lab Mimic Compatible Environments<a class="headerlink" href="#creating-your-own-isaac-lab-mimic-compatible-environments" title="Permalink to this heading">#</a></h2>
+<section id="how-it-works">
+<h3>How it works<a class="headerlink" href="#how-it-works" title="Permalink to this heading">#</a></h3>
+<p>Isaac Lab Mimic works by splitting the input demonstrations into subtasks. Subtasks are user-defined segments in the demonstrations that are common to all demonstrations. Examples for subtasks are “grasp an object”, “move end effector to some pre-defined position”, “release object” etc.. Note that most subtasks are defined with respect to some object that the robot interacts with.</p>
+<p>Subtasks need to be defined, and then annotated for each input demonstration. Annotation can either happen algorithmically by defining heuristics for subtask detection, as was done in the example above, or it can be done manually.</p>
+<p>With subtasks defined and annotated, Isaac Lab Mimic utilizes a small number of helper methods to then transform the subtask segments, and generate new demonstrations by stitching them together to match the new task at hand.</p>
+<p>For each thusly generated candidate demonstration, Isaac Lab Mimic uses a boolean success criteria to determine whether the demonstration succeeded in performing the task, and if so, add it to the output dataset. Success rate of candidate demonstrations can be as high as 70% in simple cases, and as low as &lt;1%, depending on the difficulty of the task, and the complexity of the robot itself.</p>
+</section>
+<section id="configuration-and-subtask-definition">
+<h3>Configuration and subtask definition<a class="headerlink" href="#configuration-and-subtask-definition" title="Permalink to this heading">#</a></h3>
+<p>Subtasks, among other configuration settings for Isaac Lab Mimic, are defined in a Mimic compatible environment configuration class that is created by extending the existing environment config with additional Mimic required parameters.</p>
+<p>All Mimic required config parameters are specified in the <a class="reference internal" href="../api/lab/isaaclab.envs.html#isaaclab.envs.MimicEnvCfg" title="isaaclab.envs.MimicEnvCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">MimicEnvCfg</span></code></a> class.</p>
+<p>The config class <code class="xref py py-class docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnvCfg</span></code> serves as an example of creating a Mimic compatible environment config class for the Franka stacking task that was used in the examples above.</p>
+<p>The <code class="docutils literal notranslate"><span class="pre">DataGenConfig</span></code> member contains various parameters that influence how data is generated. It is initially sufficient to just set the <code class="docutils literal notranslate"><span class="pre">name</span></code> parameter, and revise the rest later.</p>
+<p>Subtasks are a list of <code class="docutils literal notranslate"><span class="pre">SubTaskConfig</span></code> objects, of which the most important members are:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">object_ref</span></code> is the object that is being interacted with. This will be used to adjust motions relative to this object during data generation. Can be <code class="docutils literal notranslate"><span class="pre">None</span></code> if the current subtask does not involve any object.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">subtask_term_signal</span></code> is the ID of the signal indicating whether the subtask is active or not.</p></li>
+</ul>
+</section>
+<section id="subtask-annotation">
+<h3>Subtask annotation<a class="headerlink" href="#subtask-annotation" title="Permalink to this heading">#</a></h3>
+<p>Once the subtasks are defined, they need to be annotated in the source data. There are two methods to annotate source demonstrations for subtask boundaries: Manual annotation or using heuristics.</p>
+<p>It is often easiest to perform manual annotations, since the number of input demonstrations is usually very small. To perform manual annotations, use the <code class="docutils literal notranslate"><span class="pre">annotate_demos.py</span></code> script without the <code class="docutils literal notranslate"><span class="pre">--auto</span></code> flag. Then press <code class="docutils literal notranslate"><span class="pre">B</span></code> to pause, <code class="docutils literal notranslate"><span class="pre">N</span></code> to continue, and <code class="docutils literal notranslate"><span class="pre">S</span></code> to annotate a subtask boundary.</p>
+<p>For more accurate boundaries, or to speed up repeated processing of a given task for experiments, heuristics can be implemented to perform the same task. Heuristics are observations in the environment. An example how to add subtask terms can be found in <code class="docutils literal notranslate"><span class="pre">source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/stack/stack_env_cfg.py</span></code>, where they are added as an observation group called <code class="docutils literal notranslate"><span class="pre">SubtaskCfg</span></code>. This example is using prebuilt heuristics, but custom heuristics are easily implemented.</p>
+</section>
+<section id="helpers-for-demonstration-generation">
+<h3>Helpers for demonstration generation<a class="headerlink" href="#helpers-for-demonstration-generation" title="Permalink to this heading">#</a></h3>
+<p>Helpers needed for Isaac Lab Mimic are defined in the environment. All tasks that are to be used with Isaac Lab Mimic are derived from the <a class="reference internal" href="../api/lab/isaaclab.envs.html#isaaclab.envs.ManagerBasedRLMimicEnv" title="isaaclab.envs.ManagerBasedRLMimicEnv"><code class="xref py py-class docutils literal notranslate"><span class="pre">ManagerBasedRLMimicEnv</span></code></a> base class, and must implement the following functions:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">get_robot_eef_pose</span></code>: Returns the current robot end effector pose in the same frame as used by the robot end effector controller.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">target_eef_pose_to_action</span></code>: Takes a target pose and a gripper action for the end effector controller and returns an action which achieves the target pose.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">action_to_target_eef_pose</span></code>: Takes an action and returns a target pose for the end effector controller.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">actions_to_gripper_actions</span></code>: Takes a sequence of actions and returns the gripper actuation part of the actions.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">get_object_poses</span></code>: Returns the pose of each object in the scene that is used for data generation.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">get_subtask_term_signals</span></code>: Returns a dictionary of binary flags for each subtask in a task. The flag of true is set when the subtask has been completed and false otherwise.</p></li>
+</ul>
+<p>The class <code class="xref py py-class docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnv</span></code> shows an example of creating a Mimic compatible environment from an existing Isaac Lab environment.</p>
+</section>
+<section id="registering-the-environment">
+<h3>Registering the environment<a class="headerlink" href="#registering-the-environment" title="Permalink to this heading">#</a></h3>
+<p>Once both Mimic compatible environment and environment config classes have been created, a new Mimic compatible environment can be registered using <code class="docutils literal notranslate"><span class="pre">gym.register</span></code>. For the Franka stacking task in the examples above, the Mimic environment is registered as <code class="docutils literal notranslate"><span class="pre">Isaac-Stack-Cube-Franka-IK-Rel-Mimic-v0</span></code>.</p>
+<p>The registered environment is now ready to be used with Isaac Lab Mimic.</p>
+</section>
 </section>
 </section>
 
@@ -674,12 +864,12 @@ sudo<span class="w"> </span>apt<span class="w"> </span>install<span class="w"> <
                   
 <div class="prev-next-area">
     <a class="left-prev"
-       href="reinforcement-learning/performance_benchmarks.html"
+       href="reinforcement-learning/training_guide.html"
        title="previous page">
       <i class="fa-solid fa-angle-left"></i>
       <div class="prev-next-info">
         <p class="prev-next-subtitle">previous</p>
-        <p class="prev-next-title">Performance Benchmarks</p>
+        <p class="prev-next-title">Debugging and Training Guide</p>
       </div>
     </a>
     <a class="right-next"
@@ -709,7 +899,24 @@ sudo<span class="w"> </span>apt<span class="w"> </span>install<span class="w"> <
   <nav class="bd-toc-nav page-toc">
     <ul class="visible nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#teleoperation">Teleoperation</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#imitation-learning">Imitation Learning</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#imitation-learning">Imitation Learning</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#collecting-demonstrations">Collecting demonstrations</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#pre-recorded-demonstrations">Pre-recorded demonstrations</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#generating-additional-demonstrations">Generating additional demonstrations</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#robomimic-setup">Robomimic setup</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#training-an-agent">Training an agent</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#visualizing-results">Visualizing results</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#common-pitfalls-when-generating-data">Common Pitfalls when Generating Data</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#creating-your-own-isaac-lab-mimic-compatible-environments">Creating Your Own Isaac Lab Mimic Compatible Environments</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#how-it-works">How it works</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#configuration-and-subtask-definition">Configuration and subtask definition</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#subtask-annotation">Subtask annotation</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#helpers-for-demonstration-generation">Helpers for demonstration generation</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#registering-the-environment">Registering the environment</a></li>
+</ul>
+</li>
 </ul>
   </nav></div>
 

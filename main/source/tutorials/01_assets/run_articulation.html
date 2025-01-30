@@ -60,7 +60,7 @@
     <link rel="prev" title="Interacting with a rigid object" href="run_rigid_object.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-  <meta name="docsearch:version" content="1.4.1" />
+  <meta name="docsearch:version" content="2.0.0" />
     <meta name="docbuild:last-update" content="Jan 30, 2025"/>
   </head>
   
@@ -192,7 +192,7 @@
           
           
           
-          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.2.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.5.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
         </li>
         <li class="nav-item">
           
@@ -230,6 +230,8 @@
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../setup/installation/index.html">Local Installation</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2"><a class="reference internal" href="../../setup/installation/pip_installation.html">Pip installation (recommended for Ubuntu 22.04 and Windows)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../setup/installation/binaries_installation.html">Binary installation (recommended for Ubuntu 20.04)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/installation/isaaclab_pip_installation.html">Advanced installation (Isaac Lab pip)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/installation/asset_caching.html">Asset caching</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1"><a class="reference internal" href="../../setup/installation/cloud_installation.html">Running Isaac Lab in the Cloud</a></li>
@@ -241,7 +243,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../../overview/developer-guide/vs_code.html">Setting up Visual Studio Code</a></li>
 
 <li class="toctree-l2"><a class="reference internal" href="../../overview/developer-guide/repo_structure.html">Repository organization</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../overview/developer-guide/development.html">Application Development</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/developer-guide/development.html">Extension Development</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../overview/developer-guide/template.html">Building your Own Project</a></li>
 </ul>
 </details></li>
@@ -264,6 +266,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../../overview/reinforcement-learning/rl_existing_scripts.html">Reinforcement Learning Wrappers</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../overview/reinforcement-learning/rl_frameworks.html">Reinforcement Learning Library Comparison</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../overview/reinforcement-learning/performance_benchmarks.html">Performance Benchmarks</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/reinforcement-learning/training_guide.html">Debugging and Training Guide</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1"><a class="reference internal" href="../../overview/teleop_imitation.html">Teleoperation and Imitation Learning</a></li>
@@ -294,6 +297,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../03_envs/register_rl_env_gym.html">Registering an Environment</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../03_envs/run_rl_training.html">Training with an RL Agent</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../03_envs/modify_direct_rl_env.html">Modifying an existing Direct RL Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../03_envs/policy_inference_in_usd.html">Policy Inference in USD Environment</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../04_sensors/add_sensors_on_robot.html">Adding sensors on a robot</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../05_controllers/run_diff_ik.html">Using a task-space controller</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../05_controllers/run_osc.html">Using an operational space controller</a></li>
@@ -330,28 +334,27 @@
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Source API</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../api/index.html">API Reference</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.app.html">omni.isaac.lab.app</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.actuators.html">omni.isaac.lab.actuators</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.assets.html">omni.isaac.lab.assets</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.controllers.html">omni.isaac.lab.controllers</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.devices.html">omni.isaac.lab.devices</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.envs.html">omni.isaac.lab.envs</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.managers.html">omni.isaac.lab.managers</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.markers.html">omni.isaac.lab.markers</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.scene.html">omni.isaac.lab.scene</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.sensors.html">omni.isaac.lab.sensors</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.sim.html">omni.isaac.lab.sim</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.terrains.html">omni.isaac.lab.terrains</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.utils.html">omni.isaac.lab.utils</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.envs.mdp.html">omni.isaac.lab.envs.mdp</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.envs.ui.html">omni.isaac.lab.envs.ui</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.sensors.patterns.html">omni.isaac.lab.sensors.patterns</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.sim.converters.html">omni.isaac.lab.sim.converters</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.sim.schemas.html">omni.isaac.lab.sim.schemas</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.sim.spawners.html">omni.isaac.lab.sim.spawners</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab_tasks/omni.isaac.lab_tasks.utils.html">omni.isaac.lab_tasks.utils</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab_tasks/omni.isaac.lab_tasks.utils.wrappers.html">omni.isaac.lab_tasks.utils.wrappers</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab_tasks/omni.isaac.lab_tasks.utils.data_collector.html">omni.isaac.lab_tasks.utils.data_collector</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.app.html">isaaclab.app</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.actuators.html">isaaclab.actuators</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.assets.html">isaaclab.assets</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.controllers.html">isaaclab.controllers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.devices.html">isaaclab.devices</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.envs.html">isaaclab.envs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.managers.html">isaaclab.managers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.markers.html">isaaclab.markers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.scene.html">isaaclab.scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.sensors.html">isaaclab.sensors</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.sim.html">isaaclab.sim</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.terrains.html">isaaclab.terrains</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.utils.html">isaaclab.utils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.envs.mdp.html">isaaclab.envs.mdp</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.envs.ui.html">isaaclab.envs.ui</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.sensors.patterns.html">isaaclab.sensors.patterns</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.sim.converters.html">isaaclab.sim.converters</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.sim.schemas.html">isaaclab.sim.schemas</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.sim.spawners.html">isaaclab.sim.spawners</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab_tasks/isaaclab_tasks.utils.html">isaaclab_tasks.utils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab_mimic/isaaclab_mimic.datagen.html">isaaclab_mimic.datagen</a></li>
 </ul>
 </details></li>
 </ul>
@@ -361,7 +364,15 @@
 <li class="toctree-l1"><a class="reference internal" href="../../refs/additional_resources.html">Additional Resources</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../refs/contributing.html">Contribution Guidelines</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../refs/troubleshooting.html">Tricks and Troubleshooting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../refs/migration.html">Migration Guide (Isaac Sim)</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../refs/issues.html">Known Issues</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../refs/release_notes.html">Release Notes</a></li>
+
+
+
+
+
+
 <li class="toctree-l1"><a class="reference internal" href="../../refs/changelog.html">Extensions Changelog</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../refs/license.html">License</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../refs/bibliography.html">Bibliography</a></li>
@@ -369,7 +380,7 @@
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Project Links</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference external" href="https://github.com/isaac-sim/IsaacLab">GitHub</a></li>
-<li class="toctree-l1"><a class="reference external" href="https://docs.omniverse.nvidia.com/isaacsim/latest/index.html">NVIDIA Isaac Sim</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/latest/index.html">NVIDIA Isaac Sim</a></li>
 <li class="toctree-l1"><a class="reference external" href="https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/index.html">NVIDIA PhysX</a></li>
 </ul>
 
@@ -611,7 +622,7 @@ On top of setting the root state, we will see how to set the joint state and app
 robot.</p>
 <section id="the-code">
 <h2>The Code<a class="headerlink" href="#the-code" title="Permalink to this heading">#</a></h2>
-<p>The tutorial corresponds to the <code class="docutils literal notranslate"><span class="pre">run_articulation.py</span></code> script in the <code class="docutils literal notranslate"><span class="pre">source/standalone/tutorials/01_assets</span></code>
+<p>The tutorial corresponds to the <code class="docutils literal notranslate"><span class="pre">run_articulation.py</span></code> script in the <code class="docutils literal notranslate"><span class="pre">scripts/tutorials/01_assets</span></code>
 directory.</p>
 <details class="sd-sphinx-override sd-dropdown sd-card sd-mb-3">
 <summary class="sd-summary-title sd-card-header">
@@ -626,7 +637,7 @@ directory.</p>
 <span class="linenos">  8</span><span class="sd">.. code-block:: bash</span>
 <span class="linenos">  9</span>
 <span class="linenos"> 10</span><span class="sd">    # Usage</span>
-<span class="linenos"> 11</span><span class="sd">    ./isaaclab.sh -p source/standalone/tutorials/01_assets/run_articulation.py</span>
+<span class="linenos"> 11</span><span class="sd">    ./isaaclab.sh -p scripts/tutorials/01_assets/run_articulation.py</span>
 <span class="linenos"> 12</span>
 <span class="linenos"> 13</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="linenos"> 14</span>
@@ -635,7 +646,7 @@ directory.</p>
 <span class="linenos"> 17</span>
 <span class="linenos"> 18</span><span class="kn">import</span><span class="w"> </span><span class="nn">argparse</span>
 <span class="linenos"> 19</span>
-<span class="linenos"> 20</span><span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.app</span><span class="w"> </span><span class="kn">import</span> <span class="n">AppLauncher</span>
+<span class="linenos"> 20</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.app</span><span class="w"> </span><span class="kn">import</span> <span class="n">AppLauncher</span>
 <span class="linenos"> 21</span>
 <span class="linenos"> 22</span><span class="c1"># add argparse arguments</span>
 <span class="linenos"> 23</span><span class="n">parser</span> <span class="o">=</span> <span class="n">argparse</span><span class="o">.</span><span class="n">ArgumentParser</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="s2">&quot;Tutorial on spawning and interacting with an articulation.&quot;</span><span class="p">)</span>
@@ -652,16 +663,16 @@ directory.</p>
 <span class="linenos"> 34</span>
 <span class="linenos"> 35</span><span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
 <span class="linenos"> 36</span>
-<span class="linenos"> 37</span><span class="kn">import</span><span class="w"> </span><span class="nn">omni.isaac.core.utils.prims</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">prim_utils</span>
+<span class="linenos"> 37</span><span class="kn">import</span><span class="w"> </span><span class="nn">isaacsim.core.utils.prims</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">prim_utils</span>
 <span class="linenos"> 38</span>
-<span class="linenos"> 39</span><span class="kn">import</span><span class="w"> </span><span class="nn">omni.isaac.lab.sim</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">sim_utils</span>
-<span class="linenos"> 40</span><span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.assets</span><span class="w"> </span><span class="kn">import</span> <span class="n">Articulation</span>
-<span class="linenos"> 41</span><span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.sim</span><span class="w"> </span><span class="kn">import</span> <span class="n">SimulationContext</span>
+<span class="linenos"> 39</span><span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab.sim</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">sim_utils</span>
+<span class="linenos"> 40</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.assets</span><span class="w"> </span><span class="kn">import</span> <span class="n">Articulation</span>
+<span class="linenos"> 41</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.sim</span><span class="w"> </span><span class="kn">import</span> <span class="n">SimulationContext</span>
 <span class="linenos"> 42</span>
 <span class="linenos"> 43</span><span class="c1">##</span>
 <span class="linenos"> 44</span><span class="c1"># Pre-defined configs</span>
 <span class="linenos"> 45</span><span class="c1">##</span>
-<span class="linenos"> 46</span><span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab_assets</span><span class="w"> </span><span class="kn">import</span> <span class="n">CARTPOLE_CFG</span>  <span class="c1"># isort:skip</span>
+<span class="linenos"> 46</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab_assets</span><span class="w"> </span><span class="kn">import</span> <span class="n">CARTPOLE_CFG</span>  <span class="c1"># isort:skip</span>
 <span class="linenos"> 47</span>
 <span class="linenos"> 48</span>
 <span class="linenos"> 49</span><span class="k">def</span><span class="w"> </span><span class="nf">design_scene</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">dict</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="nb">list</span><span class="p">[</span><span class="nb">float</span><span class="p">]]]:</span>
@@ -773,11 +784,11 @@ consisting of a cart and a pole attached to it. The cart is free to move along t
 rotate about the cart. The USD file for the cart-pole contains the robot’s geometry, joints, and other physical
 properties.</p>
 <p>For the cart-pole, we use its pre-defined configuration object, which is an instance of the
-<a class="reference internal" href="../../api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.ArticulationCfg" title="omni.isaac.lab.assets.ArticulationCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">assets.ArticulationCfg</span></code></a> class. This class contains information about the articulation’s spawning strategy,
+<a class="reference internal" href="../../api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationCfg" title="isaaclab.assets.ArticulationCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">assets.ArticulationCfg</span></code></a> class. This class contains information about the articulation’s spawning strategy,
 default initial state, actuator models for different joints, and other meta-information. A deeper-dive into how to
 create this configuration object is provided in the <a class="reference internal" href="../../how-to/write_articulation_cfg.html#how-to-write-articulation-config"><span class="std std-ref">Writing an Asset Configuration</span></a> tutorial.</p>
 <p>As seen in the previous tutorial, we can spawn the articulation into the scene in a similar fashion by creating
-an instance of the <a class="reference internal" href="../../api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.Articulation" title="omni.isaac.lab.assets.Articulation"><code class="xref py py-class docutils literal notranslate"><span class="pre">assets.Articulation</span></code></a> class by passing the configuration object to its constructor.</p>
+an instance of the <a class="reference internal" href="../../api/lab/isaaclab.assets.html#isaaclab.assets.Articulation" title="isaaclab.assets.Articulation"><code class="xref py py-class docutils literal notranslate"><span class="pre">assets.Articulation</span></code></a> class by passing the configuration object to its constructor.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span>    <span class="c1"># Create separate groups called &quot;Origin1&quot;, &quot;Origin2&quot;</span>
     <span class="c1"># Each group will have a robot in it</span>
     <span class="n">origins</span> <span class="o">=</span> <span class="p">[[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">],</span> <span class="p">[</span><span class="o">-</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">]]</span>
@@ -849,8 +860,8 @@ the simulation.</p>
 </section>
 <section id="updating-the-state">
 <h4>Updating the state<a class="headerlink" href="#updating-the-state" title="Permalink to this heading">#</a></h4>
-<p>Every articulation class contains a <a class="reference internal" href="../../api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.ArticulationData" title="omni.isaac.lab.assets.ArticulationData"><code class="xref py py-class docutils literal notranslate"><span class="pre">assets.ArticulationData</span></code></a> object. This stores the state of the
-articulation. To update the state inside the buffer, we call the <a class="reference internal" href="../../api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.Articulation.update" title="omni.isaac.lab.assets.Articulation.update"><code class="xref py py-meth docutils literal notranslate"><span class="pre">assets.Articulation.update()</span></code></a> method.</p>
+<p>Every articulation class contains a <a class="reference internal" href="../../api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData" title="isaaclab.assets.ArticulationData"><code class="xref py py-class docutils literal notranslate"><span class="pre">assets.ArticulationData</span></code></a> object. This stores the state of the
+articulation. To update the state inside the buffer, we call the <a class="reference internal" href="../../api/lab/isaaclab.assets.html#isaaclab.assets.Articulation.update" title="isaaclab.assets.Articulation.update"><code class="xref py py-meth docutils literal notranslate"><span class="pre">assets.Articulation.update()</span></code></a> method.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span>        <span class="c1"># Update buffers</span>
         <span class="n">robot</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">sim_dt</span><span class="p">)</span>
 </pre></div>
@@ -861,7 +872,7 @@ articulation. To update the state inside the buffer, we call the <a class="refer
 <section id="the-code-execution">
 <h2>The Code Execution<a class="headerlink" href="#the-code-execution" title="Permalink to this heading">#</a></h2>
 <p>To run the code and see the results, let’s run the script from the terminal:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>source/standalone/tutorials/01_assets/run_articulation.py
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/tutorials/01_assets/run_articulation.py
 </pre></div>
 </div>
 <p>This command should open a stage with a ground plane, lights, and two cart-poles that are moving around randomly.
@@ -873,12 +884,12 @@ To stop the simulation, you can either close the window, or press <code class="d
 of an articulation (its root and joint state) and how to apply commands to it. We also saw how to update its
 buffers to read the latest state from the simulation.</p>
 <p>In addition to this tutorial, we also provide a few other scripts that spawn different robots.These are included
-in the <code class="docutils literal notranslate"><span class="pre">source/standalone/demos</span></code> directory. You can run these scripts as:</p>
+in the <code class="docutils literal notranslate"><span class="pre">scripts/demos</span></code> directory. You can run these scripts as:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Spawn many different single-arm manipulators</span>
-./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>source/standalone/demos/arms.py
+./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/demos/arms.py
 
 <span class="c1"># Spawn many different quadrupeds</span>
-./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>source/standalone/demos/quadrupeds.py
+./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/demos/quadrupeds.py
 </pre></div>
 </div>
 </section>

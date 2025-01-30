@@ -156,7 +156,7 @@
             <label for="version-select" style="font-weight: bold; display: block;">Version</label>
           </div>
           <select id="version-select" class="version-dropdown" style="margin: 0 auto; display: block;" onchange="location = this.value;">
-            <option value="../../../../main/source/api/lab/omni.isaac.lab.scene.html" >main</option>
+            <option value="../../../../main/index.html" >main</option>
             <option value="../../../../v1.4.1/source/api/lab/omni.isaac.lab.scene.html" >v1.4.1</option>
             <option value="omni.isaac.lab.scene.html" selected>v1.4.0</option>
             <option value="../../../../v1.3.0/source/api/lab/omni.isaac.lab.scene.html" >v1.3.0</option>
@@ -192,7 +192,7 @@
           
           
           
-          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.2.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.5.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
         </li>
         <li class="nav-item">
           
@@ -580,40 +580,8 @@
             <nav aria-label="Page">
                 <ul class="visible nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#interactive-scene">interactive Scene</a><ul class="nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.scene.InteractiveScene"><code class="docutils literal notranslate"><span class="pre">InteractiveScene</span></code></a><ul class="nav section-nav flex-column">
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.scene.InteractiveScene.__init__"><code class="docutils literal notranslate"><span class="pre">InteractiveScene.__init__()</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.scene.InteractiveScene.clone_environments"><code class="docutils literal notranslate"><span class="pre">InteractiveScene.clone_environments()</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.scene.InteractiveScene.filter_collisions"><code class="docutils literal notranslate"><span class="pre">InteractiveScene.filter_collisions()</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.scene.InteractiveScene.physics_scene_path"><code class="docutils literal notranslate"><span class="pre">InteractiveScene.physics_scene_path</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.scene.InteractiveScene.physics_dt"><code class="docutils literal notranslate"><span class="pre">InteractiveScene.physics_dt</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.scene.InteractiveScene.device"><code class="docutils literal notranslate"><span class="pre">InteractiveScene.device</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.scene.InteractiveScene.env_ns"><code class="docutils literal notranslate"><span class="pre">InteractiveScene.env_ns</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.scene.InteractiveScene.env_regex_ns"><code class="docutils literal notranslate"><span class="pre">InteractiveScene.env_regex_ns</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.scene.InteractiveScene.num_envs"><code class="docutils literal notranslate"><span class="pre">InteractiveScene.num_envs</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.scene.InteractiveScene.env_origins"><code class="docutils literal notranslate"><span class="pre">InteractiveScene.env_origins</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.scene.InteractiveScene.terrain"><code class="docutils literal notranslate"><span class="pre">InteractiveScene.terrain</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.scene.InteractiveScene.articulations"><code class="docutils literal notranslate"><span class="pre">InteractiveScene.articulations</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.scene.InteractiveScene.deformable_objects"><code class="docutils literal notranslate"><span class="pre">InteractiveScene.deformable_objects</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.scene.InteractiveScene.rigid_objects"><code class="docutils literal notranslate"><span class="pre">InteractiveScene.rigid_objects</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.scene.InteractiveScene.rigid_object_collections"><code class="docutils literal notranslate"><span class="pre">InteractiveScene.rigid_object_collections</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.scene.InteractiveScene.sensors"><code class="docutils literal notranslate"><span class="pre">InteractiveScene.sensors</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.scene.InteractiveScene.extras"><code class="docutils literal notranslate"><span class="pre">InteractiveScene.extras</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.scene.InteractiveScene.state"><code class="docutils literal notranslate"><span class="pre">InteractiveScene.state</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.scene.InteractiveScene.get_state"><code class="docutils literal notranslate"><span class="pre">InteractiveScene.get_state()</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.scene.InteractiveScene.reset"><code class="docutils literal notranslate"><span class="pre">InteractiveScene.reset()</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.scene.InteractiveScene.reset_to"><code class="docutils literal notranslate"><span class="pre">InteractiveScene.reset_to()</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.scene.InteractiveScene.write_data_to_sim"><code class="docutils literal notranslate"><span class="pre">InteractiveScene.write_data_to_sim()</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.scene.InteractiveScene.update"><code class="docutils literal notranslate"><span class="pre">InteractiveScene.update()</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.scene.InteractiveScene.keys"><code class="docutils literal notranslate"><span class="pre">InteractiveScene.keys()</span></code></a></li>
-</ul>
-</li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.scene.InteractiveSceneCfg"><code class="docutils literal notranslate"><span class="pre">InteractiveSceneCfg</span></code></a><ul class="nav section-nav flex-column">
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.scene.InteractiveSceneCfg.num_envs"><code class="docutils literal notranslate"><span class="pre">InteractiveSceneCfg.num_envs</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.scene.InteractiveSceneCfg.env_spacing"><code class="docutils literal notranslate"><span class="pre">InteractiveSceneCfg.env_spacing</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.scene.InteractiveSceneCfg.lazy_sensor_update"><code class="docutils literal notranslate"><span class="pre">InteractiveSceneCfg.lazy_sensor_update</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.scene.InteractiveSceneCfg.replicate_physics"><code class="docutils literal notranslate"><span class="pre">InteractiveSceneCfg.replicate_physics</span></code></a></li>
-</ul>
-</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.scene.InteractiveScene"><code class="docutils literal notranslate"><span class="pre">InteractiveScene</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.scene.InteractiveSceneCfg"><code class="docutils literal notranslate"><span class="pre">InteractiveSceneCfg</span></code></a></li>
 </ul>
 </li>
 </ul>
@@ -629,32 +597,14 @@
                   
   <section id="module-omni.isaac.lab.scene">
 <span id="omni-isaac-lab-scene"></span><h1>omni.isaac.lab.scene<a class="headerlink" href="#module-omni.isaac.lab.scene" title="Permalink to this heading">#</a></h1>
-<p>Sub-package containing an interactive scene definition.</p>
-<p>A scene is a collection of entities (e.g., terrain, articulations, sensors, lights, etc.) that can be added to the
-simulation. However, only a subset of these entities are of direct interest for the user to interact with.
-For example, the user may want to interact with a robot in the scene, but not with the terrain or the lights.
-For this reason, we integrate the different entities into a single class called <a class="reference internal" href="#omni.isaac.lab.scene.InteractiveScene" title="omni.isaac.lab.scene.InteractiveScene"><code class="xref py py-class docutils literal notranslate"><span class="pre">InteractiveScene</span></code></a>.</p>
-<p>The interactive scene performs the following tasks:</p>
-<ol class="arabic simple">
-<li><p>It parses the configuration class <a class="reference internal" href="#omni.isaac.lab.scene.InteractiveSceneCfg" title="omni.isaac.lab.scene.InteractiveSceneCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">InteractiveSceneCfg</span></code></a> to create the scene. This configuration class is
-inherited by the user to add entities to the scene.</p></li>
-<li><p>It clones the entities based on the number of environments specified by the user.</p></li>
-<li><p>It clubs the entities into different groups based on their type (e.g., articulations, sensors, etc.).</p></li>
-<li><p>It provides a set of methods to unify the common operations on the entities in the scene (e.g., resetting internal
-buffers, writing buffers to simulation and updating buffers from simulation).</p></li>
-</ol>
-<p>The interactive scene can be passed around to different modules in the framework to perform different tasks.
-For instance, computing the observations based on the state of the scene, or randomizing the scene, or applying
-actions to the scene. All these are handled by different “managers” in the framework. Please refer to the
-<a class="reference internal" href="omni.isaac.lab.managers.html#module-omni.isaac.lab.managers" title="omni.isaac.lab.managers"><code class="xref py py-mod docutils literal notranslate"><span class="pre">omni.isaac.lab.managers</span></code></a> sub-package for more details.</p>
 <p class="rubric">Classes</p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
 <tbody>
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.scene.InteractiveScene" title="omni.isaac.lab.scene.InteractiveScene"><code class="xref py py-obj docutils literal notranslate"><span class="pre">InteractiveScene</span></code></a></p></td>
-<td><p>A scene that contains entities added to the simulation.</p></td>
+<td><p></p></td>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.scene.InteractiveSceneCfg" title="omni.isaac.lab.scene.InteractiveSceneCfg"><code class="xref py py-obj docutils literal notranslate"><span class="pre">InteractiveSceneCfg</span></code></a></p></td>
-<td><p>Configuration for the interactive scene.</p></td>
+<td><p></p></td>
 </tr>
 </tbody>
 </table>
@@ -663,486 +613,14 @@ actions to the scene. All these are handled by different “managers” in the f
 <h2>interactive Scene<a class="headerlink" href="#interactive-scene" title="Permalink to this heading">#</a></h2>
 <dl class="py class">
 <dt class="sig sig-object py" id="omni.isaac.lab.scene.InteractiveScene">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.scene.</span></span><span class="sig-name descname"><span class="pre">InteractiveScene</span></span><a class="reference internal" href="../../../_modules/omni/isaac/lab/scene/interactive_scene.html#InteractiveScene"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.scene.InteractiveScene" title="Permalink to this definition">#</a></dt>
-<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
-<p>A scene that contains entities added to the simulation.</p>
-<p>The interactive scene parses the <a class="reference internal" href="#omni.isaac.lab.scene.InteractiveSceneCfg" title="omni.isaac.lab.scene.InteractiveSceneCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">InteractiveSceneCfg</span></code></a> class to create the scene.
-Based on the specified number of environments, it clones the entities and groups them into different
-categories (e.g., articulations, sensors, etc.).</p>
-<p>Cloning can be performed in two ways:</p>
-<ul>
-<li><p>For tasks where all environments contain the same assets, a more performant cloning paradigm
-can be used to allow for faster environment creation. This is specified by the <code class="docutils literal notranslate"><span class="pre">replicate_physics</span></code> flag.</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">scene</span> <span class="o">=</span> <span class="n">InteractiveScene</span><span class="p">(</span><span class="n">cfg</span><span class="o">=</span><span class="n">InteractiveSceneCfg</span><span class="p">(</span><span class="n">replicate_physics</span><span class="o">=</span><span class="kc">True</span><span class="p">))</span>
-</pre></div>
-</div>
-</li>
-<li><p>For tasks that require having separate assets in the environments, <code class="docutils literal notranslate"><span class="pre">replicate_physics</span></code> would have to
-be set to False, which will add some costs to the overall startup time.</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">scene</span> <span class="o">=</span> <span class="n">InteractiveScene</span><span class="p">(</span><span class="n">cfg</span><span class="o">=</span><span class="n">InteractiveSceneCfg</span><span class="p">(</span><span class="n">replicate_physics</span><span class="o">=</span><span class="kc">False</span><span class="p">))</span>
-</pre></div>
-</div>
-</li>
-</ul>
-<p>Each entity is registered to scene based on its name in the configuration class. For example, if the user
-specifies a robot in the configuration class as follows:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.scene</span><span class="w"> </span><span class="kn">import</span> <span class="n">InteractiveSceneCfg</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">configclass</span>
-
-<span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab_assets.anymal</span><span class="w"> </span><span class="kn">import</span> <span class="n">ANYMAL_C_CFG</span>
-
-<span class="nd">@configclass</span>
-<span class="k">class</span><span class="w"> </span><span class="nc">MySceneCfg</span><span class="p">(</span><span class="n">InteractiveSceneCfg</span><span class="p">):</span>
-
-    <span class="n">robot</span> <span class="o">=</span> <span class="n">ANYMAL_C_CFG</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">prim_path</span><span class="o">=</span><span class="s2">&quot;</span><span class="si">{ENV_REGEX_NS}</span><span class="s2">/Robot&quot;</span><span class="p">)</span>
-</pre></div>
-</div>
-<p>Then the robot can be accessed from the scene as follows:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.scene</span><span class="w"> </span><span class="kn">import</span> <span class="n">InteractiveScene</span>
-
-<span class="c1"># create 128 environments</span>
-<span class="n">scene</span> <span class="o">=</span> <span class="n">InteractiveScene</span><span class="p">(</span><span class="n">cfg</span><span class="o">=</span><span class="n">MySceneCfg</span><span class="p">(</span><span class="n">num_envs</span><span class="o">=</span><span class="mi">128</span><span class="p">))</span>
-
-<span class="c1"># access the robot from the scene</span>
-<span class="n">robot</span> <span class="o">=</span> <span class="n">scene</span><span class="p">[</span><span class="s2">&quot;robot&quot;</span><span class="p">]</span>
-<span class="c1"># access the robot based on its type</span>
-<span class="n">robot</span> <span class="o">=</span> <span class="n">scene</span><span class="o">.</span><span class="n">articulations</span><span class="p">[</span><span class="s2">&quot;robot&quot;</span><span class="p">]</span>
-</pre></div>
-</div>
-<p>If the <a class="reference internal" href="#omni.isaac.lab.scene.InteractiveSceneCfg" title="omni.isaac.lab.scene.InteractiveSceneCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">InteractiveSceneCfg</span></code></a> class does not include asset entities, the cloning process
-can still be triggered if assets were added to the stage outside of the <a class="reference internal" href="#omni.isaac.lab.scene.InteractiveScene" title="omni.isaac.lab.scene.InteractiveScene"><code class="xref py py-class docutils literal notranslate"><span class="pre">InteractiveScene</span></code></a> class:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">scene</span> <span class="o">=</span> <span class="n">InteractiveScene</span><span class="p">(</span><span class="n">cfg</span><span class="o">=</span><span class="n">InteractiveSceneCfg</span><span class="p">(</span><span class="n">num_envs</span><span class="o">=</span><span class="mi">128</span><span class="p">,</span> <span class="n">replicate_physics</span><span class="o">=</span><span class="kc">True</span><span class="p">))</span>
-<span class="n">scene</span><span class="o">.</span><span class="n">clone_environments</span><span class="p">()</span>
-</pre></div>
-</div>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>It is important to note that the scene only performs common operations on the entities. For example,
-resetting the internal buffers, writing the buffers to the simulation and updating the buffers from the
-simulation. The scene does not perform any task specific to the entity. For example, it does not apply
-actions to the robot or compute observations from the robot. These tasks are handled by different
-modules called “managers” in the framework. Please refer to the <a class="reference internal" href="omni.isaac.lab.managers.html#module-omni.isaac.lab.managers" title="omni.isaac.lab.managers"><code class="xref py py-mod docutils literal notranslate"><span class="pre">omni.isaac.lab.managers</span></code></a> sub-package
-for more details.</p>
-</div>
-<p><strong>Methods:</strong></p>
-<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
-<tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.scene.InteractiveScene.__init__" title="omni.isaac.lab.scene.InteractiveScene.__init__"><code class="xref py py-obj docutils literal notranslate"><span class="pre">__init__</span></code></a>(cfg)</p></td>
-<td><p>Initializes the scene.</p></td>
-</tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.scene.InteractiveScene.clone_environments" title="omni.isaac.lab.scene.InteractiveScene.clone_environments"><code class="xref py py-obj docutils literal notranslate"><span class="pre">clone_environments</span></code></a>([copy_from_source])</p></td>
-<td><p>Creates clones of the environment <code class="docutils literal notranslate"><span class="pre">/World/envs/env_0</span></code>.</p></td>
-</tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.scene.InteractiveScene.filter_collisions" title="omni.isaac.lab.scene.InteractiveScene.filter_collisions"><code class="xref py py-obj docutils literal notranslate"><span class="pre">filter_collisions</span></code></a>([global_prim_paths])</p></td>
-<td><p>Filter environments collisions.</p></td>
-</tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.scene.InteractiveScene.get_state" title="omni.isaac.lab.scene.InteractiveScene.get_state"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_state</span></code></a>([is_relative])</p></td>
-<td><p>Returns the state of the scene entities.</p></td>
-</tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.scene.InteractiveScene.reset" title="omni.isaac.lab.scene.InteractiveScene.reset"><code class="xref py py-obj docutils literal notranslate"><span class="pre">reset</span></code></a>([env_ids])</p></td>
-<td><p>Resets the scene entities.</p></td>
-</tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.scene.InteractiveScene.reset_to" title="omni.isaac.lab.scene.InteractiveScene.reset_to"><code class="xref py py-obj docutils literal notranslate"><span class="pre">reset_to</span></code></a>(state[, env_ids, is_relative])</p></td>
-<td><p>Resets the scene entities to the given state.</p></td>
-</tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.scene.InteractiveScene.write_data_to_sim" title="omni.isaac.lab.scene.InteractiveScene.write_data_to_sim"><code class="xref py py-obj docutils literal notranslate"><span class="pre">write_data_to_sim</span></code></a>()</p></td>
-<td><p>Writes the data of the scene entities to the simulation.</p></td>
-</tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.scene.InteractiveScene.update" title="omni.isaac.lab.scene.InteractiveScene.update"><code class="xref py py-obj docutils literal notranslate"><span class="pre">update</span></code></a>(dt)</p></td>
-<td><p>Update the scene entities.</p></td>
-</tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.scene.InteractiveScene.keys" title="omni.isaac.lab.scene.InteractiveScene.keys"><code class="xref py py-obj docutils literal notranslate"><span class="pre">keys</span></code></a>()</p></td>
-<td><p>Returns the keys of the scene entities.</p></td>
-</tr>
-</tbody>
-</table>
-</div>
-<p><strong>Attributes:</strong></p>
-<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
-<tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.scene.InteractiveScene.physics_scene_path" title="omni.isaac.lab.scene.InteractiveScene.physics_scene_path"><code class="xref py py-obj docutils literal notranslate"><span class="pre">physics_scene_path</span></code></a></p></td>
-<td><p>The path to the USD Physics Scene.</p></td>
-</tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.scene.InteractiveScene.physics_dt" title="omni.isaac.lab.scene.InteractiveScene.physics_dt"><code class="xref py py-obj docutils literal notranslate"><span class="pre">physics_dt</span></code></a></p></td>
-<td><p>The physics timestep of the scene.</p></td>
-</tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.scene.InteractiveScene.device" title="omni.isaac.lab.scene.InteractiveScene.device"><code class="xref py py-obj docutils literal notranslate"><span class="pre">device</span></code></a></p></td>
-<td><p>The device on which the scene is created.</p></td>
-</tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.scene.InteractiveScene.env_ns" title="omni.isaac.lab.scene.InteractiveScene.env_ns"><code class="xref py py-obj docutils literal notranslate"><span class="pre">env_ns</span></code></a></p></td>
-<td><p>The namespace <code class="docutils literal notranslate"><span class="pre">/World/envs</span></code> in which all environments created.</p></td>
-</tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.scene.InteractiveScene.env_regex_ns" title="omni.isaac.lab.scene.InteractiveScene.env_regex_ns"><code class="xref py py-obj docutils literal notranslate"><span class="pre">env_regex_ns</span></code></a></p></td>
-<td><p>The namespace <code class="docutils literal notranslate"><span class="pre">/World/envs/env_.*</span></code> in which all environments created.</p></td>
-</tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.scene.InteractiveScene.num_envs" title="omni.isaac.lab.scene.InteractiveScene.num_envs"><code class="xref py py-obj docutils literal notranslate"><span class="pre">num_envs</span></code></a></p></td>
-<td><p>The number of environments handled by the scene.</p></td>
-</tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.scene.InteractiveScene.env_origins" title="omni.isaac.lab.scene.InteractiveScene.env_origins"><code class="xref py py-obj docutils literal notranslate"><span class="pre">env_origins</span></code></a></p></td>
-<td><p>The origins of the environments in the scene.</p></td>
-</tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.scene.InteractiveScene.terrain" title="omni.isaac.lab.scene.InteractiveScene.terrain"><code class="xref py py-obj docutils literal notranslate"><span class="pre">terrain</span></code></a></p></td>
-<td><p>The terrain in the scene.</p></td>
-</tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.scene.InteractiveScene.articulations" title="omni.isaac.lab.scene.InteractiveScene.articulations"><code class="xref py py-obj docutils literal notranslate"><span class="pre">articulations</span></code></a></p></td>
-<td><p>A dictionary of articulations in the scene.</p></td>
-</tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.scene.InteractiveScene.deformable_objects" title="omni.isaac.lab.scene.InteractiveScene.deformable_objects"><code class="xref py py-obj docutils literal notranslate"><span class="pre">deformable_objects</span></code></a></p></td>
-<td><p>A dictionary of deformable objects in the scene.</p></td>
-</tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.scene.InteractiveScene.rigid_objects" title="omni.isaac.lab.scene.InteractiveScene.rigid_objects"><code class="xref py py-obj docutils literal notranslate"><span class="pre">rigid_objects</span></code></a></p></td>
-<td><p>A dictionary of rigid objects in the scene.</p></td>
-</tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.scene.InteractiveScene.rigid_object_collections" title="omni.isaac.lab.scene.InteractiveScene.rigid_object_collections"><code class="xref py py-obj docutils literal notranslate"><span class="pre">rigid_object_collections</span></code></a></p></td>
-<td><p>A dictionary of rigid object collections in the scene.</p></td>
-</tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.scene.InteractiveScene.sensors" title="omni.isaac.lab.scene.InteractiveScene.sensors"><code class="xref py py-obj docutils literal notranslate"><span class="pre">sensors</span></code></a></p></td>
-<td><p>A dictionary of the sensors in the scene, such as cameras and contact reporters.</p></td>
-</tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.scene.InteractiveScene.extras" title="omni.isaac.lab.scene.InteractiveScene.extras"><code class="xref py py-obj docutils literal notranslate"><span class="pre">extras</span></code></a></p></td>
-<td><p>A dictionary of miscellaneous simulation objects that neither inherit from assets nor sensors.</p></td>
-</tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.scene.InteractiveScene.state" title="omni.isaac.lab.scene.InteractiveScene.state"><code class="xref py py-obj docutils literal notranslate"><span class="pre">state</span></code></a></p></td>
-<td><p>Returns the state of the scene entities.</p></td>
-</tr>
-</tbody>
-</table>
-</div>
-<dl class="py method">
-<dt class="sig sig-object py" id="omni.isaac.lab.scene.InteractiveScene.__init__">
-<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cfg</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#omni.isaac.lab.scene.InteractiveSceneCfg" title="omni.isaac.lab.scene.interactive_scene_cfg.InteractiveSceneCfg"><span class="pre">InteractiveSceneCfg</span></a></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/omni/isaac/lab/scene/interactive_scene.html#InteractiveScene.__init__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.scene.InteractiveScene.__init__" title="Permalink to this definition">#</a></dt>
-<dd><p>Initializes the scene.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>cfg</strong> – The configuration class for the scene.</p>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="omni.isaac.lab.scene.InteractiveScene.clone_environments">
-<span class="sig-name descname"><span class="pre">clone_environments</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">copy_from_source</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/omni/isaac/lab/scene/interactive_scene.html#InteractiveScene.clone_environments"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.scene.InteractiveScene.clone_environments" title="Permalink to this definition">#</a></dt>
-<dd><p>Creates clones of the environment <code class="docutils literal notranslate"><span class="pre">/World/envs/env_0</span></code>.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>copy_from_source</strong> – (bool): If set to False, clones inherit from /World/envs/env_0 and mirror its changes.</p></li>
-<li><p><strong>True</strong> (<em>If</em>) – </p></li>
-<li><p><strong>time</strong> (<em>clones are independent copies</em><em> of </em><em>the source prim and won't reflect its changes</em><em> (</em><em>start-up</em>) – </p></li>
-<li><p><strong>False.</strong> (<em>may increase</em><em>)</em><em>. Defaults to</em>) – </p></li>
-</ul>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="omni.isaac.lab.scene.InteractiveScene.filter_collisions">
-<span class="sig-name descname"><span class="pre">filter_collisions</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">global_prim_paths</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.13)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/omni/isaac/lab/scene/interactive_scene.html#InteractiveScene.filter_collisions"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.scene.InteractiveScene.filter_collisions" title="Permalink to this definition">#</a></dt>
-<dd><p>Filter environments collisions.</p>
-<p>Disables collisions between the environments in <code class="docutils literal notranslate"><span class="pre">/World/envs/env_.*</span></code> and enables collisions with the prims
-in global prim paths (e.g. ground plane).</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>global_prim_paths</strong> – A list of global prim paths to enable collisions with.
-Defaults to None, in which case no global prim paths are considered.</p>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py property">
-<dt class="sig sig-object py" id="omni.isaac.lab.scene.InteractiveScene.physics_scene_path">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">physics_scene_path</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a></em><a class="headerlink" href="#omni.isaac.lab.scene.InteractiveScene.physics_scene_path" title="Permalink to this definition">#</a></dt>
-<dd><p>The path to the USD Physics Scene.</p>
-</dd></dl>
-
-<dl class="py property">
-<dt class="sig sig-object py" id="omni.isaac.lab.scene.InteractiveScene.physics_dt">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">physics_dt</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a></em><a class="headerlink" href="#omni.isaac.lab.scene.InteractiveScene.physics_dt" title="Permalink to this definition">#</a></dt>
-<dd><p>The physics timestep of the scene.</p>
-</dd></dl>
-
-<dl class="py property">
-<dt class="sig sig-object py" id="omni.isaac.lab.scene.InteractiveScene.device">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">device</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a></em><a class="headerlink" href="#omni.isaac.lab.scene.InteractiveScene.device" title="Permalink to this definition">#</a></dt>
-<dd><p>The device on which the scene is created.</p>
-</dd></dl>
-
-<dl class="py property">
-<dt class="sig sig-object py" id="omni.isaac.lab.scene.InteractiveScene.env_ns">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">env_ns</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a></em><a class="headerlink" href="#omni.isaac.lab.scene.InteractiveScene.env_ns" title="Permalink to this definition">#</a></dt>
-<dd><p>The namespace <code class="docutils literal notranslate"><span class="pre">/World/envs</span></code> in which all environments created.</p>
-<p>The environments are present w.r.t. this namespace under “env_{N}” prim,
-where N is a natural number.</p>
-</dd></dl>
-
-<dl class="py property">
-<dt class="sig sig-object py" id="omni.isaac.lab.scene.InteractiveScene.env_regex_ns">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">env_regex_ns</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a></em><a class="headerlink" href="#omni.isaac.lab.scene.InteractiveScene.env_regex_ns" title="Permalink to this definition">#</a></dt>
-<dd><p>The namespace <code class="docutils literal notranslate"><span class="pre">/World/envs/env_.*</span></code> in which all environments created.</p>
-</dd></dl>
-
-<dl class="py property">
-<dt class="sig sig-object py" id="omni.isaac.lab.scene.InteractiveScene.num_envs">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">num_envs</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><span class="pre">int</span></a></em><a class="headerlink" href="#omni.isaac.lab.scene.InteractiveScene.num_envs" title="Permalink to this definition">#</a></dt>
-<dd><p>The number of environments handled by the scene.</p>
-</dd></dl>
-
-<dl class="py property">
-<dt class="sig sig-object py" id="omni.isaac.lab.scene.InteractiveScene.env_origins">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">env_origins</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.6)"><span class="pre">torch.Tensor</span></a></em><a class="headerlink" href="#omni.isaac.lab.scene.InteractiveScene.env_origins" title="Permalink to this definition">#</a></dt>
-<dd><p>The origins of the environments in the scene. Shape is (num_envs, 3).</p>
-</dd></dl>
-
-<dl class="py property">
-<dt class="sig sig-object py" id="omni.isaac.lab.scene.InteractiveScene.terrain">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">terrain</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="omni.isaac.lab.terrains.html#omni.isaac.lab.terrains.TerrainImporter" title="omni.isaac.lab.terrains.terrain_importer.TerrainImporter"><span class="pre">TerrainImporter</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></em><a class="headerlink" href="#omni.isaac.lab.scene.InteractiveScene.terrain" title="Permalink to this definition">#</a></dt>
-<dd><p>The terrain in the scene. If None, then the scene has no terrain.</p>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>We treat terrain separate from <a class="reference internal" href="#omni.isaac.lab.scene.InteractiveScene.extras" title="omni.isaac.lab.scene.InteractiveScene.extras"><code class="xref py py-attr docutils literal notranslate"><span class="pre">extras</span></code></a> since terrains define environment origins and are
-handled differently from other miscellaneous entities.</p>
-</div>
-</dd></dl>
-
-<dl class="py property">
-<dt class="sig sig-object py" id="omni.isaac.lab.scene.InteractiveScene.articulations">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">articulations</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.13)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference internal" href="omni.isaac.lab.assets.html#omni.isaac.lab.assets.Articulation" title="omni.isaac.lab.assets.articulation.articulation.Articulation"><span class="pre">omni.isaac.lab.assets.articulation.articulation.Articulation</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#omni.isaac.lab.scene.InteractiveScene.articulations" title="Permalink to this definition">#</a></dt>
-<dd><p>A dictionary of articulations in the scene.</p>
-</dd></dl>
-
-<dl class="py property">
-<dt class="sig sig-object py" id="omni.isaac.lab.scene.InteractiveScene.deformable_objects">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">deformable_objects</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.13)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference internal" href="omni.isaac.lab.assets.html#omni.isaac.lab.assets.DeformableObject" title="omni.isaac.lab.assets.deformable_object.deformable_object.DeformableObject"><span class="pre">omni.isaac.lab.assets.deformable_object.deformable_object.DeformableObject</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#omni.isaac.lab.scene.InteractiveScene.deformable_objects" title="Permalink to this definition">#</a></dt>
-<dd><p>A dictionary of deformable objects in the scene.</p>
-</dd></dl>
-
-<dl class="py property">
-<dt class="sig sig-object py" id="omni.isaac.lab.scene.InteractiveScene.rigid_objects">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">rigid_objects</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.13)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference internal" href="omni.isaac.lab.assets.html#omni.isaac.lab.assets.RigidObject" title="omni.isaac.lab.assets.rigid_object.rigid_object.RigidObject"><span class="pre">omni.isaac.lab.assets.rigid_object.rigid_object.RigidObject</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#omni.isaac.lab.scene.InteractiveScene.rigid_objects" title="Permalink to this definition">#</a></dt>
-<dd><p>A dictionary of rigid objects in the scene.</p>
-</dd></dl>
-
-<dl class="py property">
-<dt class="sig sig-object py" id="omni.isaac.lab.scene.InteractiveScene.rigid_object_collections">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">rigid_object_collections</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.13)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference internal" href="omni.isaac.lab.assets.html#omni.isaac.lab.assets.RigidObjectCollection" title="omni.isaac.lab.assets.rigid_object_collection.rigid_object_collection.RigidObjectCollection"><span class="pre">omni.isaac.lab.assets.rigid_object_collection.rigid_object_collection.RigidObjectCollection</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#omni.isaac.lab.scene.InteractiveScene.rigid_object_collections" title="Permalink to this definition">#</a></dt>
-<dd><p>A dictionary of rigid object collections in the scene.</p>
-</dd></dl>
-
-<dl class="py property">
-<dt class="sig sig-object py" id="omni.isaac.lab.scene.InteractiveScene.sensors">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">sensors</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.13)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference internal" href="omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.SensorBase" title="omni.isaac.lab.sensors.sensor_base.SensorBase"><span class="pre">omni.isaac.lab.sensors.sensor_base.SensorBase</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#omni.isaac.lab.scene.InteractiveScene.sensors" title="Permalink to this definition">#</a></dt>
-<dd><p>A dictionary of the sensors in the scene, such as cameras and contact reporters.</p>
-</dd></dl>
-
-<dl class="py property">
-<dt class="sig sig-object py" id="omni.isaac.lab.scene.InteractiveScene.extras">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">extras</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.13)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.omniverse.nvidia.com/py/isaacsim/source/extensions/omni.isaac.core/docs/index.html#omni.isaac.core.prims.XFormPrimView" title="(in isaac_sim)"><span class="pre">omni.isaac.core.prims.XFormPrimView</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#omni.isaac.lab.scene.InteractiveScene.extras" title="Permalink to this definition">#</a></dt>
-<dd><p>A dictionary of miscellaneous simulation objects that neither inherit from assets nor sensors.</p>
-<p>The keys are the names of the miscellaneous objects, and the values are the <a class="reference external" href="https://docs.omniverse.nvidia.com/py/isaacsim/source/extensions/omni.isaac.core/docs/index.html#omni.isaac.core.prims.XFormPrimView">XFormPrimView</a>
-of the corresponding prims.</p>
-<p>As an example, lights or other props in the scene that do not have any attributes or properties that you
-want to alter at runtime can be added to this dictionary.</p>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>These are not reset or updated by the scene. They are mainly other prims that are not necessarily
-handled by the interactive scene, but are useful to be accessed by the user.</p>
-</div>
-</dd></dl>
-
-<dl class="py property">
-<dt class="sig sig-object py" id="omni.isaac.lab.scene.InteractiveScene.state">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">state</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.13)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.13)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.13)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.6)"><span class="pre">torch.Tensor</span></a><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#omni.isaac.lab.scene.InteractiveScene.state" title="Permalink to this definition">#</a></dt>
-<dd><p>Returns the state of the scene entities.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Returns<span class="colon">:</span></dt>
-<dd class="field-odd"><p>A dictionary of the state of the scene entities.</p>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="omni.isaac.lab.scene.InteractiveScene.get_state">
-<span class="sig-name descname"><span class="pre">get_state</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">is_relative</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.13)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.13)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.13)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.6)"><span class="pre">torch.Tensor</span></a><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../../../_modules/omni/isaac/lab/scene/interactive_scene.html#InteractiveScene.get_state"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.scene.InteractiveScene.get_state" title="Permalink to this definition">#</a></dt>
-<dd><p>Returns the state of the scene entities.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>is_relative</strong> – If set to True, the state is considered relative to the environment origins.</p>
-</dd>
-<dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>A dictionary of the state of the scene entities.</p>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="omni.isaac.lab.scene.InteractiveScene.reset">
-<span class="sig-name descname"><span class="pre">reset</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">env_ids</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Sequence" title="(in Python v3.13)"><span class="pre">Sequence</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><span class="pre">int</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/omni/isaac/lab/scene/interactive_scene.html#InteractiveScene.reset"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.scene.InteractiveScene.reset" title="Permalink to this definition">#</a></dt>
-<dd><p>Resets the scene entities.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>env_ids</strong> – The indices of the environments to reset.
-Defaults to None (all instances).</p>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="omni.isaac.lab.scene.InteractiveScene.reset_to">
-<span class="sig-name descname"><span class="pre">reset_to</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">state</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.13)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.13)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.13)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.6)"><span class="pre">torch.Tensor</span></a><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">env_ids</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Sequence" title="(in Python v3.13)"><span class="pre">Sequence</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><span class="pre">int</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">is_relative</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/omni/isaac/lab/scene/interactive_scene.html#InteractiveScene.reset_to"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.scene.InteractiveScene.reset_to" title="Permalink to this definition">#</a></dt>
-<dd><p>Resets the scene entities to the given state.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>state</strong> – The state to reset the scene entities to.</p></li>
-<li><p><strong>env_ids</strong> – The indices of the environments to reset.
-Defaults to None (all instances).</p></li>
-<li><p><strong>is_relative</strong> – If set to True, the state is considered relative to the environment origins.</p></li>
-</ul>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="omni.isaac.lab.scene.InteractiveScene.write_data_to_sim">
-<span class="sig-name descname"><span class="pre">write_data_to_sim</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/omni/isaac/lab/scene/interactive_scene.html#InteractiveScene.write_data_to_sim"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.scene.InteractiveScene.write_data_to_sim" title="Permalink to this definition">#</a></dt>
-<dd><p>Writes the data of the scene entities to the simulation.</p>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="omni.isaac.lab.scene.InteractiveScene.update">
-<span class="sig-name descname"><span class="pre">update</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">dt</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></span></span><a class="reference internal" href="../../../_modules/omni/isaac/lab/scene/interactive_scene.html#InteractiveScene.update"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.scene.InteractiveScene.update" title="Permalink to this definition">#</a></dt>
-<dd><p>Update the scene entities.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>dt</strong> – The amount of time passed from last <a class="reference internal" href="#omni.isaac.lab.scene.InteractiveScene.update" title="omni.isaac.lab.scene.InteractiveScene.update"><code class="xref py py-meth docutils literal notranslate"><span class="pre">update()</span></code></a> call.</p>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="omni.isaac.lab.scene.InteractiveScene.keys">
-<span class="sig-name descname"><span class="pre">keys</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.13)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../../../_modules/omni/isaac/lab/scene/interactive_scene.html#InteractiveScene.keys"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.scene.InteractiveScene.keys" title="Permalink to this definition">#</a></dt>
-<dd><p>Returns the keys of the scene entities.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Returns<span class="colon">:</span></dt>
-<dd class="field-odd"><p>The keys of the scene entities.</p>
-</dd>
-</dl>
-</dd></dl>
-
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.scene.</span></span><span class="sig-name descname"><span class="pre">InteractiveScene</span></span><a class="headerlink" href="#omni.isaac.lab.scene.InteractiveScene" title="Permalink to this definition">#</a></dt>
+<dd><p>Bases:</p>
 </dd></dl>
 
 <dl class="py class">
 <dt class="sig sig-object py" id="omni.isaac.lab.scene.InteractiveSceneCfg">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.scene.</span></span><span class="sig-name descname"><span class="pre">InteractiveSceneCfg</span></span><a class="reference internal" href="../../../_modules/omni/isaac/lab/scene/interactive_scene_cfg.html#InteractiveSceneCfg"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.scene.InteractiveSceneCfg" title="Permalink to this definition">#</a></dt>
-<dd><p>Configuration for the interactive scene.</p>
-<p>The users can inherit from this class to add entities to their scene. This is then parsed by the
-<a class="reference internal" href="#omni.isaac.lab.scene.InteractiveScene" title="omni.isaac.lab.scene.InteractiveScene"><code class="xref py py-class docutils literal notranslate"><span class="pre">InteractiveScene</span></code></a> class to create the scene.</p>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>The adding of entities to the scene is sensitive to the order of the attributes in the configuration.
-Please make sure to add the entities in the order you want them to be added to the scene.
-The recommended order of specification is terrain, physics-related assets (articulations and rigid bodies),
-sensors and non-physics-related assets (lights).</p>
-</div>
-<p>For example, to add a robot to the scene, the user can create a configuration class as follows:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">omni.isaac.lab.sim</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">sim_utils</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.assets</span><span class="w"> </span><span class="kn">import</span> <span class="n">AssetBaseCfg</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.scene</span><span class="w"> </span><span class="kn">import</span> <span class="n">InteractiveSceneCfg</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.sensors.ray_caster</span><span class="w"> </span><span class="kn">import</span> <span class="n">GridPatternCfg</span><span class="p">,</span> <span class="n">RayCasterCfg</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">configclass</span>
-
-<span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab_assets.anymal</span><span class="w"> </span><span class="kn">import</span> <span class="n">ANYMAL_C_CFG</span>
-
-<span class="nd">@configclass</span>
-<span class="k">class</span><span class="w"> </span><span class="nc">MySceneCfg</span><span class="p">(</span><span class="n">InteractiveSceneCfg</span><span class="p">):</span>
-
-    <span class="c1"># terrain - flat terrain plane</span>
-    <span class="n">terrain</span> <span class="o">=</span> <span class="n">TerrainImporterCfg</span><span class="p">(</span>
-        <span class="n">prim_path</span><span class="o">=</span><span class="s2">&quot;/World/ground&quot;</span><span class="p">,</span>
-        <span class="n">terrain_type</span><span class="o">=</span><span class="s2">&quot;plane&quot;</span><span class="p">,</span>
-    <span class="p">)</span>
-
-    <span class="c1"># articulation - robot 1</span>
-    <span class="n">robot_1</span> <span class="o">=</span> <span class="n">ANYMAL_C_CFG</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">prim_path</span><span class="o">=</span><span class="s2">&quot;</span><span class="si">{ENV_REGEX_NS}</span><span class="s2">/Robot_1&quot;</span><span class="p">)</span>
-    <span class="c1"># articulation - robot 2</span>
-    <span class="n">robot_2</span> <span class="o">=</span> <span class="n">ANYMAL_C_CFG</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">prim_path</span><span class="o">=</span><span class="s2">&quot;</span><span class="si">{ENV_REGEX_NS}</span><span class="s2">/Robot_2&quot;</span><span class="p">)</span>
-    <span class="n">robot_2</span><span class="o">.</span><span class="n">init_state</span><span class="o">.</span><span class="n">pos</span> <span class="o">=</span> <span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">,</span> <span class="mf">0.6</span><span class="p">)</span>
-
-    <span class="c1"># sensor - ray caster attached to the base of robot 1 that scans the ground</span>
-    <span class="n">height_scanner</span> <span class="o">=</span> <span class="n">RayCasterCfg</span><span class="p">(</span>
-        <span class="n">prim_path</span><span class="o">=</span><span class="s2">&quot;</span><span class="si">{ENV_REGEX_NS}</span><span class="s2">/Robot_1/base&quot;</span><span class="p">,</span>
-        <span class="n">offset</span><span class="o">=</span><span class="n">RayCasterCfg</span><span class="o">.</span><span class="n">OffsetCfg</span><span class="p">(</span><span class="n">pos</span><span class="o">=</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">20.0</span><span class="p">)),</span>
-        <span class="n">attach_yaw_only</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
-        <span class="n">pattern_cfg</span><span class="o">=</span><span class="n">GridPatternCfg</span><span class="p">(</span><span class="n">resolution</span><span class="o">=</span><span class="mf">0.1</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="p">[</span><span class="mf">1.6</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">]),</span>
-        <span class="n">debug_vis</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
-        <span class="n">mesh_prim_paths</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;/World/ground&quot;</span><span class="p">],</span>
-    <span class="p">)</span>
-
-    <span class="c1"># extras - light</span>
-    <span class="n">light</span> <span class="o">=</span> <span class="n">AssetBaseCfg</span><span class="p">(</span>
-        <span class="n">prim_path</span><span class="o">=</span><span class="s2">&quot;/World/light&quot;</span><span class="p">,</span>
-        <span class="n">spawn</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">DistantLightCfg</span><span class="p">(</span><span class="n">intensity</span><span class="o">=</span><span class="mf">3000.0</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="p">(</span><span class="mf">0.75</span><span class="p">,</span> <span class="mf">0.75</span><span class="p">,</span> <span class="mf">0.75</span><span class="p">)),</span>
-        <span class="n">init_state</span><span class="o">=</span><span class="n">AssetBaseCfg</span><span class="o">.</span><span class="n">InitialStateCfg</span><span class="p">(</span><span class="n">pos</span><span class="o">=</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">500.0</span><span class="p">)),</span>
-    <span class="p">)</span>
-</pre></div>
-</div>
-<p><strong>Attributes:</strong></p>
-<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
-<tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.scene.InteractiveSceneCfg.num_envs" title="omni.isaac.lab.scene.InteractiveSceneCfg.num_envs"><code class="xref py py-obj docutils literal notranslate"><span class="pre">num_envs</span></code></a></p></td>
-<td><p>Number of environment instances handled by the scene.</p></td>
-</tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.scene.InteractiveSceneCfg.env_spacing" title="omni.isaac.lab.scene.InteractiveSceneCfg.env_spacing"><code class="xref py py-obj docutils literal notranslate"><span class="pre">env_spacing</span></code></a></p></td>
-<td><p>Spacing between environments.</p></td>
-</tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.scene.InteractiveSceneCfg.lazy_sensor_update" title="omni.isaac.lab.scene.InteractiveSceneCfg.lazy_sensor_update"><code class="xref py py-obj docutils literal notranslate"><span class="pre">lazy_sensor_update</span></code></a></p></td>
-<td><p>Whether to update sensors only when they are accessed.</p></td>
-</tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.scene.InteractiveSceneCfg.replicate_physics" title="omni.isaac.lab.scene.InteractiveSceneCfg.replicate_physics"><code class="xref py py-obj docutils literal notranslate"><span class="pre">replicate_physics</span></code></a></p></td>
-<td><p>Enable/disable replication of physics schemas when using the Cloner APIs.</p></td>
-</tr>
-</tbody>
-</table>
-</div>
-<dl class="py attribute">
-<dt class="sig sig-object py" id="omni.isaac.lab.scene.InteractiveSceneCfg.num_envs">
-<span class="sig-name descname"><span class="pre">num_envs</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><span class="pre">int</span></a></em><a class="headerlink" href="#omni.isaac.lab.scene.InteractiveSceneCfg.num_envs" title="Permalink to this definition">#</a></dt>
-<dd><p>Number of environment instances handled by the scene.</p>
-</dd></dl>
-
-<dl class="py attribute">
-<dt class="sig sig-object py" id="omni.isaac.lab.scene.InteractiveSceneCfg.env_spacing">
-<span class="sig-name descname"><span class="pre">env_spacing</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a></em><a class="headerlink" href="#omni.isaac.lab.scene.InteractiveSceneCfg.env_spacing" title="Permalink to this definition">#</a></dt>
-<dd><p>Spacing between environments.</p>
-<p>This is the default distance between environment origins in the scene. Used only when the
-number of environments is greater than one.</p>
-</dd></dl>
-
-<dl class="py attribute">
-<dt class="sig sig-object py" id="omni.isaac.lab.scene.InteractiveSceneCfg.lazy_sensor_update">
-<span class="sig-name descname"><span class="pre">lazy_sensor_update</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a></em><a class="headerlink" href="#omni.isaac.lab.scene.InteractiveSceneCfg.lazy_sensor_update" title="Permalink to this definition">#</a></dt>
-<dd><p>Whether to update sensors only when they are accessed. Default is True.</p>
-<p>If true, the sensor data is only updated when their attribute <code class="docutils literal notranslate"><span class="pre">data</span></code> is accessed. Otherwise, the sensor
-data is updated every time sensors are updated.</p>
-</dd></dl>
-
-<dl class="py attribute">
-<dt class="sig sig-object py" id="omni.isaac.lab.scene.InteractiveSceneCfg.replicate_physics">
-<span class="sig-name descname"><span class="pre">replicate_physics</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a></em><a class="headerlink" href="#omni.isaac.lab.scene.InteractiveSceneCfg.replicate_physics" title="Permalink to this definition">#</a></dt>
-<dd><p>Enable/disable replication of physics schemas when using the Cloner APIs. Default is True.</p>
-<p>If True, the simulation will have the same asset instances (USD prims) in all the cloned environments.
-Internally, this ensures optimization in setting up the scene and parsing it via the physics stage parser.</p>
-<p>If False, the simulation allows having separate asset instances (USD prims) in each environment.
-This flexibility comes at a cost of slowdowns in setting up and parsing the scene.</p>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>Optimized parsing of certain prim types (such as deformable objects) is not currently supported
-by the physics engine. In these cases, this flag needs to be set to False.</p>
-</div>
-</dd></dl>
-
-</dd></dl>
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.scene.</span></span><span class="sig-name descname"><span class="pre">InteractiveSceneCfg</span></span><a class="headerlink" href="#omni.isaac.lab.scene.InteractiveSceneCfg" title="Permalink to this definition">#</a></dt>
+<dd></dd></dl>
 
 </section>
 </section>
@@ -1194,40 +672,8 @@ by the physics engine. In these cases, this flag needs to be set to False.</p>
   <nav class="bd-toc-nav page-toc">
     <ul class="visible nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#interactive-scene">interactive Scene</a><ul class="nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.scene.InteractiveScene"><code class="docutils literal notranslate"><span class="pre">InteractiveScene</span></code></a><ul class="nav section-nav flex-column">
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.scene.InteractiveScene.__init__"><code class="docutils literal notranslate"><span class="pre">InteractiveScene.__init__()</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.scene.InteractiveScene.clone_environments"><code class="docutils literal notranslate"><span class="pre">InteractiveScene.clone_environments()</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.scene.InteractiveScene.filter_collisions"><code class="docutils literal notranslate"><span class="pre">InteractiveScene.filter_collisions()</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.scene.InteractiveScene.physics_scene_path"><code class="docutils literal notranslate"><span class="pre">InteractiveScene.physics_scene_path</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.scene.InteractiveScene.physics_dt"><code class="docutils literal notranslate"><span class="pre">InteractiveScene.physics_dt</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.scene.InteractiveScene.device"><code class="docutils literal notranslate"><span class="pre">InteractiveScene.device</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.scene.InteractiveScene.env_ns"><code class="docutils literal notranslate"><span class="pre">InteractiveScene.env_ns</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.scene.InteractiveScene.env_regex_ns"><code class="docutils literal notranslate"><span class="pre">InteractiveScene.env_regex_ns</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.scene.InteractiveScene.num_envs"><code class="docutils literal notranslate"><span class="pre">InteractiveScene.num_envs</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.scene.InteractiveScene.env_origins"><code class="docutils literal notranslate"><span class="pre">InteractiveScene.env_origins</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.scene.InteractiveScene.terrain"><code class="docutils literal notranslate"><span class="pre">InteractiveScene.terrain</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.scene.InteractiveScene.articulations"><code class="docutils literal notranslate"><span class="pre">InteractiveScene.articulations</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.scene.InteractiveScene.deformable_objects"><code class="docutils literal notranslate"><span class="pre">InteractiveScene.deformable_objects</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.scene.InteractiveScene.rigid_objects"><code class="docutils literal notranslate"><span class="pre">InteractiveScene.rigid_objects</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.scene.InteractiveScene.rigid_object_collections"><code class="docutils literal notranslate"><span class="pre">InteractiveScene.rigid_object_collections</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.scene.InteractiveScene.sensors"><code class="docutils literal notranslate"><span class="pre">InteractiveScene.sensors</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.scene.InteractiveScene.extras"><code class="docutils literal notranslate"><span class="pre">InteractiveScene.extras</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.scene.InteractiveScene.state"><code class="docutils literal notranslate"><span class="pre">InteractiveScene.state</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.scene.InteractiveScene.get_state"><code class="docutils literal notranslate"><span class="pre">InteractiveScene.get_state()</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.scene.InteractiveScene.reset"><code class="docutils literal notranslate"><span class="pre">InteractiveScene.reset()</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.scene.InteractiveScene.reset_to"><code class="docutils literal notranslate"><span class="pre">InteractiveScene.reset_to()</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.scene.InteractiveScene.write_data_to_sim"><code class="docutils literal notranslate"><span class="pre">InteractiveScene.write_data_to_sim()</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.scene.InteractiveScene.update"><code class="docutils literal notranslate"><span class="pre">InteractiveScene.update()</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.scene.InteractiveScene.keys"><code class="docutils literal notranslate"><span class="pre">InteractiveScene.keys()</span></code></a></li>
-</ul>
-</li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.scene.InteractiveSceneCfg"><code class="docutils literal notranslate"><span class="pre">InteractiveSceneCfg</span></code></a><ul class="nav section-nav flex-column">
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.scene.InteractiveSceneCfg.num_envs"><code class="docutils literal notranslate"><span class="pre">InteractiveSceneCfg.num_envs</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.scene.InteractiveSceneCfg.env_spacing"><code class="docutils literal notranslate"><span class="pre">InteractiveSceneCfg.env_spacing</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.scene.InteractiveSceneCfg.lazy_sensor_update"><code class="docutils literal notranslate"><span class="pre">InteractiveSceneCfg.lazy_sensor_update</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.scene.InteractiveSceneCfg.replicate_physics"><code class="docutils literal notranslate"><span class="pre">InteractiveSceneCfg.replicate_physics</span></code></a></li>
-</ul>
-</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.scene.InteractiveScene"><code class="docutils literal notranslate"><span class="pre">InteractiveScene</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.scene.InteractiveSceneCfg"><code class="docutils literal notranslate"><span class="pre">InteractiveSceneCfg</span></code></a></li>
 </ul>
 </li>
 </ul>

@@ -192,7 +192,7 @@
           
           
           
-          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.2.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.5.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
         </li>
         <li class="nav-item">
           
@@ -616,19 +616,19 @@ Internally, this script creates an instance of <a class="reference internal" hre
 is then passed to the <a class="reference internal" href="../api/lab/omni.isaac.lab.sim.converters.html#omni.isaac.lab.sim.converters.UrdfConverter" title="omni.isaac.lab.sim.converters.UrdfConverter"><code class="xref py py-class docutils literal notranslate"><span class="pre">UrdfConverter</span></code></a> class. The configuration class specifies
 the default values for the importer. The important settings are:</p>
 <ul class="simple">
-<li><p><a class="reference internal" href="../api/lab/omni.isaac.lab.sim.converters.html#omni.isaac.lab.sim.converters.UrdfConverterCfg.fix_base" title="omni.isaac.lab.sim.converters.UrdfConverterCfg.fix_base"><code class="xref py py-attr docutils literal notranslate"><span class="pre">fix_base</span></code></a> - Whether to fix the base of the robot.
+<li><p><code class="xref py py-attr docutils literal notranslate"><span class="pre">fix_base</span></code> - Whether to fix the base of the robot.
 This depends on whether you have a floating-base or fixed-base robot.</p></li>
-<li><p><a class="reference internal" href="../api/lab/omni.isaac.lab.sim.converters.html#omni.isaac.lab.sim.converters.UrdfConverterCfg.make_instanceable" title="omni.isaac.lab.sim.converters.UrdfConverterCfg.make_instanceable"><code class="xref py py-attr docutils literal notranslate"><span class="pre">make_instanceable</span></code></a> - Whether to create instanceable assets.
+<li><p><code class="xref py py-attr docutils literal notranslate"><span class="pre">make_instanceable</span></code> - Whether to create instanceable assets.
 Usually, this should be set to <code class="docutils literal notranslate"><span class="pre">True</span></code>.</p></li>
-<li><p><a class="reference internal" href="../api/lab/omni.isaac.lab.sim.converters.html#omni.isaac.lab.sim.converters.UrdfConverterCfg.merge_fixed_joints" title="omni.isaac.lab.sim.converters.UrdfConverterCfg.merge_fixed_joints"><code class="xref py py-attr docutils literal notranslate"><span class="pre">merge_fixed_joints</span></code></a> - Whether to merge the fixed joints.
+<li><p><code class="xref py py-attr docutils literal notranslate"><span class="pre">merge_fixed_joints</span></code> - Whether to merge the fixed joints.
 Usually, this should be set to <code class="docutils literal notranslate"><span class="pre">True</span></code> to reduce the asset complexity.</p></li>
-<li><p><a class="reference internal" href="../api/lab/omni.isaac.lab.sim.converters.html#omni.isaac.lab.sim.converters.UrdfConverterCfg.default_drive_type" title="omni.isaac.lab.sim.converters.UrdfConverterCfg.default_drive_type"><code class="xref py py-attr docutils literal notranslate"><span class="pre">default_drive_type</span></code></a> - The drive-type for the joints.
+<li><p><code class="xref py py-attr docutils literal notranslate"><span class="pre">default_drive_type</span></code> - The drive-type for the joints.
 We recommend this to always be <code class="docutils literal notranslate"><span class="pre">&quot;none&quot;</span></code>. This allows changing the drive configuration using the
 actuator models.</p></li>
-<li><p><a class="reference internal" href="../api/lab/omni.isaac.lab.sim.converters.html#omni.isaac.lab.sim.converters.UrdfConverterCfg.default_drive_stiffness" title="omni.isaac.lab.sim.converters.UrdfConverterCfg.default_drive_stiffness"><code class="xref py py-attr docutils literal notranslate"><span class="pre">default_drive_stiffness</span></code></a> - The drive stiffness for the joints.
+<li><p><code class="xref py py-attr docutils literal notranslate"><span class="pre">default_drive_stiffness</span></code> - The drive stiffness for the joints.
 We recommend this to always be <code class="docutils literal notranslate"><span class="pre">0.0</span></code>. This allows changing the drive configuration using the
 actuator models.</p></li>
-<li><p><a class="reference internal" href="../api/lab/omni.isaac.lab.sim.converters.html#omni.isaac.lab.sim.converters.UrdfConverterCfg.default_drive_damping" title="omni.isaac.lab.sim.converters.UrdfConverterCfg.default_drive_damping"><code class="xref py py-attr docutils literal notranslate"><span class="pre">default_drive_damping</span></code></a> - The drive damping for the joints.
+<li><p><code class="xref py py-attr docutils literal notranslate"><span class="pre">default_drive_damping</span></code> - The drive damping for the joints.
 Similar to the stiffness, we recommend this to always be <code class="docutils literal notranslate"><span class="pre">0.0</span></code>.</p></li>
 </ul>
 <section id="example-usage">

@@ -192,7 +192,7 @@
           
           
           
-          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.2.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.5.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
         </li>
         <li class="nav-item">
           
@@ -757,8 +757,8 @@ points, lines and splines. For cases, where you need to render more complex shap
 <p>The <a class="reference internal" href="../api/lab/omni.isaac.lab.markers.html#omni.isaac.lab.markers.VisualizationMarkersCfg" title="omni.isaac.lab.markers.VisualizationMarkersCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">VisualizationMarkersCfg</span></code></a> class provides a simple interface to configure
 different types of markers. It takes in the following parameters:</p>
 <ul class="simple">
-<li><p><a class="reference internal" href="../api/lab/omni.isaac.lab.markers.html#omni.isaac.lab.markers.VisualizationMarkersCfg.prim_path" title="omni.isaac.lab.markers.VisualizationMarkersCfg.prim_path"><code class="xref py py-attr docutils literal notranslate"><span class="pre">prim_path</span></code></a>: The corresponding prim path for the marker class.</p></li>
-<li><p><a class="reference internal" href="../api/lab/omni.isaac.lab.markers.html#omni.isaac.lab.markers.VisualizationMarkersCfg.markers" title="omni.isaac.lab.markers.VisualizationMarkersCfg.markers"><code class="xref py py-attr docutils literal notranslate"><span class="pre">markers</span></code></a>: A dictionary specifying the different marker prototypes
+<li><p><code class="xref py py-attr docutils literal notranslate"><span class="pre">prim_path</span></code>: The corresponding prim path for the marker class.</p></li>
+<li><p><code class="xref py py-attr docutils literal notranslate"><span class="pre">markers</span></code>: A dictionary specifying the different marker prototypes
 handled by the class. The key is the name of the marker prototype and the value is its spawn configuration.</p></li>
 </ul>
 <div class="admonition note">
@@ -820,7 +820,7 @@ configured from USD files.</p>
 </section>
 <section id="drawing-the-markers">
 <h2>Drawing the markers<a class="headerlink" href="#drawing-the-markers" title="Permalink to this heading">#</a></h2>
-<p>To draw the markers, we call the <a class="reference internal" href="../api/lab/omni.isaac.lab.markers.html#omni.isaac.lab.markers.VisualizationMarkers.visualize" title="omni.isaac.lab.markers.VisualizationMarkers.visualize"><code class="xref py py-class docutils literal notranslate"><span class="pre">visualize</span></code></a> method. This method takes in
+<p>To draw the markers, we call the <code class="xref py py-class docutils literal notranslate"><span class="pre">visualize</span></code> method. This method takes in
 as arguments the pose of the markers and the corresponding marker prototypes to draw.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">while</span> <span class="n">simulation_app</span><span class="o">.</span><span class="n">is_running</span><span class="p">():</span>
     <span class="c1"># rotate the markers around the z-axis for visualization</span>

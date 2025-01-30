@@ -1,0 +1,1038 @@
+
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>isaaclab.terrains.height_field.hf_terrains &#8212; Isaac Lab Documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../../../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../../../../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../../../_static/pygments.css" />
+    <link rel="stylesheet" href="../../../../_static/styles/sphinx-book-theme.css?digest=14f4ca6b54d191a8c7657f6c759bf11a5fb86285" type="text/css" />
+    <link rel="stylesheet" type="text/css" href="/opt/hostedtoolcache/Python/3.10.16/x64/lib/python3.10/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/css/all.min.css" />
+    <link rel="stylesheet" type="text/css" href="../../../../_static/copybutton.css" />
+    <link rel="stylesheet" type="text/css" href="../../../../_static/custom.css" />
+    <link rel="stylesheet" type="text/css" href="../../../../_static/sphinx-design.4cbf315f70debaebd550c87a6162cf0f.min.css" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../../../../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../../../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script data-url_root="../../../../" id="documentation_options" src="../../../../_static/documentation_options.js"></script>
+    <script src="../../../../_static/doctools.js"></script>
+    <script src="../../../../_static/sphinx_highlight.js"></script>
+    <script src="/opt/hostedtoolcache/Python/3.10.16/x64/lib/python3.10/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/js/all.min.js"></script>
+    <script src="../../../../_static/clipboard.min.js"></script>
+    <script src="../../../../_static/copybutton.js"></script>
+    <script src="../../../../_static/scripts/sphinx-book-theme.js?digest=5a5c038af52cf7bc1a1ec88eea08e6366ee68824"></script>
+    <script src="../../../../_static/design-tabs.js"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = '_modules/isaaclab/terrains/height_field/hf_terrains';</script>
+    <link rel="icon" href="../../../../_static/favicon.ico"/>
+    <link rel="index" title="Index" href="../../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../../search.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="2.0.0" />
+    <meta name="docbuild:last-update" content="Jan 30, 2025"/>
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+        
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+    
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../../../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../../../../_static/NVIDIA-logo-white.png" class="logo__image only-light" alt=""/>
+    <img src="../../../../_static/NVIDIA-logo-black.png" class="logo__image only-dark pst-js-only" alt=""/>
+  
+  
+    <p class="title logo__title">Isaac Lab Documentation</p>
+  
+</a></div>
+        <div class="sidebar-primary-item">
+<nav class="bd-links bd-docs-nav">
+    <div class="bd-toc-item navbar-nav">
+      <ul class="nav bd-sidenav">
+        <li class="toctree-l1 has-children" style="display: flex; justify-content: center; align-items: center; flex-direction: column;">
+          <div  style ="text-align:center;">
+            <label for="version-select" style="font-weight: bold; display: block;">Version</label>
+          </div>
+          <select id="version-select" class="version-dropdown" style="margin: 0 auto; display: block;" onchange="location = this.value;">
+            <option value="hf_terrains.html" selected>main</option>
+            <option value="../../../../../v1.4.1/index.html" >v1.4.1</option>
+            <option value="../../../../../v1.4.0/index.html" >v1.4.0</option>
+            <option value="../../../../../v1.3.0/index.html" >v1.3.0</option>
+            <option value="../../../../../v1.2.0/index.html" >v1.2.0</option>
+            <option value="../../../../../v1.1.0/index.html" >v1.1.0</option>
+            <option value="../../../../../v1.0.0/index.html" >v1.0.0</option>
+          </select>
+        </li>
+      </ul>
+    </div>
+</nav>
+</div>
+        <div class="sidebar-primary-item"><ul class="navbar-icon-links"
+    aria-label="Quick Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/isaac-sim/IsaacLab" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.5.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+        </li>
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://img.shields.io/github/stars/isaac-sim/IsaacLab?color=fedcba" title="Stars" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/github/stars/isaac-sim/IsaacLab?color=fedcba" class="icon-link-image" alt="Stars"/></a>
+        </li>
+</ul></div>
+        <div class="sidebar-primary-item">
+<form class="bd-search d-flex align-items-center"
+      action="../../../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form></div>
+        <div class="sidebar-primary-item"><nav class="bd-links" id="bd-docs-nav" aria-label="Main">
+    <div class="bd-toc-item navbar-nav active">
+        <p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/setup/ecosystem.html">Isaac Lab Ecosystem</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../../source/setup/installation/index.html">Local Installation</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/setup/installation/pip_installation.html">Pip installation (recommended for Ubuntu 22.04 and Windows)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/setup/installation/binaries_installation.html">Binary installation (recommended for Ubuntu 20.04)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/setup/installation/isaaclab_pip_installation.html">Advanced installation (Isaac Lab pip)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/setup/installation/asset_caching.html">Asset caching</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/setup/installation/cloud_installation.html">Running Isaac Lab in the Cloud</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/setup/faq.html">Frequently Asked Questions</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Overview</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../../source/overview/developer-guide/index.html">Developer’s Guide</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/overview/developer-guide/vs_code.html">Setting up Visual Studio Code</a></li>
+
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/overview/developer-guide/repo_structure.html">Repository organization</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/overview/developer-guide/development.html">Extension Development</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/overview/developer-guide/template.html">Building your Own Project</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../../source/overview/core-concepts/index.html">Core Concepts</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/overview/core-concepts/task_workflows.html">Task Design Workflows</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/overview/core-concepts/actuators.html">Actuators</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../../source/overview/sensors/index.html">Sensors</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/overview/sensors/camera.html">Camera</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/overview/sensors/contact_sensor.html">Contact Sensor</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/overview/sensors/frame_transformer.html">Frame Transformer</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/overview/sensors/imu.html">Inertial Measurement Unit (IMU)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/overview/sensors/ray_caster.html">Ray Caster</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/overview/environments.html">Available Environments</a></li>
+
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../../source/overview/reinforcement-learning/index.html">Reinforcement Learning</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/overview/reinforcement-learning/rl_existing_scripts.html">Reinforcement Learning Wrappers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/overview/reinforcement-learning/rl_frameworks.html">Reinforcement Learning Library Comparison</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/overview/reinforcement-learning/performance_benchmarks.html">Performance Benchmarks</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/overview/reinforcement-learning/training_guide.html">Debugging and Training Guide</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/overview/teleop_imitation.html">Teleoperation and Imitation Learning</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/overview/showroom.html">Showroom Demos</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/overview/simple_agents.html">Simple Agents</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Features</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/features/hydra.html">Hydra Configuration System</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/features/multi_gpu.html">Multi-GPU and Multi-Node Training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/overview/sensors/camera.html">Tiled Rendering</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/features/ray.html">Ray Job Dispatch and Tuning</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/features/reproducibility.html">Reproducibility and Determinism</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Resources</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../../source/tutorials/index.html">Tutorials</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/tutorials/00_sim/create_empty.html">Creating an empty scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/tutorials/00_sim/spawn_prims.html">Spawning prims into the scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/tutorials/00_sim/launch_app.html">Deep-dive into AppLauncher</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/tutorials/01_assets/run_rigid_object.html">Interacting with a rigid object</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/tutorials/01_assets/run_articulation.html">Interacting with an articulation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/tutorials/01_assets/run_deformable_object.html">Interacting with a deformable object</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/tutorials/02_scene/create_scene.html">Using the Interactive Scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/tutorials/03_envs/create_manager_base_env.html">Creating a Manager-Based Base Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/tutorials/03_envs/create_manager_rl_env.html">Creating a Manager-Based RL Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/tutorials/03_envs/create_direct_rl_env.html">Creating a Direct Workflow RL Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/tutorials/03_envs/register_rl_env_gym.html">Registering an Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/tutorials/03_envs/run_rl_training.html">Training with an RL Agent</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/tutorials/03_envs/modify_direct_rl_env.html">Modifying an existing Direct RL Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/tutorials/03_envs/policy_inference_in_usd.html">Policy Inference in USD Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/tutorials/04_sensors/add_sensors_on_robot.html">Adding sensors on a robot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/tutorials/05_controllers/run_diff_ik.html">Using a task-space controller</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/tutorials/05_controllers/run_osc.html">Using an operational space controller</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../../source/how-to/index.html">How-to Guides</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/how-to/import_new_asset.html">Importing a New Asset</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/how-to/write_articulation_cfg.html">Writing an Asset Configuration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/how-to/make_fixed_prim.html">Making a physics prim fixed in the simulation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/how-to/multi_asset_spawning.html">Spawning Multiple Assets</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/how-to/save_camera_output.html">Saving rendered images and 3D re-projection</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/how-to/estimate_how_many_cameras_can_run.html">Find How Many/What Cameras You Should Train With</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/how-to/draw_markers.html">Creating Visualization Markers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/how-to/wrap_rl_env.html">Wrapping environments</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/how-to/add_own_library.html">Adding your own learning library</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/how-to/record_animation.html">Recording Animations of Simulations</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/how-to/record_video.html">Recording video clips during training</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/how-to/master_omniverse.html">Mastering Omniverse for Robotics</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../../source/deployment/index.html">Container Deployment</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/deployment/docker.html">Docker Guide</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/deployment/cluster.html">Cluster Guide</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/deployment/run_docker_example.html">Running an example with Docker</a></li>
+</ul>
+</details></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Migration Guides</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/migration/migrating_from_isaacgymenvs.html">From IsaacGymEnvs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/migration/migrating_from_omniisaacgymenvs.html">From OmniIsaacGymEnvs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/migration/migrating_from_orbit.html">From Orbit</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Source API</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../../source/api/index.html">API Reference</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab/isaaclab.app.html">isaaclab.app</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab/isaaclab.actuators.html">isaaclab.actuators</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab/isaaclab.assets.html">isaaclab.assets</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab/isaaclab.controllers.html">isaaclab.controllers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab/isaaclab.devices.html">isaaclab.devices</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab/isaaclab.envs.html">isaaclab.envs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab/isaaclab.managers.html">isaaclab.managers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab/isaaclab.markers.html">isaaclab.markers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab/isaaclab.scene.html">isaaclab.scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab/isaaclab.sensors.html">isaaclab.sensors</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab/isaaclab.sim.html">isaaclab.sim</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab/isaaclab.terrains.html">isaaclab.terrains</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab/isaaclab.utils.html">isaaclab.utils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab/isaaclab.envs.mdp.html">isaaclab.envs.mdp</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab/isaaclab.envs.ui.html">isaaclab.envs.ui</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab/isaaclab.sensors.patterns.html">isaaclab.sensors.patterns</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab/isaaclab.sim.converters.html">isaaclab.sim.converters</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab/isaaclab.sim.schemas.html">isaaclab.sim.schemas</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab/isaaclab.sim.spawners.html">isaaclab.sim.spawners</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab_tasks/isaaclab_tasks.utils.html">isaaclab_tasks.utils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab_mimic/isaaclab_mimic.datagen.html">isaaclab_mimic.datagen</a></li>
+</ul>
+</details></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">References</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/refs/reference_architecture/index.html">Reference Architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/refs/additional_resources.html">Additional Resources</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/refs/contributing.html">Contribution Guidelines</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/refs/troubleshooting.html">Tricks and Troubleshooting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/refs/migration.html">Migration Guide (Isaac Sim)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/refs/issues.html">Known Issues</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/refs/release_notes.html">Release Notes</a></li>
+
+
+
+
+
+
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/refs/changelog.html">Extensions Changelog</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/refs/license.html">License</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/refs/bibliography.html">Bibliography</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Project Links</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference external" href="https://github.com/isaac-sim/IsaacLab">GitHub</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/latest/index.html">NVIDIA Isaac Sim</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/index.html">NVIDIA PhysX</a></li>
+</ul>
+
+    </div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+
+<div class="sbt-scroll-pixel-helper"></div>
+
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item"><label class="sidebar-toggle primary-toggle btn btn-sm" for="__primary" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <span class="fa-solid fa-bars"></span>
+</label></div>
+      
+    </div>
+  
+  
+    <div class="header-article-items__end">
+      
+        <div class="header-article-item">
+
+<div class="article-header-buttons">
+
+
+
+
+
+<div class="dropdown dropdown-source-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Source repositories">
+    <i class="fab fa-github"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="https://github.com/isaac-sim/IsaacLab" target="_blank"
+   class="btn btn-sm btn-source-repository-button dropdown-item"
+   title="Source repository"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fab fa-github"></i>
+  </span>
+<span class="btn__text-container">Repository</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li><a href="https://github.com/isaac-sim/IsaacLab/issues/new?title=Issue%20on%20page%20%2F_modules/isaaclab/terrains/height_field/hf_terrains.html&body=Your%20issue%20content%20here." target="_blank"
+   class="btn btn-sm btn-source-issues-button dropdown-item"
+   title="Open an issue"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-lightbulb"></i>
+  </span>
+<span class="btn__text-container">Open issue</span>
+</a>
+</li>
+      
+  </ul>
+</div>
+
+
+
+
+<button onclick="toggleFullScreen()"
+  class="btn btn-sm btn-fullscreen-button"
+  title="Fullscreen mode"
+  data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-expand"></i>
+  </span>
+
+</button>
+
+
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button>
+
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+
+</div></div>
+      
+    </div>
+  
+</div>
+</div>
+              
+              
+
+<div id="jb-print-docs-body" class="onlyprint">
+    <h1></h1>
+    <!-- Table of contents -->
+    <div id="print-main-content">
+        <div id="jb-print-toc">
+            
+        </div>
+    </div>
+</div>
+
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <h1>Source code for isaaclab.terrains.height_field.hf_terrains</h1><div class="highlight"><pre>
+<span></span><span class="c1"># Copyright (c) 2022-2025, The Isaac Lab Project Developers.</span>
+<span class="c1"># All rights reserved.</span>
+<span class="c1">#</span>
+<span class="c1"># SPDX-License-Identifier: BSD-3-Clause</span>
+
+<span class="sd">&quot;&quot;&quot;Functions to generate height fields for different terrains.&quot;&quot;&quot;</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">scipy.interpolate</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">interpolate</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TYPE_CHECKING</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">height_field_to_mesh</span>
+
+<span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">.</span><span class="w"> </span><span class="kn">import</span> <span class="n">hf_terrains_cfg</span>
+
+
+<div class="viewcode-block" id="random_uniform_terrain"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.terrains.html#isaaclab.terrains.height_field.hf_terrains.random_uniform_terrain">[docs]</a><span class="nd">@height_field_to_mesh</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">random_uniform_terrain</span><span class="p">(</span><span class="n">difficulty</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">hf_terrains_cfg</span><span class="o">.</span><span class="n">HfRandomUniformTerrainCfg</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Generate a terrain with height sampled uniformly from a specified range.</span>
+
+<span class="sd">    .. image:: ../../_static/terrains/height_field/random_uniform_terrain.jpg</span>
+<span class="sd">       :width: 40%</span>
+<span class="sd">       :align: center</span>
+
+<span class="sd">    Note:</span>
+<span class="sd">        The :obj:`difficulty` parameter is ignored for this terrain.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        difficulty: The difficulty of the terrain. This is a value between 0 and 1.</span>
+<span class="sd">        cfg: The configuration for the terrain.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        The height field of the terrain as a 2D numpy array with discretized heights.</span>
+<span class="sd">        The shape of the array is (width, length), where width and length are the number of points</span>
+<span class="sd">        along the x and y axis, respectively.</span>
+
+<span class="sd">    Raises:</span>
+<span class="sd">        ValueError: When the downsampled scale is smaller than the horizontal scale.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># check parameters</span>
+    <span class="c1"># -- horizontal scale</span>
+    <span class="k">if</span> <span class="n">cfg</span><span class="o">.</span><span class="n">downsampled_scale</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">cfg</span><span class="o">.</span><span class="n">downsampled_scale</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">horizontal_scale</span>
+    <span class="k">elif</span> <span class="n">cfg</span><span class="o">.</span><span class="n">downsampled_scale</span> <span class="o">&lt;</span> <span class="n">cfg</span><span class="o">.</span><span class="n">horizontal_scale</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="s2">&quot;Downsampled scale must be larger than or equal to the horizontal scale:&quot;</span>
+            <span class="sa">f</span><span class="s2">&quot; </span><span class="si">{</span><span class="n">cfg</span><span class="o">.</span><span class="n">downsampled_scale</span><span class="si">}</span><span class="s2"> &lt; </span><span class="si">{</span><span class="n">cfg</span><span class="o">.</span><span class="n">horizontal_scale</span><span class="si">}</span><span class="s2">.&quot;</span>
+        <span class="p">)</span>
+
+    <span class="c1"># switch parameters to discrete units</span>
+    <span class="c1"># -- horizontal scale</span>
+    <span class="n">width_pixels</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">size</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">/</span> <span class="n">cfg</span><span class="o">.</span><span class="n">horizontal_scale</span><span class="p">)</span>
+    <span class="n">length_pixels</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">size</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">/</span> <span class="n">cfg</span><span class="o">.</span><span class="n">horizontal_scale</span><span class="p">)</span>
+    <span class="c1"># -- downsampled scale</span>
+    <span class="n">width_downsampled</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">size</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">/</span> <span class="n">cfg</span><span class="o">.</span><span class="n">downsampled_scale</span><span class="p">)</span>
+    <span class="n">length_downsampled</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">size</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">/</span> <span class="n">cfg</span><span class="o">.</span><span class="n">downsampled_scale</span><span class="p">)</span>
+    <span class="c1"># -- height</span>
+    <span class="n">height_min</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">noise_range</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">/</span> <span class="n">cfg</span><span class="o">.</span><span class="n">vertical_scale</span><span class="p">)</span>
+    <span class="n">height_max</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">noise_range</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">/</span> <span class="n">cfg</span><span class="o">.</span><span class="n">vertical_scale</span><span class="p">)</span>
+    <span class="n">height_step</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">noise_step</span> <span class="o">/</span> <span class="n">cfg</span><span class="o">.</span><span class="n">vertical_scale</span><span class="p">)</span>
+
+    <span class="c1"># create range of heights possible</span>
+    <span class="n">height_range</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">height_min</span><span class="p">,</span> <span class="n">height_max</span> <span class="o">+</span> <span class="n">height_step</span><span class="p">,</span> <span class="n">height_step</span><span class="p">)</span>
+    <span class="c1"># sample heights randomly from the range along a grid</span>
+    <span class="n">height_field_downsampled</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">choice</span><span class="p">(</span><span class="n">height_range</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="p">(</span><span class="n">width_downsampled</span><span class="p">,</span> <span class="n">length_downsampled</span><span class="p">))</span>
+    <span class="c1"># create interpolation function for the sampled heights</span>
+    <span class="n">x</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">cfg</span><span class="o">.</span><span class="n">size</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="n">cfg</span><span class="o">.</span><span class="n">horizontal_scale</span><span class="p">,</span> <span class="n">width_downsampled</span><span class="p">)</span>
+    <span class="n">y</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">cfg</span><span class="o">.</span><span class="n">size</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">*</span> <span class="n">cfg</span><span class="o">.</span><span class="n">horizontal_scale</span><span class="p">,</span> <span class="n">length_downsampled</span><span class="p">)</span>
+    <span class="n">func</span> <span class="o">=</span> <span class="n">interpolate</span><span class="o">.</span><span class="n">RectBivariateSpline</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">height_field_downsampled</span><span class="p">)</span>
+
+    <span class="c1"># interpolate the sampled heights to obtain the height field</span>
+    <span class="n">x_upsampled</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">cfg</span><span class="o">.</span><span class="n">size</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="n">cfg</span><span class="o">.</span><span class="n">horizontal_scale</span><span class="p">,</span> <span class="n">width_pixels</span><span class="p">)</span>
+    <span class="n">y_upsampled</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">cfg</span><span class="o">.</span><span class="n">size</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">*</span> <span class="n">cfg</span><span class="o">.</span><span class="n">horizontal_scale</span><span class="p">,</span> <span class="n">length_pixels</span><span class="p">)</span>
+    <span class="n">z_upsampled</span> <span class="o">=</span> <span class="n">func</span><span class="p">(</span><span class="n">x_upsampled</span><span class="p">,</span> <span class="n">y_upsampled</span><span class="p">)</span>
+    <span class="c1"># round off the interpolated heights to the nearest vertical step</span>
+    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">rint</span><span class="p">(</span><span class="n">z_upsampled</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">int16</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="pyramid_sloped_terrain"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.terrains.html#isaaclab.terrains.height_field.hf_terrains.pyramid_sloped_terrain">[docs]</a><span class="nd">@height_field_to_mesh</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">pyramid_sloped_terrain</span><span class="p">(</span><span class="n">difficulty</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">hf_terrains_cfg</span><span class="o">.</span><span class="n">HfPyramidSlopedTerrainCfg</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Generate a terrain with a truncated pyramid structure.</span>
+
+<span class="sd">    The terrain is a pyramid-shaped sloped surface with a slope of :obj:`slope` that trims into a flat platform</span>
+<span class="sd">    at the center. The slope is defined as the ratio of the height change along the x axis to the width along the</span>
+<span class="sd">    x axis. For example, a slope of 1.0 means that the height changes by 1 unit for every 1 unit of width.</span>
+
+<span class="sd">    If the :obj:`cfg.inverted` flag is set to :obj:`True`, the terrain is inverted such that</span>
+<span class="sd">    the platform is at the bottom.</span>
+
+<span class="sd">    .. image:: ../../_static/terrains/height_field/pyramid_sloped_terrain.jpg</span>
+<span class="sd">       :width: 40%</span>
+
+<span class="sd">    .. image:: ../../_static/terrains/height_field/inverted_pyramid_sloped_terrain.jpg</span>
+<span class="sd">       :width: 40%</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        difficulty: The difficulty of the terrain. This is a value between 0 and 1.</span>
+<span class="sd">        cfg: The configuration for the terrain.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        The height field of the terrain as a 2D numpy array with discretized heights.</span>
+<span class="sd">        The shape of the array is (width, length), where width and length are the number of points</span>
+<span class="sd">        along the x and y axis, respectively.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># resolve terrain configuration</span>
+    <span class="k">if</span> <span class="n">cfg</span><span class="o">.</span><span class="n">inverted</span><span class="p">:</span>
+        <span class="n">slope</span> <span class="o">=</span> <span class="o">-</span><span class="n">cfg</span><span class="o">.</span><span class="n">slope_range</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">-</span> <span class="n">difficulty</span> <span class="o">*</span> <span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">slope_range</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="n">cfg</span><span class="o">.</span><span class="n">slope_range</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">slope</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">slope_range</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="n">difficulty</span> <span class="o">*</span> <span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">slope_range</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="n">cfg</span><span class="o">.</span><span class="n">slope_range</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+
+    <span class="c1"># switch parameters to discrete units</span>
+    <span class="c1"># -- horizontal scale</span>
+    <span class="n">width_pixels</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">size</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">/</span> <span class="n">cfg</span><span class="o">.</span><span class="n">horizontal_scale</span><span class="p">)</span>
+    <span class="n">length_pixels</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">size</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">/</span> <span class="n">cfg</span><span class="o">.</span><span class="n">horizontal_scale</span><span class="p">)</span>
+    <span class="c1"># -- height</span>
+    <span class="c1"># we want the height to be 1/2 of the width since the terrain is a pyramid</span>
+    <span class="n">height_max</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">slope</span> <span class="o">*</span> <span class="n">cfg</span><span class="o">.</span><span class="n">size</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">/</span> <span class="mi">2</span> <span class="o">/</span> <span class="n">cfg</span><span class="o">.</span><span class="n">vertical_scale</span><span class="p">)</span>
+    <span class="c1"># -- center of the terrain</span>
+    <span class="n">center_x</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">width_pixels</span> <span class="o">/</span> <span class="mi">2</span><span class="p">)</span>
+    <span class="n">center_y</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">length_pixels</span> <span class="o">/</span> <span class="mi">2</span><span class="p">)</span>
+
+    <span class="c1"># create a meshgrid of the terrain</span>
+    <span class="n">x</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">width_pixels</span><span class="p">)</span>
+    <span class="n">y</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">length_pixels</span><span class="p">)</span>
+    <span class="n">xx</span><span class="p">,</span> <span class="n">yy</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">meshgrid</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">sparse</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="c1"># offset the meshgrid to the center of the terrain</span>
+    <span class="n">xx</span> <span class="o">=</span> <span class="p">(</span><span class="n">center_x</span> <span class="o">-</span> <span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">center_x</span> <span class="o">-</span> <span class="n">xx</span><span class="p">))</span> <span class="o">/</span> <span class="n">center_x</span>
+    <span class="n">yy</span> <span class="o">=</span> <span class="p">(</span><span class="n">center_y</span> <span class="o">-</span> <span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">center_y</span> <span class="o">-</span> <span class="n">yy</span><span class="p">))</span> <span class="o">/</span> <span class="n">center_y</span>
+    <span class="c1"># reshape the meshgrid to be 2D</span>
+    <span class="n">xx</span> <span class="o">=</span> <span class="n">xx</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">width_pixels</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="n">yy</span> <span class="o">=</span> <span class="n">yy</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">length_pixels</span><span class="p">)</span>
+    <span class="c1"># create a sloped surface</span>
+    <span class="n">hf_raw</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">width_pixels</span><span class="p">,</span> <span class="n">length_pixels</span><span class="p">))</span>
+    <span class="n">hf_raw</span> <span class="o">=</span> <span class="n">height_max</span> <span class="o">*</span> <span class="n">xx</span> <span class="o">*</span> <span class="n">yy</span>
+
+    <span class="c1"># create a flat platform at the center of the terrain</span>
+    <span class="n">platform_width</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">platform_width</span> <span class="o">/</span> <span class="n">cfg</span><span class="o">.</span><span class="n">horizontal_scale</span> <span class="o">/</span> <span class="mi">2</span><span class="p">)</span>
+    <span class="c1"># get the height of the platform at the corner of the platform</span>
+    <span class="n">x_pf</span> <span class="o">=</span> <span class="n">width_pixels</span> <span class="o">//</span> <span class="mi">2</span> <span class="o">-</span> <span class="n">platform_width</span>
+    <span class="n">y_pf</span> <span class="o">=</span> <span class="n">length_pixels</span> <span class="o">//</span> <span class="mi">2</span> <span class="o">-</span> <span class="n">platform_width</span>
+    <span class="n">z_pf</span> <span class="o">=</span> <span class="n">hf_raw</span><span class="p">[</span><span class="n">x_pf</span><span class="p">,</span> <span class="n">y_pf</span><span class="p">]</span>
+    <span class="n">hf_raw</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">clip</span><span class="p">(</span><span class="n">hf_raw</span><span class="p">,</span> <span class="nb">min</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">z_pf</span><span class="p">),</span> <span class="nb">max</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">z_pf</span><span class="p">))</span>
+
+    <span class="c1"># round off the heights to the nearest vertical step</span>
+    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">rint</span><span class="p">(</span><span class="n">hf_raw</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">int16</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="pyramid_stairs_terrain"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.terrains.html#isaaclab.terrains.height_field.hf_terrains.pyramid_stairs_terrain">[docs]</a><span class="nd">@height_field_to_mesh</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">pyramid_stairs_terrain</span><span class="p">(</span><span class="n">difficulty</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">hf_terrains_cfg</span><span class="o">.</span><span class="n">HfPyramidStairsTerrainCfg</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Generate a terrain with a pyramid stair pattern.</span>
+
+<span class="sd">    The terrain is a pyramid stair pattern which trims to a flat platform at the center of the terrain.</span>
+
+<span class="sd">    If the :obj:`cfg.inverted` flag is set to :obj:`True`, the terrain is inverted such that</span>
+<span class="sd">    the platform is at the bottom.</span>
+
+<span class="sd">    .. image:: ../../_static/terrains/height_field/pyramid_stairs_terrain.jpg</span>
+<span class="sd">       :width: 40%</span>
+
+<span class="sd">    .. image:: ../../_static/terrains/height_field/inverted_pyramid_stairs_terrain.jpg</span>
+<span class="sd">       :width: 40%</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        difficulty: The difficulty of the terrain. This is a value between 0 and 1.</span>
+<span class="sd">        cfg: The configuration for the terrain.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        The height field of the terrain as a 2D numpy array with discretized heights.</span>
+<span class="sd">        The shape of the array is (width, length), where width and length are the number of points</span>
+<span class="sd">        along the x and y axis, respectively.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># resolve terrain configuration</span>
+    <span class="n">step_height</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">step_height_range</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="n">difficulty</span> <span class="o">*</span> <span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">step_height_range</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="n">cfg</span><span class="o">.</span><span class="n">step_height_range</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+    <span class="k">if</span> <span class="n">cfg</span><span class="o">.</span><span class="n">inverted</span><span class="p">:</span>
+        <span class="n">step_height</span> <span class="o">*=</span> <span class="o">-</span><span class="mi">1</span>
+    <span class="c1"># switch parameters to discrete units</span>
+    <span class="c1"># -- terrain</span>
+    <span class="n">width_pixels</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">size</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">/</span> <span class="n">cfg</span><span class="o">.</span><span class="n">horizontal_scale</span><span class="p">)</span>
+    <span class="n">length_pixels</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">size</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">/</span> <span class="n">cfg</span><span class="o">.</span><span class="n">horizontal_scale</span><span class="p">)</span>
+    <span class="c1"># -- stairs</span>
+    <span class="n">step_width</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">step_width</span> <span class="o">/</span> <span class="n">cfg</span><span class="o">.</span><span class="n">horizontal_scale</span><span class="p">)</span>
+    <span class="n">step_height</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">step_height</span> <span class="o">/</span> <span class="n">cfg</span><span class="o">.</span><span class="n">vertical_scale</span><span class="p">)</span>
+    <span class="c1"># -- platform</span>
+    <span class="n">platform_width</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">platform_width</span> <span class="o">/</span> <span class="n">cfg</span><span class="o">.</span><span class="n">horizontal_scale</span><span class="p">)</span>
+
+    <span class="c1"># create a terrain with a flat platform at the center</span>
+    <span class="n">hf_raw</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">width_pixels</span><span class="p">,</span> <span class="n">length_pixels</span><span class="p">))</span>
+    <span class="c1"># add the steps</span>
+    <span class="n">current_step_height</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">start_x</span><span class="p">,</span> <span class="n">start_y</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span>
+    <span class="n">stop_x</span><span class="p">,</span> <span class="n">stop_y</span> <span class="o">=</span> <span class="n">width_pixels</span><span class="p">,</span> <span class="n">length_pixels</span>
+    <span class="k">while</span> <span class="p">(</span><span class="n">stop_x</span> <span class="o">-</span> <span class="n">start_x</span><span class="p">)</span> <span class="o">&gt;</span> <span class="n">platform_width</span> <span class="ow">and</span> <span class="p">(</span><span class="n">stop_y</span> <span class="o">-</span> <span class="n">start_y</span><span class="p">)</span> <span class="o">&gt;</span> <span class="n">platform_width</span><span class="p">:</span>
+        <span class="c1"># increment position</span>
+        <span class="c1"># -- x</span>
+        <span class="n">start_x</span> <span class="o">+=</span> <span class="n">step_width</span>
+        <span class="n">stop_x</span> <span class="o">-=</span> <span class="n">step_width</span>
+        <span class="c1"># -- y</span>
+        <span class="n">start_y</span> <span class="o">+=</span> <span class="n">step_width</span>
+        <span class="n">stop_y</span> <span class="o">-=</span> <span class="n">step_width</span>
+        <span class="c1"># increment height</span>
+        <span class="n">current_step_height</span> <span class="o">+=</span> <span class="n">step_height</span>
+        <span class="c1"># add the step</span>
+        <span class="n">hf_raw</span><span class="p">[</span><span class="n">start_x</span><span class="p">:</span><span class="n">stop_x</span><span class="p">,</span> <span class="n">start_y</span><span class="p">:</span><span class="n">stop_y</span><span class="p">]</span> <span class="o">=</span> <span class="n">current_step_height</span>
+
+    <span class="c1"># round off the heights to the nearest vertical step</span>
+    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">rint</span><span class="p">(</span><span class="n">hf_raw</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">int16</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="discrete_obstacles_terrain"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.terrains.html#isaaclab.terrains.height_field.hf_terrains.discrete_obstacles_terrain">[docs]</a><span class="nd">@height_field_to_mesh</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">discrete_obstacles_terrain</span><span class="p">(</span><span class="n">difficulty</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">hf_terrains_cfg</span><span class="o">.</span><span class="n">HfDiscreteObstaclesTerrainCfg</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Generate a terrain with randomly generated obstacles as pillars with positive and negative heights.</span>
+
+<span class="sd">    The terrain is a flat platform at the center of the terrain with randomly generated obstacles as pillars</span>
+<span class="sd">    with positive and negative height. The obstacles are randomly generated cuboids with a random width and</span>
+<span class="sd">    height. They are placed randomly on the terrain with a minimum distance of :obj:`cfg.platform_width`</span>
+<span class="sd">    from the center of the terrain.</span>
+
+<span class="sd">    .. image:: ../../_static/terrains/height_field/discrete_obstacles_terrain.jpg</span>
+<span class="sd">       :width: 40%</span>
+<span class="sd">       :align: center</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        difficulty: The difficulty of the terrain. This is a value between 0 and 1.</span>
+<span class="sd">        cfg: The configuration for the terrain.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        The height field of the terrain as a 2D numpy array with discretized heights.</span>
+<span class="sd">        The shape of the array is (width, length), where width and length are the number of points</span>
+<span class="sd">        along the x and y axis, respectively.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># resolve terrain configuration</span>
+    <span class="n">obs_height</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">obstacle_height_range</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="n">difficulty</span> <span class="o">*</span> <span class="p">(</span>
+        <span class="n">cfg</span><span class="o">.</span><span class="n">obstacle_height_range</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="n">cfg</span><span class="o">.</span><span class="n">obstacle_height_range</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="p">)</span>
+
+    <span class="c1"># switch parameters to discrete units</span>
+    <span class="c1"># -- terrain</span>
+    <span class="n">width_pixels</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">size</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">/</span> <span class="n">cfg</span><span class="o">.</span><span class="n">horizontal_scale</span><span class="p">)</span>
+    <span class="n">length_pixels</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">size</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">/</span> <span class="n">cfg</span><span class="o">.</span><span class="n">horizontal_scale</span><span class="p">)</span>
+    <span class="c1"># -- obstacles</span>
+    <span class="n">obs_height</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">obs_height</span> <span class="o">/</span> <span class="n">cfg</span><span class="o">.</span><span class="n">vertical_scale</span><span class="p">)</span>
+    <span class="n">obs_width_min</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">obstacle_width_range</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">/</span> <span class="n">cfg</span><span class="o">.</span><span class="n">horizontal_scale</span><span class="p">)</span>
+    <span class="n">obs_width_max</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">obstacle_width_range</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">/</span> <span class="n">cfg</span><span class="o">.</span><span class="n">horizontal_scale</span><span class="p">)</span>
+    <span class="c1"># -- center of the terrain</span>
+    <span class="n">platform_width</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">platform_width</span> <span class="o">/</span> <span class="n">cfg</span><span class="o">.</span><span class="n">horizontal_scale</span><span class="p">)</span>
+
+    <span class="c1"># create discrete ranges for the obstacles</span>
+    <span class="c1"># -- shape</span>
+    <span class="n">obs_width_range</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">obs_width_min</span><span class="p">,</span> <span class="n">obs_width_max</span><span class="p">,</span> <span class="mi">4</span><span class="p">)</span>
+    <span class="n">obs_length_range</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">obs_width_min</span><span class="p">,</span> <span class="n">obs_width_max</span><span class="p">,</span> <span class="mi">4</span><span class="p">)</span>
+    <span class="c1"># -- position</span>
+    <span class="n">obs_x_range</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">width_pixels</span><span class="p">,</span> <span class="mi">4</span><span class="p">)</span>
+    <span class="n">obs_y_range</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">length_pixels</span><span class="p">,</span> <span class="mi">4</span><span class="p">)</span>
+
+    <span class="c1"># create a terrain with a flat platform at the center</span>
+    <span class="n">hf_raw</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">width_pixels</span><span class="p">,</span> <span class="n">length_pixels</span><span class="p">))</span>
+    <span class="c1"># generate the obstacles</span>
+    <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">num_obstacles</span><span class="p">):</span>
+        <span class="c1"># sample size</span>
+        <span class="k">if</span> <span class="n">cfg</span><span class="o">.</span><span class="n">obstacle_height_mode</span> <span class="o">==</span> <span class="s2">&quot;choice&quot;</span><span class="p">:</span>
+            <span class="n">height</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">choice</span><span class="p">([</span><span class="o">-</span><span class="n">obs_height</span><span class="p">,</span> <span class="o">-</span><span class="n">obs_height</span> <span class="o">//</span> <span class="mi">2</span><span class="p">,</span> <span class="n">obs_height</span> <span class="o">//</span> <span class="mi">2</span><span class="p">,</span> <span class="n">obs_height</span><span class="p">])</span>
+        <span class="k">elif</span> <span class="n">cfg</span><span class="o">.</span><span class="n">obstacle_height_mode</span> <span class="o">==</span> <span class="s2">&quot;fixed&quot;</span><span class="p">:</span>
+            <span class="n">height</span> <span class="o">=</span> <span class="n">obs_height</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Unknown obstacle height mode &#39;</span><span class="si">{</span><span class="n">cfg</span><span class="o">.</span><span class="n">obstacle_height_mode</span><span class="si">}</span><span class="s2">&#39;. Must be &#39;choice&#39; or &#39;fixed&#39;.&quot;</span><span class="p">)</span>
+        <span class="n">width</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">choice</span><span class="p">(</span><span class="n">obs_width_range</span><span class="p">))</span>
+        <span class="n">length</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">choice</span><span class="p">(</span><span class="n">obs_length_range</span><span class="p">))</span>
+        <span class="c1"># sample position</span>
+        <span class="n">x_start</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">choice</span><span class="p">(</span><span class="n">obs_x_range</span><span class="p">))</span>
+        <span class="n">y_start</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">choice</span><span class="p">(</span><span class="n">obs_y_range</span><span class="p">))</span>
+        <span class="c1"># clip start position to the terrain</span>
+        <span class="k">if</span> <span class="n">x_start</span> <span class="o">+</span> <span class="n">width</span> <span class="o">&gt;</span> <span class="n">width_pixels</span><span class="p">:</span>
+            <span class="n">x_start</span> <span class="o">=</span> <span class="n">width_pixels</span> <span class="o">-</span> <span class="n">width</span>
+        <span class="k">if</span> <span class="n">y_start</span> <span class="o">+</span> <span class="n">length</span> <span class="o">&gt;</span> <span class="n">length_pixels</span><span class="p">:</span>
+            <span class="n">y_start</span> <span class="o">=</span> <span class="n">length_pixels</span> <span class="o">-</span> <span class="n">length</span>
+        <span class="c1"># add to terrain</span>
+        <span class="n">hf_raw</span><span class="p">[</span><span class="n">x_start</span> <span class="p">:</span> <span class="n">x_start</span> <span class="o">+</span> <span class="n">width</span><span class="p">,</span> <span class="n">y_start</span> <span class="p">:</span> <span class="n">y_start</span> <span class="o">+</span> <span class="n">length</span><span class="p">]</span> <span class="o">=</span> <span class="n">height</span>
+    <span class="c1"># clip the terrain to the platform</span>
+    <span class="n">x1</span> <span class="o">=</span> <span class="p">(</span><span class="n">width_pixels</span> <span class="o">-</span> <span class="n">platform_width</span><span class="p">)</span> <span class="o">//</span> <span class="mi">2</span>
+    <span class="n">x2</span> <span class="o">=</span> <span class="p">(</span><span class="n">width_pixels</span> <span class="o">+</span> <span class="n">platform_width</span><span class="p">)</span> <span class="o">//</span> <span class="mi">2</span>
+    <span class="n">y1</span> <span class="o">=</span> <span class="p">(</span><span class="n">length_pixels</span> <span class="o">-</span> <span class="n">platform_width</span><span class="p">)</span> <span class="o">//</span> <span class="mi">2</span>
+    <span class="n">y2</span> <span class="o">=</span> <span class="p">(</span><span class="n">length_pixels</span> <span class="o">+</span> <span class="n">platform_width</span><span class="p">)</span> <span class="o">//</span> <span class="mi">2</span>
+    <span class="n">hf_raw</span><span class="p">[</span><span class="n">x1</span><span class="p">:</span><span class="n">x2</span><span class="p">,</span> <span class="n">y1</span><span class="p">:</span><span class="n">y2</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="c1"># round off the heights to the nearest vertical step</span>
+    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">rint</span><span class="p">(</span><span class="n">hf_raw</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">int16</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="wave_terrain"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.terrains.html#isaaclab.terrains.height_field.hf_terrains.wave_terrain">[docs]</a><span class="nd">@height_field_to_mesh</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">wave_terrain</span><span class="p">(</span><span class="n">difficulty</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">hf_terrains_cfg</span><span class="o">.</span><span class="n">HfWaveTerrainCfg</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Generate a terrain with a wave pattern.</span>
+
+<span class="sd">    The terrain is a flat platform at the center of the terrain with a wave pattern. The wave pattern</span>
+<span class="sd">    is generated by adding sinusoidal waves based on the number of waves and the amplitude of the waves.</span>
+
+<span class="sd">    The height of the terrain at a point :math:`(x, y)` is given by:</span>
+
+<span class="sd">    .. math::</span>
+
+<span class="sd">        h(x, y) =  A \left(\sin\left(\frac{2 \pi x}{\lambda}\right) + \cos\left(\frac{2 \pi y}{\lambda}\right) \right)</span>
+
+<span class="sd">    where :math:`A` is the amplitude of the waves, :math:`\lambda` is the wavelength of the waves.</span>
+
+<span class="sd">    .. image:: ../../_static/terrains/height_field/wave_terrain.jpg</span>
+<span class="sd">       :width: 40%</span>
+<span class="sd">       :align: center</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        difficulty: The difficulty of the terrain. This is a value between 0 and 1.</span>
+<span class="sd">        cfg: The configuration for the terrain.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        The height field of the terrain as a 2D numpy array with discretized heights.</span>
+<span class="sd">        The shape of the array is (width, length), where width and length are the number of points</span>
+<span class="sd">        along the x and y axis, respectively.</span>
+
+<span class="sd">    Raises:</span>
+<span class="sd">        ValueError: When the number of waves is non-positive.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># check number of waves</span>
+    <span class="k">if</span> <span class="n">cfg</span><span class="o">.</span><span class="n">num_waves</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Number of waves must be a positive integer. Got: </span><span class="si">{</span><span class="n">cfg</span><span class="o">.</span><span class="n">num_waves</span><span class="si">}</span><span class="s2">.&quot;</span><span class="p">)</span>
+
+    <span class="c1"># resolve terrain configuration</span>
+    <span class="n">amplitude</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">amplitude_range</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="n">difficulty</span> <span class="o">*</span> <span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">amplitude_range</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="n">cfg</span><span class="o">.</span><span class="n">amplitude_range</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+    <span class="c1"># switch parameters to discrete units</span>
+    <span class="c1"># -- terrain</span>
+    <span class="n">width_pixels</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">size</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">/</span> <span class="n">cfg</span><span class="o">.</span><span class="n">horizontal_scale</span><span class="p">)</span>
+    <span class="n">length_pixels</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">size</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">/</span> <span class="n">cfg</span><span class="o">.</span><span class="n">horizontal_scale</span><span class="p">)</span>
+    <span class="n">amplitude_pixels</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="mf">0.5</span> <span class="o">*</span> <span class="n">amplitude</span> <span class="o">/</span> <span class="n">cfg</span><span class="o">.</span><span class="n">vertical_scale</span><span class="p">)</span>
+
+    <span class="c1"># compute the wave number: nu = 2 * pi / lambda</span>
+    <span class="n">wave_length</span> <span class="o">=</span> <span class="n">length_pixels</span> <span class="o">/</span> <span class="n">cfg</span><span class="o">.</span><span class="n">num_waves</span>
+    <span class="n">wave_number</span> <span class="o">=</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">pi</span> <span class="o">/</span> <span class="n">wave_length</span>
+    <span class="c1"># create meshgrid for the terrain</span>
+    <span class="n">x</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">width_pixels</span><span class="p">)</span>
+    <span class="n">y</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">length_pixels</span><span class="p">)</span>
+    <span class="n">xx</span><span class="p">,</span> <span class="n">yy</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">meshgrid</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">sparse</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">xx</span> <span class="o">=</span> <span class="n">xx</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">width_pixels</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="n">yy</span> <span class="o">=</span> <span class="n">yy</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">length_pixels</span><span class="p">)</span>
+
+    <span class="c1"># create a terrain with a flat platform at the center</span>
+    <span class="n">hf_raw</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">width_pixels</span><span class="p">,</span> <span class="n">length_pixels</span><span class="p">))</span>
+    <span class="c1"># add the waves</span>
+    <span class="n">hf_raw</span> <span class="o">+=</span> <span class="n">amplitude_pixels</span> <span class="o">*</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">yy</span> <span class="o">*</span> <span class="n">wave_number</span><span class="p">)</span> <span class="o">+</span> <span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">xx</span> <span class="o">*</span> <span class="n">wave_number</span><span class="p">))</span>
+    <span class="c1"># round off the heights to the nearest vertical step</span>
+    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">rint</span><span class="p">(</span><span class="n">hf_raw</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">int16</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="stepping_stones_terrain"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.terrains.html#isaaclab.terrains.height_field.hf_terrains.stepping_stones_terrain">[docs]</a><span class="nd">@height_field_to_mesh</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">stepping_stones_terrain</span><span class="p">(</span><span class="n">difficulty</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">hf_terrains_cfg</span><span class="o">.</span><span class="n">HfSteppingStonesTerrainCfg</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Generate a terrain with a stepping stones pattern.</span>
+
+<span class="sd">    The terrain is a stepping stones pattern which trims to a flat platform at the center of the terrain.</span>
+
+<span class="sd">    .. image:: ../../_static/terrains/height_field/stepping_stones_terrain.jpg</span>
+<span class="sd">       :width: 40%</span>
+<span class="sd">       :align: center</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        difficulty: The difficulty of the terrain. This is a value between 0 and 1.</span>
+<span class="sd">        cfg: The configuration for the terrain.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        The height field of the terrain as a 2D numpy array with discretized heights.</span>
+<span class="sd">        The shape of the array is (width, length), where width and length are the number of points</span>
+<span class="sd">        along the x and y axis, respectively.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># resolve terrain configuration</span>
+    <span class="n">stone_width</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">stone_width_range</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="n">difficulty</span> <span class="o">*</span> <span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">stone_width_range</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="n">cfg</span><span class="o">.</span><span class="n">stone_width_range</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+    <span class="n">stone_distance</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">stone_distance_range</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="n">difficulty</span> <span class="o">*</span> <span class="p">(</span>
+        <span class="n">cfg</span><span class="o">.</span><span class="n">stone_distance_range</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="n">cfg</span><span class="o">.</span><span class="n">stone_distance_range</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="p">)</span>
+
+    <span class="c1"># switch parameters to discrete units</span>
+    <span class="c1"># -- terrain</span>
+    <span class="n">width_pixels</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">size</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">/</span> <span class="n">cfg</span><span class="o">.</span><span class="n">horizontal_scale</span><span class="p">)</span>
+    <span class="n">length_pixels</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">size</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">/</span> <span class="n">cfg</span><span class="o">.</span><span class="n">horizontal_scale</span><span class="p">)</span>
+    <span class="c1"># -- stones</span>
+    <span class="n">stone_distance</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">stone_distance</span> <span class="o">/</span> <span class="n">cfg</span><span class="o">.</span><span class="n">horizontal_scale</span><span class="p">)</span>
+    <span class="n">stone_width</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">stone_width</span> <span class="o">/</span> <span class="n">cfg</span><span class="o">.</span><span class="n">horizontal_scale</span><span class="p">)</span>
+    <span class="n">stone_height_max</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">stone_height_max</span> <span class="o">/</span> <span class="n">cfg</span><span class="o">.</span><span class="n">vertical_scale</span><span class="p">)</span>
+    <span class="c1"># -- holes</span>
+    <span class="n">holes_depth</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">holes_depth</span> <span class="o">/</span> <span class="n">cfg</span><span class="o">.</span><span class="n">vertical_scale</span><span class="p">)</span>
+    <span class="c1"># -- platform</span>
+    <span class="n">platform_width</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">platform_width</span> <span class="o">/</span> <span class="n">cfg</span><span class="o">.</span><span class="n">horizontal_scale</span><span class="p">)</span>
+    <span class="c1"># create range of heights</span>
+    <span class="n">stone_height_range</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="o">-</span><span class="n">stone_height_max</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="n">stone_height_max</span><span class="p">,</span> <span class="n">step</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+
+    <span class="c1"># create a terrain with a flat platform at the center</span>
+    <span class="n">hf_raw</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">full</span><span class="p">((</span><span class="n">width_pixels</span><span class="p">,</span> <span class="n">length_pixels</span><span class="p">),</span> <span class="n">holes_depth</span><span class="p">)</span>
+    <span class="c1"># add the stones</span>
+    <span class="n">start_x</span><span class="p">,</span> <span class="n">start_y</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span>
+    <span class="c1"># -- if the terrain is longer than it is wide then fill the terrain column by column</span>
+    <span class="k">if</span> <span class="n">length_pixels</span> <span class="o">&gt;=</span> <span class="n">width_pixels</span><span class="p">:</span>
+        <span class="k">while</span> <span class="n">start_y</span> <span class="o">&lt;</span> <span class="n">length_pixels</span><span class="p">:</span>
+            <span class="c1"># ensure that stone stops along y-axis</span>
+            <span class="n">stop_y</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">length_pixels</span><span class="p">,</span> <span class="n">start_y</span> <span class="o">+</span> <span class="n">stone_width</span><span class="p">)</span>
+            <span class="c1"># randomly sample x-position</span>
+            <span class="n">start_x</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">randint</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">stone_width</span><span class="p">)</span>
+            <span class="n">stop_x</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">start_x</span> <span class="o">-</span> <span class="n">stone_distance</span><span class="p">)</span>
+            <span class="c1"># fill first stone</span>
+            <span class="n">hf_raw</span><span class="p">[</span><span class="mi">0</span><span class="p">:</span><span class="n">stop_x</span><span class="p">,</span> <span class="n">start_y</span><span class="p">:</span><span class="n">stop_y</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">choice</span><span class="p">(</span><span class="n">stone_height_range</span><span class="p">)</span>
+            <span class="c1"># fill row with stones</span>
+            <span class="k">while</span> <span class="n">start_x</span> <span class="o">&lt;</span> <span class="n">width_pixels</span><span class="p">:</span>
+                <span class="n">stop_x</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">width_pixels</span><span class="p">,</span> <span class="n">start_x</span> <span class="o">+</span> <span class="n">stone_width</span><span class="p">)</span>
+                <span class="n">hf_raw</span><span class="p">[</span><span class="n">start_x</span><span class="p">:</span><span class="n">stop_x</span><span class="p">,</span> <span class="n">start_y</span><span class="p">:</span><span class="n">stop_y</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">choice</span><span class="p">(</span><span class="n">stone_height_range</span><span class="p">)</span>
+                <span class="n">start_x</span> <span class="o">+=</span> <span class="n">stone_width</span> <span class="o">+</span> <span class="n">stone_distance</span>
+            <span class="c1"># update y-position</span>
+            <span class="n">start_y</span> <span class="o">+=</span> <span class="n">stone_width</span> <span class="o">+</span> <span class="n">stone_distance</span>
+    <span class="k">elif</span> <span class="n">width_pixels</span> <span class="o">&gt;</span> <span class="n">length_pixels</span><span class="p">:</span>
+        <span class="k">while</span> <span class="n">start_x</span> <span class="o">&lt;</span> <span class="n">width_pixels</span><span class="p">:</span>
+            <span class="c1"># ensure that stone stops along x-axis</span>
+            <span class="n">stop_x</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">width_pixels</span><span class="p">,</span> <span class="n">start_x</span> <span class="o">+</span> <span class="n">stone_width</span><span class="p">)</span>
+            <span class="c1"># randomly sample y-position</span>
+            <span class="n">start_y</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">randint</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">stone_width</span><span class="p">)</span>
+            <span class="n">stop_y</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">start_y</span> <span class="o">-</span> <span class="n">stone_distance</span><span class="p">)</span>
+            <span class="c1"># fill first stone</span>
+            <span class="n">hf_raw</span><span class="p">[</span><span class="n">start_x</span><span class="p">:</span><span class="n">stop_x</span><span class="p">,</span> <span class="mi">0</span><span class="p">:</span><span class="n">stop_y</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">choice</span><span class="p">(</span><span class="n">stone_height_range</span><span class="p">)</span>
+            <span class="c1"># fill column with stones</span>
+            <span class="k">while</span> <span class="n">start_y</span> <span class="o">&lt;</span> <span class="n">length_pixels</span><span class="p">:</span>
+                <span class="n">stop_y</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">length_pixels</span><span class="p">,</span> <span class="n">start_y</span> <span class="o">+</span> <span class="n">stone_width</span><span class="p">)</span>
+                <span class="n">hf_raw</span><span class="p">[</span><span class="n">start_x</span><span class="p">:</span><span class="n">stop_x</span><span class="p">,</span> <span class="n">start_y</span><span class="p">:</span><span class="n">stop_y</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">choice</span><span class="p">(</span><span class="n">stone_height_range</span><span class="p">)</span>
+                <span class="n">start_y</span> <span class="o">+=</span> <span class="n">stone_width</span> <span class="o">+</span> <span class="n">stone_distance</span>
+            <span class="c1"># update x-position</span>
+            <span class="n">start_x</span> <span class="o">+=</span> <span class="n">stone_width</span> <span class="o">+</span> <span class="n">stone_distance</span>
+    <span class="c1"># add the platform in the center</span>
+    <span class="n">x1</span> <span class="o">=</span> <span class="p">(</span><span class="n">width_pixels</span> <span class="o">-</span> <span class="n">platform_width</span><span class="p">)</span> <span class="o">//</span> <span class="mi">2</span>
+    <span class="n">x2</span> <span class="o">=</span> <span class="p">(</span><span class="n">width_pixels</span> <span class="o">+</span> <span class="n">platform_width</span><span class="p">)</span> <span class="o">//</span> <span class="mi">2</span>
+    <span class="n">y1</span> <span class="o">=</span> <span class="p">(</span><span class="n">length_pixels</span> <span class="o">-</span> <span class="n">platform_width</span><span class="p">)</span> <span class="o">//</span> <span class="mi">2</span>
+    <span class="n">y2</span> <span class="o">=</span> <span class="p">(</span><span class="n">length_pixels</span> <span class="o">+</span> <span class="n">platform_width</span><span class="p">)</span> <span class="o">//</span> <span class="mi">2</span>
+    <span class="n">hf_raw</span><span class="p">[</span><span class="n">x1</span><span class="p">:</span><span class="n">x2</span><span class="p">,</span> <span class="n">y1</span><span class="p">:</span><span class="n">y2</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="c1"># round off the heights to the nearest vertical step</span>
+    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">rint</span><span class="p">(</span><span class="n">hf_raw</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">int16</span><span class="p">)</span></div>
+</pre></div>
+
+                </article>
+              
+
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+<div class="bd-footer-content__inner container">
+  
+  <div class="footer-item">
+    
+<p class="component-author">
+By The Isaac Lab Project Developers.
+</p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+
+  <p class="copyright">
+    
+      © Copyright 2022-2025, The Isaac Lab Project Developers..
+      <br/>
+    
+  </p>
+
+  </div>
+  
+  <div class="footer-item">
+    <p class="last-updated">
+  Last updated on Jan 30, 2025.
+  <br/>
+</p>
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+</div>
+          </footer>
+        
+
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../../../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+  </footer>
+  </body>
+</html>

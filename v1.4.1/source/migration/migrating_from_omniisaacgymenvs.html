@@ -60,7 +60,7 @@
     <link rel="prev" title="From IsaacGymEnvs" href="migrating_from_isaacgymenvs.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-  <meta name="docsearch:version" content="1.4.0" />
+  <meta name="docsearch:version" content="1.4.1" />
     <meta name="docbuild:last-update" content="Jan 30, 2025"/>
   </head>
   
@@ -192,7 +192,7 @@
           
           
           
-          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.2.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.5.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
         </li>
         <li class="nav-item">
           
@@ -1767,7 +1767,7 @@ Action and observation noise configs must be added to the main task config using
     <span class="p">)</span>
 </pre></div>
 </div>
-<p><a class="reference internal" href="../api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.noise.NoiseModelWithAdditiveBiasCfg" title="omni.isaac.lab.utils.noise.NoiseModelWithAdditiveBiasCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">NoiseModelWithAdditiveBiasCfg</span></code></a> can be used to sample both uncorrelated noise
+<p><code class="xref py py-class docutils literal notranslate"><span class="pre">NoiseModelWithAdditiveBiasCfg</span></code> can be used to sample both uncorrelated noise
 per step as well as correlated noise that is re-sampled at reset time.
 The <code class="docutils literal notranslate"><span class="pre">noise_cfg</span></code> term specifies the Gaussian distribution that will be sampled at each
 step for all environments. This noise will be added to the corresponding actions and

@@ -60,7 +60,7 @@
     <link rel="prev" title="Interacting with a deformable object" href="../01_assets/run_deformable_object.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-  <meta name="docsearch:version" content="1.4.0" />
+  <meta name="docsearch:version" content="1.4.1" />
     <meta name="docbuild:last-update" content="Jan 30, 2025"/>
   </head>
   
@@ -192,7 +192,7 @@
           
           
           
-          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.2.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.5.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
         </li>
         <li class="nav-item">
           
@@ -854,9 +854,9 @@ the cartpole is specified using the key <code class="docutils literal notranslat
 <p>The rest of the script looks similar to previous scripts that interfaced with <a class="reference internal" href="../../api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.Articulation" title="omni.isaac.lab.assets.Articulation"><code class="xref py py-class docutils literal notranslate"><span class="pre">assets.Articulation</span></code></a>,
 with a few small differences in the methods called:</p>
 <ul class="simple">
-<li><p><a class="reference internal" href="../../api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.Articulation.reset" title="omni.isaac.lab.assets.Articulation.reset"><code class="xref py py-meth docutils literal notranslate"><span class="pre">assets.Articulation.reset()</span></code></a> ⟶ <a class="reference internal" href="../../api/lab/omni.isaac.lab.scene.html#omni.isaac.lab.scene.InteractiveScene.reset" title="omni.isaac.lab.scene.InteractiveScene.reset"><code class="xref py py-meth docutils literal notranslate"><span class="pre">scene.InteractiveScene.reset()</span></code></a></p></li>
-<li><p><a class="reference internal" href="../../api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.Articulation.write_data_to_sim" title="omni.isaac.lab.assets.Articulation.write_data_to_sim"><code class="xref py py-meth docutils literal notranslate"><span class="pre">assets.Articulation.write_data_to_sim()</span></code></a> ⟶ <a class="reference internal" href="../../api/lab/omni.isaac.lab.scene.html#omni.isaac.lab.scene.InteractiveScene.write_data_to_sim" title="omni.isaac.lab.scene.InteractiveScene.write_data_to_sim"><code class="xref py py-meth docutils literal notranslate"><span class="pre">scene.InteractiveScene.write_data_to_sim()</span></code></a></p></li>
-<li><p><a class="reference internal" href="../../api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.Articulation.update" title="omni.isaac.lab.assets.Articulation.update"><code class="xref py py-meth docutils literal notranslate"><span class="pre">assets.Articulation.update()</span></code></a> ⟶ <a class="reference internal" href="../../api/lab/omni.isaac.lab.scene.html#omni.isaac.lab.scene.InteractiveScene.update" title="omni.isaac.lab.scene.InteractiveScene.update"><code class="xref py py-meth docutils literal notranslate"><span class="pre">scene.InteractiveScene.update()</span></code></a></p></li>
+<li><p><code class="xref py py-meth docutils literal notranslate"><span class="pre">assets.Articulation.reset()</span></code> ⟶ <code class="xref py py-meth docutils literal notranslate"><span class="pre">scene.InteractiveScene.reset()</span></code></p></li>
+<li><p><code class="xref py py-meth docutils literal notranslate"><span class="pre">assets.Articulation.write_data_to_sim()</span></code> ⟶ <code class="xref py py-meth docutils literal notranslate"><span class="pre">scene.InteractiveScene.write_data_to_sim()</span></code></p></li>
+<li><p><code class="xref py py-meth docutils literal notranslate"><span class="pre">assets.Articulation.update()</span></code> ⟶ <code class="xref py py-meth docutils literal notranslate"><span class="pre">scene.InteractiveScene.update()</span></code></p></li>
 </ul>
 <p>Under the hood, the methods of <a class="reference internal" href="../../api/lab/omni.isaac.lab.scene.html#omni.isaac.lab.scene.InteractiveScene" title="omni.isaac.lab.scene.InteractiveScene"><code class="xref py py-class docutils literal notranslate"><span class="pre">scene.InteractiveScene</span></code></a> call the corresponding
 methods of the entities in the scene.</p>

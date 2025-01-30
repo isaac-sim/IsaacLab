@@ -1,7 +1,7 @@
 Hydra Configuration System
 ==========================
 
-.. currentmodule:: omni.isaac.lab
+.. currentmodule:: isaaclab
 
 Isaac Lab supports the `Hydra <https://hydra.cc/docs/intro/>`_ configuration system to modify the task's
 configuration using command line arguments, which can be useful to automate experiments and perform hyperparameter tuning.
@@ -25,28 +25,28 @@ As a result, training with hydra arguments can be run with the following syntax:
 
         .. code-block:: shell
 
-            python source/standalone/workflows/rsl_rl/train.py --task=Isaac-Cartpole-v0 --headless env.actions.joint_effort.scale=10.0 agent.seed=2024
+            python scripts/reinforcement_learning/rsl_rl/train.py --task=Isaac-Cartpole-v0 --headless env.actions.joint_effort.scale=10.0 agent.seed=2024
 
     .. tab-item:: rl_games
         :sync: rl_games
 
         .. code-block:: shell
 
-            python source/standalone/workflows/rl_games/train.py --task=Isaac-Cartpole-v0 --headless env.actions.joint_effort.scale=10.0 agent.params.seed=2024
+            python scripts/reinforcement_learning/rl_games/train.py --task=Isaac-Cartpole-v0 --headless env.actions.joint_effort.scale=10.0 agent.params.seed=2024
 
     .. tab-item:: skrl
         :sync: skrl
 
         .. code-block:: shell
 
-            python source/standalone/workflows/skrl/train.py --task=Isaac-Cartpole-v0 --headless env.actions.joint_effort.scale=10.0 agent.seed=2024
+            python scripts/reinforcement_learning/skrl/train.py --task=Isaac-Cartpole-v0 --headless env.actions.joint_effort.scale=10.0 agent.seed=2024
 
     .. tab-item:: sb3
         :sync: sb3
 
         .. code-block:: shell
 
-            python source/standalone/workflows/sb3/train.py --task=Isaac-Cartpole-v0 --headless env.actions.joint_effort.scale=10.0 agent.seed=2024
+            python scripts/reinforcement_learning/sb3/train.py --task=Isaac-Cartpole-v0 --headless env.actions.joint_effort.scale=10.0 agent.seed=2024
 
 The above command will run the training script with the task ``Isaac-Cartpole-v0`` in headless mode, and set the
 ``env.actions.joint_effort.scale`` parameter to 10.0 and the ``agent.seed`` parameter to 2024.
@@ -67,14 +67,14 @@ Callables
 It is possible to modify functions and classes in the configuration files by using the syntax ``module:attribute_name``.
 For example, in the Cartpole environment:
 
-.. literalinclude:: ../../../source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/manager_based/classic/cartpole/cartpole_env_cfg.py
+.. literalinclude:: ../../../source/isaaclab_tasks/isaaclab_tasks/manager_based/classic/cartpole/cartpole_env_cfg.py
     :language: python
     :start-at: class ObservationsCfg
     :end-at: policy: PolicyCfg = PolicyCfg()
     :emphasize-lines: 9
 
 we could modify ``joint_pos_rel`` to compute absolute positions instead of relative positions with
-``env.observations.policy.joint_pos_rel.func=omni.isaac.lab.envs.mdp:joint_pos``.
+``env.observations.policy.joint_pos_rel.func=isaaclab.envs.mdp:joint_pos``.
 
 Setting parameters to None
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -87,7 +87,7 @@ Dictionaries
 ^^^^^^^^^^^^
 Elements in dictionaries are handled as a parameters in the hierarchy. For example, in the Cartpole environment:
 
-.. literalinclude:: ../../../source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/manager_based/classic/cartpole/cartpole_env_cfg.py
+.. literalinclude:: ../../../source/isaaclab_tasks/isaaclab_tasks/manager_based/classic/cartpole/cartpole_env_cfg.py
     :language: python
     :lines: 90-114
     :emphasize-lines: 11
@@ -108,7 +108,7 @@ are modified.
 
 For example, for the configuration of the Cartpole camera depth environment:
 
-.. literalinclude:: ../../../source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/direct/cartpole/cartpole_camera_env.py
+.. literalinclude:: ../../../source/isaaclab_tasks/isaaclab_tasks/direct/cartpole/cartpole_camera_env.py
     :language: python
     :start-at: class CartpoleDepthCameraEnvCfg
     :end-at: tiled_camera.width
@@ -120,7 +120,7 @@ If the user were to modify the width of the camera, i.e. ``env.tiled_camera.widt
 Similarly, the ``__post_init__`` method is not updated with the command line inputs. In the ``LocomotionVelocityRoughEnvCfg``, for example,
 the post init update is as follows:
 
-.. literalinclude:: ../../../source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/manager_based/locomotion/velocity/velocity_env_cfg.py
+.. literalinclude:: ../../../source/isaaclab_tasks/isaaclab_tasks/manager_based/locomotion/velocity/velocity_env_cfg.py
     :language: python
     :start-at: class LocomotionVelocityRoughEnvCfg
     :emphasize-lines: 23, 29, 31

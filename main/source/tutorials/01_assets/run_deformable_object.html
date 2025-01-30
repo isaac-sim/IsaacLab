@@ -60,7 +60,7 @@
     <link rel="prev" title="Interacting with an articulation" href="run_articulation.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-  <meta name="docsearch:version" content="1.4.1" />
+  <meta name="docsearch:version" content="2.0.0" />
     <meta name="docbuild:last-update" content="Jan 30, 2025"/>
   </head>
   
@@ -192,7 +192,7 @@
           
           
           
-          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.2.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.5.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
         </li>
         <li class="nav-item">
           
@@ -230,6 +230,8 @@
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../setup/installation/index.html">Local Installation</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2"><a class="reference internal" href="../../setup/installation/pip_installation.html">Pip installation (recommended for Ubuntu 22.04 and Windows)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../setup/installation/binaries_installation.html">Binary installation (recommended for Ubuntu 20.04)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/installation/isaaclab_pip_installation.html">Advanced installation (Isaac Lab pip)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/installation/asset_caching.html">Asset caching</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1"><a class="reference internal" href="../../setup/installation/cloud_installation.html">Running Isaac Lab in the Cloud</a></li>
@@ -241,7 +243,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../../overview/developer-guide/vs_code.html">Setting up Visual Studio Code</a></li>
 
 <li class="toctree-l2"><a class="reference internal" href="../../overview/developer-guide/repo_structure.html">Repository organization</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../overview/developer-guide/development.html">Application Development</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/developer-guide/development.html">Extension Development</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../overview/developer-guide/template.html">Building your Own Project</a></li>
 </ul>
 </details></li>
@@ -264,6 +266,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../../overview/reinforcement-learning/rl_existing_scripts.html">Reinforcement Learning Wrappers</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../overview/reinforcement-learning/rl_frameworks.html">Reinforcement Learning Library Comparison</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../overview/reinforcement-learning/performance_benchmarks.html">Performance Benchmarks</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/reinforcement-learning/training_guide.html">Debugging and Training Guide</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1"><a class="reference internal" href="../../overview/teleop_imitation.html">Teleoperation and Imitation Learning</a></li>
@@ -294,6 +297,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../03_envs/register_rl_env_gym.html">Registering an Environment</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../03_envs/run_rl_training.html">Training with an RL Agent</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../03_envs/modify_direct_rl_env.html">Modifying an existing Direct RL Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../03_envs/policy_inference_in_usd.html">Policy Inference in USD Environment</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../04_sensors/add_sensors_on_robot.html">Adding sensors on a robot</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../05_controllers/run_diff_ik.html">Using a task-space controller</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../05_controllers/run_osc.html">Using an operational space controller</a></li>
@@ -330,28 +334,27 @@
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Source API</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../api/index.html">API Reference</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.app.html">omni.isaac.lab.app</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.actuators.html">omni.isaac.lab.actuators</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.assets.html">omni.isaac.lab.assets</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.controllers.html">omni.isaac.lab.controllers</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.devices.html">omni.isaac.lab.devices</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.envs.html">omni.isaac.lab.envs</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.managers.html">omni.isaac.lab.managers</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.markers.html">omni.isaac.lab.markers</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.scene.html">omni.isaac.lab.scene</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.sensors.html">omni.isaac.lab.sensors</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.sim.html">omni.isaac.lab.sim</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.terrains.html">omni.isaac.lab.terrains</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.utils.html">omni.isaac.lab.utils</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.envs.mdp.html">omni.isaac.lab.envs.mdp</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.envs.ui.html">omni.isaac.lab.envs.ui</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.sensors.patterns.html">omni.isaac.lab.sensors.patterns</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.sim.converters.html">omni.isaac.lab.sim.converters</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.sim.schemas.html">omni.isaac.lab.sim.schemas</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.sim.spawners.html">omni.isaac.lab.sim.spawners</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab_tasks/omni.isaac.lab_tasks.utils.html">omni.isaac.lab_tasks.utils</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab_tasks/omni.isaac.lab_tasks.utils.wrappers.html">omni.isaac.lab_tasks.utils.wrappers</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab_tasks/omni.isaac.lab_tasks.utils.data_collector.html">omni.isaac.lab_tasks.utils.data_collector</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.app.html">isaaclab.app</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.actuators.html">isaaclab.actuators</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.assets.html">isaaclab.assets</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.controllers.html">isaaclab.controllers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.devices.html">isaaclab.devices</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.envs.html">isaaclab.envs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.managers.html">isaaclab.managers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.markers.html">isaaclab.markers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.scene.html">isaaclab.scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.sensors.html">isaaclab.sensors</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.sim.html">isaaclab.sim</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.terrains.html">isaaclab.terrains</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.utils.html">isaaclab.utils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.envs.mdp.html">isaaclab.envs.mdp</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.envs.ui.html">isaaclab.envs.ui</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.sensors.patterns.html">isaaclab.sensors.patterns</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.sim.converters.html">isaaclab.sim.converters</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.sim.schemas.html">isaaclab.sim.schemas</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.sim.spawners.html">isaaclab.sim.spawners</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab_tasks/isaaclab_tasks.utils.html">isaaclab_tasks.utils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab_mimic/isaaclab_mimic.datagen.html">isaaclab_mimic.datagen</a></li>
 </ul>
 </details></li>
 </ul>
@@ -361,7 +364,15 @@
 <li class="toctree-l1"><a class="reference internal" href="../../refs/additional_resources.html">Additional Resources</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../refs/contributing.html">Contribution Guidelines</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../refs/troubleshooting.html">Tricks and Troubleshooting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../refs/migration.html">Migration Guide (Isaac Sim)</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../refs/issues.html">Known Issues</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../refs/release_notes.html">Release Notes</a></li>
+
+
+
+
+
+
 <li class="toctree-l1"><a class="reference internal" href="../../refs/changelog.html">Extensions Changelog</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../refs/license.html">License</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../refs/bibliography.html">Bibliography</a></li>
@@ -369,7 +380,7 @@
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Project Links</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference external" href="https://github.com/isaac-sim/IsaacLab">GitHub</a></li>
-<li class="toctree-l1"><a class="reference external" href="https://docs.omniverse.nvidia.com/isaacsim/latest/index.html">NVIDIA Isaac Sim</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/latest/index.html">NVIDIA Isaac Sim</a></li>
 <li class="toctree-l1"><a class="reference external" href="https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/index.html">NVIDIA PhysX</a></li>
 </ul>
 
@@ -617,7 +628,7 @@ set of soft cubes and see how to set their nodal positions and velocities, along
 commands to the mesh nodes to move the soft body.</p>
 <section id="the-code">
 <h2>The Code<a class="headerlink" href="#the-code" title="Permalink to this heading">#</a></h2>
-<p>The tutorial corresponds to the <code class="docutils literal notranslate"><span class="pre">run_deformable_object.py</span></code> script in the <code class="docutils literal notranslate"><span class="pre">source/standalone/tutorials/01_assets</span></code> directory.</p>
+<p>The tutorial corresponds to the <code class="docutils literal notranslate"><span class="pre">run_deformable_object.py</span></code> script in the <code class="docutils literal notranslate"><span class="pre">scripts/tutorials/01_assets</span></code> directory.</p>
 <details class="sd-sphinx-override sd-dropdown sd-card sd-mb-3">
 <summary class="sd-summary-title sd-card-header">
 <span class="sd-summary-icon"><svg version="1.1" width="1.0em" height="1.0em" class="sd-octicon sd-octicon-code" viewBox="0 0 16 16" aria-hidden="true"><path d="m11.28 3.22 4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.749.749 0 0 1-1.275-.326.749.749 0 0 1 .215-.734L13.94 8l-3.72-3.72a.749.749 0 0 1 .326-1.275.749.749 0 0 1 .734.215Zm-6.56 0a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042L2.06 8l3.72 3.72a.749.749 0 0 1-.326 1.275.749.749 0 0 1-.734-.215L.47 8.53a.75.75 0 0 1 0-1.06Z"></path></svg></span><span class="sd-summary-text">Code for run_deformable_object.py</span><span class="sd-summary-state-marker sd-summary-chevron-right"><svg version="1.1" width="1.5em" height="1.5em" class="sd-octicon sd-octicon-chevron-right" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.72 18.78a.75.75 0 0 1 0-1.06L14.44 12 8.72 6.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018l6.25 6.25a.75.75 0 0 1 0 1.06l-6.25 6.25a.75.75 0 0 1-1.06 0Z"></path></svg></span></summary><div class="sd-summary-content sd-card-body docutils">
@@ -632,7 +643,7 @@ commands to the mesh nodes to move the soft body.</p>
 <span class="linenos">  9</span><span class="sd">.. code-block:: bash</span>
 <span class="linenos"> 10</span>
 <span class="linenos"> 11</span><span class="sd">    # Usage</span>
-<span class="linenos"> 12</span><span class="sd">    ./isaaclab.sh -p source/standalone/tutorials/01_assets/run_deformable_object.py</span>
+<span class="linenos"> 12</span><span class="sd">    ./isaaclab.sh -p scripts/tutorials/01_assets/run_deformable_object.py</span>
 <span class="linenos"> 13</span>
 <span class="linenos"> 14</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="linenos"> 15</span>
@@ -641,7 +652,7 @@ commands to the mesh nodes to move the soft body.</p>
 <span class="linenos"> 18</span>
 <span class="linenos"> 19</span><span class="kn">import</span><span class="w"> </span><span class="nn">argparse</span>
 <span class="linenos"> 20</span>
-<span class="linenos"> 21</span><span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.app</span><span class="w"> </span><span class="kn">import</span> <span class="n">AppLauncher</span>
+<span class="linenos"> 21</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.app</span><span class="w"> </span><span class="kn">import</span> <span class="n">AppLauncher</span>
 <span class="linenos"> 22</span>
 <span class="linenos"> 23</span><span class="c1"># add argparse arguments</span>
 <span class="linenos"> 24</span><span class="n">parser</span> <span class="o">=</span> <span class="n">argparse</span><span class="o">.</span><span class="n">ArgumentParser</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="s2">&quot;Tutorial on interacting with a deformable object.&quot;</span><span class="p">)</span>
@@ -658,12 +669,12 @@ commands to the mesh nodes to move the soft body.</p>
 <span class="linenos"> 35</span>
 <span class="linenos"> 36</span><span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
 <span class="linenos"> 37</span>
-<span class="linenos"> 38</span><span class="kn">import</span><span class="w"> </span><span class="nn">omni.isaac.core.utils.prims</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">prim_utils</span>
+<span class="linenos"> 38</span><span class="kn">import</span><span class="w"> </span><span class="nn">isaacsim.core.utils.prims</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">prim_utils</span>
 <span class="linenos"> 39</span>
-<span class="linenos"> 40</span><span class="kn">import</span><span class="w"> </span><span class="nn">omni.isaac.lab.sim</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">sim_utils</span>
-<span class="linenos"> 41</span><span class="kn">import</span><span class="w"> </span><span class="nn">omni.isaac.lab.utils.math</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">math_utils</span>
-<span class="linenos"> 42</span><span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.assets</span><span class="w"> </span><span class="kn">import</span> <span class="n">DeformableObject</span><span class="p">,</span> <span class="n">DeformableObjectCfg</span>
-<span class="linenos"> 43</span><span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.sim</span><span class="w"> </span><span class="kn">import</span> <span class="n">SimulationContext</span>
+<span class="linenos"> 40</span><span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab.sim</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">sim_utils</span>
+<span class="linenos"> 41</span><span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab.utils.math</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">math_utils</span>
+<span class="linenos"> 42</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.assets</span><span class="w"> </span><span class="kn">import</span> <span class="n">DeformableObject</span><span class="p">,</span> <span class="n">DeformableObjectCfg</span>
+<span class="linenos"> 43</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.sim</span><span class="w"> </span><span class="kn">import</span> <span class="n">SimulationContext</span>
 <span class="linenos"> 44</span>
 <span class="linenos"> 45</span>
 <span class="linenos"> 46</span><span class="k">def</span><span class="w"> </span><span class="nf">design_scene</span><span class="p">():</span>
@@ -798,14 +809,14 @@ commands to the mesh nodes to move the soft body.</p>
 <section id="designing-the-scene">
 <h3>Designing the scene<a class="headerlink" href="#designing-the-scene" title="Permalink to this heading">#</a></h3>
 <p>Similar to the <a class="reference internal" href="run_rigid_object.html#tutorial-interact-rigid-object"><span class="std std-ref">Interacting with a rigid object</span></a> tutorial, we populate the scene with a ground plane
-and a light source. In addition, we add a deformable object to the scene using the <a class="reference internal" href="../../api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.DeformableObject" title="omni.isaac.lab.assets.DeformableObject"><code class="xref py py-class docutils literal notranslate"><span class="pre">assets.DeformableObject</span></code></a>
+and a light source. In addition, we add a deformable object to the scene using the <a class="reference internal" href="../../api/lab/isaaclab.assets.html#isaaclab.assets.DeformableObject" title="isaaclab.assets.DeformableObject"><code class="xref py py-class docutils literal notranslate"><span class="pre">assets.DeformableObject</span></code></a>
 class. This class is responsible for spawning the prims at the input path and initializes their corresponding
 deformable body physics handles.</p>
 <p>In this tutorial, we create a cubical soft object using the spawn configuration similar to the deformable cube
 in the <a class="reference internal" href="../00_sim/spawn_prims.html#tutorial-spawn-prims"><span class="std std-ref">Spawn Objects</span></a> tutorial. The only difference is that now we wrap
-the spawning configuration into the <a class="reference internal" href="../../api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.DeformableObjectCfg" title="omni.isaac.lab.assets.DeformableObjectCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">assets.DeformableObjectCfg</span></code></a> class. This class contains information about
+the spawning configuration into the <a class="reference internal" href="../../api/lab/isaaclab.assets.html#isaaclab.assets.DeformableObjectCfg" title="isaaclab.assets.DeformableObjectCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">assets.DeformableObjectCfg</span></code></a> class. This class contains information about
 the asset’s spawning strategy and default initial state. When this class is passed to
-the <a class="reference internal" href="../../api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.DeformableObject" title="omni.isaac.lab.assets.DeformableObject"><code class="xref py py-class docutils literal notranslate"><span class="pre">assets.DeformableObject</span></code></a> class, it spawns the object and initializes the corresponding physics handles
+the <a class="reference internal" href="../../api/lab/isaaclab.assets.html#isaaclab.assets.DeformableObject" title="isaaclab.assets.DeformableObject"><code class="xref py py-class docutils literal notranslate"><span class="pre">assets.DeformableObject</span></code></a> class, it spawns the object and initializes the corresponding physics handles
 when the simulation is played.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
@@ -813,7 +824,7 @@ when the simulation is played.</p>
 deformable body physics properties on it.</p>
 </div>
 <p>As seen in the rigid body tutorial, we can spawn the deformable object into the scene in a similar fashion by creating
-an instance of the <a class="reference internal" href="../../api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.DeformableObject" title="omni.isaac.lab.assets.DeformableObject"><code class="xref py py-class docutils literal notranslate"><span class="pre">assets.DeformableObject</span></code></a> class by passing the configuration object to its constructor.</p>
+an instance of the <a class="reference internal" href="../../api/lab/isaaclab.assets.html#isaaclab.assets.DeformableObject" title="isaaclab.assets.DeformableObject"><code class="xref py py-class docutils literal notranslate"><span class="pre">assets.DeformableObject</span></code></a> class by passing the configuration object to its constructor.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span>    <span class="c1"># Create separate groups called &quot;Origin1&quot;, &quot;Origin2&quot;, &quot;Origin3&quot;</span>
     <span class="c1"># Each group will have a robot in it</span>
     <span class="n">origins</span> <span class="o">=</span> <span class="p">[[</span><span class="mf">0.25</span><span class="p">,</span> <span class="mf">0.25</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">],</span> <span class="p">[</span><span class="o">-</span><span class="mf">0.25</span><span class="p">,</span> <span class="mf">0.25</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">],</span> <span class="p">[</span><span class="mf">0.25</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.25</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">],</span> <span class="p">[</span><span class="o">-</span><span class="mf">0.25</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.25</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">]]</span>
@@ -844,13 +855,13 @@ to the deformable body, step the simulation, and update the deformable object’
 <h4>Resetting the simulation state<a class="headerlink" href="#resetting-the-simulation-state" title="Permalink to this heading">#</a></h4>
 <p>Unlike rigid bodies and articulations, deformable objects have a different state representation. The state of a
 deformable object is defined by the nodal positions and velocities of the mesh. The nodal positions and velocities
-are defined in the <strong>simulation world frame</strong> and are stored in the <a class="reference internal" href="../../api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.DeformableObject.data" title="omni.isaac.lab.assets.DeformableObject.data"><code class="xref py py-attr docutils literal notranslate"><span class="pre">assets.DeformableObject.data</span></code></a> attribute.</p>
+are defined in the <strong>simulation world frame</strong> and are stored in the <a class="reference internal" href="../../api/lab/isaaclab.assets.html#isaaclab.assets.DeformableObject.data" title="isaaclab.assets.DeformableObject.data"><code class="xref py py-attr docutils literal notranslate"><span class="pre">assets.DeformableObject.data</span></code></a> attribute.</p>
 <p>We use the <code class="xref py py-attr docutils literal notranslate"><span class="pre">assets.DeformableObject.data.default_nodal_state_w</span></code> attribute to get the default nodal state of the
-spawned object prims. This default state can be configured from the <a class="reference internal" href="../../api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.DeformableObjectCfg.init_state" title="omni.isaac.lab.assets.DeformableObjectCfg.init_state"><code class="xref py py-attr docutils literal notranslate"><span class="pre">assets.DeformableObjectCfg.init_state</span></code></a>
+spawned object prims. This default state can be configured from the <a class="reference internal" href="../../api/lab/isaaclab.assets.html#isaaclab.assets.DeformableObjectCfg.init_state" title="isaaclab.assets.DeformableObjectCfg.init_state"><code class="xref py py-attr docutils literal notranslate"><span class="pre">assets.DeformableObjectCfg.init_state</span></code></a>
 attribute, which we left as identity in this tutorial.</p>
 <div class="admonition attention">
 <p class="admonition-title">Attention</p>
-<p>The initial state in the configuration <a class="reference internal" href="../../api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.DeformableObjectCfg" title="omni.isaac.lab.assets.DeformableObjectCfg"><code class="xref py py-attr docutils literal notranslate"><span class="pre">assets.DeformableObjectCfg</span></code></a> specifies the pose
+<p>The initial state in the configuration <a class="reference internal" href="../../api/lab/isaaclab.assets.html#isaaclab.assets.DeformableObjectCfg" title="isaaclab.assets.DeformableObjectCfg"><code class="xref py py-attr docutils literal notranslate"><span class="pre">assets.DeformableObjectCfg</span></code></a> specifies the pose
 of the deformable object at the time of spawning. Based on this initial state, the default nodal state is
 obtained when the simulation is played for the first time.</p>
 </div>
@@ -863,12 +874,12 @@ obtained when the simulation is played for the first time.</p>
             <span class="n">nodal_state</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="p">:</span><span class="mi">3</span><span class="p">]</span> <span class="o">=</span> <span class="n">cube_object</span><span class="o">.</span><span class="n">transform_nodal_pos</span><span class="p">(</span><span class="n">nodal_state</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="p">:</span><span class="mi">3</span><span class="p">],</span> <span class="n">pos_w</span><span class="p">,</span> <span class="n">quat_w</span><span class="p">)</span>
 </pre></div>
 </div>
-<p>To reset the deformable object, we first set the nodal state by calling the <a class="reference internal" href="../../api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.DeformableObject.write_nodal_state_to_sim" title="omni.isaac.lab.assets.DeformableObject.write_nodal_state_to_sim"><code class="xref py py-meth docutils literal notranslate"><span class="pre">assets.DeformableObject.write_nodal_state_to_sim()</span></code></a>
+<p>To reset the deformable object, we first set the nodal state by calling the <a class="reference internal" href="../../api/lab/isaaclab.assets.html#isaaclab.assets.DeformableObject.write_nodal_state_to_sim" title="isaaclab.assets.DeformableObject.write_nodal_state_to_sim"><code class="xref py py-meth docutils literal notranslate"><span class="pre">assets.DeformableObject.write_nodal_state_to_sim()</span></code></a>
 method. This method writes the nodal state of the deformable object prim into the simulation buffer.
 Additionally, we free all the kinematic targets set for the nodes in the previous simulation step by calling
-the <a class="reference internal" href="../../api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.DeformableObject.write_nodal_kinematic_target_to_sim" title="omni.isaac.lab.assets.DeformableObject.write_nodal_kinematic_target_to_sim"><code class="xref py py-meth docutils literal notranslate"><span class="pre">assets.DeformableObject.write_nodal_kinematic_target_to_sim()</span></code></a> method. We explain the
+the <a class="reference internal" href="../../api/lab/isaaclab.assets.html#isaaclab.assets.DeformableObject.write_nodal_kinematic_target_to_sim" title="isaaclab.assets.DeformableObject.write_nodal_kinematic_target_to_sim"><code class="xref py py-meth docutils literal notranslate"><span class="pre">assets.DeformableObject.write_nodal_kinematic_target_to_sim()</span></code></a> method. We explain the
 kinematic targets in the next section.</p>
-<p>Finally, we call the <a class="reference internal" href="../../api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.DeformableObject.reset" title="omni.isaac.lab.assets.DeformableObject.reset"><code class="xref py py-meth docutils literal notranslate"><span class="pre">assets.DeformableObject.reset()</span></code></a> method to reset any internal buffers and caches.</p>
+<p>Finally, we call the <a class="reference internal" href="../../api/lab/isaaclab.assets.html#isaaclab.assets.DeformableObject.reset" title="isaaclab.assets.DeformableObject.reset"><code class="xref py py-meth docutils literal notranslate"><span class="pre">assets.DeformableObject.reset()</span></code></a> method to reset any internal buffers and caches.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span>            <span class="c1"># write nodal state to simulation</span>
             <span class="n">cube_object</span><span class="o">.</span><span class="n">write_nodal_state_to_sim</span><span class="p">(</span><span class="n">nodal_state</span><span class="p">)</span>
 
@@ -891,7 +902,7 @@ is useful for applications where the user wants to interact with the deformable 
 targets for the node at index 0 (bottom-left corner) to move the cube along the z-axis.</p>
 <p>At every step, we increment the kinematic position target for the node by a small value. Additionally,
 we set the flag to indicate that the target is a kinematic target for that node in the simulation buffer.
-These are set into the simulation buffer by calling the <a class="reference internal" href="../../api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.DeformableObject.write_nodal_kinematic_target_to_sim" title="omni.isaac.lab.assets.DeformableObject.write_nodal_kinematic_target_to_sim"><code class="xref py py-meth docutils literal notranslate"><span class="pre">assets.DeformableObject.write_nodal_kinematic_target_to_sim()</span></code></a>
+These are set into the simulation buffer by calling the <a class="reference internal" href="../../api/lab/isaaclab.assets.html#isaaclab.assets.DeformableObject.write_nodal_kinematic_target_to_sim" title="isaaclab.assets.DeformableObject.write_nodal_kinematic_target_to_sim"><code class="xref py py-meth docutils literal notranslate"><span class="pre">assets.DeformableObject.write_nodal_kinematic_target_to_sim()</span></code></a>
 method.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span>        <span class="c1"># update the kinematic target for cubes at index 0 and 3</span>
         <span class="c1"># we slightly move the cube in the z-direction by picking the vertex at index 0</span>
@@ -903,7 +914,7 @@ method.</p>
         <span class="n">cube_object</span><span class="o">.</span><span class="n">write_nodal_kinematic_target_to_sim</span><span class="p">(</span><span class="n">nodal_kinematic_target</span><span class="p">)</span>
 </pre></div>
 </div>
-<p>Similar to the rigid object and articulation, we perform the <a class="reference internal" href="../../api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.DeformableObject.write_data_to_sim" title="omni.isaac.lab.assets.DeformableObject.write_data_to_sim"><code class="xref py py-meth docutils literal notranslate"><span class="pre">assets.DeformableObject.write_data_to_sim()</span></code></a> method
+<p>Similar to the rigid object and articulation, we perform the <a class="reference internal" href="../../api/lab/isaaclab.assets.html#isaaclab.assets.DeformableObject.write_data_to_sim" title="isaaclab.assets.DeformableObject.write_data_to_sim"><code class="xref py py-meth docutils literal notranslate"><span class="pre">assets.DeformableObject.write_data_to_sim()</span></code></a> method
 before stepping the simulation. For deformable objects, this method does not apply any external forces to the object.
 However, we keep this method for completeness and future extensions.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span>        <span class="c1"># write internal data to simulation</span>
@@ -914,7 +925,7 @@ However, we keep this method for completeness and future extensions.</p>
 <section id="updating-the-state">
 <h4>Updating the state<a class="headerlink" href="#updating-the-state" title="Permalink to this heading">#</a></h4>
 <p>After stepping the simulation, we update the internal buffers of the deformable object prims to reflect their new state
-inside the <a class="reference internal" href="../../api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.DeformableObject.data" title="omni.isaac.lab.assets.DeformableObject.data"><code class="xref py py-class docutils literal notranslate"><span class="pre">assets.DeformableObject.data</span></code></a> attribute. This is done using the <a class="reference internal" href="../../api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.DeformableObject.update" title="omni.isaac.lab.assets.DeformableObject.update"><code class="xref py py-meth docutils literal notranslate"><span class="pre">assets.DeformableObject.update()</span></code></a> method.</p>
+inside the <a class="reference internal" href="../../api/lab/isaaclab.assets.html#isaaclab.assets.DeformableObject.data" title="isaaclab.assets.DeformableObject.data"><code class="xref py py-class docutils literal notranslate"><span class="pre">assets.DeformableObject.data</span></code></a> attribute. This is done using the <a class="reference internal" href="../../api/lab/isaaclab.assets.html#isaaclab.assets.DeformableObject.update" title="isaaclab.assets.DeformableObject.update"><code class="xref py py-meth docutils literal notranslate"><span class="pre">assets.DeformableObject.update()</span></code></a> method.</p>
 <p>At a fixed interval, we print the root position of the deformable object to the terminal. As mentioned
 earlier, there is no concept of a root state for deformable objects. However, we compute the root position as
 the average position of all the nodes in the mesh.</p>
@@ -931,7 +942,7 @@ the average position of all the nodes in the mesh.</p>
 <section id="the-code-execution">
 <h2>The Code Execution<a class="headerlink" href="#the-code-execution" title="Permalink to this heading">#</a></h2>
 <p>Now that we have gone through the code, let’s run the script and see the result:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>source/standalone/tutorials/01_assets/run_deformable_object.py
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/tutorials/01_assets/run_deformable_object.py
 </pre></div>
 </div>
 <p>This should open a stage with a ground plane, lights, and several green cubes. Two of the four cubes must be dropping

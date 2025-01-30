@@ -194,7 +194,7 @@
           
           
           
-          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.2.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.5.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
         </li>
         <li class="nav-item">
           
@@ -1589,9 +1589,9 @@ this changelog to make it easier to find the changelog for a specific extension.
 <a class="reference internal" href="../api/lab/omni.isaac.lab.managers.html#omni.isaac.lab.managers.EventManager" title="omni.isaac.lab.managers.EventManager"><code class="xref py py-class docutils literal notranslate"><span class="pre">omni.isaac.lab.managers.EventManager</span></code></a> and <a class="reference internal" href="../api/lab/omni.isaac.lab.managers.html#omni.isaac.lab.managers.EventTermCfg" title="omni.isaac.lab.managers.EventTermCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">omni.isaac.lab.managers.EventTermCfg</span></code></a> classes.</p></li>
 <li><p>The following properties in <a class="reference internal" href="../api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.FrameTransformerData" title="omni.isaac.lab.sensors.FrameTransformerData"><code class="xref py py-class docutils literal notranslate"><span class="pre">omni.isaac.lab.sensors.FrameTransformerData</span></code></a>:</p>
 <ul>
-<li><p><code class="docutils literal notranslate"><span class="pre">target_rot_source</span></code> –&gt; <a class="reference internal" href="../api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.FrameTransformerData.target_quat_w" title="omni.isaac.lab.sensors.FrameTransformerData.target_quat_w"><code class="xref py py-attr docutils literal notranslate"><span class="pre">target_quat_w</span></code></a></p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">target_rot_w</span></code> –&gt; <a class="reference internal" href="../api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.FrameTransformerData.target_quat_source" title="omni.isaac.lab.sensors.FrameTransformerData.target_quat_source"><code class="xref py py-attr docutils literal notranslate"><span class="pre">target_quat_source</span></code></a></p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">source_rot_w</span></code> –&gt; <a class="reference internal" href="../api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.FrameTransformerData.source_quat_w" title="omni.isaac.lab.sensors.FrameTransformerData.source_quat_w"><code class="xref py py-attr docutils literal notranslate"><span class="pre">source_quat_w</span></code></a></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">target_rot_source</span></code> –&gt; <code class="xref py py-attr docutils literal notranslate"><span class="pre">target_quat_w</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">target_rot_w</span></code> –&gt; <code class="xref py py-attr docutils literal notranslate"><span class="pre">target_quat_source</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">source_rot_w</span></code> –&gt; <code class="xref py py-attr docutils literal notranslate"><span class="pre">source_quat_w</span></code></p></li>
 </ul>
 </li>
 <li><p>The kit experience file <code class="docutils literal notranslate"><span class="pre">isaaclab.backwards.compatible.kit</span></code>. This is followed by dropping the support for
@@ -1628,7 +1628,7 @@ in the simulation. This is possible through the <a class="reference internal" hr
 <section id="changed">
 <h4>Changed<a class="headerlink" href="#changed" title="Permalink to this heading">#</a></h4>
 <ul class="simple">
-<li><p>Modified cloning scheme based on the attribute <a class="reference internal" href="../api/lab/omni.isaac.lab.scene.html#omni.isaac.lab.scene.InteractiveSceneCfg.replicate_physics" title="omni.isaac.lab.scene.InteractiveSceneCfg.replicate_physics"><code class="xref py py-attr docutils literal notranslate"><span class="pre">replicate_physics</span></code></a>
+<li><p>Modified cloning scheme based on the attribute <code class="xref py py-attr docutils literal notranslate"><span class="pre">replicate_physics</span></code>
 to determine whether environment is homogeneous or heterogeneous.</p></li>
 </ul>
 </section>
@@ -1669,7 +1669,7 @@ view since the body names were not following the same ordering.</p></li>
 <h4>Fixed<a class="headerlink" href="#id12" title="Permalink to this heading">#</a></h4>
 <ul class="simple">
 <li><p>Fixed the environment stepping logic. Earlier, the environments’ rendering logic was updating the kit app which
-would in turn step the physics <a class="reference internal" href="../api/lab/omni.isaac.lab.sim.html#omni.isaac.lab.sim.SimulationCfg.render_interval" title="omni.isaac.lab.sim.SimulationCfg.render_interval"><code class="xref py py-attr docutils literal notranslate"><span class="pre">omni.isaac.lab.sim.SimulationCfg.render_interval</span></code></a> times. Now, a render
+would in turn step the physics <code class="xref py py-attr docutils literal notranslate"><span class="pre">omni.isaac.lab.sim.SimulationCfg.render_interval</span></code> times. Now, a render
 call only does rendering and does not step the physics.</p></li>
 </ul>
 </section>
@@ -1698,7 +1698,7 @@ when destroying the asset class instance since the physics sim view was not bein
 <section id="id17">
 <h4>Added<a class="headerlink" href="#id17" title="Permalink to this heading">#</a></h4>
 <ul class="simple">
-<li><p>Added the attribute <a class="reference internal" href="../api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.AssetBase.is_initialized" title="omni.isaac.lab.assets.AssetBase.is_initialized"><code class="xref py py-attr docutils literal notranslate"><span class="pre">is_initialized</span></code></a> to check if the asset and sensor
+<li><p>Added the attribute <code class="xref py py-attr docutils literal notranslate"><span class="pre">is_initialized</span></code> to check if the asset and sensor
 has been initialized properly. This can be used to ensure that the asset or sensor is ready to use in the simulation.</p></li>
 </ul>
 </section>
@@ -1763,7 +1763,7 @@ would happen once every env.step() when active.</p></li>
 <section id="id28">
 <h4>Changed<a class="headerlink" href="#id28" title="Permalink to this heading">#</a></h4>
 <ul class="simple">
-<li><p>Renamed <code class="xref py py-attr docutils literal notranslate"><span class="pre">omni.isaac.lab.sim.SimulationCfg.substeps</span></code> to <a class="reference internal" href="../api/lab/omni.isaac.lab.sim.html#omni.isaac.lab.sim.SimulationCfg.render_interval" title="omni.isaac.lab.sim.SimulationCfg.render_interval"><code class="xref py py-attr docutils literal notranslate"><span class="pre">omni.isaac.lab.sim.SimulationCfg.render_interval</span></code></a>.
+<li><p>Renamed <code class="xref py py-attr docutils literal notranslate"><span class="pre">omni.isaac.lab.sim.SimulationCfg.substeps</span></code> to <code class="xref py py-attr docutils literal notranslate"><span class="pre">omni.isaac.lab.sim.SimulationCfg.render_interval</span></code>.
 The render logic is now integrated in the decimation loop of the environment.</p></li>
 </ul>
 </section>
@@ -1773,7 +1773,7 @@ The render logic is now integrated in the decimation loop of the environment.</p
 <section id="id30">
 <h4>Fixed<a class="headerlink" href="#id30" title="Permalink to this heading">#</a></h4>
 <ul class="simple">
-<li><p>Fixed the orientation reset logic in <a class="reference internal" href="../api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.events.reset_root_state_uniform" title="omni.isaac.lab.envs.mdp.events.reset_root_state_uniform"><code class="xref py py-func docutils literal notranslate"><span class="pre">omni.isaac.lab.envs.mdp.events.reset_root_state_uniform()</span></code></a> to make it relative to
+<li><p>Fixed the orientation reset logic in <code class="xref py py-func docutils literal notranslate"><span class="pre">omni.isaac.lab.envs.mdp.events.reset_root_state_uniform()</span></code> to make it relative to
 the default orientation. Earlier, the position was sampled relative to the default and the orientation not.</p></li>
 </ul>
 </section>
@@ -1783,7 +1783,7 @@ the default orientation. Earlier, the position was sampled relative to the defau
 <section id="id32">
 <h4>Added<a class="headerlink" href="#id32" title="Permalink to this heading">#</a></h4>
 <ul class="simple">
-<li><p>Added the class <a class="reference internal" href="../api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.buffers.TimestampedBuffer" title="omni.isaac.lab.utils.buffers.TimestampedBuffer"><code class="xref py py-class docutils literal notranslate"><span class="pre">omni.isaac.lab.utils.buffers.TimestampedBuffer</span></code></a> to store timestamped data.</p></li>
+<li><p>Added the class <code class="xref py py-class docutils literal notranslate"><span class="pre">omni.isaac.lab.utils.buffers.TimestampedBuffer</span></code> to store timestamped data.</p></li>
 </ul>
 </section>
 <section id="id33">
@@ -1872,10 +1872,10 @@ variants when loading assets from USD files.</p></li>
 <li><p>Modified the noise functions to also support add, scale, and abs operations on the data. Added aliases
 to ensure backward compatibility with the previous functions.</p>
 <ul>
-<li><p>Added <a class="reference internal" href="../api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.noise.NoiseCfg.operation" title="omni.isaac.lab.utils.noise.NoiseCfg.operation"><code class="xref py py-attr docutils literal notranslate"><span class="pre">omni.isaac.lab.utils.noise.NoiseCfg.operation</span></code></a> for the different operations.</p></li>
-<li><p>Renamed <code class="docutils literal notranslate"><span class="pre">constant_bias_noise</span></code> to <a class="reference internal" href="../api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.noise.constant_noise" title="omni.isaac.lab.utils.noise.constant_noise"><code class="xref py py-func docutils literal notranslate"><span class="pre">omni.isaac.lab.utils.noise.constant_noise()</span></code></a>.</p></li>
-<li><p>Renamed <code class="docutils literal notranslate"><span class="pre">additive_uniform_noise</span></code> to <a class="reference internal" href="../api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.noise.uniform_noise" title="omni.isaac.lab.utils.noise.uniform_noise"><code class="xref py py-func docutils literal notranslate"><span class="pre">omni.isaac.lab.utils.noise.uniform_noise()</span></code></a>.</p></li>
-<li><p>Renamed <code class="docutils literal notranslate"><span class="pre">additive_gaussian_noise</span></code> to <a class="reference internal" href="../api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.noise.gaussian_noise" title="omni.isaac.lab.utils.noise.gaussian_noise"><code class="xref py py-func docutils literal notranslate"><span class="pre">omni.isaac.lab.utils.noise.gaussian_noise()</span></code></a>.</p></li>
+<li><p>Added <code class="xref py py-attr docutils literal notranslate"><span class="pre">omni.isaac.lab.utils.noise.NoiseCfg.operation</span></code> for the different operations.</p></li>
+<li><p>Renamed <code class="docutils literal notranslate"><span class="pre">constant_bias_noise</span></code> to <code class="xref py py-func docutils literal notranslate"><span class="pre">omni.isaac.lab.utils.noise.constant_noise()</span></code>.</p></li>
+<li><p>Renamed <code class="docutils literal notranslate"><span class="pre">additive_uniform_noise</span></code> to <code class="xref py py-func docutils literal notranslate"><span class="pre">omni.isaac.lab.utils.noise.uniform_noise()</span></code>.</p></li>
+<li><p>Renamed <code class="docutils literal notranslate"><span class="pre">additive_gaussian_noise</span></code> to <code class="xref py py-func docutils literal notranslate"><span class="pre">omni.isaac.lab.utils.noise.gaussian_noise()</span></code>.</p></li>
 </ul>
 </li>
 </ul>
@@ -1924,7 +1924,7 @@ to ensure backward compatibility with the previous functions.</p>
 <section id="id57">
 <h4>Fixed<a class="headerlink" href="#id57" title="Permalink to this heading">#</a></h4>
 <ul class="simple">
-<li><p>Added attribute <a class="reference internal" href="../api/lab/omni.isaac.lab.sim.converters.html#omni.isaac.lab.sim.converters.UrdfConverterCfg.override_joint_dynamics" title="omni.isaac.lab.sim.converters.UrdfConverterCfg.override_joint_dynamics"><code class="xref py py-attr docutils literal notranslate"><span class="pre">omni.isaac.lab.sim.converters.UrdfConverterCfg.override_joint_dynamics</span></code></a> to properly parse
+<li><p>Added attribute <code class="xref py py-attr docutils literal notranslate"><span class="pre">omni.isaac.lab.sim.converters.UrdfConverterCfg.override_joint_dynamics</span></code> to properly parse
 joint dynamics in <a class="reference internal" href="../api/lab/omni.isaac.lab.sim.converters.html#omni.isaac.lab.sim.converters.UrdfConverter" title="omni.isaac.lab.sim.converters.UrdfConverter"><code class="xref py py-class docutils literal notranslate"><span class="pre">omni.isaac.lab.sim.converters.UrdfConverter</span></code></a>.</p></li>
 </ul>
 </section>
@@ -2000,7 +2000,7 @@ of an articulation to the world frame.</p></li>
 <section id="id70">
 <h4>Added<a class="headerlink" href="#id70" title="Permalink to this heading">#</a></h4>
 <ul class="simple">
-<li><p>Added the function <a class="reference internal" href="../api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.math.quat_unique" title="omni.isaac.lab.utils.math.quat_unique"><code class="xref py py-meth docutils literal notranslate"><span class="pre">omni.isaac.lab.utils.math.quat_unique()</span></code></a> to standardize quaternion representations,
+<li><p>Added the function <code class="xref py py-meth docutils literal notranslate"><span class="pre">omni.isaac.lab.utils.math.quat_unique()</span></code> to standardize quaternion representations,
 i.e. always have a non-negative real part.</p></li>
 <li><p>Added events terms for randomizing mass by scale, simulation joint properties (stiffness, damping, armature,
 and friction)</p></li>
@@ -2062,7 +2062,7 @@ by avoiding Nucleus server calls.</p></li>
 <section id="id77">
 <h4>Added<a class="headerlink" href="#id77" title="Permalink to this heading">#</a></h4>
 <ul class="simple">
-<li><p>Added the <a class="reference internal" href="../api/lab/omni.isaac.lab.sim.html#omni.isaac.lab.sim.SimulationContext.has_rtx_sensors" title="omni.isaac.lab.sim.SimulationContext.has_rtx_sensors"><code class="xref py py-meth docutils literal notranslate"><span class="pre">omni.isaac.lab.sim.SimulationContext.has_rtx_sensors()</span></code></a> method to check if any
+<li><p>Added the <code class="xref py py-meth docutils literal notranslate"><span class="pre">omni.isaac.lab.sim.SimulationContext.has_rtx_sensors()</span></code> method to check if any
 RTX-related sensors such as cameras have been created in the simulation. This is useful to determine
 if simulation requires RTX rendering during step or not.</p></li>
 </ul>
@@ -2116,8 +2116,8 @@ for backward compatibility.</p></li>
 <ul class="simple">
 <li><p>Adds option to return indices/data in the specified query keys order in
 <a class="reference internal" href="../api/lab/omni.isaac.lab.managers.html#omni.isaac.lab.managers.SceneEntityCfg" title="omni.isaac.lab.managers.SceneEntityCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">omni.isaac.lab.managers.SceneEntityCfg</span></code></a> class, and the respective
-<a class="reference internal" href="../api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.string.resolve_matching_names_values" title="omni.isaac.lab.utils.string.resolve_matching_names_values"><code class="xref py py-func docutils literal notranslate"><span class="pre">omni.isaac.lab.utils.string.resolve_matching_names_values()</span></code></a> and
-<a class="reference internal" href="../api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.string.resolve_matching_names" title="omni.isaac.lab.utils.string.resolve_matching_names"><code class="xref py py-func docutils literal notranslate"><span class="pre">omni.isaac.lab.utils.string.resolve_matching_names()</span></code></a> functions.</p></li>
+<code class="xref py py-func docutils literal notranslate"><span class="pre">omni.isaac.lab.utils.string.resolve_matching_names_values()</span></code> and
+<code class="xref py py-func docutils literal notranslate"><span class="pre">omni.isaac.lab.utils.string.resolve_matching_names()</span></code> functions.</p></li>
 </ul>
 </section>
 </section>
@@ -2200,7 +2200,7 @@ resolved correctly when the main asset file is moved to a different location.</p
 <h4>Fixed<a class="headerlink" href="#id101" title="Permalink to this heading">#</a></h4>
 <ul class="simple">
 <li><p>Fixed the imitation learning workflow example script, updating Isaac Lab and Robomimic API calls.</p></li>
-<li><p>Removed the resetting of <code class="xref py py-attr docutils literal notranslate"><span class="pre">_term_dones</span></code> in the <a class="reference internal" href="../api/lab/omni.isaac.lab.managers.html#omni.isaac.lab.managers.TerminationManager.reset" title="omni.isaac.lab.managers.TerminationManager.reset"><code class="xref py py-meth docutils literal notranslate"><span class="pre">omni.isaac.lab.managers.TerminationManager.reset()</span></code></a>.
+<li><p>Removed the resetting of <code class="xref py py-attr docutils literal notranslate"><span class="pre">_term_dones</span></code> in the <code class="xref py py-meth docutils literal notranslate"><span class="pre">omni.isaac.lab.managers.TerminationManager.reset()</span></code>.
 Previously, the environment cleared out all the terms. However, it impaired reading the specific term’s values externally.</p></li>
 </ul>
 </section>
@@ -2286,12 +2286,12 @@ they are casted to <code class="docutils literal notranslate"><span class="pre">
 <li><p>Dropped support for <code class="docutils literal notranslate"><span class="pre">instance_segmentation</span></code> and <code class="docutils literal notranslate"><span class="pre">instance_id_segmentation</span></code> annotations in the
 <a class="reference internal" href="../api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.Camera" title="omni.isaac.lab.sensors.Camera"><code class="xref py py-class docutils literal notranslate"><span class="pre">omni.isaac.lab.sensors.Camera</span></code></a> class. Their “fast” counterparts should be used instead.</p></li>
 <li><p>Renamed the argument <code class="xref py py-attr docutils literal notranslate"><span class="pre">omni.isaac.lab.sensors.CameraCfg.semantic_types</span></code> to
-<a class="reference internal" href="../api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.CameraCfg.semantic_filter" title="omni.isaac.lab.sensors.CameraCfg.semantic_filter"><code class="xref py py-attr docutils literal notranslate"><span class="pre">omni.isaac.lab.sensors.CameraCfg.semantic_filter</span></code></a>. This is more aligned with Replicator’s terminology
+<code class="xref py py-attr docutils literal notranslate"><span class="pre">omni.isaac.lab.sensors.CameraCfg.semantic_filter</span></code>. This is more aligned with Replicator’s terminology
 for semantic filter predicates.</p></li>
 <li><p>Replaced the argument <code class="xref py py-attr docutils literal notranslate"><span class="pre">omni.isaac.lab.sensors.CameraCfg.colorize</span></code> with separate colorized
-arguments for each annotation type (<a class="reference internal" href="../api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.CameraCfg.colorize_instance_segmentation" title="omni.isaac.lab.sensors.CameraCfg.colorize_instance_segmentation"><code class="xref py py-attr docutils literal notranslate"><span class="pre">colorize_instance_segmentation</span></code></a>,
-<a class="reference internal" href="../api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.CameraCfg.colorize_instance_id_segmentation" title="omni.isaac.lab.sensors.CameraCfg.colorize_instance_id_segmentation"><code class="xref py py-attr docutils literal notranslate"><span class="pre">colorize_instance_id_segmentation</span></code></a>, and
-<a class="reference internal" href="../api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.CameraCfg.colorize_semantic_segmentation" title="omni.isaac.lab.sensors.CameraCfg.colorize_semantic_segmentation"><code class="xref py py-attr docutils literal notranslate"><span class="pre">colorize_semantic_segmentation</span></code></a>).</p></li>
+arguments for each annotation type (<code class="xref py py-attr docutils literal notranslate"><span class="pre">colorize_instance_segmentation</span></code>,
+<code class="xref py py-attr docutils literal notranslate"><span class="pre">colorize_instance_id_segmentation</span></code>, and
+<code class="xref py py-attr docutils literal notranslate"><span class="pre">colorize_semantic_segmentation</span></code>).</p></li>
 </ul>
 </section>
 </section>
@@ -2352,7 +2352,7 @@ If None, the behavior remains the same as before (the entire action is returned)
 <h4>Added<a class="headerlink" href="#id125" title="Permalink to this heading">#</a></h4>
 <ul class="simple">
 <li><p>Added functionality to sample flat patches on a generated terrain. This can be configured using
-<a class="reference internal" href="../api/lab/omni.isaac.lab.terrains.html#omni.isaac.lab.terrains.SubTerrainBaseCfg.flat_patch_sampling" title="omni.isaac.lab.terrains.SubTerrainBaseCfg.flat_patch_sampling"><code class="xref py py-attr docutils literal notranslate"><span class="pre">omni.isaac.lab.terrains.SubTerrainBaseCfg.flat_patch_sampling</span></code></a> attribute.</p></li>
+<code class="xref py py-attr docutils literal notranslate"><span class="pre">omni.isaac.lab.terrains.SubTerrainBaseCfg.flat_patch_sampling</span></code> attribute.</p></li>
 <li><p>Added a randomization function for setting terrain-aware root state. Through this, an asset can be
 reset to a randomly sampled flat patches.</p></li>
 </ul>
@@ -2377,7 +2377,7 @@ hard-coded to 0.5 inside the term.</p></li>
 <h4>Removed<a class="headerlink" href="#id128" title="Permalink to this heading">#</a></h4>
 <ul class="simple">
 <li><p>Removed the function <code class="xref py py-meth docutils literal notranslate"><span class="pre">sample_new_targets()</span></code> in the terrain importer. Instead the attribute
-<a class="reference internal" href="../api/lab/omni.isaac.lab.terrains.html#omni.isaac.lab.terrains.TerrainImporter.flat_patches" title="omni.isaac.lab.terrains.TerrainImporter.flat_patches"><code class="xref py py-attr docutils literal notranslate"><span class="pre">omni.isaac.lab.terrains.TerrainImporter.flat_patches</span></code></a> should be used to sample new targets.</p></li>
+<code class="xref py py-attr docutils literal notranslate"><span class="pre">omni.isaac.lab.terrains.TerrainImporter.flat_patches</span></code> should be used to sample new targets.</p></li>
 </ul>
 </section>
 </section>
@@ -2386,7 +2386,7 @@ hard-coded to 0.5 inside the term.</p></li>
 <section id="id130">
 <h4>Fixed<a class="headerlink" href="#id130" title="Permalink to this heading">#</a></h4>
 <ul class="simple">
-<li><p>Corrects the functions <a class="reference internal" href="../api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.math.axis_angle_from_quat" title="omni.isaac.lab.utils.math.axis_angle_from_quat"><code class="xref py py-func docutils literal notranslate"><span class="pre">omni.isaac.lab.utils.math.axis_angle_from_quat()</span></code></a> and <a class="reference internal" href="../api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.math.quat_error_magnitude" title="omni.isaac.lab.utils.math.quat_error_magnitude"><code class="xref py py-func docutils literal notranslate"><span class="pre">omni.isaac.lab.utils.math.quat_error_magnitude()</span></code></a>
+<li><p>Corrects the functions <code class="xref py py-func docutils literal notranslate"><span class="pre">omni.isaac.lab.utils.math.axis_angle_from_quat()</span></code> and <code class="xref py py-func docutils literal notranslate"><span class="pre">omni.isaac.lab.utils.math.quat_error_magnitude()</span></code>
 to accept tensors of the form (…, 4) instead of (N, 4). This brings us in line with our documentation and also upgrades one of our functions
 to handle higher dimensions.</p></li>
 </ul>
@@ -2474,7 +2474,7 @@ we had handled path types as strings without casting.</p></li>
 <ul class="simple">
 <li><p>Added tracking of contact time in the <a class="reference internal" href="../api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.ContactSensor" title="omni.isaac.lab.sensors.ContactSensor"><code class="xref py py-class docutils literal notranslate"><span class="pre">omni.isaac.lab.sensors.ContactSensor</span></code></a> class. Previously,
 only the air time was being tracked.</p></li>
-<li><p>Added contact force threshold, <a class="reference internal" href="../api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.ContactSensorCfg.force_threshold" title="omni.isaac.lab.sensors.ContactSensorCfg.force_threshold"><code class="xref py py-attr docutils literal notranslate"><span class="pre">omni.isaac.lab.sensors.ContactSensorCfg.force_threshold</span></code></a>, to detect
+<li><p>Added contact force threshold, <code class="xref py py-attr docutils literal notranslate"><span class="pre">omni.isaac.lab.sensors.ContactSensorCfg.force_threshold</span></code>, to detect
 when the contact sensor is in contact. Previously, this was set to hard-coded 1.0 in the sensor class.</p></li>
 </ul>
 </section>
@@ -2514,7 +2514,7 @@ trying to index the tensor of shape (1,).</p></li>
 <section id="id154">
 <h4>Added<a class="headerlink" href="#id154" title="Permalink to this heading">#</a></h4>
 <ul class="simple">
-<li><p>Adds <a class="reference internal" href="../api/lab/omni.isaac.lab.sim.html#omni.isaac.lab.sim.PhysxCfg.enable_enhanced_determinism" title="omni.isaac.lab.sim.PhysxCfg.enable_enhanced_determinism"><code class="xref py py-attr docutils literal notranslate"><span class="pre">omni.isaac.lab.sim.PhysxCfg.enable_enhanced_determinism</span></code></a> to enable improved
+<li><p>Adds <code class="xref py py-attr docutils literal notranslate"><span class="pre">omni.isaac.lab.sim.PhysxCfg.enable_enhanced_determinism</span></code> to enable improved
 determinism from PhysX. Please note this comes at the expense of performance.</p></li>
 </ul>
 </section>
@@ -2575,7 +2575,7 @@ actuators. Now, it is computed approximately by applying the PD law.</p></li>
 <section id="id166">
 <h4>Fixed<a class="headerlink" href="#id166" title="Permalink to this heading">#</a></h4>
 <ul class="simple">
-<li><p>Fixed the tensor shape of <a class="reference internal" href="../api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.ContactSensorData.force_matrix_w" title="omni.isaac.lab.sensors.ContactSensorData.force_matrix_w"><code class="xref py py-attr docutils literal notranslate"><span class="pre">omni.isaac.lab.sensors.ContactSensorData.force_matrix_w</span></code></a>. Earlier, the reshaping
+<li><p>Fixed the tensor shape of <code class="xref py py-attr docutils literal notranslate"><span class="pre">omni.isaac.lab.sensors.ContactSensorData.force_matrix_w</span></code>. Earlier, the reshaping
 led to a mismatch with the data obtained from PhysX.</p></li>
 </ul>
 </section>
@@ -2695,7 +2695,7 @@ the XForm prim instead of the Mesh prim.</p></li>
 <li><p>Fixed test <code class="docutils literal notranslate"><span class="pre">check_base_env_anymal_locomotion.py</span></code>, which
 previously called <a class="reference external" href="https://pytorch.org/docs/stable/generated/torch.jit.load.html#torch.jit.load" title="(in PyTorch v2.6)"><code class="xref py py-func docutils literal notranslate"><span class="pre">torch.jit.load()</span></code></a> with the path to a policy (which would work
 for a local file), rather than calling
-<a class="reference internal" href="../api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.assets.read_file" title="omni.isaac.lab.utils.assets.read_file"><code class="xref py py-func docutils literal notranslate"><span class="pre">omni.isaac.lab.utils.assets.read_file()</span></code></a> on the path to get the file itself.</p></li>
+<code class="xref py py-func docutils literal notranslate"><span class="pre">omni.isaac.lab.utils.assets.read_file()</span></code> on the path to get the file itself.</p></li>
 </ul>
 </section>
 </section>
@@ -2715,7 +2715,7 @@ extension is loaded.</p></li>
 <section id="id190">
 <h4>Added<a class="headerlink" href="#id190" title="Permalink to this heading">#</a></h4>
 <ul class="simple">
-<li><p>Added the attribute <a class="reference internal" href="../api/lab/omni.isaac.lab.actuators.html#omni.isaac.lab.actuators.ActuatorNetMLPCfg.input_order" title="omni.isaac.lab.actuators.ActuatorNetMLPCfg.input_order"><code class="xref py py-attr docutils literal notranslate"><span class="pre">omni.isaac.lab.actuators.ActuatorNetMLPCfg.input_order</span></code></a>
+<li><p>Added the attribute <code class="xref py py-attr docutils literal notranslate"><span class="pre">omni.isaac.lab.actuators.ActuatorNetMLPCfg.input_order</span></code>
 to specify the order of the input tensors to the MLP network.</p></li>
 </ul>
 </section>
@@ -2764,7 +2764,7 @@ many assets. This is because Isaac Sim supports USD paths which are slow and not
 <h4>Added<a class="headerlink" href="#id198" title="Permalink to this heading">#</a></h4>
 <ul class="simple">
 <li><p>Added faster implementation of USD stage traversal methods inside the <a class="reference internal" href="../api/lab/omni.isaac.lab.sim.html#module-omni.isaac.lab.sim.utils" title="omni.isaac.lab.sim.utils"><code class="xref py py-class docutils literal notranslate"><span class="pre">omni.isaac.lab.sim.utils</span></code></a> module.</p></li>
-<li><p>Added properties <a class="reference internal" href="../api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.AssetBase.num_instances" title="omni.isaac.lab.assets.AssetBase.num_instances"><code class="xref py py-attr docutils literal notranslate"><span class="pre">omni.isaac.lab.assets.AssetBase.num_instances</span></code></a> and
+<li><p>Added properties <code class="xref py py-attr docutils literal notranslate"><span class="pre">omni.isaac.lab.assets.AssetBase.num_instances</span></code> and
 <code class="xref py py-attr docutils literal notranslate"><span class="pre">omni.isaac.lab.sensor.SensorBase.num_instances</span></code> to obtain the number of instances of the asset
 or sensor in the simulation respectively.</p></li>
 </ul>
@@ -2783,7 +2783,7 @@ PhysX views.</p></li>
 <section id="id201">
 <h4>Fixed<a class="headerlink" href="#id201" title="Permalink to this heading">#</a></h4>
 <ul class="simple">
-<li><p>Fixed the Nucleus directory path in the <a class="reference internal" href="../api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.assets.NVIDIA_NUCLEUS_DIR" title="omni.isaac.lab.utils.assets.NVIDIA_NUCLEUS_DIR"><code class="xref py py-attr docutils literal notranslate"><span class="pre">omni.isaac.lab.utils.assets.NVIDIA_NUCLEUS_DIR</span></code></a>.
+<li><p>Fixed the Nucleus directory path in the <code class="xref py py-attr docutils literal notranslate"><span class="pre">omni.isaac.lab.utils.assets.NVIDIA_NUCLEUS_DIR</span></code>.
 Earlier, it was referring to the <code class="docutils literal notranslate"><span class="pre">NVIDIA/Assets</span></code> directory instead of <code class="docutils literal notranslate"><span class="pre">NVIDIA</span></code>.</p></li>
 </ul>
 </section>
@@ -2798,7 +2798,7 @@ instead of using <code class="docutils literal notranslate"><span class="pre">Us
 during GPU simulation.</p></li>
 <li><p>Fixed initialization of the annotator info in the class <a class="reference internal" href="../api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.Camera" title="omni.isaac.lab.sensors.Camera"><code class="xref py py-class docutils literal notranslate"><span class="pre">omni.isaac.lab.sensors.Camera</span></code></a>. Previously
 all dicts had the same memory address which caused all annotators to have the same info.</p></li>
-<li><p>Fixed the conversion of <code class="docutils literal notranslate"><span class="pre">uint32</span></code> warp arrays inside the <a class="reference internal" href="../api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.array.convert_to_torch" title="omni.isaac.lab.utils.array.convert_to_torch"><code class="xref py py-meth docutils literal notranslate"><span class="pre">omni.isaac.lab.utils.array.convert_to_torch()</span></code></a>
+<li><p>Fixed the conversion of <code class="docutils literal notranslate"><span class="pre">uint32</span></code> warp arrays inside the <code class="xref py py-meth docutils literal notranslate"><span class="pre">omni.isaac.lab.utils.array.convert_to_torch()</span></code>
 method. PyTorch does not support this type, so it is converted to <code class="docutils literal notranslate"><span class="pre">int32</span></code> before converting to PyTorch tensor.</p></li>
 <li><p>Added render call inside <code class="xref py py-meth docutils literal notranslate"><span class="pre">omni.isaac.lab.sim.SimulationContext.reset()</span></code> to initialize Replicator
 buffers when the simulation is reset.</p></li>
@@ -2827,7 +2827,7 @@ from the USD joint drive configuration.</p></li>
 <section id="id208">
 <h4>Changed<a class="headerlink" href="#id208" title="Permalink to this heading">#</a></h4>
 <ul class="simple">
-<li><p>Changed the warning print in <a class="reference internal" href="../api/lab/omni.isaac.lab.sim.html#omni.isaac.lab.sim.utils.apply_nested" title="omni.isaac.lab.sim.utils.apply_nested"><code class="xref py py-meth docutils literal notranslate"><span class="pre">omni.isaac.lab.sim.utils.apply_nested()</span></code></a> method
+<li><p>Changed the warning print in <code class="xref py py-meth docutils literal notranslate"><span class="pre">omni.isaac.lab.sim.utils.apply_nested()</span></code> method
 to be more descriptive. Earlier, it was printing a warning for every instanced prim.
 Now, it only prints a warning if it could not apply the attribute to any of the prims.</p></li>
 </ul>
@@ -2835,7 +2835,7 @@ Now, it only prints a warning if it could not apply the attribute to any of the 
 <section id="id209">
 <h4>Added<a class="headerlink" href="#id209" title="Permalink to this heading">#</a></h4>
 <ul class="simple">
-<li><p>Added the method <a class="reference internal" href="../api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.assets.retrieve_file_path" title="omni.isaac.lab.utils.assets.retrieve_file_path"><code class="xref py py-meth docutils literal notranslate"><span class="pre">omni.isaac.lab.utils.assets.retrieve_file_path()</span></code></a> to
+<li><p>Added the method <code class="xref py py-meth docutils literal notranslate"><span class="pre">omni.isaac.lab.utils.assets.retrieve_file_path()</span></code> to
 obtain the absolute path of a file on the Nucleus server or locally.</p></li>
 </ul>
 </section>
@@ -2844,7 +2844,7 @@ obtain the absolute path of a file on the Nucleus server or locally.</p></li>
 <ul class="simple">
 <li><p>Fixed hiding of STOP button in the <code class="xref py py-class docutils literal notranslate"><span class="pre">AppLauncher</span></code> class when running the
 simulation in headless mode.</p></li>
-<li><p>Fixed a bug with <a class="reference internal" href="../api/lab/omni.isaac.lab.sim.html#omni.isaac.lab.sim.utils.clone" title="omni.isaac.lab.sim.utils.clone"><code class="xref py py-meth docutils literal notranslate"><span class="pre">omni.isaac.lab.sim.utils.clone()</span></code></a> failing when the input prim path
+<li><p>Fixed a bug with <code class="xref py py-meth docutils literal notranslate"><span class="pre">omni.isaac.lab.sim.utils.clone()</span></code> failing when the input prim path
 had no parent (example: “/Table”).</p></li>
 </ul>
 </section>
@@ -3240,7 +3240,7 @@ crashes when warm starting the simulation.</p></li>
 <section id="id280">
 <h4>Fixed<a class="headerlink" href="#id280" title="Permalink to this heading">#</a></h4>
 <ul class="simple">
-<li><p>Changed naming in <a class="reference internal" href="../api/lab/omni.isaac.lab.sim.html#omni.isaac.lab.sim.SimulationContext.RenderMode" title="omni.isaac.lab.sim.SimulationContext.RenderMode"><code class="xref py py-class docutils literal notranslate"><span class="pre">omni.isaac.lab.sim.SimulationContext.RenderMode</span></code></a> to use <code class="docutils literal notranslate"><span class="pre">NO_GUI_OR_RENDERING</span></code>
+<li><p>Changed naming in <code class="xref py py-class docutils literal notranslate"><span class="pre">omni.isaac.lab.sim.SimulationContext.RenderMode</span></code> to use <code class="docutils literal notranslate"><span class="pre">NO_GUI_OR_RENDERING</span></code>
 and <code class="docutils literal notranslate"><span class="pre">NO_RENDERING</span></code> instead of <code class="docutils literal notranslate"><span class="pre">HEADLESS</span></code> for clarity.</p></li>
 <li><p>Changed <a class="reference internal" href="../api/lab/omni.isaac.lab.sim.html#omni.isaac.lab.sim.SimulationContext" title="omni.isaac.lab.sim.SimulationContext"><code class="xref py py-class docutils literal notranslate"><span class="pre">omni.isaac.lab.sim.SimulationContext</span></code></a> to be capable of handling livestreaming and
 offscreen rendering.</p></li>
@@ -3265,7 +3265,7 @@ offscreen rendering.</p></li>
 <ul class="simple">
 <li><p>Created <code class="xref py py-class docutils literal notranslate"><span class="pre">omni.isaac.lab.sim.converters.asset_converter.AssetConverter</span></code> to serve as a base
 class for all asset converters.</p></li>
-<li><p>Added <a class="reference internal" href="../api/lab/omni.isaac.lab.sim.converters.html#omni.isaac.lab.sim.converters.MeshConverter" title="omni.isaac.lab.sim.converters.mesh_converter.MeshConverter"><code class="xref py py-class docutils literal notranslate"><span class="pre">omni.isaac.lab.sim.converters.mesh_converter.MeshConverter</span></code></a> to handle loading and conversion
+<li><p>Added <code class="xref py py-class docutils literal notranslate"><span class="pre">omni.isaac.lab.sim.converters.mesh_converter.MeshConverter</span></code> to handle loading and conversion
 of mesh files (OBJ, STL and FBX) into USD format.</p></li>
 <li><p>Added script <code class="docutils literal notranslate"><span class="pre">convert_mesh.py</span></code> to <code class="docutils literal notranslate"><span class="pre">source/tools</span></code> to allow users to convert a mesh to USD via command line arguments.</p></li>
 </ul>
@@ -3321,9 +3321,9 @@ These quantities are computed inside the <code class="xref py py-class docutils 
 <section id="id293">
 <h4>Fixed<a class="headerlink" href="#id293" title="Permalink to this heading">#</a></h4>
 <ul class="simple">
-<li><p>Fixed the <a class="reference internal" href="../api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.RigidObject.set_external_force_and_torque" title="omni.isaac.lab.assets.RigidObject.set_external_force_and_torque"><code class="xref py py-meth docutils literal notranslate"><span class="pre">omni.isaac.lab.assets.RigidObject.set_external_force_and_torque()</span></code></a> method to correctly
+<li><p>Fixed the <code class="xref py py-meth docutils literal notranslate"><span class="pre">omni.isaac.lab.assets.RigidObject.set_external_force_and_torque()</span></code> method to correctly
 deal with the body indices.</p></li>
-<li><p>Fixed a bug in the <a class="reference internal" href="../api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.math.wrap_to_pi" title="omni.isaac.lab.utils.math.wrap_to_pi"><code class="xref py py-meth docutils literal notranslate"><span class="pre">omni.isaac.lab.utils.math.wrap_to_pi()</span></code></a> method to prevent self-assignment of
+<li><p>Fixed a bug in the <code class="xref py py-meth docutils literal notranslate"><span class="pre">omni.isaac.lab.utils.math.wrap_to_pi()</span></code> method to prevent self-assignment of
 the input tensor.</p></li>
 </ul>
 </section>
@@ -3386,7 +3386,7 @@ Omniverse Replicator.</p></li>
 <h4>Added<a class="headerlink" href="#id304" title="Permalink to this heading">#</a></h4>
 <ul class="simple">
 <li><p>Added <code class="docutils literal notranslate"><span class="pre">--livestream</span></code> and <code class="docutils literal notranslate"><span class="pre">--ros</span></code> CLI args to <a class="reference internal" href="../api/lab/omni.isaac.lab.app.html#omni.isaac.lab.app.AppLauncher" title="omni.isaac.lab.app.AppLauncher"><code class="xref py py-class docutils literal notranslate"><span class="pre">omni.isaac.lab.app.AppLauncher</span></code></a> class.</p></li>
-<li><p>Added a static function <a class="reference internal" href="../api/lab/omni.isaac.lab.app.html#omni.isaac.lab.app.AppLauncher.add_app_launcher_args" title="omni.isaac.lab.app.AppLauncher.add_app_launcher_args"><code class="xref py py-meth docutils literal notranslate"><span class="pre">omni.isaac.lab.app.AppLauncher.add_app_launcher_args()</span></code></a>, which
+<li><p>Added a static function <code class="xref py py-meth docutils literal notranslate"><span class="pre">omni.isaac.lab.app.AppLauncher.add_app_launcher_args()</span></code>, which
 appends the arguments needed for <a class="reference internal" href="../api/lab/omni.isaac.lab.app.html#omni.isaac.lab.app.AppLauncher" title="omni.isaac.lab.app.AppLauncher"><code class="xref py py-class docutils literal notranslate"><span class="pre">omni.isaac.lab.app.AppLauncher</span></code></a> to the argument parser.</p></li>
 </ul>
 </section>
@@ -3404,7 +3404,7 @@ with the CLI args.</p></li>
 <section id="id307">
 <h4>Added<a class="headerlink" href="#id307" title="Permalink to this heading">#</a></h4>
 <ul class="simple">
-<li><p>Added the property <a class="reference internal" href="../api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.Articulation.is_fixed_base" title="omni.isaac.lab.assets.Articulation.is_fixed_base"><code class="xref py py-attr docutils literal notranslate"><span class="pre">omni.isaac.lab.assets.Articulation.is_fixed_base</span></code></a> to the articulation class to
+<li><p>Added the property <code class="xref py py-attr docutils literal notranslate"><span class="pre">omni.isaac.lab.assets.Articulation.is_fixed_base</span></code> to the articulation class to
 check if the base of the articulation is fixed or floating.</p></li>
 <li><p>Added the task-space action term corresponding to the differential inverse-kinematics controller.</p></li>
 </ul>
@@ -3480,7 +3480,7 @@ general (scene, action manager, observation manager) and RL-specific (reward and
 <li><p>Added <a class="reference internal" href="../api/lab/omni.isaac.lab.managers.html#omni.isaac.lab.managers.SceneEntityCfg" title="omni.isaac.lab.managers.SceneEntityCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">omni.isaac.lab.managers.SceneEntityCfg</span></code></a> to handle which scene elements are required by the
 manager’s terms. This allows the manager to parse useful information from the scene elements, such as the
 joint and body indices, and pass them to the term.</p></li>
-<li><p>Added <a class="reference internal" href="../api/lab/omni.isaac.lab.sim.html#omni.isaac.lab.sim.SimulationContext.RenderMode" title="omni.isaac.lab.sim.SimulationContext.RenderMode"><code class="xref py py-class docutils literal notranslate"><span class="pre">omni.isaac.lab.sim.SimulationContext.RenderMode</span></code></a> to handle different rendering modes based on
+<li><p>Added <code class="xref py py-class docutils literal notranslate"><span class="pre">omni.isaac.lab.sim.SimulationContext.RenderMode</span></code> to handle different rendering modes based on
 what the user wants to update (viewport, cameras, or UI elements).</p></li>
 </ul>
 </section>
@@ -3508,7 +3508,7 @@ the stack trace. This is enabled by default in the <a class="reference internal"
 <li><p>Fixed the deletion of Replicator nodes for the <a class="reference internal" href="../api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.Camera" title="omni.isaac.lab.sensors.Camera"><code class="xref py py-class docutils literal notranslate"><span class="pre">omni.isaac.lab.sensors.Camera</span></code></a> class. Earlier, the
 Replicator nodes were not being deleted when the camera was deleted. However, this does not prevent the random
 crashes that happen when the camera is deleted.</p></li>
-<li><p>Fixed the <a class="reference internal" href="../api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.math.convert_quat" title="omni.isaac.lab.utils.math.convert_quat"><code class="xref py py-meth docutils literal notranslate"><span class="pre">omni.isaac.lab.utils.math.convert_quat()</span></code></a> to support both numpy and torch tensors.</p></li>
+<li><p>Fixed the <code class="xref py py-meth docutils literal notranslate"><span class="pre">omni.isaac.lab.utils.math.convert_quat()</span></code> to support both numpy and torch tensors.</p></li>
 </ul>
 </section>
 <section id="id324">
@@ -3553,7 +3553,7 @@ conventions are:</p>
 <li><p><code class="docutils literal notranslate"><span class="pre">ros</span></code>: the camera is looking down the +Z axis with the +Y axis pointing down</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">world</span></code>: the camera is looking along the +X axis with the -Z axis pointing down</p></li>
 </ul>
-<p>These can be used to declare the camera offset in <a class="reference internal" href="../api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.CameraCfg.OffsetCfg" title="omni.isaac.lab.sensors.CameraCfg.OffsetCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">omni.isaac.lab.sensors.CameraCfg.OffsetCfg</span></code></a> class
+<p>These can be used to declare the camera offset in <code class="xref py py-class docutils literal notranslate"><span class="pre">omni.isaac.lab.sensors.CameraCfg.OffsetCfg</span></code> class
 and in <code class="xref py py-meth docutils literal notranslate"><span class="pre">omni.isaac.lab.sensors.Camera.set_world_pose()</span></code> method. Additionally, all conventions are
 saved to <a class="reference internal" href="../api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.CameraData" title="omni.isaac.lab.sensors.CameraData"><code class="xref py py-class docutils literal notranslate"><span class="pre">omni.isaac.lab.sensors.CameraData</span></code></a> class for easy access.</p>
 </li>
@@ -3565,7 +3565,7 @@ saved to <a class="reference internal" href="../api/lab/omni.isaac.lab.sensors.h
 <li><p>Adapted all the sensor classes to follow a structure similar to the <a class="reference internal" href="../api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.AssetBase" title="omni.isaac.lab.assets.AssetBase"><code class="xref py py-class docutils literal notranslate"><span class="pre">omni.isaac.lab.assets.AssetBase</span></code></a>.
 Hence, the spawning and initialization of sensors manually by the users is avoided.</p></li>
 <li><p>Removed the <code class="xref py py-meth docutils literal notranslate"><span class="pre">debug_vis()</span></code> function since that this functionality is handled by a render callback automatically
-(based on the passed configuration for the <a class="reference internal" href="../api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.SensorBaseCfg.debug_vis" title="omni.isaac.lab.sensors.SensorBaseCfg.debug_vis"><code class="xref py py-class docutils literal notranslate"><span class="pre">omni.isaac.lab.sensors.SensorBaseCfg.debug_vis</span></code></a> flag).</p></li>
+(based on the passed configuration for the <code class="xref py py-class docutils literal notranslate"><span class="pre">omni.isaac.lab.sensors.SensorBaseCfg.debug_vis</span></code> flag).</p></li>
 </ul>
 </section>
 </section>
@@ -3883,7 +3883,7 @@ custom code for each task.</p></li>
 <section id="id383">
 <h4>Fixed<a class="headerlink" href="#id383" title="Permalink to this heading">#</a></h4>
 <ul class="simple">
-<li><p>Fixed the <a class="reference internal" href="../api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.math.quat_apply_yaw" title="omni.isaac.lab.utils.math.quat_apply_yaw"><code class="xref py py-meth docutils literal notranslate"><span class="pre">omni.isaac.lab.utils.math.quat_apply_yaw()</span></code></a> to compute the yaw quaternion correctly.</p></li>
+<li><p>Fixed the <code class="xref py py-meth docutils literal notranslate"><span class="pre">omni.isaac.lab.utils.math.quat_apply_yaw()</span></code> to compute the yaw quaternion correctly.</p></li>
 </ul>
 </section>
 <section id="id384">
@@ -3948,7 +3948,7 @@ and <a class="reference internal" href="../api/lab/omni.isaac.lab.sensors.html#o
 <ul class="simple">
 <li><p>Fixed the <code class="xref py py-meth docutils literal notranslate"><span class="pre">omni.isaac.lab.terrains.trimesh.utils.make_plane()</span></code> method to handle the case when the
 plane origin does not need to be centered.</p></li>
-<li><p>Added the <a class="reference internal" href="../api/lab/omni.isaac.lab.terrains.html#omni.isaac.lab.terrains.TerrainGeneratorCfg.seed" title="omni.isaac.lab.terrains.TerrainGeneratorCfg.seed"><code class="xref py py-attr docutils literal notranslate"><span class="pre">omni.isaac.lab.terrains.TerrainGeneratorCfg.seed</span></code></a> to make generation of terrains reproducible.
+<li><p>Added the <code class="xref py py-attr docutils literal notranslate"><span class="pre">omni.isaac.lab.terrains.TerrainGeneratorCfg.seed</span></code> to make generation of terrains reproducible.
 The default value is <code class="docutils literal notranslate"><span class="pre">None</span></code> which means that the seed is not set.</p></li>
 </ul>
 </section>
@@ -4017,7 +4017,7 @@ file based on the input configuration object.</p></li>
 <section id="id405">
 <h4>Fixed<a class="headerlink" href="#id405" title="Permalink to this heading">#</a></h4>
 <ul class="simple">
-<li><p>Added safe-printing of functions while using the <a class="reference internal" href="../api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.dict.print_dict" title="omni.isaac.lab.utils.dict.print_dict"><code class="xref py py-meth docutils literal notranslate"><span class="pre">omni.isaac.lab.utils.dict.print_dict()</span></code></a> function.</p></li>
+<li><p>Added safe-printing of functions while using the <code class="xref py py-meth docutils literal notranslate"><span class="pre">omni.isaac.lab.utils.dict.print_dict()</span></code> function.</p></li>
 </ul>
 </section>
 </section>
@@ -4261,7 +4261,7 @@ value instead of a string.</p></li>
 <section id="id451">
 <h4>Changed<a class="headerlink" href="#id451" title="Permalink to this heading">#</a></h4>
 <ul class="simple">
-<li><p>Updated the tasks to use the renamed attribute <a class="reference internal" href="../api/lab/omni.isaac.lab.sim.html#omni.isaac.lab.sim.SimulationCfg.render_interval" title="omni.isaac.lab.sim.SimulationCfg.render_interval"><code class="xref py py-attr docutils literal notranslate"><span class="pre">omni.isaac.lab.sim.SimulationCfg.render_interval</span></code></a>.</p></li>
+<li><p>Updated the tasks to use the renamed attribute <code class="xref py py-attr docutils literal notranslate"><span class="pre">omni.isaac.lab.sim.SimulationCfg.render_interval</span></code>.</p></li>
 </ul>
 </section>
 </section>
@@ -4413,7 +4413,7 @@ Isaac 2023.1.1, and prevent version incompatibility between <a class="reference 
 <section id="id481">
 <h4>Added<a class="headerlink" href="#id481" title="Permalink to this heading">#</a></h4>
 <ul class="simple">
-<li><p>Added a check for the flag <a class="reference internal" href="../api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.ManagerBasedRLEnvCfg.is_finite_horizon" title="omni.isaac.lab.envs.ManagerBasedRLEnvCfg.is_finite_horizon"><code class="xref py py-attr docutils literal notranslate"><span class="pre">omni.isaac.lab.envs.ManagerBasedRLEnvCfg.is_finite_horizon</span></code></a>
+<li><p>Added a check for the flag <code class="xref py py-attr docutils literal notranslate"><span class="pre">omni.isaac.lab.envs.ManagerBasedRLEnvCfg.is_finite_horizon</span></code>
 in the RSL-RL and RL-Games wrappers to handle the finite horizon tasks properly. Earlier,
 the wrappers were always assuming the tasks to be infinite horizon tasks and returning a
 time-out signals when the episode length was reached.</p></li>

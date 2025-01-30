@@ -58,7 +58,7 @@
 
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-  <meta name="docsearch:version" content="1.4.1" />
+  <meta name="docsearch:version" content="2.0.0" />
     <meta name="docbuild:last-update" content="Jan 30, 2025"/>
 
 
@@ -194,7 +194,7 @@
           
           
           
-          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.2.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.5.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
         </li>
         <li class="nav-item">
           
@@ -232,6 +232,8 @@
 <li class="toctree-l1 has-children"><a class="reference internal" href="source/setup/installation/index.html">Local Installation</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2"><a class="reference internal" href="source/setup/installation/pip_installation.html">Pip installation (recommended for Ubuntu 22.04 and Windows)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/setup/installation/binaries_installation.html">Binary installation (recommended for Ubuntu 20.04)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/setup/installation/isaaclab_pip_installation.html">Advanced installation (Isaac Lab pip)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/setup/installation/asset_caching.html">Asset caching</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1"><a class="reference internal" href="source/setup/installation/cloud_installation.html">Running Isaac Lab in the Cloud</a></li>
@@ -243,7 +245,7 @@
 <li class="toctree-l2"><a class="reference internal" href="source/overview/developer-guide/vs_code.html">Setting up Visual Studio Code</a></li>
 
 <li class="toctree-l2"><a class="reference internal" href="source/overview/developer-guide/repo_structure.html">Repository organization</a></li>
-<li class="toctree-l2"><a class="reference internal" href="source/overview/developer-guide/development.html">Application Development</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/overview/developer-guide/development.html">Extension Development</a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/overview/developer-guide/template.html">Building your Own Project</a></li>
 </ul>
 </details></li>
@@ -266,6 +268,7 @@
 <li class="toctree-l2"><a class="reference internal" href="source/overview/reinforcement-learning/rl_existing_scripts.html">Reinforcement Learning Wrappers</a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/overview/reinforcement-learning/rl_frameworks.html">Reinforcement Learning Library Comparison</a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/overview/reinforcement-learning/performance_benchmarks.html">Performance Benchmarks</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/overview/reinforcement-learning/training_guide.html">Debugging and Training Guide</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1"><a class="reference internal" href="source/overview/teleop_imitation.html">Teleoperation and Imitation Learning</a></li>
@@ -296,6 +299,7 @@
 <li class="toctree-l2"><a class="reference internal" href="source/tutorials/03_envs/register_rl_env_gym.html">Registering an Environment</a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/tutorials/03_envs/run_rl_training.html">Training with an RL Agent</a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/tutorials/03_envs/modify_direct_rl_env.html">Modifying an existing Direct RL Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/tutorials/03_envs/policy_inference_in_usd.html">Policy Inference in USD Environment</a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/tutorials/04_sensors/add_sensors_on_robot.html">Adding sensors on a robot</a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/tutorials/05_controllers/run_diff_ik.html">Using a task-space controller</a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/tutorials/05_controllers/run_osc.html">Using an operational space controller</a></li>
@@ -332,28 +336,27 @@
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Source API</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1 has-children"><a class="reference internal" href="source/api/index.html">API Reference</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
-<li class="toctree-l2"><a class="reference internal" href="source/api/lab/omni.isaac.lab.app.html">omni.isaac.lab.app</a></li>
-<li class="toctree-l2"><a class="reference internal" href="source/api/lab/omni.isaac.lab.actuators.html">omni.isaac.lab.actuators</a></li>
-<li class="toctree-l2"><a class="reference internal" href="source/api/lab/omni.isaac.lab.assets.html">omni.isaac.lab.assets</a></li>
-<li class="toctree-l2"><a class="reference internal" href="source/api/lab/omni.isaac.lab.controllers.html">omni.isaac.lab.controllers</a></li>
-<li class="toctree-l2"><a class="reference internal" href="source/api/lab/omni.isaac.lab.devices.html">omni.isaac.lab.devices</a></li>
-<li class="toctree-l2"><a class="reference internal" href="source/api/lab/omni.isaac.lab.envs.html">omni.isaac.lab.envs</a></li>
-<li class="toctree-l2"><a class="reference internal" href="source/api/lab/omni.isaac.lab.managers.html">omni.isaac.lab.managers</a></li>
-<li class="toctree-l2"><a class="reference internal" href="source/api/lab/omni.isaac.lab.markers.html">omni.isaac.lab.markers</a></li>
-<li class="toctree-l2"><a class="reference internal" href="source/api/lab/omni.isaac.lab.scene.html">omni.isaac.lab.scene</a></li>
-<li class="toctree-l2"><a class="reference internal" href="source/api/lab/omni.isaac.lab.sensors.html">omni.isaac.lab.sensors</a></li>
-<li class="toctree-l2"><a class="reference internal" href="source/api/lab/omni.isaac.lab.sim.html">omni.isaac.lab.sim</a></li>
-<li class="toctree-l2"><a class="reference internal" href="source/api/lab/omni.isaac.lab.terrains.html">omni.isaac.lab.terrains</a></li>
-<li class="toctree-l2"><a class="reference internal" href="source/api/lab/omni.isaac.lab.utils.html">omni.isaac.lab.utils</a></li>
-<li class="toctree-l2"><a class="reference internal" href="source/api/lab/omni.isaac.lab.envs.mdp.html">omni.isaac.lab.envs.mdp</a></li>
-<li class="toctree-l2"><a class="reference internal" href="source/api/lab/omni.isaac.lab.envs.ui.html">omni.isaac.lab.envs.ui</a></li>
-<li class="toctree-l2"><a class="reference internal" href="source/api/lab/omni.isaac.lab.sensors.patterns.html">omni.isaac.lab.sensors.patterns</a></li>
-<li class="toctree-l2"><a class="reference internal" href="source/api/lab/omni.isaac.lab.sim.converters.html">omni.isaac.lab.sim.converters</a></li>
-<li class="toctree-l2"><a class="reference internal" href="source/api/lab/omni.isaac.lab.sim.schemas.html">omni.isaac.lab.sim.schemas</a></li>
-<li class="toctree-l2"><a class="reference internal" href="source/api/lab/omni.isaac.lab.sim.spawners.html">omni.isaac.lab.sim.spawners</a></li>
-<li class="toctree-l2"><a class="reference internal" href="source/api/lab_tasks/omni.isaac.lab_tasks.utils.html">omni.isaac.lab_tasks.utils</a></li>
-<li class="toctree-l2"><a class="reference internal" href="source/api/lab_tasks/omni.isaac.lab_tasks.utils.wrappers.html">omni.isaac.lab_tasks.utils.wrappers</a></li>
-<li class="toctree-l2"><a class="reference internal" href="source/api/lab_tasks/omni.isaac.lab_tasks.utils.data_collector.html">omni.isaac.lab_tasks.utils.data_collector</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/api/lab/isaaclab.app.html">isaaclab.app</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/api/lab/isaaclab.actuators.html">isaaclab.actuators</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/api/lab/isaaclab.assets.html">isaaclab.assets</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/api/lab/isaaclab.controllers.html">isaaclab.controllers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/api/lab/isaaclab.devices.html">isaaclab.devices</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/api/lab/isaaclab.envs.html">isaaclab.envs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/api/lab/isaaclab.managers.html">isaaclab.managers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/api/lab/isaaclab.markers.html">isaaclab.markers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/api/lab/isaaclab.scene.html">isaaclab.scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/api/lab/isaaclab.sensors.html">isaaclab.sensors</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/api/lab/isaaclab.sim.html">isaaclab.sim</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/api/lab/isaaclab.terrains.html">isaaclab.terrains</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/api/lab/isaaclab.utils.html">isaaclab.utils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/api/lab/isaaclab.envs.mdp.html">isaaclab.envs.mdp</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/api/lab/isaaclab.envs.ui.html">isaaclab.envs.ui</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/api/lab/isaaclab.sensors.patterns.html">isaaclab.sensors.patterns</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/api/lab/isaaclab.sim.converters.html">isaaclab.sim.converters</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/api/lab/isaaclab.sim.schemas.html">isaaclab.sim.schemas</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/api/lab/isaaclab.sim.spawners.html">isaaclab.sim.spawners</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/api/lab_tasks/isaaclab_tasks.utils.html">isaaclab_tasks.utils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/api/lab_mimic/isaaclab_mimic.datagen.html">isaaclab_mimic.datagen</a></li>
 </ul>
 </details></li>
 </ul>
@@ -363,7 +366,15 @@
 <li class="toctree-l1"><a class="reference internal" href="source/refs/additional_resources.html">Additional Resources</a></li>
 <li class="toctree-l1"><a class="reference internal" href="source/refs/contributing.html">Contribution Guidelines</a></li>
 <li class="toctree-l1"><a class="reference internal" href="source/refs/troubleshooting.html">Tricks and Troubleshooting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="source/refs/migration.html">Migration Guide (Isaac Sim)</a></li>
 <li class="toctree-l1"><a class="reference internal" href="source/refs/issues.html">Known Issues</a></li>
+<li class="toctree-l1"><a class="reference internal" href="source/refs/release_notes.html">Release Notes</a></li>
+
+
+
+
+
+
 <li class="toctree-l1"><a class="reference internal" href="source/refs/changelog.html">Extensions Changelog</a></li>
 <li class="toctree-l1"><a class="reference internal" href="source/refs/license.html">License</a></li>
 <li class="toctree-l1"><a class="reference internal" href="source/refs/bibliography.html">Bibliography</a></li>
@@ -371,7 +382,7 @@
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Project Links</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference external" href="https://github.com/isaac-sim/IsaacLab">GitHub</a></li>
-<li class="toctree-l1"><a class="reference external" href="https://docs.omniverse.nvidia.com/isaacsim/latest/index.html">NVIDIA Isaac Sim</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/latest/index.html">NVIDIA Isaac Sim</a></li>
 <li class="toctree-l1"><a class="reference external" href="https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/index.html">NVIDIA PhysX</a></li>
 </ul>
 
@@ -523,318 +534,331 @@
    <h1>Python Module Index</h1>
 
    <div class="modindex-jumpbox">
-   <a href="#cap-o"><strong>o</strong></a>
+   <a href="#cap-i"><strong>i</strong></a>
    </div>
 
    <table class="indextable modindextable">
      <tr class="pcap"><td></td><td>&#160;</td><td></td></tr>
-     <tr class="cap" id="cap-o"><td></td><td>
-       <strong>o</strong></td><td></td></tr>
+     <tr class="cap" id="cap-i"><td></td><td>
+       <strong>i</strong></td><td></td></tr>
      <tr>
        <td><img src="_static/minus.png" class="toggler"
               id="toggle-1" style="display: none" alt="-" /></td>
        <td>
-       <code class="xref">omni</code></td><td>
+       <code class="xref">isaaclab</code></td><td>
        <em></em></td></tr>
      <tr class="cg-1">
        <td></td>
        <td>&#160;&#160;&#160;
-       <a href="source/api/lab/omni.isaac.lab.actuators.html#module-omni.isaac.lab.actuators"><code class="xref">omni.isaac.lab.actuators</code></a></td><td>
+       <a href="source/api/lab/isaaclab.actuators.html#module-isaaclab.actuators"><code class="xref">isaaclab.actuators</code></a></td><td>
        <em></em></td></tr>
      <tr class="cg-1">
        <td></td>
        <td>&#160;&#160;&#160;
-       <a href="source/api/lab/omni.isaac.lab.app.html#module-omni.isaac.lab.app"><code class="xref">omni.isaac.lab.app</code></a></td><td>
+       <a href="source/api/lab/isaaclab.app.html#module-isaaclab.app"><code class="xref">isaaclab.app</code></a></td><td>
        <em></em></td></tr>
      <tr class="cg-1">
        <td></td>
        <td>&#160;&#160;&#160;
-       <a href="source/api/lab/omni.isaac.lab.assets.html#module-omni.isaac.lab.assets"><code class="xref">omni.isaac.lab.assets</code></a></td><td>
+       <a href="source/api/lab/isaaclab.assets.html#module-isaaclab.assets"><code class="xref">isaaclab.assets</code></a></td><td>
        <em></em></td></tr>
      <tr class="cg-1">
        <td></td>
        <td>&#160;&#160;&#160;
-       <a href="source/api/lab/omni.isaac.lab.controllers.html#module-omni.isaac.lab.controllers"><code class="xref">omni.isaac.lab.controllers</code></a></td><td>
+       <a href="source/api/lab/isaaclab.controllers.html#module-isaaclab.controllers"><code class="xref">isaaclab.controllers</code></a></td><td>
        <em></em></td></tr>
      <tr class="cg-1">
        <td></td>
        <td>&#160;&#160;&#160;
-       <a href="source/api/lab/omni.isaac.lab.devices.html#module-omni.isaac.lab.devices"><code class="xref">omni.isaac.lab.devices</code></a></td><td>
+       <a href="source/api/lab/isaaclab.devices.html#module-isaaclab.devices"><code class="xref">isaaclab.devices</code></a></td><td>
        <em></em></td></tr>
      <tr class="cg-1">
        <td></td>
        <td>&#160;&#160;&#160;
-       <a href="source/api/lab/omni.isaac.lab.envs.html#module-omni.isaac.lab.envs"><code class="xref">omni.isaac.lab.envs</code></a></td><td>
+       <a href="source/api/lab/isaaclab.envs.html#module-isaaclab.envs"><code class="xref">isaaclab.envs</code></a></td><td>
        <em></em></td></tr>
      <tr class="cg-1">
        <td></td>
        <td>&#160;&#160;&#160;
-       <a href="source/api/lab/omni.isaac.lab.envs.mdp.html#module-omni.isaac.lab.envs.mdp"><code class="xref">omni.isaac.lab.envs.mdp</code></a></td><td>
+       <a href="source/api/lab/isaaclab.envs.mdp.html#module-isaaclab.envs.mdp"><code class="xref">isaaclab.envs.mdp</code></a></td><td>
        <em></em></td></tr>
      <tr class="cg-1">
        <td></td>
        <td>&#160;&#160;&#160;
-       <a href="source/api/lab/omni.isaac.lab.envs.mdp.html#module-omni.isaac.lab.envs.mdp.actions"><code class="xref">omni.isaac.lab.envs.mdp.actions</code></a></td><td>
+       <a href="source/api/lab/isaaclab.envs.mdp.html#module-isaaclab.envs.mdp.actions"><code class="xref">isaaclab.envs.mdp.actions</code></a></td><td>
        <em></em></td></tr>
      <tr class="cg-1">
        <td></td>
        <td>&#160;&#160;&#160;
-       <a href="source/api/lab/omni.isaac.lab.envs.mdp.html#module-omni.isaac.lab.envs.mdp.actions.actions_cfg"><code class="xref">omni.isaac.lab.envs.mdp.actions.actions_cfg</code></a></td><td>
+       <a href="source/api/lab/isaaclab.envs.mdp.html#module-isaaclab.envs.mdp.actions.actions_cfg"><code class="xref">isaaclab.envs.mdp.actions.actions_cfg</code></a></td><td>
        <em></em></td></tr>
      <tr class="cg-1">
        <td></td>
        <td>&#160;&#160;&#160;
-       <a href="source/api/lab/omni.isaac.lab.envs.mdp.html#module-omni.isaac.lab.envs.mdp.commands"><code class="xref">omni.isaac.lab.envs.mdp.commands</code></a></td><td>
+       <a href="source/api/lab/isaaclab.envs.mdp.html#module-isaaclab.envs.mdp.commands"><code class="xref">isaaclab.envs.mdp.commands</code></a></td><td>
        <em></em></td></tr>
      <tr class="cg-1">
        <td></td>
        <td>&#160;&#160;&#160;
-       <a href="source/api/lab/omni.isaac.lab.envs.mdp.html#module-omni.isaac.lab.envs.mdp.commands.commands_cfg"><code class="xref">omni.isaac.lab.envs.mdp.commands.commands_cfg</code></a></td><td>
+       <a href="source/api/lab/isaaclab.envs.mdp.html#module-isaaclab.envs.mdp.commands.commands_cfg"><code class="xref">isaaclab.envs.mdp.commands.commands_cfg</code></a></td><td>
        <em></em></td></tr>
      <tr class="cg-1">
        <td></td>
        <td>&#160;&#160;&#160;
-       <a href="source/api/lab/omni.isaac.lab.envs.mdp.html#module-omni.isaac.lab.envs.mdp.curriculums"><code class="xref">omni.isaac.lab.envs.mdp.curriculums</code></a></td><td>
+       <a href="source/api/lab/isaaclab.envs.mdp.html#module-isaaclab.envs.mdp.curriculums"><code class="xref">isaaclab.envs.mdp.curriculums</code></a></td><td>
        <em></em></td></tr>
      <tr class="cg-1">
        <td></td>
        <td>&#160;&#160;&#160;
-       <a href="source/api/lab/omni.isaac.lab.envs.mdp.html#module-omni.isaac.lab.envs.mdp.events"><code class="xref">omni.isaac.lab.envs.mdp.events</code></a></td><td>
+       <a href="source/api/lab/isaaclab.envs.mdp.html#module-isaaclab.envs.mdp.events"><code class="xref">isaaclab.envs.mdp.events</code></a></td><td>
        <em></em></td></tr>
      <tr class="cg-1">
        <td></td>
        <td>&#160;&#160;&#160;
-       <a href="source/api/lab/omni.isaac.lab.envs.mdp.html#module-omni.isaac.lab.envs.mdp.observations"><code class="xref">omni.isaac.lab.envs.mdp.observations</code></a></td><td>
+       <a href="source/api/lab/isaaclab.envs.mdp.html#module-isaaclab.envs.mdp.observations"><code class="xref">isaaclab.envs.mdp.observations</code></a></td><td>
        <em></em></td></tr>
      <tr class="cg-1">
        <td></td>
        <td>&#160;&#160;&#160;
-       <a href="source/api/lab/omni.isaac.lab.envs.mdp.html#module-omni.isaac.lab.envs.mdp.rewards"><code class="xref">omni.isaac.lab.envs.mdp.rewards</code></a></td><td>
+       <a href="source/api/lab/isaaclab.envs.mdp.html#module-isaaclab.envs.mdp.rewards"><code class="xref">isaaclab.envs.mdp.rewards</code></a></td><td>
        <em></em></td></tr>
      <tr class="cg-1">
        <td></td>
        <td>&#160;&#160;&#160;
-       <a href="source/api/lab/omni.isaac.lab.envs.mdp.html#module-omni.isaac.lab.envs.mdp.terminations"><code class="xref">omni.isaac.lab.envs.mdp.terminations</code></a></td><td>
+       <a href="source/api/lab/isaaclab.envs.mdp.html#module-isaaclab.envs.mdp.terminations"><code class="xref">isaaclab.envs.mdp.terminations</code></a></td><td>
        <em></em></td></tr>
      <tr class="cg-1">
        <td></td>
        <td>&#160;&#160;&#160;
-       <a href="source/api/lab/omni.isaac.lab.envs.ui.html#module-omni.isaac.lab.envs.ui"><code class="xref">omni.isaac.lab.envs.ui</code></a></td><td>
+       <a href="source/api/lab/isaaclab.envs.ui.html#module-isaaclab.envs.ui"><code class="xref">isaaclab.envs.ui</code></a></td><td>
        <em></em></td></tr>
      <tr class="cg-1">
        <td></td>
        <td>&#160;&#160;&#160;
-       <a href="source/api/lab/omni.isaac.lab.managers.html#module-omni.isaac.lab.managers"><code class="xref">omni.isaac.lab.managers</code></a></td><td>
+       <a href="source/api/lab/isaaclab.managers.html#module-isaaclab.managers"><code class="xref">isaaclab.managers</code></a></td><td>
        <em></em></td></tr>
      <tr class="cg-1">
        <td></td>
        <td>&#160;&#160;&#160;
-       <a href="source/api/lab/omni.isaac.lab.markers.html#module-omni.isaac.lab.markers"><code class="xref">omni.isaac.lab.markers</code></a></td><td>
+       <a href="source/api/lab/isaaclab.markers.html#module-isaaclab.markers"><code class="xref">isaaclab.markers</code></a></td><td>
        <em></em></td></tr>
      <tr class="cg-1">
        <td></td>
        <td>&#160;&#160;&#160;
-       <a href="source/api/lab/omni.isaac.lab.scene.html#module-omni.isaac.lab.scene"><code class="xref">omni.isaac.lab.scene</code></a></td><td>
+       <a href="source/api/lab/isaaclab.scene.html#module-isaaclab.scene"><code class="xref">isaaclab.scene</code></a></td><td>
        <em></em></td></tr>
      <tr class="cg-1">
        <td></td>
        <td>&#160;&#160;&#160;
-       <a href="source/api/lab/omni.isaac.lab.sensors.html#module-omni.isaac.lab.sensors"><code class="xref">omni.isaac.lab.sensors</code></a></td><td>
+       <a href="source/api/lab/isaaclab.sensors.html#module-isaaclab.sensors"><code class="xref">isaaclab.sensors</code></a></td><td>
        <em></em></td></tr>
      <tr class="cg-1">
        <td></td>
        <td>&#160;&#160;&#160;
-       <a href="source/api/lab/omni.isaac.lab.sensors.patterns.html#module-omni.isaac.lab.sensors.patterns"><code class="xref">omni.isaac.lab.sensors.patterns</code></a></td><td>
+       <a href="source/api/lab/isaaclab.sensors.patterns.html#module-isaaclab.sensors.patterns"><code class="xref">isaaclab.sensors.patterns</code></a></td><td>
        <em></em></td></tr>
      <tr class="cg-1">
        <td></td>
        <td>&#160;&#160;&#160;
-       <a href="source/api/lab/omni.isaac.lab.sim.html#module-omni.isaac.lab.sim"><code class="xref">omni.isaac.lab.sim</code></a></td><td>
+       <a href="source/api/lab/isaaclab.sim.html#module-isaaclab.sim"><code class="xref">isaaclab.sim</code></a></td><td>
        <em></em></td></tr>
      <tr class="cg-1">
        <td></td>
        <td>&#160;&#160;&#160;
-       <a href="source/api/lab/omni.isaac.lab.sim.converters.html#module-omni.isaac.lab.sim.converters"><code class="xref">omni.isaac.lab.sim.converters</code></a></td><td>
+       <a href="source/api/lab/isaaclab.sim.converters.html#module-isaaclab.sim.converters"><code class="xref">isaaclab.sim.converters</code></a></td><td>
        <em></em></td></tr>
      <tr class="cg-1">
        <td></td>
        <td>&#160;&#160;&#160;
-       <a href="source/api/lab/omni.isaac.lab.sim.schemas.html#module-omni.isaac.lab.sim.schemas"><code class="xref">omni.isaac.lab.sim.schemas</code></a></td><td>
+       <a href="source/api/lab/isaaclab.sim.schemas.html#module-isaaclab.sim.schemas"><code class="xref">isaaclab.sim.schemas</code></a></td><td>
        <em></em></td></tr>
      <tr class="cg-1">
        <td></td>
        <td>&#160;&#160;&#160;
-       <a href="source/api/lab/omni.isaac.lab.sim.spawners.html#module-omni.isaac.lab.sim.spawners"><code class="xref">omni.isaac.lab.sim.spawners</code></a></td><td>
+       <a href="source/api/lab/isaaclab.sim.spawners.html#module-isaaclab.sim.spawners"><code class="xref">isaaclab.sim.spawners</code></a></td><td>
        <em></em></td></tr>
      <tr class="cg-1">
        <td></td>
        <td>&#160;&#160;&#160;
-       <a href="source/api/lab/omni.isaac.lab.sim.spawners.html#module-omni.isaac.lab.sim.spawners.from_files"><code class="xref">omni.isaac.lab.sim.spawners.from_files</code></a></td><td>
+       <a href="source/api/lab/isaaclab.sim.spawners.html#module-isaaclab.sim.spawners.from_files"><code class="xref">isaaclab.sim.spawners.from_files</code></a></td><td>
        <em></em></td></tr>
      <tr class="cg-1">
        <td></td>
        <td>&#160;&#160;&#160;
-       <a href="source/api/lab/omni.isaac.lab.sim.spawners.html#module-omni.isaac.lab.sim.spawners.lights"><code class="xref">omni.isaac.lab.sim.spawners.lights</code></a></td><td>
+       <a href="source/api/lab/isaaclab.sim.spawners.html#module-isaaclab.sim.spawners.lights"><code class="xref">isaaclab.sim.spawners.lights</code></a></td><td>
        <em></em></td></tr>
      <tr class="cg-1">
        <td></td>
        <td>&#160;&#160;&#160;
-       <a href="source/api/lab/omni.isaac.lab.sim.spawners.html#module-omni.isaac.lab.sim.spawners.materials"><code class="xref">omni.isaac.lab.sim.spawners.materials</code></a></td><td>
+       <a href="source/api/lab/isaaclab.sim.spawners.html#module-isaaclab.sim.spawners.materials"><code class="xref">isaaclab.sim.spawners.materials</code></a></td><td>
        <em></em></td></tr>
      <tr class="cg-1">
        <td></td>
        <td>&#160;&#160;&#160;
-       <a href="source/api/lab/omni.isaac.lab.sim.spawners.html#module-omni.isaac.lab.sim.spawners.meshes"><code class="xref">omni.isaac.lab.sim.spawners.meshes</code></a></td><td>
+       <a href="source/api/lab/isaaclab.sim.spawners.html#module-isaaclab.sim.spawners.meshes"><code class="xref">isaaclab.sim.spawners.meshes</code></a></td><td>
        <em></em></td></tr>
      <tr class="cg-1">
        <td></td>
        <td>&#160;&#160;&#160;
-       <a href="source/api/lab/omni.isaac.lab.sim.spawners.html#module-omni.isaac.lab.sim.spawners.sensors"><code class="xref">omni.isaac.lab.sim.spawners.sensors</code></a></td><td>
+       <a href="source/api/lab/isaaclab.sim.spawners.html#module-isaaclab.sim.spawners.sensors"><code class="xref">isaaclab.sim.spawners.sensors</code></a></td><td>
        <em></em></td></tr>
      <tr class="cg-1">
        <td></td>
        <td>&#160;&#160;&#160;
-       <a href="source/api/lab/omni.isaac.lab.sim.spawners.html#module-omni.isaac.lab.sim.spawners.shapes"><code class="xref">omni.isaac.lab.sim.spawners.shapes</code></a></td><td>
+       <a href="source/api/lab/isaaclab.sim.spawners.html#module-isaaclab.sim.spawners.shapes"><code class="xref">isaaclab.sim.spawners.shapes</code></a></td><td>
        <em></em></td></tr>
      <tr class="cg-1">
        <td></td>
        <td>&#160;&#160;&#160;
-       <a href="source/api/lab/omni.isaac.lab.sim.spawners.html#module-omni.isaac.lab.sim.spawners.wrappers"><code class="xref">omni.isaac.lab.sim.spawners.wrappers</code></a></td><td>
+       <a href="source/api/lab/isaaclab.sim.spawners.html#module-isaaclab.sim.spawners.wrappers"><code class="xref">isaaclab.sim.spawners.wrappers</code></a></td><td>
        <em></em></td></tr>
      <tr class="cg-1">
        <td></td>
        <td>&#160;&#160;&#160;
-       <a href="source/api/lab/omni.isaac.lab.sim.html#module-omni.isaac.lab.sim.utils"><code class="xref">omni.isaac.lab.sim.utils</code></a></td><td>
+       <a href="source/api/lab/isaaclab.sim.html#module-isaaclab.sim.utils"><code class="xref">isaaclab.sim.utils</code></a></td><td>
        <em></em></td></tr>
      <tr class="cg-1">
        <td></td>
        <td>&#160;&#160;&#160;
-       <a href="source/api/lab/omni.isaac.lab.terrains.html#module-omni.isaac.lab.terrains"><code class="xref">omni.isaac.lab.terrains</code></a></td><td>
+       <a href="source/api/lab/isaaclab.terrains.html#module-isaaclab.terrains"><code class="xref">isaaclab.terrains</code></a></td><td>
        <em></em></td></tr>
      <tr class="cg-1">
        <td></td>
        <td>&#160;&#160;&#160;
-       <a href="source/api/lab/omni.isaac.lab.terrains.html#module-omni.isaac.lab.terrains.height_field"><code class="xref">omni.isaac.lab.terrains.height_field</code></a></td><td>
+       <a href="source/api/lab/isaaclab.terrains.html#module-isaaclab.terrains.height_field"><code class="xref">isaaclab.terrains.height_field</code></a></td><td>
        <em></em></td></tr>
      <tr class="cg-1">
        <td></td>
        <td>&#160;&#160;&#160;
-       <a href="source/api/lab/omni.isaac.lab.terrains.html#module-omni.isaac.lab.terrains.trimesh"><code class="xref">omni.isaac.lab.terrains.trimesh</code></a></td><td>
+       <a href="source/api/lab/isaaclab.terrains.html#module-isaaclab.terrains.trimesh"><code class="xref">isaaclab.terrains.trimesh</code></a></td><td>
        <em></em></td></tr>
      <tr class="cg-1">
        <td></td>
        <td>&#160;&#160;&#160;
-       <a href="source/api/lab/omni.isaac.lab.terrains.html#module-omni.isaac.lab.terrains.utils"><code class="xref">omni.isaac.lab.terrains.utils</code></a></td><td>
+       <a href="source/api/lab/isaaclab.terrains.html#module-isaaclab.terrains.utils"><code class="xref">isaaclab.terrains.utils</code></a></td><td>
        <em></em></td></tr>
      <tr class="cg-1">
        <td></td>
        <td>&#160;&#160;&#160;
-       <a href="source/api/lab/omni.isaac.lab.utils.html#module-omni.isaac.lab.utils"><code class="xref">omni.isaac.lab.utils</code></a></td><td>
+       <a href="source/api/lab/isaaclab.utils.html#module-isaaclab.utils"><code class="xref">isaaclab.utils</code></a></td><td>
        <em></em></td></tr>
      <tr class="cg-1">
        <td></td>
        <td>&#160;&#160;&#160;
-       <a href="source/api/lab/omni.isaac.lab.utils.html#module-omni.isaac.lab.utils.array"><code class="xref">omni.isaac.lab.utils.array</code></a></td><td>
+       <a href="source/api/lab/isaaclab.utils.html#module-isaaclab.utils.array"><code class="xref">isaaclab.utils.array</code></a></td><td>
        <em></em></td></tr>
      <tr class="cg-1">
        <td></td>
        <td>&#160;&#160;&#160;
-       <a href="source/api/lab/omni.isaac.lab.utils.html#module-omni.isaac.lab.utils.assets"><code class="xref">omni.isaac.lab.utils.assets</code></a></td><td>
+       <a href="source/api/lab/isaaclab.utils.html#module-isaaclab.utils.assets"><code class="xref">isaaclab.utils.assets</code></a></td><td>
        <em></em></td></tr>
      <tr class="cg-1">
        <td></td>
        <td>&#160;&#160;&#160;
-       <a href="source/api/lab/omni.isaac.lab.utils.html#module-omni.isaac.lab.utils.buffers"><code class="xref">omni.isaac.lab.utils.buffers</code></a></td><td>
+       <a href="source/api/lab/isaaclab.utils.html#module-isaaclab.utils.buffers"><code class="xref">isaaclab.utils.buffers</code></a></td><td>
        <em></em></td></tr>
      <tr class="cg-1">
        <td></td>
        <td>&#160;&#160;&#160;
-       <a href="source/api/lab/omni.isaac.lab.utils.html#module-omni.isaac.lab.utils.configclass"><code class="xref">omni.isaac.lab.utils.configclass</code></a></td><td>
+       <a href="source/api/lab/isaaclab.utils.html#module-isaaclab.utils.configclass"><code class="xref">isaaclab.utils.configclass</code></a></td><td>
        <em></em></td></tr>
      <tr class="cg-1">
        <td></td>
        <td>&#160;&#160;&#160;
-       <a href="source/api/lab/omni.isaac.lab.utils.html#module-omni.isaac.lab.utils.dict"><code class="xref">omni.isaac.lab.utils.dict</code></a></td><td>
+       <a href="source/api/lab/isaaclab.utils.html#module-isaaclab.utils.dict"><code class="xref">isaaclab.utils.dict</code></a></td><td>
        <em></em></td></tr>
      <tr class="cg-1">
        <td></td>
        <td>&#160;&#160;&#160;
-       <a href="source/api/lab/omni.isaac.lab.utils.html#module-omni.isaac.lab.utils.interpolation"><code class="xref">omni.isaac.lab.utils.interpolation</code></a></td><td>
+       <a href="source/api/lab/isaaclab.utils.html#module-isaaclab.utils.interpolation"><code class="xref">isaaclab.utils.interpolation</code></a></td><td>
        <em></em></td></tr>
      <tr class="cg-1">
        <td></td>
        <td>&#160;&#160;&#160;
-       <a href="source/api/lab/omni.isaac.lab.utils.html#module-omni.isaac.lab.utils.io"><code class="xref">omni.isaac.lab.utils.io</code></a></td><td>
+       <a href="source/api/lab/isaaclab.utils.html#module-isaaclab.utils.io"><code class="xref">isaaclab.utils.io</code></a></td><td>
        <em></em></td></tr>
      <tr class="cg-1">
        <td></td>
        <td>&#160;&#160;&#160;
-       <a href="source/api/lab/omni.isaac.lab.utils.html#module-omni.isaac.lab.utils.math"><code class="xref">omni.isaac.lab.utils.math</code></a></td><td>
+       <a href="source/api/lab/isaaclab.utils.html#module-isaaclab.utils.math"><code class="xref">isaaclab.utils.math</code></a></td><td>
        <em></em></td></tr>
      <tr class="cg-1">
        <td></td>
        <td>&#160;&#160;&#160;
-       <a href="source/api/lab/omni.isaac.lab.utils.html#module-omni.isaac.lab.utils.modifiers"><code class="xref">omni.isaac.lab.utils.modifiers</code></a></td><td>
+       <a href="source/api/lab/isaaclab.utils.html#module-isaaclab.utils.modifiers"><code class="xref">isaaclab.utils.modifiers</code></a></td><td>
        <em></em></td></tr>
      <tr class="cg-1">
        <td></td>
        <td>&#160;&#160;&#160;
-       <a href="source/api/lab/omni.isaac.lab.utils.html#module-omni.isaac.lab.utils.noise"><code class="xref">omni.isaac.lab.utils.noise</code></a></td><td>
+       <a href="source/api/lab/isaaclab.utils.html#module-isaaclab.utils.noise"><code class="xref">isaaclab.utils.noise</code></a></td><td>
        <em></em></td></tr>
      <tr class="cg-1">
        <td></td>
        <td>&#160;&#160;&#160;
-       <a href="source/api/lab/omni.isaac.lab.utils.html#module-omni.isaac.lab.utils.string"><code class="xref">omni.isaac.lab.utils.string</code></a></td><td>
+       <a href="source/api/lab/isaaclab.utils.html#module-isaaclab.utils.string"><code class="xref">isaaclab.utils.string</code></a></td><td>
        <em></em></td></tr>
      <tr class="cg-1">
        <td></td>
        <td>&#160;&#160;&#160;
-       <a href="source/api/lab/omni.isaac.lab.utils.html#module-omni.isaac.lab.utils.timer"><code class="xref">omni.isaac.lab.utils.timer</code></a></td><td>
+       <a href="source/api/lab/isaaclab.utils.html#module-isaaclab.utils.timer"><code class="xref">isaaclab.utils.timer</code></a></td><td>
        <em></em></td></tr>
      <tr class="cg-1">
        <td></td>
        <td>&#160;&#160;&#160;
-       <a href="source/api/lab/omni.isaac.lab.utils.html#module-omni.isaac.lab.utils.types"><code class="xref">omni.isaac.lab.utils.types</code></a></td><td>
+       <a href="source/api/lab/isaaclab.utils.html#module-isaaclab.utils.types"><code class="xref">isaaclab.utils.types</code></a></td><td>
        <em></em></td></tr>
      <tr class="cg-1">
        <td></td>
        <td>&#160;&#160;&#160;
-       <a href="source/api/lab/omni.isaac.lab.utils.html#module-omni.isaac.lab.utils.warp"><code class="xref">omni.isaac.lab.utils.warp</code></a></td><td>
+       <a href="source/api/lab/isaaclab.utils.html#module-isaaclab.utils.warp"><code class="xref">isaaclab.utils.warp</code></a></td><td>
        <em></em></td></tr>
-     <tr class="cg-1">
+     <tr>
+       <td><img src="_static/minus.png" class="toggler"
+              id="toggle-2" style="display: none" alt="-" /></td>
+       <td>
+       <code class="xref">isaaclab_mimic</code></td><td>
+       <em></em></td></tr>
+     <tr class="cg-2">
        <td></td>
        <td>&#160;&#160;&#160;
-       <a href="source/api/lab_tasks/omni.isaac.lab_tasks.utils.html#module-omni.isaac.lab_tasks.utils"><code class="xref">omni.isaac.lab_tasks.utils</code></a></td><td>
+       <a href="source/api/lab_mimic/isaaclab_mimic.datagen.html#module-isaaclab_mimic.datagen"><code class="xref">isaaclab_mimic.datagen</code></a></td><td>
        <em></em></td></tr>
-     <tr class="cg-1">
+     <tr>
+       <td><img src="_static/minus.png" class="toggler"
+              id="toggle-3" style="display: none" alt="-" /></td>
+       <td>
+       <a href="source/api/lab_rl/isaaclab_rl.html#module-isaaclab_rl"><code class="xref">isaaclab_rl</code></a></td><td>
+       <em></em></td></tr>
+     <tr class="cg-3">
        <td></td>
        <td>&#160;&#160;&#160;
-       <a href="source/api/lab_tasks/omni.isaac.lab_tasks.utils.data_collector.html#module-omni.isaac.lab_tasks.utils.data_collector"><code class="xref">omni.isaac.lab_tasks.utils.data_collector</code></a></td><td>
+       <a href="source/api/lab_rl/isaaclab_rl.html#module-isaaclab_rl.rl_games"><code class="xref">isaaclab_rl.rl_games</code></a></td><td>
        <em></em></td></tr>
-     <tr class="cg-1">
+     <tr class="cg-3">
        <td></td>
        <td>&#160;&#160;&#160;
-       <a href="source/api/lab_tasks/omni.isaac.lab_tasks.utils.wrappers.html#module-omni.isaac.lab_tasks.utils.wrappers"><code class="xref">omni.isaac.lab_tasks.utils.wrappers</code></a></td><td>
+       <a href="source/api/lab_rl/isaaclab_rl.html#module-isaaclab_rl.rsl_rl"><code class="xref">isaaclab_rl.rsl_rl</code></a></td><td>
        <em></em></td></tr>
-     <tr class="cg-1">
+     <tr class="cg-3">
        <td></td>
        <td>&#160;&#160;&#160;
-       <a href="source/api/lab_tasks/omni.isaac.lab_tasks.utils.wrappers.html#module-omni.isaac.lab_tasks.utils.wrappers.rl_games"><code class="xref">omni.isaac.lab_tasks.utils.wrappers.rl_games</code></a></td><td>
+       <a href="source/api/lab_rl/isaaclab_rl.html#module-isaaclab_rl.sb3"><code class="xref">isaaclab_rl.sb3</code></a></td><td>
        <em></em></td></tr>
-     <tr class="cg-1">
+     <tr class="cg-3">
        <td></td>
        <td>&#160;&#160;&#160;
-       <a href="source/api/lab_tasks/omni.isaac.lab_tasks.utils.wrappers.html#module-omni.isaac.lab_tasks.utils.wrappers.rsl_rl"><code class="xref">omni.isaac.lab_tasks.utils.wrappers.rsl_rl</code></a></td><td>
+       <a href="source/api/lab_rl/isaaclab_rl.html#module-isaaclab_rl.skrl"><code class="xref">isaaclab_rl.skrl</code></a></td><td>
        <em></em></td></tr>
-     <tr class="cg-1">
+     <tr>
+       <td><img src="_static/minus.png" class="toggler"
+              id="toggle-4" style="display: none" alt="-" /></td>
+       <td>
+       <code class="xref">isaaclab_tasks</code></td><td>
+       <em></em></td></tr>
+     <tr class="cg-4">
        <td></td>
        <td>&#160;&#160;&#160;
-       <a href="source/api/lab_tasks/omni.isaac.lab_tasks.utils.wrappers.html#module-omni.isaac.lab_tasks.utils.wrappers.sb3"><code class="xref">omni.isaac.lab_tasks.utils.wrappers.sb3</code></a></td><td>
-       <em></em></td></tr>
-     <tr class="cg-1">
-       <td></td>
-       <td>&#160;&#160;&#160;
-       <a href="source/api/lab_tasks/omni.isaac.lab_tasks.utils.wrappers.html#module-omni.isaac.lab_tasks.utils.wrappers.skrl"><code class="xref">omni.isaac.lab_tasks.utils.wrappers.skrl</code></a></td><td>
+       <a href="source/api/lab_tasks/isaaclab_tasks.utils.html#module-isaaclab_tasks.utils"><code class="xref">isaaclab_tasks.utils</code></a></td><td>
        <em></em></td></tr>
    </table>
 

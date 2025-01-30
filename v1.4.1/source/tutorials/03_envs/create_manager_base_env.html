@@ -60,7 +60,7 @@
     <link rel="prev" title="Using the Interactive Scene" href="../02_scene/create_scene.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-  <meta name="docsearch:version" content="1.4.0" />
+  <meta name="docsearch:version" content="1.4.1" />
     <meta name="docbuild:last-update" content="Jan 30, 2025"/>
   </head>
   
@@ -192,7 +192,7 @@
           
           
           
-          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.2.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.5.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
         </li>
         <li class="nav-item">
           
@@ -821,7 +821,7 @@ scene configuration here. For more details on how to configure a scene, see
 <section id="defining-actions">
 <h3>Defining actions<a class="headerlink" href="#defining-actions" title="Permalink to this heading">#</a></h3>
 <p>In the previous tutorial, we directly input the action to the cartpole using
-the <a class="reference internal" href="../../api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.Articulation.set_joint_effort_target" title="omni.isaac.lab.assets.Articulation.set_joint_effort_target"><code class="xref py py-meth docutils literal notranslate"><span class="pre">assets.Articulation.set_joint_effort_target()</span></code></a> method. In this tutorial, we will
+the <code class="xref py py-meth docutils literal notranslate"><span class="pre">assets.Articulation.set_joint_effort_target()</span></code> method. In this tutorial, we will
 use the <a class="reference internal" href="../../api/lab/omni.isaac.lab.managers.html#omni.isaac.lab.managers.ActionManager" title="omni.isaac.lab.managers.ActionManager"><code class="xref py py-class docutils literal notranslate"><span class="pre">managers.ActionManager</span></code></a> to handle the actions.</p>
 <p>The action manager can comprise of multiple <a class="reference internal" href="../../api/lab/omni.isaac.lab.managers.html#omni.isaac.lab.managers.ActionTerm" title="omni.isaac.lab.managers.ActionTerm"><code class="xref py py-class docutils literal notranslate"><span class="pre">managers.ActionTerm</span></code></a>. Each action term
 is responsible for applying <em>control</em> over a specific aspect of the environment. For instance,
@@ -855,7 +855,7 @@ We define a group by inheriting from the <a class="reference internal" href="../
 collects different observation terms and help define common properties for the group, such
 as enabling noise corruption or concatenating the observations into a single tensor.</p>
 <p>The individual terms are defined by inheriting from the <a class="reference internal" href="../../api/lab/omni.isaac.lab.managers.html#omni.isaac.lab.managers.ObservationTermCfg" title="omni.isaac.lab.managers.ObservationTermCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">managers.ObservationTermCfg</span></code></a> class.
-This class takes in the <a class="reference internal" href="../../api/lab/omni.isaac.lab.managers.html#omni.isaac.lab.managers.ObservationTermCfg.func" title="omni.isaac.lab.managers.ObservationTermCfg.func"><code class="xref py py-attr docutils literal notranslate"><span class="pre">managers.ObservationTermCfg.func</span></code></a> that specifies the function or
+This class takes in the <code class="xref py py-attr docutils literal notranslate"><span class="pre">managers.ObservationTermCfg.func</span></code> that specifies the function or
 callable class that computes the observation for that term. It includes other parameters for
 defining the noise model, clipping, scaling, etc. However, we leave these parameters to their
 default values for this tutorial.</p>
@@ -889,7 +889,7 @@ pass them to the corresponding managers. The event manager is no different.</p>
 in the simulation state. This includes resetting (or randomizing) the scene, randomizing physical
 properties (such as mass, friction, etc.), and varying visual properties (such as colors, textures, etc.).
 Each of these are specified through the <a class="reference internal" href="../../api/lab/omni.isaac.lab.managers.html#omni.isaac.lab.managers.EventTermCfg" title="omni.isaac.lab.managers.EventTermCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">managers.EventTermCfg</span></code></a> class, which
-takes in the <a class="reference internal" href="../../api/lab/omni.isaac.lab.managers.html#omni.isaac.lab.managers.EventTermCfg.func" title="omni.isaac.lab.managers.EventTermCfg.func"><code class="xref py py-attr docutils literal notranslate"><span class="pre">managers.EventTermCfg.func</span></code></a> that specifies the function or callable
+takes in the <code class="xref py py-attr docutils literal notranslate"><span class="pre">managers.EventTermCfg.func</span></code> that specifies the function or callable
 class that performs the event.</p>
 <p>Additionally, it expects the <strong>mode</strong> of the event. The mode specifies when the event term should be applied.
 It is possible to specify your own mode. For this, you’ll need to adapt the <a class="reference internal" href="../../api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.ManagerBasedEnv" title="omni.isaac.lab.envs.ManagerBasedEnv"><code class="xref py py-class docutils literal notranslate"><span class="pre">ManagerBasedEnv</span></code></a> class.
@@ -945,7 +945,7 @@ joint state of the cartpole and the pole at every reset.</p>
 <p>Having defined the scene and manager configurations, we can now define the environment configuration
 through the <a class="reference internal" href="../../api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.ManagerBasedEnvCfg" title="omni.isaac.lab.envs.ManagerBasedEnvCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">envs.ManagerBasedEnvCfg</span></code></a> class. This class takes in the scene, action, observation and
 event configurations.</p>
-<p>In addition to these, it also takes in the <a class="reference internal" href="../../api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.ManagerBasedEnvCfg.sim" title="omni.isaac.lab.envs.ManagerBasedEnvCfg.sim"><code class="xref py py-attr docutils literal notranslate"><span class="pre">envs.ManagerBasedEnvCfg.sim</span></code></a> which defines the simulation
+<p>In addition to these, it also takes in the <code class="xref py py-attr docutils literal notranslate"><span class="pre">envs.ManagerBasedEnvCfg.sim</span></code> which defines the simulation
 parameters such as the timestep, gravity, etc. This is initialized to the default values, but can
 be modified as needed. We recommend doing so by defining the <code class="xref py py-meth docutils literal notranslate"><span class="pre">__post_init__()</span></code> method in the
 <a class="reference internal" href="../../api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.ManagerBasedEnvCfg" title="omni.isaac.lab.envs.ManagerBasedEnvCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">envs.ManagerBasedEnvCfg</span></code></a> class, which is called after the configuration is initialized.</p>
@@ -976,7 +976,7 @@ be modified as needed. We recommend doing so by defining the <code class="xref p
 <h3>Running the simulation<a class="headerlink" href="#running-the-simulation" title="Permalink to this heading">#</a></h3>
 <p>Lastly, we revisit the simulation execution loop. This is now much simpler since we have
 abstracted away most of the details into the environment configuration. We only need to
-call the <a class="reference internal" href="../../api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.ManagerBasedEnv.reset" title="omni.isaac.lab.envs.ManagerBasedEnv.reset"><code class="xref py py-meth docutils literal notranslate"><span class="pre">envs.ManagerBasedEnv.reset()</span></code></a> method to reset the environment and <a class="reference internal" href="../../api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.ManagerBasedEnv.step" title="omni.isaac.lab.envs.ManagerBasedEnv.step"><code class="xref py py-meth docutils literal notranslate"><span class="pre">envs.ManagerBasedEnv.step()</span></code></a>
+call the <code class="xref py py-meth docutils literal notranslate"><span class="pre">envs.ManagerBasedEnv.reset()</span></code> method to reset the environment and <code class="xref py py-meth docutils literal notranslate"><span class="pre">envs.ManagerBasedEnv.step()</span></code>
 method to step the environment. Both these functions return the observation and an info dictionary
 which may contain additional information provided by the environment. These can be used by an
 agent for decision-making.</p>

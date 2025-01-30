@@ -60,7 +60,7 @@
     <link rel="prev" title="Interacting with a deformable object" href="../01_assets/run_deformable_object.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-  <meta name="docsearch:version" content="1.4.1" />
+  <meta name="docsearch:version" content="2.0.0" />
     <meta name="docbuild:last-update" content="Jan 30, 2025"/>
   </head>
   
@@ -192,7 +192,7 @@
           
           
           
-          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.2.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.5.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
         </li>
         <li class="nav-item">
           
@@ -230,6 +230,8 @@
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../setup/installation/index.html">Local Installation</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2"><a class="reference internal" href="../../setup/installation/pip_installation.html">Pip installation (recommended for Ubuntu 22.04 and Windows)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../setup/installation/binaries_installation.html">Binary installation (recommended for Ubuntu 20.04)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/installation/isaaclab_pip_installation.html">Advanced installation (Isaac Lab pip)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/installation/asset_caching.html">Asset caching</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1"><a class="reference internal" href="../../setup/installation/cloud_installation.html">Running Isaac Lab in the Cloud</a></li>
@@ -241,7 +243,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../../overview/developer-guide/vs_code.html">Setting up Visual Studio Code</a></li>
 
 <li class="toctree-l2"><a class="reference internal" href="../../overview/developer-guide/repo_structure.html">Repository organization</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../overview/developer-guide/development.html">Application Development</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/developer-guide/development.html">Extension Development</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../overview/developer-guide/template.html">Building your Own Project</a></li>
 </ul>
 </details></li>
@@ -264,6 +266,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../../overview/reinforcement-learning/rl_existing_scripts.html">Reinforcement Learning Wrappers</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../overview/reinforcement-learning/rl_frameworks.html">Reinforcement Learning Library Comparison</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../overview/reinforcement-learning/performance_benchmarks.html">Performance Benchmarks</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/reinforcement-learning/training_guide.html">Debugging and Training Guide</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1"><a class="reference internal" href="../../overview/teleop_imitation.html">Teleoperation and Imitation Learning</a></li>
@@ -294,6 +297,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../03_envs/register_rl_env_gym.html">Registering an Environment</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../03_envs/run_rl_training.html">Training with an RL Agent</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../03_envs/modify_direct_rl_env.html">Modifying an existing Direct RL Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../03_envs/policy_inference_in_usd.html">Policy Inference in USD Environment</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../04_sensors/add_sensors_on_robot.html">Adding sensors on a robot</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../05_controllers/run_diff_ik.html">Using a task-space controller</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../05_controllers/run_osc.html">Using an operational space controller</a></li>
@@ -330,28 +334,27 @@
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Source API</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../api/index.html">API Reference</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.app.html">omni.isaac.lab.app</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.actuators.html">omni.isaac.lab.actuators</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.assets.html">omni.isaac.lab.assets</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.controllers.html">omni.isaac.lab.controllers</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.devices.html">omni.isaac.lab.devices</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.envs.html">omni.isaac.lab.envs</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.managers.html">omni.isaac.lab.managers</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.markers.html">omni.isaac.lab.markers</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.scene.html">omni.isaac.lab.scene</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.sensors.html">omni.isaac.lab.sensors</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.sim.html">omni.isaac.lab.sim</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.terrains.html">omni.isaac.lab.terrains</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.utils.html">omni.isaac.lab.utils</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.envs.mdp.html">omni.isaac.lab.envs.mdp</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.envs.ui.html">omni.isaac.lab.envs.ui</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.sensors.patterns.html">omni.isaac.lab.sensors.patterns</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.sim.converters.html">omni.isaac.lab.sim.converters</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.sim.schemas.html">omni.isaac.lab.sim.schemas</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.sim.spawners.html">omni.isaac.lab.sim.spawners</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab_tasks/omni.isaac.lab_tasks.utils.html">omni.isaac.lab_tasks.utils</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab_tasks/omni.isaac.lab_tasks.utils.wrappers.html">omni.isaac.lab_tasks.utils.wrappers</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab_tasks/omni.isaac.lab_tasks.utils.data_collector.html">omni.isaac.lab_tasks.utils.data_collector</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.app.html">isaaclab.app</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.actuators.html">isaaclab.actuators</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.assets.html">isaaclab.assets</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.controllers.html">isaaclab.controllers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.devices.html">isaaclab.devices</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.envs.html">isaaclab.envs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.managers.html">isaaclab.managers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.markers.html">isaaclab.markers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.scene.html">isaaclab.scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.sensors.html">isaaclab.sensors</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.sim.html">isaaclab.sim</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.terrains.html">isaaclab.terrains</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.utils.html">isaaclab.utils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.envs.mdp.html">isaaclab.envs.mdp</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.envs.ui.html">isaaclab.envs.ui</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.sensors.patterns.html">isaaclab.sensors.patterns</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.sim.converters.html">isaaclab.sim.converters</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.sim.schemas.html">isaaclab.sim.schemas</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.sim.spawners.html">isaaclab.sim.spawners</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab_tasks/isaaclab_tasks.utils.html">isaaclab_tasks.utils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab_mimic/isaaclab_mimic.datagen.html">isaaclab_mimic.datagen</a></li>
 </ul>
 </details></li>
 </ul>
@@ -361,7 +364,15 @@
 <li class="toctree-l1"><a class="reference internal" href="../../refs/additional_resources.html">Additional Resources</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../refs/contributing.html">Contribution Guidelines</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../refs/troubleshooting.html">Tricks and Troubleshooting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../refs/migration.html">Migration Guide (Isaac Sim)</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../refs/issues.html">Known Issues</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../refs/release_notes.html">Release Notes</a></li>
+
+
+
+
+
+
 <li class="toctree-l1"><a class="reference internal" href="../../refs/changelog.html">Extensions Changelog</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../refs/license.html">License</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../refs/bibliography.html">Bibliography</a></li>
@@ -369,7 +380,7 @@
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Project Links</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference external" href="https://github.com/isaac-sim/IsaacLab">GitHub</a></li>
-<li class="toctree-l1"><a class="reference external" href="https://docs.omniverse.nvidia.com/isaacsim/latest/index.html">NVIDIA Isaac Sim</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/latest/index.html">NVIDIA Isaac Sim</a></li>
 <li class="toctree-l1"><a class="reference external" href="https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/index.html">NVIDIA PhysX</a></li>
 </ul>
 
@@ -605,7 +616,7 @@
 <p>So far in the tutorials, we manually spawned assets into the simulation and created
 object instances to interact with them. However, as the complexity of the scene
 increases, it becomes tedious to perform these tasks manually. In this tutorial,
-we will introduce the <a class="reference internal" href="../../api/lab/omni.isaac.lab.scene.html#omni.isaac.lab.scene.InteractiveScene" title="omni.isaac.lab.scene.InteractiveScene"><code class="xref py py-class docutils literal notranslate"><span class="pre">scene.InteractiveScene</span></code></a> class, which provides a convenient
+we will introduce the <a class="reference internal" href="../../api/lab/isaaclab.scene.html#isaaclab.scene.InteractiveScene" title="isaaclab.scene.InteractiveScene"><code class="xref py py-class docutils literal notranslate"><span class="pre">scene.InteractiveScene</span></code></a> class, which provides a convenient
 interface for spawning prims and managing them in the simulation.</p>
 <p>At a high-level, the interactive scene is a collection of scene entities. Each entity
 can be either a non-interactive prim (e.g. ground plane, light source), an interactive
@@ -619,13 +630,13 @@ in the simulation.</p>
 <li><p>Collects all the scene entities into a single object, which makes them easier to manage.</p></li>
 </ul>
 <p>In this tutorial, we take the cartpole example from the <a class="reference internal" href="../01_assets/run_articulation.html#tutorial-interact-articulation"><span class="std std-ref">Interacting with an articulation</span></a>
-tutorial and replace the <code class="docutils literal notranslate"><span class="pre">design_scene</span></code> function with an <a class="reference internal" href="../../api/lab/omni.isaac.lab.scene.html#omni.isaac.lab.scene.InteractiveScene" title="omni.isaac.lab.scene.InteractiveScene"><code class="xref py py-class docutils literal notranslate"><span class="pre">scene.InteractiveScene</span></code></a> object.
+tutorial and replace the <code class="docutils literal notranslate"><span class="pre">design_scene</span></code> function with an <a class="reference internal" href="../../api/lab/isaaclab.scene.html#isaaclab.scene.InteractiveScene" title="isaaclab.scene.InteractiveScene"><code class="xref py py-class docutils literal notranslate"><span class="pre">scene.InteractiveScene</span></code></a> object.
 While it may seem like overkill to use the interactive scene for this simple example, it will
 become more useful in the future as more assets and sensors are added to the scene.</p>
 <section id="the-code">
 <h2>The Code<a class="headerlink" href="#the-code" title="Permalink to this heading">#</a></h2>
 <p>This tutorial corresponds to the <code class="docutils literal notranslate"><span class="pre">create_scene.py</span></code> script within
-<code class="docutils literal notranslate"><span class="pre">source/standalone/tutorials/02_scene</span></code>.</p>
+<code class="docutils literal notranslate"><span class="pre">scripts/tutorials/02_scene</span></code>.</p>
 <details class="sd-sphinx-override sd-dropdown sd-card sd-mb-3">
 <summary class="sd-summary-title sd-card-header">
 <span class="sd-summary-icon"><svg version="1.1" width="1.0em" height="1.0em" class="sd-octicon sd-octicon-code" viewBox="0 0 16 16" aria-hidden="true"><path d="m11.28 3.22 4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.749.749 0 0 1-1.275-.326.749.749 0 0 1 .215-.734L13.94 8l-3.72-3.72a.749.749 0 0 1 .326-1.275.749.749 0 0 1 .734.215Zm-6.56 0a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042L2.06 8l3.72 3.72a.749.749 0 0 1-.326 1.275.749.749 0 0 1-.734-.215L.47 8.53a.75.75 0 0 1 0-1.06Z"></path></svg></span><span class="sd-summary-text">Code for create_scene.py</span><span class="sd-summary-state-marker sd-summary-chevron-right"><svg version="1.1" width="1.5em" height="1.5em" class="sd-octicon sd-octicon-chevron-right" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.72 18.78a.75.75 0 0 1 0-1.06L14.44 12 8.72 6.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018l6.25 6.25a.75.75 0 0 1 0 1.06l-6.25 6.25a.75.75 0 0 1-1.06 0Z"></path></svg></span></summary><div class="sd-summary-content sd-card-body docutils">
@@ -639,7 +650,7 @@ become more useful in the future as more assets and sensors are added to the sce
 <span class="linenos">  8</span><span class="sd">.. code-block:: bash</span>
 <span class="linenos">  9</span>
 <span class="linenos"> 10</span><span class="sd">    # Usage</span>
-<span class="linenos"> 11</span><span class="sd">    ./isaaclab.sh -p source/standalone/tutorials/02_scene/create_scene.py --num_envs 32</span>
+<span class="linenos"> 11</span><span class="sd">    ./isaaclab.sh -p scripts/tutorials/02_scene/create_scene.py --num_envs 32</span>
 <span class="linenos"> 12</span>
 <span class="linenos"> 13</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="linenos"> 14</span>
@@ -648,7 +659,7 @@ become more useful in the future as more assets and sensors are added to the sce
 <span class="linenos"> 17</span>
 <span class="linenos"> 18</span><span class="kn">import</span><span class="w"> </span><span class="nn">argparse</span>
 <span class="linenos"> 19</span>
-<span class="linenos"> 20</span><span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.app</span><span class="w"> </span><span class="kn">import</span> <span class="n">AppLauncher</span>
+<span class="linenos"> 20</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.app</span><span class="w"> </span><span class="kn">import</span> <span class="n">AppLauncher</span>
 <span class="linenos"> 21</span>
 <span class="linenos"> 22</span><span class="c1"># add argparse arguments</span>
 <span class="linenos"> 23</span><span class="n">parser</span> <span class="o">=</span> <span class="n">argparse</span><span class="o">.</span><span class="n">ArgumentParser</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="s2">&quot;Tutorial on using the interactive scene interface.&quot;</span><span class="p">)</span>
@@ -666,16 +677,16 @@ become more useful in the future as more assets and sensors are added to the sce
 <span class="linenos"> 35</span>
 <span class="linenos"> 36</span><span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
 <span class="linenos"> 37</span>
-<span class="linenos"> 38</span><span class="kn">import</span><span class="w"> </span><span class="nn">omni.isaac.lab.sim</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">sim_utils</span>
-<span class="linenos"> 39</span><span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.assets</span><span class="w"> </span><span class="kn">import</span> <span class="n">ArticulationCfg</span><span class="p">,</span> <span class="n">AssetBaseCfg</span>
-<span class="linenos"> 40</span><span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.scene</span><span class="w"> </span><span class="kn">import</span> <span class="n">InteractiveScene</span><span class="p">,</span> <span class="n">InteractiveSceneCfg</span>
-<span class="linenos"> 41</span><span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.sim</span><span class="w"> </span><span class="kn">import</span> <span class="n">SimulationContext</span>
-<span class="linenos"> 42</span><span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">configclass</span>
+<span class="linenos"> 38</span><span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab.sim</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">sim_utils</span>
+<span class="linenos"> 39</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.assets</span><span class="w"> </span><span class="kn">import</span> <span class="n">ArticulationCfg</span><span class="p">,</span> <span class="n">AssetBaseCfg</span>
+<span class="linenos"> 40</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.scene</span><span class="w"> </span><span class="kn">import</span> <span class="n">InteractiveScene</span><span class="p">,</span> <span class="n">InteractiveSceneCfg</span>
+<span class="linenos"> 41</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.sim</span><span class="w"> </span><span class="kn">import</span> <span class="n">SimulationContext</span>
+<span class="linenos"> 42</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">configclass</span>
 <span class="linenos"> 43</span>
 <span class="linenos"> 44</span><span class="c1">##</span>
 <span class="linenos"> 45</span><span class="c1"># Pre-defined configs</span>
 <span class="linenos"> 46</span><span class="c1">##</span>
-<span class="linenos"> 47</span><span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab_assets</span><span class="w"> </span><span class="kn">import</span> <span class="n">CARTPOLE_CFG</span>  <span class="c1"># isort:skip</span>
+<span class="linenos"> 47</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab_assets</span><span class="w"> </span><span class="kn">import</span> <span class="n">CARTPOLE_CFG</span>  <span class="c1"># isort:skip</span>
 <span class="linenos"> 48</span>
 <span class="linenos"> 49</span>
 <span class="hll"><span class="linenos"> 50</span><span class="nd">@configclass</span>
@@ -772,8 +783,8 @@ that we will go over in detail.</p>
 <section id="scene-configuration">
 <h3>Scene configuration<a class="headerlink" href="#scene-configuration" title="Permalink to this heading">#</a></h3>
 <p>The scene is composed of a collection of entities, each with their own configuration.
-These are specified in a configuration class that inherits from <a class="reference internal" href="../../api/lab/omni.isaac.lab.scene.html#omni.isaac.lab.scene.InteractiveSceneCfg" title="omni.isaac.lab.scene.InteractiveSceneCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">scene.InteractiveSceneCfg</span></code></a>.
-The configuration class is then passed to the <a class="reference internal" href="../../api/lab/omni.isaac.lab.scene.html#omni.isaac.lab.scene.InteractiveScene" title="omni.isaac.lab.scene.InteractiveScene"><code class="xref py py-class docutils literal notranslate"><span class="pre">scene.InteractiveScene</span></code></a> constructor
+These are specified in a configuration class that inherits from <a class="reference internal" href="../../api/lab/isaaclab.scene.html#isaaclab.scene.InteractiveSceneCfg" title="isaaclab.scene.InteractiveSceneCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">scene.InteractiveSceneCfg</span></code></a>.
+The configuration class is then passed to the <a class="reference internal" href="../../api/lab/isaaclab.scene.html#isaaclab.scene.InteractiveScene" title="isaaclab.scene.InteractiveScene"><code class="xref py py-class docutils literal notranslate"><span class="pre">scene.InteractiveScene</span></code></a> constructor
 to create the scene.</p>
 <p>For the cartpole example, we specify the same scene as in the previous tutorial, but list
 them now in the configuration class <code class="xref py py-class docutils literal notranslate"><span class="pre">CartpoleSceneCfg</span></code> instead of manually spawning them.</p>
@@ -794,7 +805,7 @@ them now in the configuration class <code class="xref py py-class docutils liter
 </pre></div>
 </div>
 <p>The variable names in the configuration class are used as keys to access the corresponding
-entity from the <a class="reference internal" href="../../api/lab/omni.isaac.lab.scene.html#omni.isaac.lab.scene.InteractiveScene" title="omni.isaac.lab.scene.InteractiveScene"><code class="xref py py-class docutils literal notranslate"><span class="pre">scene.InteractiveScene</span></code></a> object. For example, the cartpole can
+entity from the <a class="reference internal" href="../../api/lab/isaaclab.scene.html#isaaclab.scene.InteractiveScene" title="isaaclab.scene.InteractiveScene"><code class="xref py py-class docutils literal notranslate"><span class="pre">scene.InteractiveScene</span></code></a> object. For example, the cartpole can
 be accessed via <code class="docutils literal notranslate"><span class="pre">scene[&quot;cartpole&quot;]</span></code>. However, we will get to that later. First, let’s
 look at how individual scene entities are configured.</p>
 <p>Similar to how a rigid object and articulation were configured in the previous tutorials,
@@ -803,8 +814,8 @@ difference between the configurations for the ground plane and light source and 
 configuration for the cartpole. The ground plane and light source are non-interactive
 prims, while the cartpole is an interactive prim. This distinction is reflected in the
 configuration classes used to specify them. The configurations for the ground plane and
-light source are specified using an instance of the <a class="reference internal" href="../../api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.AssetBaseCfg" title="omni.isaac.lab.assets.AssetBaseCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">assets.AssetBaseCfg</span></code></a> class
-while the cartpole is configured using an instance of the <a class="reference internal" href="../../api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.ArticulationCfg" title="omni.isaac.lab.assets.ArticulationCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">assets.ArticulationCfg</span></code></a>.
+light source are specified using an instance of the <a class="reference internal" href="../../api/lab/isaaclab.assets.html#isaaclab.assets.AssetBaseCfg" title="isaaclab.assets.AssetBaseCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">assets.AssetBaseCfg</span></code></a> class
+while the cartpole is configured using an instance of the <a class="reference internal" href="../../api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationCfg" title="isaaclab.assets.ArticulationCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">assets.ArticulationCfg</span></code></a>.
 Anything that is not an interactive prim (i.e., neither an asset nor a sensor) is not
 <em>handled</em> by the scene during simulation steps.</p>
 <p>Another key difference to note is in the specification of the prim paths for the
@@ -826,7 +837,7 @@ environment. This path is replaced by the scene object with <code class="docutil
 <section id="scene-instantiation">
 <h3>Scene instantiation<a class="headerlink" href="#scene-instantiation" title="Permalink to this heading">#</a></h3>
 <p>Unlike before where we called the <code class="docutils literal notranslate"><span class="pre">design_scene</span></code> function to create the scene, we now
-create an instance of the <a class="reference internal" href="../../api/lab/omni.isaac.lab.scene.html#omni.isaac.lab.scene.InteractiveScene" title="omni.isaac.lab.scene.InteractiveScene"><code class="xref py py-class docutils literal notranslate"><span class="pre">scene.InteractiveScene</span></code></a> class and pass in the configuration
+create an instance of the <a class="reference internal" href="../../api/lab/isaaclab.scene.html#isaaclab.scene.InteractiveScene" title="isaaclab.scene.InteractiveScene"><code class="xref py py-class docutils literal notranslate"><span class="pre">scene.InteractiveScene</span></code></a> class and pass in the configuration
 object to its constructor. While creating the configuration instance of <code class="docutils literal notranslate"><span class="pre">CartpoleSceneCfg</span></code>
 we specify how many environment copies we want to create using the <code class="docutils literal notranslate"><span class="pre">num_envs</span></code> argument.
 This will be used to clone the scene for each environment.</p>
@@ -851,14 +862,14 @@ the cartpole is specified using the key <code class="docutils literal notranslat
 </section>
 <section id="running-the-simulation-loop">
 <h3>Running the simulation loop<a class="headerlink" href="#running-the-simulation-loop" title="Permalink to this heading">#</a></h3>
-<p>The rest of the script looks similar to previous scripts that interfaced with <a class="reference internal" href="../../api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.Articulation" title="omni.isaac.lab.assets.Articulation"><code class="xref py py-class docutils literal notranslate"><span class="pre">assets.Articulation</span></code></a>,
+<p>The rest of the script looks similar to previous scripts that interfaced with <a class="reference internal" href="../../api/lab/isaaclab.assets.html#isaaclab.assets.Articulation" title="isaaclab.assets.Articulation"><code class="xref py py-class docutils literal notranslate"><span class="pre">assets.Articulation</span></code></a>,
 with a few small differences in the methods called:</p>
 <ul class="simple">
-<li><p><a class="reference internal" href="../../api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.Articulation.reset" title="omni.isaac.lab.assets.Articulation.reset"><code class="xref py py-meth docutils literal notranslate"><span class="pre">assets.Articulation.reset()</span></code></a> ⟶ <a class="reference internal" href="../../api/lab/omni.isaac.lab.scene.html#omni.isaac.lab.scene.InteractiveScene.reset" title="omni.isaac.lab.scene.InteractiveScene.reset"><code class="xref py py-meth docutils literal notranslate"><span class="pre">scene.InteractiveScene.reset()</span></code></a></p></li>
-<li><p><a class="reference internal" href="../../api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.Articulation.write_data_to_sim" title="omni.isaac.lab.assets.Articulation.write_data_to_sim"><code class="xref py py-meth docutils literal notranslate"><span class="pre">assets.Articulation.write_data_to_sim()</span></code></a> ⟶ <a class="reference internal" href="../../api/lab/omni.isaac.lab.scene.html#omni.isaac.lab.scene.InteractiveScene.write_data_to_sim" title="omni.isaac.lab.scene.InteractiveScene.write_data_to_sim"><code class="xref py py-meth docutils literal notranslate"><span class="pre">scene.InteractiveScene.write_data_to_sim()</span></code></a></p></li>
-<li><p><a class="reference internal" href="../../api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.Articulation.update" title="omni.isaac.lab.assets.Articulation.update"><code class="xref py py-meth docutils literal notranslate"><span class="pre">assets.Articulation.update()</span></code></a> ⟶ <a class="reference internal" href="../../api/lab/omni.isaac.lab.scene.html#omni.isaac.lab.scene.InteractiveScene.update" title="omni.isaac.lab.scene.InteractiveScene.update"><code class="xref py py-meth docutils literal notranslate"><span class="pre">scene.InteractiveScene.update()</span></code></a></p></li>
+<li><p><a class="reference internal" href="../../api/lab/isaaclab.assets.html#isaaclab.assets.Articulation.reset" title="isaaclab.assets.Articulation.reset"><code class="xref py py-meth docutils literal notranslate"><span class="pre">assets.Articulation.reset()</span></code></a> ⟶ <a class="reference internal" href="../../api/lab/isaaclab.scene.html#isaaclab.scene.InteractiveScene.reset" title="isaaclab.scene.InteractiveScene.reset"><code class="xref py py-meth docutils literal notranslate"><span class="pre">scene.InteractiveScene.reset()</span></code></a></p></li>
+<li><p><a class="reference internal" href="../../api/lab/isaaclab.assets.html#isaaclab.assets.Articulation.write_data_to_sim" title="isaaclab.assets.Articulation.write_data_to_sim"><code class="xref py py-meth docutils literal notranslate"><span class="pre">assets.Articulation.write_data_to_sim()</span></code></a> ⟶ <a class="reference internal" href="../../api/lab/isaaclab.scene.html#isaaclab.scene.InteractiveScene.write_data_to_sim" title="isaaclab.scene.InteractiveScene.write_data_to_sim"><code class="xref py py-meth docutils literal notranslate"><span class="pre">scene.InteractiveScene.write_data_to_sim()</span></code></a></p></li>
+<li><p><a class="reference internal" href="../../api/lab/isaaclab.assets.html#isaaclab.assets.Articulation.update" title="isaaclab.assets.Articulation.update"><code class="xref py py-meth docutils literal notranslate"><span class="pre">assets.Articulation.update()</span></code></a> ⟶ <a class="reference internal" href="../../api/lab/isaaclab.scene.html#isaaclab.scene.InteractiveScene.update" title="isaaclab.scene.InteractiveScene.update"><code class="xref py py-meth docutils literal notranslate"><span class="pre">scene.InteractiveScene.update()</span></code></a></p></li>
 </ul>
-<p>Under the hood, the methods of <a class="reference internal" href="../../api/lab/omni.isaac.lab.scene.html#omni.isaac.lab.scene.InteractiveScene" title="omni.isaac.lab.scene.InteractiveScene"><code class="xref py py-class docutils literal notranslate"><span class="pre">scene.InteractiveScene</span></code></a> call the corresponding
+<p>Under the hood, the methods of <a class="reference internal" href="../../api/lab/isaaclab.scene.html#isaaclab.scene.InteractiveScene" title="isaaclab.scene.InteractiveScene"><code class="xref py py-class docutils literal notranslate"><span class="pre">scene.InteractiveScene</span></code></a> call the corresponding
 methods of the entities in the scene.</p>
 </section>
 </section>
@@ -866,7 +877,7 @@ methods of the entities in the scene.</p>
 <h2>The Code Execution<a class="headerlink" href="#the-code-execution" title="Permalink to this heading">#</a></h2>
 <p>Let’s run the script to simulate 32 cartpoles in the scene. We can do this by passing
 the <code class="docutils literal notranslate"><span class="pre">--num_envs</span></code> argument to the script.</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>source/standalone/tutorials/02_scene/create_scene.py<span class="w"> </span>--num_envs<span class="w"> </span><span class="m">32</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/tutorials/02_scene/create_scene.py<span class="w"> </span>--num_envs<span class="w"> </span><span class="m">32</span>
 </pre></div>
 </div>
 <p>This should open a stage with 32 cartpoles swinging around randomly. You can use the
@@ -874,11 +885,11 @@ mouse to rotate the camera and the arrow keys to move around the scene.</p>
 <figure class="align-center" style="width: 100%">
 <img alt="result of create_scene.py" src="../../../_images/tutorial_creating_a_scene.jpg" />
 </figure>
-<p>In this tutorial, we saw how to use <a class="reference internal" href="../../api/lab/omni.isaac.lab.scene.html#omni.isaac.lab.scene.InteractiveScene" title="omni.isaac.lab.scene.InteractiveScene"><code class="xref py py-class docutils literal notranslate"><span class="pre">scene.InteractiveScene</span></code></a> to create a
+<p>In this tutorial, we saw how to use <a class="reference internal" href="../../api/lab/isaaclab.scene.html#isaaclab.scene.InteractiveScene" title="isaaclab.scene.InteractiveScene"><code class="xref py py-class docutils literal notranslate"><span class="pre">scene.InteractiveScene</span></code></a> to create a
 scene with multiple assets. We also saw how to use the <code class="docutils literal notranslate"><span class="pre">num_envs</span></code> argument
 to clone the scene for multiple environments.</p>
-<p>There are many more example usages of the <a class="reference internal" href="../../api/lab/omni.isaac.lab.scene.html#omni.isaac.lab.scene.InteractiveSceneCfg" title="omni.isaac.lab.scene.InteractiveSceneCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">scene.InteractiveSceneCfg</span></code></a> in the tasks found
-under the <code class="docutils literal notranslate"><span class="pre">omni.isaac.lab_tasks</span></code> extension. Please check out the source code to see
+<p>There are many more example usages of the <a class="reference internal" href="../../api/lab/isaaclab.scene.html#isaaclab.scene.InteractiveSceneCfg" title="isaaclab.scene.InteractiveSceneCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">scene.InteractiveSceneCfg</span></code></a> in the tasks found
+under the <code class="docutils literal notranslate"><span class="pre">isaaclab_tasks</span></code> extension. Please check out the source code to see
 how they are used for more complex scenes.</p>
 </section>
 </section>

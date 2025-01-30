@@ -60,7 +60,7 @@
     <link rel="prev" title="Spawning prims into the scene" href="spawn_prims.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-  <meta name="docsearch:version" content="1.4.1" />
+  <meta name="docsearch:version" content="2.0.0" />
     <meta name="docbuild:last-update" content="Jan 30, 2025"/>
   </head>
   
@@ -192,7 +192,7 @@
           
           
           
-          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.2.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.5.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
         </li>
         <li class="nav-item">
           
@@ -230,6 +230,8 @@
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../setup/installation/index.html">Local Installation</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2"><a class="reference internal" href="../../setup/installation/pip_installation.html">Pip installation (recommended for Ubuntu 22.04 and Windows)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../setup/installation/binaries_installation.html">Binary installation (recommended for Ubuntu 20.04)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/installation/isaaclab_pip_installation.html">Advanced installation (Isaac Lab pip)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/installation/asset_caching.html">Asset caching</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1"><a class="reference internal" href="../../setup/installation/cloud_installation.html">Running Isaac Lab in the Cloud</a></li>
@@ -241,7 +243,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../../overview/developer-guide/vs_code.html">Setting up Visual Studio Code</a></li>
 
 <li class="toctree-l2"><a class="reference internal" href="../../overview/developer-guide/repo_structure.html">Repository organization</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../overview/developer-guide/development.html">Application Development</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/developer-guide/development.html">Extension Development</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../overview/developer-guide/template.html">Building your Own Project</a></li>
 </ul>
 </details></li>
@@ -264,6 +266,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../../overview/reinforcement-learning/rl_existing_scripts.html">Reinforcement Learning Wrappers</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../overview/reinforcement-learning/rl_frameworks.html">Reinforcement Learning Library Comparison</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../overview/reinforcement-learning/performance_benchmarks.html">Performance Benchmarks</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/reinforcement-learning/training_guide.html">Debugging and Training Guide</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1"><a class="reference internal" href="../../overview/teleop_imitation.html">Teleoperation and Imitation Learning</a></li>
@@ -294,6 +297,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../03_envs/register_rl_env_gym.html">Registering an Environment</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../03_envs/run_rl_training.html">Training with an RL Agent</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../03_envs/modify_direct_rl_env.html">Modifying an existing Direct RL Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../03_envs/policy_inference_in_usd.html">Policy Inference in USD Environment</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../04_sensors/add_sensors_on_robot.html">Adding sensors on a robot</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../05_controllers/run_diff_ik.html">Using a task-space controller</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../05_controllers/run_osc.html">Using an operational space controller</a></li>
@@ -330,28 +334,27 @@
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Source API</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../api/index.html">API Reference</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.app.html">omni.isaac.lab.app</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.actuators.html">omni.isaac.lab.actuators</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.assets.html">omni.isaac.lab.assets</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.controllers.html">omni.isaac.lab.controllers</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.devices.html">omni.isaac.lab.devices</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.envs.html">omni.isaac.lab.envs</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.managers.html">omni.isaac.lab.managers</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.markers.html">omni.isaac.lab.markers</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.scene.html">omni.isaac.lab.scene</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.sensors.html">omni.isaac.lab.sensors</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.sim.html">omni.isaac.lab.sim</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.terrains.html">omni.isaac.lab.terrains</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.utils.html">omni.isaac.lab.utils</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.envs.mdp.html">omni.isaac.lab.envs.mdp</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.envs.ui.html">omni.isaac.lab.envs.ui</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.sensors.patterns.html">omni.isaac.lab.sensors.patterns</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.sim.converters.html">omni.isaac.lab.sim.converters</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.sim.schemas.html">omni.isaac.lab.sim.schemas</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.sim.spawners.html">omni.isaac.lab.sim.spawners</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab_tasks/omni.isaac.lab_tasks.utils.html">omni.isaac.lab_tasks.utils</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab_tasks/omni.isaac.lab_tasks.utils.wrappers.html">omni.isaac.lab_tasks.utils.wrappers</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab_tasks/omni.isaac.lab_tasks.utils.data_collector.html">omni.isaac.lab_tasks.utils.data_collector</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.app.html">isaaclab.app</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.actuators.html">isaaclab.actuators</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.assets.html">isaaclab.assets</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.controllers.html">isaaclab.controllers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.devices.html">isaaclab.devices</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.envs.html">isaaclab.envs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.managers.html">isaaclab.managers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.markers.html">isaaclab.markers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.scene.html">isaaclab.scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.sensors.html">isaaclab.sensors</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.sim.html">isaaclab.sim</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.terrains.html">isaaclab.terrains</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.utils.html">isaaclab.utils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.envs.mdp.html">isaaclab.envs.mdp</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.envs.ui.html">isaaclab.envs.ui</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.sensors.patterns.html">isaaclab.sensors.patterns</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.sim.converters.html">isaaclab.sim.converters</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.sim.schemas.html">isaaclab.sim.schemas</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.sim.spawners.html">isaaclab.sim.spawners</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab_tasks/isaaclab_tasks.utils.html">isaaclab_tasks.utils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab_mimic/isaaclab_mimic.datagen.html">isaaclab_mimic.datagen</a></li>
 </ul>
 </details></li>
 </ul>
@@ -361,7 +364,15 @@
 <li class="toctree-l1"><a class="reference internal" href="../../refs/additional_resources.html">Additional Resources</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../refs/contributing.html">Contribution Guidelines</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../refs/troubleshooting.html">Tricks and Troubleshooting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../refs/migration.html">Migration Guide (Isaac Sim)</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../refs/issues.html">Known Issues</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../refs/release_notes.html">Release Notes</a></li>
+
+
+
+
+
+
 <li class="toctree-l1"><a class="reference internal" href="../../refs/changelog.html">Extensions Changelog</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../refs/license.html">License</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../refs/bibliography.html">Bibliography</a></li>
@@ -369,7 +380,7 @@
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Project Links</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference external" href="https://github.com/isaac-sim/IsaacLab">GitHub</a></li>
-<li class="toctree-l1"><a class="reference external" href="https://docs.omniverse.nvidia.com/isaacsim/latest/index.html">NVIDIA Isaac Sim</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/latest/index.html">NVIDIA Isaac Sim</a></li>
 <li class="toctree-l1"><a class="reference external" href="https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/index.html">NVIDIA PhysX</a></li>
 </ul>
 
@@ -601,23 +612,23 @@
                   
   <section id="deep-dive-into-applauncher">
 <h1>Deep-dive into AppLauncher<a class="headerlink" href="#deep-dive-into-applauncher" title="Permalink to this heading">#</a></h1>
-<p>In this tutorial, we will dive into the <a class="reference internal" href="../../api/lab/omni.isaac.lab.app.html#omni.isaac.lab.app.AppLauncher" title="omni.isaac.lab.app.AppLauncher"><code class="xref py py-class docutils literal notranslate"><span class="pre">app.AppLauncher</span></code></a> class to configure the simulator using
+<p>In this tutorial, we will dive into the <a class="reference internal" href="../../api/lab/isaaclab.app.html#isaaclab.app.AppLauncher" title="isaaclab.app.AppLauncher"><code class="xref py py-class docutils literal notranslate"><span class="pre">app.AppLauncher</span></code></a> class to configure the simulator using
 CLI arguments and environment variables (envars). Particularly, we will demonstrate how to use
-<a class="reference internal" href="../../api/lab/omni.isaac.lab.app.html#omni.isaac.lab.app.AppLauncher" title="omni.isaac.lab.app.AppLauncher"><code class="xref py py-class docutils literal notranslate"><span class="pre">AppLauncher</span></code></a> to enable livestreaming and configure the <code class="xref py py-class docutils literal notranslate"><span class="pre">omni.isaac.kit.SimulationApp</span></code>
+<a class="reference internal" href="../../api/lab/isaaclab.app.html#isaaclab.app.AppLauncher" title="isaaclab.app.AppLauncher"><code class="xref py py-class docutils literal notranslate"><span class="pre">AppLauncher</span></code></a> to enable livestreaming and configure the <code class="xref py py-class docutils literal notranslate"><span class="pre">isaacsim.simulation_app.SimulationApp</span></code>
 instance it wraps, while also allowing user-provided options.</p>
-<p>The <a class="reference internal" href="../../api/lab/omni.isaac.lab.app.html#omni.isaac.lab.app.AppLauncher" title="omni.isaac.lab.app.AppLauncher"><code class="xref py py-class docutils literal notranslate"><span class="pre">AppLauncher</span></code></a> is a wrapper for <code class="xref py py-class docutils literal notranslate"><span class="pre">SimulationApp</span></code> to simplify
+<p>The <a class="reference internal" href="../../api/lab/isaaclab.app.html#isaaclab.app.AppLauncher" title="isaaclab.app.AppLauncher"><code class="xref py py-class docutils literal notranslate"><span class="pre">AppLauncher</span></code></a> is a wrapper for <code class="xref py py-class docutils literal notranslate"><span class="pre">SimulationApp</span></code> to simplify
 its configuration. The <code class="xref py py-class docutils literal notranslate"><span class="pre">SimulationApp</span></code> has many extensions that must be
 loaded to enable different capabilities, and some of these extensions are order- and inter-dependent.
 Additionally, there are startup options such as <code class="docutils literal notranslate"><span class="pre">headless</span></code> which must be set at instantiation time,
 and which have an implied relationship with some extensions, e.g. the livestreaming extensions.
-The <a class="reference internal" href="../../api/lab/omni.isaac.lab.app.html#omni.isaac.lab.app.AppLauncher" title="omni.isaac.lab.app.AppLauncher"><code class="xref py py-class docutils literal notranslate"><span class="pre">AppLauncher</span></code></a> presents an interface that can handle these extensions and startup
+The <a class="reference internal" href="../../api/lab/isaaclab.app.html#isaaclab.app.AppLauncher" title="isaaclab.app.AppLauncher"><code class="xref py py-class docutils literal notranslate"><span class="pre">AppLauncher</span></code></a> presents an interface that can handle these extensions and startup
 options in a portable manner across a variety of use cases. To achieve this, we offer CLI and envar
 flags which can be merged with user-defined CLI args, while passing forward arguments intended
 for <code class="xref py py-class docutils literal notranslate"><span class="pre">SimulationApp</span></code>.</p>
 <section id="the-code">
 <h2>The Code<a class="headerlink" href="#the-code" title="Permalink to this heading">#</a></h2>
 <p>The tutorial corresponds to the <code class="docutils literal notranslate"><span class="pre">launch_app.py</span></code> script in the
-<code class="docutils literal notranslate"><span class="pre">source/standalone/tutorials/00_sim</span></code> directory.</p>
+<code class="docutils literal notranslate"><span class="pre">scripts/tutorials/00_sim</span></code> directory.</p>
 <details class="sd-sphinx-override sd-dropdown sd-card sd-mb-3">
 <summary class="sd-summary-title sd-card-header">
 <span class="sd-summary-icon"><svg version="1.1" width="1.0em" height="1.0em" class="sd-octicon sd-octicon-code" viewBox="0 0 16 16" aria-hidden="true"><path d="m11.28 3.22 4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.749.749 0 0 1-1.275-.326.749.749 0 0 1 .215-.734L13.94 8l-3.72-3.72a.749.749 0 0 1 .326-1.275.749.749 0 0 1 .734.215Zm-6.56 0a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042L2.06 8l3.72 3.72a.749.749 0 0 1-.326 1.275.749.749 0 0 1-.734-.215L.47 8.53a.75.75 0 0 1 0-1.06Z"></path></svg></span><span class="sd-summary-text">Code for launch_app.py</span><span class="sd-summary-state-marker sd-summary-chevron-right"><svg version="1.1" width="1.5em" height="1.5em" class="sd-octicon sd-octicon-chevron-right" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.72 18.78a.75.75 0 0 1 0-1.06L14.44 12 8.72 6.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018l6.25 6.25a.75.75 0 0 1 0 1.06l-6.25 6.25a.75.75 0 0 1-1.06 0Z"></path></svg></span></summary><div class="sd-summary-content sd-card-body docutils">
@@ -632,7 +643,7 @@ for <code class="xref py py-class docutils literal notranslate"><span class="pre
 <span class="linenos"> 9</span><span class="sd">.. code-block:: bash</span>
 <span class="linenos">10</span>
 <span class="linenos">11</span><span class="sd">    # Usage</span>
-<span class="linenos">12</span><span class="sd">    ./isaaclab.sh -p source/standalone/tutorials/00_sim/launch_app.py</span>
+<span class="linenos">12</span><span class="sd">    ./isaaclab.sh -p scripts/tutorials/00_sim/launch_app.py</span>
 <span class="linenos">13</span>
 <span class="linenos">14</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="linenos">15</span>
@@ -641,12 +652,12 @@ for <code class="xref py py-class docutils literal notranslate"><span class="pre
 <span class="hll"><span class="linenos">18</span>
 </span><span class="hll"><span class="linenos">19</span><span class="kn">import</span><span class="w"> </span><span class="nn">argparse</span>
 </span><span class="hll"><span class="linenos">20</span>
-</span><span class="hll"><span class="linenos">21</span><span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.app</span><span class="w"> </span><span class="kn">import</span> <span class="n">AppLauncher</span>
+</span><span class="hll"><span class="linenos">21</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.app</span><span class="w"> </span><span class="kn">import</span> <span class="n">AppLauncher</span>
 </span><span class="hll"><span class="linenos">22</span>
 </span><span class="hll"><span class="linenos">23</span><span class="c1"># create argparser</span>
 </span><span class="hll"><span class="linenos">24</span><span class="n">parser</span> <span class="o">=</span> <span class="n">argparse</span><span class="o">.</span><span class="n">ArgumentParser</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="s2">&quot;Tutorial on running IsaacSim via the AppLauncher.&quot;</span><span class="p">)</span>
 </span><span class="hll"><span class="linenos">25</span><span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">&quot;--size&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">float</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Side-length of cuboid&quot;</span><span class="p">)</span>
-</span><span class="hll"><span class="linenos">26</span><span class="c1"># SimulationApp arguments https://docs.omniverse.nvidia.com/py/isaacsim/source/extensions/omni.isaac.kit/docs/index.html?highlight=simulationapp#omni.isaac.kit.SimulationApp</span>
+</span><span class="hll"><span class="linenos">26</span><span class="c1"># SimulationApp arguments https://docs.omniverse.nvidia.com/py/isaacsim/source/isaacsim.simulation_app/docs/index.html?highlight=simulationapp#isaacsim.simulation_app.SimulationApp</span>
 </span><span class="hll"><span class="linenos">27</span><span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
 </span><span class="hll"><span class="linenos">28</span>    <span class="s2">&quot;--width&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">int</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="mi">1280</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Width of the viewport and generated images. Defaults to 1280&quot;</span>
 </span><span class="hll"><span class="linenos">29</span><span class="p">)</span>
@@ -664,7 +675,7 @@ for <code class="xref py py-class docutils literal notranslate"><span class="pre
 </span><span class="linenos">41</span>
 <span class="linenos">42</span><span class="sd">&quot;&quot;&quot;Rest everything follows.&quot;&quot;&quot;</span>
 <span class="linenos">43</span>
-<span class="linenos">44</span><span class="kn">import</span><span class="w"> </span><span class="nn">omni.isaac.lab.sim</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">sim_utils</span>
+<span class="linenos">44</span><span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab.sim</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">sim_utils</span>
 <span class="linenos">45</span>
 <span class="linenos">46</span>
 <span class="linenos">47</span><span class="k">def</span><span class="w"> </span><span class="nf">design_scene</span><span class="p">():</span>
@@ -725,26 +736,26 @@ for <code class="xref py py-class docutils literal notranslate"><span class="pre
 <h2>The Code Explained<a class="headerlink" href="#the-code-explained" title="Permalink to this heading">#</a></h2>
 <section id="adding-arguments-to-the-argparser">
 <h3>Adding arguments to the argparser<a class="headerlink" href="#adding-arguments-to-the-argparser" title="Permalink to this heading">#</a></h3>
-<p><a class="reference internal" href="../../api/lab/omni.isaac.lab.app.html#omni.isaac.lab.app.AppLauncher" title="omni.isaac.lab.app.AppLauncher"><code class="xref py py-class docutils literal notranslate"><span class="pre">AppLauncher</span></code></a> is designed to be compatible with custom CLI args that users need for
+<p><a class="reference internal" href="../../api/lab/isaaclab.app.html#isaaclab.app.AppLauncher" title="isaaclab.app.AppLauncher"><code class="xref py py-class docutils literal notranslate"><span class="pre">AppLauncher</span></code></a> is designed to be compatible with custom CLI args that users need for
 their own scripts, while still providing a portable CLI interface.</p>
 <p>In this tutorial, a standard <a class="reference external" href="https://docs.python.org/3/library/argparse.html#argparse.ArgumentParser" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">argparse.ArgumentParser</span></code></a> is instantiated and given the
 script-specific <code class="docutils literal notranslate"><span class="pre">--size</span></code> argument, as well as the arguments <code class="docutils literal notranslate"><span class="pre">--height</span></code> and <code class="docutils literal notranslate"><span class="pre">--width</span></code>.
 The latter are ingested by <code class="xref py py-class docutils literal notranslate"><span class="pre">SimulationApp</span></code>.</p>
-<p>The argument <code class="docutils literal notranslate"><span class="pre">--size</span></code> is not used by <a class="reference internal" href="../../api/lab/omni.isaac.lab.app.html#omni.isaac.lab.app.AppLauncher" title="omni.isaac.lab.app.AppLauncher"><code class="xref py py-class docutils literal notranslate"><span class="pre">AppLauncher</span></code></a>, but will merge seamlessly
-with the <a class="reference internal" href="../../api/lab/omni.isaac.lab.app.html#omni.isaac.lab.app.AppLauncher" title="omni.isaac.lab.app.AppLauncher"><code class="xref py py-class docutils literal notranslate"><span class="pre">AppLauncher</span></code></a> interface. In-script arguments can be merged with the
-<a class="reference internal" href="../../api/lab/omni.isaac.lab.app.html#omni.isaac.lab.app.AppLauncher" title="omni.isaac.lab.app.AppLauncher"><code class="xref py py-class docutils literal notranslate"><span class="pre">AppLauncher</span></code></a> interface via the <a class="reference internal" href="../../api/lab/omni.isaac.lab.app.html#omni.isaac.lab.app.AppLauncher.add_app_launcher_args" title="omni.isaac.lab.app.AppLauncher.add_app_launcher_args"><code class="xref py py-meth docutils literal notranslate"><span class="pre">add_app_launcher_args()</span></code></a> method,
-which will return a modified <a class="reference external" href="https://docs.python.org/3/library/argparse.html#argparse.ArgumentParser" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">ArgumentParser</span></code></a> with the <a class="reference internal" href="../../api/lab/omni.isaac.lab.app.html#omni.isaac.lab.app.AppLauncher" title="omni.isaac.lab.app.AppLauncher"><code class="xref py py-class docutils literal notranslate"><span class="pre">AppLauncher</span></code></a>
+<p>The argument <code class="docutils literal notranslate"><span class="pre">--size</span></code> is not used by <a class="reference internal" href="../../api/lab/isaaclab.app.html#isaaclab.app.AppLauncher" title="isaaclab.app.AppLauncher"><code class="xref py py-class docutils literal notranslate"><span class="pre">AppLauncher</span></code></a>, but will merge seamlessly
+with the <a class="reference internal" href="../../api/lab/isaaclab.app.html#isaaclab.app.AppLauncher" title="isaaclab.app.AppLauncher"><code class="xref py py-class docutils literal notranslate"><span class="pre">AppLauncher</span></code></a> interface. In-script arguments can be merged with the
+<a class="reference internal" href="../../api/lab/isaaclab.app.html#isaaclab.app.AppLauncher" title="isaaclab.app.AppLauncher"><code class="xref py py-class docutils literal notranslate"><span class="pre">AppLauncher</span></code></a> interface via the <a class="reference internal" href="../../api/lab/isaaclab.app.html#isaaclab.app.AppLauncher.add_app_launcher_args" title="isaaclab.app.AppLauncher.add_app_launcher_args"><code class="xref py py-meth docutils literal notranslate"><span class="pre">add_app_launcher_args()</span></code></a> method,
+which will return a modified <a class="reference external" href="https://docs.python.org/3/library/argparse.html#argparse.ArgumentParser" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">ArgumentParser</span></code></a> with the <a class="reference internal" href="../../api/lab/isaaclab.app.html#isaaclab.app.AppLauncher" title="isaaclab.app.AppLauncher"><code class="xref py py-class docutils literal notranslate"><span class="pre">AppLauncher</span></code></a>
 arguments appended. This can then be processed into an <a class="reference external" href="https://docs.python.org/3/library/argparse.html#argparse.Namespace" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">argparse.Namespace</span></code></a> using the
 standard <a class="reference external" href="https://docs.python.org/3/library/argparse.html#argparse.ArgumentParser.parse_args" title="(in Python v3.13)"><code class="xref py py-meth docutils literal notranslate"><span class="pre">argparse.ArgumentParser.parse_args()</span></code></a> method and passed directly to
-<a class="reference internal" href="../../api/lab/omni.isaac.lab.app.html#omni.isaac.lab.app.AppLauncher" title="omni.isaac.lab.app.AppLauncher"><code class="xref py py-class docutils literal notranslate"><span class="pre">AppLauncher</span></code></a> for instantiation.</p>
+<a class="reference internal" href="../../api/lab/isaaclab.app.html#isaaclab.app.AppLauncher" title="isaaclab.app.AppLauncher"><code class="xref py py-class docutils literal notranslate"><span class="pre">AppLauncher</span></code></a> for instantiation.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">argparse</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.app</span><span class="w"> </span><span class="kn">import</span> <span class="n">AppLauncher</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.app</span><span class="w"> </span><span class="kn">import</span> <span class="n">AppLauncher</span>
 
 <span class="c1"># create argparser</span>
 <span class="n">parser</span> <span class="o">=</span> <span class="n">argparse</span><span class="o">.</span><span class="n">ArgumentParser</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="s2">&quot;Tutorial on running IsaacSim via the AppLauncher.&quot;</span><span class="p">)</span>
 <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">&quot;--size&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">float</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Side-length of cuboid&quot;</span><span class="p">)</span>
-<span class="c1"># SimulationApp arguments https://docs.omniverse.nvidia.com/py/isaacsim/source/extensions/omni.isaac.kit/docs/index.html?highlight=simulationapp#omni.isaac.kit.SimulationApp</span>
+<span class="c1"># SimulationApp arguments https://docs.omniverse.nvidia.com/py/isaacsim/source/isaacsim.simulation_app/docs/index.html?highlight=simulationapp#isaacsim.simulation_app.SimulationApp</span>
 <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
     <span class="s2">&quot;--width&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">int</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="mi">1280</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Width of the viewport and generated images. Defaults to 1280&quot;</span>
 <span class="p">)</span>
@@ -761,14 +772,14 @@ standard <a class="reference external" href="https://docs.python.org/3/library/a
 <span class="n">simulation_app</span> <span class="o">=</span> <span class="n">app_launcher</span><span class="o">.</span><span class="n">app</span>
 </pre></div>
 </div>
-<p>The above only illustrates only one of several ways of passing arguments to <a class="reference internal" href="../../api/lab/omni.isaac.lab.app.html#omni.isaac.lab.app.AppLauncher" title="omni.isaac.lab.app.AppLauncher"><code class="xref py py-class docutils literal notranslate"><span class="pre">AppLauncher</span></code></a>.
+<p>The above only illustrates only one of several ways of passing arguments to <a class="reference internal" href="../../api/lab/isaaclab.app.html#isaaclab.app.AppLauncher" title="isaaclab.app.AppLauncher"><code class="xref py py-class docutils literal notranslate"><span class="pre">AppLauncher</span></code></a>.
 Please consult its documentation page to see further options.</p>
 </section>
 <section id="understanding-the-output-of-help">
 <h3>Understanding the output of –help<a class="headerlink" href="#understanding-the-output-of-help" title="Permalink to this heading">#</a></h3>
 <p>While executing the script, we can pass the <code class="docutils literal notranslate"><span class="pre">--help</span></code> argument and see the combined outputs of the
-custom arguments and those from <a class="reference internal" href="../../api/lab/omni.isaac.lab.app.html#omni.isaac.lab.app.AppLauncher" title="omni.isaac.lab.app.AppLauncher"><code class="xref py py-class docutils literal notranslate"><span class="pre">AppLauncher</span></code></a>.</p>
-<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="go">./isaaclab.sh -p source/standalone/tutorials/00_sim/launch_app.py --help</span>
+custom arguments and those from <a class="reference internal" href="../../api/lab/isaaclab.app.html#isaaclab.app.AppLauncher" title="isaaclab.app.AppLauncher"><code class="xref py py-class docutils literal notranslate"><span class="pre">AppLauncher</span></code></a>.</p>
+<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="go">./isaaclab.sh -p scripts/tutorials/00_sim/launch_app.py --help</span>
 
 <span class="go">[INFO] Using python from: /isaac-sim/python.sh</span>
 <span class="go">[INFO][AppLauncher]: The argument &#39;width&#39; will be used to configure the SimulationApp.</span>
@@ -799,55 +810,55 @@ custom arguments and those from <a class="reference internal" href="../../api/la
 </pre></div>
 </div>
 <p>This readout details the <code class="docutils literal notranslate"><span class="pre">--size</span></code>, <code class="docutils literal notranslate"><span class="pre">--height</span></code>, and <code class="docutils literal notranslate"><span class="pre">--width</span></code> arguments defined in the script directly,
-as well as the <a class="reference internal" href="../../api/lab/omni.isaac.lab.app.html#omni.isaac.lab.app.AppLauncher" title="omni.isaac.lab.app.AppLauncher"><code class="xref py py-class docutils literal notranslate"><span class="pre">AppLauncher</span></code></a> arguments.</p>
+as well as the <a class="reference internal" href="../../api/lab/isaaclab.app.html#isaaclab.app.AppLauncher" title="isaaclab.app.AppLauncher"><code class="xref py py-class docutils literal notranslate"><span class="pre">AppLauncher</span></code></a> arguments.</p>
 <p>The <code class="docutils literal notranslate"><span class="pre">[INFO]</span></code> messages preceding the help output also reads out which of these arguments are going
 to be interpreted as arguments to the <code class="xref py py-class docutils literal notranslate"><span class="pre">SimulationApp</span></code> instance which the
-<a class="reference internal" href="../../api/lab/omni.isaac.lab.app.html#omni.isaac.lab.app.AppLauncher" title="omni.isaac.lab.app.AppLauncher"><code class="xref py py-class docutils literal notranslate"><span class="pre">AppLauncher</span></code></a> class wraps. In this case, it is <code class="docutils literal notranslate"><span class="pre">--height</span></code> and <code class="docutils literal notranslate"><span class="pre">--width</span></code>. These
+<a class="reference internal" href="../../api/lab/isaaclab.app.html#isaaclab.app.AppLauncher" title="isaaclab.app.AppLauncher"><code class="xref py py-class docutils literal notranslate"><span class="pre">AppLauncher</span></code></a> class wraps. In this case, it is <code class="docutils literal notranslate"><span class="pre">--height</span></code> and <code class="docutils literal notranslate"><span class="pre">--width</span></code>. These
 are classified as such because they match the name and type of an argument which can be processed
-by <code class="xref py py-class docutils literal notranslate"><span class="pre">SimulationApp</span></code>. Please refer to the <a class="reference external" href="https://docs.omniverse.nvidia.com/py/isaacsim/source/extensions/omni.isaac.kit/docs/index.html#omni.isaac.kit.SimulationApp.DEFAULT_LAUNCHER_CONFIG">specification</a> for such arguments
+by <code class="xref py py-class docutils literal notranslate"><span class="pre">SimulationApp</span></code>. Please refer to the <a class="reference external" href="https://docs.omniverse.nvidia.com/py/isaacsim/source/isaacsim.simulation_app/docs/index.html#isaacsim.simulation_app.SimulationApp.DEFAULT_LAUNCHER_CONFIG">specification</a> for such arguments
 for more examples.</p>
 </section>
 <section id="using-environment-variables">
 <h3>Using environment variables<a class="headerlink" href="#using-environment-variables" title="Permalink to this heading">#</a></h3>
-<p>As noted in the help message, the <a class="reference internal" href="../../api/lab/omni.isaac.lab.app.html#omni.isaac.lab.app.AppLauncher" title="omni.isaac.lab.app.AppLauncher"><code class="xref py py-class docutils literal notranslate"><span class="pre">AppLauncher</span></code></a> arguments (<code class="docutils literal notranslate"><span class="pre">--livestream</span></code>, <code class="docutils literal notranslate"><span class="pre">--headless</span></code>)
-have corresponding environment variables (envar) as well. These are detailed in <a class="reference internal" href="../../api/lab/omni.isaac.lab.app.html#module-omni.isaac.lab.app" title="omni.isaac.lab.app"><code class="xref py py-mod docutils literal notranslate"><span class="pre">omni.isaac.lab.app</span></code></a>
+<p>As noted in the help message, the <a class="reference internal" href="../../api/lab/isaaclab.app.html#isaaclab.app.AppLauncher" title="isaaclab.app.AppLauncher"><code class="xref py py-class docutils literal notranslate"><span class="pre">AppLauncher</span></code></a> arguments (<code class="docutils literal notranslate"><span class="pre">--livestream</span></code>, <code class="docutils literal notranslate"><span class="pre">--headless</span></code>)
+have corresponding environment variables (envar) as well. These are detailed in <a class="reference internal" href="../../api/lab/isaaclab.app.html#module-isaaclab.app" title="isaaclab.app"><code class="xref py py-mod docutils literal notranslate"><span class="pre">isaaclab.app</span></code></a>
 documentation. Providing any of these arguments through CLI is equivalent to running the script in a shell
 environment where the corresponding envar is set.</p>
-<p>The support for <a class="reference internal" href="../../api/lab/omni.isaac.lab.app.html#omni.isaac.lab.app.AppLauncher" title="omni.isaac.lab.app.AppLauncher"><code class="xref py py-class docutils literal notranslate"><span class="pre">AppLauncher</span></code></a> envars are simply a convenience to provide session-persistent
+<p>The support for <a class="reference internal" href="../../api/lab/isaaclab.app.html#isaaclab.app.AppLauncher" title="isaaclab.app.AppLauncher"><code class="xref py py-class docutils literal notranslate"><span class="pre">AppLauncher</span></code></a> envars are simply a convenience to provide session-persistent
 configurations, and can be set in the user’s <code class="docutils literal notranslate"><span class="pre">${HOME}/.bashrc</span></code> for persistent settings between sessions.
 In the case where these arguments are provided from the CLI, they will override their corresponding envar,
 as we will demonstrate later in this tutorial.</p>
-<p>These arguments can be used with any script that starts the simulation using <a class="reference internal" href="../../api/lab/omni.isaac.lab.app.html#omni.isaac.lab.app.AppLauncher" title="omni.isaac.lab.app.AppLauncher"><code class="xref py py-class docutils literal notranslate"><span class="pre">AppLauncher</span></code></a>,
+<p>These arguments can be used with any script that starts the simulation using <a class="reference internal" href="../../api/lab/isaaclab.app.html#isaaclab.app.AppLauncher" title="isaaclab.app.AppLauncher"><code class="xref py py-class docutils literal notranslate"><span class="pre">AppLauncher</span></code></a>,
 with one exception, <code class="docutils literal notranslate"><span class="pre">--enable_cameras</span></code>. This setting sets the rendering pipeline to use the
-offscreen renderer. However, this setting is only compatible with the <a class="reference internal" href="../../api/lab/omni.isaac.lab.sim.html#omni.isaac.lab.sim.SimulationContext" title="omni.isaac.lab.sim.SimulationContext"><code class="xref py py-class docutils literal notranslate"><span class="pre">omni.isaac.lab.sim.SimulationContext</span></code></a>.
-It will not work with Isaac Sim’s <a class="reference external" href="https://docs.omniverse.nvidia.com/py/isaacsim/source/extensions/omni.isaac.core/docs/index.html#omni.isaac.core.simulation_context.SimulationContext" title="(in isaac_sim)"><code class="xref py py-class docutils literal notranslate"><span class="pre">omni.isaac.core.simulation_context.SimulationContext</span></code></a> class.
-For more information on this flag, please see the <a class="reference internal" href="../../api/lab/omni.isaac.lab.app.html#omni.isaac.lab.app.AppLauncher" title="omni.isaac.lab.app.AppLauncher"><code class="xref py py-class docutils literal notranslate"><span class="pre">AppLauncher</span></code></a> API documentation.</p>
+offscreen renderer. However, this setting is only compatible with the <a class="reference internal" href="../../api/lab/isaaclab.sim.html#isaaclab.sim.SimulationContext" title="isaaclab.sim.SimulationContext"><code class="xref py py-class docutils literal notranslate"><span class="pre">isaaclab.sim.SimulationContext</span></code></a>.
+It will not work with Isaac Sim’s <code class="xref py py-class docutils literal notranslate"><span class="pre">isaacsim.core.api.simulation_context.SimulationContext</span></code> class.
+For more information on this flag, please see the <a class="reference internal" href="../../api/lab/isaaclab.app.html#isaaclab.app.AppLauncher" title="isaaclab.app.AppLauncher"><code class="xref py py-class docutils literal notranslate"><span class="pre">AppLauncher</span></code></a> API documentation.</p>
 </section>
 </section>
 <section id="the-code-execution">
 <h2>The Code Execution<a class="headerlink" href="#the-code-execution" title="Permalink to this heading">#</a></h2>
 <p>We will now run the example script:</p>
-<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="go">LIVESTREAM=1 ./isaaclab.sh -p source/standalone/tutorials/00_sim/launch_app.py --size 0.5</span>
+<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="go">LIVESTREAM=2 ./isaaclab.sh -p scripts/tutorials/00_sim/launch_app.py --size 0.5</span>
 </pre></div>
 </div>
 <p>This will spawn a 0.5m<sup>3</sup> volume cuboid in the simulation. No GUI will appear, equivalent
 to if we had passed the <code class="docutils literal notranslate"><span class="pre">--headless</span></code> flag because headlessness is implied by our <code class="docutils literal notranslate"><span class="pre">LIVESTREAM</span></code>
-envar. If a visualization is desired, we could get one via Isaac’s <a class="reference external" href="https://docs.omniverse.nvidia.com/isaacsim/latest/installation/manual_livestream_clients.html#omniverse-streaming-client">Native Livestreaming</a>. Streaming
+envar. If a visualization is desired, we could get one via Isaac’s <a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/latest/installation/manual_livestream_clients.html#isaac-sim-short-webrtc-streaming-client">WebRTC Livestreaming</a>. Streaming
 is currently the only supported method of visualization from within the container. The
 process can be killed by pressing <code class="docutils literal notranslate"><span class="pre">Ctrl+C</span></code> in the launching terminal.</p>
 <figure class="align-center" style="width: 100%">
 <img alt="result of launch_app.py" src="../../../_images/tutorial_launch_app.jpg" />
 </figure>
-<p>Now, let’s look at how <a class="reference internal" href="../../api/lab/omni.isaac.lab.app.html#omni.isaac.lab.app.AppLauncher" title="omni.isaac.lab.app.AppLauncher"><code class="xref py py-class docutils literal notranslate"><span class="pre">AppLauncher</span></code></a> handles conflicting commands:</p>
-<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="go">LIVESTREAM=0 ./isaaclab.sh -p source/standalone/tutorials/00_sim/launch_app.py --size 0.5 --livestream 1</span>
+<p>Now, let’s look at how <a class="reference internal" href="../../api/lab/isaaclab.app.html#isaaclab.app.AppLauncher" title="isaaclab.app.AppLauncher"><code class="xref py py-class docutils literal notranslate"><span class="pre">AppLauncher</span></code></a> handles conflicting commands:</p>
+<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="go">LIVESTREAM=0 ./isaaclab.sh -p scripts/tutorials/00_sim/launch_app.py --size 0.5 --livestream 2</span>
 </pre></div>
 </div>
 <p>This will cause the same behavior as in the previous run, because although we have set <code class="docutils literal notranslate"><span class="pre">LIVESTREAM=0</span></code>
 in our envars, CLI args such as <code class="docutils literal notranslate"><span class="pre">--livestream</span></code> take precedence in determining behavior. The process can
 be killed by pressing <code class="docutils literal notranslate"><span class="pre">Ctrl+C</span></code> in the launching terminal.</p>
 <p>Finally, we will examine passing arguments to <code class="xref py py-class docutils literal notranslate"><span class="pre">SimulationApp</span></code> through
-<a class="reference internal" href="../../api/lab/omni.isaac.lab.app.html#omni.isaac.lab.app.AppLauncher" title="omni.isaac.lab.app.AppLauncher"><code class="xref py py-class docutils literal notranslate"><span class="pre">AppLauncher</span></code></a>:</p>
-<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="go">LIVESTREAM=1 ./isaaclab.sh -p source/standalone/tutorials/00_sim/launch_app.py --size 0.5 --width 1920 --height 1080</span>
+<a class="reference internal" href="../../api/lab/isaaclab.app.html#isaaclab.app.AppLauncher" title="isaaclab.app.AppLauncher"><code class="xref py py-class docutils literal notranslate"><span class="pre">AppLauncher</span></code></a>:</p>
+<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="go">LIVESTREAM=2 ./isaaclab.sh -p scripts/tutorials/00_sim/launch_app.py --size 0.5 --width 1920 --height 1080</span>
 </pre></div>
 </div>
 <p>This will cause the same behavior as before, but now the viewport will be rendered at 1920x1080p resolution.

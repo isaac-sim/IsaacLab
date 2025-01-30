@@ -192,7 +192,7 @@
           
           
           
-          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.2.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.5.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
         </li>
         <li class="nav-item">
           
@@ -1080,7 +1080,7 @@ Action and observation noise configs must be added to the main task config using
     <span class="p">)</span>
 </pre></div>
 </div>
-<p><a class="reference internal" href="../../api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.noise.NoiseModelWithAdditiveBiasCfg" title="omni.isaac.lab.utils.noise.NoiseModelWithAdditiveBiasCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">NoiseModelWithAdditiveBiasCfg</span></code></a> can be used to sample both uncorrelated noise
+<p><code class="xref py py-class docutils literal notranslate"><span class="pre">NoiseModelWithAdditiveBiasCfg</span></code> can be used to sample both uncorrelated noise
 per step as well as correlated noise that is re-sampled at reset time.</p>
 <p>The <code class="docutils literal notranslate"><span class="pre">noise_cfg</span></code> term specifies the Gaussian distribution that will be sampled at each
 step for all environments. This noise will be added to the corresponding actions and
@@ -1089,7 +1089,7 @@ observations buffers at every step.</p>
 that will be sampled at reset time for the environments being reset. The same noise
 will be applied each step for the remaining of the episode for the environments and
 resampled at the next reset.</p>
-<p>If only per-step noise is desired, <a class="reference internal" href="../../api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.noise.GaussianNoiseCfg" title="omni.isaac.lab.utils.noise.GaussianNoiseCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">GaussianNoiseCfg</span></code></a> can be used
+<p>If only per-step noise is desired, <code class="xref py py-class docutils literal notranslate"><span class="pre">GaussianNoiseCfg</span></code> can be used
 to specify an additive Gaussian distribution that adds the sampled noise to the input buffer.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="nd">@configclass</span>
 <span class="k">class</span><span class="w"> </span><span class="nc">MyTaskConfig</span><span class="p">:</span>

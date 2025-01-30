@@ -75,8 +75,8 @@ Asset Configuration
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
 Given that you have the asset file for your robot and other assets such as environment objects based on the task, the next step is to import them into Isaac Lab. Isaac Lab uses asset configuration classes to spawn various objects (or prims) into the scene using Python. The first step is to write a configuration class to define the properties for the assets needed to complete the task. For example, a simple go-to-goal task for a mobile robot will include the robot asset, an object like cubes to signify the goal pose visually, lights, ground plane, etc. Isaac Lab understands these assets using the configuration classes. Isaac Lab provides various sim-ready assets such as physically accurate
-3D objects that encompass accurate physical properties and behavior. It also provides connected data streams to represent the real world in simulated digital worlds such as `robots <https://github.com/isaac-sim/IsaacLab/tree/main/source/extensions/omni.isaac.lab_assets/omni/isaac/lab_assets>`__
-like ANYbotics Anymal, Unitree H1 Humanoid, etc. as well as `sensors <https://github.com/isaac-sim/IsaacLab/tree/main/source/extensions/omni.isaac.lab/omni/isaac/lab/sensors>`__. We provide these assets configuration classes. Users can also define their own assets using the configuration classes.
+3D objects that encompass accurate physical properties and behavior. It also provides connected data streams to represent the real world in simulated digital worlds such as `robots <https://github.com/isaac-sim/IsaacLab/tree/main/source/isaaclab_assets/isaaclab_assets>`__
+like ANYbotics Anymal, Unitree H1 Humanoid, etc. as well as `sensors <https://github.com/isaac-sim/IsaacLab/tree/main/source/isaaclab/isaaclab/sensors>`__. We provide these assets configuration classes. Users can also define their own assets using the configuration classes.
 
 Follow the tutorial on `how to write an Articulation and ArticulationCfg class <https://isaac-sim.github.io/IsaacLab/main/source/how-to/write_articulation_cfg.html>`__.
 
@@ -168,7 +168,7 @@ network policy and value function. To train the RL agent to solve the task, you 
 the hyperparameters such as number of epochs, learning rate, etc. for training and the
 policy/value model architecture. This is defined in the training configuration file specific
 to the RL library you want to use. Examples are created under the agent's folder in each task directory.
-See an example of `RSL-RL <https://github.com/isaac-sim/IsaacLab/blob/main/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/manager_based/locomotion/velocity/config/anymal_b/agents/rsl_rl_ppo_cfg.py>`__ for Anymal-B.
+See an example of `RSL-RL <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/locomotion/velocity/config/anymal_b/agents/rsl_rl_ppo_cfg.py>`__ for Anymal-B.
 
 
 .. _ra-register-gym:
@@ -198,7 +198,7 @@ Some wrappers include:
 Most RL libraries expect their own variation of an environment interface. This means the
 data types needed by each library differs. Isaac Lab provides its own wrappers to convert
 the environment into the expected interface by the RL library a user wants to use. These are
-specified in the `Isaac Lab utils wrapper module <https://isaac-sim.github.io/IsaacLab/main/source/api/lab_tasks/omni.isaac.lab_tasks.utils.wrappers.html#module-omni.isaac.lab_tasks.utils.wrappers>`__.
+specified in the `Isaac Lab utils wrapper module <https://isaac-sim.github.io/IsaacLab/main/source/api/lab_tasks/isaaclab_rl.html#module-isaaclab_rl>`__.
 
 See the `full list <https://gymnasium.farama.org/api/wrappers/#gymnasium.Wrapper>`__ of other wrappers APIs. For more information on how these wrappers work,
 please refer to the `Wrapping environments <https://isaac-sim.github.io/IsaacLab/main/source/how-to/wrap_rl_env.html#how-to-env-wrappers>`__ documentation.
@@ -360,11 +360,11 @@ Learn More About Featured NVIDIA Solutions
 
 .. _curriculum learning: https://arxiv.org/abs/2109.11978
 .. _CAD Converter: https://docs.omniverse.nvidia.com/extensions/latest/ext_cad-converter.html
-.. _URDF Importer: https://docs.omniverse.nvidia.com/isaacsim/latest/advanced_tutorials/tutorial_advanced_import_urdf.html
-.. _MJCF Importer: https://docs.omniverse.nvidia.com/isaacsim/latest/advanced_tutorials/tutorial_advanced_import_mjcf.html#import-mjcf
+.. _URDF Importer: https://docs.isaacsim.omniverse.nvidia.com/latest/robot_setup/ext_isaacsim_asset_importer_urdf.html
+.. _MJCF Importer: https://docs.isaacsim.omniverse.nvidia.com/latest/robot_setup/ext_isaacsim_asset_importer_mjcf.html
 .. _Onshape Importer: https://docs.omniverse.nvidia.com/extensions/latest/ext_onshape.html
-.. _Isaac Sim Reference Architecture: https://docs.omniverse.nvidia.com/isaacsim/latest/isaac_sim_reference_architecture.html
-.. _Importing Assets section: https://docs.omniverse.nvidia.com/isaacsim/latest/isaac_sim_reference_architecture.html#importing-assets
+.. _Isaac Sim Reference Architecture: https://docs.isaacsim.omniverse.nvidia.com/latest/isaac_sim_reference_architecture.html
+.. _Importing Assets section: https://docs.isaacsim.omniverse.nvidia.com/latest/isaac_sim_reference_architecture.html#importing-assets
 
 .. _Scale AI-Enabled Robotics Development Workloads with NVIDIA OSMO: https://developer.nvidia.com/blog/scale-ai-enabled-robotics-development-workloads-with-nvidia-osmo/
 .. _Isaac Perceptor: https://developer.nvidia.com/isaac/perceptor

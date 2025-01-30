@@ -57,10 +57,10 @@
     <link rel="index" title="Index" href="../../../genindex.html" />
     <link rel="search" title="Search" href="../../../search.html" />
     <link rel="next" title="Using a task-space controller" href="../05_controllers/run_diff_ik.html" />
-    <link rel="prev" title="Modifying an existing Direct RL Environment" href="../03_envs/modify_direct_rl_env.html" />
+    <link rel="prev" title="Policy Inference in USD Environment" href="../03_envs/policy_inference_in_usd.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-  <meta name="docsearch:version" content="1.4.1" />
+  <meta name="docsearch:version" content="2.0.0" />
     <meta name="docbuild:last-update" content="Jan 30, 2025"/>
   </head>
   
@@ -192,7 +192,7 @@
           
           
           
-          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.2.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.5.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
         </li>
         <li class="nav-item">
           
@@ -230,6 +230,8 @@
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../setup/installation/index.html">Local Installation</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2"><a class="reference internal" href="../../setup/installation/pip_installation.html">Pip installation (recommended for Ubuntu 22.04 and Windows)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../setup/installation/binaries_installation.html">Binary installation (recommended for Ubuntu 20.04)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/installation/isaaclab_pip_installation.html">Advanced installation (Isaac Lab pip)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/installation/asset_caching.html">Asset caching</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1"><a class="reference internal" href="../../setup/installation/cloud_installation.html">Running Isaac Lab in the Cloud</a></li>
@@ -241,7 +243,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../../overview/developer-guide/vs_code.html">Setting up Visual Studio Code</a></li>
 
 <li class="toctree-l2"><a class="reference internal" href="../../overview/developer-guide/repo_structure.html">Repository organization</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../overview/developer-guide/development.html">Application Development</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/developer-guide/development.html">Extension Development</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../overview/developer-guide/template.html">Building your Own Project</a></li>
 </ul>
 </details></li>
@@ -264,6 +266,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../../overview/reinforcement-learning/rl_existing_scripts.html">Reinforcement Learning Wrappers</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../overview/reinforcement-learning/rl_frameworks.html">Reinforcement Learning Library Comparison</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../overview/reinforcement-learning/performance_benchmarks.html">Performance Benchmarks</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/reinforcement-learning/training_guide.html">Debugging and Training Guide</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1"><a class="reference internal" href="../../overview/teleop_imitation.html">Teleoperation and Imitation Learning</a></li>
@@ -294,6 +297,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../03_envs/register_rl_env_gym.html">Registering an Environment</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../03_envs/run_rl_training.html">Training with an RL Agent</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../03_envs/modify_direct_rl_env.html">Modifying an existing Direct RL Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../03_envs/policy_inference_in_usd.html">Policy Inference in USD Environment</a></li>
 <li class="toctree-l2 current active"><a class="current reference internal" href="#">Adding sensors on a robot</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../05_controllers/run_diff_ik.html">Using a task-space controller</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../05_controllers/run_osc.html">Using an operational space controller</a></li>
@@ -330,28 +334,27 @@
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Source API</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../api/index.html">API Reference</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.app.html">omni.isaac.lab.app</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.actuators.html">omni.isaac.lab.actuators</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.assets.html">omni.isaac.lab.assets</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.controllers.html">omni.isaac.lab.controllers</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.devices.html">omni.isaac.lab.devices</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.envs.html">omni.isaac.lab.envs</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.managers.html">omni.isaac.lab.managers</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.markers.html">omni.isaac.lab.markers</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.scene.html">omni.isaac.lab.scene</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.sensors.html">omni.isaac.lab.sensors</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.sim.html">omni.isaac.lab.sim</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.terrains.html">omni.isaac.lab.terrains</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.utils.html">omni.isaac.lab.utils</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.envs.mdp.html">omni.isaac.lab.envs.mdp</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.envs.ui.html">omni.isaac.lab.envs.ui</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.sensors.patterns.html">omni.isaac.lab.sensors.patterns</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.sim.converters.html">omni.isaac.lab.sim.converters</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.sim.schemas.html">omni.isaac.lab.sim.schemas</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.sim.spawners.html">omni.isaac.lab.sim.spawners</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab_tasks/omni.isaac.lab_tasks.utils.html">omni.isaac.lab_tasks.utils</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab_tasks/omni.isaac.lab_tasks.utils.wrappers.html">omni.isaac.lab_tasks.utils.wrappers</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab_tasks/omni.isaac.lab_tasks.utils.data_collector.html">omni.isaac.lab_tasks.utils.data_collector</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.app.html">isaaclab.app</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.actuators.html">isaaclab.actuators</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.assets.html">isaaclab.assets</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.controllers.html">isaaclab.controllers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.devices.html">isaaclab.devices</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.envs.html">isaaclab.envs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.managers.html">isaaclab.managers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.markers.html">isaaclab.markers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.scene.html">isaaclab.scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.sensors.html">isaaclab.sensors</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.sim.html">isaaclab.sim</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.terrains.html">isaaclab.terrains</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.utils.html">isaaclab.utils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.envs.mdp.html">isaaclab.envs.mdp</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.envs.ui.html">isaaclab.envs.ui</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.sensors.patterns.html">isaaclab.sensors.patterns</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.sim.converters.html">isaaclab.sim.converters</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.sim.schemas.html">isaaclab.sim.schemas</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.sim.spawners.html">isaaclab.sim.spawners</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab_tasks/isaaclab_tasks.utils.html">isaaclab_tasks.utils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab_mimic/isaaclab_mimic.datagen.html">isaaclab_mimic.datagen</a></li>
 </ul>
 </details></li>
 </ul>
@@ -361,7 +364,15 @@
 <li class="toctree-l1"><a class="reference internal" href="../../refs/additional_resources.html">Additional Resources</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../refs/contributing.html">Contribution Guidelines</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../refs/troubleshooting.html">Tricks and Troubleshooting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../refs/migration.html">Migration Guide (Isaac Sim)</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../refs/issues.html">Known Issues</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../refs/release_notes.html">Release Notes</a></li>
+
+
+
+
+
+
 <li class="toctree-l1"><a class="reference internal" href="../../refs/changelog.html">Extensions Changelog</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../refs/license.html">License</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../refs/bibliography.html">Bibliography</a></li>
@@ -369,7 +380,7 @@
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Project Links</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference external" href="https://github.com/isaac-sim/IsaacLab">GitHub</a></li>
-<li class="toctree-l1"><a class="reference external" href="https://docs.omniverse.nvidia.com/isaacsim/latest/index.html">NVIDIA Isaac Sim</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/latest/index.html">NVIDIA Isaac Sim</a></li>
 <li class="toctree-l1"><a class="reference external" href="https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/index.html">NVIDIA PhysX</a></li>
 </ul>
 
@@ -618,11 +629,11 @@ sensors:</p>
 <li><p>Contact sensors on the feet of the robot that provide contact information</p></li>
 </ul>
 <p>We continue this tutorial from the previous tutorial on <a class="reference internal" href="../02_scene/create_scene.html#tutorial-interactive-scene"><span class="std std-ref">Using the Interactive Scene</span></a>,
-where we learned about the <a class="reference internal" href="../../api/lab/omni.isaac.lab.scene.html#omni.isaac.lab.scene.InteractiveScene" title="omni.isaac.lab.scene.InteractiveScene"><code class="xref py py-class docutils literal notranslate"><span class="pre">scene.InteractiveScene</span></code></a> class.</p>
+where we learned about the <a class="reference internal" href="../../api/lab/isaaclab.scene.html#isaaclab.scene.InteractiveScene" title="isaaclab.scene.InteractiveScene"><code class="xref py py-class docutils literal notranslate"><span class="pre">scene.InteractiveScene</span></code></a> class.</p>
 <section id="the-code">
 <h2>The Code<a class="headerlink" href="#the-code" title="Permalink to this heading">#</a></h2>
 <p>The tutorial corresponds to the <code class="docutils literal notranslate"><span class="pre">add_sensors_on_robot.py</span></code> script in the
-<code class="docutils literal notranslate"><span class="pre">source/standalone/tutorials/04_sensors</span></code> directory.</p>
+<code class="docutils literal notranslate"><span class="pre">scripts/tutorials/04_sensors</span></code> directory.</p>
 <details class="sd-sphinx-override sd-dropdown sd-card sd-mb-3">
 <summary class="sd-summary-title sd-card-header">
 <span class="sd-summary-icon"><svg version="1.1" width="1.0em" height="1.0em" class="sd-octicon sd-octicon-code" viewBox="0 0 16 16" aria-hidden="true"><path d="m11.28 3.22 4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.749.749 0 0 1-1.275-.326.749.749 0 0 1 .215-.734L13.94 8l-3.72-3.72a.749.749 0 0 1 .326-1.275.749.749 0 0 1 .734.215Zm-6.56 0a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042L2.06 8l3.72 3.72a.749.749 0 0 1-.326 1.275.749.749 0 0 1-.734-.215L.47 8.53a.75.75 0 0 1 0-1.06Z"></path></svg></span><span class="sd-summary-text">Code for add_sensors_on_robot.py</span><span class="sd-summary-state-marker sd-summary-chevron-right"><svg version="1.1" width="1.5em" height="1.5em" class="sd-octicon sd-octicon-chevron-right" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.72 18.78a.75.75 0 0 1 0-1.06L14.44 12 8.72 6.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018l6.25 6.25a.75.75 0 0 1 0 1.06l-6.25 6.25a.75.75 0 0 1-1.06 0Z"></path></svg></span></summary><div class="sd-summary-content sd-card-body docutils">
@@ -643,7 +654,7 @@ where we learned about the <a class="reference internal" href="../../api/lab/omn
 <span class="linenos"> 15</span><span class="sd">.. code-block:: bash</span>
 <span class="linenos"> 16</span>
 <span class="linenos"> 17</span><span class="sd">    # Usage</span>
-<span class="linenos"> 18</span><span class="sd">    ./isaaclab.sh -p source/standalone/tutorials/04_sensors/add_sensors_on_robot.py --enable_cameras</span>
+<span class="linenos"> 18</span><span class="sd">    ./isaaclab.sh -p scripts/tutorials/04_sensors/add_sensors_on_robot.py --enable_cameras</span>
 <span class="linenos"> 19</span>
 <span class="linenos"> 20</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="linenos"> 21</span>
@@ -651,7 +662,7 @@ where we learned about the <a class="reference internal" href="../../api/lab/omn
 <span class="linenos"> 23</span>
 <span class="linenos"> 24</span><span class="kn">import</span><span class="w"> </span><span class="nn">argparse</span>
 <span class="linenos"> 25</span>
-<span class="linenos"> 26</span><span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.app</span><span class="w"> </span><span class="kn">import</span> <span class="n">AppLauncher</span>
+<span class="linenos"> 26</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.app</span><span class="w"> </span><span class="kn">import</span> <span class="n">AppLauncher</span>
 <span class="linenos"> 27</span>
 <span class="linenos"> 28</span><span class="c1"># add argparse arguments</span>
 <span class="linenos"> 29</span><span class="n">parser</span> <span class="o">=</span> <span class="n">argparse</span><span class="o">.</span><span class="n">ArgumentParser</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="s2">&quot;Tutorial on adding sensors on a robot.&quot;</span><span class="p">)</span>
@@ -669,16 +680,16 @@ where we learned about the <a class="reference internal" href="../../api/lab/omn
 <span class="linenos"> 41</span>
 <span class="linenos"> 42</span><span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
 <span class="linenos"> 43</span>
-<span class="linenos"> 44</span><span class="kn">import</span><span class="w"> </span><span class="nn">omni.isaac.lab.sim</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">sim_utils</span>
-<span class="linenos"> 45</span><span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.assets</span><span class="w"> </span><span class="kn">import</span> <span class="n">ArticulationCfg</span><span class="p">,</span> <span class="n">AssetBaseCfg</span>
-<span class="linenos"> 46</span><span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.scene</span><span class="w"> </span><span class="kn">import</span> <span class="n">InteractiveScene</span><span class="p">,</span> <span class="n">InteractiveSceneCfg</span>
-<span class="linenos"> 47</span><span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.sensors</span><span class="w"> </span><span class="kn">import</span> <span class="n">CameraCfg</span><span class="p">,</span> <span class="n">ContactSensorCfg</span><span class="p">,</span> <span class="n">RayCasterCfg</span><span class="p">,</span> <span class="n">patterns</span>
-<span class="linenos"> 48</span><span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">configclass</span>
+<span class="linenos"> 44</span><span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab.sim</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">sim_utils</span>
+<span class="linenos"> 45</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.assets</span><span class="w"> </span><span class="kn">import</span> <span class="n">ArticulationCfg</span><span class="p">,</span> <span class="n">AssetBaseCfg</span>
+<span class="linenos"> 46</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.scene</span><span class="w"> </span><span class="kn">import</span> <span class="n">InteractiveScene</span><span class="p">,</span> <span class="n">InteractiveSceneCfg</span>
+<span class="linenos"> 47</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.sensors</span><span class="w"> </span><span class="kn">import</span> <span class="n">CameraCfg</span><span class="p">,</span> <span class="n">ContactSensorCfg</span><span class="p">,</span> <span class="n">RayCasterCfg</span><span class="p">,</span> <span class="n">patterns</span>
+<span class="linenos"> 48</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">configclass</span>
 <span class="linenos"> 49</span>
 <span class="linenos"> 50</span><span class="c1">##</span>
 <span class="linenos"> 51</span><span class="c1"># Pre-defined configs</span>
 <span class="linenos"> 52</span><span class="c1">##</span>
-<span class="linenos"> 53</span><span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab_assets.anymal</span><span class="w"> </span><span class="kn">import</span> <span class="n">ANYMAL_C_CFG</span>  <span class="c1"># isort: skip</span>
+<span class="linenos"> 53</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab_assets.robots.anymal</span><span class="w"> </span><span class="kn">import</span> <span class="n">ANYMAL_C_CFG</span>  <span class="c1"># isort: skip</span>
 <span class="linenos"> 54</span>
 <span class="linenos"> 55</span>
 <span class="linenos"> 56</span><span class="nd">@configclass</span>
@@ -812,10 +823,10 @@ where we learned about the <a class="reference internal" href="../../api/lab/omn
 <section id="the-code-explained">
 <h2>The Code Explained<a class="headerlink" href="#the-code-explained" title="Permalink to this heading">#</a></h2>
 <p>Similar to the previous tutorials, where we added assets to the scene, the sensors are also added
-to the scene using the scene configuration. All sensors inherit from the <a class="reference internal" href="../../api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.SensorBase" title="omni.isaac.lab.sensors.SensorBase"><code class="xref py py-class docutils literal notranslate"><span class="pre">sensors.SensorBase</span></code></a> class
+to the scene using the scene configuration. All sensors inherit from the <a class="reference internal" href="../../api/lab/isaaclab.sensors.html#isaaclab.sensors.SensorBase" title="isaaclab.sensors.SensorBase"><code class="xref py py-class docutils literal notranslate"><span class="pre">sensors.SensorBase</span></code></a> class
 and are configured through their respective config classes. Each sensor instance can define its own
 update period, which is the frequency at which the sensor is updated. The update period is specified
-in seconds through the <a class="reference internal" href="../../api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.SensorBaseCfg.update_period" title="omni.isaac.lab.sensors.SensorBaseCfg.update_period"><code class="xref py py-attr docutils literal notranslate"><span class="pre">sensors.SensorBaseCfg.update_period</span></code></a> attribute.</p>
+in seconds through the <a class="reference internal" href="../../api/lab/isaaclab.sensors.html#isaaclab.sensors.SensorBaseCfg.update_period" title="isaaclab.sensors.SensorBaseCfg.update_period"><code class="xref py py-attr docutils literal notranslate"><span class="pre">sensors.SensorBaseCfg.update_period</span></code></a> attribute.</p>
 <p>Depending on the specified path and the sensor type, the sensors are attached to the prims in the scene.
 They may have an associated prim that is created in the scene or they may be attached to an existing prim.
 For instance, the camera sensor has a corresponding prim that is created in the scene, whereas for the
@@ -824,20 +835,20 @@ contact sensor, the activating the contact reporting is a property on a rigid bo
 For more description about them, please check the <code class="xref py py-mod docutils literal notranslate"><span class="pre">sensors</span></code> module.</p>
 <section id="camera-sensor">
 <h3>Camera sensor<a class="headerlink" href="#camera-sensor" title="Permalink to this heading">#</a></h3>
-<p>A camera is defined using the <a class="reference internal" href="../../api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.CameraCfg" title="omni.isaac.lab.sensors.CameraCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">sensors.CameraCfg</span></code></a>. It is based on the USD Camera sensor and
+<p>A camera is defined using the <a class="reference internal" href="../../api/lab/isaaclab.sensors.html#isaaclab.sensors.CameraCfg" title="isaaclab.sensors.CameraCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">sensors.CameraCfg</span></code></a>. It is based on the USD Camera sensor and
 the different data types are captured using Omniverse Replicator API. Since it has a corresponding prim
 in the scene, the prims are created in the scene at the specified prim path.</p>
 <p>The configuration of the camera sensor includes the following parameters:</p>
 <ul class="simple">
-<li><p><a class="reference internal" href="../../api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.CameraCfg.spawn" title="omni.isaac.lab.sensors.CameraCfg.spawn"><code class="xref py py-attr docutils literal notranslate"><span class="pre">spawn</span></code></a>: The type of USD camera to create. This can be either
-<a class="reference internal" href="../../api/lab/omni.isaac.lab.sim.spawners.html#omni.isaac.lab.sim.spawners.sensors.PinholeCameraCfg" title="omni.isaac.lab.sim.spawners.sensors.PinholeCameraCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">PinholeCameraCfg</span></code></a> or <a class="reference internal" href="../../api/lab/omni.isaac.lab.sim.spawners.html#omni.isaac.lab.sim.spawners.sensors.FisheyeCameraCfg" title="omni.isaac.lab.sim.spawners.sensors.FisheyeCameraCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">FisheyeCameraCfg</span></code></a>.</p></li>
-<li><p><a class="reference internal" href="../../api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.CameraCfg.offset" title="omni.isaac.lab.sensors.CameraCfg.offset"><code class="xref py py-attr docutils literal notranslate"><span class="pre">offset</span></code></a>: The offset of the camera sensor from the parent prim.</p></li>
-<li><p><a class="reference internal" href="../../api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.CameraCfg.data_types" title="omni.isaac.lab.sensors.CameraCfg.data_types"><code class="xref py py-attr docutils literal notranslate"><span class="pre">data_types</span></code></a>: The data types to capture. This can be <code class="docutils literal notranslate"><span class="pre">rgb</span></code>,
+<li><p><a class="reference internal" href="../../api/lab/isaaclab.sensors.html#isaaclab.sensors.CameraCfg.spawn" title="isaaclab.sensors.CameraCfg.spawn"><code class="xref py py-attr docutils literal notranslate"><span class="pre">spawn</span></code></a>: The type of USD camera to create. This can be either
+<a class="reference internal" href="../../api/lab/isaaclab.sim.spawners.html#isaaclab.sim.spawners.sensors.PinholeCameraCfg" title="isaaclab.sim.spawners.sensors.PinholeCameraCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">PinholeCameraCfg</span></code></a> or <a class="reference internal" href="../../api/lab/isaaclab.sim.spawners.html#isaaclab.sim.spawners.sensors.FisheyeCameraCfg" title="isaaclab.sim.spawners.sensors.FisheyeCameraCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">FisheyeCameraCfg</span></code></a>.</p></li>
+<li><p><a class="reference internal" href="../../api/lab/isaaclab.sensors.html#isaaclab.sensors.CameraCfg.offset" title="isaaclab.sensors.CameraCfg.offset"><code class="xref py py-attr docutils literal notranslate"><span class="pre">offset</span></code></a>: The offset of the camera sensor from the parent prim.</p></li>
+<li><p><a class="reference internal" href="../../api/lab/isaaclab.sensors.html#isaaclab.sensors.CameraCfg.data_types" title="isaaclab.sensors.CameraCfg.data_types"><code class="xref py py-attr docutils literal notranslate"><span class="pre">data_types</span></code></a>: The data types to capture. This can be <code class="docutils literal notranslate"><span class="pre">rgb</span></code>,
 <code class="docutils literal notranslate"><span class="pre">distance_to_image_plane</span></code>, <code class="docutils literal notranslate"><span class="pre">normals</span></code>, or other types supported by the USD Camera sensor.</p></li>
 </ul>
 <p>To attach an RGB-D camera sensor to the head of the robot, we specify an offset relative to the base
 frame of the robot. The offset is specified as a translation and rotation relative to the base frame,
-and the <a class="reference internal" href="../../api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.CameraCfg.OffsetCfg.convention" title="omni.isaac.lab.sensors.CameraCfg.OffsetCfg.convention"><code class="xref py py-attr docutils literal notranslate"><span class="pre">convention</span></code></a> in which the offset is specified.</p>
+and the <a class="reference internal" href="../../api/lab/isaaclab.sensors.html#isaaclab.sensors.CameraCfg.OffsetCfg.convention" title="isaaclab.sensors.CameraCfg.OffsetCfg.convention"><code class="xref py py-attr docutils literal notranslate"><span class="pre">convention</span></code></a> in which the offset is specified.</p>
 <p>In the following, we show the configuration of the camera sensor used in this tutorial. We set the
 update period to 0.1s, which means that the camera sensor is updated at 10Hz. The prim path expression is
 set to <code class="docutils literal notranslate"><span class="pre">{ENV_REGEX_NS}/Robot/base/front_cam</span></code> where the <code class="docutils literal notranslate"><span class="pre">{ENV_REGEX_NS}</span></code> is the environment namespace,
@@ -860,17 +871,17 @@ and <code class="docutils literal notranslate"><span class="pre">&quot;front_cam
 <section id="height-scanner">
 <h3>Height scanner<a class="headerlink" href="#height-scanner" title="Permalink to this heading">#</a></h3>
 <p>The height-scanner is implemented as a virtual sensor using the NVIDIA Warp ray-casting kernels.
-Through the <a class="reference internal" href="../../api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.RayCasterCfg" title="omni.isaac.lab.sensors.RayCasterCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">sensors.RayCasterCfg</span></code></a>, we can specify the pattern of rays to cast and the
+Through the <a class="reference internal" href="../../api/lab/isaaclab.sensors.html#isaaclab.sensors.RayCasterCfg" title="isaaclab.sensors.RayCasterCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">sensors.RayCasterCfg</span></code></a>, we can specify the pattern of rays to cast and the
 meshes against which to cast the rays. Since they are virtual sensors, there is no corresponding
 prim created in the scene for them. Instead they are attached to a prim in the scene, which is
 used to specify the location of the sensor.</p>
 <p>For this tutorial, the ray-cast based height scanner is attached to the base frame of the robot.
 The pattern of rays is specified using the <code class="xref py py-attr docutils literal notranslate"><span class="pre">pattern</span></code> attribute. For
-a uniform grid pattern, we specify the pattern using <a class="reference internal" href="../../api/lab/omni.isaac.lab.sensors.patterns.html#omni.isaac.lab.sensors.patterns.GridPatternCfg" title="omni.isaac.lab.sensors.patterns.GridPatternCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">GridPatternCfg</span></code></a>.
+a uniform grid pattern, we specify the pattern using <a class="reference internal" href="../../api/lab/isaaclab.sensors.patterns.html#isaaclab.sensors.patterns.GridPatternCfg" title="isaaclab.sensors.patterns.GridPatternCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">GridPatternCfg</span></code></a>.
 Since we only care about the height information, we do not need to consider the roll and pitch
-of the robot. Hence, we set the <a class="reference internal" href="../../api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.RayCasterCfg.attach_yaw_only" title="omni.isaac.lab.sensors.RayCasterCfg.attach_yaw_only"><code class="xref py py-attr docutils literal notranslate"><span class="pre">attach_yaw_only</span></code></a> to true.</p>
+of the robot. Hence, we set the <a class="reference internal" href="../../api/lab/isaaclab.sensors.html#isaaclab.sensors.RayCasterCfg.attach_yaw_only" title="isaaclab.sensors.RayCasterCfg.attach_yaw_only"><code class="xref py py-attr docutils literal notranslate"><span class="pre">attach_yaw_only</span></code></a> to true.</p>
 <p>For the height-scanner, you can visualize the points where the rays hit the mesh. This is done
-by setting the <a class="reference internal" href="../../api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.SensorBaseCfg.debug_vis" title="omni.isaac.lab.sensors.SensorBaseCfg.debug_vis"><code class="xref py py-attr docutils literal notranslate"><span class="pre">debug_vis</span></code></a> attribute to true.</p>
+by setting the <a class="reference internal" href="../../api/lab/isaaclab.sensors.html#isaaclab.sensors.SensorBaseCfg.debug_vis" title="isaaclab.sensors.SensorBaseCfg.debug_vis"><code class="xref py py-attr docutils literal notranslate"><span class="pre">debug_vis</span></code></a> attribute to true.</p>
 <p>The entire configuration of the height-scanner is as follows:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span>    <span class="n">height_scanner</span> <span class="o">=</span> <span class="n">RayCasterCfg</span><span class="p">(</span>
         <span class="n">prim_path</span><span class="o">=</span><span class="s2">&quot;</span><span class="si">{ENV_REGEX_NS}</span><span class="s2">/Robot/base&quot;</span><span class="p">,</span>
@@ -889,8 +900,8 @@ by setting the <a class="reference internal" href="../../api/lab/omni.isaac.lab.
 <p>Contact sensors wrap around the PhysX contact reporting API to obtain the contact information of the robot
 with the environment. Since it relies of PhysX, the contact sensor expects the contact reporting API
 to be enabled on the rigid bodies of the robot. This can be done by setting the
-<a class="reference internal" href="../../api/lab/omni.isaac.lab.sim.spawners.html#omni.isaac.lab.sim.spawners.RigidObjectSpawnerCfg.activate_contact_sensors" title="omni.isaac.lab.sim.spawners.RigidObjectSpawnerCfg.activate_contact_sensors"><code class="xref py py-attr docutils literal notranslate"><span class="pre">activate_contact_sensors</span></code></a> to true in the asset configuration.</p>
-<p>Through the <a class="reference internal" href="../../api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.ContactSensorCfg" title="omni.isaac.lab.sensors.ContactSensorCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">sensors.ContactSensorCfg</span></code></a>, it is possible to specify the prims for which we want to
+<a class="reference internal" href="../../api/lab/isaaclab.sim.spawners.html#isaaclab.sim.spawners.RigidObjectSpawnerCfg.activate_contact_sensors" title="isaaclab.sim.spawners.RigidObjectSpawnerCfg.activate_contact_sensors"><code class="xref py py-attr docutils literal notranslate"><span class="pre">activate_contact_sensors</span></code></a> to true in the asset configuration.</p>
+<p>Through the <a class="reference internal" href="../../api/lab/isaaclab.sensors.html#isaaclab.sensors.ContactSensorCfg" title="isaaclab.sensors.ContactSensorCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">sensors.ContactSensorCfg</span></code></a>, it is possible to specify the prims for which we want to
 obtain the contact information. Additional flags can be set to obtain more information about
 the contact, such as the contact air time, contact forces between filtered prims, etc.</p>
 <p>In this tutorial, we attach the contact sensor to the feet of the robot. The feet of the robot are
@@ -939,7 +950,7 @@ to access the data for the different sensors created in this tutorial:</p>
 <section id="the-code-execution">
 <h2>The Code Execution<a class="headerlink" href="#the-code-execution" title="Permalink to this heading">#</a></h2>
 <p>Now that we have gone through the code, let’s run the script and see the result:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>source/standalone/tutorials/04_sensors/add_sensors_on_robot.py<span class="w"> </span>--num_envs<span class="w"> </span><span class="m">2</span><span class="w"> </span>--enable_cameras
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/tutorials/04_sensors/add_sensors_on_robot.py<span class="w"> </span>--num_envs<span class="w"> </span><span class="m">2</span><span class="w"> </span>--enable_cameras
 </pre></div>
 </div>
 <p>This command should open a stage with a ground plane, lights, and two quadrupedal robots.
@@ -953,19 +964,19 @@ on how to switch the viewport to the camera view.</p>
 <p>To stop the simulation, you can either close the window, or press <code class="docutils literal notranslate"><span class="pre">Ctrl+C</span></code> in the terminal.</p>
 <p>While in this tutorial, we went over creating and using different sensors, there are many more sensors
 available in the <code class="xref py py-mod docutils literal notranslate"><span class="pre">sensors</span></code> module. We include minimal examples of using these sensors in the
-<code class="docutils literal notranslate"><span class="pre">source/standalone/tutorials/04_sensors</span></code> directory. For completeness, these scripts can be run using the
+<code class="docutils literal notranslate"><span class="pre">scripts/tutorials/04_sensors</span></code> directory. For completeness, these scripts can be run using the
 following commands:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Frame Transformer</span>
-./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>source/standalone/tutorials/04_sensors/run_frame_transformer.py
+./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/tutorials/04_sensors/run_frame_transformer.py
 
 <span class="c1"># Ray Caster</span>
-./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>source/standalone/tutorials/04_sensors/run_ray_caster.py
+./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/tutorials/04_sensors/run_ray_caster.py
 
 <span class="c1"># Ray Caster Camera</span>
-./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>source/standalone/tutorials/04_sensors/run_ray_caster_camera.py
+./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/tutorials/04_sensors/run_ray_caster_camera.py
 
 <span class="c1"># USD Camera</span>
-./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>source/standalone/tutorials/04_sensors/run_usd_camera.py
+./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/tutorials/04_sensors/run_usd_camera.py
 </pre></div>
 </div>
 </section>
@@ -983,12 +994,12 @@ following commands:</p>
                   
 <div class="prev-next-area">
     <a class="left-prev"
-       href="../03_envs/modify_direct_rl_env.html"
+       href="../03_envs/policy_inference_in_usd.html"
        title="previous page">
       <i class="fa-solid fa-angle-left"></i>
       <div class="prev-next-info">
         <p class="prev-next-subtitle">previous</p>
-        <p class="prev-next-title">Modifying an existing Direct RL Environment</p>
+        <p class="prev-next-title">Policy Inference in USD Environment</p>
       </div>
     </a>
     <a class="right-next"

@@ -60,7 +60,7 @@
     <link rel="prev" title="Multi-GPU and Multi-Node Training" href="multi_gpu.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-  <meta name="docsearch:version" content="1.4.1" />
+  <meta name="docsearch:version" content="2.0.0" />
     <meta name="docbuild:last-update" content="Jan 30, 2025"/>
   </head>
   
@@ -192,7 +192,7 @@
           
           
           
-          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.2.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.5.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
         </li>
         <li class="nav-item">
           
@@ -230,6 +230,8 @@
 <li class="toctree-l1 has-children"><a class="reference internal" href="../setup/installation/index.html">Local Installation</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2"><a class="reference internal" href="../setup/installation/pip_installation.html">Pip installation (recommended for Ubuntu 22.04 and Windows)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../setup/installation/binaries_installation.html">Binary installation (recommended for Ubuntu 20.04)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../setup/installation/isaaclab_pip_installation.html">Advanced installation (Isaac Lab pip)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../setup/installation/asset_caching.html">Asset caching</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1"><a class="reference internal" href="../setup/installation/cloud_installation.html">Running Isaac Lab in the Cloud</a></li>
@@ -241,7 +243,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../overview/developer-guide/vs_code.html">Setting up Visual Studio Code</a></li>
 
 <li class="toctree-l2"><a class="reference internal" href="../overview/developer-guide/repo_structure.html">Repository organization</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../overview/developer-guide/development.html">Application Development</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/developer-guide/development.html">Extension Development</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../overview/developer-guide/template.html">Building your Own Project</a></li>
 </ul>
 </details></li>
@@ -264,6 +266,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../overview/reinforcement-learning/rl_existing_scripts.html">Reinforcement Learning Wrappers</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../overview/reinforcement-learning/rl_frameworks.html">Reinforcement Learning Library Comparison</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../overview/reinforcement-learning/performance_benchmarks.html">Performance Benchmarks</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/reinforcement-learning/training_guide.html">Debugging and Training Guide</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1"><a class="reference internal" href="../overview/teleop_imitation.html">Teleoperation and Imitation Learning</a></li>
@@ -294,6 +297,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../tutorials/03_envs/register_rl_env_gym.html">Registering an Environment</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../tutorials/03_envs/run_rl_training.html">Training with an RL Agent</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../tutorials/03_envs/modify_direct_rl_env.html">Modifying an existing Direct RL Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/03_envs/policy_inference_in_usd.html">Policy Inference in USD Environment</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../tutorials/04_sensors/add_sensors_on_robot.html">Adding sensors on a robot</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../tutorials/05_controllers/run_diff_ik.html">Using a task-space controller</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../tutorials/05_controllers/run_osc.html">Using an operational space controller</a></li>
@@ -330,28 +334,27 @@
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Source API</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1 has-children"><a class="reference internal" href="../api/index.html">API Reference</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
-<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.app.html">omni.isaac.lab.app</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.actuators.html">omni.isaac.lab.actuators</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.assets.html">omni.isaac.lab.assets</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.controllers.html">omni.isaac.lab.controllers</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.devices.html">omni.isaac.lab.devices</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.envs.html">omni.isaac.lab.envs</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.managers.html">omni.isaac.lab.managers</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.markers.html">omni.isaac.lab.markers</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.scene.html">omni.isaac.lab.scene</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.sensors.html">omni.isaac.lab.sensors</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.sim.html">omni.isaac.lab.sim</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.terrains.html">omni.isaac.lab.terrains</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.utils.html">omni.isaac.lab.utils</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.envs.mdp.html">omni.isaac.lab.envs.mdp</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.envs.ui.html">omni.isaac.lab.envs.ui</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.sensors.patterns.html">omni.isaac.lab.sensors.patterns</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.sim.converters.html">omni.isaac.lab.sim.converters</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.sim.schemas.html">omni.isaac.lab.sim.schemas</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.sim.spawners.html">omni.isaac.lab.sim.spawners</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../api/lab_tasks/omni.isaac.lab_tasks.utils.html">omni.isaac.lab_tasks.utils</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../api/lab_tasks/omni.isaac.lab_tasks.utils.wrappers.html">omni.isaac.lab_tasks.utils.wrappers</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../api/lab_tasks/omni.isaac.lab_tasks.utils.data_collector.html">omni.isaac.lab_tasks.utils.data_collector</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.app.html">isaaclab.app</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.actuators.html">isaaclab.actuators</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.assets.html">isaaclab.assets</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.controllers.html">isaaclab.controllers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.devices.html">isaaclab.devices</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.envs.html">isaaclab.envs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.managers.html">isaaclab.managers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.markers.html">isaaclab.markers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.scene.html">isaaclab.scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.sensors.html">isaaclab.sensors</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.sim.html">isaaclab.sim</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.terrains.html">isaaclab.terrains</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.utils.html">isaaclab.utils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.envs.mdp.html">isaaclab.envs.mdp</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.envs.ui.html">isaaclab.envs.ui</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.sensors.patterns.html">isaaclab.sensors.patterns</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.sim.converters.html">isaaclab.sim.converters</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.sim.schemas.html">isaaclab.sim.schemas</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.sim.spawners.html">isaaclab.sim.spawners</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab_tasks/isaaclab_tasks.utils.html">isaaclab_tasks.utils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab_mimic/isaaclab_mimic.datagen.html">isaaclab_mimic.datagen</a></li>
 </ul>
 </details></li>
 </ul>
@@ -361,7 +364,15 @@
 <li class="toctree-l1"><a class="reference internal" href="../refs/additional_resources.html">Additional Resources</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../refs/contributing.html">Contribution Guidelines</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../refs/troubleshooting.html">Tricks and Troubleshooting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../refs/migration.html">Migration Guide (Isaac Sim)</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../refs/issues.html">Known Issues</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../refs/release_notes.html">Release Notes</a></li>
+
+
+
+
+
+
 <li class="toctree-l1"><a class="reference internal" href="../refs/changelog.html">Extensions Changelog</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../refs/license.html">License</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../refs/bibliography.html">Bibliography</a></li>
@@ -369,7 +380,7 @@
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Project Links</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference external" href="https://github.com/isaac-sim/IsaacLab">GitHub</a></li>
-<li class="toctree-l1"><a class="reference external" href="https://docs.omniverse.nvidia.com/isaacsim/latest/index.html">NVIDIA Isaac Sim</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/latest/index.html">NVIDIA Isaac Sim</a></li>
 <li class="toctree-l1"><a class="reference external" href="https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/index.html">NVIDIA PhysX</a></li>
 </ul>
 
@@ -580,9 +591,9 @@
             </div>
             <nav aria-label="Page">
                 <ul class="visible nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#overview"><strong>Overview</strong></a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#docker-based-local-quickstart"><strong>Docker-based Local Quickstart</strong></a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#remote-clusters"><strong>Remote Clusters</strong></a><ul class="nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#overview">Overview</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#docker-based-local-quickstart">Docker-based Local Quickstart</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#remote-clusters">Remote Clusters</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#kuberay-setup">KubeRay Setup</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#ray-clusters-without-kubernetes-setup">Ray Clusters (Without Kubernetes) Setup</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#shared-steps-between-kuberay-and-pure-ray-part-i">Shared Steps Between KubeRay and Pure Ray Part I</a></li>
@@ -620,9 +631,9 @@ the general workflow is the same.</p>
 <nav class="contents local" id="table-of-contents">
 <p class="topic-title">Table of Contents</p>
 <ul class="simple">
-<li><p><a class="reference internal" href="#overview" id="id2"><strong>Overview</strong></a></p></li>
-<li><p><a class="reference internal" href="#docker-based-local-quickstart" id="id3"><strong>Docker-based Local Quickstart</strong></a></p></li>
-<li><p><a class="reference internal" href="#remote-clusters" id="id4"><strong>Remote Clusters</strong></a></p>
+<li><p><a class="reference internal" href="#overview" id="id2">Overview</a></p></li>
+<li><p><a class="reference internal" href="#docker-based-local-quickstart" id="id3">Docker-based Local Quickstart</a></p></li>
+<li><p><a class="reference internal" href="#remote-clusters" id="id4">Remote Clusters</a></p>
 <ul>
 <li><p><a class="reference internal" href="#kuberay-setup" id="id5">KubeRay Setup</a></p></li>
 <li><p><a class="reference internal" href="#ray-clusters-without-kubernetes-setup" id="id6">Ray Clusters (Without Kubernetes) Setup</a></p></li>
@@ -639,7 +650,7 @@ the general workflow is the same.</p>
 </ul>
 </nav>
 <section id="overview">
-<h2><a class="toc-backref" href="#id2" role="doc-backlink"><strong>Overview</strong></a><a class="headerlink" href="#overview" title="Permalink to this heading">#</a></h2>
+<h2><a class="toc-backref" href="#id2" role="doc-backlink">Overview</a><a class="headerlink" href="#overview" title="Permalink to this heading">#</a></h2>
 <p>The Ray integration is useful for the following.</p>
 <ul class="simple">
 <li><p>Dispatching several training jobs in parallel or sequentially with minimal interaction.</p></li>
@@ -662,7 +673,7 @@ job processing on local/virtual multi-GPU machines. Tuning jobs assume homogeneo
 <p>The two following files contain the core functionality of the Ray integration.</p>
 <details class="sd-sphinx-override sd-dropdown sd-card sd-mb-3">
 <summary class="sd-summary-title sd-card-header">
-<span class="sd-summary-icon"><svg version="1.1" width="1.0em" height="1.0em" class="sd-octicon sd-octicon-code" viewBox="0 0 16 16" aria-hidden="true"><path d="m11.28 3.22 4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.749.749 0 0 1-1.275-.326.749.749 0 0 1 .215-.734L13.94 8l-3.72-3.72a.749.749 0 0 1 .326-1.275.749.749 0 0 1 .734.215Zm-6.56 0a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042L2.06 8l3.72 3.72a.749.749 0 0 1-.326 1.275.749.749 0 0 1-.734-.215L.47 8.53a.75.75 0 0 1 0-1.06Z"></path></svg></span><span class="sd-summary-text">source/standalone/workflows/ray/wrap_resources.py</span><span class="sd-summary-state-marker sd-summary-chevron-right"><svg version="1.1" width="1.5em" height="1.5em" class="sd-octicon sd-octicon-chevron-right" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.72 18.78a.75.75 0 0 1 0-1.06L14.44 12 8.72 6.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018l6.25 6.25a.75.75 0 0 1 0 1.06l-6.25 6.25a.75.75 0 0 1-1.06 0Z"></path></svg></span></summary><div class="sd-summary-content sd-card-body docutils">
+<span class="sd-summary-icon"><svg version="1.1" width="1.0em" height="1.0em" class="sd-octicon sd-octicon-code" viewBox="0 0 16 16" aria-hidden="true"><path d="m11.28 3.22 4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.749.749 0 0 1-1.275-.326.749.749 0 0 1 .215-.734L13.94 8l-3.72-3.72a.749.749 0 0 1 .326-1.275.749.749 0 0 1 .734.215Zm-6.56 0a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042L2.06 8l3.72 3.72a.749.749 0 0 1-.326 1.275.749.749 0 0 1-.734-.215L.47 8.53a.75.75 0 0 1 0-1.06Z"></path></svg></span><span class="sd-summary-text">scripts/reinforcement_learning/ray/wrap_resources.py</span><span class="sd-summary-state-marker sd-summary-chevron-right"><svg version="1.1" width="1.5em" height="1.5em" class="sd-octicon sd-octicon-chevron-right" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.72 18.78a.75.75 0 0 1 0-1.06L14.44 12 8.72 6.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018l6.25 6.25a.75.75 0 0 1 0 1.06l-6.25 6.25a.75.75 0 0 1-1.06 0Z"></path></svg></span></summary><div class="sd-summary-content sd-card-body docutils">
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Copyright (c) 2022-2025, The Isaac Lab Project Developers.</span>
 <span class="c1"># All rights reserved.</span>
 <span class="c1">#</span>
@@ -711,22 +722,22 @@ job processing on local/virtual multi-GPU machines. Tuning jobs assume homogeneo
 </span><span class="hll"><span class="sd">.. code-block:: bash</span>
 </span><span class="hll"><span class="sd">    # **Ensure that sub-jobs are separated by the ``+`` delimiter.**</span>
 </span><span class="hll"><span class="sd">    # Generic Templates-----------------------------------</span>
-</span><span class="hll"><span class="sd">    ./isaaclab.sh -p source/standalone/workflows/ray/wrap_resources.py -h</span>
+</span><span class="hll"><span class="sd">    ./isaaclab.sh -p scripts/reinforcement_learning/ray/wrap_resources.py -h</span>
 </span><span class="hll"><span class="sd">    # No resource isolation; no parallelization:</span>
-</span><span class="hll"><span class="sd">    ./isaaclab.sh -p source/standalone/workflows/ray/wrap_resources.py</span>
+</span><span class="hll"><span class="sd">    ./isaaclab.sh -p scripts/reinforcement_learning/ray/wrap_resources.py</span>
 </span><span class="hll"><span class="sd">    --sub_jobs &lt;JOB0&gt;+&lt;JOB1&gt;+&lt;JOB2&gt;</span>
 </span><span class="hll"><span class="sd">    # Automatic Resource Isolation; Example A: needed for parallelization</span>
-</span><span class="hll"><span class="sd">    ./isaaclab.sh -p source/standalone/workflows/ray/wrap_resources.py \</span>
+</span><span class="hll"><span class="sd">    ./isaaclab.sh -p scripts/reinforcement_learning/ray/wrap_resources.py \</span>
 </span><span class="hll"><span class="sd">    --num_workers &lt;NUM_TO_DIVIDE_TOTAL_RESOURCES_BY&gt; \</span>
 </span><span class="hll"><span class="sd">    --sub_jobs &lt;JOB0&gt;+&lt;JOB1&gt;</span>
 </span><span class="hll"><span class="sd">    # Manual Resource Isolation; Example B:  needed for parallelization</span>
-</span><span class="hll"><span class="sd">    ./isaaclab.sh -p source/standalone/workflows/ray/wrap_resources.py --num_cpu_per_worker &lt;CPU&gt; \</span>
+</span><span class="hll"><span class="sd">    ./isaaclab.sh -p scripts/reinforcement_learning/ray/wrap_resources.py --num_cpu_per_worker &lt;CPU&gt; \</span>
 </span><span class="hll"><span class="sd">    --gpu_per_worker &lt;GPU&gt; --ram_gb_per_worker &lt;RAM&gt; --sub_jobs &lt;JOB0&gt;+&lt;JOB1&gt;</span>
 </span><span class="hll"><span class="sd">    # Manual Resource Isolation; Example C: Needed for parallelization, for heterogeneous workloads</span>
-</span><span class="hll"><span class="sd">    ./isaaclab.sh -p source/standalone/workflows/ray/wrap_resources.py --num_cpu_per_worker &lt;CPU&gt; \</span>
+</span><span class="hll"><span class="sd">    ./isaaclab.sh -p scripts/reinforcement_learning/ray/wrap_resources.py --num_cpu_per_worker &lt;CPU&gt; \</span>
 </span><span class="hll"><span class="sd">    --gpu_per_worker &lt;GPU1&gt; &lt;GPU2&gt; --ram_gb_per_worker &lt;RAM&gt; --sub_jobs &lt;JOB0&gt;+&lt;JOB1&gt;</span>
 </span><span class="hll"><span class="sd">    # to see all arguments</span>
-</span><span class="hll"><span class="sd">    ./isaaclab.sh -p source/standalone/workflows/ray/wrap_resources.py -h</span>
+</span><span class="hll"><span class="sd">    ./isaaclab.sh -p scripts/reinforcement_learning/ray/wrap_resources.py -h</span>
 </span><span class="hll"><span class="sd">&quot;&quot;&quot;</span>
 </span><span class="hll">
 </span>
@@ -818,7 +829,7 @@ job processing on local/virtual multi-GPU machines. Tuning jobs assume homogeneo
 </div>
 </details><details class="sd-sphinx-override sd-dropdown sd-card sd-mb-3">
 <summary class="sd-summary-title sd-card-header">
-<span class="sd-summary-icon"><svg version="1.1" width="1.0em" height="1.0em" class="sd-octicon sd-octicon-code" viewBox="0 0 16 16" aria-hidden="true"><path d="m11.28 3.22 4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.749.749 0 0 1-1.275-.326.749.749 0 0 1 .215-.734L13.94 8l-3.72-3.72a.749.749 0 0 1 .326-1.275.749.749 0 0 1 .734.215Zm-6.56 0a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042L2.06 8l3.72 3.72a.749.749 0 0 1-.326 1.275.749.749 0 0 1-.734-.215L.47 8.53a.75.75 0 0 1 0-1.06Z"></path></svg></span><span class="sd-summary-text">source/standalone/workflows/ray/tuner.py</span><span class="sd-summary-state-marker sd-summary-chevron-right"><svg version="1.1" width="1.5em" height="1.5em" class="sd-octicon sd-octicon-chevron-right" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.72 18.78a.75.75 0 0 1 0-1.06L14.44 12 8.72 6.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018l6.25 6.25a.75.75 0 0 1 0 1.06l-6.25 6.25a.75.75 0 0 1-1.06 0Z"></path></svg></span></summary><div class="sd-summary-content sd-card-body docutils">
+<span class="sd-summary-icon"><svg version="1.1" width="1.0em" height="1.0em" class="sd-octicon sd-octicon-code" viewBox="0 0 16 16" aria-hidden="true"><path d="m11.28 3.22 4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.749.749 0 0 1-1.275-.326.749.749 0 0 1 .215-.734L13.94 8l-3.72-3.72a.749.749 0 0 1 .326-1.275.749.749 0 0 1 .734.215Zm-6.56 0a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042L2.06 8l3.72 3.72a.749.749 0 0 1-.326 1.275.749.749 0 0 1-.734-.215L.47 8.53a.75.75 0 0 1 0-1.06Z"></path></svg></span><span class="sd-summary-text">scripts/reinforcement_learning/ray/tuner.py</span><span class="sd-summary-state-marker sd-summary-chevron-right"><svg version="1.1" width="1.5em" height="1.5em" class="sd-octicon sd-octicon-chevron-right" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.72 18.78a.75.75 0 0 1 0-1.06L14.44 12 8.72 6.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018l6.25 6.25a.75.75 0 0 1 0 1.06l-6.25 6.25a.75.75 0 0 1-1.06 0Z"></path></svg></span></summary><div class="sd-summary-content sd-card-body docutils">
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Copyright (c) 2022-2025, The Isaac Lab Project Developers.</span>
 <span class="c1"># All rights reserved.</span>
 <span class="c1">#</span>
@@ -858,15 +869,15 @@ job processing on local/virtual multi-GPU machines. Tuning jobs assume homogeneo
 </span><span class="hll">
 </span><span class="hll"><span class="sd">.. code-block:: bash</span>
 </span><span class="hll">
-</span><span class="hll"><span class="sd">    ./isaaclab.sh -p source/standalone/workflows/ray/tuner.py -h</span>
+</span><span class="hll"><span class="sd">    ./isaaclab.sh -p scripts/reinforcement_learning/ray/tuner.py -h</span>
 </span><span class="hll">
 </span><span class="hll"><span class="sd">    # Examples</span>
 </span><span class="hll"><span class="sd">    # Local</span>
-</span><span class="hll"><span class="sd">    ./isaaclab.sh -p source/standalone/workflows/ray/tuner.py --run_mode local \</span>
-</span><span class="hll"><span class="sd">    --cfg_file source/standalone/workflows/ray/hyperparameter_tuning/vision_cartpole_cfg.py \</span>
+</span><span class="hll"><span class="sd">    ./isaaclab.sh -p scripts/reinforcement_learning/ray/tuner.py --run_mode local \</span>
+</span><span class="hll"><span class="sd">    --cfg_file scripts/reinforcement_learning/ray/hyperparameter_tuning/vision_cartpole_cfg.py \</span>
 </span><span class="hll"><span class="sd">    --cfg_class CartpoleTheiaJobCfg</span>
 </span><span class="hll"><span class="sd">    # Remote (run grok cluster or create config file mentioned in :file:`submit_job.py`)</span>
-</span><span class="hll"><span class="sd">    ./isaaclab.sh -p source/standalone/workflows/ray/submit_job.py \</span>
+</span><span class="hll"><span class="sd">    ./isaaclab.sh -p scripts/reinforcement_learning/ray/submit_job.py \</span>
 </span><span class="hll"><span class="sd">    --aggregate_jobs tuner.py \</span>
 </span><span class="hll"><span class="sd">    --cfg_file hyperparameter_tuning/vision_cartpole_cfg.py \</span>
 </span><span class="hll"><span class="sd">    --cfg_class CartpoleTheiaJobCfg --mlflow_uri &lt;MLFLOW_URI_FROM_GROK_OR_MANUAL&gt;</span>
@@ -876,7 +887,7 @@ job processing on local/virtual multi-GPU machines. Tuning jobs assume homogeneo
 <span class="n">DOCKER_PREFIX</span> <span class="o">=</span> <span class="s2">&quot;/workspace/isaaclab/&quot;</span>
 <span class="n">BASE_DIR</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">expanduser</span><span class="p">(</span><span class="s2">&quot;~&quot;</span><span class="p">)</span>
 <span class="n">PYTHON_EXEC</span> <span class="o">=</span> <span class="s2">&quot;./isaaclab.sh -p&quot;</span>
-<span class="n">WORKFLOW</span> <span class="o">=</span> <span class="s2">&quot;source/standalone/workflows/rl_games/train.py&quot;</span>
+<span class="n">WORKFLOW</span> <span class="o">=</span> <span class="s2">&quot;scripts/reinforcement_learning/rl_games/train.py&quot;</span>
 <span class="n">NUM_WORKERS_PER_NODE</span> <span class="o">=</span> <span class="mi">1</span>  <span class="c1"># needed for local parallelism</span>
 
 
@@ -1185,7 +1196,7 @@ running jobs on a remote cluster or simultaneous jobs with heterogeneous
 resource requirements.</p>
 <details class="sd-sphinx-override sd-dropdown sd-card sd-mb-3">
 <summary class="sd-summary-title sd-card-header">
-<span class="sd-summary-icon"><svg version="1.1" width="1.0em" height="1.0em" class="sd-octicon sd-octicon-code" viewBox="0 0 16 16" aria-hidden="true"><path d="m11.28 3.22 4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.749.749 0 0 1-1.275-.326.749.749 0 0 1 .215-.734L13.94 8l-3.72-3.72a.749.749 0 0 1 .326-1.275.749.749 0 0 1 .734.215Zm-6.56 0a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042L2.06 8l3.72 3.72a.749.749 0 0 1-.326 1.275.749.749 0 0 1-.734-.215L.47 8.53a.75.75 0 0 1 0-1.06Z"></path></svg></span><span class="sd-summary-text">source/standalone/workflows/ray/submit_job.py</span><span class="sd-summary-state-marker sd-summary-chevron-right"><svg version="1.1" width="1.5em" height="1.5em" class="sd-octicon sd-octicon-chevron-right" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.72 18.78a.75.75 0 0 1 0-1.06L14.44 12 8.72 6.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018l6.25 6.25a.75.75 0 0 1 0 1.06l-6.25 6.25a.75.75 0 0 1-1.06 0Z"></path></svg></span></summary><div class="sd-summary-content sd-card-body docutils">
+<span class="sd-summary-icon"><svg version="1.1" width="1.0em" height="1.0em" class="sd-octicon sd-octicon-code" viewBox="0 0 16 16" aria-hidden="true"><path d="m11.28 3.22 4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.749.749 0 0 1-1.275-.326.749.749 0 0 1 .215-.734L13.94 8l-3.72-3.72a.749.749 0 0 1 .326-1.275.749.749 0 0 1 .734.215Zm-6.56 0a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042L2.06 8l3.72 3.72a.749.749 0 0 1-.326 1.275.749.749 0 0 1-.734-.215L.47 8.53a.75.75 0 0 1 0-1.06Z"></path></svg></span><span class="sd-summary-text">scripts/reinforcement_learning/ray/submit_job.py</span><span class="sd-summary-state-marker sd-summary-chevron-right"><svg version="1.1" width="1.5em" height="1.5em" class="sd-octicon sd-octicon-chevron-right" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.72 18.78a.75.75 0 0 1 0-1.06L14.44 12 8.72 6.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018l6.25 6.25a.75.75 0 0 1 0 1.06l-6.25 6.25a.75.75 0 0 1-1.06 0Z"></path></svg></span></summary><div class="sd-summary-content sd-card-body docutils">
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Copyright (c) 2022-2025, The Isaac Lab Project Developers.</span>
 <span class="c1"># All rights reserved.</span>
 <span class="c1">#</span>
@@ -1228,16 +1239,16 @@ resource requirements.</p>
 </span><span class="hll"><span class="sd">.. code-block:: bash</span>
 </span><span class="hll">
 </span><span class="hll"><span class="sd">    # Example; submitting a tuning job</span>
-</span><span class="hll"><span class="sd">    python3 source/standalone/workflows/ray/submit_job.py \</span>
-</span><span class="hll"><span class="sd">    --aggregate_jobs /workspace/isaaclab/source/standalone/workflows/ray/tuner.py \</span>
+</span><span class="hll"><span class="sd">    python3 scripts/reinforcement_learning/ray/submit_job.py \</span>
+</span><span class="hll"><span class="sd">    --aggregate_jobs /workspace/isaaclab/scripts/reinforcement_learning/ray/tuner.py \</span>
 </span><span class="hll"><span class="sd">        --cfg_file hyperparameter_tuning/vision_cartpole_cfg.py \</span>
 </span><span class="hll"><span class="sd">        --cfg_class CartpoleTheiaJobCfg --mlflow_uri &lt;ML_FLOW_URI&gt;</span>
 </span><span class="hll">
 </span><span class="hll"><span class="sd">    # Example: Submitting resource wrapped job</span>
-</span><span class="hll"><span class="sd">    python3 source/standalone/workflows/ray/submit_job.py --aggregate_jobs wrap_resources.py --test</span>
+</span><span class="hll"><span class="sd">    python3 scripts/reinforcement_learning/ray/submit_job.py --aggregate_jobs wrap_resources.py --test</span>
 </span><span class="hll">
 </span><span class="hll"><span class="sd">    # For all command line arguments</span>
-</span><span class="hll"><span class="sd">    python3 source/standalone/workflows/ray/submit_job.py -h</span>
+</span><span class="hll"><span class="sd">    python3 scripts/reinforcement_learning/ray/submit_job.py -h</span>
 </span><span class="hll"><span class="sd">&quot;&quot;&quot;</span>
 </span><span class="n">script_directory</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">abspath</span><span class="p">(</span><span class="vm">__file__</span><span class="p">))</span>
 <span class="n">CONFIG</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;working_dir&quot;</span><span class="p">:</span> <span class="n">script_directory</span><span class="p">,</span> <span class="s2">&quot;executable&quot;</span><span class="p">:</span> <span class="s2">&quot;/workspace/isaaclab/isaaclab.sh -p&quot;</span><span class="p">}</span>
@@ -1340,7 +1351,7 @@ resource requirements.</p>
 </details><p>The following script can be used to extract KubeRay cluster information for aggregate job submission.</p>
 <details class="sd-sphinx-override sd-dropdown sd-card sd-mb-3">
 <summary class="sd-summary-title sd-card-header">
-<span class="sd-summary-icon"><svg version="1.1" width="1.0em" height="1.0em" class="sd-octicon sd-octicon-code" viewBox="0 0 16 16" aria-hidden="true"><path d="m11.28 3.22 4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.749.749 0 0 1-1.275-.326.749.749 0 0 1 .215-.734L13.94 8l-3.72-3.72a.749.749 0 0 1 .326-1.275.749.749 0 0 1 .734.215Zm-6.56 0a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042L2.06 8l3.72 3.72a.749.749 0 0 1-.326 1.275.749.749 0 0 1-.734-.215L.47 8.53a.75.75 0 0 1 0-1.06Z"></path></svg></span><span class="sd-summary-text">source/standalone/workflows/ray/grok_cluster_with_kubectl.py</span><span class="sd-summary-state-marker sd-summary-chevron-right"><svg version="1.1" width="1.5em" height="1.5em" class="sd-octicon sd-octicon-chevron-right" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.72 18.78a.75.75 0 0 1 0-1.06L14.44 12 8.72 6.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018l6.25 6.25a.75.75 0 0 1 0 1.06l-6.25 6.25a.75.75 0 0 1-1.06 0Z"></path></svg></span></summary><div class="sd-summary-content sd-card-body docutils">
+<span class="sd-summary-icon"><svg version="1.1" width="1.0em" height="1.0em" class="sd-octicon sd-octicon-code" viewBox="0 0 16 16" aria-hidden="true"><path d="m11.28 3.22 4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.749.749 0 0 1-1.275-.326.749.749 0 0 1 .215-.734L13.94 8l-3.72-3.72a.749.749 0 0 1 .326-1.275.749.749 0 0 1 .734.215Zm-6.56 0a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042L2.06 8l3.72 3.72a.749.749 0 0 1-.326 1.275.749.749 0 0 1-.734-.215L.47 8.53a.75.75 0 0 1 0-1.06Z"></path></svg></span><span class="sd-summary-text">scripts/reinforcement_learning/ray/grok_cluster_with_kubectl.py</span><span class="sd-summary-state-marker sd-summary-chevron-right"><svg version="1.1" width="1.5em" height="1.5em" class="sd-octicon sd-octicon-chevron-right" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.72 18.78a.75.75 0 0 1 0-1.06L14.44 12 8.72 6.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018l6.25 6.25a.75.75 0 0 1 0 1.06l-6.25 6.25a.75.75 0 0 1-1.06 0Z"></path></svg></span></summary><div class="sd-summary-content sd-card-body docutils">
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Copyright (c) 2022-2025, The Isaac Lab Project Developers.</span>
 <span class="c1"># All rights reserved.</span>
 <span class="c1">#</span>
@@ -1364,7 +1375,7 @@ resource requirements.</p>
 </span><span class="hll">
 </span><span class="hll"><span class="sd">.. code-block:: bash</span>
 </span><span class="hll">
-</span><span class="hll"><span class="sd">    python3 source/standalone/workflows/ray/grok_cluster_with_kubectl.py</span>
+</span><span class="hll"><span class="sd">    python3 scripts/reinforcement_learning/ray/grok_cluster_with_kubectl.py</span>
 </span><span class="hll"><span class="sd">    # For options, supply -h arg</span>
 </span><span class="hll"><span class="sd">&quot;&quot;&quot;</span>
 </span>
@@ -1621,7 +1632,7 @@ resource requirements.</p>
 </details><p>The following script can be used to easily create clusters on Google GKE.</p>
 <details class="sd-sphinx-override sd-dropdown sd-card sd-mb-3">
 <summary class="sd-summary-title sd-card-header">
-<span class="sd-summary-icon"><svg version="1.1" width="1.0em" height="1.0em" class="sd-octicon sd-octicon-code" viewBox="0 0 16 16" aria-hidden="true"><path d="m11.28 3.22 4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.749.749 0 0 1-1.275-.326.749.749 0 0 1 .215-.734L13.94 8l-3.72-3.72a.749.749 0 0 1 .326-1.275.749.749 0 0 1 .734.215Zm-6.56 0a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042L2.06 8l3.72 3.72a.749.749 0 0 1-.326 1.275.749.749 0 0 1-.734-.215L.47 8.53a.75.75 0 0 1 0-1.06Z"></path></svg></span><span class="sd-summary-text">source/standalone/workflows/ray/launch.py</span><span class="sd-summary-state-marker sd-summary-chevron-right"><svg version="1.1" width="1.5em" height="1.5em" class="sd-octicon sd-octicon-chevron-right" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.72 18.78a.75.75 0 0 1 0-1.06L14.44 12 8.72 6.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018l6.25 6.25a.75.75 0 0 1 0 1.06l-6.25 6.25a.75.75 0 0 1-1.06 0Z"></path></svg></span></summary><div class="sd-summary-content sd-card-body docutils">
+<span class="sd-summary-icon"><svg version="1.1" width="1.0em" height="1.0em" class="sd-octicon sd-octicon-code" viewBox="0 0 16 16" aria-hidden="true"><path d="m11.28 3.22 4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.749.749 0 0 1-1.275-.326.749.749 0 0 1 .215-.734L13.94 8l-3.72-3.72a.749.749 0 0 1 .326-1.275.749.749 0 0 1 .734.215Zm-6.56 0a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042L2.06 8l3.72 3.72a.749.749 0 0 1-.326 1.275.749.749 0 0 1-.734-.215L.47 8.53a.75.75 0 0 1 0-1.06Z"></path></svg></span><span class="sd-summary-text">scripts/reinforcement_learning/ray/launch.py</span><span class="sd-summary-state-marker sd-summary-chevron-right"><svg version="1.1" width="1.5em" height="1.5em" class="sd-octicon sd-octicon-chevron-right" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.72 18.78a.75.75 0 0 1 0-1.06L14.44 12 8.72 6.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018l6.25 6.25a.75.75 0 0 1 0 1.06l-6.25 6.25a.75.75 0 0 1-1.06 0Z"></path></svg></span></summary><div class="sd-summary-content sd-card-body docutils">
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Copyright (c) 2022-2025, The Isaac Lab Project Developers.</span>
 <span class="c1"># All rights reserved.</span>
 <span class="c1">#</span>
@@ -1642,18 +1653,18 @@ resource requirements.</p>
 </span><span class="hll">
 </span><span class="hll"><span class="sd">.. code-block:: bash</span>
 </span><span class="hll"><span class="sd">    # If the head node is stuck on container creating, make sure to create a secret</span>
-</span><span class="hll"><span class="sd">    python3 source/standalone/workflows/ray/launch.py -h</span>
+</span><span class="hll"><span class="sd">    python3 scripts/reinforcement_learning/ray/launch.py -h</span>
 </span><span class="hll">
 </span><span class="hll"><span class="sd">    # Examples</span>
 </span><span class="hll">
 </span><span class="hll"><span class="sd">    # The following creates 8 GPUx1 nvidia l4 workers</span>
-</span><span class="hll"><span class="sd">    python3 source/standalone/workflows/ray/launch.py --cluster_host google_cloud \</span>
+</span><span class="hll"><span class="sd">    python3 scripts/reinforcement_learning/ray/launch.py --cluster_host google_cloud \</span>
 </span><span class="hll"><span class="sd">    --namespace &lt;NAMESPACE&gt; --image &lt;YOUR_ISAAC_RAY_IMAGE&gt; \</span>
 </span><span class="hll"><span class="sd">    --num_workers 8 --num_clusters 1 --worker_accelerator nvidia-l4 --gpu_per_worker 1</span>
 </span><span class="hll">
 </span><span class="hll"><span class="sd">    # The following creates 1 GPUx1 nvidia l4 worker, 2 GPUx2 nvidia-tesla-t4 workers,</span>
 </span><span class="hll"><span class="sd">    # and 2 GPUx4 nvidia-tesla-t4 GPU workers</span>
-</span><span class="hll"><span class="sd">    python3 source/standalone/workflows/ray/launch.py --cluster_host google_cloud \</span>
+</span><span class="hll"><span class="sd">    python3 scripts/reinforcement_learning/ray/launch.py --cluster_host google_cloud \</span>
 </span><span class="hll"><span class="sd">    --namespace &lt;NAMESPACE&gt; --image &lt;YOUR_ISAAC_RAY_IMAGE&gt; \</span>
 </span><span class="hll"><span class="sd">    --num_workers 1 2 --num_clusters 1 \</span>
 </span><span class="hll"><span class="sd">    --worker_accelerator nvidia-l4 nvidia-tesla-t4 --gpu_per_worker 1 2 4</span>
@@ -1807,14 +1818,14 @@ resource requirements.</p>
 </div>
 </details></section>
 <section id="docker-based-local-quickstart">
-<h2><a class="toc-backref" href="#id3" role="doc-backlink"><strong>Docker-based Local Quickstart</strong></a><a class="headerlink" href="#docker-based-local-quickstart" title="Permalink to this heading">#</a></h2>
+<h2><a class="toc-backref" href="#id3" role="doc-backlink">Docker-based Local Quickstart</a><a class="headerlink" href="#docker-based-local-quickstart" title="Permalink to this heading">#</a></h2>
 <p>First, follow the <a class="reference external" href="https://isaac-sim.github.io/IsaacLab/main/source/deployment/docker.html">Docker Guide</a>
 to set up the NVIDIA Container Toolkit and Docker Compose.</p>
 <p>Then, run the following steps to start a tuning run.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Build the base image, but we don&#39;t need to run it</span>
 python3<span class="w"> </span>docker/container.py<span class="w"> </span>start<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>python3<span class="w"> </span>docker/container.py<span class="w"> </span>stop
 <span class="c1"># Build the tuning image with extra deps</span>
-docker<span class="w"> </span>build<span class="w"> </span>-t<span class="w"> </span>isaacray<span class="w"> </span>-f<span class="w"> </span>source/standalone/workflows/ray/cluster_configs/Dockerfile<span class="w"> </span>.
+docker<span class="w"> </span>build<span class="w"> </span>-t<span class="w"> </span>isaacray<span class="w"> </span>-f<span class="w"> </span>scripts/reinforcement_learning/ray/cluster_configs/Dockerfile<span class="w"> </span>.
 <span class="c1"># Start the tuning image - symlink so that changes in the source folder show up in the container</span>
 docker<span class="w"> </span>run<span class="w"> </span>-v<span class="w"> </span><span class="k">$(</span><span class="nb">pwd</span><span class="k">)</span>/source:/workspace/isaaclab/source<span class="w"> </span>-it<span class="w"> </span>--gpus<span class="w"> </span>all<span class="w"> </span>--net<span class="o">=</span>host<span class="w"> </span>--entrypoint<span class="w"> </span>/bin/bash<span class="w"> </span>isaacray
 <span class="c1"># Start the Ray server within the tuning image</span>
@@ -1826,11 +1837,11 @@ docker<span class="w"> </span>run<span class="w"> </span>-v<span class="w"> </sp
 docker<span class="w"> </span>container<span class="w"> </span>ps
 docker<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>-it<span class="w"> </span>&lt;ISAAC_RAY_IMAGE_ID_FROM_CONTAINER_PS&gt;<span class="w"> </span>/bin/bash
 <span class="c1"># Start a tuning run, with one parallel worker per GPU</span>
-./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>source/standalone/workflows/ray/tuner.py<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--cfg_file<span class="w"> </span>source/standalone/workflows/ray/hyperparameter_tuning/vision_cartpole_cfg.py<span class="w"> </span><span class="se">\</span>
+./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/reinforcement_learning/ray/tuner.py<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--cfg_file<span class="w"> </span>scripts/reinforcement_learning/ray/hyperparameter_tuning/vision_cartpole_cfg.py<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>--cfg_class<span class="w"> </span>CartpoleTheiaJobCfg<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>--run_mode<span class="w"> </span><span class="nb">local</span><span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--workflow<span class="w"> </span>source/standalone/workflows/rl_games/train.py<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--workflow<span class="w"> </span>scripts/reinforcement_learning/rl_games/train.py<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>--num_workers_per_node<span class="w"> </span>&lt;NUMBER_OF_GPUS_IN_COMPUTER&gt;
 </pre></div>
 </div>
@@ -1845,7 +1856,7 @@ tensorboard<span class="w"> </span>--logdir<span class="o">=</span>.
 <p>Submitting resource-wrapped individual jobs instead of automatic tuning runs is described in the following file.</p>
 <details class="sd-sphinx-override sd-dropdown sd-card sd-mb-3">
 <summary class="sd-summary-title sd-card-header">
-<span class="sd-summary-icon"><svg version="1.1" width="1.0em" height="1.0em" class="sd-octicon sd-octicon-code" viewBox="0 0 16 16" aria-hidden="true"><path d="m11.28 3.22 4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.749.749 0 0 1-1.275-.326.749.749 0 0 1 .215-.734L13.94 8l-3.72-3.72a.749.749 0 0 1 .326-1.275.749.749 0 0 1 .734.215Zm-6.56 0a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042L2.06 8l3.72 3.72a.749.749 0 0 1-.326 1.275.749.749 0 0 1-.734-.215L.47 8.53a.75.75 0 0 1 0-1.06Z"></path></svg></span><span class="sd-summary-text">source/standalone/workflows/ray/wrap_resources.py</span><span class="sd-summary-state-marker sd-summary-chevron-right"><svg version="1.1" width="1.5em" height="1.5em" class="sd-octicon sd-octicon-chevron-right" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.72 18.78a.75.75 0 0 1 0-1.06L14.44 12 8.72 6.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018l6.25 6.25a.75.75 0 0 1 0 1.06l-6.25 6.25a.75.75 0 0 1-1.06 0Z"></path></svg></span></summary><div class="sd-summary-content sd-card-body docutils">
+<span class="sd-summary-icon"><svg version="1.1" width="1.0em" height="1.0em" class="sd-octicon sd-octicon-code" viewBox="0 0 16 16" aria-hidden="true"><path d="m11.28 3.22 4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.749.749 0 0 1-1.275-.326.749.749 0 0 1 .215-.734L13.94 8l-3.72-3.72a.749.749 0 0 1 .326-1.275.749.749 0 0 1 .734.215Zm-6.56 0a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042L2.06 8l3.72 3.72a.749.749 0 0 1-.326 1.275.749.749 0 0 1-.734-.215L.47 8.53a.75.75 0 0 1 0-1.06Z"></path></svg></span><span class="sd-summary-text">scripts/reinforcement_learning/ray/wrap_resources.py</span><span class="sd-summary-state-marker sd-summary-chevron-right"><svg version="1.1" width="1.5em" height="1.5em" class="sd-octicon sd-octicon-chevron-right" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.72 18.78a.75.75 0 0 1 0-1.06L14.44 12 8.72 6.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018l6.25 6.25a.75.75 0 0 1 0 1.06l-6.25 6.25a.75.75 0 0 1-1.06 0Z"></path></svg></span></summary><div class="sd-summary-content sd-card-body docutils">
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Copyright (c) 2022-2025, The Isaac Lab Project Developers.</span>
 <span class="c1"># All rights reserved.</span>
 <span class="c1">#</span>
@@ -1894,22 +1905,22 @@ tensorboard<span class="w"> </span>--logdir<span class="o">=</span>.
 </span><span class="hll"><span class="sd">.. code-block:: bash</span>
 </span><span class="hll"><span class="sd">    # **Ensure that sub-jobs are separated by the ``+`` delimiter.**</span>
 </span><span class="hll"><span class="sd">    # Generic Templates-----------------------------------</span>
-</span><span class="hll"><span class="sd">    ./isaaclab.sh -p source/standalone/workflows/ray/wrap_resources.py -h</span>
+</span><span class="hll"><span class="sd">    ./isaaclab.sh -p scripts/reinforcement_learning/ray/wrap_resources.py -h</span>
 </span><span class="hll"><span class="sd">    # No resource isolation; no parallelization:</span>
-</span><span class="hll"><span class="sd">    ./isaaclab.sh -p source/standalone/workflows/ray/wrap_resources.py</span>
+</span><span class="hll"><span class="sd">    ./isaaclab.sh -p scripts/reinforcement_learning/ray/wrap_resources.py</span>
 </span><span class="hll"><span class="sd">    --sub_jobs &lt;JOB0&gt;+&lt;JOB1&gt;+&lt;JOB2&gt;</span>
 </span><span class="hll"><span class="sd">    # Automatic Resource Isolation; Example A: needed for parallelization</span>
-</span><span class="hll"><span class="sd">    ./isaaclab.sh -p source/standalone/workflows/ray/wrap_resources.py \</span>
+</span><span class="hll"><span class="sd">    ./isaaclab.sh -p scripts/reinforcement_learning/ray/wrap_resources.py \</span>
 </span><span class="hll"><span class="sd">    --num_workers &lt;NUM_TO_DIVIDE_TOTAL_RESOURCES_BY&gt; \</span>
 </span><span class="hll"><span class="sd">    --sub_jobs &lt;JOB0&gt;+&lt;JOB1&gt;</span>
 </span><span class="hll"><span class="sd">    # Manual Resource Isolation; Example B:  needed for parallelization</span>
-</span><span class="hll"><span class="sd">    ./isaaclab.sh -p source/standalone/workflows/ray/wrap_resources.py --num_cpu_per_worker &lt;CPU&gt; \</span>
+</span><span class="hll"><span class="sd">    ./isaaclab.sh -p scripts/reinforcement_learning/ray/wrap_resources.py --num_cpu_per_worker &lt;CPU&gt; \</span>
 </span><span class="hll"><span class="sd">    --gpu_per_worker &lt;GPU&gt; --ram_gb_per_worker &lt;RAM&gt; --sub_jobs &lt;JOB0&gt;+&lt;JOB1&gt;</span>
 </span><span class="hll"><span class="sd">    # Manual Resource Isolation; Example C: Needed for parallelization, for heterogeneous workloads</span>
-</span><span class="hll"><span class="sd">    ./isaaclab.sh -p source/standalone/workflows/ray/wrap_resources.py --num_cpu_per_worker &lt;CPU&gt; \</span>
+</span><span class="hll"><span class="sd">    ./isaaclab.sh -p scripts/reinforcement_learning/ray/wrap_resources.py --num_cpu_per_worker &lt;CPU&gt; \</span>
 </span><span class="hll"><span class="sd">    --gpu_per_worker &lt;GPU1&gt; &lt;GPU2&gt; --ram_gb_per_worker &lt;RAM&gt; --sub_jobs &lt;JOB0&gt;+&lt;JOB1&gt;</span>
 </span><span class="hll"><span class="sd">    # to see all arguments</span>
-</span><span class="hll"><span class="sd">    ./isaaclab.sh -p source/standalone/workflows/ray/wrap_resources.py -h</span>
+</span><span class="hll"><span class="sd">    ./isaaclab.sh -p scripts/reinforcement_learning/ray/wrap_resources.py -h</span>
 </span><span class="hll"><span class="sd">&quot;&quot;&quot;</span>
 </span><span class="hll">
 </span>
@@ -2010,7 +2021,7 @@ environment entrypoints and hydra arguments, although other workflows will work 
 <code class="xref py py-class docutils literal notranslate"><span class="pre">JobCfg</span></code>.</p>
 <details class="sd-sphinx-override sd-dropdown sd-card sd-mb-3">
 <summary class="sd-summary-title sd-card-header">
-<span class="sd-summary-icon"><svg version="1.1" width="1.0em" height="1.0em" class="sd-octicon sd-octicon-code" viewBox="0 0 16 16" aria-hidden="true"><path d="m11.28 3.22 4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.749.749 0 0 1-1.275-.326.749.749 0 0 1 .215-.734L13.94 8l-3.72-3.72a.749.749 0 0 1 .326-1.275.749.749 0 0 1 .734.215Zm-6.56 0a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042L2.06 8l3.72 3.72a.749.749 0 0 1-.326 1.275.749.749 0 0 1-.734-.215L.47 8.53a.75.75 0 0 1 0-1.06Z"></path></svg></span><span class="sd-summary-text">source/standalone/workflows/ray/tuner.py (JobCfg definition)</span><span class="sd-summary-state-marker sd-summary-chevron-right"><svg version="1.1" width="1.5em" height="1.5em" class="sd-octicon sd-octicon-chevron-right" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.72 18.78a.75.75 0 0 1 0-1.06L14.44 12 8.72 6.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018l6.25 6.25a.75.75 0 0 1 0 1.06l-6.25 6.25a.75.75 0 0 1-1.06 0Z"></path></svg></span></summary><div class="sd-summary-content sd-card-body docutils">
+<span class="sd-summary-icon"><svg version="1.1" width="1.0em" height="1.0em" class="sd-octicon sd-octicon-code" viewBox="0 0 16 16" aria-hidden="true"><path d="m11.28 3.22 4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.749.749 0 0 1-1.275-.326.749.749 0 0 1 .215-.734L13.94 8l-3.72-3.72a.749.749 0 0 1 .326-1.275.749.749 0 0 1 .734.215Zm-6.56 0a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042L2.06 8l3.72 3.72a.749.749 0 0 1-.326 1.275.749.749 0 0 1-.734-.215L.47 8.53a.75.75 0 0 1 0-1.06Z"></path></svg></span><span class="sd-summary-text">scripts/reinforcement_learning/ray/tuner.py (JobCfg definition)</span><span class="sd-summary-state-marker sd-summary-chevron-right"><svg version="1.1" width="1.5em" height="1.5em" class="sd-octicon sd-octicon-chevron-right" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.72 18.78a.75.75 0 0 1 0-1.06L14.44 12 8.72 6.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018l6.25 6.25a.75.75 0 0 1 0 1.06l-6.25 6.25a.75.75 0 0 1-1.06 0Z"></path></svg></span></summary><div class="sd-summary-content sd-card-body docutils">
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">class</span><span class="w"> </span><span class="nc">JobCfg</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;To be compatible with :meth: invoke_tuning_run and :class:IsaacLabTuneTrainable,</span>
 <span class="sd">    at a minimum, the tune job should inherit from this class.&quot;&quot;&quot;</span>
@@ -2040,7 +2051,7 @@ environment entrypoints and hydra arguments, although other workflows will work 
 </details><p>For example, see the following Cartpole Example configurations.</p>
 <details class="sd-sphinx-override sd-dropdown sd-card sd-mb-3">
 <summary class="sd-summary-title sd-card-header">
-<span class="sd-summary-icon"><svg version="1.1" width="1.0em" height="1.0em" class="sd-octicon sd-octicon-code" viewBox="0 0 16 16" aria-hidden="true"><path d="m11.28 3.22 4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.749.749 0 0 1-1.275-.326.749.749 0 0 1 .215-.734L13.94 8l-3.72-3.72a.749.749 0 0 1 .326-1.275.749.749 0 0 1 .734.215Zm-6.56 0a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042L2.06 8l3.72 3.72a.749.749 0 0 1-.326 1.275.749.749 0 0 1-.734-.215L.47 8.53a.75.75 0 0 1 0-1.06Z"></path></svg></span><span class="sd-summary-text">source/standalone/workflows/ray/hyperparameter_tuning/vision_cartpole_cfg.py</span><span class="sd-summary-state-marker sd-summary-chevron-right"><svg version="1.1" width="1.5em" height="1.5em" class="sd-octicon sd-octicon-chevron-right" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.72 18.78a.75.75 0 0 1 0-1.06L14.44 12 8.72 6.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018l6.25 6.25a.75.75 0 0 1 0 1.06l-6.25 6.25a.75.75 0 0 1-1.06 0Z"></path></svg></span></summary><div class="sd-summary-content sd-card-body docutils">
+<span class="sd-summary-icon"><svg version="1.1" width="1.0em" height="1.0em" class="sd-octicon sd-octicon-code" viewBox="0 0 16 16" aria-hidden="true"><path d="m11.28 3.22 4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.749.749 0 0 1-1.275-.326.749.749 0 0 1 .215-.734L13.94 8l-3.72-3.72a.749.749 0 0 1 .326-1.275.749.749 0 0 1 .734.215Zm-6.56 0a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042L2.06 8l3.72 3.72a.749.749 0 0 1-.326 1.275.749.749 0 0 1-.734-.215L.47 8.53a.75.75 0 0 1 0-1.06Z"></path></svg></span><span class="sd-summary-text">scripts/reinforcement_learning/ray/hyperparameter_tuning/vision_cartpole_cfg.py</span><span class="sd-summary-state-marker sd-summary-chevron-right"><svg version="1.1" width="1.5em" height="1.5em" class="sd-octicon sd-octicon-chevron-right" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.72 18.78a.75.75 0 0 1 0-1.06L14.44 12 8.72 6.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018l6.25 6.25a.75.75 0 0 1 0 1.06l-6.25 6.25a.75.75 0 0 1-1.06 0Z"></path></svg></span></summary><div class="sd-summary-content sd-card-body docutils">
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Copyright (c) 2022-2025, The Isaac Lab Project Developers.</span>
 <span class="c1"># All rights reserved.</span>
 <span class="c1">#</span>
@@ -2095,7 +2106,7 @@ environment entrypoints and hydra arguments, although other workflows will work 
 </div>
 </details></section>
 <section id="remote-clusters">
-<h2><a class="toc-backref" href="#id4" role="doc-backlink"><strong>Remote Clusters</strong></a><a class="headerlink" href="#remote-clusters" title="Permalink to this heading">#</a></h2>
+<h2><a class="toc-backref" href="#id4" role="doc-backlink">Remote Clusters</a><a class="headerlink" href="#remote-clusters" title="Permalink to this heading">#</a></h2>
 <p>Select one of the following methods to create a Ray cluster to accept and execute dispatched jobs.</p>
 <section id="kuberay-setup">
 <h3><a class="toc-backref" href="#id5" role="doc-backlink">KubeRay Setup</a><a class="headerlink" href="#kuberay-setup" title="Permalink to this heading">#</a></h3>
@@ -2158,7 +2169,7 @@ host and cluster have access to.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Login with NGC (nvcr.io) registry first, see docker steps in repo.</span>
 python3<span class="w"> </span>docker/container.py<span class="w"> </span>start
 <span class="c1"># Build the special Isaac Lab Ray Image</span>
-docker<span class="w"> </span>build<span class="w"> </span>-t<span class="w"> </span>&lt;REGISTRY/IMAGE_NAME&gt;<span class="w"> </span>-f<span class="w"> </span>source/standalone/workflows/ray/cluster_configs/Dockerfile<span class="w"> </span>.
+docker<span class="w"> </span>build<span class="w"> </span>-t<span class="w"> </span>&lt;REGISTRY/IMAGE_NAME&gt;<span class="w"> </span>-f<span class="w"> </span>scripts/reinforcement_learning/ray/cluster_configs/Dockerfile<span class="w"> </span>.
 <span class="c1"># Push the image to your registry of choice.</span>
 docker<span class="w"> </span>push<span class="w"> </span>&lt;REGISTRY/IMAGE_NAME&gt;
 </pre></div>
@@ -2188,7 +2199,7 @@ This can be done automatically for Google GKE,
 where instructions are included in the following creation file.</p>
 <details class="sd-sphinx-override sd-dropdown sd-card sd-mb-3">
 <summary class="sd-summary-title sd-card-header">
-<span class="sd-summary-icon"><svg version="1.1" width="1.0em" height="1.0em" class="sd-octicon sd-octicon-code" viewBox="0 0 16 16" aria-hidden="true"><path d="m11.28 3.22 4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.749.749 0 0 1-1.275-.326.749.749 0 0 1 .215-.734L13.94 8l-3.72-3.72a.749.749 0 0 1 .326-1.275.749.749 0 0 1 .734.215Zm-6.56 0a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042L2.06 8l3.72 3.72a.749.749 0 0 1-.326 1.275.749.749 0 0 1-.734-.215L.47 8.53a.75.75 0 0 1 0-1.06Z"></path></svg></span><span class="sd-summary-text">source/standalone/workflows/ray/launch.py</span><span class="sd-summary-state-marker sd-summary-chevron-right"><svg version="1.1" width="1.5em" height="1.5em" class="sd-octicon sd-octicon-chevron-right" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.72 18.78a.75.75 0 0 1 0-1.06L14.44 12 8.72 6.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018l6.25 6.25a.75.75 0 0 1 0 1.06l-6.25 6.25a.75.75 0 0 1-1.06 0Z"></path></svg></span></summary><div class="sd-summary-content sd-card-body docutils">
+<span class="sd-summary-icon"><svg version="1.1" width="1.0em" height="1.0em" class="sd-octicon sd-octicon-code" viewBox="0 0 16 16" aria-hidden="true"><path d="m11.28 3.22 4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.749.749 0 0 1-1.275-.326.749.749 0 0 1 .215-.734L13.94 8l-3.72-3.72a.749.749 0 0 1 .326-1.275.749.749 0 0 1 .734.215Zm-6.56 0a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042L2.06 8l3.72 3.72a.749.749 0 0 1-.326 1.275.749.749 0 0 1-.734-.215L.47 8.53a.75.75 0 0 1 0-1.06Z"></path></svg></span><span class="sd-summary-text">scripts/reinforcement_learning/ray/launch.py</span><span class="sd-summary-state-marker sd-summary-chevron-right"><svg version="1.1" width="1.5em" height="1.5em" class="sd-octicon sd-octicon-chevron-right" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.72 18.78a.75.75 0 0 1 0-1.06L14.44 12 8.72 6.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018l6.25 6.25a.75.75 0 0 1 0 1.06l-6.25 6.25a.75.75 0 0 1-1.06 0Z"></path></svg></span></summary><div class="sd-summary-content sd-card-body docutils">
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Copyright (c) 2022-2025, The Isaac Lab Project Developers.</span>
 <span class="c1"># All rights reserved.</span>
 <span class="c1">#</span>
@@ -2209,18 +2220,18 @@ where instructions are included in the following creation file.</p>
 </span><span class="hll">
 </span><span class="hll"><span class="sd">.. code-block:: bash</span>
 </span><span class="hll"><span class="sd">    # If the head node is stuck on container creating, make sure to create a secret</span>
-</span><span class="hll"><span class="sd">    python3 source/standalone/workflows/ray/launch.py -h</span>
+</span><span class="hll"><span class="sd">    python3 scripts/reinforcement_learning/ray/launch.py -h</span>
 </span><span class="hll">
 </span><span class="hll"><span class="sd">    # Examples</span>
 </span><span class="hll">
 </span><span class="hll"><span class="sd">    # The following creates 8 GPUx1 nvidia l4 workers</span>
-</span><span class="hll"><span class="sd">    python3 source/standalone/workflows/ray/launch.py --cluster_host google_cloud \</span>
+</span><span class="hll"><span class="sd">    python3 scripts/reinforcement_learning/ray/launch.py --cluster_host google_cloud \</span>
 </span><span class="hll"><span class="sd">    --namespace &lt;NAMESPACE&gt; --image &lt;YOUR_ISAAC_RAY_IMAGE&gt; \</span>
 </span><span class="hll"><span class="sd">    --num_workers 8 --num_clusters 1 --worker_accelerator nvidia-l4 --gpu_per_worker 1</span>
 </span><span class="hll">
 </span><span class="hll"><span class="sd">    # The following creates 1 GPUx1 nvidia l4 worker, 2 GPUx2 nvidia-tesla-t4 workers,</span>
 </span><span class="hll"><span class="sd">    # and 2 GPUx4 nvidia-tesla-t4 GPU workers</span>
-</span><span class="hll"><span class="sd">    python3 source/standalone/workflows/ray/launch.py --cluster_host google_cloud \</span>
+</span><span class="hll"><span class="sd">    python3 scripts/reinforcement_learning/ray/launch.py --cluster_host google_cloud \</span>
 </span><span class="hll"><span class="sd">    --namespace &lt;NAMESPACE&gt; --image &lt;YOUR_ISAAC_RAY_IMAGE&gt; \</span>
 </span><span class="hll"><span class="sd">    --num_workers 1 2 --num_clusters 1 \</span>
 </span><span class="hll"><span class="sd">    --worker_accelerator nvidia-l4 nvidia-tesla-t4 --gpu_per_worker 1 2 4</span>
@@ -2376,7 +2387,7 @@ where instructions are included in the following creation file.</p>
 Google’s.</p>
 <details class="sd-sphinx-override sd-dropdown sd-card sd-mb-3">
 <summary class="sd-summary-title sd-card-header">
-<span class="sd-summary-icon"><svg version="1.1" width="1.0em" height="1.0em" class="sd-octicon sd-octicon-code" viewBox="0 0 16 16" aria-hidden="true"><path d="m11.28 3.22 4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.749.749 0 0 1-1.275-.326.749.749 0 0 1 .215-.734L13.94 8l-3.72-3.72a.749.749 0 0 1 .326-1.275.749.749 0 0 1 .734.215Zm-6.56 0a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042L2.06 8l3.72 3.72a.749.749 0 0 1-.326 1.275.749.749 0 0 1-.734-.215L.47 8.53a.75.75 0 0 1 0-1.06Z"></path></svg></span><span class="sd-summary-text">source/standalone/workflows/ray/cluster_configs/google_cloud/kuberay.yaml.ninja</span><span class="sd-summary-state-marker sd-summary-chevron-right"><svg version="1.1" width="1.5em" height="1.5em" class="sd-octicon sd-octicon-chevron-right" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.72 18.78a.75.75 0 0 1 0-1.06L14.44 12 8.72 6.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018l6.25 6.25a.75.75 0 0 1 0 1.06l-6.25 6.25a.75.75 0 0 1-1.06 0Z"></path></svg></span></summary><div class="sd-summary-content sd-card-body docutils">
+<span class="sd-summary-icon"><svg version="1.1" width="1.0em" height="1.0em" class="sd-octicon sd-octicon-code" viewBox="0 0 16 16" aria-hidden="true"><path d="m11.28 3.22 4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.749.749 0 0 1-1.275-.326.749.749 0 0 1 .215-.734L13.94 8l-3.72-3.72a.749.749 0 0 1 .326-1.275.749.749 0 0 1 .734.215Zm-6.56 0a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042L2.06 8l3.72 3.72a.749.749 0 0 1-.326 1.275.749.749 0 0 1-.734-.215L.47 8.53a.75.75 0 0 1 0-1.06Z"></path></svg></span><span class="sd-summary-text">scripts/reinforcement_learning/ray/cluster_configs/google_cloud/kuberay.yaml.ninja</span><span class="sd-summary-state-marker sd-summary-chevron-right"><svg version="1.1" width="1.5em" height="1.5em" class="sd-octicon sd-octicon-chevron-right" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.72 18.78a.75.75 0 0 1 0-1.06L14.44 12 8.72 6.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018l6.25 6.25a.75.75 0 0 1 0 1.06l-6.25 6.25a.75.75 0 0 1-1.06 0Z"></path></svg></span></summary><div class="sd-summary-content sd-card-body docutils">
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Jinja is used for templating here as full helm setup is excessive for application</span>
 <span class="n">apiVersion</span><span class="p">:</span> <span class="n">ray</span><span class="o">.</span><span class="n">io</span><span class="o">/</span><span class="n">v1alpha1</span>
 <span class="n">kind</span><span class="p">:</span> <span class="n">RayCluster</span>
@@ -2590,7 +2601,7 @@ The KubeRay clusters are saved to a file, but the MLFLow Server IP is
 printed.</p>
 <details class="sd-sphinx-override sd-dropdown sd-card sd-mb-3">
 <summary class="sd-summary-title sd-card-header">
-<span class="sd-summary-icon"><svg version="1.1" width="1.0em" height="1.0em" class="sd-octicon sd-octicon-code" viewBox="0 0 16 16" aria-hidden="true"><path d="m11.28 3.22 4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.749.749 0 0 1-1.275-.326.749.749 0 0 1 .215-.734L13.94 8l-3.72-3.72a.749.749 0 0 1 .326-1.275.749.749 0 0 1 .734.215Zm-6.56 0a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042L2.06 8l3.72 3.72a.749.749 0 0 1-.326 1.275.749.749 0 0 1-.734-.215L.47 8.53a.75.75 0 0 1 0-1.06Z"></path></svg></span><span class="sd-summary-text">source/standalone/workflows/ray/grok_cluster_with_kubectl.py</span><span class="sd-summary-state-marker sd-summary-chevron-right"><svg version="1.1" width="1.5em" height="1.5em" class="sd-octicon sd-octicon-chevron-right" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.72 18.78a.75.75 0 0 1 0-1.06L14.44 12 8.72 6.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018l6.25 6.25a.75.75 0 0 1 0 1.06l-6.25 6.25a.75.75 0 0 1-1.06 0Z"></path></svg></span></summary><div class="sd-summary-content sd-card-body docutils">
+<span class="sd-summary-icon"><svg version="1.1" width="1.0em" height="1.0em" class="sd-octicon sd-octicon-code" viewBox="0 0 16 16" aria-hidden="true"><path d="m11.28 3.22 4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.749.749 0 0 1-1.275-.326.749.749 0 0 1 .215-.734L13.94 8l-3.72-3.72a.749.749 0 0 1 .326-1.275.749.749 0 0 1 .734.215Zm-6.56 0a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042L2.06 8l3.72 3.72a.749.749 0 0 1-.326 1.275.749.749 0 0 1-.734-.215L.47 8.53a.75.75 0 0 1 0-1.06Z"></path></svg></span><span class="sd-summary-text">scripts/reinforcement_learning/ray/grok_cluster_with_kubectl.py</span><span class="sd-summary-state-marker sd-summary-chevron-right"><svg version="1.1" width="1.5em" height="1.5em" class="sd-octicon sd-octicon-chevron-right" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.72 18.78a.75.75 0 0 1 0-1.06L14.44 12 8.72 6.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018l6.25 6.25a.75.75 0 0 1 0 1.06l-6.25 6.25a.75.75 0 0 1-1.06 0Z"></path></svg></span></summary><div class="sd-summary-content sd-card-body docutils">
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Copyright (c) 2022-2025, The Isaac Lab Project Developers.</span>
 <span class="c1"># All rights reserved.</span>
 <span class="c1">#</span>
@@ -2614,7 +2625,7 @@ printed.</p>
 </span><span class="hll">
 </span><span class="hll"><span class="sd">.. code-block:: bash</span>
 </span><span class="hll">
-</span><span class="hll"><span class="sd">    python3 source/standalone/workflows/ray/grok_cluster_with_kubectl.py</span>
+</span><span class="hll"><span class="sd">    python3 scripts/reinforcement_learning/ray/grok_cluster_with_kubectl.py</span>
 </span><span class="hll"><span class="sd">    # For options, supply -h arg</span>
 </span><span class="hll"><span class="sd">&quot;&quot;&quot;</span>
 </span>
@@ -2881,13 +2892,13 @@ and determine the server URI.</p>
 <h3><a class="toc-backref" href="#id10" role="doc-backlink">Dispatching Steps Shared Between KubeRay and Pure Ray Part II</a><a class="headerlink" href="#dispatching-steps-shared-between-kuberay-and-pure-ray-part-ii" title="Permalink to this heading">#</a></h3>
 <p>1.) Test that your cluster is operational with the following.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Test that NVIDIA GPUs are visible and that Ray is operation with the following command:</span>
-python3<span class="w"> </span>source/standalone/workflows/ray/submit_job.py<span class="w"> </span>--aggregate_jobs<span class="w"> </span>wrap_resources.py<span class="w"> </span>--test
+python3<span class="w"> </span>scripts/reinforcement_learning/ray/submit_job.py<span class="w"> </span>--aggregate_jobs<span class="w"> </span>wrap_resources.py<span class="w"> </span>--test
 </pre></div>
 </div>
 <p>2.) Submitting tuning and/or resource-wrapped jobs is described in the <code class="file docutils literal notranslate"><span class="pre">submit_job.py</span></code> file.</p>
 <details class="sd-sphinx-override sd-dropdown sd-card sd-mb-3">
 <summary class="sd-summary-title sd-card-header">
-<span class="sd-summary-icon"><svg version="1.1" width="1.0em" height="1.0em" class="sd-octicon sd-octicon-code" viewBox="0 0 16 16" aria-hidden="true"><path d="m11.28 3.22 4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.749.749 0 0 1-1.275-.326.749.749 0 0 1 .215-.734L13.94 8l-3.72-3.72a.749.749 0 0 1 .326-1.275.749.749 0 0 1 .734.215Zm-6.56 0a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042L2.06 8l3.72 3.72a.749.749 0 0 1-.326 1.275.749.749 0 0 1-.734-.215L.47 8.53a.75.75 0 0 1 0-1.06Z"></path></svg></span><span class="sd-summary-text">source/standalone/workflows/ray/submit_job.py</span><span class="sd-summary-state-marker sd-summary-chevron-right"><svg version="1.1" width="1.5em" height="1.5em" class="sd-octicon sd-octicon-chevron-right" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.72 18.78a.75.75 0 0 1 0-1.06L14.44 12 8.72 6.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018l6.25 6.25a.75.75 0 0 1 0 1.06l-6.25 6.25a.75.75 0 0 1-1.06 0Z"></path></svg></span></summary><div class="sd-summary-content sd-card-body docutils">
+<span class="sd-summary-icon"><svg version="1.1" width="1.0em" height="1.0em" class="sd-octicon sd-octicon-code" viewBox="0 0 16 16" aria-hidden="true"><path d="m11.28 3.22 4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.749.749 0 0 1-1.275-.326.749.749 0 0 1 .215-.734L13.94 8l-3.72-3.72a.749.749 0 0 1 .326-1.275.749.749 0 0 1 .734.215Zm-6.56 0a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042L2.06 8l3.72 3.72a.749.749 0 0 1-.326 1.275.749.749 0 0 1-.734-.215L.47 8.53a.75.75 0 0 1 0-1.06Z"></path></svg></span><span class="sd-summary-text">scripts/reinforcement_learning/ray/submit_job.py</span><span class="sd-summary-state-marker sd-summary-chevron-right"><svg version="1.1" width="1.5em" height="1.5em" class="sd-octicon sd-octicon-chevron-right" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.72 18.78a.75.75 0 0 1 0-1.06L14.44 12 8.72 6.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018l6.25 6.25a.75.75 0 0 1 0 1.06l-6.25 6.25a.75.75 0 0 1-1.06 0Z"></path></svg></span></summary><div class="sd-summary-content sd-card-body docutils">
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Copyright (c) 2022-2025, The Isaac Lab Project Developers.</span>
 <span class="c1"># All rights reserved.</span>
 <span class="c1">#</span>
@@ -2930,16 +2941,16 @@ python3<span class="w"> </span>source/standalone/workflows/ray/submit_job.py<spa
 </span><span class="hll"><span class="sd">.. code-block:: bash</span>
 </span><span class="hll">
 </span><span class="hll"><span class="sd">    # Example; submitting a tuning job</span>
-</span><span class="hll"><span class="sd">    python3 source/standalone/workflows/ray/submit_job.py \</span>
-</span><span class="hll"><span class="sd">    --aggregate_jobs /workspace/isaaclab/source/standalone/workflows/ray/tuner.py \</span>
+</span><span class="hll"><span class="sd">    python3 scripts/reinforcement_learning/ray/submit_job.py \</span>
+</span><span class="hll"><span class="sd">    --aggregate_jobs /workspace/isaaclab/scripts/reinforcement_learning/ray/tuner.py \</span>
 </span><span class="hll"><span class="sd">        --cfg_file hyperparameter_tuning/vision_cartpole_cfg.py \</span>
 </span><span class="hll"><span class="sd">        --cfg_class CartpoleTheiaJobCfg --mlflow_uri &lt;ML_FLOW_URI&gt;</span>
 </span><span class="hll">
 </span><span class="hll"><span class="sd">    # Example: Submitting resource wrapped job</span>
-</span><span class="hll"><span class="sd">    python3 source/standalone/workflows/ray/submit_job.py --aggregate_jobs wrap_resources.py --test</span>
+</span><span class="hll"><span class="sd">    python3 scripts/reinforcement_learning/ray/submit_job.py --aggregate_jobs wrap_resources.py --test</span>
 </span><span class="hll">
 </span><span class="hll"><span class="sd">    # For all command line arguments</span>
-</span><span class="hll"><span class="sd">    python3 source/standalone/workflows/ray/submit_job.py -h</span>
+</span><span class="hll"><span class="sd">    python3 scripts/reinforcement_learning/ray/submit_job.py -h</span>
 </span><span class="hll"><span class="sd">&quot;&quot;&quot;</span>
 </span><span class="n">script_directory</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">abspath</span><span class="p">(</span><span class="vm">__file__</span><span class="p">))</span>
 <span class="n">CONFIG</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;working_dir&quot;</span><span class="p">:</span> <span class="n">script_directory</span><span class="p">,</span> <span class="s2">&quot;executable&quot;</span><span class="p">:</span> <span class="s2">&quot;/workspace/isaaclab/isaaclab.sh -p&quot;</span><span class="p">}</span>
@@ -3045,7 +3056,7 @@ environment entrypoints and hydra arguments, although other workflows will work 
 <code class="xref py py-class docutils literal notranslate"><span class="pre">JobCfg</span></code>.</p>
 <details class="sd-sphinx-override sd-dropdown sd-card sd-mb-3">
 <summary class="sd-summary-title sd-card-header">
-<span class="sd-summary-icon"><svg version="1.1" width="1.0em" height="1.0em" class="sd-octicon sd-octicon-code" viewBox="0 0 16 16" aria-hidden="true"><path d="m11.28 3.22 4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.749.749 0 0 1-1.275-.326.749.749 0 0 1 .215-.734L13.94 8l-3.72-3.72a.749.749 0 0 1 .326-1.275.749.749 0 0 1 .734.215Zm-6.56 0a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042L2.06 8l3.72 3.72a.749.749 0 0 1-.326 1.275.749.749 0 0 1-.734-.215L.47 8.53a.75.75 0 0 1 0-1.06Z"></path></svg></span><span class="sd-summary-text">source/standalone/workflows/ray/tuner.py (JobCfg definition)</span><span class="sd-summary-state-marker sd-summary-chevron-right"><svg version="1.1" width="1.5em" height="1.5em" class="sd-octicon sd-octicon-chevron-right" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.72 18.78a.75.75 0 0 1 0-1.06L14.44 12 8.72 6.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018l6.25 6.25a.75.75 0 0 1 0 1.06l-6.25 6.25a.75.75 0 0 1-1.06 0Z"></path></svg></span></summary><div class="sd-summary-content sd-card-body docutils">
+<span class="sd-summary-icon"><svg version="1.1" width="1.0em" height="1.0em" class="sd-octicon sd-octicon-code" viewBox="0 0 16 16" aria-hidden="true"><path d="m11.28 3.22 4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.749.749 0 0 1-1.275-.326.749.749 0 0 1 .215-.734L13.94 8l-3.72-3.72a.749.749 0 0 1 .326-1.275.749.749 0 0 1 .734.215Zm-6.56 0a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042L2.06 8l3.72 3.72a.749.749 0 0 1-.326 1.275.749.749 0 0 1-.734-.215L.47 8.53a.75.75 0 0 1 0-1.06Z"></path></svg></span><span class="sd-summary-text">scripts/reinforcement_learning/ray/tuner.py (JobCfg definition)</span><span class="sd-summary-state-marker sd-summary-chevron-right"><svg version="1.1" width="1.5em" height="1.5em" class="sd-octicon sd-octicon-chevron-right" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.72 18.78a.75.75 0 0 1 0-1.06L14.44 12 8.72 6.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018l6.25 6.25a.75.75 0 0 1 0 1.06l-6.25 6.25a.75.75 0 0 1-1.06 0Z"></path></svg></span></summary><div class="sd-summary-content sd-card-body docutils">
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">class</span><span class="w"> </span><span class="nc">JobCfg</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;To be compatible with :meth: invoke_tuning_run and :class:IsaacLabTuneTrainable,</span>
 <span class="sd">    at a minimum, the tune job should inherit from this class.&quot;&quot;&quot;</span>
@@ -3075,7 +3086,7 @@ environment entrypoints and hydra arguments, although other workflows will work 
 </details><p>For example, see the following Cartpole Example configurations.</p>
 <details class="sd-sphinx-override sd-dropdown sd-card sd-mb-3">
 <summary class="sd-summary-title sd-card-header">
-<span class="sd-summary-icon"><svg version="1.1" width="1.0em" height="1.0em" class="sd-octicon sd-octicon-code" viewBox="0 0 16 16" aria-hidden="true"><path d="m11.28 3.22 4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.749.749 0 0 1-1.275-.326.749.749 0 0 1 .215-.734L13.94 8l-3.72-3.72a.749.749 0 0 1 .326-1.275.749.749 0 0 1 .734.215Zm-6.56 0a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042L2.06 8l3.72 3.72a.749.749 0 0 1-.326 1.275.749.749 0 0 1-.734-.215L.47 8.53a.75.75 0 0 1 0-1.06Z"></path></svg></span><span class="sd-summary-text">source/standalone/workflows/ray/hyperparameter_tuning/vision_cartpole_cfg.py</span><span class="sd-summary-state-marker sd-summary-chevron-right"><svg version="1.1" width="1.5em" height="1.5em" class="sd-octicon sd-octicon-chevron-right" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.72 18.78a.75.75 0 0 1 0-1.06L14.44 12 8.72 6.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018l6.25 6.25a.75.75 0 0 1 0 1.06l-6.25 6.25a.75.75 0 0 1-1.06 0Z"></path></svg></span></summary><div class="sd-summary-content sd-card-body docutils">
+<span class="sd-summary-icon"><svg version="1.1" width="1.0em" height="1.0em" class="sd-octicon sd-octicon-code" viewBox="0 0 16 16" aria-hidden="true"><path d="m11.28 3.22 4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.749.749 0 0 1-1.275-.326.749.749 0 0 1 .215-.734L13.94 8l-3.72-3.72a.749.749 0 0 1 .326-1.275.749.749 0 0 1 .734.215Zm-6.56 0a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042L2.06 8l3.72 3.72a.749.749 0 0 1-.326 1.275.749.749 0 0 1-.734-.215L.47 8.53a.75.75 0 0 1 0-1.06Z"></path></svg></span><span class="sd-summary-text">scripts/reinforcement_learning/ray/hyperparameter_tuning/vision_cartpole_cfg.py</span><span class="sd-summary-state-marker sd-summary-chevron-right"><svg version="1.1" width="1.5em" height="1.5em" class="sd-octicon sd-octicon-chevron-right" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.72 18.78a.75.75 0 0 1 0-1.06L14.44 12 8.72 6.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018l6.25 6.25a.75.75 0 0 1 0 1.06l-6.25 6.25a.75.75 0 0 1-1.06 0Z"></path></svg></span></summary><div class="sd-summary-content sd-card-body docutils">
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Copyright (c) 2022-2025, The Isaac Lab Project Developers.</span>
 <span class="c1"># All rights reserved.</span>
 <span class="c1">#</span>
@@ -3135,7 +3146,7 @@ For KubeRay, this can be done through port forwarding the MLFlow dashboard with 
 <p><code class="docutils literal notranslate"><span class="pre">localhost:5000</span></code></p>
 <p>If the MLFlow port is forwarded like above, it can be converted into tensorboard logs with
 this following command.</p>
-<p><code class="docutils literal notranslate"><span class="pre">./isaaclab.sh</span> <span class="pre">-p</span> <span class="pre">source/standalone/workflows/ray/mlflow_to_local_tensorboard.py</span> <span class="pre">\</span>
+<p><code class="docutils literal notranslate"><span class="pre">./isaaclab.sh</span> <span class="pre">-p</span> <span class="pre">scripts/reinforcement_learning/ray/mlflow_to_local_tensorboard.py</span> <span class="pre">\</span>
 <span class="pre">--uri</span> <span class="pre">http://localhost:5000</span> <span class="pre">--experiment-name</span> <span class="pre">IsaacRay-&lt;CLASS_JOB_CFG&gt;-tune</span> <span class="pre">--download-dir</span> <span class="pre">test</span></code></p>
 <section id="kubernetes-cluster-cleanup">
 <h4><a class="toc-backref" href="#id11" role="doc-backlink">Kubernetes Cluster Cleanup</a><a class="headerlink" href="#kubernetes-cluster-cleanup" title="Permalink to this heading">#</a></h4>
@@ -3199,9 +3210,9 @@ kubectl<span class="w"> </span>get<span class="w"> </span>services<span class="w
   </div>
   <nav class="bd-toc-nav page-toc">
     <ul class="visible nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#overview"><strong>Overview</strong></a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#docker-based-local-quickstart"><strong>Docker-based Local Quickstart</strong></a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#remote-clusters"><strong>Remote Clusters</strong></a><ul class="nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#overview">Overview</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#docker-based-local-quickstart">Docker-based Local Quickstart</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#remote-clusters">Remote Clusters</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#kuberay-setup">KubeRay Setup</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#ray-clusters-without-kubernetes-setup">Ray Clusters (Without Kubernetes) Setup</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#shared-steps-between-kuberay-and-pure-ray-part-i">Shared Steps Between KubeRay and Pure Ray Part I</a></li>

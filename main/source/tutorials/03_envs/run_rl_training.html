@@ -60,7 +60,7 @@
     <link rel="prev" title="Registering an Environment" href="register_rl_env_gym.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-  <meta name="docsearch:version" content="1.4.1" />
+  <meta name="docsearch:version" content="2.0.0" />
     <meta name="docbuild:last-update" content="Jan 30, 2025"/>
   </head>
   
@@ -192,7 +192,7 @@
           
           
           
-          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.2.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.5.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
         </li>
         <li class="nav-item">
           
@@ -230,6 +230,8 @@
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../setup/installation/index.html">Local Installation</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2"><a class="reference internal" href="../../setup/installation/pip_installation.html">Pip installation (recommended for Ubuntu 22.04 and Windows)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../setup/installation/binaries_installation.html">Binary installation (recommended for Ubuntu 20.04)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/installation/isaaclab_pip_installation.html">Advanced installation (Isaac Lab pip)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/installation/asset_caching.html">Asset caching</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1"><a class="reference internal" href="../../setup/installation/cloud_installation.html">Running Isaac Lab in the Cloud</a></li>
@@ -241,7 +243,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../../overview/developer-guide/vs_code.html">Setting up Visual Studio Code</a></li>
 
 <li class="toctree-l2"><a class="reference internal" href="../../overview/developer-guide/repo_structure.html">Repository organization</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../overview/developer-guide/development.html">Application Development</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/developer-guide/development.html">Extension Development</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../overview/developer-guide/template.html">Building your Own Project</a></li>
 </ul>
 </details></li>
@@ -264,6 +266,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../../overview/reinforcement-learning/rl_existing_scripts.html">Reinforcement Learning Wrappers</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../overview/reinforcement-learning/rl_frameworks.html">Reinforcement Learning Library Comparison</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../overview/reinforcement-learning/performance_benchmarks.html">Performance Benchmarks</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/reinforcement-learning/training_guide.html">Debugging and Training Guide</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1"><a class="reference internal" href="../../overview/teleop_imitation.html">Teleoperation and Imitation Learning</a></li>
@@ -294,6 +297,7 @@
 <li class="toctree-l2"><a class="reference internal" href="register_rl_env_gym.html">Registering an Environment</a></li>
 <li class="toctree-l2 current active"><a class="current reference internal" href="#">Training with an RL Agent</a></li>
 <li class="toctree-l2"><a class="reference internal" href="modify_direct_rl_env.html">Modifying an existing Direct RL Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="policy_inference_in_usd.html">Policy Inference in USD Environment</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../04_sensors/add_sensors_on_robot.html">Adding sensors on a robot</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../05_controllers/run_diff_ik.html">Using a task-space controller</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../05_controllers/run_osc.html">Using an operational space controller</a></li>
@@ -330,28 +334,27 @@
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Source API</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../api/index.html">API Reference</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.app.html">omni.isaac.lab.app</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.actuators.html">omni.isaac.lab.actuators</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.assets.html">omni.isaac.lab.assets</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.controllers.html">omni.isaac.lab.controllers</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.devices.html">omni.isaac.lab.devices</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.envs.html">omni.isaac.lab.envs</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.managers.html">omni.isaac.lab.managers</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.markers.html">omni.isaac.lab.markers</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.scene.html">omni.isaac.lab.scene</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.sensors.html">omni.isaac.lab.sensors</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.sim.html">omni.isaac.lab.sim</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.terrains.html">omni.isaac.lab.terrains</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.utils.html">omni.isaac.lab.utils</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.envs.mdp.html">omni.isaac.lab.envs.mdp</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.envs.ui.html">omni.isaac.lab.envs.ui</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.sensors.patterns.html">omni.isaac.lab.sensors.patterns</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.sim.converters.html">omni.isaac.lab.sim.converters</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.sim.schemas.html">omni.isaac.lab.sim.schemas</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.sim.spawners.html">omni.isaac.lab.sim.spawners</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab_tasks/omni.isaac.lab_tasks.utils.html">omni.isaac.lab_tasks.utils</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab_tasks/omni.isaac.lab_tasks.utils.wrappers.html">omni.isaac.lab_tasks.utils.wrappers</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab_tasks/omni.isaac.lab_tasks.utils.data_collector.html">omni.isaac.lab_tasks.utils.data_collector</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.app.html">isaaclab.app</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.actuators.html">isaaclab.actuators</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.assets.html">isaaclab.assets</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.controllers.html">isaaclab.controllers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.devices.html">isaaclab.devices</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.envs.html">isaaclab.envs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.managers.html">isaaclab.managers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.markers.html">isaaclab.markers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.scene.html">isaaclab.scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.sensors.html">isaaclab.sensors</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.sim.html">isaaclab.sim</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.terrains.html">isaaclab.terrains</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.utils.html">isaaclab.utils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.envs.mdp.html">isaaclab.envs.mdp</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.envs.ui.html">isaaclab.envs.ui</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.sensors.patterns.html">isaaclab.sensors.patterns</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.sim.converters.html">isaaclab.sim.converters</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.sim.schemas.html">isaaclab.sim.schemas</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.sim.spawners.html">isaaclab.sim.spawners</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab_tasks/isaaclab_tasks.utils.html">isaaclab_tasks.utils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab_mimic/isaaclab_mimic.datagen.html">isaaclab_mimic.datagen</a></li>
 </ul>
 </details></li>
 </ul>
@@ -361,7 +364,15 @@
 <li class="toctree-l1"><a class="reference internal" href="../../refs/additional_resources.html">Additional Resources</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../refs/contributing.html">Contribution Guidelines</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../refs/troubleshooting.html">Tricks and Troubleshooting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../refs/migration.html">Migration Guide (Isaac Sim)</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../refs/issues.html">Known Issues</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../refs/release_notes.html">Release Notes</a></li>
+
+
+
+
+
+
 <li class="toctree-l1"><a class="reference internal" href="../../refs/changelog.html">Extensions Changelog</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../refs/license.html">License</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../refs/bibliography.html">Bibliography</a></li>
@@ -369,7 +380,7 @@
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Project Links</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference external" href="https://github.com/isaac-sim/IsaacLab">GitHub</a></li>
-<li class="toctree-l1"><a class="reference external" href="https://docs.omniverse.nvidia.com/isaacsim/latest/index.html">NVIDIA Isaac Sim</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/latest/index.html">NVIDIA Isaac Sim</a></li>
 <li class="toctree-l1"><a class="reference external" href="https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/index.html">NVIDIA PhysX</a></li>
 </ul>
 
@@ -609,7 +620,7 @@
 <p>In the previous tutorials, we covered how to define an RL task environment, register
 it into the <code class="docutils literal notranslate"><span class="pre">gym</span></code> registry, and interact with it using a random agent. We now move
 on to the next step: training an RL agent to solve the task.</p>
-<p>Although the <a class="reference internal" href="../../api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.ManagerBasedRLEnv" title="omni.isaac.lab.envs.ManagerBasedRLEnv"><code class="xref py py-class docutils literal notranslate"><span class="pre">envs.ManagerBasedRLEnv</span></code></a> conforms to the <a class="reference external" href="https://gymnasium.farama.org/api/env/#gymnasium.Env" title="(in Gymnasium)"><code class="xref py py-class docutils literal notranslate"><span class="pre">gymnasium.Env</span></code></a> interface,
+<p>Although the <a class="reference internal" href="../../api/lab/isaaclab.envs.html#isaaclab.envs.ManagerBasedRLEnv" title="isaaclab.envs.ManagerBasedRLEnv"><code class="xref py py-class docutils literal notranslate"><span class="pre">envs.ManagerBasedRLEnv</span></code></a> conforms to the <a class="reference external" href="https://gymnasium.farama.org/api/env/#gymnasium.Env" title="(in Gymnasium)"><code class="xref py py-class docutils literal notranslate"><span class="pre">gymnasium.Env</span></code></a> interface,
 it is not exactly a <code class="docutils literal notranslate"><span class="pre">gym</span></code> environment. The input and outputs of the environment are
 not numpy arrays, but rather based on torch tensors with the first dimension being the
 number of environment instances.</p>
@@ -617,9 +628,9 @@ number of environment instances.</p>
 For example, <a class="reference external" href="https://stable-baselines3.readthedocs.io/en/master/">Stable-Baselines3</a> expects the environment to conform to its
 <a class="reference external" href="https://stable-baselines3.readthedocs.io/en/master/guide/vec_envs.html#vecenv-api-vs-gym-api">VecEnv API</a> which expects a list of numpy arrays instead of a single tensor. Similarly,
 <a class="reference external" href="https://github.com/leggedrobotics/rsl_rl">RSL-RL</a>, <a class="reference external" href="https://github.com/Denys88/rl_games">RL-Games</a> and <a class="reference external" href="https://skrl.readthedocs.io">SKRL</a> expect a different interface. Since there is no one-size-fits-all
-solution, we do not base the <a class="reference internal" href="../../api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.ManagerBasedRLEnv" title="omni.isaac.lab.envs.ManagerBasedRLEnv"><code class="xref py py-class docutils literal notranslate"><span class="pre">envs.ManagerBasedRLEnv</span></code></a> on any particular learning library.
+solution, we do not base the <a class="reference internal" href="../../api/lab/isaaclab.envs.html#isaaclab.envs.ManagerBasedRLEnv" title="isaaclab.envs.ManagerBasedRLEnv"><code class="xref py py-class docutils literal notranslate"><span class="pre">envs.ManagerBasedRLEnv</span></code></a> on any particular learning library.
 Instead, we implement wrappers to convert the environment into the expected interface.
-These are specified in the <a class="reference internal" href="../../api/lab_tasks/omni.isaac.lab_tasks.utils.wrappers.html#module-omni.isaac.lab_tasks.utils.wrappers" title="omni.isaac.lab_tasks.utils.wrappers"><code class="xref py py-mod docutils literal notranslate"><span class="pre">omni.isaac.lab_tasks.utils.wrappers</span></code></a> module.</p>
+These are specified in the <a class="reference internal" href="../../api/lab_rl/isaaclab_rl.html#module-isaaclab_rl" title="isaaclab_rl"><code class="xref py py-mod docutils literal notranslate"><span class="pre">isaaclab_rl</span></code></a> module.</p>
 <p>In this tutorial, we will use <a class="reference external" href="https://stable-baselines3.readthedocs.io/en/master/">Stable-Baselines3</a> to train an RL agent to solve the
 cartpole balancing task.</p>
 <div class="admonition caution">
@@ -631,7 +642,7 @@ modifies the interpretation of environment’s APIs which may no longer be compa
 <section id="the-code">
 <h2>The Code<a class="headerlink" href="#the-code" title="Permalink to this heading">#</a></h2>
 <p>For this tutorial, we use the training script from <a class="reference external" href="https://stable-baselines3.readthedocs.io/en/master/">Stable-Baselines3</a> workflow in the
-<code class="docutils literal notranslate"><span class="pre">source/standalone/workflows/sb3</span></code> directory.</p>
+<code class="docutils literal notranslate"><span class="pre">scripts/reinforcement_learning/sb3</span></code> directory.</p>
 <details class="sd-sphinx-override sd-dropdown sd-card sd-mb-3">
 <summary class="sd-summary-title sd-card-header">
 <span class="sd-summary-icon"><svg version="1.1" width="1.0em" height="1.0em" class="sd-octicon sd-octicon-code" viewBox="0 0 16 16" aria-hidden="true"><path d="m11.28 3.22 4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.749.749 0 0 1-1.275-.326.749.749 0 0 1 .215-.734L13.94 8l-3.72-3.72a.749.749 0 0 1 .326-1.275.749.749 0 0 1 .734.215Zm-6.56 0a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042L2.06 8l3.72 3.72a.749.749 0 0 1-.326 1.275.749.749 0 0 1-.734-.215L.47 8.53a.75.75 0 0 1 0-1.06Z"></path></svg></span><span class="sd-summary-text">Code for train.py</span><span class="sd-summary-state-marker sd-summary-chevron-right"><svg version="1.1" width="1.5em" height="1.5em" class="sd-octicon sd-octicon-chevron-right" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.72 18.78a.75.75 0 0 1 0-1.06L14.44 12 8.72 6.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018l6.25 6.25a.75.75 0 0 1 0 1.06l-6.25 6.25a.75.75 0 0 1-1.06 0Z"></path></svg></span></summary><div class="sd-summary-content sd-card-body docutils">
@@ -652,7 +663,7 @@ modifies the interpretation of environment’s APIs which may no longer be compa
 <span class="linenos"> 15</span><span class="kn">import</span><span class="w"> </span><span class="nn">argparse</span>
 <span class="linenos"> 16</span><span class="kn">import</span><span class="w"> </span><span class="nn">sys</span>
 <span class="linenos"> 17</span>
-<span class="linenos"> 18</span><span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.app</span><span class="w"> </span><span class="kn">import</span> <span class="n">AppLauncher</span>
+<span class="linenos"> 18</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.app</span><span class="w"> </span><span class="kn">import</span> <span class="n">AppLauncher</span>
 <span class="linenos"> 19</span>
 <span class="linenos"> 20</span><span class="c1"># add argparse arguments</span>
 <span class="linenos"> 21</span><span class="n">parser</span> <span class="o">=</span> <span class="n">argparse</span><span class="o">.</span><span class="n">ArgumentParser</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="s2">&quot;Train an RL agent with Stable-Baselines3.&quot;</span><span class="p">)</span>
@@ -686,24 +697,24 @@ modifies the interpretation of environment’s APIs which may no longer be compa
 <span class="linenos"> 49</span><span class="kn">import</span><span class="w"> </span><span class="nn">random</span>
 <span class="linenos"> 50</span><span class="kn">from</span><span class="w"> </span><span class="nn">datetime</span><span class="w"> </span><span class="kn">import</span> <span class="n">datetime</span>
 <span class="linenos"> 51</span>
-<span class="linenos"> 52</span><span class="kn">from</span><span class="w"> </span><span class="nn">stable_baselines3</span><span class="w"> </span><span class="kn">import</span> <span class="n">PPO</span>
-<span class="linenos"> 53</span><span class="kn">from</span><span class="w"> </span><span class="nn">stable_baselines3.common.callbacks</span><span class="w"> </span><span class="kn">import</span> <span class="n">CheckpointCallback</span>
-<span class="linenos"> 54</span><span class="kn">from</span><span class="w"> </span><span class="nn">stable_baselines3.common.logger</span><span class="w"> </span><span class="kn">import</span> <span class="n">configure</span>
-<span class="linenos"> 55</span><span class="kn">from</span><span class="w"> </span><span class="nn">stable_baselines3.common.vec_env</span><span class="w"> </span><span class="kn">import</span> <span class="n">VecNormalize</span>
-<span class="linenos"> 56</span>
-<span class="hll"><span class="linenos"> 57</span><span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.envs</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
-</span><span class="linenos"> 58</span>    <span class="n">DirectMARLEnv</span><span class="p">,</span>
-<span class="linenos"> 59</span>    <span class="n">DirectMARLEnvCfg</span><span class="p">,</span>
-<span class="linenos"> 60</span>    <span class="n">DirectRLEnvCfg</span><span class="p">,</span>
-<span class="linenos"> 61</span>    <span class="n">ManagerBasedRLEnvCfg</span><span class="p">,</span>
-<span class="linenos"> 62</span>    <span class="n">multi_agent_to_single_agent</span><span class="p">,</span>
-<span class="linenos"> 63</span><span class="p">)</span>
-<span class="linenos"> 64</span><span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.utils.dict</span><span class="w"> </span><span class="kn">import</span> <span class="n">print_dict</span>
-<span class="linenos"> 65</span><span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.utils.io</span><span class="w"> </span><span class="kn">import</span> <span class="n">dump_pickle</span><span class="p">,</span> <span class="n">dump_yaml</span>
-<span class="hll"><span class="linenos"> 66</span>
-</span><span class="linenos"> 67</span><span class="kn">import</span><span class="w"> </span><span class="nn">omni.isaac.lab_tasks</span>  <span class="c1"># noqa: F401</span>
-<span class="hll"><span class="linenos"> 68</span><span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab_tasks.utils.hydra</span><span class="w"> </span><span class="kn">import</span> <span class="n">hydra_task_config</span>
-</span><span class="hll"><span class="linenos"> 69</span><span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab_tasks.utils.wrappers.sb3</span><span class="w"> </span><span class="kn">import</span> <span class="n">Sb3VecEnvWrapper</span><span class="p">,</span> <span class="n">process_sb3_cfg</span>
+<span class="linenos"> 52</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab_rl.sb3</span><span class="w"> </span><span class="kn">import</span> <span class="n">Sb3VecEnvWrapper</span><span class="p">,</span> <span class="n">process_sb3_cfg</span>
+<span class="linenos"> 53</span><span class="kn">from</span><span class="w"> </span><span class="nn">stable_baselines3</span><span class="w"> </span><span class="kn">import</span> <span class="n">PPO</span>
+<span class="linenos"> 54</span><span class="kn">from</span><span class="w"> </span><span class="nn">stable_baselines3.common.callbacks</span><span class="w"> </span><span class="kn">import</span> <span class="n">CheckpointCallback</span>
+<span class="linenos"> 55</span><span class="kn">from</span><span class="w"> </span><span class="nn">stable_baselines3.common.logger</span><span class="w"> </span><span class="kn">import</span> <span class="n">configure</span>
+<span class="linenos"> 56</span><span class="kn">from</span><span class="w"> </span><span class="nn">stable_baselines3.common.vec_env</span><span class="w"> </span><span class="kn">import</span> <span class="n">VecNormalize</span>
+<span class="hll"><span class="linenos"> 57</span>
+</span><span class="linenos"> 58</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.envs</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+<span class="linenos"> 59</span>    <span class="n">DirectMARLEnv</span><span class="p">,</span>
+<span class="linenos"> 60</span>    <span class="n">DirectMARLEnvCfg</span><span class="p">,</span>
+<span class="linenos"> 61</span>    <span class="n">DirectRLEnvCfg</span><span class="p">,</span>
+<span class="linenos"> 62</span>    <span class="n">ManagerBasedRLEnvCfg</span><span class="p">,</span>
+<span class="linenos"> 63</span>    <span class="n">multi_agent_to_single_agent</span><span class="p">,</span>
+<span class="linenos"> 64</span><span class="p">)</span>
+<span class="linenos"> 65</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils.dict</span><span class="w"> </span><span class="kn">import</span> <span class="n">print_dict</span>
+<span class="hll"><span class="linenos"> 66</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils.io</span><span class="w"> </span><span class="kn">import</span> <span class="n">dump_pickle</span><span class="p">,</span> <span class="n">dump_yaml</span>
+</span><span class="linenos"> 67</span>
+<span class="hll"><span class="linenos"> 68</span><span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab_tasks</span>  <span class="c1"># noqa: F401</span>
+</span><span class="hll"><span class="linenos"> 69</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab_tasks.utils.hydra</span><span class="w"> </span><span class="kn">import</span> <span class="n">hydra_task_config</span>
 </span><span class="hll"><span class="linenos"> 70</span>
 </span><span class="linenos"> 71</span>
 <span class="linenos"> 72</span><span class="nd">@hydra_task_config</span><span class="p">(</span><span class="n">args_cli</span><span class="o">.</span><span class="n">task</span><span class="p">,</span> <span class="s2">&quot;sb3_cfg_entry_point&quot;</span><span class="p">)</span>
@@ -812,7 +823,7 @@ the environment and wrapping it with the Stable-Baselines3 wrapper.</p>
 <li><p><a class="reference external" href="https://gymnasium.farama.org/api/wrappers/misc_wrappers/#gymnasium.wrappers.RecordVideo" title="(in Gymnasium)"><code class="xref py py-class docutils literal notranslate"><span class="pre">gymnasium.wrappers.RecordVideo</span></code></a>: This wrapper records a video of the environment
 and saves it to the specified directory. This is useful for visualizing the agent’s behavior
 during training.</p></li>
-<li><p><a class="reference internal" href="../../api/lab_tasks/omni.isaac.lab_tasks.utils.wrappers.html#omni.isaac.lab_tasks.utils.wrappers.sb3.Sb3VecEnvWrapper" title="omni.isaac.lab_tasks.utils.wrappers.sb3.Sb3VecEnvWrapper"><code class="xref py py-class docutils literal notranslate"><span class="pre">wrappers.sb3.Sb3VecEnvWrapper</span></code></a>: This wrapper converts the environment
+<li><p><code class="xref py py-class docutils literal notranslate"><span class="pre">wrappers.sb3.Sb3VecEnvWrapper</span></code>: This wrapper converts the environment
 into a Stable-Baselines3 compatible environment.</p></li>
 <li><p><a class="reference external" href="https://stable-baselines3.readthedocs.io/en/master/guide/vec_envs.html#vecnormalize">stable_baselines3.common.vec_env.VecNormalize</a>: This wrapper normalizes the
 environment’s observations and rewards.</p></li>
@@ -833,7 +844,7 @@ It is up to you to decide which one you prefer based on your use case.</p>
 <p>If the <code class="docutils literal notranslate"><span class="pre">--headless</span></code> flag is set, the simulation is not rendered during training. This is useful
 when training on a remote server or when you do not want to see the simulation. Typically, it speeds
 up the training process since only physics simulation step is performed.</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>source/standalone/workflows/sb3/train.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Cartpole-v0<span class="w"> </span>--num_envs<span class="w"> </span><span class="m">64</span><span class="w"> </span>--headless
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/reinforcement_learning/sb3/train.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Cartpole-v0<span class="w"> </span>--num_envs<span class="w"> </span><span class="m">64</span><span class="w"> </span>--headless
 </pre></div>
 </div>
 </section>
@@ -843,7 +854,7 @@ up the training process since only physics simulation step is performed.</p>
 behavior during training. To visualize the agent’s behavior, we pass the <code class="docutils literal notranslate"><span class="pre">--enable_cameras</span></code> which
 enables off-screen rendering. Additionally, we pass the flag <code class="docutils literal notranslate"><span class="pre">--video</span></code> which records a video of the
 agent’s behavior during training.</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>source/standalone/workflows/sb3/train.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Cartpole-v0<span class="w"> </span>--num_envs<span class="w"> </span><span class="m">64</span><span class="w"> </span>--headless<span class="w"> </span>--video
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/reinforcement_learning/sb3/train.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Cartpole-v0<span class="w"> </span>--num_envs<span class="w"> </span><span class="m">64</span><span class="w"> </span>--headless<span class="w"> </span>--video
 </pre></div>
 </div>
 <p>The videos are saved to the <code class="docutils literal notranslate"><span class="pre">logs/sb3/Isaac-Cartpole-v0/&lt;run-dir&gt;/videos/train</span></code> directory. You can open these videos
@@ -854,14 +865,14 @@ using any video player.</p>
 <p>While the above two methods are useful for training the agent, they don’t allow you to interact with the
 simulation to see what is happening. In this case, you can ignore the <code class="docutils literal notranslate"><span class="pre">--headless</span></code> flag and run the
 training script as follows:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>source/standalone/workflows/sb3/train.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Cartpole-v0<span class="w"> </span>--num_envs<span class="w"> </span><span class="m">64</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/reinforcement_learning/sb3/train.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Cartpole-v0<span class="w"> </span>--num_envs<span class="w"> </span><span class="m">64</span>
 </pre></div>
 </div>
 <p>This will open the Isaac Sim window and you can see the agent training in the environment. However, this
 will slow down the training process since the simulation is rendered on the screen. As a workaround, you
 can switch between different render modes in the <code class="docutils literal notranslate"><span class="pre">&quot;Isaac</span> <span class="pre">Lab&quot;</span></code> window that is docked on the bottom-right
 corner of the screen. To learn more about these render modes, please check the
-<a class="reference internal" href="../../api/lab/omni.isaac.lab.sim.html#omni.isaac.lab.sim.SimulationContext.RenderMode" title="omni.isaac.lab.sim.SimulationContext.RenderMode"><code class="xref py py-class docutils literal notranslate"><span class="pre">sim.SimulationContext.RenderMode</span></code></a> class.</p>
+<a class="reference internal" href="../../api/lab/isaaclab.sim.html#isaaclab.sim.SimulationContext.RenderMode" title="isaaclab.sim.SimulationContext.RenderMode"><code class="xref py py-class docutils literal notranslate"><span class="pre">sim.SimulationContext.RenderMode</span></code></a> class.</p>
 </section>
 </section>
 <section id="viewing-the-logs">
@@ -876,7 +887,7 @@ corner of the screen. To learn more about these render modes, please check the
 <h3>Playing the trained agent<a class="headerlink" href="#playing-the-trained-agent" title="Permalink to this heading">#</a></h3>
 <p>Once the training is complete, you can visualize the trained agent by executing the following command:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># execute from the root directory of the repository</span>
-./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>source/standalone/workflows/sb3/play.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Cartpole-v0<span class="w"> </span>--num_envs<span class="w"> </span><span class="m">32</span><span class="w"> </span>--use_last_checkpoint
+./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/reinforcement_learning/sb3/play.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Cartpole-v0<span class="w"> </span>--num_envs<span class="w"> </span><span class="m">32</span><span class="w"> </span>--use_last_checkpoint
 </pre></div>
 </div>
 <p>The above command will load the latest checkpoint from the <code class="docutils literal notranslate"><span class="pre">logs/sb3/Isaac-Cartpole-v0</span></code>

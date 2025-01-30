@@ -60,7 +60,7 @@
     <link rel="prev" title="Reinforcement Learning" href="index.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-  <meta name="docsearch:version" content="1.4.1" />
+  <meta name="docsearch:version" content="2.0.0" />
     <meta name="docbuild:last-update" content="Jan 30, 2025"/>
   </head>
   
@@ -192,7 +192,7 @@
           
           
           
-          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.2.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.5.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
         </li>
         <li class="nav-item">
           
@@ -230,6 +230,8 @@
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../setup/installation/index.html">Local Installation</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2"><a class="reference internal" href="../../setup/installation/pip_installation.html">Pip installation (recommended for Ubuntu 22.04 and Windows)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../setup/installation/binaries_installation.html">Binary installation (recommended for Ubuntu 20.04)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/installation/isaaclab_pip_installation.html">Advanced installation (Isaac Lab pip)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/installation/asset_caching.html">Asset caching</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1"><a class="reference internal" href="../../setup/installation/cloud_installation.html">Running Isaac Lab in the Cloud</a></li>
@@ -241,7 +243,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../developer-guide/vs_code.html">Setting up Visual Studio Code</a></li>
 
 <li class="toctree-l2"><a class="reference internal" href="../developer-guide/repo_structure.html">Repository organization</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../developer-guide/development.html">Application Development</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../developer-guide/development.html">Extension Development</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../developer-guide/template.html">Building your Own Project</a></li>
 </ul>
 </details></li>
@@ -264,6 +266,7 @@
 <li class="toctree-l2 current active"><a class="current reference internal" href="#">Reinforcement Learning Wrappers</a></li>
 <li class="toctree-l2"><a class="reference internal" href="rl_frameworks.html">Reinforcement Learning Library Comparison</a></li>
 <li class="toctree-l2"><a class="reference internal" href="performance_benchmarks.html">Performance Benchmarks</a></li>
+<li class="toctree-l2"><a class="reference internal" href="training_guide.html">Debugging and Training Guide</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1"><a class="reference internal" href="../teleop_imitation.html">Teleoperation and Imitation Learning</a></li>
@@ -294,6 +297,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../../tutorials/03_envs/register_rl_env_gym.html">Registering an Environment</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../tutorials/03_envs/run_rl_training.html">Training with an RL Agent</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../tutorials/03_envs/modify_direct_rl_env.html">Modifying an existing Direct RL Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/03_envs/policy_inference_in_usd.html">Policy Inference in USD Environment</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../tutorials/04_sensors/add_sensors_on_robot.html">Adding sensors on a robot</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../tutorials/05_controllers/run_diff_ik.html">Using a task-space controller</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../tutorials/05_controllers/run_osc.html">Using an operational space controller</a></li>
@@ -330,28 +334,27 @@
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Source API</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../api/index.html">API Reference</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.app.html">omni.isaac.lab.app</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.actuators.html">omni.isaac.lab.actuators</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.assets.html">omni.isaac.lab.assets</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.controllers.html">omni.isaac.lab.controllers</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.devices.html">omni.isaac.lab.devices</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.envs.html">omni.isaac.lab.envs</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.managers.html">omni.isaac.lab.managers</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.markers.html">omni.isaac.lab.markers</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.scene.html">omni.isaac.lab.scene</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.sensors.html">omni.isaac.lab.sensors</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.sim.html">omni.isaac.lab.sim</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.terrains.html">omni.isaac.lab.terrains</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.utils.html">omni.isaac.lab.utils</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.envs.mdp.html">omni.isaac.lab.envs.mdp</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.envs.ui.html">omni.isaac.lab.envs.ui</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.sensors.patterns.html">omni.isaac.lab.sensors.patterns</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.sim.converters.html">omni.isaac.lab.sim.converters</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.sim.schemas.html">omni.isaac.lab.sim.schemas</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.sim.spawners.html">omni.isaac.lab.sim.spawners</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab_tasks/omni.isaac.lab_tasks.utils.html">omni.isaac.lab_tasks.utils</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab_tasks/omni.isaac.lab_tasks.utils.wrappers.html">omni.isaac.lab_tasks.utils.wrappers</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab_tasks/omni.isaac.lab_tasks.utils.data_collector.html">omni.isaac.lab_tasks.utils.data_collector</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.app.html">isaaclab.app</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.actuators.html">isaaclab.actuators</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.assets.html">isaaclab.assets</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.controllers.html">isaaclab.controllers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.devices.html">isaaclab.devices</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.envs.html">isaaclab.envs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.managers.html">isaaclab.managers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.markers.html">isaaclab.markers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.scene.html">isaaclab.scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.sensors.html">isaaclab.sensors</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.sim.html">isaaclab.sim</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.terrains.html">isaaclab.terrains</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.utils.html">isaaclab.utils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.envs.mdp.html">isaaclab.envs.mdp</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.envs.ui.html">isaaclab.envs.ui</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.sensors.patterns.html">isaaclab.sensors.patterns</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.sim.converters.html">isaaclab.sim.converters</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.sim.schemas.html">isaaclab.sim.schemas</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.sim.spawners.html">isaaclab.sim.spawners</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab_tasks/isaaclab_tasks.utils.html">isaaclab_tasks.utils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab_mimic/isaaclab_mimic.datagen.html">isaaclab_mimic.datagen</a></li>
 </ul>
 </details></li>
 </ul>
@@ -361,7 +364,15 @@
 <li class="toctree-l1"><a class="reference internal" href="../../refs/additional_resources.html">Additional Resources</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../refs/contributing.html">Contribution Guidelines</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../refs/troubleshooting.html">Tricks and Troubleshooting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../refs/migration.html">Migration Guide (Isaac Sim)</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../refs/issues.html">Known Issues</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../refs/release_notes.html">Release Notes</a></li>
+
+
+
+
+
+
 <li class="toctree-l1"><a class="reference internal" href="../../refs/changelog.html">Extensions Changelog</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../refs/license.html">License</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../refs/bibliography.html">Bibliography</a></li>
@@ -369,7 +380,7 @@
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Project Links</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference external" href="https://github.com/isaac-sim/IsaacLab">GitHub</a></li>
-<li class="toctree-l1"><a class="reference external" href="https://docs.omniverse.nvidia.com/isaacsim/latest/index.html">NVIDIA Isaac Sim</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/latest/index.html">NVIDIA Isaac Sim</a></li>
 <li class="toctree-l1"><a class="reference external" href="https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/index.html">NVIDIA PhysX</a></li>
 </ul>
 
@@ -611,11 +622,13 @@ from the environments into the respective libraries function argument and return
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># install python module (for rl-games)</span>
 ./isaaclab.sh<span class="w"> </span>-i<span class="w"> </span>rl_games
 <span class="c1"># run script for training</span>
-./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>source/standalone/workflows/rl_games/train.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Ant-v0<span class="w"> </span>--headless
+./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/reinforcement_learning/rl_games/train.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Ant-v0<span class="w"> </span>--headless
 <span class="c1"># run script for playing with 32 environments</span>
-./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>source/standalone/workflows/rl_games/play.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Ant-v0<span class="w"> </span>--num_envs<span class="w"> </span><span class="m">32</span><span class="w"> </span>--checkpoint<span class="w"> </span>/PATH/TO/model.pth
+./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/reinforcement_learning/rl_games/play.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Ant-v0<span class="w"> </span>--num_envs<span class="w"> </span><span class="m">32</span><span class="w"> </span>--checkpoint<span class="w"> </span>/PATH/TO/model.pth
+<span class="c1"># run script for playing a pre-trained checkpoint with 32 environments</span>
+./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/reinforcement_learning/rl_games/play.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Ant-v0<span class="w"> </span>--num_envs<span class="w"> </span><span class="m">32</span><span class="w"> </span>--use_pretrained_checkpoint
 <span class="c1"># run script for recording video of a trained agent (requires installing `ffmpeg`)</span>
-./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>source/standalone/workflows/rl_games/play.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Ant-v0<span class="w"> </span>--headless<span class="w"> </span>--video<span class="w"> </span>--video_length<span class="w"> </span><span class="m">200</span>
+./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/reinforcement_learning/rl_games/play.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Ant-v0<span class="w"> </span>--headless<span class="w"> </span>--video<span class="w"> </span>--video_length<span class="w"> </span><span class="m">200</span>
 </pre></div>
 </div>
 </div>
@@ -625,11 +638,13 @@ from the environments into the respective libraries function argument and return
 <div class="highlight-batch notranslate"><div class="highlight"><pre><span></span><span class="p">:</span><span class="c1">: install python module (for rl-games)</span>
 isaaclab.bat -i rl_games
 <span class="p">:</span><span class="c1">: run script for training</span>
-isaaclab.bat -p source\standalone\workflows\rl_games\train.py --task Isaac-Ant-v0 --headless
+isaaclab.bat -p scripts\reinforcement_learning\rl_games\train.py --task Isaac-Ant-v0 --headless
 <span class="p">:</span><span class="c1">: run script for playing with 32 environments</span>
-isaaclab.bat -p source\standalone\workflows\rl_games\play.py --task Isaac-Ant-v0 --num_envs 32 --checkpoint /PATH/TO/model.pth
+isaaclab.bat -p scripts\reinforcement_learning\rl_games\play.py --task Isaac-Ant-v0 --num_envs 32 --checkpoint /PATH/TO/model.pth
+<span class="p">:</span><span class="c1">: run script for playing a pre-trained checkpoint with 32 environments</span>
+isaaclab.bat -p scripts\reinforcement_learning\rl_games\play.py --task Isaac-Ant-v0 --num_envs 32 --use_pretrained_checkpoint
 <span class="p">:</span><span class="c1">: run script for recording video of a trained agent (requires installing `ffmpeg`)</span>
-isaaclab.bat -p source\standalone\workflows\rl_games\play.py --task Isaac-Ant-v0 --headless --video --video_length 200
+isaaclab.bat -p scripts\reinforcement_learning\rl_games\play.py --task Isaac-Ant-v0 --headless --video --video_length 200
 </pre></div>
 </div>
 </div>
@@ -649,11 +664,13 @@ isaaclab.bat -p source\standalone\workflows\rl_games\play.py --task Isaac-Ant-v0
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># install python module (for rsl-rl)</span>
 ./isaaclab.sh<span class="w"> </span>-i<span class="w"> </span>rsl_rl
 <span class="c1"># run script for training</span>
-./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>source/standalone/workflows/rsl_rl/train.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Reach-Franka-v0<span class="w"> </span>--headless
+./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/reinforcement_learning/rsl_rl/train.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Reach-Franka-v0<span class="w"> </span>--headless
 <span class="c1"># run script for playing with 32 environments</span>
-./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>source/standalone/workflows/rsl_rl/play.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Reach-Franka-v0<span class="w"> </span>--num_envs<span class="w"> </span><span class="m">32</span><span class="w"> </span>--load_run<span class="w"> </span>run_folder_name<span class="w"> </span>--checkpoint<span class="w"> </span>model.pt
+./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/reinforcement_learning/rsl_rl/play.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Reach-Franka-v0<span class="w"> </span>--num_envs<span class="w"> </span><span class="m">32</span><span class="w"> </span>--load_run<span class="w"> </span>run_folder_name<span class="w"> </span>--checkpoint<span class="w"> </span>model.pt
+<span class="c1"># run script for playing a pre-trained checkpoint with 32 environments</span>
+./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/reinforcement_learning/rsl_rl/play.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Reach-Franka-v0<span class="w"> </span>--num_envs<span class="w"> </span><span class="m">32</span><span class="w"> </span>--use_pretrained_checkpoint
 <span class="c1"># run script for recording video of a trained agent (requires installing `ffmpeg`)</span>
-./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>source/standalone/workflows/rsl_rl/play.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Reach-Franka-v0<span class="w"> </span>--headless<span class="w"> </span>--video<span class="w"> </span>--video_length<span class="w"> </span><span class="m">200</span>
+./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/reinforcement_learning/rsl_rl/play.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Reach-Franka-v0<span class="w"> </span>--headless<span class="w"> </span>--video<span class="w"> </span>--video_length<span class="w"> </span><span class="m">200</span>
 </pre></div>
 </div>
 </div>
@@ -663,11 +680,13 @@ isaaclab.bat -p source\standalone\workflows\rl_games\play.py --task Isaac-Ant-v0
 <div class="highlight-batch notranslate"><div class="highlight"><pre><span></span><span class="p">:</span><span class="c1">: install python module (for rsl-rl)</span>
 isaaclab.bat -i rsl_rl
 <span class="p">:</span><span class="c1">: run script for training</span>
-isaaclab.bat -p source\standalone\workflows\rsl_rl\train.py --task Isaac-Reach-Franka-v0 --headless
+isaaclab.bat -p scripts\reinforcement_learning\rsl_rl\train.py --task Isaac-Reach-Franka-v0 --headless
 <span class="p">:</span><span class="c1">: run script for playing with 32 environments</span>
-isaaclab.bat -p source\standalone\workflows\rsl_rl\play.py --task Isaac-Reach-Franka-v0 --num_envs 32 --load_run run_folder_name --checkpoint model.pt
+isaaclab.bat -p scripts\reinforcement_learning\rsl_rl\play.py --task Isaac-Reach-Franka-v0 --num_envs 32 --load_run run_folder_name --checkpoint model.pt
+<span class="p">:</span><span class="c1">: run script for playing a pre-trained checkpoint with 32 environments</span>
+isaaclab.bat -p scripts\reinforcement_learning\rsl_rl\play.py --task Isaac-Reach-Franka-v0 --num_envs 32 --use_pretrained_checkpoint
 <span class="p">:</span><span class="c1">: run script for recording video of a trained agent (requires installing `ffmpeg`)</span>
-isaaclab.bat -p source\standalone\workflows\rsl_rl\play.py --task Isaac-Reach-Franka-v0 --headless --video --video_length 200
+isaaclab.bat -p scripts\reinforcement_learning\rsl_rl\play.py --task Isaac-Reach-Franka-v0 --headless --video --video_length 200
 </pre></div>
 </div>
 </div>
@@ -691,11 +710,13 @@ PyTorch</label><div class="sd-tab-content docutils">
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># install python module (for skrl)</span>
 ./isaaclab.sh<span class="w"> </span>-i<span class="w"> </span>skrl
 <span class="c1"># run script for training</span>
-./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>source/standalone/workflows/skrl/train.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Reach-Franka-v0<span class="w"> </span>--headless
+./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/reinforcement_learning/skrl/train.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Reach-Franka-v0<span class="w"> </span>--headless
 <span class="c1"># run script for playing with 32 environments</span>
-./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>source/standalone/workflows/skrl/play.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Reach-Franka-v0<span class="w"> </span>--num_envs<span class="w"> </span><span class="m">32</span><span class="w"> </span>--checkpoint<span class="w"> </span>/PATH/TO/model.pt
+./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/reinforcement_learning/skrl/play.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Reach-Franka-v0<span class="w"> </span>--num_envs<span class="w"> </span><span class="m">32</span><span class="w"> </span>--checkpoint<span class="w"> </span>/PATH/TO/model.pt
+<span class="c1"># run script for playing a pre-trained checkpoint with 32 environments</span>
+./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/reinforcement_learning/skrl/play.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Reach-Franka-v0<span class="w"> </span>--num_envs<span class="w"> </span><span class="m">32</span><span class="w"> </span>--use_pretrained_checkpoint
 <span class="c1"># run script for recording video of a trained agent (requires installing `ffmpeg`)</span>
-./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>source/standalone/workflows/skrl/play.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Reach-Franka-v0<span class="w"> </span>--headless<span class="w"> </span>--video<span class="w"> </span>--video_length<span class="w"> </span><span class="m">200</span>
+./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/reinforcement_learning/skrl/play.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Reach-Franka-v0<span class="w"> </span>--headless<span class="w"> </span>--video<span class="w"> </span>--video_length<span class="w"> </span><span class="m">200</span>
 </pre></div>
 </div>
 </div>
@@ -705,11 +726,13 @@ PyTorch</label><div class="sd-tab-content docutils">
 <div class="highlight-batch notranslate"><div class="highlight"><pre><span></span><span class="p">:</span><span class="c1">: install python module (for skrl)</span>
 isaaclab.bat -i skrl
 <span class="p">:</span><span class="c1">: run script for training</span>
-isaaclab.bat -p source\standalone\workflows\skrl\train.py --task Isaac-Reach-Franka-v0 --headless
+isaaclab.bat -p scripts\reinforcement_learning\skrl\train.py --task Isaac-Reach-Franka-v0 --headless
 <span class="p">:</span><span class="c1">: run script for playing with 32 environments</span>
-isaaclab.bat -p source\standalone\workflows\skrl\play.py --task Isaac-Reach-Franka-v0 --num_envs 32 --checkpoint /PATH/TO/model.pt
+isaaclab.bat -p scripts\reinforcement_learning\skrl\play.py --task Isaac-Reach-Franka-v0 --num_envs 32 --checkpoint /PATH/TO/model.pt
+<span class="p">:</span><span class="c1">: run script for playing a pre-trained checkpoint with 32 environments</span>
+isaaclab.bat -p scripts\reinforcement_learning\skrl\play.py --task Isaac-Reach-Franka-v0 --num_envs 32 --use_pretrained_checkpoint
 <span class="p">:</span><span class="c1">: run script for recording video of a trained agent (requires installing `ffmpeg`)</span>
-isaaclab.bat -p source\standalone\workflows\skrl\play.py --task Isaac-Reach-Franka-v0 --headless --video --video_length 200
+isaaclab.bat -p scripts\reinforcement_learning\skrl\play.py --task Isaac-Reach-Franka-v0 --headless --video --video_length 200
 </pre></div>
 </div>
 </div>
@@ -721,18 +744,19 @@ JAX</label><div class="sd-tab-content docutils">
 <div class="admonition warning">
 <p class="admonition-title">Warning</p>
 <p>It is recommended to <a class="reference external" href="https://jax.readthedocs.io/en/latest/installation.html">install JAX</a> manually before proceeding to install skrl and its dependencies, as JAX installs its CPU version by default. For example, <code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">-U</span> <span class="pre">&quot;jax[cuda12]&quot;</span></code> can be used to install JAX for CUDA 12.
-Visit the <strong>skrl</strong> <a class="reference external" href="https://skrl.readthedocs.io/en/latest/intro/installation.html">installation</a> page for more details.</p>
+Visit the <strong>skrl</strong> <a class="reference external" href="https://skrl.readthedocs.io/en/latest/intro/installation.html">installation</a> page for more details.
+Note that JAX GPU support is only available on Linux.</p>
 </div>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># install python module (for skrl)</span>
 ./isaaclab.sh<span class="w"> </span>-i<span class="w"> </span>skrl
 <span class="c1"># install skrl dependencies for JAX</span>
 ./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>skrl<span class="o">[</span><span class="s2">&quot;jax&quot;</span><span class="o">]</span>
 <span class="c1"># run script for training</span>
-./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>source/standalone/workflows/skrl/train.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Reach-Franka-v0<span class="w"> </span>--headless<span class="w"> </span>--ml_framework<span class="w"> </span>jax
+./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/reinforcement_learning/skrl/train.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Reach-Franka-v0<span class="w"> </span>--headless<span class="w"> </span>--ml_framework<span class="w"> </span>jax
 <span class="c1"># run script for playing with 32 environments</span>
-./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>source/standalone/workflows/skrl/play.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Reach-Franka-v0<span class="w"> </span>--num_envs<span class="w"> </span><span class="m">32</span><span class="w">  </span>--ml_framework<span class="w"> </span>jax<span class="w"> </span>--checkpoint<span class="w"> </span>/PATH/TO/model.pt
+./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/reinforcement_learning/skrl/play.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Reach-Franka-v0<span class="w"> </span>--num_envs<span class="w"> </span><span class="m">32</span><span class="w">  </span>--ml_framework<span class="w"> </span>jax<span class="w"> </span>--checkpoint<span class="w"> </span>/PATH/TO/model.pt
 <span class="c1"># run script for recording video of a trained agent (requires installing `ffmpeg`)</span>
-./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>source/standalone/workflows/skrl/play.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Reach-Franka-v0<span class="w"> </span>--headless<span class="w"> </span>--ml_framework<span class="w"> </span>jax<span class="w"> </span>--video<span class="w"> </span>--video_length<span class="w"> </span><span class="m">200</span>
+./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/reinforcement_learning/skrl/play.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Reach-Franka-v0<span class="w"> </span>--headless<span class="w"> </span>--ml_framework<span class="w"> </span>jax<span class="w"> </span>--video<span class="w"> </span>--video_length<span class="w"> </span><span class="m">200</span>
 </pre></div>
 </div>
 </div>
@@ -747,9 +771,9 @@ Visit the <strong>skrl</strong> <a class="reference external" href="https://skrl
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># install python module (for skrl)</span>
 ./isaaclab.sh<span class="w"> </span>-i<span class="w"> </span>skrl
 <span class="c1"># run script for training with the MAPPO algorithm (IPPO is also supported)</span>
-./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>source/standalone/workflows/skrl/train.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Shadow-Hand-Over-Direct-v0<span class="w"> </span>--headless<span class="w"> </span>--algorithm<span class="w"> </span>MAPPO
+./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/reinforcement_learning/skrl/train.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Shadow-Hand-Over-Direct-v0<span class="w"> </span>--headless<span class="w"> </span>--algorithm<span class="w"> </span>MAPPO
 <span class="c1"># run script for playing with 32 environments with the MAPPO algorithm (IPPO is also supported)</span>
-./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>source/standalone/workflows/skrl/play.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Shadow-Hand-Over-Direct-v0<span class="w"> </span>--num_envs<span class="w"> </span><span class="m">32</span><span class="w"> </span>--algorithm<span class="w"> </span>MAPPO<span class="w"> </span>--checkpoint<span class="w"> </span>/PATH/TO/model.pt
+./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/reinforcement_learning/skrl/play.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Shadow-Hand-Over-Direct-v0<span class="w"> </span>--num_envs<span class="w"> </span><span class="m">32</span><span class="w"> </span>--algorithm<span class="w"> </span>MAPPO<span class="w"> </span>--checkpoint<span class="w"> </span>/PATH/TO/model.pt
 </pre></div>
 </div>
 </div>
@@ -759,9 +783,9 @@ Visit the <strong>skrl</strong> <a class="reference external" href="https://skrl
 <div class="highlight-batch notranslate"><div class="highlight"><pre><span></span><span class="p">:</span><span class="c1">: install python module (for skrl)</span>
 isaaclab.bat -i skrl
 <span class="p">:</span><span class="c1">: run script for training with the MAPPO algorithm (IPPO is also supported)</span>
-isaaclab.bat -p source\standalone\workflows\skrl\train.py --task Isaac-Shadow-Hand-Over-Direct-v0 --headless --algorithm MAPPO
+isaaclab.bat -p scripts\reinforcement_learning\skrl\train.py --task Isaac-Shadow-Hand-Over-Direct-v0 --headless --algorithm MAPPO
 <span class="p">:</span><span class="c1">: run script for playing with 32 environments with the MAPPO algorithm (IPPO is also supported)</span>
-isaaclab.bat -p source\standalone\workflows\skrl\play.py --task Isaac-Shadow-Hand-Over-Direct-v0 --num_envs 32 --algorithm MAPPO --checkpoint /PATH/TO/model.pt
+isaaclab.bat -p scripts\reinforcement_learning\skrl\play.py --task Isaac-Shadow-Hand-Over-Direct-v0 --num_envs 32 --algorithm MAPPO --checkpoint /PATH/TO/model.pt
 </pre></div>
 </div>
 </div>
@@ -783,11 +807,13 @@ on <code class="docutils literal notranslate"><span class="pre">Isaac-Cartpole-v
 ./isaaclab.sh<span class="w"> </span>-i<span class="w"> </span>sb3
 <span class="c1"># run script for training</span>
 <span class="c1"># note: we set the device to cpu since SB3 doesn&#39;t optimize for GPU anyway</span>
-./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>source/standalone/workflows/sb3/train.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Cartpole-v0<span class="w"> </span>--headless<span class="w"> </span>--device<span class="w"> </span>cpu
+./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/reinforcement_learning/sb3/train.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Cartpole-v0<span class="w"> </span>--headless<span class="w"> </span>--device<span class="w"> </span>cpu
 <span class="c1"># run script for playing with 32 environments</span>
-./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>source/standalone/workflows/sb3/play.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Cartpole-v0<span class="w"> </span>--num_envs<span class="w"> </span><span class="m">32</span><span class="w"> </span>--checkpoint<span class="w"> </span>/PATH/TO/model.zip
+./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/reinforcement_learning/sb3/play.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Cartpole-v0<span class="w"> </span>--num_envs<span class="w"> </span><span class="m">32</span><span class="w"> </span>--checkpoint<span class="w"> </span>/PATH/TO/model.zip
+<span class="c1"># run script for playing a pre-trained checkpoint with 32 environments</span>
+./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/reinforcement_learning/sb3/play.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Cartpole-v0<span class="w"> </span>--num_envs<span class="w"> </span><span class="m">32</span><span class="w"> </span>--use_pretrained_checkpoint
 <span class="c1"># run script for recording video of a trained agent (requires installing `ffmpeg`)</span>
-./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>source/standalone/workflows/sb3/play.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Cartpole-v0<span class="w"> </span>--headless<span class="w"> </span>--video<span class="w"> </span>--video_length<span class="w"> </span><span class="m">200</span>
+./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/reinforcement_learning/sb3/play.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Cartpole-v0<span class="w"> </span>--headless<span class="w"> </span>--video<span class="w"> </span>--video_length<span class="w"> </span><span class="m">200</span>
 </pre></div>
 </div>
 </div>
@@ -798,11 +824,13 @@ on <code class="docutils literal notranslate"><span class="pre">Isaac-Cartpole-v
 isaaclab.bat -i sb3
 <span class="p">:</span><span class="c1">: run script for training</span>
 <span class="p">:</span><span class="c1">: note: we set the device to cpu since SB3 doesn&#39;t optimize for GPU anyway</span>
-isaaclab.bat -p source\standalone\workflows\sb3\train.py --task Isaac-Cartpole-v0 --headless --device cpu
+isaaclab.bat -p scripts\reinforcement_learning\sb3\train.py --task Isaac-Cartpole-v0 --headless --device cpu
 <span class="p">:</span><span class="c1">: run script for playing with 32 environments</span>
-isaaclab.bat -p source\standalone\workflows\sb3\play.py --task Isaac-Cartpole-v0 --num_envs 32 --checkpoint /PATH/TO/model.zip
+isaaclab.bat -p scripts\reinforcement_learning\sb3\play.py --task Isaac-Cartpole-v0 --num_envs 32 --checkpoint /PATH/TO/model.zip
+<span class="p">:</span><span class="c1">: run script for playing a pre-trained checkpoint with 32 environments</span>
+isaaclab.bat -p scripts\reinforcement_learning\sb3\play.py --task Isaac-Cartpole-v0 --num_envs 32 --use_pretrained_checkpoint
 <span class="p">:</span><span class="c1">: run script for recording video of a trained agent (requires installing `ffmpeg`)</span>
-isaaclab.bat -p source\standalone\workflows\sb3\play.py --task Isaac-Cartpole-v0 --headless --video --video_length 200
+isaaclab.bat -p scripts\reinforcement_learning\sb3\play.py --task Isaac-Cartpole-v0 --headless --video --video_length 200
 </pre></div>
 </div>
 </div>

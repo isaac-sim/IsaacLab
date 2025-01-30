@@ -192,7 +192,7 @@
           
           
           
-          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.2.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.5.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
         </li>
         <li class="nav-item">
           
@@ -985,7 +985,7 @@ more efficient since it uses a single physics view under the hood to handle all 
 <span class="p">)</span>
 </pre></div>
 </div>
-<p>The configuration <a class="reference internal" href="../api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.RigidObjectCollectionCfg" title="omni.isaac.lab.assets.RigidObjectCollectionCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">RigidObjectCollectionCfg</span></code></a> is used to create the collection. It’s attribute <a class="reference internal" href="../api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.RigidObjectCollectionCfg.rigid_objects" title="omni.isaac.lab.assets.RigidObjectCollectionCfg.rigid_objects"><code class="xref py py-attr docutils literal notranslate"><span class="pre">rigid_objects</span></code></a>
+<p>The configuration <a class="reference internal" href="../api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.RigidObjectCollectionCfg" title="omni.isaac.lab.assets.RigidObjectCollectionCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">RigidObjectCollectionCfg</span></code></a> is used to create the collection. It’s attribute <code class="xref py py-attr docutils literal notranslate"><span class="pre">rigid_objects</span></code>
 is a dictionary containing <a class="reference internal" href="../api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.RigidObjectCfg" title="omni.isaac.lab.assets.RigidObjectCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">RigidObjectCfg</span></code></a> objects. The keys serve as unique identifiers for each
 rigid object in the collection.</p>
 </section>
@@ -1026,7 +1026,7 @@ rigid object in the collection.</p>
 </pre></div>
 </div>
 <p>This function allows you to define a list of different assets that can be spawned as rigid objects.
-When <a class="reference internal" href="../api/lab/omni.isaac.lab.sim.spawners.html#omni.isaac.lab.sim.spawners.wrappers.MultiAssetSpawnerCfg.random_choice" title="omni.isaac.lab.sim.spawners.wrappers.MultiAssetSpawnerCfg.random_choice"><code class="xref py py-attr docutils literal notranslate"><span class="pre">random_choice</span></code></a> is set to True, one asset from the list
+When <code class="xref py py-attr docutils literal notranslate"><span class="pre">random_choice</span></code> is set to True, one asset from the list
 is randomly selected and spawned at the specified prim path.</p>
 </li>
 <li><p>Similarly, we set the spawn configuration in <a class="reference internal" href="../api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.ArticulationCfg" title="omni.isaac.lab.assets.ArticulationCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">ArticulationCfg</span></code></a> to be

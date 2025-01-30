@@ -56,11 +56,11 @@
     <link rel="icon" href="../../../_static/favicon.ico"/>
     <link rel="index" title="Index" href="../../../genindex.html" />
     <link rel="search" title="Search" href="../../../search.html" />
-    <link rel="next" title="Running Isaac Lab in the Cloud" href="cloud_installation.html" />
-    <link rel="prev" title="Installation using pip" href="pip_installation.html" />
+    <link rel="next" title="Installing Isaac Lab through Pip" href="isaaclab_pip_installation.html" />
+    <link rel="prev" title="Installation using Isaac Sim pip" href="pip_installation.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-  <meta name="docsearch:version" content="1.4.1" />
+  <meta name="docsearch:version" content="2.0.0" />
     <meta name="docbuild:last-update" content="Jan 30, 2025"/>
   </head>
   
@@ -192,7 +192,7 @@
           
           
           
-          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.2.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.5.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
         </li>
         <li class="nav-item">
           
@@ -230,6 +230,8 @@
 <li class="toctree-l1 current active has-children"><a class="reference internal" href="index.html">Local Installation</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="current">
 <li class="toctree-l2"><a class="reference internal" href="pip_installation.html">Pip installation (recommended for Ubuntu 22.04 and Windows)</a></li>
 <li class="toctree-l2 current active"><a class="current reference internal" href="#">Binary installation (recommended for Ubuntu 20.04)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="isaaclab_pip_installation.html">Advanced installation (Isaac Lab pip)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="asset_caching.html">Asset caching</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1"><a class="reference internal" href="cloud_installation.html">Running Isaac Lab in the Cloud</a></li>
@@ -241,7 +243,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../../overview/developer-guide/vs_code.html">Setting up Visual Studio Code</a></li>
 
 <li class="toctree-l2"><a class="reference internal" href="../../overview/developer-guide/repo_structure.html">Repository organization</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../overview/developer-guide/development.html">Application Development</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/developer-guide/development.html">Extension Development</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../overview/developer-guide/template.html">Building your Own Project</a></li>
 </ul>
 </details></li>
@@ -264,6 +266,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../../overview/reinforcement-learning/rl_existing_scripts.html">Reinforcement Learning Wrappers</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../overview/reinforcement-learning/rl_frameworks.html">Reinforcement Learning Library Comparison</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../overview/reinforcement-learning/performance_benchmarks.html">Performance Benchmarks</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/reinforcement-learning/training_guide.html">Debugging and Training Guide</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1"><a class="reference internal" href="../../overview/teleop_imitation.html">Teleoperation and Imitation Learning</a></li>
@@ -294,6 +297,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../../tutorials/03_envs/register_rl_env_gym.html">Registering an Environment</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../tutorials/03_envs/run_rl_training.html">Training with an RL Agent</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../tutorials/03_envs/modify_direct_rl_env.html">Modifying an existing Direct RL Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/03_envs/policy_inference_in_usd.html">Policy Inference in USD Environment</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../tutorials/04_sensors/add_sensors_on_robot.html">Adding sensors on a robot</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../tutorials/05_controllers/run_diff_ik.html">Using a task-space controller</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../tutorials/05_controllers/run_osc.html">Using an operational space controller</a></li>
@@ -330,28 +334,27 @@
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Source API</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../api/index.html">API Reference</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.app.html">omni.isaac.lab.app</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.actuators.html">omni.isaac.lab.actuators</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.assets.html">omni.isaac.lab.assets</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.controllers.html">omni.isaac.lab.controllers</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.devices.html">omni.isaac.lab.devices</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.envs.html">omni.isaac.lab.envs</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.managers.html">omni.isaac.lab.managers</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.markers.html">omni.isaac.lab.markers</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.scene.html">omni.isaac.lab.scene</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.sensors.html">omni.isaac.lab.sensors</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.sim.html">omni.isaac.lab.sim</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.terrains.html">omni.isaac.lab.terrains</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.utils.html">omni.isaac.lab.utils</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.envs.mdp.html">omni.isaac.lab.envs.mdp</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.envs.ui.html">omni.isaac.lab.envs.ui</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.sensors.patterns.html">omni.isaac.lab.sensors.patterns</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.sim.converters.html">omni.isaac.lab.sim.converters</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.sim.schemas.html">omni.isaac.lab.sim.schemas</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.sim.spawners.html">omni.isaac.lab.sim.spawners</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab_tasks/omni.isaac.lab_tasks.utils.html">omni.isaac.lab_tasks.utils</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab_tasks/omni.isaac.lab_tasks.utils.wrappers.html">omni.isaac.lab_tasks.utils.wrappers</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab_tasks/omni.isaac.lab_tasks.utils.data_collector.html">omni.isaac.lab_tasks.utils.data_collector</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.app.html">isaaclab.app</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.actuators.html">isaaclab.actuators</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.assets.html">isaaclab.assets</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.controllers.html">isaaclab.controllers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.devices.html">isaaclab.devices</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.envs.html">isaaclab.envs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.managers.html">isaaclab.managers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.markers.html">isaaclab.markers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.scene.html">isaaclab.scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.sensors.html">isaaclab.sensors</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.sim.html">isaaclab.sim</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.terrains.html">isaaclab.terrains</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.utils.html">isaaclab.utils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.envs.mdp.html">isaaclab.envs.mdp</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.envs.ui.html">isaaclab.envs.ui</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.sensors.patterns.html">isaaclab.sensors.patterns</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.sim.converters.html">isaaclab.sim.converters</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.sim.schemas.html">isaaclab.sim.schemas</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.sim.spawners.html">isaaclab.sim.spawners</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab_tasks/isaaclab_tasks.utils.html">isaaclab_tasks.utils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab_mimic/isaaclab_mimic.datagen.html">isaaclab_mimic.datagen</a></li>
 </ul>
 </details></li>
 </ul>
@@ -361,7 +364,15 @@
 <li class="toctree-l1"><a class="reference internal" href="../../refs/additional_resources.html">Additional Resources</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../refs/contributing.html">Contribution Guidelines</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../refs/troubleshooting.html">Tricks and Troubleshooting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../refs/migration.html">Migration Guide (Isaac Sim)</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../refs/issues.html">Known Issues</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../refs/release_notes.html">Release Notes</a></li>
+
+
+
+
+
+
 <li class="toctree-l1"><a class="reference internal" href="../../refs/changelog.html">Extensions Changelog</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../refs/license.html">License</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../refs/bibliography.html">Bibliography</a></li>
@@ -369,7 +380,7 @@
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Project Links</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference external" href="https://github.com/isaac-sim/IsaacLab">GitHub</a></li>
-<li class="toctree-l1"><a class="reference external" href="https://docs.omniverse.nvidia.com/isaacsim/latest/index.html">NVIDIA Isaac Sim</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/latest/index.html">NVIDIA Isaac Sim</a></li>
 <li class="toctree-l1"><a class="reference external" href="https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/index.html">NVIDIA PhysX</a></li>
 </ul>
 
@@ -591,6 +602,7 @@
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#setting-up-the-conda-environment-optional">Setting up the conda environment (optional)</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#installation">Installation</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#verifying-the-isaac-lab-installation">Verifying the Isaac Lab installation</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#train-a-robot">Train a robot!</a></li>
 </ul>
 </li>
 </ul>
@@ -606,33 +618,42 @@
                   
   <section id="installation-using-isaac-sim-binaries">
 <span id="isaaclab-binaries-installation"></span><h1>Installation using Isaac Sim Binaries<a class="headerlink" href="#installation-using-isaac-sim-binaries" title="Permalink to this heading">#</a></h1>
-<p>Issac Lab requires Isaac Sim. Install Isaac Sim first, then Isaac Lab.</p>
+<p>Isaac Lab requires Isaac Sim. This tutorial installs Isaac Sim first from binaries, then Isaac Lab from source code.</p>
 <section id="installing-isaac-sim">
 <h2>Installing Isaac Sim<a class="headerlink" href="#installing-isaac-sim" title="Permalink to this heading">#</a></h2>
 <section id="downloading-pre-built-binaries">
 <h3>Downloading pre-built binaries<a class="headerlink" href="#downloading-pre-built-binaries" title="Permalink to this heading">#</a></h3>
 <p>Please follow the Isaac Sim
-<a class="reference external" href="https://docs.omniverse.nvidia.com/isaacsim/latest/installation/install_workstation.html">documentation</a>
+<a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/latest/installation/install_workstation.html">documentation</a>
 to install the latest Isaac Sim release.</p>
+<p>From Isaac Sim 4.5 release, Isaac Sim binaries can be <a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/latest/installation/download.html#download-isaac-sim-short">downloaded</a> directly as a zip file.</p>
 <p>To check the minimum system requirements,refer to the documentation
-<a class="reference external" href="https://docs.omniverse.nvidia.com/isaacsim/latest/installation/requirements.html">here</a>.</p>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>We have tested Isaac Lab with Isaac Sim 4.1 release on Ubuntu
-20.04LTS with NVIDIA driver 525.147.</p>
+<a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/latest/installation/requirements.html">here</a>.</p>
 <div class="sd-tab-set docutils">
 <input checked="checked" id="sd-tab-item-0" name="sd-tab-set-0" type="radio">
 <label class="sd-tab-label" data-sync-group="os" data-sync-id="linux" for="sd-tab-item-0">
 <i class="fa-brands fa-linux"></i> Linux</label><div class="sd-tab-content docutils">
-<p>On Linux systems, by default, Isaac Sim is installed in the directory
-<code class="docutils literal notranslate"><span class="pre">${HOME}/.local/share/ov/pkg/isaac_sim-*</span></code>, with <code class="docutils literal notranslate"><span class="pre">*</span></code> corresponding to the Isaac Sim version.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>We have tested Isaac Lab with Isaac Sim 4.5 release on Ubuntu
+22.04LTS with NVIDIA driver 535.129.</p>
+<p>From Isaac Sim 4.5 release, Isaac Sim binaries can be downloaded directly as a zip file.
+The below steps assume the Isaac Sim folder was unzipped to the Downloads directory.</p>
+</div>
+<p>On Linux systems, Isaac Sim directory will be named
+<code class="docutils literal notranslate"><span class="pre">${HOME}/Downloads/isaac-sim-standalone&#64;*</span></code>, with <code class="docutils literal notranslate"><span class="pre">*</span></code> corresponding to the Isaac Sim version.</p>
 </div>
 <input id="sd-tab-item-1" name="sd-tab-set-0" type="radio">
 <label class="sd-tab-label" data-sync-group="os" data-sync-id="windows" for="sd-tab-item-1">
 <i class="fa-brands fa-windows"></i> Windows</label><div class="sd-tab-content docutils">
-<p>On Windows systems, by default,Isaac Sim is installed in the directory
-<code class="docutils literal notranslate"><span class="pre">%USERPROFILE%\AppData\Local\ov\pkg\isaac_sim-*</span></code>, with <code class="docutils literal notranslate"><span class="pre">*</span></code> corresponding to the Isaac Sim version.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>We have tested Isaac Lab with Isaac Sim 4.5 release on Windows11 with NVIDIA driver 552.86.</p>
+<p>From Isaac Sim 4.5 release, Isaac Sim binaries can be downloaded directly as a zip file.
+The below steps assume the Isaac Sim folder was unzipped to the Downloads directory.</p>
 </div>
+<p>On Windows systems, Isaac Sim directory will be named
+<code class="docutils literal notranslate"><span class="pre">%USERPROFILE%/Downloads/isaac-sim-standalone&#64;*</span></code>, with <code class="docutils literal notranslate"><span class="pre">*</span></code> corresponding to the Isaac Sim version.</p>
 </div>
 </div>
 </section>
@@ -646,7 +667,7 @@ variables to your terminal for the remaining of the installation instructions:</
 <label class="sd-tab-label" data-sync-group="os" data-sync-id="linux" for="sd-tab-item-2">
 <i class="fa-brands fa-linux"></i> Linux</label><div class="sd-tab-content docutils">
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Isaac Sim root directory</span>
-<span class="nb">export</span><span class="w"> </span><span class="nv">ISAACSIM_PATH</span><span class="o">=</span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">HOME</span><span class="si">}</span><span class="s2">/.local/share/ov/pkg/isaac-sim-4.2.0&quot;</span>
+<span class="nb">export</span><span class="w"> </span><span class="nv">ISAACSIM_PATH</span><span class="o">=</span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">HOME</span><span class="si">}</span><span class="s2">/Downloads/isaac-sim-standalone@4.5.0&quot;</span>
 <span class="c1"># Isaac Sim python executable</span>
 <span class="nb">export</span><span class="w"> </span><span class="nv">ISAACSIM_PYTHON_EXE</span><span class="o">=</span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">ISAACSIM_PATH</span><span class="si">}</span><span class="s2">/python.sh&quot;</span>
 </pre></div>
@@ -656,7 +677,7 @@ variables to your terminal for the remaining of the installation instructions:</
 <label class="sd-tab-label" data-sync-group="os" data-sync-id="windows" for="sd-tab-item-3">
 <i class="fa-brands fa-windows"></i> Windows</label><div class="sd-tab-content docutils">
 <div class="highlight-batch notranslate"><div class="highlight"><pre><span></span><span class="p">:</span><span class="c1">: Isaac Sim root directory</span>
-<span class="k">set</span> <span class="nv">ISAACSIM_PATH</span><span class="p">=</span><span class="s2">&quot;</span><span class="nv">%USERPROFILE%</span><span class="s2">\AppData\Local\ov\pkg\isaac-sim-4.2.0&quot;</span>
+<span class="k">set</span> <span class="nv">ISAACSIM_PATH</span><span class="p">=</span><span class="s2">&quot;</span><span class="nv">%USERPROFILE%</span><span class="s2">/Downloads/isaac-sim-standalone@4.5.0&quot;</span>
 <span class="p">:</span><span class="c1">: Isaac Sim python executable</span>
 <span class="k">set</span> <span class="nv">ISAACSIM_PYTHON_EXE</span><span class="p">=</span><span class="s2">&quot;</span><span class="nv">%ISAACSIM_PATH:&quot;=%</span><span class="s2">\python.bat&quot;</span>
 </pre></div>
@@ -664,7 +685,7 @@ variables to your terminal for the remaining of the installation instructions:</
 </div>
 </div>
 <p>For more information on common paths, please check the Isaac Sim
-<a class="reference external" href="https://docs.omniverse.nvidia.com/isaacsim/latest/installation/install_faq.html#common-path-locations">documentation</a>.</p>
+<a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/latest/installation/install_faq.html#common-path-locations">documentation</a>.</p>
 <ul>
 <li><p>Check that the simulator runs as expected:</p>
 <div class="sd-tab-set docutils">
@@ -694,7 +715,7 @@ variables to your terminal for the remaining of the installation instructions:</
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># checks that python path is set correctly</span>
 <span class="si">${</span><span class="nv">ISAACSIM_PYTHON_EXE</span><span class="si">}</span><span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;print(&#39;Isaac Sim configuration is now complete.&#39;)&quot;</span>
 <span class="c1"># checks that Isaac Sim can be launched from python</span>
-<span class="si">${</span><span class="nv">ISAACSIM_PYTHON_EXE</span><span class="si">}</span><span class="w"> </span><span class="si">${</span><span class="nv">ISAACSIM_PATH</span><span class="si">}</span>/standalone_examples/api/omni.isaac.core/add_cubes.py
+<span class="si">${</span><span class="nv">ISAACSIM_PYTHON_EXE</span><span class="si">}</span><span class="w"> </span><span class="si">${</span><span class="nv">ISAACSIM_PATH</span><span class="si">}</span>/standalone_examples/api/isaacsim.core.api/add_cubes.py
 </pre></div>
 </div>
 </div>
@@ -704,7 +725,7 @@ variables to your terminal for the remaining of the installation instructions:</
 <div class="highlight-batch notranslate"><div class="highlight"><pre><span></span><span class="p">:</span><span class="c1">: checks that python path is set correctly</span>
 <span class="nv">%ISAACSIM_PYTHON_EXE%</span> -c <span class="s2">&quot;print(&#39;Isaac Sim configuration is now complete.&#39;)&quot;</span>
 <span class="p">:</span><span class="c1">: checks that Isaac Sim can be launched from python</span>
-<span class="nv">%ISAACSIM_PYTHON_EXE%</span> <span class="nv">%ISAACSIM_PATH%</span>\standalone_examples\api\omni.isaac.core\add_cubes.py
+<span class="nv">%ISAACSIM_PYTHON_EXE%</span> <span class="nv">%ISAACSIM_PATH%</span>\standalone_examples\api\isaacsim.core.api\add_cubes.py
 </pre></div>
 </div>
 </div>
@@ -737,7 +758,7 @@ instructions, it means that something is incorrectly configured. To
 debug and troubleshoot, please check Isaac Sim
 <a class="reference external" href="https://docs.omniverse.nvidia.com/dev-guide/latest/linux-troubleshooting.html">documentation</a>
 and the
-<a class="reference external" href="https://docs.omniverse.nvidia.com/isaacsim/latest/isaac_sim_forums.html">forums</a>.</p>
+<a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/latest/isaac_sim_forums.html">forums</a>.</p>
 </section>
 </section>
 <section id="installing-isaac-lab">
@@ -790,7 +811,7 @@ optional arguments:
    -o, --docker         Run the docker container helper script (docker/container.sh).
    -v, --vscode         Generate the VSCode settings file from template.
    -d, --docs           Build the documentation from source using sphinx.
-   -c, --conda [NAME]   Create the conda environment for Isaac Lab. Default name is &#39;isaaclab&#39;.
+   -c, --conda [NAME]   Create the conda environment for Isaac Lab. Default name is &#39;env_isaaclab&#39;.
 </pre></div>
 </div>
 </div>
@@ -810,7 +831,7 @@ optional arguments:
    -t, --test           Run all python unittest tests.
    -v, --vscode         Generate the VSCode settings file from template.
    -d, --docs           Build the documentation from source using sphinx.
-   -c, --conda [NAME]   Create the conda environment for Isaac Lab. Default name is &#39;isaaclab&#39;.
+   -c, --conda [NAME]   Create the conda environment for Isaac Lab. Default name is &#39;env_isaaclab&#39;.
 </pre></div>
 </div>
 </div>
@@ -830,7 +851,7 @@ to index the python modules and look for extensions shipped with Isaac Sim.</p>
 <span class="nb">cd</span><span class="w"> </span>IsaacLab
 <span class="c1"># create a symbolic link</span>
 ln<span class="w"> </span>-s<span class="w"> </span>path_to_isaac_sim<span class="w"> </span>_isaac_sim
-<span class="c1"># For example: ln -s /home/nvidia/.local/share/ov/pkg/isaac-sim-4.2.0 _isaac_sim</span>
+<span class="c1"># For example: ln -s ${HOME}/Downloads/isaac-sim-standalone@4.5.0 _isaac_sim</span>
 </pre></div>
 </div>
 </div>
@@ -841,7 +862,7 @@ ln<span class="w"> </span>-s<span class="w"> </span>path_to_isaac_sim<span class
 <span class="k">cd</span> IsaacLab
 <span class="p">:</span><span class="c1">: create a symbolic link - requires launching Command Prompt with Administrator access</span>
 <span class="k">mklink</span> /D _isaac_sim path_to_isaac_sim
-<span class="p">:</span><span class="c1">: For example: mklink /D _isaac_sim C:/Users/nvidia/AppData/Local/ov/pkg/isaac-sim-4.2.0</span>
+<span class="p">:</span><span class="c1">: For example: mklink /D _isaac_sim C:/Users/nvidia/Downloads/isaac-sim-standalone@4.5.0</span>
 </pre></div>
 </div>
 </div>
@@ -861,16 +882,14 @@ ln<span class="w"> </span>-s<span class="w"> </span>path_to_isaac_sim<span class
 Sim, using <code class="docutils literal notranslate"><span class="pre">./isaaclab.sh</span> <span class="pre">-p</span></code> command (unless inside a virtual environment). This executable
 behaves like a python executable, and can be used to run any python script or
 module with the simulator. For more information, please refer to the
-<a class="reference external" href="https://docs.omniverse.nvidia.com/isaacsim/latest/manual_standalone_python.html#isaac-sim-python-environment">documentation</a>.</p>
-<p>Although using a virtual environment is optional, we recommend using <code class="docutils literal notranslate"><span class="pre">conda</span></code>. To install
-<code class="docutils literal notranslate"><span class="pre">conda</span></code>, please follow the instructions <a class="reference external" href="https://docs.conda.io/projects/conda/en/latest/user-guide/install/index.html">here</a>.
-In case you want to use <code class="docutils literal notranslate"><span class="pre">conda</span></code> to create a virtual environment, you can
-use the following command:</p>
+<a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/latest/python_scripting/manual_standalone_python.html">documentation</a>.</p>
+<p>To install <code class="docutils literal notranslate"><span class="pre">conda</span></code>, please follow the instructions <a class="reference external" href="https://docs.conda.io/projects/conda/en/latest/user-guide/install/index.html">here</a>.
+You can create the Isaac Lab environment using the following commands.</p>
 <div class="sd-tab-set docutils">
 <input checked="checked" id="sd-tab-item-16" name="sd-tab-set-8" type="radio">
 <label class="sd-tab-label" data-sync-group="os" data-sync-id="linux" for="sd-tab-item-16">
 <i class="fa-brands fa-linux"></i> Linux</label><div class="sd-tab-content docutils">
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Option 1: Default name for conda environment is &#39;isaaclab&#39;</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Option 1: Default name for conda environment is &#39;env_isaaclab&#39;</span>
 ./isaaclab.sh<span class="w"> </span>--conda<span class="w">  </span><span class="c1"># or &quot;./isaaclab.sh -c&quot;</span>
 <span class="c1"># Option 2: Custom name for conda environment</span>
 ./isaaclab.sh<span class="w"> </span>--conda<span class="w"> </span>my_env<span class="w">  </span><span class="c1"># or &quot;./isaaclab.sh -c my_env&quot;</span>
@@ -880,7 +899,7 @@ use the following command:</p>
 <input id="sd-tab-item-17" name="sd-tab-set-8" type="radio">
 <label class="sd-tab-label" data-sync-group="os" data-sync-id="windows" for="sd-tab-item-17">
 <i class="fa-brands fa-windows"></i> Windows</label><div class="sd-tab-content docutils">
-<div class="highlight-batch notranslate"><div class="highlight"><pre><span></span><span class="p">:</span><span class="c1">: Option 1: Default name for conda environment is &#39;isaaclab&#39;</span>
+<div class="highlight-batch notranslate"><div class="highlight"><pre><span></span><span class="p">:</span><span class="c1">: Option 1: Default name for conda environment is &#39;env_isaaclab&#39;</span>
 isaaclab.bat --conda  :: or <span class="s2">&quot;isaaclab.bat -c&quot;</span>
 <span class="p">:</span><span class="c1">: Option 2: Custom name for conda environment</span>
 isaaclab.bat --conda my_env  :: or <span class="s2">&quot;isaaclab.bat -c my_env&quot;</span>
@@ -888,9 +907,8 @@ isaaclab.bat --conda my_env  :: or <span class="s2">&quot;isaaclab.bat -c my_env
 </div>
 </div>
 </div>
-<p>If you are using <code class="docutils literal notranslate"><span class="pre">conda</span></code> to create a virtual environment, make sure to
-activate the environment before running any scripts. For example:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>conda<span class="w"> </span>activate<span class="w"> </span>isaaclab<span class="w">  </span><span class="c1"># or &quot;conda activate my_env&quot;</span>
+<p>Once created, be sure to activate the environment before proceeding!</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>conda<span class="w"> </span>activate<span class="w"> </span>env_isaaclab<span class="w">  </span><span class="c1"># or &quot;conda activate my_env&quot;</span>
 </pre></div>
 </div>
 <p>Once you are in the virtual environment, you do not need to use <code class="docutils literal notranslate"><span class="pre">./isaaclab.sh</span> <span class="pre">-p</span></code> / <code class="docutils literal notranslate"><span class="pre">isaaclab.bat</span> <span class="pre">-p</span></code>
@@ -908,7 +926,7 @@ sudo<span class="w"> </span>apt<span class="w"> </span>install<span class="w"> <
 </pre></div>
 </div>
 </li>
-<li><p>Run the install command that iterates over all the extensions in <code class="docutils literal notranslate"><span class="pre">source/extensions</span></code> directory and installs them
+<li><p>Run the install command that iterates over all the extensions in <code class="docutils literal notranslate"><span class="pre">source</span></code> directory and installs them
 using pip (with <code class="docutils literal notranslate"><span class="pre">--editable</span></code> flag):</p></li>
 </ul>
 <div class="sd-tab-set docutils">
@@ -960,10 +978,10 @@ top of the repository:</p>
 <i class="fa-brands fa-linux"></i> Linux</label><div class="sd-tab-content docutils">
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Option 1: Using the isaaclab.sh executable</span>
 <span class="c1"># note: this works for both the bundled python and the virtual environment</span>
-./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>source/standalone/tutorials/00_sim/create_empty.py
+./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/tutorials/00_sim/create_empty.py
 
 <span class="c1"># Option 2: Using python in your virtual environment</span>
-python<span class="w"> </span>source/standalone/tutorials/00_sim/create_empty.py
+python<span class="w"> </span>scripts/tutorials/00_sim/create_empty.py
 </pre></div>
 </div>
 </div>
@@ -972,10 +990,10 @@ python<span class="w"> </span>source/standalone/tutorials/00_sim/create_empty.py
 <i class="fa-brands fa-windows"></i> Windows</label><div class="sd-tab-content docutils">
 <div class="highlight-batch notranslate"><div class="highlight"><pre><span></span><span class="p">:</span><span class="c1">: Option 1: Using the isaaclab.bat executable</span>
 <span class="p">:</span><span class="c1">: note: this works for both the bundled python and the virtual environment</span>
-isaaclab.bat -p source\standalone\tutorials\00_sim\create_empty.py
+isaaclab.bat -p scripts\tutorials\00_sim\create_empty.py
 
 <span class="p">:</span><span class="c1">: Option 2: Using python in your virtual environment</span>
-python source\standalone\tutorials\00_sim\create_empty.py
+python scripts\tutorials\00_sim\create_empty.py
 </pre></div>
 </div>
 </div>
@@ -988,6 +1006,48 @@ On Windows machines, please terminate the process from Command Prompt using
 <img alt="Simulator with a black window." src="../../../_images/verify_install.jpg" />
 </figure>
 <p>If you see this, then the installation was successful! 🎉</p>
+</section>
+<section id="train-a-robot">
+<h3>Train a robot!<a class="headerlink" href="#train-a-robot" title="Permalink to this heading">#</a></h3>
+<p>You can now use Isaac Lab to train a robot through Reinforcement Learning! The quickest way to use Isaac Lab is through the predefined workflows using one of our <strong>Batteries-included</strong> robot tasks. Execute the following command to quickly train an ant to walk!
+We recommend adding <code class="docutils literal notranslate"><span class="pre">--headless</span></code> for faster training.</p>
+<div class="sd-tab-set docutils">
+<input checked="checked" id="sd-tab-item-24" name="sd-tab-set-12" type="radio">
+<label class="sd-tab-label" data-sync-group="os" data-sync-id="linux" for="sd-tab-item-24">
+<i class="fa-brands fa-linux"></i> Linux</label><div class="sd-tab-content docutils">
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>source/standalone/workflows/rsl_rl/train.py<span class="w"> </span>--task<span class="o">=</span>Isaac-Ant-v0<span class="w"> </span>--headless
+</pre></div>
+</div>
+</div>
+<input id="sd-tab-item-25" name="sd-tab-set-12" type="radio">
+<label class="sd-tab-label" data-sync-group="os" data-sync-id="windows" for="sd-tab-item-25">
+<i class="fa-brands fa-windows"></i> Windows</label><div class="sd-tab-content docutils">
+<div class="highlight-batch notranslate"><div class="highlight"><pre><span></span>isaaclab.bat -p source/standalone/workflows/rsl_rl/train.py --task=Isaac-Ant-v0 --headless
+</pre></div>
+</div>
+</div>
+</div>
+<p>… Or a robot dog!</p>
+<div class="sd-tab-set docutils">
+<input checked="checked" id="sd-tab-item-26" name="sd-tab-set-13" type="radio">
+<label class="sd-tab-label" data-sync-group="os" data-sync-id="linux" for="sd-tab-item-26">
+<i class="fa-brands fa-linux"></i> Linux</label><div class="sd-tab-content docutils">
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>source/standalone/workflows/rsl_rl/train.py<span class="w"> </span>--task<span class="o">=</span>Isaac-Velocity-Rough-Anymal-C-v0<span class="w"> </span>--headless
+</pre></div>
+</div>
+</div>
+<input id="sd-tab-item-27" name="sd-tab-set-13" type="radio">
+<label class="sd-tab-label" data-sync-group="os" data-sync-id="windows" for="sd-tab-item-27">
+<i class="fa-brands fa-windows"></i> Windows</label><div class="sd-tab-content docutils">
+<div class="highlight-batch notranslate"><div class="highlight"><pre><span></span>isaaclab.bat -p source/standalone/workflows/rsl_rl/train.py --task=Isaac-Velocity-Rough-Anymal-C-v0 --headless
+</pre></div>
+</div>
+</div>
+</div>
+<p>Isaac Lab provides the tools you’ll need to create your own <strong>Tasks</strong> and <strong>Workflows</strong> for whatever your project needs may be. Take a look at our <a class="reference internal" href="../../how-to/index.html#how-to"><span class="std std-ref">How-to Guides</span></a> guides like <a class="reference external" href="source/how-to/add_own_library">Adding your own learning Library</a> or <a class="reference external" href="source/how-to/wrap_rl_env">Wrapping Environments</a> for details.</p>
+<figure class="align-center" style="width: 100%">
+<img alt="Idle hands..." src="../../../_images/isaac_ants_example.jpg" />
+</figure>
 </section>
 </section>
 </section>
@@ -1009,15 +1069,15 @@ On Windows machines, please terminate the process from Command Prompt using
       <i class="fa-solid fa-angle-left"></i>
       <div class="prev-next-info">
         <p class="prev-next-subtitle">previous</p>
-        <p class="prev-next-title">Installation using pip</p>
+        <p class="prev-next-title">Installation using Isaac Sim pip</p>
       </div>
     </a>
     <a class="right-next"
-       href="cloud_installation.html"
+       href="isaaclab_pip_installation.html"
        title="next page">
       <div class="prev-next-info">
         <p class="prev-next-subtitle">next</p>
-        <p class="prev-next-title">Running Isaac Lab in the Cloud</p>
+        <p class="prev-next-title">Installing Isaac Lab through Pip</p>
       </div>
       <i class="fa-solid fa-angle-right"></i>
     </a>
@@ -1049,6 +1109,7 @@ On Windows machines, please terminate the process from Command Prompt using
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#setting-up-the-conda-environment-optional">Setting up the conda environment (optional)</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#installation">Installation</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#verifying-the-isaac-lab-installation">Verifying the Isaac Lab installation</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#train-a-robot">Train a robot!</a></li>
 </ul>
 </li>
 </ul>

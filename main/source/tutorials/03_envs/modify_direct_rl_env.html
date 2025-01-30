@@ -56,11 +56,11 @@
     <link rel="icon" href="../../../_static/favicon.ico"/>
     <link rel="index" title="Index" href="../../../genindex.html" />
     <link rel="search" title="Search" href="../../../search.html" />
-    <link rel="next" title="Adding sensors on a robot" href="../04_sensors/add_sensors_on_robot.html" />
+    <link rel="next" title="Policy Inference in USD Environment" href="policy_inference_in_usd.html" />
     <link rel="prev" title="Training with an RL Agent" href="run_rl_training.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-  <meta name="docsearch:version" content="1.4.1" />
+  <meta name="docsearch:version" content="2.0.0" />
     <meta name="docbuild:last-update" content="Jan 30, 2025"/>
   </head>
   
@@ -192,7 +192,7 @@
           
           
           
-          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.2.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.5.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
         </li>
         <li class="nav-item">
           
@@ -230,6 +230,8 @@
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../setup/installation/index.html">Local Installation</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2"><a class="reference internal" href="../../setup/installation/pip_installation.html">Pip installation (recommended for Ubuntu 22.04 and Windows)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../setup/installation/binaries_installation.html">Binary installation (recommended for Ubuntu 20.04)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/installation/isaaclab_pip_installation.html">Advanced installation (Isaac Lab pip)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/installation/asset_caching.html">Asset caching</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1"><a class="reference internal" href="../../setup/installation/cloud_installation.html">Running Isaac Lab in the Cloud</a></li>
@@ -241,7 +243,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../../overview/developer-guide/vs_code.html">Setting up Visual Studio Code</a></li>
 
 <li class="toctree-l2"><a class="reference internal" href="../../overview/developer-guide/repo_structure.html">Repository organization</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../overview/developer-guide/development.html">Application Development</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/developer-guide/development.html">Extension Development</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../overview/developer-guide/template.html">Building your Own Project</a></li>
 </ul>
 </details></li>
@@ -264,6 +266,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../../overview/reinforcement-learning/rl_existing_scripts.html">Reinforcement Learning Wrappers</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../overview/reinforcement-learning/rl_frameworks.html">Reinforcement Learning Library Comparison</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../overview/reinforcement-learning/performance_benchmarks.html">Performance Benchmarks</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/reinforcement-learning/training_guide.html">Debugging and Training Guide</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1"><a class="reference internal" href="../../overview/teleop_imitation.html">Teleoperation and Imitation Learning</a></li>
@@ -294,6 +297,7 @@
 <li class="toctree-l2"><a class="reference internal" href="register_rl_env_gym.html">Registering an Environment</a></li>
 <li class="toctree-l2"><a class="reference internal" href="run_rl_training.html">Training with an RL Agent</a></li>
 <li class="toctree-l2 current active"><a class="current reference internal" href="#">Modifying an existing Direct RL Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="policy_inference_in_usd.html">Policy Inference in USD Environment</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../04_sensors/add_sensors_on_robot.html">Adding sensors on a robot</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../05_controllers/run_diff_ik.html">Using a task-space controller</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../05_controllers/run_osc.html">Using an operational space controller</a></li>
@@ -330,28 +334,27 @@
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Source API</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../api/index.html">API Reference</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.app.html">omni.isaac.lab.app</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.actuators.html">omni.isaac.lab.actuators</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.assets.html">omni.isaac.lab.assets</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.controllers.html">omni.isaac.lab.controllers</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.devices.html">omni.isaac.lab.devices</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.envs.html">omni.isaac.lab.envs</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.managers.html">omni.isaac.lab.managers</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.markers.html">omni.isaac.lab.markers</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.scene.html">omni.isaac.lab.scene</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.sensors.html">omni.isaac.lab.sensors</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.sim.html">omni.isaac.lab.sim</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.terrains.html">omni.isaac.lab.terrains</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.utils.html">omni.isaac.lab.utils</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.envs.mdp.html">omni.isaac.lab.envs.mdp</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.envs.ui.html">omni.isaac.lab.envs.ui</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.sensors.patterns.html">omni.isaac.lab.sensors.patterns</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.sim.converters.html">omni.isaac.lab.sim.converters</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.sim.schemas.html">omni.isaac.lab.sim.schemas</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.sim.spawners.html">omni.isaac.lab.sim.spawners</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab_tasks/omni.isaac.lab_tasks.utils.html">omni.isaac.lab_tasks.utils</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab_tasks/omni.isaac.lab_tasks.utils.wrappers.html">omni.isaac.lab_tasks.utils.wrappers</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab_tasks/omni.isaac.lab_tasks.utils.data_collector.html">omni.isaac.lab_tasks.utils.data_collector</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.app.html">isaaclab.app</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.actuators.html">isaaclab.actuators</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.assets.html">isaaclab.assets</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.controllers.html">isaaclab.controllers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.devices.html">isaaclab.devices</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.envs.html">isaaclab.envs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.managers.html">isaaclab.managers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.markers.html">isaaclab.markers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.scene.html">isaaclab.scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.sensors.html">isaaclab.sensors</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.sim.html">isaaclab.sim</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.terrains.html">isaaclab.terrains</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.utils.html">isaaclab.utils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.envs.mdp.html">isaaclab.envs.mdp</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.envs.ui.html">isaaclab.envs.ui</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.sensors.patterns.html">isaaclab.sensors.patterns</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.sim.converters.html">isaaclab.sim.converters</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.sim.schemas.html">isaaclab.sim.schemas</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.sim.spawners.html">isaaclab.sim.spawners</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab_tasks/isaaclab_tasks.utils.html">isaaclab_tasks.utils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab_mimic/isaaclab_mimic.datagen.html">isaaclab_mimic.datagen</a></li>
 </ul>
 </details></li>
 </ul>
@@ -361,7 +364,15 @@
 <li class="toctree-l1"><a class="reference internal" href="../../refs/additional_resources.html">Additional Resources</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../refs/contributing.html">Contribution Guidelines</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../refs/troubleshooting.html">Tricks and Troubleshooting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../refs/migration.html">Migration Guide (Isaac Sim)</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../refs/issues.html">Known Issues</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../refs/release_notes.html">Release Notes</a></li>
+
+
+
+
+
+
 <li class="toctree-l1"><a class="reference internal" href="../../refs/changelog.html">Extensions Changelog</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../refs/license.html">License</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../refs/bibliography.html">Bibliography</a></li>
@@ -369,7 +380,7 @@
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Project Links</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference external" href="https://github.com/isaac-sim/IsaacLab">GitHub</a></li>
-<li class="toctree-l1"><a class="reference external" href="https://docs.omniverse.nvidia.com/isaacsim/latest/index.html">NVIDIA Isaac Sim</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/latest/index.html">NVIDIA Isaac Sim</a></li>
 <li class="toctree-l1"><a class="reference external" href="https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/index.html">NVIDIA PhysX</a></li>
 </ul>
 
@@ -608,7 +619,7 @@ it is possible to start from the existing code and introduce minor changes, one 
 humanoid model to the Unitree H1 humanoid robot without affecting the original code.</p>
 <section id="the-base-code">
 <h2>The Base Code<a class="headerlink" href="#the-base-code" title="Permalink to this heading">#</a></h2>
-<p>For this tutorial, we start from the direct workflow Humanoid environment defined in <code class="docutils literal notranslate"><span class="pre">omni.isaac.lab_tasks.direct.humanoid</span></code> module.</p>
+<p>For this tutorial, we start from the direct workflow Humanoid environment defined in <code class="docutils literal notranslate"><span class="pre">isaaclab_tasks.direct.humanoid</span></code> module.</p>
 <details class="sd-sphinx-override sd-dropdown sd-card sd-mb-3">
 <summary class="sd-summary-title sd-card-header">
 <span class="sd-summary-icon"><svg version="1.1" width="1.0em" height="1.0em" class="sd-octicon sd-octicon-code" viewBox="0 0 16 16" aria-hidden="true"><path d="m11.28 3.22 4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.749.749 0 0 1-1.275-.326.749.749 0 0 1 .215-.734L13.94 8l-3.72-3.72a.749.749 0 0 1 .326-1.275.749.749 0 0 1 .734.215Zm-6.56 0a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042L2.06 8l3.72 3.72a.749.749 0 0 1-.326 1.275.749.749 0 0 1-.734-.215L.47 8.53a.75.75 0 0 1 0-1.06Z"></path></svg></span><span class="sd-summary-text">Code for humanoid_env.py</span><span class="sd-summary-state-marker sd-summary-chevron-right"><svg version="1.1" width="1.5em" height="1.5em" class="sd-octicon sd-octicon-chevron-right" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.72 18.78a.75.75 0 0 1 0-1.06L14.44 12 8.72 6.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018l6.25 6.25a.75.75 0 0 1 0 1.06l-6.25 6.25a.75.75 0 0 1-1.06 0Z"></path></svg></span></summary><div class="sd-summary-content sd-card-body docutils">
@@ -619,17 +630,17 @@ humanoid model to the Unitree H1 humanoid robot without affecting the original c
 <span class="linenos"> 5</span>
 <span class="linenos"> 6</span><span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
 <span class="linenos"> 7</span>
-<span class="linenos"> 8</span><span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab_assets</span><span class="w"> </span><span class="kn">import</span> <span class="n">HUMANOID_CFG</span>
+<span class="linenos"> 8</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab_assets</span><span class="w"> </span><span class="kn">import</span> <span class="n">HUMANOID_CFG</span>
 <span class="linenos"> 9</span>
-<span class="linenos">10</span><span class="kn">import</span><span class="w"> </span><span class="nn">omni.isaac.lab.sim</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">sim_utils</span>
-<span class="linenos">11</span><span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.assets</span><span class="w"> </span><span class="kn">import</span> <span class="n">ArticulationCfg</span>
-<span class="linenos">12</span><span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.envs</span><span class="w"> </span><span class="kn">import</span> <span class="n">DirectRLEnvCfg</span>
-<span class="linenos">13</span><span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.scene</span><span class="w"> </span><span class="kn">import</span> <span class="n">InteractiveSceneCfg</span>
-<span class="linenos">14</span><span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.sim</span><span class="w"> </span><span class="kn">import</span> <span class="n">SimulationCfg</span>
-<span class="linenos">15</span><span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.terrains</span><span class="w"> </span><span class="kn">import</span> <span class="n">TerrainImporterCfg</span>
-<span class="linenos">16</span><span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">configclass</span>
+<span class="linenos">10</span><span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab.sim</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">sim_utils</span>
+<span class="linenos">11</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.assets</span><span class="w"> </span><span class="kn">import</span> <span class="n">ArticulationCfg</span>
+<span class="linenos">12</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.envs</span><span class="w"> </span><span class="kn">import</span> <span class="n">DirectRLEnvCfg</span>
+<span class="linenos">13</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.scene</span><span class="w"> </span><span class="kn">import</span> <span class="n">InteractiveSceneCfg</span>
+<span class="linenos">14</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.sim</span><span class="w"> </span><span class="kn">import</span> <span class="n">SimulationCfg</span>
+<span class="linenos">15</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.terrains</span><span class="w"> </span><span class="kn">import</span> <span class="n">TerrainImporterCfg</span>
+<span class="linenos">16</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">configclass</span>
 <span class="linenos">17</span>
-<span class="linenos">18</span><span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab_tasks.direct.locomotion.locomotion_env</span><span class="w"> </span><span class="kn">import</span> <span class="n">LocomotionEnv</span>
+<span class="linenos">18</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab_tasks.direct.locomotion.locomotion_env</span><span class="w"> </span><span class="kn">import</span> <span class="n">LocomotionEnv</span>
 <span class="linenos">19</span>
 <span class="linenos">20</span>
 <span class="linenos">21</span><span class="nd">@configclass</span>
@@ -717,7 +728,7 @@ humanoid model to the Unitree H1 humanoid robot without affecting the original c
 <h3>Duplicating the file and registering a new task<a class="headerlink" href="#duplicating-the-file-and-registering-a-new-task" title="Permalink to this heading">#</a></h3>
 <p>To avoid modifying the code of the existing task, we will make a copy of the file containing the Python
 code and perform the modification on this copy. Then, in the Isaac Lab project
-<code class="docutils literal notranslate"><span class="pre">source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/direct/humanoid</span></code>
+<code class="docutils literal notranslate"><span class="pre">source/isaaclab_tasks/isaaclab_tasks/direct/humanoid</span></code>
 folder we make a copy of the <code class="docutils literal notranslate"><span class="pre">humanoid_env.py</span></code> file and rename it to <code class="docutils literal notranslate"><span class="pre">h1_env.py</span></code>.</p>
 <p>Open the <code class="docutils literal notranslate"><span class="pre">h1_env.py</span></code> file in a code editor and replace all the humanoid task name (<code class="docutils literal notranslate"><span class="pre">HumanoidEnv</span></code>) and its configuration
 (<code class="docutils literal notranslate"><span class="pre">HumanoidEnvCfg</span></code>) instances to <code class="docutils literal notranslate"><span class="pre">H1Env</span></code> and <code class="docutils literal notranslate"><span class="pre">H1EnvCfg</span></code> respectively.
@@ -736,7 +747,7 @@ to avoid altering the original configurations.</p>
 </div>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">gym</span><span class="o">.</span><span class="n">register</span><span class="p">(</span>
     <span class="nb">id</span><span class="o">=</span><span class="s2">&quot;Isaac-H1-Direct-v0&quot;</span><span class="p">,</span>
-    <span class="n">entry_point</span><span class="o">=</span><span class="s2">&quot;omni.isaac.lab_tasks.direct.humanoid:H1Env&quot;</span><span class="p">,</span>
+    <span class="n">entry_point</span><span class="o">=</span><span class="s2">&quot;isaaclab_tasks.direct.humanoid:H1Env&quot;</span><span class="p">,</span>
     <span class="n">disable_env_checker</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
     <span class="n">kwargs</span><span class="o">=</span><span class="p">{</span>
         <span class="s2">&quot;env_cfg_entry_point&quot;</span><span class="p">:</span> <span class="n">H1EnvCfg</span><span class="p">,</span>
@@ -752,19 +763,19 @@ to avoid altering the original configurations.</p>
 <h3>Changing the robot<a class="headerlink" href="#changing-the-robot" title="Permalink to this heading">#</a></h3>
 <p>The <code class="docutils literal notranslate"><span class="pre">H1EnvCfg</span></code> class (in the new created <code class="docutils literal notranslate"><span class="pre">h1_env.py</span></code> file) encapsulates the configuration values of the environment,
 including the assets to be instantiated. Particularly in this example, the <code class="docutils literal notranslate"><span class="pre">robot</span></code> property holds the target articulation configuration.</p>
-<p>Since the Unitree H1 robot is included in the Isaac Lab assets extension (<code class="docutils literal notranslate"><span class="pre">omni.isaac.lab_assets</span></code>) we can just import it
+<p>Since the Unitree H1 robot is included in the Isaac Lab assets extension (<code class="docutils literal notranslate"><span class="pre">isaaclab_assets</span></code>) we can just import it
 and do the replacement directly (under the <code class="docutils literal notranslate"><span class="pre">H1EnvCfg.robot</span></code> property), as shown below. Note that we also need to modify the
 <code class="docutils literal notranslate"><span class="pre">joint_gears</span></code> property as it holds robot-specific configuration values.</p>
 <div class="admonition hint">
 <p class="admonition-title">Hint</p>
 <p>If the target robot is not included in the Isaac Lab assets extension, it is possible to load and configure it, from a USD file,
-by using the <a class="reference internal" href="../../api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.ArticulationCfg" title="omni.isaac.lab.assets.ArticulationCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">ArticulationCfg</span></code></a> class.</p>
+by using the <a class="reference internal" href="../../api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationCfg" title="isaaclab.assets.ArticulationCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">ArticulationCfg</span></code></a> class.</p>
 <ul class="simple">
-<li><p>See the <a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/direct/franka_cabinet/franka_cabinet_env.py">Isaac-Franka-Cabinet-Direct-v0</a> source code for an example of loading and configuring a robot from a USD file.</p></li>
+<li><p>See the <a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/direct/franka_cabinet/franka_cabinet_env.py">Isaac-Franka-Cabinet-Direct-v0</a> source code for an example of loading and configuring a robot from a USD file.</p></li>
 <li><p>Refer to the <a class="reference external" href="../../how-to/import_new_asset.html">Importing a New Asset</a> tutorial for details on how to import an asset from URDF or MJCF file, and other formats.</p></li>
 </ul>
 </div>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab_assets</span><span class="w"> </span><span class="kn">import</span> <span class="n">H1_CFG</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab_assets</span><span class="w"> </span><span class="kn">import</span> <span class="n">H1_CFG</span>
 </pre></div>
 </div>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">robot</span><span class="p">:</span> <span class="n">ArticulationCfg</span> <span class="o">=</span> <span class="n">H1_CFG</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">prim_path</span><span class="o">=</span><span class="s2">&quot;/World/envs/env_.*/Robot&quot;</span><span class="p">)</span>
@@ -803,13 +814,13 @@ such as the number of elements in the observation and action space.</p>
 <section id="the-code-execution">
 <h2>The Code Execution<a class="headerlink" href="#the-code-execution" title="Permalink to this heading">#</a></h2>
 <p>After the minor modification has been done, and similar to the previous tutorial, we can train on the task using one of the available RL workflows for such task.</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>source/standalone/workflows/rl_games/train.py<span class="w"> </span>--task<span class="w"> </span>Isaac-H1-Direct-v0<span class="w"> </span>--headless
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/reinforcement_learning/rl_games/train.py<span class="w"> </span>--task<span class="w"> </span>Isaac-H1-Direct-v0<span class="w"> </span>--headless
 </pre></div>
 </div>
 <p>When the training is finished, we can visualize the result with the following command.
 To stop the simulation, you can either close the window, or press <code class="docutils literal notranslate"><span class="pre">Ctrl+C</span></code> in the terminal
 where you started the simulation.</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>source/standalone/workflows/rl_games/play.py<span class="w"> </span>--task<span class="w"> </span>Isaac-H1-Direct-v0<span class="w"> </span>--num_envs<span class="w"> </span><span class="m">64</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/reinforcement_learning/rl_games/play.py<span class="w"> </span>--task<span class="w"> </span>Isaac-H1-Direct-v0<span class="w"> </span>--num_envs<span class="w"> </span><span class="m">64</span>
 </pre></div>
 </div>
 <figure class="align-center" style="width: 100%">
@@ -843,11 +854,11 @@ In these cases, it is advisable to analyze the code of the available examples in
       </div>
     </a>
     <a class="right-next"
-       href="../04_sensors/add_sensors_on_robot.html"
+       href="policy_inference_in_usd.html"
        title="next page">
       <div class="prev-next-info">
         <p class="prev-next-subtitle">next</p>
-        <p class="prev-next-title">Adding sensors on a robot</p>
+        <p class="prev-next-title">Policy Inference in USD Environment</p>
       </div>
       <i class="fa-solid fa-angle-right"></i>
     </a>

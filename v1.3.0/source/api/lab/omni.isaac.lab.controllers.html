@@ -52,8 +52,6 @@
     <script src="../../../_static/copybutton.js"></script>
     <script src="../../../_static/scripts/sphinx-book-theme.js?digest=5a5c038af52cf7bc1a1ec88eea08e6366ee68824"></script>
     <script src="../../../_static/design-tabs.js"></script>
-    <script>window.MathJax = {"tex": {"inlineMath": [["\\(", "\\)"]], "displayMath": [["\\[", "\\]"]]}}</script>
-    <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
     <script>DOCUMENTATION_OPTIONS.pagename = 'source/api/lab/omni.isaac.lab.controllers';</script>
     <link rel="icon" href="../../../_static/favicon.ico"/>
     <link rel="index" title="Index" href="../../../genindex.html" />
@@ -158,7 +156,7 @@
             <label for="version-select" style="font-weight: bold; display: block;">Version</label>
           </div>
           <select id="version-select" class="version-dropdown" style="margin: 0 auto; display: block;" onchange="location = this.value;">
-            <option value="../../../../main/source/api/lab/omni.isaac.lab.controllers.html" >main</option>
+            <option value="../../../../main/index.html" >main</option>
             <option value="../../../../v1.4.1/source/api/lab/omni.isaac.lab.controllers.html" >v1.4.1</option>
             <option value="../../../../v1.4.0/source/api/lab/omni.isaac.lab.controllers.html" >v1.4.0</option>
             <option value="omni.isaac.lab.controllers.html" selected>v1.3.0</option>
@@ -194,7 +192,7 @@
           
           
           
-          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.2.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.5.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
         </li>
         <li class="nav-item">
           
@@ -575,17 +573,11 @@
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#differential-inverse-kinematics">Differential Inverse Kinematics</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.controllers.DifferentialIKController"><code class="docutils literal notranslate"><span class="pre">DifferentialIKController</span></code></a><ul class="nav section-nav flex-column">
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.controllers.DifferentialIKController.__init__"><code class="docutils literal notranslate"><span class="pre">DifferentialIKController.__init__()</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.controllers.DifferentialIKController.action_dim"><code class="docutils literal notranslate"><span class="pre">DifferentialIKController.action_dim</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.controllers.DifferentialIKController.reset"><code class="docutils literal notranslate"><span class="pre">DifferentialIKController.reset()</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.controllers.DifferentialIKController.set_command"><code class="docutils literal notranslate"><span class="pre">DifferentialIKController.set_command()</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.controllers.DifferentialIKController.compute"><code class="docutils literal notranslate"><span class="pre">DifferentialIKController.compute()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.controllers.DifferentialIKController.__new__"><code class="docutils literal notranslate"><span class="pre">DifferentialIKController.__new__()</span></code></a></li>
 </ul>
 </li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.controllers.DifferentialIKControllerCfg"><code class="docutils literal notranslate"><span class="pre">DifferentialIKControllerCfg</span></code></a><ul class="nav section-nav flex-column">
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.controllers.DifferentialIKControllerCfg.command_type"><code class="docutils literal notranslate"><span class="pre">DifferentialIKControllerCfg.command_type</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.controllers.DifferentialIKControllerCfg.use_relative_mode"><code class="docutils literal notranslate"><span class="pre">DifferentialIKControllerCfg.use_relative_mode</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.controllers.DifferentialIKControllerCfg.ik_method"><code class="docutils literal notranslate"><span class="pre">DifferentialIKControllerCfg.ik_method</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.controllers.DifferentialIKControllerCfg.ik_params"><code class="docutils literal notranslate"><span class="pre">DifferentialIKControllerCfg.ik_params</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.controllers.DifferentialIKControllerCfg.__new__"><code class="docutils literal notranslate"><span class="pre">DifferentialIKControllerCfg.__new__()</span></code></a></li>
 </ul>
 </li>
 </ul>
@@ -603,19 +595,14 @@
                   
   <section id="module-omni.isaac.lab.controllers">
 <span id="omni-isaac-lab-controllers"></span><h1>omni.isaac.lab.controllers<a class="headerlink" href="#module-omni.isaac.lab.controllers" title="Permalink to this heading">#</a></h1>
-<p>Sub-package for different controllers and motion-generators.</p>
-<p>Controllers or motion generators are responsible for closed-loop tracking of a given command. The
-controller can be a simple PID controller or a more complex controller such as impedance control
-or inverse kinematics control. The controller is responsible for generating the desired joint-level
-commands to be sent to the robot.</p>
 <p class="rubric">Classes</p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
 <tbody>
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.controllers.DifferentialIKController" title="omni.isaac.lab.controllers.DifferentialIKController"><code class="xref py py-obj docutils literal notranslate"><span class="pre">DifferentialIKController</span></code></a></p></td>
-<td><p>Differential inverse kinematics (IK) controller.</p></td>
+<td><p></p></td>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.controllers.DifferentialIKControllerCfg" title="omni.isaac.lab.controllers.DifferentialIKControllerCfg"><code class="xref py py-obj docutils literal notranslate"><span class="pre">DifferentialIKControllerCfg</span></code></a></p></td>
-<td><p>Configuration for differential inverse kinematics controller.</p></td>
+<td><p></p></td>
 </tr>
 </tbody>
 </table>
@@ -624,226 +611,49 @@ commands to be sent to the robot.</p>
 <h2>Differential Inverse Kinematics<a class="headerlink" href="#differential-inverse-kinematics" title="Permalink to this heading">#</a></h2>
 <dl class="py class">
 <dt class="sig sig-object py" id="omni.isaac.lab.controllers.DifferentialIKController">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.controllers.</span></span><span class="sig-name descname"><span class="pre">DifferentialIKController</span></span><a class="reference internal" href="../../../_modules/omni/isaac/lab/controllers/differential_ik.html#DifferentialIKController"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.controllers.DifferentialIKController" title="Permalink to this definition">#</a></dt>
-<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
-<p>Differential inverse kinematics (IK) controller.</p>
-<p>This controller is based on the concept of differential inverse kinematics [1, 2] which is a method for computing
-the change in joint positions that yields the desired change in pose.</p>
-<div class="math notranslate nohighlight">
-\[\begin{split}\Delta \mathbf{q} &amp;= \mathbf{J}^{\dagger} \Delta \mathbf{x} \\
-\mathbf{q}_{\text{desired}} &amp;= \mathbf{q}_{\text{current}} + \Delta \mathbf{q}\end{split}\]</div>
-<p>where <span class="math notranslate nohighlight">\(\mathbf{J}^{\dagger}\)</span> is the pseudo-inverse of the Jacobian matrix <span class="math notranslate nohighlight">\(\mathbf{J}\)</span>,
-<span class="math notranslate nohighlight">\(\Delta \mathbf{x}\)</span> is the desired change in pose, and <span class="math notranslate nohighlight">\(\mathbf{q}_{\text{current}}\)</span>
-is the current joint positions.</p>
-<p>To deal with singularity in Jacobian, the following methods are supported for computing inverse of the Jacobian:</p>
-<ul class="simple">
-<li><p>“pinv”: Moore-Penrose pseudo-inverse</p></li>
-<li><p>“svd”: Adaptive singular-value decomposition (SVD)</p></li>
-<li><p>“trans”: Transpose of matrix</p></li>
-<li><p>“dls”: Damped version of Moore-Penrose pseudo-inverse (also called Levenberg-Marquardt)</p></li>
-</ul>
-<div class="admonition caution">
-<p class="admonition-title">Caution</p>
-<p>The controller does not assume anything about the frames of the current and desired end-effector pose,
-or the joint-space velocities. It is up to the user to ensure that these quantities are given
-in the correct format.</p>
-</div>
-<p>Reference:</p>
-<ol class="arabic simple">
-<li><p><a class="reference external" href="https://ethz.ch/content/dam/ethz/special-interest/mavt/robotics-n-intelligent-systems/rsl-dam/documents/RobotDynamics2017/RD_HS2017script.pdf">Robot Dynamics Lecture Notes</a>
-by Marco Hutter (ETH Zurich)</p></li>
-<li><p><a class="reference external" href="https://www.cs.cmu.edu/~15464-s13/lectures/lecture6/iksurvey.pdf">Introduction to Inverse Kinematics</a>
-by Samuel R. Buss (University of California, San Diego)</p></li>
-</ol>
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.controllers.</span></span><span class="sig-name descname"><span class="pre">DifferentialIKController</span></span><a class="headerlink" href="#omni.isaac.lab.controllers.DifferentialIKController" title="Permalink to this definition">#</a></dt>
+<dd><p>Bases:</p>
 <p><strong>Methods:</strong></p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
 <tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.controllers.DifferentialIKController.__init__" title="omni.isaac.lab.controllers.DifferentialIKController.__init__"><code class="xref py py-obj docutils literal notranslate"><span class="pre">__init__</span></code></a>(cfg, num_envs, device)</p></td>
-<td><p>Initialize the controller.</p></td>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">__init__</span></code>(name)</p></td>
+<td><p>Initialize self.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.controllers.DifferentialIKController.reset" title="omni.isaac.lab.controllers.DifferentialIKController.reset"><code class="xref py py-obj docutils literal notranslate"><span class="pre">reset</span></code></a>([env_ids])</p></td>
-<td><p>Reset the internals.</p></td>
-</tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.controllers.DifferentialIKController.set_command" title="omni.isaac.lab.controllers.DifferentialIKController.set_command"><code class="xref py py-obj docutils literal notranslate"><span class="pre">set_command</span></code></a>(command[, ee_pos, ee_quat])</p></td>
-<td><p>Set target end-effector pose command.</p></td>
-</tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.controllers.DifferentialIKController.compute" title="omni.isaac.lab.controllers.DifferentialIKController.compute"><code class="xref py py-obj docutils literal notranslate"><span class="pre">compute</span></code></a>(ee_pos, ee_quat, jacobian, joint_pos)</p></td>
-<td><p>Computes the target joint positions that will yield the desired end effector pose.</p></td>
-</tr>
-</tbody>
-</table>
-</div>
-<p><strong>Attributes:</strong></p>
-<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
-<tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.controllers.DifferentialIKController.action_dim" title="omni.isaac.lab.controllers.DifferentialIKController.action_dim"><code class="xref py py-obj docutils literal notranslate"><span class="pre">action_dim</span></code></a></p></td>
-<td><p>Dimension of the controller's input command.</p></td>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">__new__</span></code>(*args, **kwargs)</p></td>
+<td><p>Create and return a new object.</p></td>
 </tr>
 </tbody>
 </table>
 </div>
 <dl class="py method">
 <dt class="sig sig-object py" id="omni.isaac.lab.controllers.DifferentialIKController.__init__">
-<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cfg</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#omni.isaac.lab.controllers.DifferentialIKControllerCfg" title="omni.isaac.lab.controllers.DifferentialIKControllerCfg"><span class="pre">DifferentialIKControllerCfg</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">num_envs</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><span class="pre">int</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">device</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/omni/isaac/lab/controllers/differential_ik.html#DifferentialIKController.__init__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.controllers.DifferentialIKController.__init__" title="Permalink to this definition">#</a></dt>
-<dd><p>Initialize the controller.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>cfg</strong> – The configuration for the controller.</p></li>
-<li><p><strong>num_envs</strong> – The number of environments.</p></li>
-<li><p><strong>device</strong> – The device to use for computations.</p></li>
-</ul>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py property">
-<dt class="sig sig-object py" id="omni.isaac.lab.controllers.DifferentialIKController.action_dim">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">action_dim</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><span class="pre">int</span></a></em><a class="headerlink" href="#omni.isaac.lab.controllers.DifferentialIKController.action_dim" title="Permalink to this definition">#</a></dt>
-<dd><p>Dimension of the controller’s input command.</p>
-</dd></dl>
+<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Any" title="(in Python v3.13)"><span class="pre">Any</span></a></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Any" title="(in Python v3.13)"><span class="pre">Any</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></span></span><a class="headerlink" href="#omni.isaac.lab.controllers.DifferentialIKController.__init__" title="Permalink to this definition">#</a></dt>
+<dd></dd></dl>
 
 <dl class="py method">
-<dt class="sig sig-object py" id="omni.isaac.lab.controllers.DifferentialIKController.reset">
-<span class="sig-name descname"><span class="pre">reset</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">env_ids</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.6)"><span class="pre">torch.Tensor</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/omni/isaac/lab/controllers/differential_ik.html#DifferentialIKController.reset"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.controllers.DifferentialIKController.reset" title="Permalink to this definition">#</a></dt>
-<dd><p>Reset the internals.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>env_ids</strong> – The environment indices to reset. If None, then all environments are reset.</p>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="omni.isaac.lab.controllers.DifferentialIKController.set_command">
-<span class="sig-name descname"><span class="pre">set_command</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">command</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.6)"><span class="pre">torch.Tensor</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">ee_pos</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.6)"><span class="pre">torch.Tensor</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ee_quat</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.6)"><span class="pre">torch.Tensor</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/omni/isaac/lab/controllers/differential_ik.html#DifferentialIKController.set_command"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.controllers.DifferentialIKController.set_command" title="Permalink to this definition">#</a></dt>
-<dd><p>Set target end-effector pose command.</p>
-<p>Based on the configured command type and relative mode, the method computes the desired end-effector pose.
-It is up to the user to ensure that the command is given in the correct frame. The method only
-applies the relative mode if the command type is <code class="docutils literal notranslate"><span class="pre">position_rel</span></code> or <code class="docutils literal notranslate"><span class="pre">pose_rel</span></code>.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>command</strong> – The input command in shape (N, 3) or (N, 6) or (N, 7).</p></li>
-<li><p><strong>ee_pos</strong> – The current end-effector position in shape (N, 3).
-This is only needed if the command type is <code class="docutils literal notranslate"><span class="pre">position_rel</span></code> or <code class="docutils literal notranslate"><span class="pre">pose_rel</span></code>.</p></li>
-<li><p><strong>ee_quat</strong> – The current end-effector orientation (w, x, y, z) in shape (N, 4).
-This is only needed if the command type is <code class="docutils literal notranslate"><span class="pre">position_*</span></code> or <code class="docutils literal notranslate"><span class="pre">pose_rel</span></code>.</p></li>
-</ul>
-</dd>
-<dt class="field-even">Raises<span class="colon">:</span></dt>
-<dd class="field-even"><ul class="simple">
-<li><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.13)"><strong>ValueError</strong></a> – If the command type is <code class="docutils literal notranslate"><span class="pre">position_*</span></code> and <code class="xref py py-attr docutils literal notranslate"><span class="pre">ee_quat</span></code> is None.</p></li>
-<li><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.13)"><strong>ValueError</strong></a> – If the command type is <code class="docutils literal notranslate"><span class="pre">position_rel</span></code> and <code class="xref py py-attr docutils literal notranslate"><span class="pre">ee_pos</span></code> is None.</p></li>
-<li><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.13)"><strong>ValueError</strong></a> – If the command type is <code class="docutils literal notranslate"><span class="pre">pose_rel</span></code> and either <code class="xref py py-attr docutils literal notranslate"><span class="pre">ee_pos</span></code> or <code class="xref py py-attr docutils literal notranslate"><span class="pre">ee_quat</span></code> is None.</p></li>
-</ul>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="omni.isaac.lab.controllers.DifferentialIKController.compute">
-<span class="sig-name descname"><span class="pre">compute</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ee_pos</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.6)"><span class="pre">torch.Tensor</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">ee_quat</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.6)"><span class="pre">torch.Tensor</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">jacobian</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.6)"><span class="pre">torch.Tensor</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">joint_pos</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.6)"><span class="pre">torch.Tensor</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.6)"><span class="pre">torch.Tensor</span></a></span></span><a class="reference internal" href="../../../_modules/omni/isaac/lab/controllers/differential_ik.html#DifferentialIKController.compute"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.controllers.DifferentialIKController.compute" title="Permalink to this definition">#</a></dt>
-<dd><p>Computes the target joint positions that will yield the desired end effector pose.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>ee_pos</strong> – The current end-effector position in shape (N, 3).</p></li>
-<li><p><strong>ee_quat</strong> – The current end-effector orientation in shape (N, 4).</p></li>
-<li><p><strong>jacobian</strong> – The geometric jacobian matrix in shape (N, 6, num_joints).</p></li>
-<li><p><strong>joint_pos</strong> – The current joint positions in shape (N, num_joints).</p></li>
-</ul>
-</dd>
-<dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>The target joint positions commands in shape (N, num_joints).</p>
-</dd>
-</dl>
-</dd></dl>
+<dt class="sig sig-object py" id="omni.isaac.lab.controllers.DifferentialIKController.__new__">
+<span class="sig-name descname"><span class="pre">__new__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Any" title="(in Python v3.13)"><span class="pre">Any</span></a></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Any" title="(in Python v3.13)"><span class="pre">Any</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Any" title="(in Python v3.13)"><span class="pre">Any</span></a></span></span><a class="headerlink" href="#omni.isaac.lab.controllers.DifferentialIKController.__new__" title="Permalink to this definition">#</a></dt>
+<dd></dd></dl>
 
 </dd></dl>
 
 <dl class="py class">
 <dt class="sig sig-object py" id="omni.isaac.lab.controllers.DifferentialIKControllerCfg">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.controllers.</span></span><span class="sig-name descname"><span class="pre">DifferentialIKControllerCfg</span></span><a class="reference internal" href="../../../_modules/omni/isaac/lab/controllers/differential_ik_cfg.html#DifferentialIKControllerCfg"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.controllers.DifferentialIKControllerCfg" title="Permalink to this definition">#</a></dt>
-<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
-<p>Configuration for differential inverse kinematics controller.</p>
-<p><strong>Attributes:</strong></p>
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.controllers.</span></span><span class="sig-name descname"><span class="pre">DifferentialIKControllerCfg</span></span><a class="headerlink" href="#omni.isaac.lab.controllers.DifferentialIKControllerCfg" title="Permalink to this definition">#</a></dt>
+<dd><p>Bases:</p>
+<p><strong>Methods:</strong></p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
 <tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.controllers.DifferentialIKControllerCfg.command_type" title="omni.isaac.lab.controllers.DifferentialIKControllerCfg.command_type"><code class="xref py py-obj docutils literal notranslate"><span class="pre">command_type</span></code></a></p></td>
-<td><p>Type of task-space command to control the articulation's body.</p></td>
-</tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.controllers.DifferentialIKControllerCfg.use_relative_mode" title="omni.isaac.lab.controllers.DifferentialIKControllerCfg.use_relative_mode"><code class="xref py py-obj docutils literal notranslate"><span class="pre">use_relative_mode</span></code></a></p></td>
-<td><p>Whether to use relative mode for the controller.</p></td>
-</tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.controllers.DifferentialIKControllerCfg.ik_method" title="omni.isaac.lab.controllers.DifferentialIKControllerCfg.ik_method"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ik_method</span></code></a></p></td>
-<td><p>Method for computing inverse of Jacobian.</p></td>
-</tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.controllers.DifferentialIKControllerCfg.ik_params" title="omni.isaac.lab.controllers.DifferentialIKControllerCfg.ik_params"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ik_params</span></code></a></p></td>
-<td><p>Parameters for the inverse-kinematics method.</p></td>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">__new__</span></code>(*args, **kwargs)</p></td>
+<td><p>Create and return a new object.</p></td>
 </tr>
 </tbody>
 </table>
 </div>
-<dl class="py attribute">
-<dt class="sig sig-object py" id="omni.isaac.lab.controllers.DifferentialIKControllerCfg.command_type">
-<span class="sig-name descname"><span class="pre">command_type</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Literal" title="(in Python v3.13)"><span class="pre">Literal</span></a><span class="p"><span class="pre">[</span></span><span class="s"><span class="pre">'position'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'pose'</span></span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#omni.isaac.lab.controllers.DifferentialIKControllerCfg.command_type" title="Permalink to this definition">#</a></dt>
-<dd><p>Type of task-space command to control the articulation’s body.</p>
-<p>If “position”, then the controller only controls the position of the articulation’s body.
-Otherwise, the controller controls the pose of the articulation’s body.</p>
-</dd></dl>
-
-<dl class="py attribute">
-<dt class="sig sig-object py" id="omni.isaac.lab.controllers.DifferentialIKControllerCfg.use_relative_mode">
-<span class="sig-name descname"><span class="pre">use_relative_mode</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a></em><a class="headerlink" href="#omni.isaac.lab.controllers.DifferentialIKControllerCfg.use_relative_mode" title="Permalink to this definition">#</a></dt>
-<dd><p>Whether to use relative mode for the controller. Defaults to False.</p>
-<p>If True, then the controller treats the input command as a delta change in the position/pose.
-Otherwise, the controller treats the input command as the absolute position/pose.</p>
-</dd></dl>
-
-<dl class="py attribute">
-<dt class="sig sig-object py" id="omni.isaac.lab.controllers.DifferentialIKControllerCfg.ik_method">
-<span class="sig-name descname"><span class="pre">ik_method</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Literal" title="(in Python v3.13)"><span class="pre">Literal</span></a><span class="p"><span class="pre">[</span></span><span class="s"><span class="pre">'pinv'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'svd'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'trans'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'dls'</span></span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#omni.isaac.lab.controllers.DifferentialIKControllerCfg.ik_method" title="Permalink to this definition">#</a></dt>
-<dd><p>Method for computing inverse of Jacobian.</p>
-</dd></dl>
-
-<dl class="py attribute">
-<dt class="sig sig-object py" id="omni.isaac.lab.controllers.DifferentialIKControllerCfg.ik_params">
-<span class="sig-name descname"><span class="pre">ik_params</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.13)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></em><a class="headerlink" href="#omni.isaac.lab.controllers.DifferentialIKControllerCfg.ik_params" title="Permalink to this definition">#</a></dt>
-<dd><p>Parameters for the inverse-kinematics method. Defaults to None, in which case the default
-parameters for the method are used.</p>
-<ul class="simple">
-<li><dl class="simple">
-<dt>Moore-Penrose pseudo-inverse (“pinv”):</dt><dd><ul>
-<li><p>“k_val”: Scaling of computed delta-joint positions (default: 1.0).</p></li>
-</ul>
-</dd>
-</dl>
-</li>
-<li><dl class="simple">
-<dt>Adaptive Singular Value Decomposition (“svd”):</dt><dd><ul>
-<li><p>“k_val”: Scaling of computed delta-joint positions (default: 1.0).</p></li>
-<li><p>“min_singular_value”: Single values less than this are suppressed to zero (default: 1e-5).</p></li>
-</ul>
-</dd>
-</dl>
-</li>
-<li><dl class="simple">
-<dt>Jacobian transpose (“trans”):</dt><dd><ul>
-<li><p>“k_val”: Scaling of computed delta-joint positions (default: 1.0).</p></li>
-</ul>
-</dd>
-</dl>
-</li>
-<li><dl class="simple">
-<dt>Damped Moore-Penrose pseudo-inverse (“dls”):</dt><dd><ul>
-<li><p>“lambda_val”: Damping coefficient (default: 0.01).</p></li>
-</ul>
-</dd>
-</dl>
-</li>
-</ul>
-</dd></dl>
+<dl class="py method">
+<dt class="sig sig-object py" id="omni.isaac.lab.controllers.DifferentialIKControllerCfg.__new__">
+<span class="sig-name descname"><span class="pre">__new__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Any" title="(in Python v3.13)"><span class="pre">Any</span></a></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Any" title="(in Python v3.13)"><span class="pre">Any</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Any" title="(in Python v3.13)"><span class="pre">Any</span></a></span></span><a class="headerlink" href="#omni.isaac.lab.controllers.DifferentialIKControllerCfg.__new__" title="Permalink to this definition">#</a></dt>
+<dd></dd></dl>
 
 </dd></dl>
 
@@ -899,17 +709,11 @@ parameters for the method are used.</p>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#differential-inverse-kinematics">Differential Inverse Kinematics</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.controllers.DifferentialIKController"><code class="docutils literal notranslate"><span class="pre">DifferentialIKController</span></code></a><ul class="nav section-nav flex-column">
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.controllers.DifferentialIKController.__init__"><code class="docutils literal notranslate"><span class="pre">DifferentialIKController.__init__()</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.controllers.DifferentialIKController.action_dim"><code class="docutils literal notranslate"><span class="pre">DifferentialIKController.action_dim</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.controllers.DifferentialIKController.reset"><code class="docutils literal notranslate"><span class="pre">DifferentialIKController.reset()</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.controllers.DifferentialIKController.set_command"><code class="docutils literal notranslate"><span class="pre">DifferentialIKController.set_command()</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.controllers.DifferentialIKController.compute"><code class="docutils literal notranslate"><span class="pre">DifferentialIKController.compute()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.controllers.DifferentialIKController.__new__"><code class="docutils literal notranslate"><span class="pre">DifferentialIKController.__new__()</span></code></a></li>
 </ul>
 </li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.controllers.DifferentialIKControllerCfg"><code class="docutils literal notranslate"><span class="pre">DifferentialIKControllerCfg</span></code></a><ul class="nav section-nav flex-column">
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.controllers.DifferentialIKControllerCfg.command_type"><code class="docutils literal notranslate"><span class="pre">DifferentialIKControllerCfg.command_type</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.controllers.DifferentialIKControllerCfg.use_relative_mode"><code class="docutils literal notranslate"><span class="pre">DifferentialIKControllerCfg.use_relative_mode</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.controllers.DifferentialIKControllerCfg.ik_method"><code class="docutils literal notranslate"><span class="pre">DifferentialIKControllerCfg.ik_method</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.controllers.DifferentialIKControllerCfg.ik_params"><code class="docutils literal notranslate"><span class="pre">DifferentialIKControllerCfg.ik_params</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.controllers.DifferentialIKControllerCfg.__new__"><code class="docutils literal notranslate"><span class="pre">DifferentialIKControllerCfg.__new__()</span></code></a></li>
 </ul>
 </li>
 </ul>

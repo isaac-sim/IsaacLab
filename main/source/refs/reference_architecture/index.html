@@ -57,10 +57,10 @@
     <link rel="index" title="Index" href="../../../genindex.html" />
     <link rel="search" title="Search" href="../../../search.html" />
     <link rel="next" title="Additional Resources" href="../additional_resources.html" />
-    <link rel="prev" title="omni.isaac.lab_tasks.utils.data_collector" href="../../api/lab_tasks/omni.isaac.lab_tasks.utils.data_collector.html" />
+    <link rel="prev" title="isaaclab_mimic.datagen" href="../../api/lab_mimic/isaaclab_mimic.datagen.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-  <meta name="docsearch:version" content="1.4.1" />
+  <meta name="docsearch:version" content="2.0.0" />
     <meta name="docbuild:last-update" content="Jan 30, 2025"/>
   </head>
   
@@ -192,7 +192,7 @@
           
           
           
-          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.2.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.5.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
         </li>
         <li class="nav-item">
           
@@ -230,6 +230,8 @@
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../setup/installation/index.html">Local Installation</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2"><a class="reference internal" href="../../setup/installation/pip_installation.html">Pip installation (recommended for Ubuntu 22.04 and Windows)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../setup/installation/binaries_installation.html">Binary installation (recommended for Ubuntu 20.04)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/installation/isaaclab_pip_installation.html">Advanced installation (Isaac Lab pip)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/installation/asset_caching.html">Asset caching</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1"><a class="reference internal" href="../../setup/installation/cloud_installation.html">Running Isaac Lab in the Cloud</a></li>
@@ -241,7 +243,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../../overview/developer-guide/vs_code.html">Setting up Visual Studio Code</a></li>
 
 <li class="toctree-l2"><a class="reference internal" href="../../overview/developer-guide/repo_structure.html">Repository organization</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../overview/developer-guide/development.html">Application Development</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/developer-guide/development.html">Extension Development</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../overview/developer-guide/template.html">Building your Own Project</a></li>
 </ul>
 </details></li>
@@ -264,6 +266,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../../overview/reinforcement-learning/rl_existing_scripts.html">Reinforcement Learning Wrappers</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../overview/reinforcement-learning/rl_frameworks.html">Reinforcement Learning Library Comparison</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../overview/reinforcement-learning/performance_benchmarks.html">Performance Benchmarks</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/reinforcement-learning/training_guide.html">Debugging and Training Guide</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1"><a class="reference internal" href="../../overview/teleop_imitation.html">Teleoperation and Imitation Learning</a></li>
@@ -294,6 +297,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../../tutorials/03_envs/register_rl_env_gym.html">Registering an Environment</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../tutorials/03_envs/run_rl_training.html">Training with an RL Agent</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../tutorials/03_envs/modify_direct_rl_env.html">Modifying an existing Direct RL Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/03_envs/policy_inference_in_usd.html">Policy Inference in USD Environment</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../tutorials/04_sensors/add_sensors_on_robot.html">Adding sensors on a robot</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../tutorials/05_controllers/run_diff_ik.html">Using a task-space controller</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../tutorials/05_controllers/run_osc.html">Using an operational space controller</a></li>
@@ -330,28 +334,27 @@
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Source API</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../api/index.html">API Reference</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.app.html">omni.isaac.lab.app</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.actuators.html">omni.isaac.lab.actuators</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.assets.html">omni.isaac.lab.assets</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.controllers.html">omni.isaac.lab.controllers</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.devices.html">omni.isaac.lab.devices</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.envs.html">omni.isaac.lab.envs</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.managers.html">omni.isaac.lab.managers</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.markers.html">omni.isaac.lab.markers</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.scene.html">omni.isaac.lab.scene</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.sensors.html">omni.isaac.lab.sensors</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.sim.html">omni.isaac.lab.sim</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.terrains.html">omni.isaac.lab.terrains</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.utils.html">omni.isaac.lab.utils</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.envs.mdp.html">omni.isaac.lab.envs.mdp</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.envs.ui.html">omni.isaac.lab.envs.ui</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.sensors.patterns.html">omni.isaac.lab.sensors.patterns</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.sim.converters.html">omni.isaac.lab.sim.converters</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.sim.schemas.html">omni.isaac.lab.sim.schemas</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab/omni.isaac.lab.sim.spawners.html">omni.isaac.lab.sim.spawners</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab_tasks/omni.isaac.lab_tasks.utils.html">omni.isaac.lab_tasks.utils</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab_tasks/omni.isaac.lab_tasks.utils.wrappers.html">omni.isaac.lab_tasks.utils.wrappers</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab_tasks/omni.isaac.lab_tasks.utils.data_collector.html">omni.isaac.lab_tasks.utils.data_collector</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.app.html">isaaclab.app</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.actuators.html">isaaclab.actuators</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.assets.html">isaaclab.assets</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.controllers.html">isaaclab.controllers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.devices.html">isaaclab.devices</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.envs.html">isaaclab.envs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.managers.html">isaaclab.managers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.markers.html">isaaclab.markers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.scene.html">isaaclab.scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.sensors.html">isaaclab.sensors</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.sim.html">isaaclab.sim</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.terrains.html">isaaclab.terrains</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.utils.html">isaaclab.utils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.envs.mdp.html">isaaclab.envs.mdp</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.envs.ui.html">isaaclab.envs.ui</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.sensors.patterns.html">isaaclab.sensors.patterns</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.sim.converters.html">isaaclab.sim.converters</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.sim.schemas.html">isaaclab.sim.schemas</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.sim.spawners.html">isaaclab.sim.spawners</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab_tasks/isaaclab_tasks.utils.html">isaaclab_tasks.utils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab_mimic/isaaclab_mimic.datagen.html">isaaclab_mimic.datagen</a></li>
 </ul>
 </details></li>
 </ul>
@@ -361,7 +364,15 @@
 <li class="toctree-l1"><a class="reference internal" href="../additional_resources.html">Additional Resources</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../contributing.html">Contribution Guidelines</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../troubleshooting.html">Tricks and Troubleshooting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../migration.html">Migration Guide (Isaac Sim)</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../issues.html">Known Issues</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../release_notes.html">Release Notes</a></li>
+
+
+
+
+
+
 <li class="toctree-l1"><a class="reference internal" href="../changelog.html">Extensions Changelog</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../license.html">License</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../bibliography.html">Bibliography</a></li>
@@ -369,7 +380,7 @@
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Project Links</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference external" href="https://github.com/isaac-sim/IsaacLab">GitHub</a></li>
-<li class="toctree-l1"><a class="reference external" href="https://docs.omniverse.nvidia.com/isaacsim/latest/index.html">NVIDIA Isaac Sim</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/latest/index.html">NVIDIA Isaac Sim</a></li>
 <li class="toctree-l1"><a class="reference external" href="https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/index.html">NVIDIA PhysX</a></li>
 </ul>
 
@@ -660,7 +671,7 @@ have the USD file of your asset and the USD or URDF file of your robot. This can
 the following ways:</p>
 <ol class="arabic simple">
 <li><p>Design your assets or robot in Isaac Sim and export the USD file.</p></li>
-<li><p>Design your assets or robot in any software of your choice and export it to USD using Isaac Sim converters. Isaac Sim supports the different converters/importers to USD such as the <a class="reference external" href="https://docs.omniverse.nvidia.com/extensions/latest/ext_cad-converter.html">CAD Converter</a>, <a class="reference external" href="https://docs.omniverse.nvidia.com/isaacsim/latest/advanced_tutorials/tutorial_advanced_import_urdf.html">URDF Importer</a>, <a class="reference external" href="https://docs.omniverse.nvidia.com/isaacsim/latest/advanced_tutorials/tutorial_advanced_import_mjcf.html#import-mjcf">MJCF Importer</a>, <a class="reference external" href="https://docs.omniverse.nvidia.com/extensions/latest/ext_onshape.html">Onshape Importer</a>, etc. More details are found in the <a class="reference external" href="https://docs.omniverse.nvidia.com/isaacsim/latest/isaac_sim_reference_architecture.html#importing-assets">Importing Assets section</a> in the <a class="reference external" href="https://docs.omniverse.nvidia.com/isaacsim/latest/isaac_sim_reference_architecture.html">Isaac Sim Reference Architecture</a>.</p></li>
+<li><p>Design your assets or robot in any software of your choice and export it to USD using Isaac Sim converters. Isaac Sim supports the different converters/importers to USD such as the <a class="reference external" href="https://docs.omniverse.nvidia.com/extensions/latest/ext_cad-converter.html">CAD Converter</a>, <a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/latest/robot_setup/ext_isaacsim_asset_importer_urdf.html">URDF Importer</a>, <a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/latest/robot_setup/ext_isaacsim_asset_importer_mjcf.html">MJCF Importer</a>, <a class="reference external" href="https://docs.omniverse.nvidia.com/extensions/latest/ext_onshape.html">Onshape Importer</a>, etc. More details are found in the <a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/latest/isaac_sim_reference_architecture.html#importing-assets">Importing Assets section</a> in the <a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/latest/isaac_sim_reference_architecture.html">Isaac Sim Reference Architecture</a>.</p></li>
 <li><p>If you already have the URDF or MJCF file of your robot, you do not need to convert to USD as Isaac Lab takes URDF and MJCF XML.</p></li>
 </ol>
 </section>
@@ -669,8 +680,8 @@ the following ways:</p>
 <section id="asset-configuration">
 <h4>Asset Configuration<a class="headerlink" href="#asset-configuration" title="Permalink to this heading">#</a></h4>
 <p>Given that you have the asset file for your robot and other assets such as environment objects based on the task, the next step is to import them into Isaac Lab. Isaac Lab uses asset configuration classes to spawn various objects (or prims) into the scene using Python. The first step is to write a configuration class to define the properties for the assets needed to complete the task. For example, a simple go-to-goal task for a mobile robot will include the robot asset, an object like cubes to signify the goal pose visually, lights, ground plane, etc. Isaac Lab understands these assets using the configuration classes. Isaac Lab provides various sim-ready assets such as physically accurate
-3D objects that encompass accurate physical properties and behavior. It also provides connected data streams to represent the real world in simulated digital worlds such as <a class="reference external" href="https://github.com/isaac-sim/IsaacLab/tree/main/source/extensions/omni.isaac.lab_assets/omni/isaac/lab_assets">robots</a>
-like ANYbotics Anymal, Unitree H1 Humanoid, etc. as well as <a class="reference external" href="https://github.com/isaac-sim/IsaacLab/tree/main/source/extensions/omni.isaac.lab/omni/isaac/lab/sensors">sensors</a>. We provide these assets configuration classes. Users can also define their own assets using the configuration classes.</p>
+3D objects that encompass accurate physical properties and behavior. It also provides connected data streams to represent the real world in simulated digital worlds such as <a class="reference external" href="https://github.com/isaac-sim/IsaacLab/tree/main/source/isaaclab_assets/isaaclab_assets">robots</a>
+like ANYbotics Anymal, Unitree H1 Humanoid, etc. as well as <a class="reference external" href="https://github.com/isaac-sim/IsaacLab/tree/main/source/isaaclab/isaaclab/sensors">sensors</a>. We provide these assets configuration classes. Users can also define their own assets using the configuration classes.</p>
 <p>Follow the tutorial on <a class="reference external" href="https://isaac-sim.github.io/IsaacLab/main/source/how-to/write_articulation_cfg.html">how to write an Articulation and ArticulationCfg class</a>.</p>
 </section>
 <section id="scene-configuration">
@@ -734,7 +745,7 @@ network policy and value function. To train the RL agent to solve the task, you 
 the hyperparameters such as number of epochs, learning rate, etc. for training and the
 policy/value model architecture. This is defined in the training configuration file specific
 to the RL library you want to use. Examples are created under the agent’s folder in each task directory.
-See an example of <a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/manager_based/locomotion/velocity/config/anymal_b/agents/rsl_rl_ppo_cfg.py">RSL-RL</a> for Anymal-B.</p>
+See an example of <a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/locomotion/velocity/config/anymal_b/agents/rsl_rl_ppo_cfg.py">RSL-RL</a> for Anymal-B.</p>
 </section>
 </section>
 <section id="component-4-register-with-gymnasium">
@@ -758,7 +769,7 @@ available in the <a class="reference external" href="https://gymnasium.farama.or
 <p>Most RL libraries expect their own variation of an environment interface. This means the
 data types needed by each library differs. Isaac Lab provides its own wrappers to convert
 the environment into the expected interface by the RL library a user wants to use. These are
-specified in the <a class="reference external" href="https://isaac-sim.github.io/IsaacLab/main/source/api/lab_tasks/omni.isaac.lab_tasks.utils.wrappers.html#module-omni.isaac.lab_tasks.utils.wrappers">Isaac Lab utils wrapper module</a>.</p>
+specified in the <a class="reference external" href="https://isaac-sim.github.io/IsaacLab/main/source/api/lab_tasks/isaaclab_rl.html#module-isaaclab_rl">Isaac Lab utils wrapper module</a>.</p>
 <p>See the <a class="reference external" href="https://gymnasium.farama.org/api/wrappers/#gymnasium.Wrapper">full list</a> of other wrappers APIs. For more information on how these wrappers work,
 please refer to the <a class="reference external" href="https://isaac-sim.github.io/IsaacLab/main/source/how-to/wrap_rl_env.html#how-to-env-wrappers">Wrapping environments</a> documentation.</p>
 <section id="adding-your-own-wrappers">
@@ -885,12 +896,12 @@ First, you need a robot with the required sensors and processing computer such a
                   
 <div class="prev-next-area">
     <a class="left-prev"
-       href="../../api/lab_tasks/omni.isaac.lab_tasks.utils.data_collector.html"
+       href="../../api/lab_mimic/isaaclab_mimic.datagen.html"
        title="previous page">
       <i class="fa-solid fa-angle-left"></i>
       <div class="prev-next-info">
         <p class="prev-next-subtitle">previous</p>
-        <p class="prev-next-title">omni.isaac.lab_tasks.utils.data_collector</p>
+        <p class="prev-next-title">isaaclab_mimic.datagen</p>
       </div>
     </a>
     <a class="right-next"

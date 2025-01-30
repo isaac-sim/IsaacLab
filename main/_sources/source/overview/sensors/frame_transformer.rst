@@ -15,7 +15,7 @@ One of the most common operations that needs to be performed within a physics si
 
 The sensory is minimally defined by a source frame and a list of target frames.  These definitions take the form of a prim path (for the source) and list of regex capable prim paths the rigid bodies to be tracked (for the targets).
 
-.. literalinclude:: ../../../../source/standalone/demos/sensors/frame_transformer_sensor.py
+.. literalinclude:: ../../../../scripts/demos/sensors/frame_transformer_sensor.py
     :language: python
     :lines: 38-86
 
@@ -100,6 +100,6 @@ Here, the sensor is tracking all rigid body children of ``Robot/base``, but this
 .. dropdown:: Code for frame_transformer_sensor.py
    :icon: code
 
-   .. literalinclude:: ../../../../source/standalone/demos/sensors/frame_transformer_sensor.py
+   .. literalinclude:: ../../../../scripts/demos/sensors/frame_transformer_sensor.py
       :language: python
       :linenos:
