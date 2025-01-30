@@ -128,10 +128,14 @@ class EventManager(ManagerBase):
             num_envs = self._env.num_envs
         else:
             num_envs = len(env_ids)
-        # if we are doing interval based events then we need to reset the time left when the episode starts
+        # if we are doing interval based events then we need to reset the time left
+        # when the episode starts. otherwise the counter will start from the last time
+        # for that environment
         if "interval" in self._mode_class_term_cfgs:
             for index, term_cfg in enumerate(self._mode_class_term_cfgs["interval"]):
                 # sample a new interval and set that as time left
+                # note: global time events are based on simulation time and not episode time
+                #   so we do not reset them
                 if not term_cfg.is_global_time:
                     lower, upper = term_cfg.interval_range_s
                     sampled_interval = torch.rand(num_envs, device=self.device) * (upper - lower) + lower
