@@ -434,6 +434,7 @@ Train a robot!
 ~~~~~~~~~~~~~~~
 
 You can now use Isaac Lab to train a robot through Reinforcement Learning! The quickest way to use Isaac Lab is through the predefined workflows using one of our **Batteries-included** robot tasks. Execute the following command to quickly train an ant to walk!
+We recommend adding ``--headless`` for faster training.
 
 .. tab-set::
    :sync-group: os
@@ -443,14 +444,14 @@ You can now use Isaac Lab to train a robot through Reinforcement Learning! The q
 
       .. code:: bash
 
-         ./isaaclab.sh -p source/standalone/workflows/rsl_rl/train.py --task=Isaac-Ant-v0
+         ./isaaclab.sh -p source/standalone/workflows/rsl_rl/train.py --task=Isaac-Ant-v0 --headless
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
 
       .. code:: batch
 
-         isaaclab.bat -p source/standalone/workflows/rsl_rl/train.py --task=Isaac-Ant-v0
+         isaaclab.bat -p source/standalone/workflows/rsl_rl/train.py --task=Isaac-Ant-v0 --headless
 
 ... Or a robot dog!
 
@@ -462,18 +463,18 @@ You can now use Isaac Lab to train a robot through Reinforcement Learning! The q
 
       .. code:: bash
 
-         ./isaaclab.sh -p source/standalone/workflows/rsl_rl/train.py --task=Isaac-Velocity-Rough-Anymal-C-v0
+         ./isaaclab.sh -p source/standalone/workflows/rsl_rl/train.py --task=Isaac-Velocity-Rough-Anymal-C-v0 --headless
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
 
       .. code:: batch
 
-         isaaclab.bat -p source/standalone/workflows/rsl_rl/train.py --task=Isaac-Velocity-Rough-Anymal-C-v0
+         isaaclab.bat -p source/standalone/workflows/rsl_rl/train.py --task=Isaac-Velocity-Rough-Anymal-C-v0 --headless
 
 Isaac Lab provides the tools you'll need to create your own **Tasks** and **Workflows** for whatever your project needs may be. Take a look at our :ref:`how-to` guides like `Adding your own learning Library <source/how-to/add_own_library>`_ or `Wrapping Environments <source/how-to/wrap_rl_env>`_ for details.
 
-.. figure:: ../../_static/setup/shadow_hands_example.jpg
+.. figure:: ../../_static/setup/isaac_ants_example.jpg
     :align: center
     :figwidth: 100%
     :alt: Idle hands...

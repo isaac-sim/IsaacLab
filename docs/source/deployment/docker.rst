@@ -272,7 +272,7 @@ To run the Isaac Lab container with an interactive bash session, run:
 
 .. code:: bash
 
-  docker run --name isaac-lab --entrypoint bash -it --runtime=nvidia --gpus all -e "ACCEPT_EULA=Y" --rm --network=host \
+  docker run --name isaac-lab --entrypoint bash -it --gpus all -e "ACCEPT_EULA=Y" --rm --network=host \
      -e "PRIVACY_CONSENT=Y" \
      -v ~/docker/isaac-sim/cache/kit:/isaac-sim/kit/cache:rw \
      -v ~/docker/isaac-sim/cache/ov:/root/.cache/ov:rw \

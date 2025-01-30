@@ -35,12 +35,12 @@ There may be a message indicating ``HUB NOT DETECTED`` or ``NEW VERSION DETECTED
     :figwidth: 100%
     :alt: Simulator with cache messaging.
 
-Click on the message, which will download HUB for asset caching.
-Once installed, HUB will run automatically each time an Isaac Lab or Isaac Sim instance is run.
+Click on the message, which will enable `Hub <https://docs.omniverse.nvidia.com/utilities/latest/cache/hub-workstation.html>`_
+for asset caching. Once enabled, Hub will run automatically each time an Isaac Lab or Isaac Sim instance is run.
 
 Note that for the first run, assets will still need to be pulled from the cloud, which could lead to longer loading times.
-However, subsequent runs that use the same assets will be able to use the cached files from HUB.
-HUB will provide better control for caching of assets used in Isaac Lab.
+However, subsequent runs that use the same assets will be able to use the cached files from Hub.
+Hub will provide better control for caching of assets used in Isaac Lab.
 
 Nucleus
 -------
