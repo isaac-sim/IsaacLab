@@ -11,7 +11,7 @@ Installing Isaac Sim
 From Isaac Sim 4.0 release, it is possible to install Isaac Sim using pip.
 This approach makes it easier to install Isaac Sim without requiring to download the Isaac Sim binaries.
 If you encounter any issues, please report them to the
-`Isaac Sim Forums <https://docs.omniverse.nvidia.com/isaacsim/latest/common/feedback.html>`_.
+`Isaac Sim Forums <https://docs.isaacsim.omniverse.nvidia.com//latest/common/feedback.html>`_.
 
 .. attention::
 
@@ -158,7 +158,7 @@ instructions, it means that something is incorrectly configured. To
 debug and troubleshoot, please check Isaac Sim
 `documentation <https://docs.omniverse.nvidia.com/dev-guide/latest/linux-troubleshooting.html>`__
 and the
-`forums <https://docs.omniverse.nvidia.com/isaacsim/latest/isaac_sim_forums.html>`__.
+`forums <https://docs.isaacsim.omniverse.nvidia.com//latest/isaac_sim_forums.html>`__.
 
 
 

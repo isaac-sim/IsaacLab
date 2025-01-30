@@ -162,8 +162,8 @@ class AppLauncher:
           Valid options are:
 
           - ``0``: Disabled
-          - ``1``: `Native [DEPRECATED] <https://docs.omniverse.nvidia.com/isaacsim/latest/installation/manual_livestream_clients.html#omniverse-streaming-client-deprecated>`_
-          - ``2``: `WebRTC <https://docs.omniverse.nvidia.com/isaacsim/latest/installation/manual_livestream_clients.html#isaac-sim-short-webrtc-streaming-client>`_
+          - ``1``: `Native [DEPRECATED] <https://docs.isaacsim.omniverse.nvidia.com/latest/installation/manual_livestream_clients.html#omniverse-streaming-client-deprecated>`_
+          - ``2``: `WebRTC https://docs.isaacsim.omniverse.nvidia.com/latest/installation/manual_livestream_clients.html#isaac-sim-short-webrtc-streaming-client>`_
 
         * ``enable_cameras`` (bool): If True, the app will enable camera sensors and render them, even when in
           headless mode. This flag must be set to True if the environments contains any camera sensors.

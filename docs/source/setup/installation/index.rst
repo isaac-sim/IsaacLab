@@ -23,13 +23,13 @@ Local Installation
    Isaac Sim 4.5.0 release to benefit from the latest features and improvements.
 
    For more information, please refer to the
-   `Isaac Sim release notes <https://docs.omniverse.nvidia.com/isaacsim/latest/release_notes.html>`__.
+   `Isaac Sim release notes <https://docs.isaacsim.omniverse.nvidia.com/latest/overview/release_notes.html#>`__.
 
 .. note::
 
     We recommend system requirements with at least 32GB RAM and 16GB VRAM for Isaac Lab.
     For the full list of system requirements for Isaac Sim, please refer to the
-    `Isaac Sim system requirements <https://docs.omniverse.nvidia.com/isaacsim/latest/installation/requirements.html#system-requirements>`_.
+    `Isaac Sim system requirements <https://docs.isaacsim.omniverse.nvidia.com/latest/installation/requirements.html#system-requirements>`_.
 
 
 Isaac Lab is built on top of the Isaac Sim platform. Therefore, it is required to first install Isaac Sim

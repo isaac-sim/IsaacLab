@@ -35,7 +35,8 @@ author = "The Isaac Lab Project Developers."
 
 # Read version from the package
 with open(os.path.join(os.path.dirname(__file__), "..", "VERSION")) as f:
-    version = f.read().strip()
+    full_version = f.read().strip()
+    version = ".".join(full_version.split(".")[:3])
 
 # -- General configuration ---------------------------------------------------
 

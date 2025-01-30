@@ -75,7 +75,7 @@ This is then replicated across other references of the same asset since physics 
 are stored in the instanceable asset's USD file and not in its stage reference's USD file.
 
 .. _instanceable assets: https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/tutorial_gym_instanceable_assets.html
-.. _Omniverse Isaac Sim documentation: https://docs.omniverse.nvidia.com/isaacsim/latest/known_issues.html
+.. _Omniverse Isaac Sim documentation: https://docs.isaacsim.omniverse.nvidia.com/latest/overview/known_issues.html#
 
 
 Exiting the process

@@ -575,7 +575,7 @@ v1.1.0
 Overview
 --------
 
-With the release of Isaac Sim 4.0 and 4.1, support for Isaac Sim 2023.1.1 has been discontinued. We strongly encourage all users to upgrade to Isaac Sim 4.1 to take advantage of the latest features and improvements. For detailed information on this upgrade, please refer to the release notes available `here <https://docs.omniverse.nvidia.com/isaacsim/latest/release_notes.html>`_.
+With the release of Isaac Sim 4.0 and 4.1, support for Isaac Sim 2023.1.1 has been discontinued. We strongly encourage all users to upgrade to Isaac Sim 4.1 to take advantage of the latest features and improvements. For detailed information on this upgrade, please refer to the release notes available `here <https://docs.isaacsim.omniverse.nvidia.com/latest/overview/release_notes.html#>`_.
 
 Besides the above, the Isaac Lab release brings new features and improvements, as detailed below. We thank all our contributors for their continued support.
 
