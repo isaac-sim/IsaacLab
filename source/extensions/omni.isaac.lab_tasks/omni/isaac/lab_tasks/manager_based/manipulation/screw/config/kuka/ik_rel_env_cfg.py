@@ -548,7 +548,6 @@ class IKRelKukaNutThreadEnvCfg(BaseNutThreadEnvCfg):
         #         "rest_offset": robot_params.rest_offset},
         #     mode="startup",
         # )
-        # relative pose between nut model and the frame I defined for control and cost computation.
         nut_rel_pos = np.array(nut.init_state.pos) - np.array(self.scene.nut_frame.target_frames[0].offset.pos)
         self.events.reset_default = GraspResetEventTermCfg(
             func=reset_scene_to_grasp_state,

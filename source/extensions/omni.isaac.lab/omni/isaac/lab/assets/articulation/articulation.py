@@ -602,16 +602,14 @@ class Articulation(AssetBase):
             env_ids: Environment indices. If None, then all indices are used.
         """
         # TODO: this is deprecated, modify this to use the new api
-        root_state = state.get("root_state", None)
-        joint_state = state.get("joint_state", None)
-        if root_state is not None:
-            self.write_root_link_state_to_sim(root_state, env_ids)
-        if joint_state is not None:
-            self.write_joint_state_to_sim(joint_state["position"], joint_state["velocity"], env_ids=env_ids)
-            self.set_joint_position_target(joint_state["position_target"], env_ids=env_ids)
-            self.set_joint_velocity_target(joint_state["velocity_target"], env_ids=env_ids)
-            self.set_joint_effort_target(joint_state["effort_target"], env_ids=env_ids)
-            self.write_data_to_sim()
+        root_state, joint_state = state["root_state"], state["joint_state"]
+        self.write_root_link_state_to_sim(root_state, env_ids)
+        self.write_joint_state_to_sim(joint_state["position"], joint_state["velocity"], env_ids=env_ids)
+
+        self.set_joint_position_target(joint_state["position_target"], env_ids=env_ids)
+        self.set_joint_velocity_target(joint_state["velocity_target"], env_ids=env_ids)
+        self.set_joint_effort_target(joint_state["effort_target"], env_ids=env_ids)
+        self.write_data_to_sim()
 
     def write_joint_stiffness_to_sim(
         self,
