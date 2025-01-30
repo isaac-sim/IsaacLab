@@ -110,10 +110,11 @@ asset_factory = {
             pos=(6.3000e-01, 4.0586e-06, 0.03), rot=(9.9833e-01, 1.2417e-04, -1.2629e-05, 5.7803e-02)
         ),
         "bolt_init_state": RigidObjectCfg.InitialStateCfg(pos=(0.63, 0.0, 0.0)),
-        "bolt_init_state": RigidObjectCfg.InitialStateCfg(pos=(0.63, 0.0, 0.0)),
         "nut_frame_offset": OffsetCfg(pos=(0.0, 0.0, 0.0225)),
         "bolt_bottom_offset": OffsetCfg(pos=(0.0, 0.0, 0.0)),
         "bolt_tip_offset": OffsetCfg(pos=(0.0, 0.0, 0.041)),
+        "nut_geom_name": "factory_nut",
+        "bolt_geom_name": "factory_bolt",
         "float_gain": 10.0,
         "float_damp": 0.01,
     },

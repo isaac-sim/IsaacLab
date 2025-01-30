@@ -15,7 +15,7 @@ from omni.isaac.lab_tasks.utils.wrappers.rsl_rl import (
 @configclass
 class KukaScrewPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     num_steps_per_env = 32
-    max_iterations = 5000
+    max_iterations = 1600
     save_interval = 200
     experiment_name = "kuka_screw"
     run_name = ""

@@ -361,6 +361,7 @@ class IKRelKukaNutThreadEnvCfg(BaseNutThreadEnvCfg):
         obs_params = self.params.observations
         obs_params.use_tiled_camera = obs_params.get("use_tiled_camera", False)
         obs_params.history_length = obs_params.get("history_length", 1)
+        obs_params.flatten_history_dim = obs_params.get("flatten_history_dim", True)
         obs_params.include_action = obs_params.get("include_action", True)
         obs_params.include_wrench = obs_params.get("include_wrench", True)
         obs_params.wrench_target_body = obs_params.get("wrench_target_body", "victor_left_tool0")
@@ -547,6 +548,7 @@ class IKRelKukaNutThreadEnvCfg(BaseNutThreadEnvCfg):
         #         "rest_offset": robot_params.rest_offset},
         #     mode="startup",
         # )
+        # relative pose between nut model and the frame I defined for control and cost computation.
         nut_rel_pos = np.array(nut.init_state.pos) - np.array(self.scene.nut_frame.target_frames[0].offset.pos)
         self.events.reset_default = GraspResetEventTermCfg(
             func=reset_scene_to_grasp_state,
