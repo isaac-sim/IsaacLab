@@ -7,10 +7,15 @@ from __future__ import annotations
 
 import colorsys
 import numpy as np
+from contextlib import suppress
 from typing import TYPE_CHECKING
 
 import omni
 from isaacsim.core.api.simulation_context import SimulationContext
+
+with suppress(ImportError):
+    # isaacsim.gui is not available when running in headless mode.
+    import isaacsim.gui.components.ui_utils
 
 from .ui_widget_wrapper import UIWidgetWrapper
 
