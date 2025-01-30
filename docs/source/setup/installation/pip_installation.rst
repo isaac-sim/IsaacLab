@@ -354,14 +354,14 @@ You can now use Isaac Lab to train a robot through Reinforcement Learning! The q
 
       .. code:: bash
 
-         ./isaaclab.sh -p source/standalone/workflows/rsl_rl/train.py --task=Isaac-Repose-Cube-Shadow-Vision-Direct-v0 --enable_cameras
+         ./isaaclab.sh -p source/standalone/workflows/rsl_rl/train.py --task=Isaac-Ant-v0
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
 
       .. code:: batch
 
-         isaaclab.bat -p source/standalone/workflows/rsl_rl/train.py --task=Isaac-Repose-Cube-Shadow-Vision-Direct-v0 --enable_cameras
+         isaaclab.bat -p source/standalone/workflows/rsl_rl/train.py --task=Isaac-Ant-v0
 
 ... Or a robot dog!
 
