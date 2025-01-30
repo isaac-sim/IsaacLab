@@ -10,6 +10,7 @@ import importlib
 import inspect
 import re
 from collections.abc import Callable, Sequence
+from dataclasses import is_dataclass
 from typing import Any
 
 """
@@ -164,6 +165,27 @@ def string_to_callable(name: str) -> Callable:
     except (ValueError, ModuleNotFoundError) as e:
         msg = (
             f"Could not resolve the input string '{name}' into callable object."
+            " The format of input should be 'module:attribute_name'.\n"
+            f"Received the error:\n {e}."
+        )
+        raise ValueError(msg)
+
+
+def string_to_dataclass_instance(name: str) -> Callable:
+    try:
+        mod_name, attr_name = name.split(":")
+        mod = importlib.import_module(mod_name)
+        dataclass_instance = getattr(mod, attr_name)
+        if is_dataclass(dataclass_instance):
+            if isinstance(dataclass_instance, type):
+                return dataclass_instance()
+            else:
+                return dataclass_instance
+        else:
+            raise AttributeError(f"The imported object is not a dataclass: '{name}'")
+    except (ValueError, ModuleNotFoundError) as e:
+        msg = (
+            f"Could not resolve the input string '{name}' into dataclass instance."
             " The format of input should be 'module:attribute_name'.\n"
             f"Received the error:\n {e}."
         )
