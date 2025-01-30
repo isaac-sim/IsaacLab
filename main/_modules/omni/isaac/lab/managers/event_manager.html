@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="1.4.0" />
-    <meta name="docbuild:last-update" content="Jan 27, 2025"/>
+    <meta name="docbuild:last-update" content="Jan 30, 2025"/>
   </head>
   
   
@@ -640,6 +640,25 @@
         <span class="k">for</span> <span class="n">mode_cfg</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_mode_class_term_cfgs</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
             <span class="k">for</span> <span class="n">term_cfg</span> <span class="ow">in</span> <span class="n">mode_cfg</span><span class="p">:</span>
                 <span class="n">term_cfg</span><span class="o">.</span><span class="n">func</span><span class="o">.</span><span class="n">reset</span><span class="p">(</span><span class="n">env_ids</span><span class="o">=</span><span class="n">env_ids</span><span class="p">)</span>
+
+        <span class="c1"># resolve number of environments</span>
+        <span class="k">if</span> <span class="n">env_ids</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">num_envs</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_env</span><span class="o">.</span><span class="n">num_envs</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">num_envs</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span>
+        <span class="c1"># if we are doing interval based events then we need to reset the time left</span>
+        <span class="c1"># when the episode starts. otherwise the counter will start from the last time</span>
+        <span class="c1"># for that environment</span>
+        <span class="k">if</span> <span class="s2">&quot;interval&quot;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_mode_class_term_cfgs</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">index</span><span class="p">,</span> <span class="n">term_cfg</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_mode_class_term_cfgs</span><span class="p">[</span><span class="s2">&quot;interval&quot;</span><span class="p">]):</span>
+                <span class="c1"># sample a new interval and set that as time left</span>
+                <span class="c1"># note: global time events are based on simulation time and not episode time</span>
+                <span class="c1">#   so we do not reset them</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">term_cfg</span><span class="o">.</span><span class="n">is_global_time</span><span class="p">:</span>
+                    <span class="n">lower</span><span class="p">,</span> <span class="n">upper</span> <span class="o">=</span> <span class="n">term_cfg</span><span class="o">.</span><span class="n">interval_range_s</span>
+                    <span class="n">sampled_interval</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">rand</span><span class="p">(</span><span class="n">num_envs</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span><span class="n">upper</span> <span class="o">-</span> <span class="n">lower</span><span class="p">)</span> <span class="o">+</span> <span class="n">lower</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_interval_term_time_left</span><span class="p">[</span><span class="n">index</span><span class="p">][</span><span class="n">env_ids</span><span class="p">]</span> <span class="o">=</span> <span class="n">sampled_interval</span>
+
         <span class="c1"># nothing to log here</span>
         <span class="k">return</span> <span class="p">{}</span></div>
 
@@ -943,7 +962,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jan 27, 2025.
+  Last updated on Jan 30, 2025.
   <br/>
 </p>
   </div>
