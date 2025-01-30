@@ -37,7 +37,7 @@ Checking the internal logs from the simulator
 When running the simulator from a standalone script, it logs warnings and errors to the terminal. At the same time,
 it also logs internal messages to a file. These are useful for debugging and understanding the internal state of the
 simulator. Depending on your system, the log file can be found in the locations listed
-`here <https://docs.omniverse.nvidia.com/isaacsim/latest/installation/install_faq.html#common-path-locations>`_.
+`here <https://docs.isaacsim.omniverse.nvidia.com/latest/installation/install_faq.html#common-path-locations>`_.
 
 To obtain the exact location of the log file, you need to check the first few lines of the terminal output when
 you run the standalone script. The log file location is printed at the start of the terminal output. For example:

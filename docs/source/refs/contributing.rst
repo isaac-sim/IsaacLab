@@ -176,11 +176,10 @@ integrated with the `NVIDIA Omniverse Platform <https://developer.nvidia.com/omn
 Since all assets are hosted on Nucleus, we do not need to include them in the repository. However,
 we need to include the links to the assets in the documentation.
 
-The included assets are part of the `Isaac Sim Content <https://docs.omniverse.nvidia.com/isaacsim/latest/features/environment_setup/assets/usd_assets_overview.html>`__.
-To use this content, you need to download the files to a Nucleus server or create an **Isaac** Mount on
-a Nucleus server.
+The included assets are part of the `Isaac Sim Content <https://docs.isaacsim.omniverse.nvidia.com/latest/assets/index.html>`__.
+To use this content, you can use the Asset Browser provided in Isaac Sim.
 
-Please check the `Isaac Sim documentation <https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/install_faq.html#assets-and-nucleus>`__
+Please check the `Isaac Sim documentation <https://docs.isaacsim.omniverse.nvidia.com/latest/assets/index.html>`__
 for more information on how to download the assets.
 
 .. attention::

@@ -12,13 +12,13 @@ Downloading pre-built binaries
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Please follow the Isaac Sim
-`documentation <https://docs.omniverse.nvidia.com/isaacsim/latest/installation/install_workstation.html>`__
+`documentation <https://docs.isaacsim.omniverse.nvidia.com/latest/installation/install_workstation.html>`__
 to install the latest Isaac Sim release.
 
-From Isaac Sim 4.5 release, Isaac Sim binaries can be `downloaded <https://docs.omniverse.nvidia.com/isaacsim/latest/installation/download.html#download-isaac-sim-short>`_ directly as a zip file.
+From Isaac Sim 4.5 release, Isaac Sim binaries can be `downloaded <https://docs.isaacsim.omniverse.nvidia.com/latest/installation/download.html#download-isaac-sim-short>`_ directly as a zip file.
 
 To check the minimum system requirements,refer to the documentation
-`here <https://docs.omniverse.nvidia.com/isaacsim/latest/installation/requirements.html>`__.
+`here <https://docs.isaacsim.omniverse.nvidia.com/latest/installation/requirements.html>`__.
 
 .. tab-set::
    :sync-group: os
@@ -82,7 +82,7 @@ variables to your terminal for the remaining of the installation instructions:
 
 
 For more information on common paths, please check the Isaac Sim
-`documentation <https://docs.omniverse.nvidia.com/isaacsim/latest/installation/install_faq.html#common-path-locations>`__.
+`documentation <https://docs.isaacsim.omniverse.nvidia.com/latest/installation/install_faq.html#common-path-locations>`__.
 
 
 -  Check that the simulator runs as expected:
@@ -158,7 +158,7 @@ instructions, it means that something is incorrectly configured. To
 debug and troubleshoot, please check Isaac Sim
 `documentation <https://docs.omniverse.nvidia.com/dev-guide/latest/linux-troubleshooting.html>`__
 and the
-`forums <https://docs.omniverse.nvidia.com/isaacsim/latest/isaac_sim_forums.html>`__.
+`forums <https://docs.isaacsim.omniverse.nvidia.com/latest/isaac_sim_forums.html>`__.
 
 
 Installing Isaac Lab
@@ -287,7 +287,7 @@ The executable ``isaaclab.sh`` automatically fetches the python bundled with Isa
 Sim, using ``./isaaclab.sh -p`` command (unless inside a virtual environment). This executable
 behaves like a python executable, and can be used to run any python script or
 module with the simulator. For more information, please refer to the
-`documentation <https://docs.omniverse.nvidia.com/isaacsim/latest/manual_standalone_python.html#isaac-sim-python-environment>`__.
+`documentation <https://docs.isaacsim.omniverse.nvidia.com/latest/python_scripting/manual_standalone_python.html>`__.
 
 To install ``conda``, please follow the instructions `here <https://docs.conda.io/projects/conda/en/latest/user-guide/install/index.html>`__.
 You can create the Isaac Lab environment using the following commands.

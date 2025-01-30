@@ -44,7 +44,7 @@ For more information on VSCode support for Omniverse, please refer to the
 following links:
 
 * `Isaac Sim VSCode support <https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/manual_standalone_python.html#isaac-sim-python-vscode>`__
-* `Debugging with VSCode <https://docs.omniverse.nvidia.com/isaacsim/latest/advanced_tutorials/tutorial_advanced_python_debugging.html>`__
+* `Debugging with VSCode <https://docs.isaacsim.omniverse.nvidia.com/latest/development_tools/vscode.html#visual-studio-code-vs-code>`__
 
 
 Configuring the python interpreter

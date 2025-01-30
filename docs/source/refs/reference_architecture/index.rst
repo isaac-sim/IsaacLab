@@ -360,11 +360,11 @@ Learn More About Featured NVIDIA Solutions
 
 .. _curriculum learning: https://arxiv.org/abs/2109.11978
 .. _CAD Converter: https://docs.omniverse.nvidia.com/extensions/latest/ext_cad-converter.html
-.. _URDF Importer: https://docs.omniverse.nvidia.com/isaacsim/latest/advanced_tutorials/tutorial_advanced_import_urdf.html
-.. _MJCF Importer: https://docs.omniverse.nvidia.com/isaacsim/latest/advanced_tutorials/tutorial_advanced_import_mjcf.html#import-mjcf
+.. _URDF Importer: https://docs.isaacsim.omniverse.nvidia.com/latest/robot_setup/ext_isaacsim_asset_importer_urdf.html
+.. _MJCF Importer: https://docs.isaacsim.omniverse.nvidia.com/latest/robot_setup/ext_isaacsim_asset_importer_mjcf.html
 .. _Onshape Importer: https://docs.omniverse.nvidia.com/extensions/latest/ext_onshape.html
-.. _Isaac Sim Reference Architecture: https://docs.omniverse.nvidia.com/isaacsim/latest/isaac_sim_reference_architecture.html
-.. _Importing Assets section: https://docs.omniverse.nvidia.com/isaacsim/latest/isaac_sim_reference_architecture.html#importing-assets
+.. _Isaac Sim Reference Architecture: https://docs.isaacsim.omniverse.nvidia.com/latest/isaac_sim_reference_architecture.html
+.. _Importing Assets section: https://docs.isaacsim.omniverse.nvidia.com/latest/isaac_sim_reference_architecture.html#importing-assets
 
 .. _Scale AI-Enabled Robotics Development Workloads with NVIDIA OSMO: https://developer.nvidia.com/blog/scale-ai-enabled-robotics-development-workloads-with-nvidia-osmo/
 .. _Isaac Perceptor: https://developer.nvidia.com/isaac/perceptor

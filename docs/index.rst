@@ -149,7 +149,7 @@ Table of Contents
     :caption: Project Links
 
     GitHub <https://github.com/isaac-sim/IsaacLab>
-    NVIDIA Isaac Sim <https://docs.omniverse.nvidia.com/isaacsim/latest/index.html>
+    NVIDIA Isaac Sim <https://docs.isaacsim.omniverse.nvidia.com/latest/index.html>
     NVIDIA PhysX <https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/index.html>
 
 Indices and tables
@@ -159,4 +159,4 @@ Indices and tables
 * :ref:`modindex`
 * :ref:`search`
 
-.. _NVIDIA Isaac Sim: https://docs.omniverse.nvidia.com/isaacsim/latest/index.html
+.. _NVIDIA Isaac Sim: https://docs.isaacsim.omniverse.nvidia.com/latest/index.html

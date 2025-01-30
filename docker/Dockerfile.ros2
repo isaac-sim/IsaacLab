@@ -31,5 +31,5 @@ RUN --mount=type=cache,target=/var/cache/apt \
     echo "source /opt/ros/humble/setup.bash" >> ${HOME}/.bashrc
 
 # Copy the RMW specifications for ROS2
-# https://docs.omniverse.nvidia.com/isaacsim/latest/installation/install_ros.html#enabling-the-ros-bridge-extension
+# https://docs.isaacsim.omniverse.nvidia.com/latest/installation/install_ros.html
 COPY docker/.ros/ ${DOCKER_USER_HOME}/.ros/

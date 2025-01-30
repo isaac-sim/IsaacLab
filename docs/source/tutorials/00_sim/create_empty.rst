@@ -7,7 +7,7 @@ This tutorial shows how to launch and control Isaac Sim simulator from a standal
 empty scene in Isaac Lab and introduces the two main classes used in the framework, :class:`app.AppLauncher` and
 :class:`sim.SimulationContext`.
 
-Please review `Isaac Sim Interface`_ and `Isaac Sim Workflows`_ prior to beginning this tutorial to get
+Please review `Isaac Sim Workflows`_ prior to beginning this tutorial to get
 an initial understanding of working with the simulator.
 
 
@@ -162,7 +162,6 @@ following:
 Now that we have a basic understanding of how to run a simulation, let's move on to the
 following tutorial where we will learn how to add assets to the stage.
 
-.. _`Isaac Sim Interface`: https://docs.omniverse.nvidia.com/isaacsim/latest/introductory_tutorials/tutorial_intro_interface.html#isaac-sim-app-tutorial-intro-interface
-.. _`Isaac Sim Workflows`: https://docs.omniverse.nvidia.com/isaacsim/latest/introductory_tutorials/tutorial_intro_workflows.html
+.. _`Isaac Sim Workflows`: https://docs.isaacsim.omniverse.nvidia.com/latest/introduction/workflows.html
 .. _carb: https://docs.omniverse.nvidia.com/kit/docs/carbonite/latest/index.html
 .. _`physics scene`: https://docs.omniverse.nvidia.com/prod_extensions/prod_extensions/ext_physics.html#physics-scene
