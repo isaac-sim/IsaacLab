@@ -1,33 +1,45 @@
 Changelog
 ---------
 
+0.30.7 (2025-01-30)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed resampling of interval time left for the next event in the :class:`~omni.isaac.lab.managers.EventManager`
+  class. Earlier, the time left for interval-based events was not being resampled on episodic resets. This led
+  to the event being triggered at the wrong time after the reset.
+
+
 0.30.6 (2025-01-17)
 ~~~~~~~~~~~~~~~~~~~
 
 Fixed
 ^^^^^
 
-* removed deprecation of :attr:`omni.isaac.lab.assets.ArticulationData.root_state_w` and
+* Removed deprecation of :attr:`omni.isaac.lab.assets.ArticulationData.root_state_w` and
   :attr:`omni.isaac.lab.assets.ArticulationData.body_state_w` derived properties.
-* removed deprecation of :meth:`omni.isaac.lab.assets.Articulation.write_root_state_to_sim`.
-* replaced calls to :attr:`omni.isaac.lab.assets.ArticulationData.root_com_state_w` and
+* Removed deprecation of :meth:`omni.isaac.lab.assets.Articulation.write_root_state_to_sim`.
+* Replaced calls to :attr:`omni.isaac.lab.assets.ArticulationData.root_com_state_w` and
   :attr:`omni.isaac.lab.assets.ArticulationData.root_link_state_w` with corresponding calls to
   :attr:`omni.isaac.lab.assets.ArticulationData.root_state_w`.
-* replaced calls to :attr:`omni.isaac.lab.assets.ArticulationData.body_com_state_w` and
+* Replaced calls to :attr:`omni.isaac.lab.assets.ArticulationData.body_com_state_w` and
   :attr:`omni.isaac.lab.assets.ArticulationData.body_link_state_w` properties with corresponding calls to
   :attr:`omni.isaac.lab.assets.ArticulationData.body_state_w` properties.
-* removed deprecation of :attr:`omni.isaac.lab.assets.RigidObjectData.root_state_w` derived properties  .
-* removed deprecation of :meth:`omni.isaac.lab.assets.RigidObject.write_root_state_to_sim`.
-* replaced calls to :attr:`omni.isaac.lab.assets.RigidObjectData.root_com_state_w` and
+* Removed deprecation of :attr:`omni.isaac.lab.assets.RigidObjectData.root_state_w` derived properties.
+* Removed deprecation of :meth:`omni.isaac.lab.assets.RigidObject.write_root_state_to_sim`.
+* Replaced calls to :attr:`omni.isaac.lab.assets.RigidObjectData.root_com_state_w` and
   :attr:`omni.isaac.lab.assets.RigidObjectData.root_link_state_w` properties with corresponding calls to
   :attr:`omni.isaac.lab.assets.RigidObjectData.root_state_w` properties.
-* removed deprecation of :attr:`omni.isaac.lab.assets.RigidObjectCollectionData.root_state_w` derived properties.
-* removed deprecation of :meth:`omni.isaac.lab.assets.RigidObjectCollection.write_root_state_to_sim`.
-* replaced calls to :attr:`omni.isaac.lab.assets.RigidObjectCollectionData.root_com_state_w` and
+* Removed deprecation of :attr:`omni.isaac.lab.assets.RigidObjectCollectionData.root_state_w` derived properties.
+* Removed deprecation of :meth:`omni.isaac.lab.assets.RigidObjectCollection.write_root_state_to_sim`.
+* Replaced calls to :attr:`omni.isaac.lab.assets.RigidObjectCollectionData.root_com_state_w` and
   :attr:`omni.isaac.lab.assets.RigidObjectData.root_link_state_w` properties with corresponding calls to
   :attr:`omni.isaac.lab.assets.RigidObjectData.root_state_w` properties.
-* fixed indexing issue in ``write_root_link_velocity_to_sim`` in :class:`omni.isaac.lab.assets.RigidObject`
-* fixed index broadcasting in ``write_object_link_velocity_to_sim`` and ``write_object_com_pose_to_sim`` in :class:`omni.isaac.lab.assets.RigidObjectCollection`
+* Fixed indexing issue in ``write_root_link_velocity_to_sim`` in :class:`omni.isaac.lab.assets.RigidObject`
+* Fixed index broadcasting in ``write_object_link_velocity_to_sim`` and ``write_object_com_pose_to_sim`` in
+  the :class:`omni.isaac.lab.assets.RigidObjectCollection` class.
 
 
 0.30.5 (2025-01-14)
