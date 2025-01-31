@@ -131,8 +131,8 @@ workflow, it is not always possible.
 
 For example, consider robot reinforcement learning. It is essential to have complete control over the simulation step
 and when things update instead of asynchronously waiting for the result. In
-such cases, we require direct control of the simulation, and so it is necessary to write a standalone application. These applications are functionally similar in that they launch the simulator using the :class:`~omni.isaac.lab.app.AppLauncher` and
-then control the simulation directly through the :class:`~omni.isaac.lab.sim.SimulationContext`. In these cases, python modules from extensions **must** be imported after the app is launched.  Doing so before the app is launched will cause missing module errors.
+such cases, we require direct control of the simulation, and so it is necessary to write a standalone application. These applications are functionally similar in that they launch the simulator using the :class:`~isaaclab.app.AppLauncher` and
+then control the simulation directly through the :class:`~isaaclab.sim.SimulationContext`. In these cases, python modules from extensions **must** be imported after the app is launched.  Doing so before the app is launched will cause missing module errors.
 
 The following snippet shows how to write a standalone application:
 

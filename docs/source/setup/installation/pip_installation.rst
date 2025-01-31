@@ -148,7 +148,7 @@ Verifying the Isaac Sim installation
    .. code:: bash
 
       By installing or using Isaac Sim, I agree to the terms of NVIDIA OMNIVERSE LICENSE AGREEMENT (EULA)
-      in https://docs.omniverse.nvidia.com/isaacsim/latest/common/NVIDIA_Omniverse_License_Agreement.html
+      in https://docs.isaacsim.omniverse.nvidia.com/latest/common/NVIDIA_Omniverse_License_Agreement.html
 
       Do you accept the EULA? (Yes/No): Yes
 
@@ -355,14 +355,14 @@ We recommend adding ``--headless`` for faster training.
 
       .. code:: bash
 
-         ./isaaclab.sh -p source/standalone/workflows/rsl_rl/train.py --task=Isaac-Ant-v0 --headless
+         ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py --task=Isaac-Ant-v0 --headless
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
 
       .. code:: batch
 
-         isaaclab.bat -p source/standalone/workflows/rsl_rl/train.py --task=Isaac-Ant-v0 --headless
+         isaaclab.bat -p scripts/reinforcement_learning/rsl_rl/train.py --task=Isaac-Ant-v0 --headless
 
 ... Or a robot dog!
 
@@ -374,14 +374,14 @@ We recommend adding ``--headless`` for faster training.
 
       .. code:: bash
 
-         ./isaaclab.sh -p source/standalone/workflows/rsl_rl/train.py --task=Isaac-Velocity-Rough-Anymal-C-v0 --headless
+         ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py --task=Isaac-Velocity-Rough-Anymal-C-v0 --headless
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
 
       .. code:: batch
 
-         isaaclab.bat -p source/standalone/workflows/rsl_rl/train.py --task=Isaac-Velocity-Rough-Anymal-C-v0 --headless
+         isaaclab.bat -p scripts/reinforcement_learning/rsl_rl/train.py --task=Isaac-Velocity-Rough-Anymal-C-v0 --headless
 
 Isaac Lab provides the tools you'll need to create your own **Tasks** and **Workflows** for whatever your project needs may be. Take a look at our :ref:`how-to` guides like `Adding your own learning Library <source/how-to/add_own_library>`_ or `Wrapping Environments <source/how-to/wrap_rl_env>`_ for details.
 
