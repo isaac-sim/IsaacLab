@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.0.0" />
-    <meta name="docbuild:last-update" content="Jan 30, 2025"/>
+    <meta name="docbuild:last-update" content="Jan 31, 2025"/>
   </head>
   
   
@@ -157,6 +157,7 @@
           </div>
           <select id="version-select" class="version-dropdown" style="margin: 0 auto; display: block;" onchange="location = this.value;">
             <option value="development.html" selected>main</option>
+            <option value="../../../../v2.0.0/source/overview/developer-guide/development.html" >v2.0.0</option>
             <option value="../../../../v1.4.1/source/overview/developer-guide/development.html" >v1.4.1</option>
             <option value="../../../../v1.4.0/source/overview/developer-guide/development.html" >v1.4.0</option>
             <option value="../../../../v1.3.0/source/overview/developer-guide/development.html" >v1.3.0</option>
@@ -721,8 +722,8 @@ enabled. The loading of python modules and other python applications happens aut
 workflow, it is not always possible.</p>
 <p>For example, consider robot reinforcement learning. It is essential to have complete control over the simulation step
 and when things update instead of asynchronously waiting for the result. In
-such cases, we require direct control of the simulation, and so it is necessary to write a standalone application. These applications are functionally similar in that they launch the simulator using the <code class="xref py py-class docutils literal notranslate"><span class="pre">AppLauncher</span></code> and
-then control the simulation directly through the <code class="xref py py-class docutils literal notranslate"><span class="pre">SimulationContext</span></code>. In these cases, python modules from extensions <strong>must</strong> be imported after the app is launched.  Doing so before the app is launched will cause missing module errors.</p>
+such cases, we require direct control of the simulation, and so it is necessary to write a standalone application. These applications are functionally similar in that they launch the simulator using the <a class="reference internal" href="../../api/lab/isaaclab.app.html#isaaclab.app.AppLauncher" title="isaaclab.app.AppLauncher"><code class="xref py py-class docutils literal notranslate"><span class="pre">AppLauncher</span></code></a> and
+then control the simulation directly through the <a class="reference internal" href="../../api/lab/isaaclab.sim.html#isaaclab.sim.SimulationContext" title="isaaclab.sim.SimulationContext"><code class="xref py py-class docutils literal notranslate"><span class="pre">SimulationContext</span></code></a>. In these cases, python modules from extensions <strong>must</strong> be imported after the app is launched.  Doing so before the app is launched will cause missing module errors.</p>
 <p>The following snippet shows how to write a standalone application:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="sd">&quot;&quot;&quot;Launch Isaac Sim Simulator first.&quot;&quot;&quot;</span>
 
@@ -841,7 +842,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jan 30, 2025.
+  Last updated on Jan 31, 2025.
   <br/>
 </p>
   </div>

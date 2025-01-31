@@ -1,0 +1,1502 @@
+
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
+
+    <title>Available Environments &#8212; Isaac Lab Documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css" />
+    <link rel="stylesheet" href="../../_static/styles/sphinx-book-theme.css?digest=14f4ca6b54d191a8c7657f6c759bf11a5fb86285" type="text/css" />
+    <link rel="stylesheet" type="text/css" href="/opt/hostedtoolcache/Python/3.10.16/x64/lib/python3.10/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/css/all.min.css" />
+    <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css" />
+    <link rel="stylesheet" type="text/css" href="../../_static/custom.css" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sphinx-design.4cbf315f70debaebd550c87a6162cf0f.min.css" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script data-url_root="../../" id="documentation_options" src="../../_static/documentation_options.js"></script>
+    <script src="../../_static/doctools.js"></script>
+    <script src="../../_static/sphinx_highlight.js"></script>
+    <script src="/opt/hostedtoolcache/Python/3.10.16/x64/lib/python3.10/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/js/all.min.js"></script>
+    <script src="../../_static/clipboard.min.js"></script>
+    <script src="../../_static/copybutton.js"></script>
+    <script src="../../_static/scripts/sphinx-book-theme.js?digest=5a5c038af52cf7bc1a1ec88eea08e6366ee68824"></script>
+    <script src="../../_static/design-tabs.js"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'source/overview/environments';</script>
+    <link rel="icon" href="../../_static/favicon.ico"/>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="Reinforcement Learning" href="reinforcement-learning/index.html" />
+    <link rel="prev" title="Ray Caster" href="sensors/ray_caster.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="2.0.0" />
+    <meta name="docbuild:last-update" content="Jan 31, 2025"/>
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+    
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../../_static/NVIDIA-logo-white.png" class="logo__image only-light" alt=""/>
+    <img src="../../_static/NVIDIA-logo-black.png" class="logo__image only-dark pst-js-only" alt=""/>
+  
+  
+    <p class="title logo__title">Isaac Lab Documentation</p>
+  
+</a></div>
+        <div class="sidebar-primary-item">
+<nav class="bd-links bd-docs-nav">
+    <div class="bd-toc-item navbar-nav">
+      <ul class="nav bd-sidenav">
+        <li class="toctree-l1 has-children" style="display: flex; justify-content: center; align-items: center; flex-direction: column;">
+          <div  style ="text-align:center;">
+            <label for="version-select" style="font-weight: bold; display: block;">Version</label>
+          </div>
+          <select id="version-select" class="version-dropdown" style="margin: 0 auto; display: block;" onchange="location = this.value;">
+            <option value="../../../main/source/overview/environments.html" >main</option>
+            <option value="environments.html" selected>v2.0.0</option>
+            <option value="../../../v1.4.1/source/overview/environments.html" >v1.4.1</option>
+            <option value="../../../v1.4.0/source/overview/environments.html" >v1.4.0</option>
+            <option value="../../../v1.3.0/source/overview/environments.html" >v1.3.0</option>
+            <option value="../../../v1.2.0/source/overview/environments.html" >v1.2.0</option>
+            <option value="../../../v1.1.0/index.html" >v1.1.0</option>
+            <option value="../../../v1.0.0/index.html" >v1.0.0</option>
+          </select>
+        </li>
+      </ul>
+    </div>
+</nav>
+</div>
+        <div class="sidebar-primary-item"><ul class="navbar-icon-links"
+    aria-label="Quick Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/isaac-sim/IsaacLab" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.5.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+        </li>
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://img.shields.io/github/stars/isaac-sim/IsaacLab?color=fedcba" title="Stars" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/github/stars/isaac-sim/IsaacLab?color=fedcba" class="icon-link-image" alt="Stars"/></a>
+        </li>
+</ul></div>
+        <div class="sidebar-primary-item">
+<form class="bd-search d-flex align-items-center"
+      action="../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form></div>
+        <div class="sidebar-primary-item"><nav class="bd-links" id="bd-docs-nav" aria-label="Main">
+    <div class="bd-toc-item navbar-nav active">
+        <p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../setup/ecosystem.html">Isaac Lab Ecosystem</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../setup/installation/index.html">Local Installation</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../setup/installation/pip_installation.html">Pip installation (recommended for Ubuntu 22.04 and Windows)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../setup/installation/binaries_installation.html">Binary installation (recommended for Ubuntu 20.04)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../setup/installation/isaaclab_pip_installation.html">Advanced installation (Isaac Lab pip)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../setup/installation/asset_caching.html">Asset caching</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../setup/installation/cloud_installation.html">Running Isaac Lab in the Cloud</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../setup/faq.html">Frequently Asked Questions</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Overview</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="developer-guide/index.html">Developer’s Guide</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="developer-guide/vs_code.html">Setting up Visual Studio Code</a></li>
+
+<li class="toctree-l2"><a class="reference internal" href="developer-guide/repo_structure.html">Repository organization</a></li>
+<li class="toctree-l2"><a class="reference internal" href="developer-guide/development.html">Extension Development</a></li>
+<li class="toctree-l2"><a class="reference internal" href="developer-guide/template.html">Building your Own Project</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="core-concepts/index.html">Core Concepts</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="core-concepts/task_workflows.html">Task Design Workflows</a></li>
+<li class="toctree-l2"><a class="reference internal" href="core-concepts/actuators.html">Actuators</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="sensors/index.html">Sensors</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="sensors/camera.html">Camera</a></li>
+<li class="toctree-l2"><a class="reference internal" href="sensors/contact_sensor.html">Contact Sensor</a></li>
+<li class="toctree-l2"><a class="reference internal" href="sensors/frame_transformer.html">Frame Transformer</a></li>
+<li class="toctree-l2"><a class="reference internal" href="sensors/imu.html">Inertial Measurement Unit (IMU)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="sensors/ray_caster.html">Ray Caster</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">Available Environments</a></li>
+
+<li class="toctree-l1 has-children"><a class="reference internal" href="reinforcement-learning/index.html">Reinforcement Learning</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="reinforcement-learning/rl_existing_scripts.html">Reinforcement Learning Wrappers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="reinforcement-learning/rl_frameworks.html">Reinforcement Learning Library Comparison</a></li>
+<li class="toctree-l2"><a class="reference internal" href="reinforcement-learning/performance_benchmarks.html">Performance Benchmarks</a></li>
+<li class="toctree-l2"><a class="reference internal" href="reinforcement-learning/training_guide.html">Debugging and Training Guide</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="teleop_imitation.html">Teleoperation and Imitation Learning</a></li>
+<li class="toctree-l1"><a class="reference internal" href="showroom.html">Showroom Demos</a></li>
+<li class="toctree-l1"><a class="reference internal" href="simple_agents.html">Simple Agents</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Features</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../features/hydra.html">Hydra Configuration System</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../features/multi_gpu.html">Multi-GPU and Multi-Node Training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="sensors/camera.html">Tiled Rendering</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../features/ray.html">Ray Job Dispatch and Tuning</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../features/reproducibility.html">Reproducibility and Determinism</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Resources</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../tutorials/index.html">Tutorials</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/00_sim/create_empty.html">Creating an empty scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/00_sim/spawn_prims.html">Spawning prims into the scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/00_sim/launch_app.html">Deep-dive into AppLauncher</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/01_assets/run_rigid_object.html">Interacting with a rigid object</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/01_assets/run_articulation.html">Interacting with an articulation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/01_assets/run_deformable_object.html">Interacting with a deformable object</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/02_scene/create_scene.html">Using the Interactive Scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/03_envs/create_manager_base_env.html">Creating a Manager-Based Base Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/03_envs/create_manager_rl_env.html">Creating a Manager-Based RL Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/03_envs/create_direct_rl_env.html">Creating a Direct Workflow RL Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/03_envs/register_rl_env_gym.html">Registering an Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/03_envs/run_rl_training.html">Training with an RL Agent</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/03_envs/modify_direct_rl_env.html">Modifying an existing Direct RL Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/03_envs/policy_inference_in_usd.html">Policy Inference in USD Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/04_sensors/add_sensors_on_robot.html">Adding sensors on a robot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/05_controllers/run_diff_ik.html">Using a task-space controller</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/05_controllers/run_osc.html">Using an operational space controller</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../how-to/index.html">How-to Guides</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../how-to/import_new_asset.html">Importing a New Asset</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../how-to/write_articulation_cfg.html">Writing an Asset Configuration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../how-to/make_fixed_prim.html">Making a physics prim fixed in the simulation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../how-to/multi_asset_spawning.html">Spawning Multiple Assets</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../how-to/save_camera_output.html">Saving rendered images and 3D re-projection</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../how-to/estimate_how_many_cameras_can_run.html">Find How Many/What Cameras You Should Train With</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../how-to/draw_markers.html">Creating Visualization Markers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../how-to/wrap_rl_env.html">Wrapping environments</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../how-to/add_own_library.html">Adding your own learning library</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../how-to/record_animation.html">Recording Animations of Simulations</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../how-to/record_video.html">Recording video clips during training</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../how-to/master_omniverse.html">Mastering Omniverse for Robotics</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../deployment/index.html">Container Deployment</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../deployment/docker.html">Docker Guide</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../deployment/cluster.html">Cluster Guide</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../deployment/run_docker_example.html">Running an example with Docker</a></li>
+</ul>
+</details></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Migration Guides</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../migration/migrating_from_isaacgymenvs.html">From IsaacGymEnvs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../migration/migrating_from_omniisaacgymenvs.html">From OmniIsaacGymEnvs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../migration/migrating_from_orbit.html">From Orbit</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Source API</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../api/index.html">API Reference</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.app.html">isaaclab.app</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.actuators.html">isaaclab.actuators</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.assets.html">isaaclab.assets</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.controllers.html">isaaclab.controllers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.devices.html">isaaclab.devices</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.envs.html">isaaclab.envs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.managers.html">isaaclab.managers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.markers.html">isaaclab.markers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.scene.html">isaaclab.scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.sensors.html">isaaclab.sensors</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.sim.html">isaaclab.sim</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.terrains.html">isaaclab.terrains</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.utils.html">isaaclab.utils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.envs.mdp.html">isaaclab.envs.mdp</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.envs.ui.html">isaaclab.envs.ui</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.sensors.patterns.html">isaaclab.sensors.patterns</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.sim.converters.html">isaaclab.sim.converters</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.sim.schemas.html">isaaclab.sim.schemas</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.sim.spawners.html">isaaclab.sim.spawners</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab_tasks/isaaclab_tasks.utils.html">isaaclab_tasks.utils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab_mimic/isaaclab_mimic.datagen.html">isaaclab_mimic.datagen</a></li>
+</ul>
+</details></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">References</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../refs/reference_architecture/index.html">Reference Architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../refs/additional_resources.html">Additional Resources</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../refs/contributing.html">Contribution Guidelines</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../refs/troubleshooting.html">Tricks and Troubleshooting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../refs/migration.html">Migration Guide (Isaac Sim)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../refs/issues.html">Known Issues</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../refs/release_notes.html">Release Notes</a></li>
+
+
+
+
+
+
+<li class="toctree-l1"><a class="reference internal" href="../refs/changelog.html">Extensions Changelog</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../refs/license.html">License</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../refs/bibliography.html">Bibliography</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Project Links</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference external" href="https://github.com/isaac-sim/IsaacLab">GitHub</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/latest/index.html">NVIDIA Isaac Sim</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/index.html">NVIDIA PhysX</a></li>
+</ul>
+
+    </div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+
+<div class="sbt-scroll-pixel-helper"></div>
+
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item"><label class="sidebar-toggle primary-toggle btn btn-sm" for="__primary" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <span class="fa-solid fa-bars"></span>
+</label></div>
+      
+    </div>
+  
+  
+    <div class="header-article-items__end">
+      
+        <div class="header-article-item">
+
+<div class="article-header-buttons">
+
+
+
+
+
+<div class="dropdown dropdown-source-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Source repositories">
+    <i class="fab fa-github"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="https://github.com/isaac-sim/IsaacLab" target="_blank"
+   class="btn btn-sm btn-source-repository-button dropdown-item"
+   title="Source repository"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fab fa-github"></i>
+  </span>
+<span class="btn__text-container">Repository</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li><a href="https://github.com/isaac-sim/IsaacLab/edit/main/source/overview/environments.rst" target="_blank"
+   class="btn btn-sm btn-source-edit-button dropdown-item"
+   title="Suggest edit"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-pencil-alt"></i>
+  </span>
+<span class="btn__text-container">Suggest edit</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li><a href="https://github.com/isaac-sim/IsaacLab/issues/new?title=Issue%20on%20page%20%2Fsource/overview/environments.html&body=Your%20issue%20content%20here." target="_blank"
+   class="btn btn-sm btn-source-issues-button dropdown-item"
+   title="Open an issue"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-lightbulb"></i>
+  </span>
+<span class="btn__text-container">Open issue</span>
+</a>
+</li>
+      
+  </ul>
+</div>
+
+
+
+
+
+
+<div class="dropdown dropdown-download-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Download this page">
+    <i class="fas fa-download"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="../../_sources/source/overview/environments.rst" target="_blank"
+   class="btn btn-sm btn-download-source-button dropdown-item"
+   title="Download source file"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file"></i>
+  </span>
+<span class="btn__text-container">.rst</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li>
+<button onclick="window.print()"
+  class="btn btn-sm btn-download-pdf-button dropdown-item"
+  title="Print to PDF"
+  data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file-pdf"></i>
+  </span>
+<span class="btn__text-container">.pdf</span>
+</button>
+</li>
+      
+  </ul>
+</div>
+
+
+
+
+<button onclick="toggleFullScreen()"
+  class="btn btn-sm btn-fullscreen-button"
+  title="Fullscreen mode"
+  data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-expand"></i>
+  </span>
+
+</button>
+
+
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button>
+
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+<label class="sidebar-toggle secondary-toggle btn btn-sm" for="__secondary"title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <span class="fa-solid fa-list"></span>
+</label>
+</div></div>
+      
+    </div>
+  
+</div>
+</div>
+              
+              
+
+<div id="jb-print-docs-body" class="onlyprint">
+    <h1>Available Environments</h1>
+    <!-- Table of contents -->
+    <div id="print-main-content">
+        <div id="jb-print-toc">
+            
+            <div>
+                <h2> Contents </h2>
+            </div>
+            <nav aria-label="Page">
+                <ul class="visible nav section-nav flex-column">
+<li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#">Available Environments</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#single-agent">Single-agent</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#classic">Classic</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#manipulation">Manipulation</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#contact-rich-manipulation">Contact-rich Manipulation</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#locomotion">Locomotion</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#navigation">Navigation</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#others">Others</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#multi-agent">Multi-agent</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id1">Classic</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id2">Manipulation</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#comprehensive-list-of-environments">Comprehensive List of Environments</a></li>
+</ul>
+
+            </nav>
+        </div>
+    </div>
+</div>
+
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="available-environments">
+<span id="environments"></span><h1>Available Environments<a class="headerlink" href="#available-environments" title="Permalink to this heading">#</a></h1>
+<p>The following lists comprises of all the RL tasks implementations that are available in Isaac Lab.
+While we try to keep this list up-to-date, you can always get the latest list of environments by
+running the following command:</p>
+<div class="sd-tab-set docutils">
+<input checked="checked" id="sd-tab-item-0" name="sd-tab-set-0" type="radio">
+<label class="sd-tab-label" data-sync-group="os" data-sync-id="linux" for="sd-tab-item-0">
+<i class="fa-brands fa-linux"></i> Linux</label><div class="sd-tab-content docutils">
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/environments/list_envs.py
+</pre></div>
+</div>
+</div>
+<input id="sd-tab-item-1" name="sd-tab-set-0" type="radio">
+<label class="sd-tab-label" data-sync-group="os" data-sync-id="windows" for="sd-tab-item-1">
+<i class="fa-brands fa-windows"></i> Windows</label><div class="sd-tab-content docutils">
+<div class="highlight-batch notranslate"><div class="highlight"><pre><span></span>isaaclab.bat -p scripts\environments\list_envs.py
+</pre></div>
+</div>
+</div>
+</div>
+<p>We are actively working on adding more environments to the list. If you have any environments that
+you would like to add to Isaac Lab, please feel free to open a pull request!</p>
+<section id="single-agent">
+<h2>Single-agent<a class="headerlink" href="#single-agent" title="Permalink to this heading">#</a></h2>
+<section id="classic">
+<h3>Classic<a class="headerlink" href="#classic" title="Permalink to this heading">#</a></h3>
+<p>Classic environments that are based on IsaacGymEnvs implementation of MuJoCo-style environments.</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<colgroup>
+<col style="width: 33.0%" />
+<col style="width: 37.0%" />
+<col style="width: 30.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>World</p></th>
+<th class="head"><p>Environment ID</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><img alt="humanoid" src="../../_images/humanoid.jpg" /></p></td>
+<td><p><a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/classic/humanoid/humanoid_env_cfg.py">Isaac-Humanoid-v0</a></p>
+<p><a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/direct/humanoid/humanoid_env.py">Isaac-Humanoid-Direct-v0</a></p>
+</td>
+<td><p>Move towards a direction with the MuJoCo humanoid robot</p></td>
+</tr>
+<tr class="row-odd"><td><p><img alt="ant" src="../../_images/ant.jpg" /></p></td>
+<td><p><a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/classic/ant/ant_env_cfg.py">Isaac-Ant-v0</a></p>
+<p><a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/direct/ant/ant_env.py">Isaac-Ant-Direct-v0</a></p>
+</td>
+<td><p>Move towards a direction with the MuJoCo ant robot</p></td>
+</tr>
+<tr class="row-even"><td><p><img alt="cartpole" src="../../_images/cartpole.jpg" /></p></td>
+<td><p><a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/classic/cartpole/cartpole_env_cfg.py">Isaac-Cartpole-v0</a></p>
+<p><a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/direct/cartpole/cartpole_env.py">Isaac-Cartpole-Direct-v0</a></p>
+</td>
+<td><p>Move the cart to keep the pole upwards in the classic cartpole control</p></td>
+</tr>
+<tr class="row-odd"><td><p><img alt="cartpole" src="../../_images/cartpole.jpg" /></p></td>
+<td><p><a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/classic/cartpole/cartpole_camera_env_cfg.py">Isaac-Cartpole-RGB-v0</a></p>
+<p><a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/classic/cartpole/cartpole_camera_env_cfg.py">Isaac-Cartpole-Depth-v0</a></p>
+<p><a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/direct/cartpole/cartpole_camera_env.py">Isaac-Cartpole-RGB-Camera-Direct-v0</a></p>
+<p><a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/direct/cartpole/cartpole_camera_env.py">Isaac-Cartpole-Depth-Camera-Direct-v0</a></p>
+</td>
+<td><p>Move the cart to keep the pole upwards in the classic cartpole control
+and perceptive inputs</p></td>
+</tr>
+<tr class="row-even"><td><p><img alt="cartpole" src="../../_images/cartpole.jpg" /></p></td>
+<td><p><a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/classic/cartpole/cartpole_camera_env_cfg.py">Isaac-Cartpole-RGB-ResNet18-v0</a></p>
+<p><a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/classic/cartpole/cartpole_camera_env_cfg.py">Isaac-Cartpole-RGB-TheiaTiny-v0</a></p>
+</td>
+<td><p>Move the cart to keep the pole upwards in the classic cartpole control
+based off of features extracted from perceptive inputs with pre-trained
+frozen vision encoders</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="manipulation">
+<h3>Manipulation<a class="headerlink" href="#manipulation" title="Permalink to this heading">#</a></h3>
+<p>Environments based on fixed-arm manipulation tasks.</p>
+<p>For many of these tasks, we include configurations with different arm action spaces. For example,
+for the lift-cube environment:</p>
+<ul class="simple">
+<li><p><a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/lift/config/franka/joint_pos_env_cfg.py">Isaac-Lift-Cube-Franka-v0</a>: Franka arm with joint position control</p></li>
+<li><p><a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/lift/config/franka/ik_abs_env_cfg.py">Isaac-Lift-Cube-Franka-IK-Abs-v0</a>: Franka arm with absolute IK control</p></li>
+<li><p><a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/lift/config/franka/ik_rel_env_cfg.py">Isaac-Lift-Cube-Franka-IK-Rel-v0</a>: Franka arm with relative IK control</p></li>
+</ul>
+<div class="pst-scrollable-table-container"><table class="table">
+<colgroup>
+<col style="width: 33.0%" />
+<col style="width: 37.0%" />
+<col style="width: 30.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>World</p></th>
+<th class="head"><p>Environment ID</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><img alt="reach-franka" src="../../_images/franka_reach.jpg" /></p></td>
+<td><p><a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/reach/config/franka/joint_pos_env_cfg.py">Isaac-Reach-Franka-v0</a></p></td>
+<td><p>Move the end-effector to a sampled target pose with the Franka robot</p></td>
+</tr>
+<tr class="row-odd"><td><p><img alt="reach-ur10" src="../../_images/ur10_reach.jpg" /></p></td>
+<td><p><a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/reach/config/ur_10/joint_pos_env_cfg.py">Isaac-Reach-UR10-v0</a></p></td>
+<td><p>Move the end-effector to a sampled target pose with the UR10 robot</p></td>
+</tr>
+<tr class="row-even"><td><p><img alt="lift-cube" src="../../_images/franka_lift.jpg" /></p></td>
+<td><p><a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/lift/config/franka/joint_pos_env_cfg.py">Isaac-Lift-Cube-Franka-v0</a></p></td>
+<td><p>Pick a cube and bring it to a sampled target position with the Franka robot</p></td>
+</tr>
+<tr class="row-odd"><td><p><img alt="stack-cube" src="../../_images/franka_stack.jpg" /></p></td>
+<td><p><a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/stack/config/franka/stack_joint_pos_env_cfg.py">Isaac-Stack-Cube-Franka-v0</a></p></td>
+<td><p>Stack three cubes (bottom to top: blue, red, green) with the Franka robot</p></td>
+</tr>
+<tr class="row-even"><td><p><img alt="cabi-franka" src="../../_images/franka_open_drawer.jpg" /></p></td>
+<td><p><a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/cabinet/config/franka/joint_pos_env_cfg.py">Isaac-Open-Drawer-Franka-v0</a></p>
+<p><a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/direct/franka_cabinet/franka_cabinet_env.py">Isaac-Franka-Cabinet-Direct-v0</a></p>
+</td>
+<td><p>Grasp the handle of a cabinet’s drawer and open it with the Franka robot</p></td>
+</tr>
+<tr class="row-odd"><td><p><img alt="cube-allegro" src="../../_images/allegro_cube.jpg" /></p></td>
+<td><p><a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/inhand/config/allegro_hand/allegro_env_cfg.py">Isaac-Repose-Cube-Allegro-v0</a></p>
+<p><a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/direct/allegro_hand/allegro_hand_env_cfg.py">Isaac-Repose-Cube-Allegro-Direct-v0</a></p>
+</td>
+<td><p>In-hand reorientation of a cube using Allegro hand</p></td>
+</tr>
+<tr class="row-even"><td><p><img alt="cube-shadow" src="../../_images/shadow_cube.jpg" /></p></td>
+<td><p><a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/direct/shadow_hand/shadow_hand_env_cfg.py">Isaac-Repose-Cube-Shadow-Direct-v0</a></p>
+<p><a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/direct/shadow_hand/shadow_hand_env_cfg.py">Isaac-Repose-Cube-Shadow-OpenAI-FF-Direct-v0</a></p>
+<p><a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/direct/shadow_hand/shadow_hand_env_cfg.py">Isaac-Repose-Cube-Shadow-OpenAI-LSTM-Direct-v0</a></p>
+</td>
+<td><p>In-hand reorientation of a cube using Shadow hand</p></td>
+</tr>
+<tr class="row-odd"><td><p><img alt="cube-shadow" src="../../_images/shadow_cube.jpg" /></p></td>
+<td><p><a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/direct/shadow_hand/shadow_hand_vision_env.py">Isaac-Repose-Cube-Shadow-Vision-Direct-v0</a></p></td>
+<td><p>In-hand reorientation of a cube using Shadow hand using perceptive inputs</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="contact-rich-manipulation">
+<h3>Contact-rich Manipulation<a class="headerlink" href="#contact-rich-manipulation" title="Permalink to this heading">#</a></h3>
+<p>Environments based on contact-rich manipulation tasks such as peg insertion, gear meshing and nut-bolt fastening.</p>
+<p>These tasks share the same task configurations and control options. You can switch between them by specifying the task name.
+For example:</p>
+<ul class="simple">
+<li><p><a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/direct/factory/factory_env_cfg.py">Isaac-Factory-PegInsert-Direct-v0</a>: Peg insertion with the Franka arm</p></li>
+<li><p><a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/direct/factory/factory_env_cfg.py">Isaac-Factory-GearMesh-Direct-v0</a>: Gear meshing with the Franka arm</p></li>
+<li><p><a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/direct/factory/factory_env_cfg.py">Isaac-Factory-NutThread-Direct-v0</a>: Nut-Bolt fastening with the Franka arm</p></li>
+</ul>
+<div class="pst-scrollable-table-container"><table class="table">
+<colgroup>
+<col style="width: 33.0%" />
+<col style="width: 37.0%" />
+<col style="width: 30.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>World</p></th>
+<th class="head"><p>Environment ID</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><img alt="factory-peg" src="../../_images/peg_insert.jpg" /></p></td>
+<td><p><a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/direct/factory/factory_env_cfg.py">Isaac-Factory-PegInsert-Direct-v0</a></p></td>
+<td><p>Insert peg into the socket with the Franka robot</p></td>
+</tr>
+<tr class="row-odd"><td><p><img alt="factory-gear" src="../../_images/gear_mesh.jpg" /></p></td>
+<td><p><a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/direct/factory/factory_env_cfg.py">Isaac-Factory-GearMesh-Direct-v0</a></p></td>
+<td><p>Insert and mesh gear into the base with other gears, using the Franka robot</p></td>
+</tr>
+<tr class="row-even"><td><p><img alt="factory-nut" src="../../_images/nut_thread.jpg" /></p></td>
+<td><p><a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/direct/factory/factory_env_cfg.py">Isaac-Factory-NutThread-Direct-v0</a></p></td>
+<td><p>Thread the nut onto the first 2 threads of the bolt, using the Franka robot</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="locomotion">
+<h3>Locomotion<a class="headerlink" href="#locomotion" title="Permalink to this heading">#</a></h3>
+<p>Environments based on legged locomotion tasks.</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<colgroup>
+<col style="width: 33.0%" />
+<col style="width: 37.0%" />
+<col style="width: 30.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>World</p></th>
+<th class="head"><p>Environment ID</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><img alt="velocity-flat-anymal-b" src="../../_images/anymal_b_flat.jpg" /></p></td>
+<td><p><a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/locomotion/velocity/config/anymal_b/flat_env_cfg.py">Isaac-Velocity-Flat-Anymal-B-v0</a></p></td>
+<td><p>Track a velocity command on flat terrain with the Anymal B robot</p></td>
+</tr>
+<tr class="row-odd"><td><p><img alt="velocity-rough-anymal-b" src="../../_images/anymal_b_rough.jpg" /></p></td>
+<td><p><a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/locomotion/velocity/config/anymal_b/rough_env_cfg.py">Isaac-Velocity-Rough-Anymal-B-v0</a></p></td>
+<td><p>Track a velocity command on rough terrain with the Anymal B robot</p></td>
+</tr>
+<tr class="row-even"><td><p><img alt="velocity-flat-anymal-c" src="../../_images/anymal_c_flat.jpg" /></p></td>
+<td><p><a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/locomotion/velocity/config/anymal_c/flat_env_cfg.py">Isaac-Velocity-Flat-Anymal-C-v0</a></p>
+<p><a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/direct/anymal_c/anymal_c_env.py">Isaac-Velocity-Flat-Anymal-C-Direct-v0</a></p>
+</td>
+<td><p>Track a velocity command on flat terrain with the Anymal C robot</p></td>
+</tr>
+<tr class="row-odd"><td><p><img alt="velocity-rough-anymal-c" src="../../_images/anymal_c_rough.jpg" /></p></td>
+<td><p><a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/locomotion/velocity/config/anymal_c/rough_env_cfg.py">Isaac-Velocity-Rough-Anymal-C-v0</a></p>
+<p><a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/direct/anymal_c/anymal_c_env.py">Isaac-Velocity-Rough-Anymal-C-Direct-v0</a></p>
+</td>
+<td><p>Track a velocity command on rough terrain with the Anymal C robot</p></td>
+</tr>
+<tr class="row-even"><td><p><img alt="velocity-flat-anymal-d" src="../../_images/anymal_d_flat.jpg" /></p></td>
+<td><p><a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/locomotion/velocity/config/anymal_d/flat_env_cfg.py">Isaac-Velocity-Flat-Anymal-D-v0</a></p></td>
+<td><p>Track a velocity command on flat terrain with the Anymal D robot</p></td>
+</tr>
+<tr class="row-odd"><td><p><img alt="velocity-rough-anymal-d" src="../../_images/anymal_d_rough.jpg" /></p></td>
+<td><p><a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/locomotion/velocity/config/anymal_d/rough_env_cfg.py">Isaac-Velocity-Rough-Anymal-D-v0</a></p></td>
+<td><p>Track a velocity command on rough terrain with the Anymal D robot</p></td>
+</tr>
+<tr class="row-even"><td><p><img alt="velocity-flat-unitree-a1" src="../../_images/a1_flat.jpg" /></p></td>
+<td><p><a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/locomotion/velocity/config/a1/flat_env_cfg.py">Isaac-Velocity-Flat-Unitree-A1-v0</a></p></td>
+<td><p>Track a velocity command on flat terrain with the Unitree A1 robot</p></td>
+</tr>
+<tr class="row-odd"><td><p><img alt="velocity-rough-unitree-a1" src="../../_images/a1_rough.jpg" /></p></td>
+<td><p><a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/locomotion/velocity/config/a1/rough_env_cfg.py">Isaac-Velocity-Rough-Unitree-A1-v0</a></p></td>
+<td><p>Track a velocity command on rough terrain with the Unitree A1 robot</p></td>
+</tr>
+<tr class="row-even"><td><p><img alt="velocity-flat-unitree-go1" src="../../_images/go1_flat.jpg" /></p></td>
+<td><p><a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/locomotion/velocity/config/go1/flat_env_cfg.py">Isaac-Velocity-Flat-Unitree-Go1-v0</a></p></td>
+<td><p>Track a velocity command on flat terrain with the Unitree Go1 robot</p></td>
+</tr>
+<tr class="row-odd"><td><p><img alt="velocity-rough-unitree-go1" src="../../_images/go1_rough.jpg" /></p></td>
+<td><p><a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/locomotion/velocity/config/go1/rough_env_cfg.py">Isaac-Velocity-Rough-Unitree-Go1-v0</a></p></td>
+<td><p>Track a velocity command on rough terrain with the Unitree Go1 robot</p></td>
+</tr>
+<tr class="row-even"><td><p><img alt="velocity-flat-unitree-go2" src="../../_images/go2_flat.jpg" /></p></td>
+<td><p><a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/locomotion/velocity/config/go2/flat_env_cfg.py">Isaac-Velocity-Flat-Unitree-Go2-v0</a></p></td>
+<td><p>Track a velocity command on flat terrain with the Unitree Go2 robot</p></td>
+</tr>
+<tr class="row-odd"><td><p><img alt="velocity-rough-unitree-go2" src="../../_images/go2_rough.jpg" /></p></td>
+<td><p><a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/locomotion/velocity/config/go2/rough_env_cfg.py">Isaac-Velocity-Rough-Unitree-Go2-v0</a></p></td>
+<td><p>Track a velocity command on rough terrain with the Unitree Go2 robot</p></td>
+</tr>
+<tr class="row-even"><td><p><img alt="velocity-flat-spot" src="../../_images/spot_flat.jpg" /></p></td>
+<td><p><a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/locomotion/velocity/config/spot/flat_env_cfg.py">Isaac-Velocity-Flat-Spot-v0</a></p></td>
+<td><p>Track a velocity command on flat terrain with the Boston Dynamics Spot robot</p></td>
+</tr>
+<tr class="row-odd"><td><p><img alt="velocity-flat-h1" src="../../_images/h1_flat.jpg" /></p></td>
+<td><p><a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/locomotion/velocity/config/h1/flat_env_cfg.py">Isaac-Velocity-Flat-H1-v0</a></p></td>
+<td><p>Track a velocity command on flat terrain with the Unitree H1 robot</p></td>
+</tr>
+<tr class="row-even"><td><p><img alt="velocity-rough-h1" src="../../_images/h1_rough.jpg" /></p></td>
+<td><p><a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/locomotion/velocity/config/h1/rough_env_cfg.py">Isaac-Velocity-Rough-H1-v0</a></p></td>
+<td><p>Track a velocity command on rough terrain with the Unitree H1 robot</p></td>
+</tr>
+<tr class="row-odd"><td><p><img alt="velocity-flat-g1" src="../../_images/g1_flat.jpg" /></p></td>
+<td><p><a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/locomotion/velocity/config/g1/flat_env_cfg.py">Isaac-Velocity-Flat-G1-v0</a></p></td>
+<td><p>Track a velocity command on flat terrain with the Unitree G1 robot</p></td>
+</tr>
+<tr class="row-even"><td><p><img alt="velocity-rough-g1" src="../../_images/g1_rough.jpg" /></p></td>
+<td><p><a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/locomotion/velocity/config/g1/rough_env_cfg.py">Isaac-Velocity-Rough-G1-v0</a></p></td>
+<td><p>Track a velocity command on rough terrain with the Unitree G1 robot</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="navigation">
+<h3>Navigation<a class="headerlink" href="#navigation" title="Permalink to this heading">#</a></h3>
+<div class="pst-scrollable-table-container"><table class="table">
+<colgroup>
+<col style="width: 33.0%" />
+<col style="width: 37.0%" />
+<col style="width: 30.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>World</p></th>
+<th class="head"><p>Environment ID</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><img alt="anymal_c_nav" src="../../_images/anymal_c_nav.jpg" /></p></td>
+<td><p><a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/navigation/config/anymal_c/navigation_env_cfg.py">Isaac-Navigation-Flat-Anymal-C-v0</a></p></td>
+<td><p>Navigate towards a target x-y position and heading with the ANYmal C robot.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="others">
+<h3>Others<a class="headerlink" href="#others" title="Permalink to this heading">#</a></h3>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Adversarial Motion Priors (AMP) training is only available with the <cite>skrl</cite> library, as it is the only one of the currently
+integrated libraries that supports it out-of-the-box (for the other libraries, it is necessary to implement the algorithm and architectures).
+See the <a class="reference external" href="https://skrl.readthedocs.io/en/latest/api/agents/amp.html">skrl’s AMP Documentation</a> for more information.
+The AMP algorithm can be activated by adding the command line input <code class="docutils literal notranslate"><span class="pre">--algorithm</span> <span class="pre">AMP</span></code> to the train/play script.</p>
+<p>For evaluation, the play script’s command line input <code class="docutils literal notranslate"><span class="pre">--real-time</span></code> allows the interaction loop between the environment and the agent to run in real time, if possible.</p>
+</div>
+<div class="pst-scrollable-table-container"><table class="table">
+<colgroup>
+<col style="width: 33.0%" />
+<col style="width: 37.0%" />
+<col style="width: 30.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>World</p></th>
+<th class="head"><p>Environment ID</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><img alt="quadcopter" src="../../_images/quadcopter.jpg" /></p></td>
+<td><p><a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/direct/quadcopter/quadcopter_env.py">Isaac-Quadcopter-Direct-v0</a></p></td>
+<td><p>Fly and hover the Crazyflie copter at a goal point by applying thrust.</p></td>
+</tr>
+<tr class="row-odd"><td><p><img alt="humanoid_amp" src="../../_images/humanoid_amp.jpg" /></p></td>
+<td><p><a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/direct/humanoid_amp/humanoid_amp_env_cfg.py">Isaac-Humanoid-AMP-Dance-Direct-v0</a></p>
+<p><a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/direct/humanoid_amp/humanoid_amp_env_cfg.py">Isaac-Humanoid-AMP-Run-Direct-v0</a></p>
+<p><a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/direct/humanoid_amp/humanoid_amp_env_cfg.py">Isaac-Humanoid-AMP-Walk-Direct-v0</a></p>
+</td>
+<td><p>Move a humanoid robot by imitating different pre-recorded human animations
+(Adversarial Motion Priors).</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+</section>
+<section id="multi-agent">
+<h2>Multi-agent<a class="headerlink" href="#multi-agent" title="Permalink to this heading">#</a></h2>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>True mutli-agent training is only available with the <cite>skrl</cite> library, see the <a class="reference external" href="https://skrl.readthedocs.io/en/latest/api/multi_agents.html">Multi-Agents Documentation</a> for more information.
+It supports the <cite>IPPO</cite> and <cite>MAPPO</cite> algorithms, which can be activated by adding the command line input <code class="docutils literal notranslate"><span class="pre">--algorithm</span> <span class="pre">IPPO</span></code> or <code class="docutils literal notranslate"><span class="pre">--algorithm</span> <span class="pre">MAPPO</span></code> to the train/play script.
+If these environments are run with other libraries or without the <cite>IPPO</cite> or <cite>MAPPO</cite> flags, they will be converted to single-agent environments under the hood.</p>
+</div>
+<section id="id1">
+<h3>Classic<a class="headerlink" href="#id1" title="Permalink to this heading">#</a></h3>
+<div class="pst-scrollable-table-container"><table class="table">
+<colgroup>
+<col style="width: 33.0%" />
+<col style="width: 37.0%" />
+<col style="width: 30.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>World</p></th>
+<th class="head"><p>Environment ID</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><img alt="cart-double-pendulum" src="../../_images/cart_double_pendulum.jpg" /></p></td>
+<td><p><a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/direct/cart_double_pendulum/cart_double_pendulum_env.py">Isaac-Cart-Double-Pendulum-Direct-v0</a></p></td>
+<td><p>Move the cart and the pendulum to keep the last one upwards in the classic inverted double pendulum on a cart control</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="id2">
+<h3>Manipulation<a class="headerlink" href="#id2" title="Permalink to this heading">#</a></h3>
+<p>Environments based on fixed-arm manipulation tasks.</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<colgroup>
+<col style="width: 33.0%" />
+<col style="width: 37.0%" />
+<col style="width: 30.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>World</p></th>
+<th class="head"><p>Environment ID</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><img alt="shadow-hand-over" src="../../_images/shadow_hand_over.jpg" /></p></td>
+<td><p><a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/direct/shadow_hand_over/shadow_hand_over_env.py">Isaac-Shadow-Hand-Over-Direct-v0</a></p></td>
+<td><p>Passing an object from one hand over to the other hand</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+</section>
+</section>
+<section id="comprehensive-list-of-environments">
+<h1>Comprehensive List of Environments<a class="headerlink" href="#comprehensive-list-of-environments" title="Permalink to this heading">#</a></h1>
+<div class="pst-scrollable-table-container"><table class="table">
+<colgroup>
+<col style="width: 32.4%" />
+<col style="width: 24.5%" />
+<col style="width: 18.6%" />
+<col style="width: 24.5%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p><strong>Task Name</strong></p></td>
+<td><p><strong>Inference Task Name</strong></p></td>
+<td><p><strong>Workflow</strong></p></td>
+<td><p><strong>RL Library</strong></p></td>
+</tr>
+<tr class="row-even"><td><p>Isaac-Ant-Direct-v0</p></td>
+<td></td>
+<td><p>Direct</p></td>
+<td><p><strong>rl_games</strong> (PPO), <strong>rsl_rl</strong> (PPO), <strong>skrl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-odd"><td><p>Isaac-Ant-v0</p></td>
+<td></td>
+<td><p>Manager Based</p></td>
+<td><p><strong>rsl_rl</strong> (PPO), <strong>rl_games</strong> (PPO), <strong>skrl</strong> (PPO), <strong>sb3</strong> (PPO)</p></td>
+</tr>
+<tr class="row-even"><td><p>Isaac-Cart-Double-Pendulum-Direct-v0</p></td>
+<td></td>
+<td><p>Direct</p></td>
+<td><p><strong>rl_games</strong> (PPO), <strong>skrl</strong> (IPPO, PPO, MAPPO)</p></td>
+</tr>
+<tr class="row-odd"><td><p>Isaac-Cartpole-Depth-Camera-Direct-v0</p></td>
+<td></td>
+<td><p>Direct</p></td>
+<td><p><strong>rl_games</strong> (PPO), <strong>skrl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-even"><td><p>Isaac-Cartpole-Depth-v0</p></td>
+<td></td>
+<td><p>Manager Based</p></td>
+<td><p><strong>rl_games</strong> (PPO)</p></td>
+</tr>
+<tr class="row-odd"><td><p>Isaac-Cartpole-Direct-v0</p></td>
+<td></td>
+<td><p>Direct</p></td>
+<td><p><strong>rl_games</strong> (PPO), <strong>rsl_rl</strong> (PPO), <strong>skrl</strong> (PPO), <strong>sb3</strong> (PPO)</p></td>
+</tr>
+<tr class="row-even"><td><p>Isaac-Cartpole-RGB-Camera-Direct-v0</p></td>
+<td></td>
+<td><p>Direct</p></td>
+<td><p><strong>rl_games</strong> (PPO), <strong>skrl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-odd"><td><p>Isaac-Cartpole-RGB-ResNet18-v0</p></td>
+<td></td>
+<td><p>Manager Based</p></td>
+<td><p><strong>rl_games</strong> (PPO)</p></td>
+</tr>
+<tr class="row-even"><td><p>Isaac-Cartpole-RGB-TheiaTiny-v0</p></td>
+<td></td>
+<td><p>Manager Based</p></td>
+<td><p><strong>rl_games</strong> (PPO)</p></td>
+</tr>
+<tr class="row-odd"><td><p>Isaac-Cartpole-RGB-v0</p></td>
+<td></td>
+<td><p>Manager Based</p></td>
+<td><p><strong>rl_games</strong> (PPO)</p></td>
+</tr>
+<tr class="row-even"><td><p>Isaac-Cartpole-v0</p></td>
+<td></td>
+<td><p>Manager Based</p></td>
+<td><p><strong>rl_games</strong> (PPO), <strong>rsl_rl</strong> (PPO), <strong>skrl</strong> (PPO), <strong>sb3</strong> (PPO)</p></td>
+</tr>
+<tr class="row-odd"><td><p>Isaac-Factory-GearMesh-Direct-v0</p></td>
+<td></td>
+<td><p>Direct</p></td>
+<td><p><strong>rl_games</strong> (PPO)</p></td>
+</tr>
+<tr class="row-even"><td><p>Isaac-Factory-NutThread-Direct-v0</p></td>
+<td></td>
+<td><p>Direct</p></td>
+<td><p><strong>rl_games</strong> (PPO)</p></td>
+</tr>
+<tr class="row-odd"><td><p>Isaac-Factory-PegInsert-Direct-v0</p></td>
+<td></td>
+<td><p>Direct</p></td>
+<td><p><strong>rl_games</strong> (PPO)</p></td>
+</tr>
+<tr class="row-even"><td><p>Isaac-Franka-Cabinet-Direct-v0</p></td>
+<td></td>
+<td><p>Direct</p></td>
+<td><p><strong>rl_games</strong> (PPO), <strong>rsl_rl</strong> (PPO), <strong>skrl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-odd"><td><p>Isaac-Humanoid-AMP-Dance-Direct-v0</p></td>
+<td></td>
+<td><p>Direct</p></td>
+<td><p><strong>skrl</strong> (AMP)</p></td>
+</tr>
+<tr class="row-even"><td><p>Isaac-Humanoid-AMP-Run-Direct-v0</p></td>
+<td></td>
+<td><p>Direct</p></td>
+<td><p><strong>skrl</strong> (AMP)</p></td>
+</tr>
+<tr class="row-odd"><td><p>Isaac-Humanoid-AMP-Walk-Direct-v0</p></td>
+<td></td>
+<td><p>Direct</p></td>
+<td><p><strong>skrl</strong> (AMP)</p></td>
+</tr>
+<tr class="row-even"><td><p>Isaac-Humanoid-Direct-v0</p></td>
+<td></td>
+<td><p>Direct</p></td>
+<td><p><strong>rl_games</strong> (PPO), <strong>rsl_rl</strong> (PPO), <strong>skrl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-odd"><td><p>Isaac-Humanoid-v0</p></td>
+<td></td>
+<td><p>Manager Based</p></td>
+<td><p><strong>rsl_rl</strong> (PPO), <strong>rl_games</strong> (PPO), <strong>skrl</strong> (PPO), <strong>sb3</strong> (PPO)</p></td>
+</tr>
+<tr class="row-even"><td><p>Isaac-Lift-Cube-Franka-IK-Abs-v0</p></td>
+<td></td>
+<td><p>Manager Based</p></td>
+<td></td>
+</tr>
+<tr class="row-odd"><td><p>Isaac-Lift-Cube-Franka-IK-Rel-v0</p></td>
+<td></td>
+<td><p>Manager Based</p></td>
+<td></td>
+</tr>
+<tr class="row-even"><td><p>Isaac-Lift-Cube-Franka-v0</p></td>
+<td><p>Isaac-Lift-Cube-Franka-Play-v0</p></td>
+<td><p>Manager Based</p></td>
+<td><p><strong>rsl_rl</strong> (PPO), <strong>skrl</strong> (PPO), <strong>rl_games</strong> (PPO), <strong>sb3</strong> (PPO)</p></td>
+</tr>
+<tr class="row-odd"><td><p>Isaac-Lift-Teddy-Bear-Franka-IK-Abs-v0</p></td>
+<td></td>
+<td><p>Manager Based</p></td>
+<td></td>
+</tr>
+<tr class="row-even"><td><p>Isaac-Navigation-Flat-Anymal-C-v0</p></td>
+<td><p>Isaac-Navigation-Flat-Anymal-C-Play-v0</p></td>
+<td><p>Manager Based</p></td>
+<td><p><strong>rsl_rl</strong> (PPO), <strong>skrl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-odd"><td><p>Isaac-Open-Drawer-Franka-IK-Abs-v0</p></td>
+<td></td>
+<td><p>Manager Based</p></td>
+<td></td>
+</tr>
+<tr class="row-even"><td><p>Isaac-Open-Drawer-Franka-IK-Rel-v0</p></td>
+<td></td>
+<td><p>Manager Based</p></td>
+<td></td>
+</tr>
+<tr class="row-odd"><td><p>Isaac-Open-Drawer-Franka-v0</p></td>
+<td><p>Isaac-Open-Drawer-Franka-Play-v0</p></td>
+<td><p>Manager Based</p></td>
+<td><p><strong>rsl_rl</strong> (PPO), <strong>rl_games</strong> (PPO), <strong>skrl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-even"><td><p>Isaac-Quadcopter-Direct-v0</p></td>
+<td></td>
+<td><p>Direct</p></td>
+<td><p><strong>rl_games</strong> (PPO), <strong>rsl_rl</strong> (PPO), <strong>skrl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-odd"><td><p>Isaac-Reach-Franka-IK-Abs-v0</p></td>
+<td></td>
+<td><p>Manager Based</p></td>
+<td></td>
+</tr>
+<tr class="row-even"><td><p>Isaac-Reach-Franka-IK-Rel-v0</p></td>
+<td></td>
+<td><p>Manager Based</p></td>
+<td></td>
+</tr>
+<tr class="row-odd"><td><p>Isaac-Reach-Franka-OSC-v0</p></td>
+<td><p>Isaac-Reach-Franka-OSC-Play-v0</p></td>
+<td><p>Manager Based</p></td>
+<td><p><strong>rsl_rl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-even"><td><p>Isaac-Reach-Franka-v0</p></td>
+<td><p>Isaac-Reach-Franka-Play-v0</p></td>
+<td><p>Manager Based</p></td>
+<td><p><strong>rl_games</strong> (PPO), <strong>rsl_rl</strong> (PPO), <strong>skrl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-odd"><td><p>Isaac-Reach-UR10-v0</p></td>
+<td><p>Isaac-Reach-UR10-Play-v0</p></td>
+<td><p>Manager Based</p></td>
+<td><p><strong>rl_games</strong> (PPO), <strong>rsl_rl</strong> (PPO), <strong>skrl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-even"><td><p>Isaac-Repose-Cube-Allegro-Direct-v0</p></td>
+<td></td>
+<td><p>Direct</p></td>
+<td><p><strong>rl_games</strong> (PPO), <strong>rsl_rl</strong> (PPO), <strong>skrl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-odd"><td><p>Isaac-Repose-Cube-Allegro-NoVelObs-v0</p></td>
+<td><p>Isaac-Repose-Cube-Allegro-NoVelObs-Play-v0</p></td>
+<td><p>Manager Based</p></td>
+<td><p><strong>rsl_rl</strong> (PPO), <strong>rl_games</strong> (PPO), <strong>skrl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-even"><td><p>Isaac-Repose-Cube-Allegro-v0</p></td>
+<td><p>Isaac-Repose-Cube-Allegro-Play-v0</p></td>
+<td><p>Manager Based</p></td>
+<td><p><strong>rsl_rl</strong> (PPO), <strong>rl_games</strong> (PPO), <strong>skrl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-odd"><td><p>Isaac-Repose-Cube-Shadow-Direct-v0</p></td>
+<td></td>
+<td><p>Direct</p></td>
+<td><p><strong>rl_games</strong> (PPO), <strong>rsl_rl</strong> (PPO), <strong>skrl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-even"><td><p>Isaac-Repose-Cube-Shadow-OpenAI-FF-Direct-v0</p></td>
+<td></td>
+<td><p>Direct</p></td>
+<td><p><strong>rl_games</strong> (FF), <strong>rsl_rl</strong> (PPO), <strong>skrl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-odd"><td><p>Isaac-Repose-Cube-Shadow-OpenAI-LSTM-Direct-v0</p></td>
+<td></td>
+<td><p>Direct</p></td>
+<td><p><strong>rl_games</strong> (LSTM)</p></td>
+</tr>
+<tr class="row-even"><td><p>Isaac-Repose-Cube-Shadow-Vision-Direct-v0</p></td>
+<td><p>Isaac-Repose-Cube-Shadow-Vision-Direct-Play-v0</p></td>
+<td><p>Direct</p></td>
+<td><p><strong>rsl_rl</strong> (PPO), <strong>rl_games</strong> (VISION)</p></td>
+</tr>
+<tr class="row-odd"><td><p>Isaac-Shadow-Hand-Over-Direct-v0</p></td>
+<td></td>
+<td><p>Direct</p></td>
+<td><p><strong>rl_games</strong> (PPO), <strong>skrl</strong> (IPPO, PPO, MAPPO)</p></td>
+</tr>
+<tr class="row-even"><td><p>Isaac-Stack-Cube-Franka-IK-Rel-v0</p></td>
+<td></td>
+<td><p>Manager Based</p></td>
+<td></td>
+</tr>
+<tr class="row-odd"><td><p>Isaac-Stack-Cube-Franka-v0</p></td>
+<td></td>
+<td><p>Manager Based</p></td>
+<td></td>
+</tr>
+<tr class="row-even"><td><p>Isaac-Stack-Cube-Instance-Randomize-Franka-IK-Rel-v0</p></td>
+<td></td>
+<td><p>Manager Based</p></td>
+<td></td>
+</tr>
+<tr class="row-odd"><td><p>Isaac-Stack-Cube-Instance-Randomize-Franka-v0</p></td>
+<td></td>
+<td><p>Manager Based</p></td>
+<td></td>
+</tr>
+<tr class="row-even"><td><p>Isaac-Velocity-Flat-Anymal-B-v0</p></td>
+<td><p>Isaac-Velocity-Flat-Anymal-B-Play-v0</p></td>
+<td><p>Manager Based</p></td>
+<td><p><strong>rsl_rl</strong> (PPO), <strong>skrl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-odd"><td><p>Isaac-Velocity-Flat-Anymal-C-Direct-v0</p></td>
+<td></td>
+<td><p>Direct</p></td>
+<td><p><strong>rl_games</strong> (PPO), <strong>rsl_rl</strong> (PPO), <strong>skrl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-even"><td><p>Isaac-Velocity-Flat-Anymal-C-v0</p></td>
+<td><p>Isaac-Velocity-Flat-Anymal-C-Play-v0</p></td>
+<td><p>Manager Based</p></td>
+<td><p><strong>rsl_rl</strong> (PPO), <strong>rl_games</strong> (PPO), <strong>skrl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-odd"><td><p>Isaac-Velocity-Flat-Anymal-D-v0</p></td>
+<td><p>Isaac-Velocity-Flat-Anymal-D-Play-v0</p></td>
+<td><p>Manager Based</p></td>
+<td><p><strong>rsl_rl</strong> (PPO), <strong>skrl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-even"><td><p>Isaac-Velocity-Flat-Cassie-v0</p></td>
+<td><p>Isaac-Velocity-Flat-Cassie-Play-v0</p></td>
+<td><p>Manager Based</p></td>
+<td><p><strong>rsl_rl</strong> (PPO), <strong>skrl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-odd"><td><p>Isaac-Velocity-Flat-G1-v0</p></td>
+<td><p>Isaac-Velocity-Flat-G1-Play-v0</p></td>
+<td><p>Manager Based</p></td>
+<td><p><strong>rsl_rl</strong> (PPO), <strong>skrl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-even"><td><p>Isaac-Velocity-Flat-H1-v0</p></td>
+<td><p>Isaac-Velocity-Flat-H1-Play-v0</p></td>
+<td><p>Manager Based</p></td>
+<td><p><strong>rsl_rl</strong> (PPO), <strong>skrl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-odd"><td><p>Isaac-Velocity-Flat-Spot-v0</p></td>
+<td><p>Isaac-Velocity-Flat-Spot-Play-v0</p></td>
+<td><p>Manager Based</p></td>
+<td><p><strong>rsl_rl</strong> (PPO), <strong>skrl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-even"><td><p>Isaac-Velocity-Flat-Unitree-A1-v0</p></td>
+<td><p>Isaac-Velocity-Flat-Unitree-A1-Play-v0</p></td>
+<td><p>Manager Based</p></td>
+<td><p><strong>rsl_rl</strong> (PPO), <strong>skrl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-odd"><td><p>Isaac-Velocity-Flat-Unitree-Go1-v0</p></td>
+<td><p>Isaac-Velocity-Flat-Unitree-Go1-Play-v0</p></td>
+<td><p>Manager Based</p></td>
+<td><p><strong>rsl_rl</strong> (PPO), <strong>skrl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-even"><td><p>Isaac-Velocity-Flat-Unitree-Go2-v0</p></td>
+<td><p>Isaac-Velocity-Flat-Unitree-Go2-Play-v0</p></td>
+<td><p>Manager Based</p></td>
+<td><p><strong>rsl_rl</strong> (PPO), <strong>skrl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-odd"><td><p>Isaac-Velocity-Rough-Anymal-B-v0</p></td>
+<td><p>Isaac-Velocity-Rough-Anymal-B-Play-v0</p></td>
+<td><p>Manager Based</p></td>
+<td><p><strong>rsl_rl</strong> (PPO), <strong>skrl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-even"><td><p>Isaac-Velocity-Rough-Anymal-C-Direct-v0</p></td>
+<td></td>
+<td><p>Direct</p></td>
+<td><p><strong>rl_games</strong> (PPO), <strong>rsl_rl</strong> (PPO), <strong>skrl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-odd"><td><p>Isaac-Velocity-Rough-Anymal-C-v0</p></td>
+<td><p>Isaac-Velocity-Rough-Anymal-C-Play-v0</p></td>
+<td><p>Manager Based</p></td>
+<td><p><strong>rl_games</strong> (PPO), <strong>rsl_rl</strong> (PPO), <strong>skrl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-even"><td><p>Isaac-Velocity-Rough-Anymal-D-v0</p></td>
+<td><p>Isaac-Velocity-Rough-Anymal-D-Play-v0</p></td>
+<td><p>Manager Based</p></td>
+<td><p><strong>rsl_rl</strong> (PPO), <strong>skrl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-odd"><td><p>Isaac-Velocity-Rough-Cassie-v0</p></td>
+<td><p>Isaac-Velocity-Rough-Cassie-Play-v0</p></td>
+<td><p>Manager Based</p></td>
+<td><p><strong>rsl_rl</strong> (PPO), <strong>skrl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-even"><td><p>Isaac-Velocity-Rough-G1-v0</p></td>
+<td><p>Isaac-Velocity-Rough-G1-Play-v0</p></td>
+<td><p>Manager Based</p></td>
+<td><p><strong>rsl_rl</strong> (PPO), <strong>skrl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-odd"><td><p>Isaac-Velocity-Rough-H1-v0</p></td>
+<td><p>Isaac-Velocity-Rough-H1-Play-v0</p></td>
+<td><p>Manager Based</p></td>
+<td><p><strong>rsl_rl</strong> (PPO), <strong>skrl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-even"><td><p>Isaac-Velocity-Rough-Unitree-A1-v0</p></td>
+<td><p>Isaac-Velocity-Rough-Unitree-A1-Play-v0</p></td>
+<td><p>Manager Based</p></td>
+<td><p><strong>rsl_rl</strong> (PPO), <strong>skrl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-odd"><td><p>Isaac-Velocity-Rough-Unitree-Go1-v0</p></td>
+<td><p>Isaac-Velocity-Rough-Unitree-Go1-Play-v0</p></td>
+<td><p>Manager Based</p></td>
+<td><p><strong>rsl_rl</strong> (PPO), <strong>skrl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-even"><td><p>Isaac-Velocity-Rough-Unitree-Go2-v0</p></td>
+<td><p>Isaac-Velocity-Rough-Unitree-Go2-Play-v0</p></td>
+<td><p>Manager Based</p></td>
+<td><p><strong>rsl_rl</strong> (PPO), <strong>skrl</strong> (PPO)</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+
+
+                </article>
+              
+
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="sensors/ray_caster.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">Ray Caster</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="reinforcement-learning/index.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Reinforcement Learning</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+  <div class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> Contents
+  </div>
+  <nav class="bd-toc-nav page-toc">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#">Available Environments</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#single-agent">Single-agent</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#classic">Classic</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#manipulation">Manipulation</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#contact-rich-manipulation">Contact-rich Manipulation</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#locomotion">Locomotion</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#navigation">Navigation</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#others">Others</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#multi-agent">Multi-agent</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id1">Classic</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id2">Manipulation</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#comprehensive-list-of-environments">Comprehensive List of Environments</a></li>
+</ul>
+
+  </nav></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+<div class="bd-footer-content__inner container">
+  
+  <div class="footer-item">
+    
+<p class="component-author">
+By The Isaac Lab Project Developers.
+</p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+
+  <p class="copyright">
+    
+      © Copyright 2022-2025, The Isaac Lab Project Developers..
+      <br/>
+    
+  </p>
+
+  </div>
+  
+  <div class="footer-item">
+    <p class="last-updated">
+  Last updated on Jan 31, 2025.
+  <br/>
+</p>
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+</div>
+          </footer>
+        
+
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+  </footer>
+  </body>
+</html>

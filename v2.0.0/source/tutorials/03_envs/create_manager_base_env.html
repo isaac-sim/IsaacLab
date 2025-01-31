@@ -1,0 +1,1180 @@
+
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
+
+    <title>Creating a Manager-Based Base Environment &#8212; Isaac Lab Documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../../../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css" />
+    <link rel="stylesheet" href="../../../_static/styles/sphinx-book-theme.css?digest=14f4ca6b54d191a8c7657f6c759bf11a5fb86285" type="text/css" />
+    <link rel="stylesheet" type="text/css" href="/opt/hostedtoolcache/Python/3.10.16/x64/lib/python3.10/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/css/all.min.css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/custom.css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/sphinx-design.4cbf315f70debaebd550c87a6162cf0f.min.css" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../../../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script data-url_root="../../../" id="documentation_options" src="../../../_static/documentation_options.js"></script>
+    <script src="../../../_static/doctools.js"></script>
+    <script src="../../../_static/sphinx_highlight.js"></script>
+    <script src="/opt/hostedtoolcache/Python/3.10.16/x64/lib/python3.10/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/js/all.min.js"></script>
+    <script src="../../../_static/clipboard.min.js"></script>
+    <script src="../../../_static/copybutton.js"></script>
+    <script src="../../../_static/scripts/sphinx-book-theme.js?digest=5a5c038af52cf7bc1a1ec88eea08e6366ee68824"></script>
+    <script src="../../../_static/design-tabs.js"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'source/tutorials/03_envs/create_manager_base_env';</script>
+    <link rel="icon" href="../../../_static/favicon.ico"/>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+    <link rel="next" title="Creating a Manager-Based RL Environment" href="create_manager_rl_env.html" />
+    <link rel="prev" title="Using the Interactive Scene" href="../02_scene/create_scene.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="2.0.0" />
+    <meta name="docbuild:last-update" content="Jan 31, 2025"/>
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+    
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../../../_static/NVIDIA-logo-white.png" class="logo__image only-light" alt=""/>
+    <img src="../../../_static/NVIDIA-logo-black.png" class="logo__image only-dark pst-js-only" alt=""/>
+  
+  
+    <p class="title logo__title">Isaac Lab Documentation</p>
+  
+</a></div>
+        <div class="sidebar-primary-item">
+<nav class="bd-links bd-docs-nav">
+    <div class="bd-toc-item navbar-nav">
+      <ul class="nav bd-sidenav">
+        <li class="toctree-l1 has-children" style="display: flex; justify-content: center; align-items: center; flex-direction: column;">
+          <div  style ="text-align:center;">
+            <label for="version-select" style="font-weight: bold; display: block;">Version</label>
+          </div>
+          <select id="version-select" class="version-dropdown" style="margin: 0 auto; display: block;" onchange="location = this.value;">
+            <option value="../../../../main/source/tutorials/03_envs/create_manager_base_env.html" >main</option>
+            <option value="create_manager_base_env.html" selected>v2.0.0</option>
+            <option value="../../../../v1.4.1/source/tutorials/03_envs/create_manager_base_env.html" >v1.4.1</option>
+            <option value="../../../../v1.4.0/source/tutorials/03_envs/create_manager_base_env.html" >v1.4.0</option>
+            <option value="../../../../v1.3.0/source/tutorials/03_envs/create_manager_base_env.html" >v1.3.0</option>
+            <option value="../../../../v1.2.0/source/tutorials/03_envs/create_manager_base_env.html" >v1.2.0</option>
+            <option value="../../../../v1.1.0/source/tutorials/03_envs/create_manager_base_env.html" >v1.1.0</option>
+            <option value="../../../../v1.0.0/source/tutorials/03_envs/create_manager_base_env.html" >v1.0.0</option>
+          </select>
+        </li>
+      </ul>
+    </div>
+</nav>
+</div>
+        <div class="sidebar-primary-item"><ul class="navbar-icon-links"
+    aria-label="Quick Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/isaac-sim/IsaacLab" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.5.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+        </li>
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://img.shields.io/github/stars/isaac-sim/IsaacLab?color=fedcba" title="Stars" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/github/stars/isaac-sim/IsaacLab?color=fedcba" class="icon-link-image" alt="Stars"/></a>
+        </li>
+</ul></div>
+        <div class="sidebar-primary-item">
+<form class="bd-search d-flex align-items-center"
+      action="../../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form></div>
+        <div class="sidebar-primary-item"><nav class="bd-links" id="bd-docs-nav" aria-label="Main">
+    <div class="bd-toc-item navbar-nav active">
+        <p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../setup/ecosystem.html">Isaac Lab Ecosystem</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../setup/installation/index.html">Local Installation</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/installation/pip_installation.html">Pip installation (recommended for Ubuntu 22.04 and Windows)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/installation/binaries_installation.html">Binary installation (recommended for Ubuntu 20.04)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/installation/isaaclab_pip_installation.html">Advanced installation (Isaac Lab pip)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/installation/asset_caching.html">Asset caching</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../../setup/installation/cloud_installation.html">Running Isaac Lab in the Cloud</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../setup/faq.html">Frequently Asked Questions</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Overview</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../overview/developer-guide/index.html">Developer’s Guide</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/developer-guide/vs_code.html">Setting up Visual Studio Code</a></li>
+
+<li class="toctree-l2"><a class="reference internal" href="../../overview/developer-guide/repo_structure.html">Repository organization</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/developer-guide/development.html">Extension Development</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/developer-guide/template.html">Building your Own Project</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../overview/core-concepts/index.html">Core Concepts</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/core-concepts/task_workflows.html">Task Design Workflows</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/core-concepts/actuators.html">Actuators</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../overview/sensors/index.html">Sensors</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/sensors/camera.html">Camera</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/sensors/contact_sensor.html">Contact Sensor</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/sensors/frame_transformer.html">Frame Transformer</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/sensors/imu.html">Inertial Measurement Unit (IMU)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/sensors/ray_caster.html">Ray Caster</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../../overview/environments.html">Available Environments</a></li>
+
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../overview/reinforcement-learning/index.html">Reinforcement Learning</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/reinforcement-learning/rl_existing_scripts.html">Reinforcement Learning Wrappers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/reinforcement-learning/rl_frameworks.html">Reinforcement Learning Library Comparison</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/reinforcement-learning/performance_benchmarks.html">Performance Benchmarks</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/reinforcement-learning/training_guide.html">Debugging and Training Guide</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../../overview/teleop_imitation.html">Teleoperation and Imitation Learning</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../overview/showroom.html">Showroom Demos</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../overview/simple_agents.html">Simple Agents</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Features</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../features/hydra.html">Hydra Configuration System</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../features/multi_gpu.html">Multi-GPU and Multi-Node Training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../overview/sensors/camera.html">Tiled Rendering</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../features/ray.html">Ray Job Dispatch and Tuning</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../features/reproducibility.html">Reproducibility and Determinism</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Resources</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1 current active has-children"><a class="reference internal" href="../index.html">Tutorials</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="../00_sim/create_empty.html">Creating an empty scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../00_sim/spawn_prims.html">Spawning prims into the scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../00_sim/launch_app.html">Deep-dive into AppLauncher</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../01_assets/run_rigid_object.html">Interacting with a rigid object</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../01_assets/run_articulation.html">Interacting with an articulation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../01_assets/run_deformable_object.html">Interacting with a deformable object</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../02_scene/create_scene.html">Using the Interactive Scene</a></li>
+<li class="toctree-l2 current active"><a class="current reference internal" href="#">Creating a Manager-Based Base Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="create_manager_rl_env.html">Creating a Manager-Based RL Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="create_direct_rl_env.html">Creating a Direct Workflow RL Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="register_rl_env_gym.html">Registering an Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="run_rl_training.html">Training with an RL Agent</a></li>
+<li class="toctree-l2"><a class="reference internal" href="modify_direct_rl_env.html">Modifying an existing Direct RL Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="policy_inference_in_usd.html">Policy Inference in USD Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../04_sensors/add_sensors_on_robot.html">Adding sensors on a robot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../05_controllers/run_diff_ik.html">Using a task-space controller</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../05_controllers/run_osc.html">Using an operational space controller</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../how-to/index.html">How-to Guides</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/import_new_asset.html">Importing a New Asset</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/write_articulation_cfg.html">Writing an Asset Configuration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/make_fixed_prim.html">Making a physics prim fixed in the simulation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/multi_asset_spawning.html">Spawning Multiple Assets</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/save_camera_output.html">Saving rendered images and 3D re-projection</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/estimate_how_many_cameras_can_run.html">Find How Many/What Cameras You Should Train With</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/draw_markers.html">Creating Visualization Markers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/wrap_rl_env.html">Wrapping environments</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/add_own_library.html">Adding your own learning library</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/record_animation.html">Recording Animations of Simulations</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/record_video.html">Recording video clips during training</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/master_omniverse.html">Mastering Omniverse for Robotics</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../deployment/index.html">Container Deployment</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../deployment/docker.html">Docker Guide</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../deployment/cluster.html">Cluster Guide</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../deployment/run_docker_example.html">Running an example with Docker</a></li>
+</ul>
+</details></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Migration Guides</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../migration/migrating_from_isaacgymenvs.html">From IsaacGymEnvs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../migration/migrating_from_omniisaacgymenvs.html">From OmniIsaacGymEnvs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../migration/migrating_from_orbit.html">From Orbit</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Source API</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../api/index.html">API Reference</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.app.html">isaaclab.app</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.actuators.html">isaaclab.actuators</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.assets.html">isaaclab.assets</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.controllers.html">isaaclab.controllers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.devices.html">isaaclab.devices</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.envs.html">isaaclab.envs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.managers.html">isaaclab.managers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.markers.html">isaaclab.markers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.scene.html">isaaclab.scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.sensors.html">isaaclab.sensors</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.sim.html">isaaclab.sim</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.terrains.html">isaaclab.terrains</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.utils.html">isaaclab.utils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.envs.mdp.html">isaaclab.envs.mdp</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.envs.ui.html">isaaclab.envs.ui</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.sensors.patterns.html">isaaclab.sensors.patterns</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.sim.converters.html">isaaclab.sim.converters</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.sim.schemas.html">isaaclab.sim.schemas</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.sim.spawners.html">isaaclab.sim.spawners</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab_tasks/isaaclab_tasks.utils.html">isaaclab_tasks.utils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab_mimic/isaaclab_mimic.datagen.html">isaaclab_mimic.datagen</a></li>
+</ul>
+</details></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">References</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../refs/reference_architecture/index.html">Reference Architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../refs/additional_resources.html">Additional Resources</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../refs/contributing.html">Contribution Guidelines</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../refs/troubleshooting.html">Tricks and Troubleshooting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../refs/migration.html">Migration Guide (Isaac Sim)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../refs/issues.html">Known Issues</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../refs/release_notes.html">Release Notes</a></li>
+
+
+
+
+
+
+<li class="toctree-l1"><a class="reference internal" href="../../refs/changelog.html">Extensions Changelog</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../refs/license.html">License</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../refs/bibliography.html">Bibliography</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Project Links</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference external" href="https://github.com/isaac-sim/IsaacLab">GitHub</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/latest/index.html">NVIDIA Isaac Sim</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/index.html">NVIDIA PhysX</a></li>
+</ul>
+
+    </div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+
+<div class="sbt-scroll-pixel-helper"></div>
+
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item"><label class="sidebar-toggle primary-toggle btn btn-sm" for="__primary" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <span class="fa-solid fa-bars"></span>
+</label></div>
+      
+    </div>
+  
+  
+    <div class="header-article-items__end">
+      
+        <div class="header-article-item">
+
+<div class="article-header-buttons">
+
+
+
+
+
+<div class="dropdown dropdown-source-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Source repositories">
+    <i class="fab fa-github"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="https://github.com/isaac-sim/IsaacLab" target="_blank"
+   class="btn btn-sm btn-source-repository-button dropdown-item"
+   title="Source repository"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fab fa-github"></i>
+  </span>
+<span class="btn__text-container">Repository</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li><a href="https://github.com/isaac-sim/IsaacLab/edit/main/source/tutorials/03_envs/create_manager_base_env.rst" target="_blank"
+   class="btn btn-sm btn-source-edit-button dropdown-item"
+   title="Suggest edit"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-pencil-alt"></i>
+  </span>
+<span class="btn__text-container">Suggest edit</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li><a href="https://github.com/isaac-sim/IsaacLab/issues/new?title=Issue%20on%20page%20%2Fsource/tutorials/03_envs/create_manager_base_env.html&body=Your%20issue%20content%20here." target="_blank"
+   class="btn btn-sm btn-source-issues-button dropdown-item"
+   title="Open an issue"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-lightbulb"></i>
+  </span>
+<span class="btn__text-container">Open issue</span>
+</a>
+</li>
+      
+  </ul>
+</div>
+
+
+
+
+
+
+<div class="dropdown dropdown-download-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Download this page">
+    <i class="fas fa-download"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="../../../_sources/source/tutorials/03_envs/create_manager_base_env.rst" target="_blank"
+   class="btn btn-sm btn-download-source-button dropdown-item"
+   title="Download source file"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file"></i>
+  </span>
+<span class="btn__text-container">.rst</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li>
+<button onclick="window.print()"
+  class="btn btn-sm btn-download-pdf-button dropdown-item"
+  title="Print to PDF"
+  data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file-pdf"></i>
+  </span>
+<span class="btn__text-container">.pdf</span>
+</button>
+</li>
+      
+  </ul>
+</div>
+
+
+
+
+<button onclick="toggleFullScreen()"
+  class="btn btn-sm btn-fullscreen-button"
+  title="Fullscreen mode"
+  data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-expand"></i>
+  </span>
+
+</button>
+
+
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button>
+
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+<label class="sidebar-toggle secondary-toggle btn btn-sm" for="__secondary"title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <span class="fa-solid fa-list"></span>
+</label>
+</div></div>
+      
+    </div>
+  
+</div>
+</div>
+              
+              
+
+<div id="jb-print-docs-body" class="onlyprint">
+    <h1>Creating a Manager-Based Base Environment</h1>
+    <!-- Table of contents -->
+    <div id="print-main-content">
+        <div id="jb-print-toc">
+            
+            <div>
+                <h2> Contents </h2>
+            </div>
+            <nav aria-label="Page">
+                <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#the-code">The Code</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#the-code-explained">The Code Explained</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#designing-the-scene">Designing the scene</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#defining-actions">Defining actions</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#defining-observations">Defining observations</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#defining-events">Defining events</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#tying-it-all-together">Tying it all together</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#running-the-simulation">Running the simulation</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#the-code-execution">The Code Execution</a></li>
+</ul>
+            </nav>
+        </div>
+    </div>
+</div>
+
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="creating-a-manager-based-base-environment">
+<span id="tutorial-create-manager-base-env"></span><h1>Creating a Manager-Based Base Environment<a class="headerlink" href="#creating-a-manager-based-base-environment" title="Permalink to this heading">#</a></h1>
+<p>Environments bring together different aspects of the simulation such as
+the scene, observations and actions spaces, reset events etc. to create a
+coherent interface for various applications. In Isaac Lab, manager-based environments are
+implemented as <a class="reference internal" href="../../api/lab/isaaclab.envs.html#isaaclab.envs.ManagerBasedEnv" title="isaaclab.envs.ManagerBasedEnv"><code class="xref py py-class docutils literal notranslate"><span class="pre">envs.ManagerBasedEnv</span></code></a> and <a class="reference internal" href="../../api/lab/isaaclab.envs.html#isaaclab.envs.ManagerBasedRLEnv" title="isaaclab.envs.ManagerBasedRLEnv"><code class="xref py py-class docutils literal notranslate"><span class="pre">envs.ManagerBasedRLEnv</span></code></a> classes.
+The two classes are very similar, but <a class="reference internal" href="../../api/lab/isaaclab.envs.html#isaaclab.envs.ManagerBasedRLEnv" title="isaaclab.envs.ManagerBasedRLEnv"><code class="xref py py-class docutils literal notranslate"><span class="pre">envs.ManagerBasedRLEnv</span></code></a> is useful for
+reinforcement learning tasks and contains rewards, terminations, curriculum
+and command generation. The <a class="reference internal" href="../../api/lab/isaaclab.envs.html#isaaclab.envs.ManagerBasedEnv" title="isaaclab.envs.ManagerBasedEnv"><code class="xref py py-class docutils literal notranslate"><span class="pre">envs.ManagerBasedEnv</span></code></a> class is useful for
+traditional robot control and doesn’t contain rewards and terminations.</p>
+<p>In this tutorial, we will look at the base class <a class="reference internal" href="../../api/lab/isaaclab.envs.html#isaaclab.envs.ManagerBasedEnv" title="isaaclab.envs.ManagerBasedEnv"><code class="xref py py-class docutils literal notranslate"><span class="pre">envs.ManagerBasedEnv</span></code></a> and its
+corresponding configuration class <a class="reference internal" href="../../api/lab/isaaclab.envs.html#isaaclab.envs.ManagerBasedEnvCfg" title="isaaclab.envs.ManagerBasedEnvCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">envs.ManagerBasedEnvCfg</span></code></a> for the manager-based workflow.
+We will use the
+cartpole environment from earlier to illustrate the different components
+in creating a new <a class="reference internal" href="../../api/lab/isaaclab.envs.html#isaaclab.envs.ManagerBasedEnv" title="isaaclab.envs.ManagerBasedEnv"><code class="xref py py-class docutils literal notranslate"><span class="pre">envs.ManagerBasedEnv</span></code></a> environment.</p>
+<section id="the-code">
+<h2>The Code<a class="headerlink" href="#the-code" title="Permalink to this heading">#</a></h2>
+<p>The tutorial corresponds to the <code class="docutils literal notranslate"><span class="pre">create_cartpole_base_env</span></code> script  in the <code class="docutils literal notranslate"><span class="pre">scripts/tutorials/03_envs</span></code>
+directory.</p>
+<details class="sd-sphinx-override sd-dropdown sd-card sd-mb-3">
+<summary class="sd-summary-title sd-card-header">
+<span class="sd-summary-icon"><svg version="1.1" width="1.0em" height="1.0em" class="sd-octicon sd-octicon-code" viewBox="0 0 16 16" aria-hidden="true"><path d="m11.28 3.22 4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.749.749 0 0 1-1.275-.326.749.749 0 0 1 .215-.734L13.94 8l-3.72-3.72a.749.749 0 0 1 .326-1.275.749.749 0 0 1 .734.215Zm-6.56 0a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042L2.06 8l3.72 3.72a.749.749 0 0 1-.326 1.275.749.749 0 0 1-.734-.215L.47 8.53a.75.75 0 0 1 0-1.06Z"></path></svg></span><span class="sd-summary-text">Code for create_cartpole_base_env.py</span><span class="sd-summary-state-marker sd-summary-chevron-right"><svg version="1.1" width="1.5em" height="1.5em" class="sd-octicon sd-octicon-chevron-right" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.72 18.78a.75.75 0 0 1 0-1.06L14.44 12 8.72 6.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018l6.25 6.25a.75.75 0 0 1 0 1.06l-6.25 6.25a.75.75 0 0 1-1.06 0Z"></path></svg></span></summary><div class="sd-summary-content sd-card-body docutils">
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="linenos">  1</span><span class="c1"># Copyright (c) 2022-2025, The Isaac Lab Project Developers.</span>
+<span class="linenos">  2</span><span class="c1"># All rights reserved.</span>
+<span class="linenos">  3</span><span class="c1">#</span>
+<span class="linenos">  4</span><span class="c1"># SPDX-License-Identifier: BSD-3-Clause</span>
+<span class="linenos">  5</span>
+<span class="linenos">  6</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="linenos">  7</span><span class="sd">This script demonstrates how to create a simple environment with a cartpole. It combines the concepts of</span>
+<span class="linenos">  8</span><span class="sd">scene, action, observation and event managers to create an environment.</span>
+<span class="linenos">  9</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="linenos"> 10</span>
+<span class="linenos"> 11</span><span class="sd">&quot;&quot;&quot;Launch Isaac Sim Simulator first.&quot;&quot;&quot;</span>
+<span class="linenos"> 12</span>
+<span class="linenos"> 13</span>
+<span class="linenos"> 14</span><span class="kn">import</span><span class="w"> </span><span class="nn">argparse</span>
+<span class="linenos"> 15</span>
+<span class="linenos"> 16</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.app</span><span class="w"> </span><span class="kn">import</span> <span class="n">AppLauncher</span>
+<span class="linenos"> 17</span>
+<span class="linenos"> 18</span><span class="c1"># add argparse arguments</span>
+<span class="linenos"> 19</span><span class="n">parser</span> <span class="o">=</span> <span class="n">argparse</span><span class="o">.</span><span class="n">ArgumentParser</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="s2">&quot;Tutorial on creating a cartpole base environment.&quot;</span><span class="p">)</span>
+<span class="linenos"> 20</span><span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">&quot;--num_envs&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">int</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="mi">16</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Number of environments to spawn.&quot;</span><span class="p">)</span>
+<span class="linenos"> 21</span>
+<span class="linenos"> 22</span><span class="c1"># append AppLauncher cli args</span>
+<span class="linenos"> 23</span><span class="n">AppLauncher</span><span class="o">.</span><span class="n">add_app_launcher_args</span><span class="p">(</span><span class="n">parser</span><span class="p">)</span>
+<span class="linenos"> 24</span><span class="c1"># parse the arguments</span>
+<span class="linenos"> 25</span><span class="n">args_cli</span> <span class="o">=</span> <span class="n">parser</span><span class="o">.</span><span class="n">parse_args</span><span class="p">()</span>
+<span class="linenos"> 26</span>
+<span class="linenos"> 27</span><span class="c1"># launch omniverse app</span>
+<span class="linenos"> 28</span><span class="n">app_launcher</span> <span class="o">=</span> <span class="n">AppLauncher</span><span class="p">(</span><span class="n">args_cli</span><span class="p">)</span>
+<span class="linenos"> 29</span><span class="n">simulation_app</span> <span class="o">=</span> <span class="n">app_launcher</span><span class="o">.</span><span class="n">app</span>
+<span class="linenos"> 30</span>
+<span class="linenos"> 31</span><span class="sd">&quot;&quot;&quot;Rest everything follows.&quot;&quot;&quot;</span>
+<span class="linenos"> 32</span>
+<span class="linenos"> 33</span><span class="kn">import</span><span class="w"> </span><span class="nn">math</span>
+<span class="linenos"> 34</span><span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
+<span class="linenos"> 35</span>
+<span class="linenos"> 36</span><span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab.envs.mdp</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">mdp</span>
+<span class="linenos"> 37</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.envs</span><span class="w"> </span><span class="kn">import</span> <span class="n">ManagerBasedEnv</span><span class="p">,</span> <span class="n">ManagerBasedEnvCfg</span>
+<span class="linenos"> 38</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.managers</span><span class="w"> </span><span class="kn">import</span> <span class="n">EventTermCfg</span> <span class="k">as</span> <span class="n">EventTerm</span>
+<span class="linenos"> 39</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.managers</span><span class="w"> </span><span class="kn">import</span> <span class="n">ObservationGroupCfg</span> <span class="k">as</span> <span class="n">ObsGroup</span>
+<span class="linenos"> 40</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.managers</span><span class="w"> </span><span class="kn">import</span> <span class="n">ObservationTermCfg</span> <span class="k">as</span> <span class="n">ObsTerm</span>
+<span class="linenos"> 41</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.managers</span><span class="w"> </span><span class="kn">import</span> <span class="n">SceneEntityCfg</span>
+<span class="linenos"> 42</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">configclass</span>
+<span class="linenos"> 43</span>
+<span class="linenos"> 44</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab_tasks.manager_based.classic.cartpole.cartpole_env_cfg</span><span class="w"> </span><span class="kn">import</span> <span class="n">CartpoleSceneCfg</span>
+<span class="linenos"> 45</span>
+<span class="linenos"> 46</span>
+<span class="hll"><span class="linenos"> 47</span><span class="nd">@configclass</span>
+</span><span class="hll"><span class="linenos"> 48</span><span class="k">class</span><span class="w"> </span><span class="nc">ActionsCfg</span><span class="p">:</span>
+</span><span class="hll"><span class="linenos"> 49</span><span class="w">    </span><span class="sd">&quot;&quot;&quot;Action specifications for the environment.&quot;&quot;&quot;</span>
+</span><span class="hll"><span class="linenos"> 50</span>
+</span><span class="hll"><span class="linenos"> 51</span>    <span class="n">joint_efforts</span> <span class="o">=</span> <span class="n">mdp</span><span class="o">.</span><span class="n">JointEffortActionCfg</span><span class="p">(</span><span class="n">asset_name</span><span class="o">=</span><span class="s2">&quot;robot&quot;</span><span class="p">,</span> <span class="n">joint_names</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;slider_to_cart&quot;</span><span class="p">],</span> <span class="n">scale</span><span class="o">=</span><span class="mf">5.0</span><span class="p">)</span>
+</span><span class="linenos"> 52</span>
+<span class="linenos"> 53</span>
+<span class="hll"><span class="linenos"> 54</span><span class="nd">@configclass</span>
+</span><span class="hll"><span class="linenos"> 55</span><span class="k">class</span><span class="w"> </span><span class="nc">ObservationsCfg</span><span class="p">:</span>
+</span><span class="hll"><span class="linenos"> 56</span><span class="w">    </span><span class="sd">&quot;&quot;&quot;Observation specifications for the environment.&quot;&quot;&quot;</span>
+</span><span class="hll"><span class="linenos"> 57</span>
+</span><span class="hll"><span class="linenos"> 58</span>    <span class="nd">@configclass</span>
+</span><span class="hll"><span class="linenos"> 59</span>    <span class="k">class</span><span class="w"> </span><span class="nc">PolicyCfg</span><span class="p">(</span><span class="n">ObsGroup</span><span class="p">):</span>
+</span><span class="hll"><span class="linenos"> 60</span><span class="w">        </span><span class="sd">&quot;&quot;&quot;Observations for policy group.&quot;&quot;&quot;</span>
+</span><span class="hll"><span class="linenos"> 61</span>
+</span><span class="hll"><span class="linenos"> 62</span>        <span class="c1"># observation terms (order preserved)</span>
+</span><span class="hll"><span class="linenos"> 63</span>        <span class="n">joint_pos_rel</span> <span class="o">=</span> <span class="n">ObsTerm</span><span class="p">(</span><span class="n">func</span><span class="o">=</span><span class="n">mdp</span><span class="o">.</span><span class="n">joint_pos_rel</span><span class="p">)</span>
+</span><span class="hll"><span class="linenos"> 64</span>        <span class="n">joint_vel_rel</span> <span class="o">=</span> <span class="n">ObsTerm</span><span class="p">(</span><span class="n">func</span><span class="o">=</span><span class="n">mdp</span><span class="o">.</span><span class="n">joint_vel_rel</span><span class="p">)</span>
+</span><span class="hll"><span class="linenos"> 65</span>
+</span><span class="hll"><span class="linenos"> 66</span>        <span class="k">def</span><span class="w"> </span><span class="nf">__post_init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+</span><span class="hll"><span class="linenos"> 67</span>            <span class="bp">self</span><span class="o">.</span><span class="n">enable_corruption</span> <span class="o">=</span> <span class="kc">False</span>
+</span><span class="hll"><span class="linenos"> 68</span>            <span class="bp">self</span><span class="o">.</span><span class="n">concatenate_terms</span> <span class="o">=</span> <span class="kc">True</span>
+</span><span class="hll"><span class="linenos"> 69</span>
+</span><span class="hll"><span class="linenos"> 70</span>    <span class="c1"># observation groups</span>
+</span><span class="hll"><span class="linenos"> 71</span>    <span class="n">policy</span><span class="p">:</span> <span class="n">PolicyCfg</span> <span class="o">=</span> <span class="n">PolicyCfg</span><span class="p">()</span>
+</span><span class="linenos"> 72</span>
+<span class="linenos"> 73</span>
+<span class="hll"><span class="linenos"> 74</span><span class="nd">@configclass</span>
+</span><span class="hll"><span class="linenos"> 75</span><span class="k">class</span><span class="w"> </span><span class="nc">EventCfg</span><span class="p">:</span>
+</span><span class="hll"><span class="linenos"> 76</span><span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for events.&quot;&quot;&quot;</span>
+</span><span class="hll"><span class="linenos"> 77</span>
+</span><span class="hll"><span class="linenos"> 78</span>    <span class="c1"># on startup</span>
+</span><span class="hll"><span class="linenos"> 79</span>    <span class="n">add_pole_mass</span> <span class="o">=</span> <span class="n">EventTerm</span><span class="p">(</span>
+</span><span class="hll"><span class="linenos"> 80</span>        <span class="n">func</span><span class="o">=</span><span class="n">mdp</span><span class="o">.</span><span class="n">randomize_rigid_body_mass</span><span class="p">,</span>
+</span><span class="hll"><span class="linenos"> 81</span>        <span class="n">mode</span><span class="o">=</span><span class="s2">&quot;startup&quot;</span><span class="p">,</span>
+</span><span class="hll"><span class="linenos"> 82</span>        <span class="n">params</span><span class="o">=</span><span class="p">{</span>
+</span><span class="hll"><span class="linenos"> 83</span>            <span class="s2">&quot;asset_cfg&quot;</span><span class="p">:</span> <span class="n">SceneEntityCfg</span><span class="p">(</span><span class="s2">&quot;robot&quot;</span><span class="p">,</span> <span class="n">body_names</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;pole&quot;</span><span class="p">]),</span>
+</span><span class="hll"><span class="linenos"> 84</span>            <span class="s2">&quot;mass_distribution_params&quot;</span><span class="p">:</span> <span class="p">(</span><span class="mf">0.1</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">),</span>
+</span><span class="hll"><span class="linenos"> 85</span>            <span class="s2">&quot;operation&quot;</span><span class="p">:</span> <span class="s2">&quot;add&quot;</span><span class="p">,</span>
+</span><span class="hll"><span class="linenos"> 86</span>        <span class="p">},</span>
+</span><span class="hll"><span class="linenos"> 87</span>    <span class="p">)</span>
+</span><span class="hll"><span class="linenos"> 88</span>
+</span><span class="hll"><span class="linenos"> 89</span>    <span class="c1"># on reset</span>
+</span><span class="hll"><span class="linenos"> 90</span>    <span class="n">reset_cart_position</span> <span class="o">=</span> <span class="n">EventTerm</span><span class="p">(</span>
+</span><span class="hll"><span class="linenos"> 91</span>        <span class="n">func</span><span class="o">=</span><span class="n">mdp</span><span class="o">.</span><span class="n">reset_joints_by_offset</span><span class="p">,</span>
+</span><span class="hll"><span class="linenos"> 92</span>        <span class="n">mode</span><span class="o">=</span><span class="s2">&quot;reset&quot;</span><span class="p">,</span>
+</span><span class="hll"><span class="linenos"> 93</span>        <span class="n">params</span><span class="o">=</span><span class="p">{</span>
+</span><span class="hll"><span class="linenos"> 94</span>            <span class="s2">&quot;asset_cfg&quot;</span><span class="p">:</span> <span class="n">SceneEntityCfg</span><span class="p">(</span><span class="s2">&quot;robot&quot;</span><span class="p">,</span> <span class="n">joint_names</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;slider_to_cart&quot;</span><span class="p">]),</span>
+</span><span class="hll"><span class="linenos"> 95</span>            <span class="s2">&quot;position_range&quot;</span><span class="p">:</span> <span class="p">(</span><span class="o">-</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">),</span>
+</span><span class="hll"><span class="linenos"> 96</span>            <span class="s2">&quot;velocity_range&quot;</span><span class="p">:</span> <span class="p">(</span><span class="o">-</span><span class="mf">0.1</span><span class="p">,</span> <span class="mf">0.1</span><span class="p">),</span>
+</span><span class="hll"><span class="linenos"> 97</span>        <span class="p">},</span>
+</span><span class="hll"><span class="linenos"> 98</span>    <span class="p">)</span>
+</span><span class="hll"><span class="linenos"> 99</span>
+</span><span class="hll"><span class="linenos">100</span>    <span class="n">reset_pole_position</span> <span class="o">=</span> <span class="n">EventTerm</span><span class="p">(</span>
+</span><span class="hll"><span class="linenos">101</span>        <span class="n">func</span><span class="o">=</span><span class="n">mdp</span><span class="o">.</span><span class="n">reset_joints_by_offset</span><span class="p">,</span>
+</span><span class="hll"><span class="linenos">102</span>        <span class="n">mode</span><span class="o">=</span><span class="s2">&quot;reset&quot;</span><span class="p">,</span>
+</span><span class="hll"><span class="linenos">103</span>        <span class="n">params</span><span class="o">=</span><span class="p">{</span>
+</span><span class="hll"><span class="linenos">104</span>            <span class="s2">&quot;asset_cfg&quot;</span><span class="p">:</span> <span class="n">SceneEntityCfg</span><span class="p">(</span><span class="s2">&quot;robot&quot;</span><span class="p">,</span> <span class="n">joint_names</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;cart_to_pole&quot;</span><span class="p">]),</span>
+</span><span class="hll"><span class="linenos">105</span>            <span class="s2">&quot;position_range&quot;</span><span class="p">:</span> <span class="p">(</span><span class="o">-</span><span class="mf">0.125</span> <span class="o">*</span> <span class="n">math</span><span class="o">.</span><span class="n">pi</span><span class="p">,</span> <span class="mf">0.125</span> <span class="o">*</span> <span class="n">math</span><span class="o">.</span><span class="n">pi</span><span class="p">),</span>
+</span><span class="hll"><span class="linenos">106</span>            <span class="s2">&quot;velocity_range&quot;</span><span class="p">:</span> <span class="p">(</span><span class="o">-</span><span class="mf">0.01</span> <span class="o">*</span> <span class="n">math</span><span class="o">.</span><span class="n">pi</span><span class="p">,</span> <span class="mf">0.01</span> <span class="o">*</span> <span class="n">math</span><span class="o">.</span><span class="n">pi</span><span class="p">),</span>
+</span><span class="hll"><span class="linenos">107</span>        <span class="p">},</span>
+</span><span class="hll"><span class="linenos">108</span>    <span class="p">)</span>
+</span><span class="linenos">109</span>
+<span class="linenos">110</span>
+<span class="hll"><span class="linenos">111</span><span class="nd">@configclass</span>
+</span><span class="hll"><span class="linenos">112</span><span class="k">class</span><span class="w"> </span><span class="nc">CartpoleEnvCfg</span><span class="p">(</span><span class="n">ManagerBasedEnvCfg</span><span class="p">):</span>
+</span><span class="hll"><span class="linenos">113</span><span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for the cartpole environment.&quot;&quot;&quot;</span>
+</span><span class="hll"><span class="linenos">114</span>
+</span><span class="hll"><span class="linenos">115</span>    <span class="c1"># Scene settings</span>
+</span><span class="hll"><span class="linenos">116</span>    <span class="n">scene</span> <span class="o">=</span> <span class="n">CartpoleSceneCfg</span><span class="p">(</span><span class="n">num_envs</span><span class="o">=</span><span class="mi">1024</span><span class="p">,</span> <span class="n">env_spacing</span><span class="o">=</span><span class="mf">2.5</span><span class="p">)</span>
+</span><span class="hll"><span class="linenos">117</span>    <span class="c1"># Basic settings</span>
+</span><span class="hll"><span class="linenos">118</span>    <span class="n">observations</span> <span class="o">=</span> <span class="n">ObservationsCfg</span><span class="p">()</span>
+</span><span class="hll"><span class="linenos">119</span>    <span class="n">actions</span> <span class="o">=</span> <span class="n">ActionsCfg</span><span class="p">()</span>
+</span><span class="hll"><span class="linenos">120</span>    <span class="n">events</span> <span class="o">=</span> <span class="n">EventCfg</span><span class="p">()</span>
+</span><span class="hll"><span class="linenos">121</span>
+</span><span class="hll"><span class="linenos">122</span>    <span class="k">def</span><span class="w"> </span><span class="nf">__post_init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+</span><span class="hll"><span class="linenos">123</span><span class="w">        </span><span class="sd">&quot;&quot;&quot;Post initialization.&quot;&quot;&quot;</span>
+</span><span class="hll"><span class="linenos">124</span>        <span class="c1"># viewer settings</span>
+</span><span class="hll"><span class="linenos">125</span>        <span class="bp">self</span><span class="o">.</span><span class="n">viewer</span><span class="o">.</span><span class="n">eye</span> <span class="o">=</span> <span class="p">[</span><span class="mf">4.5</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">6.0</span><span class="p">]</span>
+</span><span class="hll"><span class="linenos">126</span>        <span class="bp">self</span><span class="o">.</span><span class="n">viewer</span><span class="o">.</span><span class="n">lookat</span> <span class="o">=</span> <span class="p">[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">2.0</span><span class="p">]</span>
+</span><span class="hll"><span class="linenos">127</span>        <span class="c1"># step settings</span>
+</span><span class="hll"><span class="linenos">128</span>        <span class="bp">self</span><span class="o">.</span><span class="n">decimation</span> <span class="o">=</span> <span class="mi">4</span>  <span class="c1"># env step every 4 sim steps: 200Hz / 4 = 50Hz</span>
+</span><span class="hll"><span class="linenos">129</span>        <span class="c1"># simulation settings</span>
+</span><span class="hll"><span class="linenos">130</span>        <span class="bp">self</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">dt</span> <span class="o">=</span> <span class="mf">0.005</span>  <span class="c1"># sim step every 5ms: 200Hz</span>
+</span><span class="linenos">131</span>
+<span class="linenos">132</span>
+<span class="linenos">133</span><span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">():</span>
+<span class="linenos">134</span><span class="w">    </span><span class="sd">&quot;&quot;&quot;Main function.&quot;&quot;&quot;</span>
+<span class="hll"><span class="linenos">135</span>    <span class="c1"># parse the arguments</span>
+</span><span class="hll"><span class="linenos">136</span>    <span class="n">env_cfg</span> <span class="o">=</span> <span class="n">CartpoleEnvCfg</span><span class="p">()</span>
+</span><span class="hll"><span class="linenos">137</span>    <span class="n">env_cfg</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">num_envs</span> <span class="o">=</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">num_envs</span>
+</span><span class="hll"><span class="linenos">138</span>    <span class="c1"># setup base environment</span>
+</span><span class="hll"><span class="linenos">139</span>    <span class="n">env</span> <span class="o">=</span> <span class="n">ManagerBasedEnv</span><span class="p">(</span><span class="n">cfg</span><span class="o">=</span><span class="n">env_cfg</span><span class="p">)</span>
+</span><span class="linenos">140</span>
+<span class="linenos">141</span>    <span class="c1"># simulate physics</span>
+<span class="linenos">142</span>    <span class="n">count</span> <span class="o">=</span> <span class="mi">0</span>
+<span class="linenos">143</span>    <span class="k">while</span> <span class="n">simulation_app</span><span class="o">.</span><span class="n">is_running</span><span class="p">():</span>
+<span class="hll"><span class="linenos">144</span>        <span class="k">with</span> <span class="n">torch</span><span class="o">.</span><span class="n">inference_mode</span><span class="p">():</span>
+</span><span class="linenos">145</span>            <span class="c1"># reset</span>
+<span class="linenos">146</span>            <span class="k">if</span> <span class="n">count</span> <span class="o">%</span> <span class="mi">300</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+<span class="linenos">147</span>                <span class="n">count</span> <span class="o">=</span> <span class="mi">0</span>
+<span class="hll"><span class="linenos">148</span>                <span class="n">env</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
+</span><span class="linenos">149</span>                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;-&quot;</span> <span class="o">*</span> <span class="mi">80</span><span class="p">)</span>
+<span class="linenos">150</span>                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[INFO]: Resetting environment...&quot;</span><span class="p">)</span>
+<span class="linenos">151</span>            <span class="c1"># sample random actions</span>
+<span class="linenos">152</span>            <span class="n">joint_efforts</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">randn_like</span><span class="p">(</span><span class="n">env</span><span class="o">.</span><span class="n">action_manager</span><span class="o">.</span><span class="n">action</span><span class="p">)</span>
+<span class="hll"><span class="linenos">153</span>            <span class="c1"># step the environment</span>
+</span><span class="hll"><span class="linenos">154</span>            <span class="n">obs</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">step</span><span class="p">(</span><span class="n">joint_efforts</span><span class="p">)</span>
+</span><span class="linenos">155</span>            <span class="c1"># print current orientation of pole</span>
+<span class="linenos">156</span>            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[Env 0]: Pole joint: &quot;</span><span class="p">,</span> <span class="n">obs</span><span class="p">[</span><span class="s2">&quot;policy&quot;</span><span class="p">][</span><span class="mi">0</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">item</span><span class="p">())</span>
+<span class="linenos">157</span>            <span class="c1"># update counter</span>
+<span class="linenos">158</span>            <span class="n">count</span> <span class="o">+=</span> <span class="mi">1</span>
+<span class="linenos">159</span>
+<span class="hll"><span class="linenos">160</span>    <span class="c1"># close the environment</span>
+</span><span class="hll"><span class="linenos">161</span>    <span class="n">env</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+</span><span class="linenos">162</span>
+<span class="linenos">163</span>
+<span class="linenos">164</span><span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
+<span class="linenos">165</span>    <span class="c1"># run the main function</span>
+<span class="linenos">166</span>    <span class="n">main</span><span class="p">()</span>
+<span class="linenos">167</span>    <span class="c1"># close sim app</span>
+<span class="linenos">168</span>    <span class="n">simulation_app</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+</pre></div>
+</div>
+</div>
+</details></section>
+<section id="the-code-explained">
+<h2>The Code Explained<a class="headerlink" href="#the-code-explained" title="Permalink to this heading">#</a></h2>
+<p>The base class <a class="reference internal" href="../../api/lab/isaaclab.envs.html#isaaclab.envs.ManagerBasedEnv" title="isaaclab.envs.ManagerBasedEnv"><code class="xref py py-class docutils literal notranslate"><span class="pre">envs.ManagerBasedEnv</span></code></a> wraps around many intricacies of the simulation interaction
+and provides a simple interface for the user to run the simulation and interact with it. It
+is composed of the following components:</p>
+<ul class="simple">
+<li><p><a class="reference internal" href="../../api/lab/isaaclab.scene.html#isaaclab.scene.InteractiveScene" title="isaaclab.scene.InteractiveScene"><code class="xref py py-class docutils literal notranslate"><span class="pre">scene.InteractiveScene</span></code></a> - The scene that is used for the simulation.</p></li>
+<li><p><a class="reference internal" href="../../api/lab/isaaclab.managers.html#isaaclab.managers.ActionManager" title="isaaclab.managers.ActionManager"><code class="xref py py-class docutils literal notranslate"><span class="pre">managers.ActionManager</span></code></a> - The manager that handles actions.</p></li>
+<li><p><a class="reference internal" href="../../api/lab/isaaclab.managers.html#isaaclab.managers.ObservationManager" title="isaaclab.managers.ObservationManager"><code class="xref py py-class docutils literal notranslate"><span class="pre">managers.ObservationManager</span></code></a> - The manager that handles observations.</p></li>
+<li><p><a class="reference internal" href="../../api/lab/isaaclab.managers.html#isaaclab.managers.EventManager" title="isaaclab.managers.EventManager"><code class="xref py py-class docutils literal notranslate"><span class="pre">managers.EventManager</span></code></a> - The manager that schedules operations (such as domain randomization)
+at specified simulation events. For instance, at startup, on resets, or periodic intervals.</p></li>
+</ul>
+<p>By configuring these components, the user can create different variations of the same environment
+with minimal effort. In this tutorial, we will go through the different components of the
+<a class="reference internal" href="../../api/lab/isaaclab.envs.html#isaaclab.envs.ManagerBasedEnv" title="isaaclab.envs.ManagerBasedEnv"><code class="xref py py-class docutils literal notranslate"><span class="pre">envs.ManagerBasedEnv</span></code></a> class and how to configure them to create a new environment.</p>
+<section id="designing-the-scene">
+<h3>Designing the scene<a class="headerlink" href="#designing-the-scene" title="Permalink to this heading">#</a></h3>
+<p>The first step in creating a new environment is to configure its scene. For the cartpole
+environment, we will be using the scene from the previous tutorial. Thus, we omit the
+scene configuration here. For more details on how to configure a scene, see
+<a class="reference internal" href="../02_scene/create_scene.html#tutorial-interactive-scene"><span class="std std-ref">Using the Interactive Scene</span></a>.</p>
+</section>
+<section id="defining-actions">
+<h3>Defining actions<a class="headerlink" href="#defining-actions" title="Permalink to this heading">#</a></h3>
+<p>In the previous tutorial, we directly input the action to the cartpole using
+the <a class="reference internal" href="../../api/lab/isaaclab.assets.html#isaaclab.assets.Articulation.set_joint_effort_target" title="isaaclab.assets.Articulation.set_joint_effort_target"><code class="xref py py-meth docutils literal notranslate"><span class="pre">assets.Articulation.set_joint_effort_target()</span></code></a> method. In this tutorial, we will
+use the <a class="reference internal" href="../../api/lab/isaaclab.managers.html#isaaclab.managers.ActionManager" title="isaaclab.managers.ActionManager"><code class="xref py py-class docutils literal notranslate"><span class="pre">managers.ActionManager</span></code></a> to handle the actions.</p>
+<p>The action manager can comprise of multiple <a class="reference internal" href="../../api/lab/isaaclab.managers.html#isaaclab.managers.ActionTerm" title="isaaclab.managers.ActionTerm"><code class="xref py py-class docutils literal notranslate"><span class="pre">managers.ActionTerm</span></code></a>. Each action term
+is responsible for applying <em>control</em> over a specific aspect of the environment. For instance,
+for robotic arm, we can have two action terms – one for controlling the joints of the arm,
+and the other for controlling the gripper. This composition allows the user to define
+different control schemes for different aspects of the environment.</p>
+<p>In the cartpole environment, we want to control the force applied to the cart to balance the pole.
+Thus, we will create an action term that controls the force applied to the cart.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="nd">@configclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">ActionsCfg</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Action specifications for the environment.&quot;&quot;&quot;</span>
+
+    <span class="n">joint_efforts</span> <span class="o">=</span> <span class="n">mdp</span><span class="o">.</span><span class="n">JointEffortActionCfg</span><span class="p">(</span><span class="n">asset_name</span><span class="o">=</span><span class="s2">&quot;robot&quot;</span><span class="p">,</span> <span class="n">joint_names</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;slider_to_cart&quot;</span><span class="p">],</span> <span class="n">scale</span><span class="o">=</span><span class="mf">5.0</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="defining-observations">
+<h3>Defining observations<a class="headerlink" href="#defining-observations" title="Permalink to this heading">#</a></h3>
+<p>While the scene defines the state of the environment, the observations define the states
+that are observable by the agent. These observations are used by the agent to make decisions
+on what actions to take. In Isaac Lab, the observations are computed by the
+<a class="reference internal" href="../../api/lab/isaaclab.managers.html#isaaclab.managers.ObservationManager" title="isaaclab.managers.ObservationManager"><code class="xref py py-class docutils literal notranslate"><span class="pre">managers.ObservationManager</span></code></a> class.</p>
+<p>Similar to the action manager, the observation manager can comprise of multiple observation terms.
+These are further grouped into observation groups which are used to define different observation
+spaces for the environment. For instance, for hierarchical control, we may want to define
+two observation groups – one for the low level controller and the other for the high level
+controller. It is assumed that all the observation terms in a group have the same dimensions.</p>
+<p>For this tutorial, we will only define one observation group named <code class="docutils literal notranslate"><span class="pre">&quot;policy&quot;</span></code>. While not completely
+prescriptive, this group is a necessary requirement for various wrappers in Isaac Lab.
+We define a group by inheriting from the <a class="reference internal" href="../../api/lab/isaaclab.managers.html#isaaclab.managers.ObservationGroupCfg" title="isaaclab.managers.ObservationGroupCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">managers.ObservationGroupCfg</span></code></a> class. This class
+collects different observation terms and help define common properties for the group, such
+as enabling noise corruption or concatenating the observations into a single tensor.</p>
+<p>The individual terms are defined by inheriting from the <a class="reference internal" href="../../api/lab/isaaclab.managers.html#isaaclab.managers.ObservationTermCfg" title="isaaclab.managers.ObservationTermCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">managers.ObservationTermCfg</span></code></a> class.
+This class takes in the <a class="reference internal" href="../../api/lab/isaaclab.managers.html#isaaclab.managers.ObservationTermCfg.func" title="isaaclab.managers.ObservationTermCfg.func"><code class="xref py py-attr docutils literal notranslate"><span class="pre">managers.ObservationTermCfg.func</span></code></a> that specifies the function or
+callable class that computes the observation for that term. It includes other parameters for
+defining the noise model, clipping, scaling, etc. However, we leave these parameters to their
+default values for this tutorial.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="nd">@configclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">ObservationsCfg</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Observation specifications for the environment.&quot;&quot;&quot;</span>
+
+    <span class="nd">@configclass</span>
+    <span class="k">class</span><span class="w"> </span><span class="nc">PolicyCfg</span><span class="p">(</span><span class="n">ObsGroup</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Observations for policy group.&quot;&quot;&quot;</span>
+
+        <span class="c1"># observation terms (order preserved)</span>
+        <span class="n">joint_pos_rel</span> <span class="o">=</span> <span class="n">ObsTerm</span><span class="p">(</span><span class="n">func</span><span class="o">=</span><span class="n">mdp</span><span class="o">.</span><span class="n">joint_pos_rel</span><span class="p">)</span>
+        <span class="n">joint_vel_rel</span> <span class="o">=</span> <span class="n">ObsTerm</span><span class="p">(</span><span class="n">func</span><span class="o">=</span><span class="n">mdp</span><span class="o">.</span><span class="n">joint_vel_rel</span><span class="p">)</span>
+
+        <span class="k">def</span><span class="w"> </span><span class="nf">__post_init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">enable_corruption</span> <span class="o">=</span> <span class="kc">False</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">concatenate_terms</span> <span class="o">=</span> <span class="kc">True</span>
+
+    <span class="c1"># observation groups</span>
+    <span class="n">policy</span><span class="p">:</span> <span class="n">PolicyCfg</span> <span class="o">=</span> <span class="n">PolicyCfg</span><span class="p">()</span>
+</pre></div>
+</div>
+</section>
+<section id="defining-events">
+<h3>Defining events<a class="headerlink" href="#defining-events" title="Permalink to this heading">#</a></h3>
+<p>At this point, we have defined the scene, actions and observations for the cartpole environment.
+The general idea for all these components is to define the configuration classes and then
+pass them to the corresponding managers. The event manager is no different.</p>
+<p>The <a class="reference internal" href="../../api/lab/isaaclab.managers.html#isaaclab.managers.EventManager" title="isaaclab.managers.EventManager"><code class="xref py py-class docutils literal notranslate"><span class="pre">managers.EventManager</span></code></a> class is responsible for events corresponding to changes
+in the simulation state. This includes resetting (or randomizing) the scene, randomizing physical
+properties (such as mass, friction, etc.), and varying visual properties (such as colors, textures, etc.).
+Each of these are specified through the <a class="reference internal" href="../../api/lab/isaaclab.managers.html#isaaclab.managers.EventTermCfg" title="isaaclab.managers.EventTermCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">managers.EventTermCfg</span></code></a> class, which
+takes in the <a class="reference internal" href="../../api/lab/isaaclab.managers.html#isaaclab.managers.EventTermCfg.func" title="isaaclab.managers.EventTermCfg.func"><code class="xref py py-attr docutils literal notranslate"><span class="pre">managers.EventTermCfg.func</span></code></a> that specifies the function or callable
+class that performs the event.</p>
+<p>Additionally, it expects the <strong>mode</strong> of the event. The mode specifies when the event term should be applied.
+It is possible to specify your own mode. For this, you’ll need to adapt the <a class="reference internal" href="../../api/lab/isaaclab.envs.html#isaaclab.envs.ManagerBasedEnv" title="isaaclab.envs.ManagerBasedEnv"><code class="xref py py-class docutils literal notranslate"><span class="pre">ManagerBasedEnv</span></code></a> class.
+However, out of the box, Isaac Lab provides three commonly used modes:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">&quot;startup&quot;</span></code> - Event that takes place only once at environment startup.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">&quot;reset&quot;</span></code> - Event that occurs on environment termination and reset.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">&quot;interval&quot;</span></code> - Event that are executed at a given interval, i.e., periodically after a certain number of steps.</p></li>
+</ul>
+<p>For this example, we define events that randomize the pole’s mass on startup. This is done only once since this
+operation is expensive and we don’t want to do it on every reset. We also create an event to randomize the initial
+joint state of the cartpole and the pole at every reset.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="nd">@configclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">EventCfg</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for events.&quot;&quot;&quot;</span>
+
+    <span class="c1"># on startup</span>
+    <span class="n">add_pole_mass</span> <span class="o">=</span> <span class="n">EventTerm</span><span class="p">(</span>
+        <span class="n">func</span><span class="o">=</span><span class="n">mdp</span><span class="o">.</span><span class="n">randomize_rigid_body_mass</span><span class="p">,</span>
+        <span class="n">mode</span><span class="o">=</span><span class="s2">&quot;startup&quot;</span><span class="p">,</span>
+        <span class="n">params</span><span class="o">=</span><span class="p">{</span>
+            <span class="s2">&quot;asset_cfg&quot;</span><span class="p">:</span> <span class="n">SceneEntityCfg</span><span class="p">(</span><span class="s2">&quot;robot&quot;</span><span class="p">,</span> <span class="n">body_names</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;pole&quot;</span><span class="p">]),</span>
+            <span class="s2">&quot;mass_distribution_params&quot;</span><span class="p">:</span> <span class="p">(</span><span class="mf">0.1</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">),</span>
+            <span class="s2">&quot;operation&quot;</span><span class="p">:</span> <span class="s2">&quot;add&quot;</span><span class="p">,</span>
+        <span class="p">},</span>
+    <span class="p">)</span>
+
+    <span class="c1"># on reset</span>
+    <span class="n">reset_cart_position</span> <span class="o">=</span> <span class="n">EventTerm</span><span class="p">(</span>
+        <span class="n">func</span><span class="o">=</span><span class="n">mdp</span><span class="o">.</span><span class="n">reset_joints_by_offset</span><span class="p">,</span>
+        <span class="n">mode</span><span class="o">=</span><span class="s2">&quot;reset&quot;</span><span class="p">,</span>
+        <span class="n">params</span><span class="o">=</span><span class="p">{</span>
+            <span class="s2">&quot;asset_cfg&quot;</span><span class="p">:</span> <span class="n">SceneEntityCfg</span><span class="p">(</span><span class="s2">&quot;robot&quot;</span><span class="p">,</span> <span class="n">joint_names</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;slider_to_cart&quot;</span><span class="p">]),</span>
+            <span class="s2">&quot;position_range&quot;</span><span class="p">:</span> <span class="p">(</span><span class="o">-</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">),</span>
+            <span class="s2">&quot;velocity_range&quot;</span><span class="p">:</span> <span class="p">(</span><span class="o">-</span><span class="mf">0.1</span><span class="p">,</span> <span class="mf">0.1</span><span class="p">),</span>
+        <span class="p">},</span>
+    <span class="p">)</span>
+
+    <span class="n">reset_pole_position</span> <span class="o">=</span> <span class="n">EventTerm</span><span class="p">(</span>
+        <span class="n">func</span><span class="o">=</span><span class="n">mdp</span><span class="o">.</span><span class="n">reset_joints_by_offset</span><span class="p">,</span>
+        <span class="n">mode</span><span class="o">=</span><span class="s2">&quot;reset&quot;</span><span class="p">,</span>
+        <span class="n">params</span><span class="o">=</span><span class="p">{</span>
+            <span class="s2">&quot;asset_cfg&quot;</span><span class="p">:</span> <span class="n">SceneEntityCfg</span><span class="p">(</span><span class="s2">&quot;robot&quot;</span><span class="p">,</span> <span class="n">joint_names</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;cart_to_pole&quot;</span><span class="p">]),</span>
+            <span class="s2">&quot;position_range&quot;</span><span class="p">:</span> <span class="p">(</span><span class="o">-</span><span class="mf">0.125</span> <span class="o">*</span> <span class="n">math</span><span class="o">.</span><span class="n">pi</span><span class="p">,</span> <span class="mf">0.125</span> <span class="o">*</span> <span class="n">math</span><span class="o">.</span><span class="n">pi</span><span class="p">),</span>
+            <span class="s2">&quot;velocity_range&quot;</span><span class="p">:</span> <span class="p">(</span><span class="o">-</span><span class="mf">0.01</span> <span class="o">*</span> <span class="n">math</span><span class="o">.</span><span class="n">pi</span><span class="p">,</span> <span class="mf">0.01</span> <span class="o">*</span> <span class="n">math</span><span class="o">.</span><span class="n">pi</span><span class="p">),</span>
+        <span class="p">},</span>
+    <span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="tying-it-all-together">
+<h3>Tying it all together<a class="headerlink" href="#tying-it-all-together" title="Permalink to this heading">#</a></h3>
+<p>Having defined the scene and manager configurations, we can now define the environment configuration
+through the <a class="reference internal" href="../../api/lab/isaaclab.envs.html#isaaclab.envs.ManagerBasedEnvCfg" title="isaaclab.envs.ManagerBasedEnvCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">envs.ManagerBasedEnvCfg</span></code></a> class. This class takes in the scene, action, observation and
+event configurations.</p>
+<p>In addition to these, it also takes in the <a class="reference internal" href="../../api/lab/isaaclab.envs.html#isaaclab.envs.ManagerBasedEnvCfg.sim" title="isaaclab.envs.ManagerBasedEnvCfg.sim"><code class="xref py py-attr docutils literal notranslate"><span class="pre">envs.ManagerBasedEnvCfg.sim</span></code></a> which defines the simulation
+parameters such as the timestep, gravity, etc. This is initialized to the default values, but can
+be modified as needed. We recommend doing so by defining the <code class="xref py py-meth docutils literal notranslate"><span class="pre">__post_init__()</span></code> method in the
+<a class="reference internal" href="../../api/lab/isaaclab.envs.html#isaaclab.envs.ManagerBasedEnvCfg" title="isaaclab.envs.ManagerBasedEnvCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">envs.ManagerBasedEnvCfg</span></code></a> class, which is called after the configuration is initialized.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="nd">@configclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">CartpoleEnvCfg</span><span class="p">(</span><span class="n">ManagerBasedEnvCfg</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for the cartpole environment.&quot;&quot;&quot;</span>
+
+    <span class="c1"># Scene settings</span>
+    <span class="n">scene</span> <span class="o">=</span> <span class="n">CartpoleSceneCfg</span><span class="p">(</span><span class="n">num_envs</span><span class="o">=</span><span class="mi">1024</span><span class="p">,</span> <span class="n">env_spacing</span><span class="o">=</span><span class="mf">2.5</span><span class="p">)</span>
+    <span class="c1"># Basic settings</span>
+    <span class="n">observations</span> <span class="o">=</span> <span class="n">ObservationsCfg</span><span class="p">()</span>
+    <span class="n">actions</span> <span class="o">=</span> <span class="n">ActionsCfg</span><span class="p">()</span>
+    <span class="n">events</span> <span class="o">=</span> <span class="n">EventCfg</span><span class="p">()</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">__post_init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Post initialization.&quot;&quot;&quot;</span>
+        <span class="c1"># viewer settings</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">viewer</span><span class="o">.</span><span class="n">eye</span> <span class="o">=</span> <span class="p">[</span><span class="mf">4.5</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">6.0</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">viewer</span><span class="o">.</span><span class="n">lookat</span> <span class="o">=</span> <span class="p">[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">2.0</span><span class="p">]</span>
+        <span class="c1"># step settings</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">decimation</span> <span class="o">=</span> <span class="mi">4</span>  <span class="c1"># env step every 4 sim steps: 200Hz / 4 = 50Hz</span>
+        <span class="c1"># simulation settings</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">dt</span> <span class="o">=</span> <span class="mf">0.005</span>  <span class="c1"># sim step every 5ms: 200Hz</span>
+</pre></div>
+</div>
+</section>
+<section id="running-the-simulation">
+<h3>Running the simulation<a class="headerlink" href="#running-the-simulation" title="Permalink to this heading">#</a></h3>
+<p>Lastly, we revisit the simulation execution loop. This is now much simpler since we have
+abstracted away most of the details into the environment configuration. We only need to
+call the <a class="reference internal" href="../../api/lab/isaaclab.envs.html#isaaclab.envs.ManagerBasedEnv.reset" title="isaaclab.envs.ManagerBasedEnv.reset"><code class="xref py py-meth docutils literal notranslate"><span class="pre">envs.ManagerBasedEnv.reset()</span></code></a> method to reset the environment and <a class="reference internal" href="../../api/lab/isaaclab.envs.html#isaaclab.envs.ManagerBasedEnv.step" title="isaaclab.envs.ManagerBasedEnv.step"><code class="xref py py-meth docutils literal notranslate"><span class="pre">envs.ManagerBasedEnv.step()</span></code></a>
+method to step the environment. Both these functions return the observation and an info dictionary
+which may contain additional information provided by the environment. These can be used by an
+agent for decision-making.</p>
+<p>The <a class="reference internal" href="../../api/lab/isaaclab.envs.html#isaaclab.envs.ManagerBasedEnv" title="isaaclab.envs.ManagerBasedEnv"><code class="xref py py-class docutils literal notranslate"><span class="pre">envs.ManagerBasedEnv</span></code></a> class does not have any notion of terminations since that concept is
+specific for episodic tasks. Thus, the user is responsible for defining the termination condition
+for the environment. In this tutorial, we reset the simulation at regular intervals.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Main function.&quot;&quot;&quot;</span>
+    <span class="c1"># parse the arguments</span>
+    <span class="n">env_cfg</span> <span class="o">=</span> <span class="n">CartpoleEnvCfg</span><span class="p">()</span>
+    <span class="n">env_cfg</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">num_envs</span> <span class="o">=</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">num_envs</span>
+    <span class="c1"># setup base environment</span>
+    <span class="n">env</span> <span class="o">=</span> <span class="n">ManagerBasedEnv</span><span class="p">(</span><span class="n">cfg</span><span class="o">=</span><span class="n">env_cfg</span><span class="p">)</span>
+
+    <span class="c1"># simulate physics</span>
+    <span class="n">count</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">while</span> <span class="n">simulation_app</span><span class="o">.</span><span class="n">is_running</span><span class="p">():</span>
+        <span class="k">with</span> <span class="n">torch</span><span class="o">.</span><span class="n">inference_mode</span><span class="p">():</span>
+            <span class="c1"># reset</span>
+            <span class="k">if</span> <span class="n">count</span> <span class="o">%</span> <span class="mi">300</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">count</span> <span class="o">=</span> <span class="mi">0</span>
+                <span class="n">env</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;-&quot;</span> <span class="o">*</span> <span class="mi">80</span><span class="p">)</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[INFO]: Resetting environment...&quot;</span><span class="p">)</span>
+            <span class="c1"># sample random actions</span>
+            <span class="n">joint_efforts</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">randn_like</span><span class="p">(</span><span class="n">env</span><span class="o">.</span><span class="n">action_manager</span><span class="o">.</span><span class="n">action</span><span class="p">)</span>
+            <span class="c1"># step the environment</span>
+            <span class="n">obs</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">step</span><span class="p">(</span><span class="n">joint_efforts</span><span class="p">)</span>
+            <span class="c1"># print current orientation of pole</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[Env 0]: Pole joint: &quot;</span><span class="p">,</span> <span class="n">obs</span><span class="p">[</span><span class="s2">&quot;policy&quot;</span><span class="p">][</span><span class="mi">0</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">item</span><span class="p">())</span>
+            <span class="c1"># update counter</span>
+            <span class="n">count</span> <span class="o">+=</span> <span class="mi">1</span>
+
+    <span class="c1"># close the environment</span>
+    <span class="n">env</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+</pre></div>
+</div>
+<p>An important thing to note above is that the entire simulation loop is wrapped inside the
+<code class="xref py py-meth docutils literal notranslate"><span class="pre">torch.inference_mode()</span></code> context manager. This is because the environment uses PyTorch
+operations under-the-hood and we want to ensure that the simulation is not slowed down by
+the overhead of PyTorch’s autograd engine and gradients are not computed for the simulation
+operations.</p>
+</section>
+</section>
+<section id="the-code-execution">
+<h2>The Code Execution<a class="headerlink" href="#the-code-execution" title="Permalink to this heading">#</a></h2>
+<p>To run the base environment made in this tutorial, you can use the following command:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/tutorials/03_envs/create_cartpole_base_env.py<span class="w"> </span>--num_envs<span class="w"> </span><span class="m">32</span>
+</pre></div>
+</div>
+<p>This should open a stage with a ground plane, light source, and cartpoles. The simulation should be
+playing with random actions on the cartpole. Additionally, it opens a UI window on the bottom
+right corner of the screen named <code class="docutils literal notranslate"><span class="pre">&quot;Isaac</span> <span class="pre">Lab&quot;</span></code>. This window contains different UI elements that
+can be used for debugging and visualization.</p>
+<figure class="align-center" style="width: 100%">
+<img alt="result of create_cartpole_base_env.py" src="../../../_images/tutorial_create_manager_rl_env.jpg" />
+</figure>
+<p>To stop the simulation, you can either close the window, or press <code class="docutils literal notranslate"><span class="pre">Ctrl+C</span></code> in the terminal where you
+started the simulation.</p>
+<p>In this tutorial, we learned about the different managers that help define a base environment. We
+include more examples of defining the base environment in the <code class="docutils literal notranslate"><span class="pre">scripts/tutorials/03_envs</span></code>
+directory. For completeness, they can be run using the following commands:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Floating cube environment with custom action term for PD control</span>
+./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/tutorials/03_envs/create_cube_base_env.py<span class="w"> </span>--num_envs<span class="w"> </span><span class="m">32</span>
+
+<span class="c1"># Quadrupedal locomotion environment with a policy that interacts with the environment</span>
+./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/tutorials/03_envs/create_quadruped_base_env.py<span class="w"> </span>--num_envs<span class="w"> </span><span class="m">32</span>
+</pre></div>
+</div>
+<p>In the following tutorial, we will look at the <a class="reference internal" href="../../api/lab/isaaclab.envs.html#isaaclab.envs.ManagerBasedRLEnv" title="isaaclab.envs.ManagerBasedRLEnv"><code class="xref py py-class docutils literal notranslate"><span class="pre">envs.ManagerBasedRLEnv</span></code></a> class and how to use it
+to create a Markovian Decision Process (MDP).</p>
+</section>
+</section>
+
+
+                </article>
+              
+
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="../02_scene/create_scene.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">Using the Interactive Scene</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="create_manager_rl_env.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Creating a Manager-Based RL Environment</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+  <div class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> Contents
+  </div>
+  <nav class="bd-toc-nav page-toc">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#the-code">The Code</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#the-code-explained">The Code Explained</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#designing-the-scene">Designing the scene</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#defining-actions">Defining actions</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#defining-observations">Defining observations</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#defining-events">Defining events</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#tying-it-all-together">Tying it all together</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#running-the-simulation">Running the simulation</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#the-code-execution">The Code Execution</a></li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+<div class="bd-footer-content__inner container">
+  
+  <div class="footer-item">
+    
+<p class="component-author">
+By The Isaac Lab Project Developers.
+</p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+
+  <p class="copyright">
+    
+      © Copyright 2022-2025, The Isaac Lab Project Developers..
+      <br/>
+    
+  </p>
+
+  </div>
+  
+  <div class="footer-item">
+    <p class="last-updated">
+  Last updated on Jan 31, 2025.
+  <br/>
+</p>
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+</div>
+          </footer>
+        
+
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+  </footer>
+  </body>
+</html>

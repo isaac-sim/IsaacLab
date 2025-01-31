@@ -111,5 +111,5 @@ Simulation App Launcher
 
 
 .. _livestream: https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/manual_livestream_clients.html
-.. _`Native Livestream`: https://docs.omniverse.nvidia.com/isaacsim/latest/installation/manual_livestream_clients.html#omniverse-streaming-client-deprecated
-.. _`WebRTC Livestream`: https://docs.omniverse.nvidia.com/isaacsim/latest/installation/manual_livestream_clients.html#isaac-sim-short-webrtc-streaming-client
+.. _`Native Livestream`: https://docs.isaacsim.omniverse.nvidia.com/latest/installation/manual_livestream_clients.html#omniverse-streaming-client-deprecated
+.. _`WebRTC Livestream`: https://docs.isaacsim.omniverse.nvidia.com/latest/installation/manual_livestream_clients.html#isaac-sim-short-webrtc-streaming-client

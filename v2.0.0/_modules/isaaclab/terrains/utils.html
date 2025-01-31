@@ -1,0 +1,878 @@
+
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>isaaclab.terrains.utils &#8212; Isaac Lab Documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../../../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css" />
+    <link rel="stylesheet" href="../../../_static/styles/sphinx-book-theme.css?digest=14f4ca6b54d191a8c7657f6c759bf11a5fb86285" type="text/css" />
+    <link rel="stylesheet" type="text/css" href="/opt/hostedtoolcache/Python/3.10.16/x64/lib/python3.10/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/css/all.min.css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/custom.css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/sphinx-design.4cbf315f70debaebd550c87a6162cf0f.min.css" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../../../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script data-url_root="../../../" id="documentation_options" src="../../../_static/documentation_options.js"></script>
+    <script src="../../../_static/doctools.js"></script>
+    <script src="../../../_static/sphinx_highlight.js"></script>
+    <script src="/opt/hostedtoolcache/Python/3.10.16/x64/lib/python3.10/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/js/all.min.js"></script>
+    <script src="../../../_static/clipboard.min.js"></script>
+    <script src="../../../_static/copybutton.js"></script>
+    <script src="../../../_static/scripts/sphinx-book-theme.js?digest=5a5c038af52cf7bc1a1ec88eea08e6366ee68824"></script>
+    <script src="../../../_static/design-tabs.js"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = '_modules/isaaclab/terrains/utils';</script>
+    <link rel="icon" href="../../../_static/favicon.ico"/>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="2.0.0" />
+    <meta name="docbuild:last-update" content="Jan 31, 2025"/>
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+        
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+    
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../../../_static/NVIDIA-logo-white.png" class="logo__image only-light" alt=""/>
+    <img src="../../../_static/NVIDIA-logo-black.png" class="logo__image only-dark pst-js-only" alt=""/>
+  
+  
+    <p class="title logo__title">Isaac Lab Documentation</p>
+  
+</a></div>
+        <div class="sidebar-primary-item">
+<nav class="bd-links bd-docs-nav">
+    <div class="bd-toc-item navbar-nav">
+      <ul class="nav bd-sidenav">
+        <li class="toctree-l1 has-children" style="display: flex; justify-content: center; align-items: center; flex-direction: column;">
+          <div  style ="text-align:center;">
+            <label for="version-select" style="font-weight: bold; display: block;">Version</label>
+          </div>
+          <select id="version-select" class="version-dropdown" style="margin: 0 auto; display: block;" onchange="location = this.value;">
+            <option value="../../../../main/index.html" >main</option>
+            <option value="utils.html" selected>v2.0.0</option>
+            <option value="../../../../v1.4.1/index.html" >v1.4.1</option>
+            <option value="../../../../v1.4.0/index.html" >v1.4.0</option>
+            <option value="../../../../v1.3.0/index.html" >v1.3.0</option>
+            <option value="../../../../v1.2.0/index.html" >v1.2.0</option>
+            <option value="../../../../v1.1.0/index.html" >v1.1.0</option>
+            <option value="../../../../v1.0.0/index.html" >v1.0.0</option>
+          </select>
+        </li>
+      </ul>
+    </div>
+</nav>
+</div>
+        <div class="sidebar-primary-item"><ul class="navbar-icon-links"
+    aria-label="Quick Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/isaac-sim/IsaacLab" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.5.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+        </li>
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://img.shields.io/github/stars/isaac-sim/IsaacLab?color=fedcba" title="Stars" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/github/stars/isaac-sim/IsaacLab?color=fedcba" class="icon-link-image" alt="Stars"/></a>
+        </li>
+</ul></div>
+        <div class="sidebar-primary-item">
+<form class="bd-search d-flex align-items-center"
+      action="../../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form></div>
+        <div class="sidebar-primary-item"><nav class="bd-links" id="bd-docs-nav" aria-label="Main">
+    <div class="bd-toc-item navbar-nav active">
+        <p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../../source/setup/ecosystem.html">Isaac Lab Ecosystem</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../source/setup/installation/index.html">Local Installation</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/setup/installation/pip_installation.html">Pip installation (recommended for Ubuntu 22.04 and Windows)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/setup/installation/binaries_installation.html">Binary installation (recommended for Ubuntu 20.04)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/setup/installation/isaaclab_pip_installation.html">Advanced installation (Isaac Lab pip)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/setup/installation/asset_caching.html">Asset caching</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../source/setup/installation/cloud_installation.html">Running Isaac Lab in the Cloud</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../source/setup/faq.html">Frequently Asked Questions</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Overview</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../source/overview/developer-guide/index.html">Developer’s Guide</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/overview/developer-guide/vs_code.html">Setting up Visual Studio Code</a></li>
+
+<li class="toctree-l2"><a class="reference internal" href="../../../source/overview/developer-guide/repo_structure.html">Repository organization</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/overview/developer-guide/development.html">Extension Development</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/overview/developer-guide/template.html">Building your Own Project</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../source/overview/core-concepts/index.html">Core Concepts</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/overview/core-concepts/task_workflows.html">Task Design Workflows</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/overview/core-concepts/actuators.html">Actuators</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../source/overview/sensors/index.html">Sensors</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/overview/sensors/camera.html">Camera</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/overview/sensors/contact_sensor.html">Contact Sensor</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/overview/sensors/frame_transformer.html">Frame Transformer</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/overview/sensors/imu.html">Inertial Measurement Unit (IMU)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/overview/sensors/ray_caster.html">Ray Caster</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../source/overview/environments.html">Available Environments</a></li>
+
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../source/overview/reinforcement-learning/index.html">Reinforcement Learning</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/overview/reinforcement-learning/rl_existing_scripts.html">Reinforcement Learning Wrappers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/overview/reinforcement-learning/rl_frameworks.html">Reinforcement Learning Library Comparison</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/overview/reinforcement-learning/performance_benchmarks.html">Performance Benchmarks</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/overview/reinforcement-learning/training_guide.html">Debugging and Training Guide</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../source/overview/teleop_imitation.html">Teleoperation and Imitation Learning</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../source/overview/showroom.html">Showroom Demos</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../source/overview/simple_agents.html">Simple Agents</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Features</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../../source/features/hydra.html">Hydra Configuration System</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../source/features/multi_gpu.html">Multi-GPU and Multi-Node Training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../source/overview/sensors/camera.html">Tiled Rendering</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../source/features/ray.html">Ray Job Dispatch and Tuning</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../source/features/reproducibility.html">Reproducibility and Determinism</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Resources</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../source/tutorials/index.html">Tutorials</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/tutorials/00_sim/create_empty.html">Creating an empty scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/tutorials/00_sim/spawn_prims.html">Spawning prims into the scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/tutorials/00_sim/launch_app.html">Deep-dive into AppLauncher</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/tutorials/01_assets/run_rigid_object.html">Interacting with a rigid object</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/tutorials/01_assets/run_articulation.html">Interacting with an articulation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/tutorials/01_assets/run_deformable_object.html">Interacting with a deformable object</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/tutorials/02_scene/create_scene.html">Using the Interactive Scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/tutorials/03_envs/create_manager_base_env.html">Creating a Manager-Based Base Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/tutorials/03_envs/create_manager_rl_env.html">Creating a Manager-Based RL Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/tutorials/03_envs/create_direct_rl_env.html">Creating a Direct Workflow RL Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/tutorials/03_envs/register_rl_env_gym.html">Registering an Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/tutorials/03_envs/run_rl_training.html">Training with an RL Agent</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/tutorials/03_envs/modify_direct_rl_env.html">Modifying an existing Direct RL Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/tutorials/03_envs/policy_inference_in_usd.html">Policy Inference in USD Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/tutorials/04_sensors/add_sensors_on_robot.html">Adding sensors on a robot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/tutorials/05_controllers/run_diff_ik.html">Using a task-space controller</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/tutorials/05_controllers/run_osc.html">Using an operational space controller</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../source/how-to/index.html">How-to Guides</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/how-to/import_new_asset.html">Importing a New Asset</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/how-to/write_articulation_cfg.html">Writing an Asset Configuration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/how-to/make_fixed_prim.html">Making a physics prim fixed in the simulation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/how-to/multi_asset_spawning.html">Spawning Multiple Assets</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/how-to/save_camera_output.html">Saving rendered images and 3D re-projection</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/how-to/estimate_how_many_cameras_can_run.html">Find How Many/What Cameras You Should Train With</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/how-to/draw_markers.html">Creating Visualization Markers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/how-to/wrap_rl_env.html">Wrapping environments</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/how-to/add_own_library.html">Adding your own learning library</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/how-to/record_animation.html">Recording Animations of Simulations</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/how-to/record_video.html">Recording video clips during training</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/how-to/master_omniverse.html">Mastering Omniverse for Robotics</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../source/deployment/index.html">Container Deployment</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/deployment/docker.html">Docker Guide</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/deployment/cluster.html">Cluster Guide</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/deployment/run_docker_example.html">Running an example with Docker</a></li>
+</ul>
+</details></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Migration Guides</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../../source/migration/migrating_from_isaacgymenvs.html">From IsaacGymEnvs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../source/migration/migrating_from_omniisaacgymenvs.html">From OmniIsaacGymEnvs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../source/migration/migrating_from_orbit.html">From Orbit</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Source API</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../source/api/index.html">API Reference</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/api/lab/isaaclab.app.html">isaaclab.app</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/api/lab/isaaclab.actuators.html">isaaclab.actuators</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/api/lab/isaaclab.assets.html">isaaclab.assets</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/api/lab/isaaclab.controllers.html">isaaclab.controllers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/api/lab/isaaclab.devices.html">isaaclab.devices</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/api/lab/isaaclab.envs.html">isaaclab.envs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/api/lab/isaaclab.managers.html">isaaclab.managers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/api/lab/isaaclab.markers.html">isaaclab.markers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/api/lab/isaaclab.scene.html">isaaclab.scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/api/lab/isaaclab.sensors.html">isaaclab.sensors</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/api/lab/isaaclab.sim.html">isaaclab.sim</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/api/lab/isaaclab.terrains.html">isaaclab.terrains</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/api/lab/isaaclab.utils.html">isaaclab.utils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/api/lab/isaaclab.envs.mdp.html">isaaclab.envs.mdp</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/api/lab/isaaclab.envs.ui.html">isaaclab.envs.ui</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/api/lab/isaaclab.sensors.patterns.html">isaaclab.sensors.patterns</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/api/lab/isaaclab.sim.converters.html">isaaclab.sim.converters</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/api/lab/isaaclab.sim.schemas.html">isaaclab.sim.schemas</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/api/lab/isaaclab.sim.spawners.html">isaaclab.sim.spawners</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/api/lab_tasks/isaaclab_tasks.utils.html">isaaclab_tasks.utils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/api/lab_mimic/isaaclab_mimic.datagen.html">isaaclab_mimic.datagen</a></li>
+</ul>
+</details></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">References</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../../source/refs/reference_architecture/index.html">Reference Architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../source/refs/additional_resources.html">Additional Resources</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../source/refs/contributing.html">Contribution Guidelines</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../source/refs/troubleshooting.html">Tricks and Troubleshooting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../source/refs/migration.html">Migration Guide (Isaac Sim)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../source/refs/issues.html">Known Issues</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../source/refs/release_notes.html">Release Notes</a></li>
+
+
+
+
+
+
+<li class="toctree-l1"><a class="reference internal" href="../../../source/refs/changelog.html">Extensions Changelog</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../source/refs/license.html">License</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../source/refs/bibliography.html">Bibliography</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Project Links</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference external" href="https://github.com/isaac-sim/IsaacLab">GitHub</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/latest/index.html">NVIDIA Isaac Sim</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/index.html">NVIDIA PhysX</a></li>
+</ul>
+
+    </div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+
+<div class="sbt-scroll-pixel-helper"></div>
+
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item"><label class="sidebar-toggle primary-toggle btn btn-sm" for="__primary" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <span class="fa-solid fa-bars"></span>
+</label></div>
+      
+    </div>
+  
+  
+    <div class="header-article-items__end">
+      
+        <div class="header-article-item">
+
+<div class="article-header-buttons">
+
+
+
+
+
+<div class="dropdown dropdown-source-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Source repositories">
+    <i class="fab fa-github"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="https://github.com/isaac-sim/IsaacLab" target="_blank"
+   class="btn btn-sm btn-source-repository-button dropdown-item"
+   title="Source repository"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fab fa-github"></i>
+  </span>
+<span class="btn__text-container">Repository</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li><a href="https://github.com/isaac-sim/IsaacLab/issues/new?title=Issue%20on%20page%20%2F_modules/isaaclab/terrains/utils.html&body=Your%20issue%20content%20here." target="_blank"
+   class="btn btn-sm btn-source-issues-button dropdown-item"
+   title="Open an issue"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-lightbulb"></i>
+  </span>
+<span class="btn__text-container">Open issue</span>
+</a>
+</li>
+      
+  </ul>
+</div>
+
+
+
+
+<button onclick="toggleFullScreen()"
+  class="btn btn-sm btn-fullscreen-button"
+  title="Fullscreen mode"
+  data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-expand"></i>
+  </span>
+
+</button>
+
+
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button>
+
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+
+</div></div>
+      
+    </div>
+  
+</div>
+</div>
+              
+              
+
+<div id="jb-print-docs-body" class="onlyprint">
+    <h1></h1>
+    <!-- Table of contents -->
+    <div id="print-main-content">
+        <div id="jb-print-toc">
+            
+        </div>
+    </div>
+</div>
+
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <h1>Source code for isaaclab.terrains.utils</h1><div class="highlight"><pre>
+<span></span><span class="c1"># Copyright (c) 2022-2025, The Isaac Lab Project Developers.</span>
+<span class="c1"># All rights reserved.</span>
+<span class="c1">#</span>
+<span class="c1"># SPDX-License-Identifier: BSD-3-Clause</span>
+
+<span class="c1"># needed to import for allowing type-hinting: np.ndarray | torch.Tensor | None</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">trimesh</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">warp</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">wp</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils.warp</span><span class="w"> </span><span class="kn">import</span> <span class="n">raycast_mesh</span>
+
+
+<div class="viewcode-block" id="color_meshes_by_height"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.terrains.html#isaaclab.terrains.utils.color_meshes_by_height">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">color_meshes_by_height</span><span class="p">(</span><span class="n">meshes</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">trimesh</span><span class="o">.</span><span class="n">Trimesh</span><span class="p">],</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">trimesh</span><span class="o">.</span><span class="n">Trimesh</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Color the vertices of a trimesh object based on the z-coordinate (height) of each vertex,</span>
+<span class="sd">    using the Turbo colormap. If the z-coordinates are all the same, the vertices will be colored</span>
+<span class="sd">    with a single color.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        meshes: A list of trimesh objects.</span>
+
+<span class="sd">    Keyword Args:</span>
+<span class="sd">        color: A list of 3 integers in the range [0,255] representing the RGB</span>
+<span class="sd">            color of the mesh. Used when the z-coordinates of all vertices are the same.</span>
+<span class="sd">            Defaults to [172, 216, 230].</span>
+<span class="sd">        color_map: The name of the color map to be used. Defaults to &quot;turbo&quot;.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        A trimesh object with the vertices colored based on the z-coordinate (height) of each vertex.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># Combine all meshes into a single mesh</span>
+    <span class="n">mesh</span> <span class="o">=</span> <span class="n">trimesh</span><span class="o">.</span><span class="n">util</span><span class="o">.</span><span class="n">concatenate</span><span class="p">(</span><span class="n">meshes</span><span class="p">)</span>
+    <span class="c1"># Get the z-coordinates of each vertex</span>
+    <span class="n">heights</span> <span class="o">=</span> <span class="n">mesh</span><span class="o">.</span><span class="n">vertices</span><span class="p">[:,</span> <span class="mi">2</span><span class="p">]</span>
+    <span class="c1"># Check if the z-coordinates are all the same</span>
+    <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">heights</span><span class="p">)</span> <span class="o">==</span> <span class="n">np</span><span class="o">.</span><span class="n">min</span><span class="p">(</span><span class="n">heights</span><span class="p">):</span>
+        <span class="c1"># Obtain a single color: light blue</span>
+        <span class="n">color</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s2">&quot;color&quot;</span><span class="p">,</span> <span class="p">(</span><span class="mi">172</span><span class="p">,</span> <span class="mi">216</span><span class="p">,</span> <span class="mi">230</span><span class="p">))</span>
+        <span class="n">color</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">color</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">uint8</span><span class="p">)</span>
+        <span class="c1"># Set the color for all vertices</span>
+        <span class="n">mesh</span><span class="o">.</span><span class="n">visual</span><span class="o">.</span><span class="n">vertex_colors</span> <span class="o">=</span> <span class="n">color</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="c1"># Normalize the heights to [0,1]</span>
+        <span class="n">heights_normalized</span> <span class="o">=</span> <span class="p">(</span><span class="n">heights</span> <span class="o">-</span> <span class="n">np</span><span class="o">.</span><span class="n">min</span><span class="p">(</span><span class="n">heights</span><span class="p">))</span> <span class="o">/</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">heights</span><span class="p">)</span> <span class="o">-</span> <span class="n">np</span><span class="o">.</span><span class="n">min</span><span class="p">(</span><span class="n">heights</span><span class="p">))</span>
+        <span class="c1"># clip lower and upper bounds to have better color mapping</span>
+        <span class="n">heights_normalized</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">clip</span><span class="p">(</span><span class="n">heights_normalized</span><span class="p">,</span> <span class="mf">0.1</span><span class="p">,</span> <span class="mf">0.9</span><span class="p">)</span>
+        <span class="c1"># Get the color for each vertex based on the height</span>
+        <span class="n">color_map</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s2">&quot;color_map&quot;</span><span class="p">,</span> <span class="s2">&quot;turbo&quot;</span><span class="p">)</span>
+        <span class="n">colors</span> <span class="o">=</span> <span class="n">trimesh</span><span class="o">.</span><span class="n">visual</span><span class="o">.</span><span class="n">color</span><span class="o">.</span><span class="n">interpolate</span><span class="p">(</span><span class="n">heights_normalized</span><span class="p">,</span> <span class="n">color_map</span><span class="o">=</span><span class="n">color_map</span><span class="p">)</span>
+        <span class="c1"># Set the vertex colors</span>
+        <span class="n">mesh</span><span class="o">.</span><span class="n">visual</span><span class="o">.</span><span class="n">vertex_colors</span> <span class="o">=</span> <span class="n">colors</span>
+    <span class="c1"># Return the mesh</span>
+    <span class="k">return</span> <span class="n">mesh</span></div>
+
+
+<div class="viewcode-block" id="create_prim_from_mesh"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.terrains.html#isaaclab.terrains.utils.create_prim_from_mesh">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">create_prim_from_mesh</span><span class="p">(</span><span class="n">prim_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">mesh</span><span class="p">:</span> <span class="n">trimesh</span><span class="o">.</span><span class="n">Trimesh</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Create a USD prim with mesh defined from vertices and triangles.</span>
+
+<span class="sd">    The function creates a USD prim with a mesh defined from vertices and triangles. It performs the</span>
+<span class="sd">    following steps:</span>
+
+<span class="sd">    - Create a USD Xform prim at the path :obj:`prim_path`.</span>
+<span class="sd">    - Create a USD prim with a mesh defined from the input vertices and triangles at the path :obj:`{prim_path}/mesh`.</span>
+<span class="sd">    - Assign a physics material to the mesh at the path :obj:`{prim_path}/physicsMaterial`.</span>
+<span class="sd">    - Assign a visual material to the mesh at the path :obj:`{prim_path}/visualMaterial`.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        prim_path: The path to the primitive to be created.</span>
+<span class="sd">        mesh: The mesh to be used for the primitive.</span>
+
+<span class="sd">    Keyword Args:</span>
+<span class="sd">        translation: The translation of the terrain. Defaults to None.</span>
+<span class="sd">        orientation: The orientation of the terrain. Defaults to None.</span>
+<span class="sd">        visual_material: The visual material to apply. Defaults to None.</span>
+<span class="sd">        physics_material: The physics material to apply. Defaults to None.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># need to import these here to prevent isaacsim launching when importing this module</span>
+    <span class="kn">import</span><span class="w"> </span><span class="nn">isaacsim.core.utils.prims</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">prim_utils</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">pxr</span><span class="w"> </span><span class="kn">import</span> <span class="n">UsdGeom</span>
+
+    <span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab.sim</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">sim_utils</span>
+
+    <span class="c1"># create parent prim</span>
+    <span class="n">prim_utils</span><span class="o">.</span><span class="n">create_prim</span><span class="p">(</span><span class="n">prim_path</span><span class="p">,</span> <span class="s2">&quot;Xform&quot;</span><span class="p">)</span>
+    <span class="c1"># create mesh prim</span>
+    <span class="n">prim</span> <span class="o">=</span> <span class="n">prim_utils</span><span class="o">.</span><span class="n">create_prim</span><span class="p">(</span>
+        <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">prim_path</span><span class="si">}</span><span class="s2">/mesh&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;Mesh&quot;</span><span class="p">,</span>
+        <span class="n">translation</span><span class="o">=</span><span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;translation&quot;</span><span class="p">),</span>
+        <span class="n">orientation</span><span class="o">=</span><span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;orientation&quot;</span><span class="p">),</span>
+        <span class="n">attributes</span><span class="o">=</span><span class="p">{</span>
+            <span class="s2">&quot;points&quot;</span><span class="p">:</span> <span class="n">mesh</span><span class="o">.</span><span class="n">vertices</span><span class="p">,</span>
+            <span class="s2">&quot;faceVertexIndices&quot;</span><span class="p">:</span> <span class="n">mesh</span><span class="o">.</span><span class="n">faces</span><span class="o">.</span><span class="n">flatten</span><span class="p">(),</span>
+            <span class="s2">&quot;faceVertexCounts&quot;</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">([</span><span class="mi">3</span><span class="p">]</span> <span class="o">*</span> <span class="nb">len</span><span class="p">(</span><span class="n">mesh</span><span class="o">.</span><span class="n">faces</span><span class="p">)),</span>
+            <span class="s2">&quot;subdivisionScheme&quot;</span><span class="p">:</span> <span class="s2">&quot;bilinear&quot;</span><span class="p">,</span>
+        <span class="p">},</span>
+    <span class="p">)</span>
+    <span class="c1"># apply collider properties</span>
+    <span class="n">collider_cfg</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">CollisionPropertiesCfg</span><span class="p">(</span><span class="n">collision_enabled</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">sim_utils</span><span class="o">.</span><span class="n">define_collision_properties</span><span class="p">(</span><span class="n">prim</span><span class="o">.</span><span class="n">GetPrimPath</span><span class="p">(),</span> <span class="n">collider_cfg</span><span class="p">)</span>
+    <span class="c1"># add rgba color to the mesh primvars</span>
+    <span class="k">if</span> <span class="n">mesh</span><span class="o">.</span><span class="n">visual</span><span class="o">.</span><span class="n">vertex_colors</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="c1"># obtain color from the mesh</span>
+        <span class="n">rgba_colors</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">mesh</span><span class="o">.</span><span class="n">visual</span><span class="o">.</span><span class="n">vertex_colors</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span> <span class="o">/</span> <span class="mf">255.0</span>
+        <span class="c1"># displayColor is a primvar attribute that is used to color the mesh</span>
+        <span class="n">color_prim_attr</span> <span class="o">=</span> <span class="n">prim</span><span class="o">.</span><span class="n">GetAttribute</span><span class="p">(</span><span class="s2">&quot;primvars:displayColor&quot;</span><span class="p">)</span>
+        <span class="n">color_prim_var</span> <span class="o">=</span> <span class="n">UsdGeom</span><span class="o">.</span><span class="n">Primvar</span><span class="p">(</span><span class="n">color_prim_attr</span><span class="p">)</span>
+        <span class="n">color_prim_var</span><span class="o">.</span><span class="n">SetInterpolation</span><span class="p">(</span><span class="n">UsdGeom</span><span class="o">.</span><span class="n">Tokens</span><span class="o">.</span><span class="n">vertex</span><span class="p">)</span>
+        <span class="n">color_prim_attr</span><span class="o">.</span><span class="n">Set</span><span class="p">(</span><span class="n">rgba_colors</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">3</span><span class="p">])</span>
+        <span class="c1"># displayOpacity is a primvar attribute that is used to set the opacity of the mesh</span>
+        <span class="n">display_prim_attr</span> <span class="o">=</span> <span class="n">prim</span><span class="o">.</span><span class="n">GetAttribute</span><span class="p">(</span><span class="s2">&quot;primvars:displayOpacity&quot;</span><span class="p">)</span>
+        <span class="n">display_prim_var</span> <span class="o">=</span> <span class="n">UsdGeom</span><span class="o">.</span><span class="n">Primvar</span><span class="p">(</span><span class="n">display_prim_attr</span><span class="p">)</span>
+        <span class="n">display_prim_var</span><span class="o">.</span><span class="n">SetInterpolation</span><span class="p">(</span><span class="n">UsdGeom</span><span class="o">.</span><span class="n">Tokens</span><span class="o">.</span><span class="n">vertex</span><span class="p">)</span>
+        <span class="n">display_prim_var</span><span class="o">.</span><span class="n">Set</span><span class="p">(</span><span class="n">rgba_colors</span><span class="p">[:,</span> <span class="mi">3</span><span class="p">])</span>
+
+    <span class="c1"># create visual material</span>
+    <span class="k">if</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;visual_material&quot;</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">visual_material_cfg</span><span class="p">:</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">VisualMaterialCfg</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;visual_material&quot;</span><span class="p">)</span>
+        <span class="c1"># spawn the material</span>
+        <span class="n">visual_material_cfg</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">prim_path</span><span class="si">}</span><span class="s2">/visualMaterial&quot;</span><span class="p">,</span> <span class="n">visual_material_cfg</span><span class="p">)</span>
+        <span class="n">sim_utils</span><span class="o">.</span><span class="n">bind_visual_material</span><span class="p">(</span><span class="n">prim</span><span class="o">.</span><span class="n">GetPrimPath</span><span class="p">(),</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">prim_path</span><span class="si">}</span><span class="s2">/visualMaterial&quot;</span><span class="p">)</span>
+    <span class="c1"># create physics material</span>
+    <span class="k">if</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;physics_material&quot;</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">physics_material_cfg</span><span class="p">:</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">RigidBodyMaterialCfg</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;physics_material&quot;</span><span class="p">)</span>
+        <span class="c1"># spawn the material</span>
+        <span class="n">physics_material_cfg</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">prim_path</span><span class="si">}</span><span class="s2">/physicsMaterial&quot;</span><span class="p">,</span> <span class="n">physics_material_cfg</span><span class="p">)</span>
+        <span class="n">sim_utils</span><span class="o">.</span><span class="n">bind_physics_material</span><span class="p">(</span><span class="n">prim</span><span class="o">.</span><span class="n">GetPrimPath</span><span class="p">(),</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">prim_path</span><span class="si">}</span><span class="s2">/physicsMaterial&quot;</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="find_flat_patches"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.terrains.html#isaaclab.terrains.utils.find_flat_patches">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">find_flat_patches</span><span class="p">(</span>
+    <span class="n">wp_mesh</span><span class="p">:</span> <span class="n">wp</span><span class="o">.</span><span class="n">Mesh</span><span class="p">,</span>
+    <span class="n">num_patches</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">patch_radius</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="nb">list</span><span class="p">[</span><span class="nb">float</span><span class="p">],</span>
+    <span class="n">origin</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span> <span class="o">|</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">],</span>
+    <span class="n">x_range</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">],</span>
+    <span class="n">y_range</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">],</span>
+    <span class="n">z_range</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">],</span>
+    <span class="n">max_height_diff</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Finds flat patches of given radius in the input mesh.</span>
+
+<span class="sd">    The function finds flat patches of given radius based on the search space defined by the input ranges.</span>
+<span class="sd">    The search space is characterized by origin in the mesh frame, and the x, y, and z ranges. The x and y</span>
+<span class="sd">    ranges are used to sample points in the 2D region around the origin, and the z range is used to filter</span>
+<span class="sd">    patches based on the height of the points.</span>
+
+<span class="sd">    The function performs rejection sampling to find the patches based on the following steps:</span>
+
+<span class="sd">    1. Sample patch locations in the 2D region around the origin.</span>
+<span class="sd">    2. Define a ring of points around each patch location to query the height of the points using ray-casting.</span>
+<span class="sd">    3. Reject patches that are outside the z range or have a height difference that is too large.</span>
+<span class="sd">    4. Keep sampling until all patches are valid.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        wp_mesh: The warp mesh to find patches in.</span>
+<span class="sd">        num_patches: The desired number of patches to find.</span>
+<span class="sd">        patch_radius: The radii used to form patches. If a list is provided, multiple patch sizes are checked.</span>
+<span class="sd">            This is useful to deal with holes or other artifacts in the mesh.</span>
+<span class="sd">        origin: The origin defining the center of the search space. This is specified in the mesh frame.</span>
+<span class="sd">        x_range: The range of X coordinates to sample from.</span>
+<span class="sd">        y_range: The range of Y coordinates to sample from.</span>
+<span class="sd">        z_range: The range of valid Z coordinates used for filtering patches.</span>
+<span class="sd">        max_height_diff: The maximum allowable distance between the lowest and highest points</span>
+<span class="sd">            on a patch to consider it as valid. If the difference is greater than this value,</span>
+<span class="sd">            the patch is rejected.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        A tensor of shape (num_patches, 3) containing the flat patches. The patches are defined in the mesh frame.</span>
+
+<span class="sd">    Raises:</span>
+<span class="sd">        RuntimeError: If the function fails to find valid patches. This can happen if the input parameters</span>
+<span class="sd">            are not suitable for finding valid patches and maximum number of iterations is reached.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># set device to warp mesh device</span>
+    <span class="n">device</span> <span class="o">=</span> <span class="n">wp</span><span class="o">.</span><span class="n">device_to_torch</span><span class="p">(</span><span class="n">wp_mesh</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+
+    <span class="c1"># resolve inputs to consistent type</span>
+    <span class="c1"># -- patch radii</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">patch_radius</span><span class="p">,</span> <span class="nb">float</span><span class="p">):</span>
+        <span class="n">patch_radius</span> <span class="o">=</span> <span class="p">[</span><span class="n">patch_radius</span><span class="p">]</span>
+    <span class="c1"># -- origin</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">origin</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">):</span>
+        <span class="n">origin</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">from_numpy</span><span class="p">(</span><span class="n">origin</span><span class="p">)</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">float</span><span class="p">)</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">device</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">origin</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">):</span>
+        <span class="n">origin</span> <span class="o">=</span> <span class="n">origin</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">device</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">origin</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">origin</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">float</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">device</span><span class="p">)</span>
+
+    <span class="c1"># create ranges for the x and y coordinates around the origin.</span>
+    <span class="c1"># The provided ranges are bounded by the mesh&#39;s bounding box.</span>
+    <span class="n">x_range</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="nb">max</span><span class="p">(</span><span class="n">x_range</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="n">origin</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">item</span><span class="p">(),</span> <span class="n">wp_mesh</span><span class="o">.</span><span class="n">points</span><span class="o">.</span><span class="n">numpy</span><span class="p">()[:,</span> <span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">min</span><span class="p">()),</span>
+        <span class="nb">min</span><span class="p">(</span><span class="n">x_range</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="n">origin</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">item</span><span class="p">(),</span> <span class="n">wp_mesh</span><span class="o">.</span><span class="n">points</span><span class="o">.</span><span class="n">numpy</span><span class="p">()[:,</span> <span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">max</span><span class="p">()),</span>
+    <span class="p">)</span>
+    <span class="n">y_range</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="nb">max</span><span class="p">(</span><span class="n">y_range</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="n">origin</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">item</span><span class="p">(),</span> <span class="n">wp_mesh</span><span class="o">.</span><span class="n">points</span><span class="o">.</span><span class="n">numpy</span><span class="p">()[:,</span> <span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">min</span><span class="p">()),</span>
+        <span class="nb">min</span><span class="p">(</span><span class="n">y_range</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="n">origin</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">item</span><span class="p">(),</span> <span class="n">wp_mesh</span><span class="o">.</span><span class="n">points</span><span class="o">.</span><span class="n">numpy</span><span class="p">()[:,</span> <span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">max</span><span class="p">()),</span>
+    <span class="p">)</span>
+    <span class="n">z_range</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="n">z_range</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="n">origin</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">item</span><span class="p">(),</span>
+        <span class="n">z_range</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="n">origin</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">item</span><span class="p">(),</span>
+    <span class="p">)</span>
+
+    <span class="c1"># create a circle of points around (0, 0) to query validity of the patches</span>
+    <span class="c1"># the ring of points is uniformly distributed around the circle</span>
+    <span class="n">angle</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">device</span><span class="p">)</span>
+    <span class="n">query_x</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">query_y</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">radius</span> <span class="ow">in</span> <span class="n">patch_radius</span><span class="p">:</span>
+        <span class="n">query_x</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">radius</span> <span class="o">*</span> <span class="n">torch</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">angle</span><span class="p">))</span>
+        <span class="n">query_y</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">radius</span> <span class="o">*</span> <span class="n">torch</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">angle</span><span class="p">))</span>
+    <span class="n">query_x</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">(</span><span class="n">query_x</span><span class="p">)</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>  <span class="c1"># dim: (num_radii * 10, 1)</span>
+    <span class="n">query_y</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">(</span><span class="n">query_y</span><span class="p">)</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>  <span class="c1"># dim: (num_radii * 10, 1)</span>
+    <span class="c1"># dim: (num_radii * 10, 3)</span>
+    <span class="n">query_points</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">([</span><span class="n">query_x</span><span class="p">,</span> <span class="n">query_y</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="n">query_x</span><span class="p">)],</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+
+    <span class="c1"># create buffers</span>
+    <span class="c1"># -- a buffer to store indices of points that are not valid</span>
+    <span class="n">points_ids</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">num_patches</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">device</span><span class="p">)</span>
+    <span class="c1"># -- a buffer to store the flat patches locations</span>
+    <span class="n">flat_patches</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">num_patches</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">device</span><span class="p">)</span>
+
+    <span class="c1"># sample points and raycast to find the height.</span>
+    <span class="c1"># 1. Reject points that are outside the z_range or have a height difference that is too large.</span>
+    <span class="c1"># 2. Keep sampling until all points are valid.</span>
+    <span class="n">iter_count</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">while</span> <span class="nb">len</span><span class="p">(</span><span class="n">points_ids</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">iter_count</span> <span class="o">&lt;</span> <span class="mi">10000</span><span class="p">:</span>
+        <span class="c1"># sample points in the 2D region around the origin</span>
+        <span class="n">pos_x</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">points_ids</span><span class="p">),</span> <span class="n">device</span><span class="o">=</span><span class="n">device</span><span class="p">)</span><span class="o">.</span><span class="n">uniform_</span><span class="p">(</span><span class="o">*</span><span class="n">x_range</span><span class="p">)</span>
+        <span class="n">pos_y</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">points_ids</span><span class="p">),</span> <span class="n">device</span><span class="o">=</span><span class="n">device</span><span class="p">)</span><span class="o">.</span><span class="n">uniform_</span><span class="p">(</span><span class="o">*</span><span class="n">y_range</span><span class="p">)</span>
+        <span class="n">flat_patches</span><span class="p">[</span><span class="n">points_ids</span><span class="p">,</span> <span class="p">:</span><span class="mi">2</span><span class="p">]</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">stack</span><span class="p">([</span><span class="n">pos_x</span><span class="p">,</span> <span class="n">pos_y</span><span class="p">],</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+
+        <span class="c1"># define the query points to check validity of the patch</span>
+        <span class="c1"># dim: (num_patches, num_radii * 10, 3)</span>
+        <span class="n">points</span> <span class="o">=</span> <span class="n">flat_patches</span><span class="p">[</span><span class="n">points_ids</span><span class="p">]</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span> <span class="o">+</span> <span class="n">query_points</span>
+        <span class="n">points</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">2</span><span class="p">]</span> <span class="o">=</span> <span class="mf">100.0</span>
+        <span class="c1"># ray-cast direction is downwards</span>
+        <span class="n">dirs</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="n">points</span><span class="p">)</span>
+        <span class="n">dirs</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">2</span><span class="p">]</span> <span class="o">=</span> <span class="o">-</span><span class="mf">1.0</span>
+
+        <span class="c1"># ray-cast to find the height of the patches</span>
+        <span class="n">ray_hits</span> <span class="o">=</span> <span class="n">raycast_mesh</span><span class="p">(</span><span class="n">points</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">),</span> <span class="n">dirs</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">),</span> <span class="n">wp_mesh</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">heights</span> <span class="o">=</span> <span class="n">ray_hits</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="n">points</span><span class="o">.</span><span class="n">shape</span><span class="p">)[</span><span class="o">...</span><span class="p">,</span> <span class="mi">2</span><span class="p">]</span>
+        <span class="c1"># set the height of the patches</span>
+        <span class="c1"># note: for invalid patches, they would be overwritten in the next iteration</span>
+        <span class="c1">#   so it&#39;s safe to set the height to the last value</span>
+        <span class="n">flat_patches</span><span class="p">[</span><span class="n">points_ids</span><span class="p">,</span> <span class="mi">2</span><span class="p">]</span> <span class="o">=</span> <span class="n">heights</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+
+        <span class="c1"># check validity</span>
+        <span class="c1"># -- height is within the z range</span>
+        <span class="n">not_valid</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">any</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">logical_or</span><span class="p">(</span><span class="n">heights</span> <span class="o">&lt;</span> <span class="n">z_range</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">heights</span> <span class="o">&gt;</span> <span class="n">z_range</span><span class="p">[</span><span class="mi">1</span><span class="p">]),</span> <span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+        <span class="c1"># -- height difference is within the max height difference</span>
+        <span class="n">not_valid</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">logical_or</span><span class="p">(</span><span class="n">not_valid</span><span class="p">,</span> <span class="p">(</span><span class="n">heights</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span> <span class="o">-</span> <span class="n">heights</span><span class="o">.</span><span class="n">min</span><span class="p">(</span><span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)[</span><span class="mi">0</span><span class="p">])</span> <span class="o">&gt;</span> <span class="n">max_height_diff</span><span class="p">)</span>
+
+        <span class="c1"># remove invalid patches indices</span>
+        <span class="n">points_ids</span> <span class="o">=</span> <span class="n">points_ids</span><span class="p">[</span><span class="n">not_valid</span><span class="p">]</span>
+        <span class="c1"># increment count</span>
+        <span class="n">iter_count</span> <span class="o">+=</span> <span class="mi">1</span>
+
+    <span class="c1"># check all patches are valid</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">points_ids</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span>
+            <span class="s2">&quot;Failed to find valid patches! Please check the input parameters.&quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;</span><span class="se">\n\t</span><span class="s2">Maximum number of iterations reached: </span><span class="si">{</span><span class="n">iter_count</span><span class="si">}</span><span class="s2">&quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;</span><span class="se">\n\t</span><span class="s2">Number of invalid patches: </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">points_ids</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;</span><span class="se">\n\t</span><span class="s2">Maximum height difference: </span><span class="si">{</span><span class="n">max_height_diff</span><span class="si">}</span><span class="s2">&quot;</span>
+        <span class="p">)</span>
+
+    <span class="c1"># return the flat patches (in the mesh frame)</span>
+    <span class="k">return</span> <span class="n">flat_patches</span> <span class="o">-</span> <span class="n">origin</span></div>
+</pre></div>
+
+                </article>
+              
+
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+<div class="bd-footer-content__inner container">
+  
+  <div class="footer-item">
+    
+<p class="component-author">
+By The Isaac Lab Project Developers.
+</p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+
+  <p class="copyright">
+    
+      © Copyright 2022-2025, The Isaac Lab Project Developers..
+      <br/>
+    
+  </p>
+
+  </div>
+  
+  <div class="footer-item">
+    <p class="last-updated">
+  Last updated on Jan 31, 2025.
+  <br/>
+</p>
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+</div>
+          </footer>
+        
+
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+  </footer>
+  </body>
+</html>
