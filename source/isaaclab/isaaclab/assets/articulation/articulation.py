@@ -335,6 +335,8 @@ class Articulation(AssetBase):
         root_poses_xyzw[:, 3:] = math_utils.convert_quat(root_poses_xyzw[:, 3:], to="xyzw")
         # Need to invalidate the buffer to trigger the update with the new root pose.
         self._data._body_state_w.timestamp = -1.0
+        self._data._body_link_state_w.timestamp = -1.0
+        self._data._body_com_state_w.timestamp = -1.0
         # set into simulation
         self.root_physx_view.set_root_transforms(root_poses_xyzw, indices=physx_env_ids)
 
