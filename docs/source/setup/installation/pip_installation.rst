@@ -148,7 +148,7 @@ Verifying the Isaac Sim installation
    .. code:: bash
 
       By installing or using Isaac Sim, I agree to the terms of NVIDIA OMNIVERSE LICENSE AGREEMENT (EULA)
-      in https://docs.omniverse.nvidia.com/isaacsim/latest/common/NVIDIA_Omniverse_License_Agreement.html
+      in https://docs.isaacsim.omniverse.nvidia.com/latest/common/NVIDIA_Omniverse_License_Agreement.html
 
       Do you accept the EULA? (Yes/No): Yes
 

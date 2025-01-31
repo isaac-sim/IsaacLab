@@ -292,7 +292,7 @@ To run an example within the container, run:
 
 
 .. _`NVIDIA Omniverse EULA`: https://docs.omniverse.nvidia.com/platform/latest/common/NVIDIA_Omniverse_License_Agreement.html
-.. _`container installation`: https://docs.omniverse.nvidia.com/isaacsim/latest/installation/install_container.html
+.. _`container installation`: https://docs.isaacsim.omniverse.nvidia.com/latest/installation/install_container.html
 .. _`Docker website`: https://docs.docker.com/desktop/install/linux-install/
 .. _`docker compose`: https://docs.docker.com/compose/install/linux/#install-using-the-repository
 .. _`NVIDIA Container Toolkit`: https://github.com/NVIDIA/nvidia-container-toolkit
@@ -300,7 +300,7 @@ To run an example within the container, run:
 .. _`post-installation steps`: https://docs.docker.com/engine/install/linux-postinstall/
 .. _`Isaac Sim container`: https://catalog.ngc.nvidia.com/orgs/nvidia/containers/isaac-sim
 .. _`NGC API key`: https://docs.nvidia.com/ngc/gpu-cloud/ngc-user-guide/index.html#generating-api-key
-.. _`several streaming clients`: https://docs.omniverse.nvidia.com/isaacsim/latest/installation/manual_livestream_clients.html
+.. _`several streaming clients`: https://docs.isaacsim.omniverse.nvidia.com/latest/installation/manual_livestream_clients.html
 .. _`known issue`: https://forums.developer.nvidia.com/t/unable-to-use-webrtc-when-i-run-runheadless-webrtc-sh-in-remote-headless-container/222916
 .. _`profile`: https://docs.docker.com/compose/compose-file/15-profiles/
 .. _`apt package`: https://docs.ros.org/en/humble/Installation/Ubuntu-Install-Debians.html#install-ros-2-packages
