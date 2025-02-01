@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.10.23 (2025-02-01)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``Isaac-Velocity-Flat-BDX-v0`` environment as a manager based env that implements the BD-X locomotion task.
+
+
 0.10.22 (2025-01-14)
 ~~~~~~~~~~~~~~~~~~~~
 
