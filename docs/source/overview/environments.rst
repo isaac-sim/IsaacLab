@@ -234,6 +234,8 @@ Environments based on legged locomotion tasks.
     +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+
     | |velocity-rough-g1|          | |velocity-rough-g1-link|                     | Track a velocity command on rough terrain with the Unitree G1 robot          |
     +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+
+    | |velocity-flat-bdx|          | |velocity-flat-bdx-link|                     | Track a velocity command on flat terrain with the Disney BD-X robot          |
+    +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+
 
 .. |velocity-flat-anymal-b-link| replace:: `Isaac-Velocity-Flat-Anymal-B-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/locomotion/velocity/config/anymal_b/flat_env_cfg.py>`__
 .. |velocity-rough-anymal-b-link| replace:: `Isaac-Velocity-Rough-Anymal-B-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/locomotion/velocity/config/anymal_b/rough_env_cfg.py>`__
@@ -264,6 +266,8 @@ Environments based on legged locomotion tasks.
 .. |velocity-flat-g1-link| replace:: `Isaac-Velocity-Flat-G1-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/locomotion/velocity/config/g1/flat_env_cfg.py>`__
 .. |velocity-rough-g1-link| replace:: `Isaac-Velocity-Rough-G1-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/locomotion/velocity/config/g1/rough_env_cfg.py>`__
 
+.. |velocity-flat-bdx-link| replace:: `Isaac-Velocity-Flat-BDX-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/locomotion/velocity/config/bdx/flat_env_cfg.py>`__
+
 
 .. |velocity-flat-anymal-b| image:: ../_static/tasks/locomotion/anymal_b_flat.jpg
 .. |velocity-rough-anymal-b| image:: ../_static/tasks/locomotion/anymal_b_rough.jpg
@@ -282,6 +286,7 @@ Environments based on legged locomotion tasks.
 .. |velocity-rough-h1| image:: ../_static/tasks/locomotion/h1_rough.jpg
 .. |velocity-flat-g1| image:: ../_static/tasks/locomotion/g1_flat.jpg
 .. |velocity-rough-g1| image:: ../_static/tasks/locomotion/g1_rough.jpg
+.. |velocity-flat-bdx| image:: ../_static/tasks/locomotion/bdx_flat.jpg
 
 Navigation
 ~~~~~~~~~~
@@ -604,6 +609,10 @@ Comprehensive List of Environments
       - Isaac-Velocity-Flat-H1-Play-v0
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO)
+    * - Isaac-Velocity-Flat-BDX-v0
+      -
+      - Manager Based
+      - **rsl_rl** (PPO)
     * - Isaac-Velocity-Flat-Spot-v0
       - Isaac-Velocity-Flat-Spot-Play-v0
       - Manager Based
