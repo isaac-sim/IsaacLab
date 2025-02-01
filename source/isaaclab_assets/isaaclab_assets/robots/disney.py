@@ -19,6 +19,7 @@ import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets.articulation import ArticulationCfg
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
+from isaaclab_assets import ISAACLAB_ASSETS_DATA_DIR
 
 ##
 # Configuration
@@ -26,7 +27,8 @@ from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
 BDX_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
-        usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/Disney/BDX/bdx.usd",
+        # usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/Disney/BDX/BDX.usd",
+        usd_path=f"{ISAACLAB_ASSETS_DATA_DIR}/Robots/Disney/BDX/BDX.usd",
         activate_contact_sensors=True,
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             disable_gravity=False,
