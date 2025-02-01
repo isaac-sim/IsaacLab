@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2024, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -40,16 +40,12 @@ class BDXRewards(RewardsCfg):
     joint_deviation_hip = RewTerm(
         func=mdp.joint_deviation_l1,
         weight=-0.2,
-        params={
-            "asset_cfg": SceneEntityCfg("robot", joint_names=[".*_hip_yaw", ".*_hip_roll"])
-        },
+        params={"asset_cfg": SceneEntityCfg("robot", joint_names=[".*_hip_yaw", ".*_hip_roll"])},
     )
     joint_deviation_head = RewTerm(
-        func=mdp.joint_deviation_l1, 
-        weight=-0.3, 
-        params={
-            "asset_cfg": SceneEntityCfg("robot", joint_names=["head_.*", "neck_.*"])
-        }
+        func=mdp.joint_deviation_l1,
+        weight=-0.3,
+        params={"asset_cfg": SceneEntityCfg("robot", joint_names=["head_.*", "neck_.*"])},
     )
 
 
@@ -87,7 +83,18 @@ class BDXFlatEnvCfg(LocomotionVelocityRoughEnvCfg):
         }
 
         # terminations
-        self.terminations.base_contact.params["sensor_cfg"].body_names = ["pelvis", ".*_shin", ".*_thigh", ".*_hip", ".*_hip_rotation", "ear_.*", "head_body_roll", "head_body_yaw", "head_body_pitch", "neck"]
+        self.terminations.base_contact.params["sensor_cfg"].body_names = [
+            "pelvis",
+            ".*_shin",
+            ".*_thigh",
+            ".*_hip",
+            ".*_hip_rotation",
+            "ear_.*",
+            "head_body_roll",
+            "head_body_yaw",
+            "head_body_pitch",
+            "neck",
+        ]
 
         # rewards
         self.rewards.undesired_contacts = None
@@ -101,7 +108,7 @@ class BDXFlatEnvCfg(LocomotionVelocityRoughEnvCfg):
 
         # commands
         self.commands.base_velocity.ranges.lin_vel_x = (0.5, 1.0)
-        self.commands.base_velocity.ranges.lin_vel_y = (0., 0.)
+        self.commands.base_velocity.ranges.lin_vel_y = (0.0, 0.0)
         self.commands.base_velocity.ranges.ang_vel_z = (-1.0, 1.0)
 
         # change terrain
@@ -113,5 +120,3 @@ class BDXFlatEnvCfg(LocomotionVelocityRoughEnvCfg):
         self.observations.policy.height_scan = None
         # no terrain curriculum
         self.curriculum.terrain_levels = None
-
-
