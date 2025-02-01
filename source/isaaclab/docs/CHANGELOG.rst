@@ -1,13 +1,13 @@
 Changelog
 ---------
 
-0.33.14 (2025-01-31)
+0.33.14 (2025-02-01)
 ~~~~~~~~~~~~~~~~~~~~
 
 Fixed
 ^^^^^
 
-* Fixed not updating the timestamp of ``body_link_state_w`` and ``body_com_state_w`` when ``write_root_pose_to_sim`` in the ``Articulation`` class is called.
+* Fixed not updating the timestamp of ``body_link_state_w`` and ``body_com_state_w`` when ``write_root_pose_to_sim`` and ``write_joint_state_to_sim`` in the ``Articulation`` class are called.
 
 0.33.13 (2025-01-30)
 ~~~~~~~~~~~~~~~~~~~~
