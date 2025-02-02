@@ -18,10 +18,14 @@
 import os
 import sys
 
-sys.path.insert(0, os.path.abspath("../source/extensions/omni.isaac.lab"))
-sys.path.insert(0, os.path.abspath("../source/extensions/omni.isaac.lab/omni/isaac/lab"))
-sys.path.insert(0, os.path.abspath("../source/extensions/omni.isaac.lab_tasks"))
-sys.path.insert(0, os.path.abspath("../source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks"))
+sys.path.insert(0, os.path.abspath("../source/isaaclab"))
+sys.path.insert(0, os.path.abspath("../source/isaaclab/isaaclab"))
+sys.path.insert(0, os.path.abspath("../source/isaaclab_tasks"))
+sys.path.insert(0, os.path.abspath("../source/isaaclab_tasks/isaaclab_tasks"))
+sys.path.insert(0, os.path.abspath("../source/isaaclab_rl"))
+sys.path.insert(0, os.path.abspath("../source/isaaclab_rl/isaaclab_rl"))
+sys.path.insert(0, os.path.abspath("../source/isaaclab_mimic"))
+sys.path.insert(0, os.path.abspath("../source/isaaclab_mimic/isaaclab_mimic"))
 
 # -- Project information -----------------------------------------------------
 
@@ -31,7 +35,8 @@ author = "The Isaac Lab Project Developers."
 
 # Read version from the package
 with open(os.path.join(os.path.dirname(__file__), "..", "VERSION")) as f:
-    version = f.read().strip()
+    full_version = f.read().strip()
+    version = ".".join(full_version.split(".")[:3])
 
 # -- General configuration ---------------------------------------------------
 
@@ -128,6 +133,8 @@ autodoc_mock_imports = [
     "carb",
     "warp",
     "pxr",
+    "isaacsim",
+    "omni",
     "omni.kit",
     "omni.log",
     "omni.usd",
@@ -144,6 +151,14 @@ autodoc_mock_imports = [
     "omni.isaac.version",
     "omni.isaac.motion_generation",
     "omni.isaac.ui",
+    "isaacsim",
+    "isaacsim.core.api",
+    "isaacsim.core.cloner",
+    "isaacsim.core.version",
+    "isaacsim.robot_motion.motion_generation",
+    "isaacsim.gui.components",
+    "isaacsim.asset.importer.urdf",
+    "isaacsim.asset.importer.mjcf",
     "omni.syntheticdata",
     "omni.timeline",
     "omni.ui",
@@ -229,7 +244,7 @@ html_theme_options = {
         {
             "name": "Isaac Sim",
             "url": "https://developer.nvidia.com/isaac-sim",
-            "icon": "https://img.shields.io/badge/IsaacSim-4.2.0-silver.svg",
+            "icon": "https://img.shields.io/badge/IsaacSim-4.5.0-silver.svg",
             "type": "url",
         },
         {

@@ -1,0 +1,19 @@
+[package]
+
+# Note: Semantic Versioning is used: https://semver.org/
+version = "0.10.22"
+
+# Description
+title = "Isaac Lab Environments"
+description="Extension containing suite of environments for robot learning."
+readme  = "docs/README.md"
+repository = "https://github.com/isaac-sim/IsaacLab"
+category = "robotics"
+keywords = ["robotics", "rl", "il", "learning"]
+
+[dependencies]
+"isaaclab" = {}
+"isaaclab_assets" = {}
+
+[[python.module]]
+name = "isaaclab_tasks"

@@ -4,7 +4,7 @@
 Find How Many/What Cameras You Should Train With
 ================================================
 
-.. currentmodule:: omni.isaac.lab
+.. currentmodule:: isaaclab
 
 Currently in Isaac Lab, there are several camera types; USD Cameras (standard), Tiled Cameras,
 and Ray Caster cameras. These camera types differ in functionality and performance. The ``benchmark_cameras.py``
@@ -23,13 +23,13 @@ numbers of cameras that can run in your task environment up to a
 certain specified system resource utilization threshold (without training; taking zero actions
 at each timestep).
 
-This guide accompanies the ``benchmark_cameras.py`` script in the ``source/standalone/benchmarks``
+This guide accompanies the ``benchmark_cameras.py`` script in the ``scripts/benchmarks``
 directory.
 
 .. dropdown:: Code for benchmark_cameras.py
    :icon: code
 
-   .. literalinclude:: ../../../source/standalone/benchmarks/benchmark_cameras.py
+   .. literalinclude:: ../../../scripts/benchmarks/benchmark_cameras.py
       :language: python
       :linenos:
 
@@ -41,7 +41,7 @@ First, run
 
 .. code-block:: bash
 
-   ./isaaclab.sh -p source/standalone/benchmarks/benchmark_cameras.py -h
+   ./isaaclab.sh -p scripts/benchmarks/benchmark_cameras.py -h
 
 to see all possible parameters you can vary with this utility.
 
@@ -61,7 +61,7 @@ only in RGB mode, run
 
 .. code-block:: bash
 
-   ./isaaclab.sh -p source/standalone/benchmarks/benchmark_cameras.py \
+   ./isaaclab.sh -p scripts/benchmarks/benchmark_cameras.py \
    --task Isaac-Cartpole-v0 --num_tiled_cameras 100 \
    --task_num_cameras_per_env 2 \
    --tiled_camera_data_types rgb
@@ -74,7 +74,7 @@ you can run with cartpole, you could run:
 
 .. code-block:: bash
 
-   ./isaaclab.sh -p source/standalone/benchmarks/benchmark_cameras.py \
+   ./isaaclab.sh -p scripts/benchmarks/benchmark_cameras.py \
    --task Isaac-Cartpole-v0 --num_tiled_cameras 100 \
    --task_num_cameras_per_env 2 \
    --tiled_camera_data_types rgb --autotune \
@@ -97,7 +97,7 @@ For example, to view 100 random objects with 2 standard cameras, one could run
 
 .. code-block:: bash
 
-   ./isaaclab.sh -p source/standalone/benchmarks/benchmark_cameras.py \
+   ./isaaclab.sh -p scripts/benchmarks/benchmark_cameras.py \
    --height 100 --width 100 --num_standard_cameras 2 \
    --standard_camera_data_types instance_segmentation_fast normals --num_objects 100 \
    --experiment_length 100

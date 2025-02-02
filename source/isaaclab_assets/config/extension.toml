@@ -1,0 +1,18 @@
+[package]
+# Semantic Versioning is used: https://semver.org/
+version = "0.2.1"
+
+# Description
+title =  "Isaac Lab Assets"
+description="Extension containing configuration instances of different assets and sensors"
+readme  = "docs/README.md"
+repository = "https://github.com/isaac-sim/IsaacLab"
+category = "robotics"
+keywords = ["kit", "robotics", "assets", "isaaclab"]
+
+[dependencies]
+"isaaclab" = {}
+
+# Main python module this extension provides.
+[[python.module]]
+name = "isaaclab_assets"

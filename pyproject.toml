@@ -42,8 +42,8 @@ extra_standard_library = [
 ]
 # Imports from Isaac Sim and Omniverse
 known_third_party = [
-    "omni.isaac.core",
-    "omni.replicator.isaac",
+    "isaacsim.core.api",
+    "isaacsim.replicator.common",
     "omni.replicator.core",
     "pxr",
     "omni.kit.*",
@@ -52,17 +52,17 @@ known_third_party = [
     "Semantics",
 ]
 # Imports from this repository
-known_first_party = "omni.isaac.lab"
-known_assets_firstparty = "omni.isaac.lab_assets"
+known_first_party = "isaaclab"
+known_assets_firstparty = "isaaclab_assets"
 known_extra_firstparty = [
-    "omni.isaac.lab_tasks"
+    "isaaclab_tasks"
 ]
 # Imports from the local folder
 known_local_folder = "config"
 
 [tool.pyright]
 
-include = ["source/extensions", "source/standalone"]
+include = ["source", "scripts"]
 exclude = [
     "**/__pycache__",
     "**/_isaac_sim",
@@ -94,4 +94,4 @@ quiet-level = 0
 # the world list should always have words in lower case
 ignore-words-list = "haa,slq,collapsable,buss"
 # todo: this is hack to deal with incorrect spelling of "Environment" in the Isaac Sim grid world asset
-exclude-file = "source/extensions/omni.isaac.lab/omni/isaac/lab/sim/spawners/from_files/from_files.py"
+exclude-file = "source/isaaclab/isaaclab/sim/spawners/from_files/from_files.py"

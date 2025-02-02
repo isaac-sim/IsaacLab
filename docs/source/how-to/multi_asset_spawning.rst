@@ -2,7 +2,7 @@
 Spawning Multiple Assets
 ========================
 
-.. currentmodule:: omni.isaac.lab
+.. currentmodule:: isaaclab
 
 Typical spawning configurations (introduced in the :ref:`tutorial-spawn-prims` tutorial) copy the same
 asset (or USD primitive) across the different resolved prim paths from the expressions.
@@ -20,12 +20,12 @@ However, we also support multi-asset spawning with two mechanisms:
 This guide describes how to use these two mechanisms.
 
 The sample script ``multi_asset.py`` is used as a reference, located in the
-``IsaacLab/source/standalone/demos`` directory.
+``IsaacLab/scripts/demos`` directory.
 
 .. dropdown:: Code for multi_asset.py
    :icon: code
 
-   .. literalinclude:: ../../../source/standalone/demos/multi_asset.py
+   .. literalinclude:: ../../../scripts/demos/multi_asset.py
       :language: python
       :emphasize-lines: 109-131, 135-179, 184-203
       :linenos:
@@ -48,7 +48,7 @@ Multiple rigid objects can be spawned in each environment and accessed/modified 
 While the user could also create multiple rigid objects by spawning them individually, the API is more user-friendly and
 more efficient since it uses a single physics view under the hood to handle all the objects.
 
-.. literalinclude:: ../../../source/standalone/demos/multi_asset.py
+.. literalinclude:: ../../../scripts/demos/multi_asset.py
    :language: python
    :lines: 135-179
    :dedent:
@@ -67,7 +67,7 @@ It is possible to spawn different assets and USDs under the same prim path in ea
 * We set the spawn configuration in :class:`~assets.RigidObjectCfg` to be
   :class:`~sim.spawners.wrappers.MultiAssetSpawnerCfg`:
 
-  .. literalinclude:: ../../../source/standalone/demos/multi_asset.py
+  .. literalinclude:: ../../../scripts/demos/multi_asset.py
      :language: python
      :lines: 107-133
      :dedent:
@@ -79,7 +79,7 @@ It is possible to spawn different assets and USDs under the same prim path in ea
 * Similarly, we set the spawn configuration in :class:`~assets.ArticulationCfg` to be
   :class:`~sim.spawners.wrappers.MultiUsdFileCfg`:
 
-  .. literalinclude:: ../../../source/standalone/demos/multi_asset.py
+  .. literalinclude:: ../../../scripts/demos/multi_asset.py
      :language: python
      :lines: 182-215
      :dedent:
@@ -111,7 +111,7 @@ to understand the entire simulation scene. This helps speed up the simulation sc
 However, in the case of spawning different assets in different environments, this assumption does not hold
 anymore. Hence the flag :attr:`scene.InteractiveScene.replicate_physics` must be disabled.
 
-.. literalinclude:: ../../../source/standalone/demos/multi_asset.py
+.. literalinclude:: ../../../scripts/demos/multi_asset.py
    :language: python
    :lines: 280-283
    :dedent:
@@ -123,7 +123,7 @@ To execute the script with multiple environments and randomized assets, use the 
 
 .. code-block:: bash
 
-  ./isaaclab.sh -p source/standalone/demos/multi_asset.py --num_envs 2048
+  ./isaaclab.sh -p scripts/demos/multi_asset.py --num_envs 2048
 
 This command runs the simulation with 2048 environments, each with randomly selected assets.
 To stop the simulation, you can close the window, or press ``Ctrl+C`` in the terminal.

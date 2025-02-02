@@ -1,10 +1,9 @@
 Setting up Visual Studio Code
 -----------------------------
 
-The following is only applicable for Isaac Sim installed via the Omniverse Launcher.
-The Isaac Lab repository includes the VSCode settings to easily allow setting
-up your development environment. These are included in the ``.vscode`` directory
-and include the following files:
+**This is optional.  You do not need to use VScode to use Isaac Lab**
+
+`Visual Studio Code <https://code.visualstudio.com/>`_ has proven an invaluable tool for the development of Isaac Lab. The Isaac Lab repository includes the VSCode files for setting up your development environment. These are included in the ``.vscode`` directory and include the following files:
 
 .. code-block:: bash
 
@@ -31,6 +30,11 @@ To setup the IDE, please follow these instructions:
       :align: center
       :alt: VSCode Tasks
 
+
+.. note::
+   If this is your first time running tasks in VS Code, you may be prompted to select how to handle warnings. Simply follow
+   the prompts until the task window closes.
+
 If everything executes correctly, it should create the following files:
 
 * ``.vscode/launch.json``: Contains the launch configurations for debugging python code.
@@ -40,7 +44,7 @@ For more information on VSCode support for Omniverse, please refer to the
 following links:
 
 * `Isaac Sim VSCode support <https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/manual_standalone_python.html#isaac-sim-python-vscode>`__
-* `Debugging with VSCode <https://docs.omniverse.nvidia.com/isaacsim/latest/advanced_tutorials/tutorial_advanced_python_debugging.html>`__
+* `Debugging with VSCode <https://docs.isaacsim.omniverse.nvidia.com/latest/development_tools/vscode.html#visual-studio-code-vs-code>`__
 
 
 Configuring the python interpreter
