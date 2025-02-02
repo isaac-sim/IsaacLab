@@ -56,6 +56,7 @@ Guidelines for modifications:
 * HoJin Jeon
 * Hongwei Xiong
 * Iretiayo Akinola
+* Jack Zeng
 * Jan Kerner
 * Jean Tampon
 * Jia Lin Yuan
