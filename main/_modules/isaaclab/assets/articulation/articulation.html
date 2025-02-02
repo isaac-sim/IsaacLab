@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.0.0" />
-    <meta name="docbuild:last-update" content="Feb 01, 2025"/>
+    <meta name="docbuild:last-update" content="Feb 02, 2025"/>
   </head>
   
   
@@ -866,6 +866,8 @@
         <span class="n">root_poses_xyzw</span><span class="p">[:,</span> <span class="mi">3</span><span class="p">:]</span> <span class="o">=</span> <span class="n">math_utils</span><span class="o">.</span><span class="n">convert_quat</span><span class="p">(</span><span class="n">root_poses_xyzw</span><span class="p">[:,</span> <span class="mi">3</span><span class="p">:],</span> <span class="n">to</span><span class="o">=</span><span class="s2">&quot;xyzw&quot;</span><span class="p">)</span>
         <span class="c1"># Need to invalidate the buffer to trigger the update with the new root pose.</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">_body_state_w</span><span class="o">.</span><span class="n">timestamp</span> <span class="o">=</span> <span class="o">-</span><span class="mf">1.0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">_body_link_state_w</span><span class="o">.</span><span class="n">timestamp</span> <span class="o">=</span> <span class="o">-</span><span class="mf">1.0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">_body_com_state_w</span><span class="o">.</span><span class="n">timestamp</span> <span class="o">=</span> <span class="o">-</span><span class="mf">1.0</span>
         <span class="c1"># set into simulation</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">set_root_transforms</span><span class="p">(</span><span class="n">root_poses_xyzw</span><span class="p">,</span> <span class="n">indices</span><span class="o">=</span><span class="n">physx_env_ids</span><span class="p">)</span></div>
 
@@ -1030,8 +1032,8 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">joint_acc</span><span class="p">[</span><span class="n">env_ids</span><span class="p">,</span> <span class="n">joint_ids</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.0</span>
         <span class="c1"># Need to invalidate the buffer to trigger the update with the new root pose.</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">_body_state_w</span><span class="o">.</span><span class="n">timestamp</span> <span class="o">=</span> <span class="o">-</span><span class="mf">1.0</span>
-        <span class="c1"># self._data._body_link_state_w.timestamp = -1.0</span>
-        <span class="c1"># self._data._body_com_state_w.timestamp = -1.0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">_body_link_state_w</span><span class="o">.</span><span class="n">timestamp</span> <span class="o">=</span> <span class="o">-</span><span class="mf">1.0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">_body_com_state_w</span><span class="o">.</span><span class="n">timestamp</span> <span class="o">=</span> <span class="o">-</span><span class="mf">1.0</span>
         <span class="c1"># set into simulation</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">set_dof_positions</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">joint_pos</span><span class="p">,</span> <span class="n">indices</span><span class="o">=</span><span class="n">physx_env_ids</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">set_dof_velocities</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">joint_vel</span><span class="p">,</span> <span class="n">indices</span><span class="o">=</span><span class="n">physx_env_ids</span><span class="p">)</span></div>
@@ -2135,7 +2137,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Feb 01, 2025.
+  Last updated on Feb 02, 2025.
   <br/>
 </p>
   </div>
