@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2024, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -38,8 +38,8 @@ if not os.path.exists(isaacsim_dir):
     raise FileNotFoundError(
         f"Could not find the isaac-sim directory: {isaacsim_dir}. There are two possible reasons for this:"
         f"\n\t1. The Isaac Sim directory does not exist as a symlink at: {os.path.join(ISAACLAB_DIR, '_isaac_sim')}"
-        "\n\t2. The script could import the 'isaacsim' package. This could be due to the 'isaacsim' package not being "
-        "installed in the Python environment.\n"
+        "\n\t2. The script could not import the 'isaacsim' package. This could be due to the 'isaacsim' package not "
+        "being installed in the Python environment.\n"
         "\nPlease make sure that the Isaac Sim directory exists or that the 'isaacsim' package is installed."
     )
 
@@ -98,8 +98,8 @@ def overwrite_python_analysis_extra_paths(isaaclab_settings: str) -> str:
         )
 
     # add the path names that are in the Isaac Lab extensions directory
-    isaaclab_extensions = os.listdir(os.path.join(ISAACLAB_DIR, "source", "extensions"))
-    path_names.extend(['"${workspaceFolder}/source/extensions/' + ext + '"' for ext in isaaclab_extensions])
+    isaaclab_extensions = os.listdir(os.path.join(ISAACLAB_DIR, "source"))
+    path_names.extend(['"${workspaceFolder}/source/' + ext + '"' for ext in isaaclab_extensions])
 
     # combine them into a single string
     path_names = ",\n\t\t".expandtabs(4).join(path_names)

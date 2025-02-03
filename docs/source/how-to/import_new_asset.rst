@@ -1,7 +1,7 @@
 Importing a New Asset
 =====================
 
-.. currentmodule:: omni.isaac.lab
+.. currentmodule:: isaaclab
 
 NVIDIA Omniverse relies on the Universal Scene Description (USD) file format to
 import and export assets. USD is an open source file format developed by Pixar
@@ -37,32 +37,30 @@ For using the URDF importer in the GUI, please check the documentation at `URDF 
 is then passed to the :class:`~sim.converters.UrdfConverter` class.
 
 The URDF importer has various configuration parameters that can be set to control the behavior of the importer.
-The default values for the importer's configuration parameters are specified are in the :class:`~sim.converters.UrdfConverterCfg` class, and they are listed below. We made a few commonly modified settings to be available as command-line arguments when calling the ``convert_urdf.py``, and they are marked with ``*``` in the list. For a comprehensive list of the configuration parameters, please check the the documentation at `URDF importer`_.
+The default values for the importer's configuration parameters are specified are in the :class:`~sim.converters.UrdfConverterCfg` class, and they are listed below. We made a few commonly modified settings to be available as command-line arguments when calling the ``convert_urdf.py``, and they are marked with ``*`` in the list. For a comprehensive list of the configuration parameters, please check the the documentation at `URDF importer`_.
 
-* :attr:`~sim.converters.UrdfConverterCfg.fix_base*` - Whether to fix the base of the robot.
+* :attr:`~sim.converters.UrdfConverterCfg.fix_base` * - Whether to fix the base of the robot.
   This depends on whether you have a floating-base or fixed-base robot. The command-line flag is
   ``--fix-base`` where when set, the importer will fix the base of the robot, otherwise it will default to floating-base.
-* :attr:`~sim.converters.UrdfConverterCfg.make_instanceable*` - Whether to create instanceable assets.
-  Usually, this should be set to ``True``. The command-line flag is ``--make-instanceable`` where
-  when set, the importer will create instanceable assets, otherwise it will default to non-instanceable.
-* :attr:`~sim.converters.UrdfConverterCfg.merge_fixed_joints*` - Whether to merge the fixed joints.
+* :attr:`~sim.converters.UrdfConverterCfg.root_link_name` - The link on which the PhysX articulation root is placed.
+* :attr:`~sim.converters.UrdfConverterCfg.merge_fixed_joints` * - Whether to merge the fixed joints.
   Usually, this should be set to ``True`` to reduce the asset complexity. The command-line flag is
   ``--merge-joints`` where when set, the importer will merge the fixed joints, otherwise it will default to not merging the fixed joints.
-* :attr:`~sim.converters.UrdfConverterCfg.default_drive_type` - The drive-type for the joints.
-  We recommend this to always be ``"none"``. This allows changing the drive configuration using the
-  actuator models.
-* :attr:`~sim.converters.UrdfConverterCfg.default_drive_stiffness` - The drive stiffness for the joints.
-  We recommend this to always be ``0.0``. This allows changing the drive configuration using the
-  actuator models.
-* :attr:`~sim.converters.UrdfConverterCfg.default_drive_damping` - The drive damping for the joints.
-  Similar to the stiffness, we recommend this to always be ``0.0``.
+* :attr:`~sim.converters.UrdfConverterCfg.joint_drive` - The configuration for the joint drives on the robot.
 
+  * :attr:`~sim.converters.UrdfConverterCfg.JointDriveCfg.drive_type` - The drive type for the joints.
+    This can be either ``"acceleration"`` or ``"force"``. We recommend using ``"force"`` for most cases.
+  * :attr:`~sim.converters.UrdfConverterCfg.JointDriveCfg.target_type` - The target type for the joints.
+    This can be either ``"none"``, ``"position"``, or ``"velocity"``. We recommend using ``"position"`` for most cases.
+    Setting this to ``"none"`` will disable the drive and set the joint gains to 0.0.
+  * :attr:`~sim.converters.UrdfConverterCfg.JointDriveCfg.gains` - The drive stiffness and damping gains for the joint.
+    We support two ways to set the gains:
 
-Note that when instanceable option is selected, the
-importer will create two USD files: one for all the mesh data and one for
-all the non-mesh data (e.g. joints, rigid bodies, etc.). The prims in the mesh data file are
-referenced in the non-mesh data file. This allows the mesh data (which is often bulky) to be
-loaded into memory only once and used multiple times in a scene.
+    * :attr:`~sim.converters.UrdfConverterCfg.JointDriveCfg.PDGainsCfg` - To directly set the stiffness and damping.
+    * :attr:`~sim.converters.UrdfConverterCfg.JointDriveCfg.NaturalFrequencyGainsCfg` - To set the gains using the
+      desired natural frequency response of the system.
+
+For more detailed information on the configuration parameters, please check the documentation for :class:`~sim.converters.UrdfConverterCfg`.
 
 Example Usage
 ~~~~~~~~~~~~~
@@ -91,24 +89,17 @@ The following shows the steps to clone the repository and run the converter:
   # go to top of the Isaac Lab repository
   cd IsaacLab
   # run the converter
-  ./isaaclab.sh -p source/standalone/tools/convert_urdf.py \
+  ./isaaclab.sh -p scripts/tools/convert_urdf.py \
     ~/git/anymal_d_simple_description/urdf/anymal.urdf \
-    source/extensions/omni.isaac.lab_assets/data/Robots/ANYbotics/anymal_d.usd \
-    --merge-joints \
-    --make-instanceable
+    source/isaaclab_assets/data/Robots/ANYbotics/anymal_d.usd \
+    --merge-joints
 
 
-Executing the above script will create two USD files inside the
-``source/extensions/omni.isaac.lab_assets/data/Robots/ANYbotics/`` directory:
+Executing the above script will create a USD file inside the
+``source/isaaclab_assets/data/Robots/ANYbotics/`` directory:
 
-* ``anymal_d.usd`` - This is the main asset file. It contains all the non-mesh data.
-* ``Props/instanceable_assets.usd`` - This is the mesh data file.
+* ``anymal_d.usd`` - This is the main asset file.
 
-.. note::
-
-  Since Isaac Sim 2023.1.1, the URDF importer behavior has changed and it stores the mesh data inside the
-  main asset file even if the ``--make-instanceable`` flag is set. This means that the
-  ``Props/instanceable_assets.usd`` file is created but not used anymore.
 
 To run the script headless, you can add the ``--headless`` flag. This will not open the GUI and
 exit the script after the conversion is complete.
@@ -153,16 +144,22 @@ The following shows the steps to clone the repository and run the converter:
   # create a directory to clone
   mkdir ~/git && cd ~/git
   # clone a repository with URDF files
-  git clone git@github.com:git@github.com:google-deepmind/mujoco_menagerie.git
+  git clone git@github.com:google-deepmind/mujoco_menagerie.git
 
   # go to top of the Isaac Lab repository
   cd IsaacLab
   # run the converter
-  ./isaaclab.sh -p source/standalone/tools/convert_mjcf.py \
+  ./isaaclab.sh -p scripts/tools/convert_mjcf.py \
     ~/git/mujoco_menagerie/unitree_h1/h1.xml \
-    source/extensions/omni.isaac.lab_assets/data/Robots/Unitree/h1.usd \
+    source/isaaclab_assets/data/Robots/Unitree/h1.usd \
     --import-sites \
     --make-instanceable
+
+Executing the above script will create USD files inside the
+``source/isaaclab_assets/data/Robots/Unitree/`` directory:
+
+* ``h1.usd`` - This is the main asset file. It contains all the non-mesh data.
+* ``Props/instanceable_assets.usd`` - This is the mesh data file.
 
 .. figure:: ../_static/tutorials/tutorial_convert_mjcf.jpg
     :align: center
@@ -206,9 +203,9 @@ the steps to clone the repository and run the converter:
   # go to top of the Isaac Lab repository
   cd IsaacLab
   # run the converter
-  ./isaaclab.sh -p source/standalone/tools/convert_mesh.py \
+  ./isaaclab.sh -p scripts/tools/convert_mesh.py \
     ~/git/IsaacGymEnvs/assets/trifinger/objects/meshes/cube_multicolor.obj \
-    source/extensions/omni.isaac.lab_assets/data/Props/CubeMultiColor/cube_multicolor.usd \
+    source/isaaclab_assets/data/Props/CubeMultiColor/cube_multicolor.usd \
     --make-instanceable \
     --collision-approximation convexDecomposition \
     --mass 1.0
@@ -216,7 +213,7 @@ the steps to clone the repository and run the converter:
 You may need to press 'F' to zoom in on the asset after import.
 
 Similar to the URDF and MJCF converter, executing the above script will create two USD files inside the
-``source/extensions/omni.isaac.lab_assets/data/Props/CubeMultiColor/`` directory. Additionally,
+``source/isaaclab_assets/data/Props/CubeMultiColor/`` directory. Additionally,
 if you press play on the opened window, you should see the asset fall down under the influence
 of gravity.
 
@@ -233,9 +230,9 @@ of gravity.
 
 
 .. _instanceable: https://openusd.org/dev/api/_usd__page__scenegraph_instancing.html
-.. _documentation: https://docs.omniverse.nvidia.com/isaacsim/latest/isaac_lab_tutorials/tutorial_instanceable_assets.html
-.. _MJCF importer: https://docs.omniverse.nvidia.com/isaacsim/latest/advanced_tutorials/tutorial_advanced_import_mjcf.html
-.. _URDF importer: https://docs.omniverse.nvidia.com/isaacsim/latest/advanced_tutorials/tutorial_advanced_import_urdf.html
+.. _documentation: https://docs.isaacsim.omniverse.nvidia.com/latest/isaac_lab_tutorials/tutorial_instanceable_assets.html
+.. _MJCF importer: https://docs.isaacsim.omniverse.nvidia.com/latest/robot_setup/import_mjcf.html
+.. _URDF importer: https://docs.isaacsim.omniverse.nvidia.com/latest/robot_setup/import_urdf.html
 .. _anymal.urdf: https://github.com/isaac-orbit/anymal_d_simple_description/blob/master/urdf/anymal.urdf
 .. _asset converter: https://docs.omniverse.nvidia.com/extensions/latest/ext_asset-converter.html
 .. _mujoco_menagerie: https://github.com/google-deepmind/mujoco_menagerie/tree/main/unitree_h1

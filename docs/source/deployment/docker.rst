@@ -37,36 +37,6 @@ We recommend using these versions or newer.
     the Isaac Lab directory is placed under the ``/home`` directory tree when using docker.
 
 
-Obtaining the Isaac Sim Container
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-* Get access to the `Isaac Sim container`_ by joining the NVIDIA Developer Program credentials.
-* Generate your `NGC API key`_ to access locked container images from NVIDIA GPU Cloud (NGC).
-
-  * This step requires you to create an NGC account if you do not already have one.
-  * You would also need to install the NGC CLI to perform operations from the command line.
-  * Once you have your generated API key and have installed the NGC CLI, you need to log in to NGC
-    from the terminal.
-
-    .. code:: bash
-
-        ngc config set
-
-* Use the command line to pull the Isaac Sim container image from NGC.
-
-  .. code:: bash
-
-      docker login nvcr.io
-
-  * For the username, enter ``$oauthtoken`` exactly as shown. It is a special username that is used to
-    authenticate with NGC.
-
-    .. code:: text
-
-        Username: $oauthtoken
-        Password: <Your NGC API Key>
-
-
 Directory Organization
 ----------------------
 
@@ -240,7 +210,7 @@ To view the contents of these volumes, you can use the following command:
 Isaac Lab Image Extensions
 --------------------------
 
-The produced image depends upon the arguments passed to ``container.py start`` and ``container.py stop``. These
+The produced image depends on the arguments passed to ``container.py start`` and ``container.py stop``. These
 commands accept an image extension parameter as an additional argument. If no argument is passed, then this
 parameter defaults to ``base``. Currently, the only valid values are (``base``, ``ros2``).
 Only one image extension can be passed at a time. The produced container will be named ``isaac-lab-${profile}``,
@@ -280,25 +250,49 @@ The container defaults to ``FastRTPS``, but ``CylconeDDS`` is also supported. Ea
       :language: bash
 
 
-Known Issues
-------------
+Running Pre-Built Isaac Lab Container
+-------------------------------------
 
-WebRTC Streaming
-~~~~~~~~~~~~~~~~
+In Isaac Lab 2.0 release, we introduced a minimal pre-built container that contains a very minimal set
+of Isaac Sim and Omniverse dependencies, along with Isaac Lab 2.0 pre-built into the container.
+This container allows users to pull the container directly from NGC without requiring a local build of
+the docker image. The Isaac Lab 2.0 source code will be available in this container under ``/workspace/IsaacLab``.
 
-When streaming the GUI from Isaac Sim, there are `several streaming clients`_ available. There is a `known issue`_ when
-attempting to use WebRTC streaming client on Google Chrome and Safari while running Isaac Sim inside a container.
-To avoid this problem, we suggest using the Native Streaming Client or using the
-Mozilla Firefox browser on which WebRTC works.
+This container is designed for running **headless** only and does not allow for X11 forwarding or running
+with the GUI. Please only use this container for headless training. For other use cases, we recommend
+following the above steps to build your own Isaac Lab docker image.
 
-Streaming is the only supported method for visualizing the Isaac GUI from within the container. The Omniverse Streaming Client
-is freely available from the Omniverse app, and is easy to use. The other streaming methods similarly require only a web browser.
-If users want to use X11 forwarding in order to have the apps behave as local GUI windows, they can uncomment the relevant portions
-in docker-compose.yaml.
+To pull the minimal Isaac Lab container, run:
+
+.. code:: bash
+
+  docker pull nvcr.io/nvidia/isaac-lab:2.0.0
+
+To run the Isaac Lab container with an interactive bash session, run:
+
+.. code:: bash
+
+  docker run --name isaac-lab --entrypoint bash -it --gpus all -e "ACCEPT_EULA=Y" --rm --network=host \
+     -e "PRIVACY_CONSENT=Y" \
+     -v ~/docker/isaac-sim/cache/kit:/isaac-sim/kit/cache:rw \
+     -v ~/docker/isaac-sim/cache/ov:/root/.cache/ov:rw \
+     -v ~/docker/isaac-sim/cache/pip:/root/.cache/pip:rw \
+     -v ~/docker/isaac-sim/cache/glcache:/root/.cache/nvidia/GLCache:rw \
+     -v ~/docker/isaac-sim/cache/computecache:/root/.nv/ComputeCache:rw \
+     -v ~/docker/isaac-sim/logs:/root/.nvidia-omniverse/logs:rw \
+     -v ~/docker/isaac-sim/data:/root/.local/share/ov/data:rw \
+     -v ~/docker/isaac-sim/documents:/root/Documents:rw \
+     nvcr.io/nvidia/isaac-lab:2.0.0
+
+To run an example within the container, run:
+
+.. code:: bash
+
+  ./isaaclab.sh -p scripts/tutorials/00_sim/log_time.py --headless
 
 
 .. _`NVIDIA Omniverse EULA`: https://docs.omniverse.nvidia.com/platform/latest/common/NVIDIA_Omniverse_License_Agreement.html
-.. _`container installation`: https://docs.omniverse.nvidia.com/isaacsim/latest/installation/install_container.html
+.. _`container installation`: https://docs.isaacsim.omniverse.nvidia.com/latest/installation/install_container.html
 .. _`Docker website`: https://docs.docker.com/desktop/install/linux-install/
 .. _`docker compose`: https://docs.docker.com/compose/install/linux/#install-using-the-repository
 .. _`NVIDIA Container Toolkit`: https://github.com/NVIDIA/nvidia-container-toolkit
@@ -306,7 +300,7 @@ in docker-compose.yaml.
 .. _`post-installation steps`: https://docs.docker.com/engine/install/linux-postinstall/
 .. _`Isaac Sim container`: https://catalog.ngc.nvidia.com/orgs/nvidia/containers/isaac-sim
 .. _`NGC API key`: https://docs.nvidia.com/ngc/gpu-cloud/ngc-user-guide/index.html#generating-api-key
-.. _`several streaming clients`: https://docs.omniverse.nvidia.com/isaacsim/latest/installation/manual_livestream_clients.html
+.. _`several streaming clients`: https://docs.isaacsim.omniverse.nvidia.com/latest/installation/manual_livestream_clients.html
 .. _`known issue`: https://forums.developer.nvidia.com/t/unable-to-use-webrtc-when-i-run-runheadless-webrtc-sh-in-remote-headless-container/222916
 .. _`profile`: https://docs.docker.com/compose/compose-file/15-profiles/
 .. _`apt package`: https://docs.ros.org/en/humble/Installation/Ubuntu-Install-Debians.html#install-ros-2-packages

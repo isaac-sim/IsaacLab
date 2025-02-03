@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2024, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -142,8 +142,7 @@ class ContainerInterface:
                 "exec",
                 "--interactive",
                 "--tty",
-                "-e",
-                f"DISPLAY={os.environ['DISPLAY']}",
+                *(["-e", f"DISPLAY={os.environ['DISPLAY']}"] if "DISPLAY" in os.environ else []),
                 f"{self.container_name}",
                 "bash",
             ])

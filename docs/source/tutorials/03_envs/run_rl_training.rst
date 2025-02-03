@@ -3,7 +3,7 @@
 Training with an RL Agent
 =========================
 
-.. currentmodule:: omni.isaac.lab
+.. currentmodule:: isaaclab
 
 In the previous tutorials, we covered how to define an RL task environment, register
 it into the ``gym`` registry, and interact with it using a random agent. We now move
@@ -20,7 +20,7 @@ For example, `Stable-Baselines3`_ expects the environment to conform to its
 `RSL-RL`_, `RL-Games`_ and `SKRL`_ expect a different interface. Since there is no one-size-fits-all
 solution, we do not base the :class:`envs.ManagerBasedRLEnv` on any particular learning library.
 Instead, we implement wrappers to convert the environment into the expected interface.
-These are specified in the :mod:`omni.isaac.lab_tasks.utils.wrappers` module.
+These are specified in the :mod:`isaaclab_rl` module.
 
 In this tutorial, we will use `Stable-Baselines3`_ to train an RL agent to solve the
 cartpole balancing task.
@@ -35,12 +35,12 @@ The Code
 --------
 
 For this tutorial, we use the training script from `Stable-Baselines3`_ workflow in the
-``source/standalone/workflows/sb3`` directory.
+``scripts/reinforcement_learning/sb3`` directory.
 
 .. dropdown:: Code for train.py
     :icon: code
 
-    .. literalinclude:: ../../../../source/standalone/workflows/sb3/train.py
+    .. literalinclude:: ../../../../scripts/reinforcement_learning/sb3/train.py
       :language: python
       :emphasize-lines: 57, 66, 68-70, 81, 90-98, 100, 105-113, 115-116, 121-126, 133-136
       :linenos:
@@ -48,7 +48,7 @@ For this tutorial, we use the training script from `Stable-Baselines3`_ workflow
 The Code Explained
 ------------------
 
-.. currentmodule:: omni.isaac.lab_tasks.utils
+.. currentmodule:: isaaclab_tasks.utils
 
 Most of the code above is boilerplate code to create logging directories, saving the parsed configurations,
 and setting up different Stable-Baselines3 components. For this tutorial, the important part is creating
@@ -88,7 +88,7 @@ up the training process since only physics simulation step is performed.
 
 .. code-block:: bash
 
-  ./isaaclab.sh -p source/standalone/workflows/sb3/train.py --task Isaac-Cartpole-v0 --num_envs 64 --headless
+  ./isaaclab.sh -p scripts/reinforcement_learning/sb3/train.py --task Isaac-Cartpole-v0 --num_envs 64 --headless
 
 
 Headless execution with off-screen render
@@ -101,7 +101,7 @@ agent's behavior during training.
 
 .. code-block:: bash
 
-  ./isaaclab.sh -p source/standalone/workflows/sb3/train.py --task Isaac-Cartpole-v0 --num_envs 64 --headless --video
+  ./isaaclab.sh -p scripts/reinforcement_learning/sb3/train.py --task Isaac-Cartpole-v0 --num_envs 64 --headless --video
 
 The videos are saved to the ``logs/sb3/Isaac-Cartpole-v0/<run-dir>/videos/train`` directory. You can open these videos
 using any video player.
@@ -109,7 +109,7 @@ using any video player.
 Interactive execution
 """""""""""""""""""""
 
-.. currentmodule:: omni.isaac.lab
+.. currentmodule:: isaaclab
 
 While the above two methods are useful for training the agent, they don't allow you to interact with the
 simulation to see what is happening. In this case, you can ignore the ``--headless`` flag and run the
@@ -117,7 +117,7 @@ training script as follows:
 
 .. code-block:: bash
 
-  ./isaaclab.sh -p source/standalone/workflows/sb3/train.py --task Isaac-Cartpole-v0 --num_envs 64
+  ./isaaclab.sh -p scripts/reinforcement_learning/sb3/train.py --task Isaac-Cartpole-v0 --num_envs 64
 
 This will open the Isaac Sim window and you can see the agent training in the environment. However, this
 will slow down the training process since the simulation is rendered on the screen. As a workaround, you
@@ -143,7 +143,7 @@ Once the training is complete, you can visualize the trained agent by executing 
 .. code:: bash
 
    # execute from the root directory of the repository
-   ./isaaclab.sh -p source/standalone/workflows/sb3/play.py --task Isaac-Cartpole-v0 --num_envs 32 --use_last_checkpoint
+   ./isaaclab.sh -p scripts/reinforcement_learning/sb3/play.py --task Isaac-Cartpole-v0 --num_envs 32 --use_last_checkpoint
 
 The above command will load the latest checkpoint from the ``logs/sb3/Isaac-Cartpole-v0``
 directory. You can also specify a specific checkpoint by passing the ``--checkpoint`` flag.
