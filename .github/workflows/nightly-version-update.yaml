@@ -18,10 +18,10 @@ jobs:
       - name: Check for new commits today
         id: check_commits
         run: |
-          # Get the latest commit date
+          # Get the latest commit date in 'YYYY-MM-DD' format
           LAST_COMMIT_DATE=$(git log -1 --format=%cd --date=short)
           TODAY_DATE=$(date +'%Y-%m-%d')
-
+          
           echo "Last commit date: $LAST_COMMIT_DATE"
           echo "Today's date: $TODAY_DATE"
 
