@@ -100,6 +100,13 @@ def randomize_scale(
     # extract the used quantities (to enable type-hinting)
     asset: RigidObject | Articulation = env.scene[asset_cfg.name]
 
+    # check to make sure replicate_physics is set to False, else raise warning
+    if env.cfg.scene.replicate_physics:
+        raise ValueError(
+            "Unable to randomize scale - ensure InteractiveSceneCfg's replicate_physics parameter"
+            " is set to False."
+        )
+
     # resolve environment ids
     if env_ids is None:
         env_ids = torch.arange(env.scene.num_envs, device="cpu")

@@ -363,7 +363,7 @@ class ManagerBasedEnv:
         applied_scene_randomization = False
         # iterate over all event terms
         for term_name, term_cfg in self.cfg.events.__dict__.items():
-            # check for non config
+            # check for none config
             if term_cfg is None:
                 continue
             # call event terms corresponding to the scene-level randomization
