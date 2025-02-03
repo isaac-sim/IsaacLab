@@ -1,0 +1,64 @@
+name: Nightly Version Update
+
+on:
+  schedule:
+    # Runs at midnight every night (UTC)
+    - cron: '0 0 * * *'
+  workflow_dispatch:  # Allow manual trigger if needed for testing
+
+jobs:
+  update_version:
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'  # Only run on the main branch
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Check for new commits today
+        id: check_commits
+        run: |
+          # Get the latest commit date
+          LAST_COMMIT_DATE=$(git log -1 --format=%cd --date=short)
+          TODAY_DATE=$(date +'%Y-%m-%d')
+
+          echo "Last commit date: $LAST_COMMIT_DATE"
+          echo "Today's date: $TODAY_DATE"
+
+          if [[ "$LAST_COMMIT_DATE" == "$TODAY_DATE" ]]; then
+            echo "New commits found for today. Proceeding with version update."
+            echo "has_commits=true" >> $GITHUB_ENV
+          else
+            echo "No new commits today. Skipping version update."
+            echo "has_commits=false" >> $GITHUB_ENV
+
+      - name: Read current version
+        if: env.has_commits == 'true'
+        id: read_version
+        run: |
+          VERSION=$(cat VERSION)
+          echo "Current version: $VERSION"
+          if [[ $VERSION =~ ^([0-9]+\.[0-9]+\.[0-9]+)\.post([0-9]+)$ ]]; then
+            # Increment post-release version if the format is already postX
+            BASE_VERSION="${BASH_REMATCH[1]}"
+            POST_VERSION=$((BASH_REMATCH[2] + 1))
+            NEW_VERSION="${BASE_VERSION}.post${POST_VERSION}"
+          else
+            # First nightly update
+            BASE_VERSION=$VERSION
+            NEW_VERSION="${BASE_VERSION}.post1"
+          fi
+          echo "New version: $NEW_VERSION"
+          echo "::set-output name=new_version::$NEW_VERSION"
+
+      - name: Update VERSION file
+        if: env.has_commits == 'true'
+        run: echo "${{ steps.read_version.outputs.new_version }}" > VERSION
+
+      - name: Commit and push changes
+        if: env.has_commits == 'true'
+        uses: EndBug/add-and-commit@v7
+        with:
+          author_name: 'GitHub Actions'
+          author_email: 'actions@github.com'
+          message: "Bumps version to ${{ steps.read_version.outputs.new_version }}"
