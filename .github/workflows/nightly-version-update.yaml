@@ -50,11 +50,12 @@ jobs:
             NEW_VERSION="${BASE_VERSION}.post1"
           fi
           echo "New version: $NEW_VERSION"
-          echo "{new_version}={$NEW_VERSION}" >> $GITHUB_OUTPUT
+          # Save the new version to an environment variable
+          echo "NEW_VERSION=$NEW_VERSION" >> $GITHUB_ENV
 
       - name: Update VERSION file
         # if: env.has_commits == 'true'
-        run: echo "${{ steps.read_version.outputs.new_version }}" > VERSION
+        run: echo "${{ env.NEW_VERSION }}" > VERSION
 
       - name: Commit and push changes
         # if: env.has_commits == 'true'
@@ -62,4 +63,4 @@ jobs:
         with:
           author_name: 'GitHub Actions'
           author_email: 'actions@github.com'
-          message: "Bumps version to ${{ steps.read_version.outputs.new_version }}"
+          message: "Bumps version to ${{ env.NEW_VERSION }}"
