@@ -50,14 +50,14 @@ jobs:
             NEW_VERSION="${BASE_VERSION}.post1"
           fi
           echo "New version: $NEW_VERSION"
-          echo "::set-output name=new_version::$NEW_VERSION"
+          echo "{new_version}={$NEW_VERSION}" >> $GITHUB_OUTPUT
 
       - name: Update VERSION file
-        if: env.has_commits == 'true'
+        # if: env.has_commits == 'true'
         run: echo "${{ steps.read_version.outputs.new_version }}" > VERSION
 
       - name: Commit and push changes
-        if: env.has_commits == 'true'
+        # if: env.has_commits == 'true'
         uses: EndBug/add-and-commit@v7
         with:
           author_name: 'GitHub Actions'
