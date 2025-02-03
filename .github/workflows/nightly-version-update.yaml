@@ -31,6 +31,7 @@ jobs:
           else
             echo "No new commits today. Skipping version update."
             echo "has_commits=false" >> $GITHUB_ENV
+          fi
 
       - name: Read current version
         if: env.has_commits == 'true'
