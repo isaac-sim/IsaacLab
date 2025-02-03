@@ -3,7 +3,7 @@ name: Nightly Version Update
 on:
   schedule:
     # Runs at midnight every night (UTC)
-    - cron: '0 0 * * *'
+    - cron: '21 03 * * *'
   workflow_dispatch:  # Allow manual trigger if needed for testing
 
 jobs:
