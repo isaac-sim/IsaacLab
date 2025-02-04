@@ -141,11 +141,6 @@ class Imu(SensorBase):
 
     def _update_buffers_impl(self, env_ids: Sequence[int]):
         """Fills the buffers of the sensor data."""
-        # check if self._dt is set (this is set in the update function)
-        if not hasattr(self, "_dt"):
-            raise RuntimeError(
-                "The update function must be called before the data buffers are accessed the first time."
-            )
         # default to all sensors
         if len(env_ids) == self._num_envs:
             env_ids = slice(None)
@@ -169,8 +164,13 @@ class Imu(SensorBase):
         )
 
         # numerical derivative
-        lin_acc_w = (lin_vel_w - self._prev_lin_vel_w[env_ids]) / self._dt + self._gravity_bias_w[env_ids]
-        ang_acc_w = (ang_vel_w - self._prev_ang_vel_w[env_ids]) / self._dt
+        if not hasattr(self, "_dt"):
+            lin_acc_w = torch.zeros_like(lin_vel_w) + self._gravity_bias_w[env_ids]
+            ang_acc_w = torch.zeros_like(ang_vel_w)
+        else:
+            lin_acc_w = (lin_vel_w - self._prev_lin_vel_w[env_ids]) / self._dt + self._gravity_bias_w[env_ids]
+            ang_acc_w = (ang_vel_w - self._prev_ang_vel_w[env_ids]) / self._dt
+
         # store the velocities
         self._data.lin_vel_b[env_ids] = math_utils.quat_rotate_inverse(self._data.quat_w[env_ids], lin_vel_w)
         self._data.ang_vel_b[env_ids] = math_utils.quat_rotate_inverse(self._data.quat_w[env_ids], ang_vel_w)
