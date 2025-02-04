@@ -87,3 +87,40 @@ SIGMABAN_CFG = ArticulationCfg(
     },
 )
 """Configuration for the Rhoban Sigmaban Humanoid robot."""
+
+
+
+CARTPOLE_RHOBAN_CFG = ArticulationCfg(
+    spawn=sim_utils.UsdFileCfg(
+        usd_path=f"source/extensions/omni.isaac.lab_assets/data/Robots/Rhoban/cartpole_rhoban.usd",
+        rigid_props=sim_utils.RigidBodyPropertiesCfg(
+            rigid_body_enabled=True,
+            max_linear_velocity=1000.0,
+            max_angular_velocity=1000.0,
+            max_depenetration_velocity=100.0,
+            enable_gyroscopic_forces=True,
+        ),
+        articulation_props=sim_utils.ArticulationRootPropertiesCfg(
+            enabled_self_collisions=False,
+            solver_position_iteration_count=4,
+            solver_velocity_iteration_count=0,
+            sleep_threshold=0.005,
+            stabilization_threshold=0.001,
+        ),
+    ),
+    init_state=ArticulationCfg.InitialStateCfg(
+        pos=(0.0, 0.0, 0.0), joint_pos={"cart_to_pole": 1.5708} #90deg
+    ),
+    actuators={
+        "pole_actuator": ImplicitActuatorCfg(
+            joint_names_expr=["cart_to_pole"], 
+            effort_limit=6, #8Nm
+            # velocity_limit=6.2831, #2*pi rad/s
+            armature=0.025,
+            stiffness=21, # considered as kp
+            friction=0.10,
+            damping= 1.7,
+        ),
+    },
+)
+"""Configuration for a simple Cartpole robot."""
