@@ -31,6 +31,8 @@ from datetime import datetime
 from pathlib import Path
 from prettytable import PrettyTable
 
+import coverage
+
 # Local imports
 from per_test_timeouts import PER_TEST_TIMEOUTS
 from tests_to_skip import TESTS_TO_SKIP
@@ -86,6 +88,7 @@ def test_all(
     discover_only: bool = False,
     quiet: bool = False,
     extension: str | None = None,
+    perform_coverage: bool = True,
 ) -> bool:
     """Run all tests under the given directory.
 
@@ -118,6 +121,13 @@ def test_all(
         logging_handlers.append(logging.StreamHandler())
     # Set up logger
     logging.basicConfig(level=logging.INFO, format="%(message)s", handlers=logging_handlers)
+
+    # Clear out old coverage results and create the directory if it doesn't exist
+    if perform_coverage:
+        coverage_dir = os.path.join(ISAACLAB_PATH, "logs", "coverage")
+        os.makedirs(coverage_dir, exist_ok=True)
+        for file in os.listdir(coverage_dir):
+            os.remove(os.path.join(coverage_dir, file))
 
     all_test_paths, test_paths, skipped_test_paths, test_timeouts = extract_tests_and_timeouts(
         test_dir, extension, tests_to_skip, timeout, per_test_timeouts
@@ -250,6 +260,18 @@ def test_all(
 
     # Print summary to console and log file
     logging.info(summary_str)
+
+    if perform_coverage:
+        coverage_dir = os.path.join(ISAACLAB_PATH, "logs", "coverage")
+        all_coverage_files = [os.path.join(coverage_dir, path) for path in os.listdir(coverage_dir)]
+        cov = coverage.Coverage()
+        cov.combine(data_paths=all_coverage_files, strict=True, keep=True)
+        # Ignore isaac-sim files in coverage report
+        cov.html_report(directory=coverage_dir, omit="/isaac-sim*")
+        logging.info(
+            f"Coverage report generated at {coverage_dir}/index.html. To view it, simply open the index.html "
+            "file in a web browser."
+        )
 
     # Only count failing and timing out tests towards failure
     return num_failing + num_timing_out == 0
