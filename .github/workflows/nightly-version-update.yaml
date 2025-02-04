@@ -26,7 +26,7 @@ jobs:
           echo "Today's date: $TODAY_DATE"
 
           # Get changes from today (commits after midnight UTC)
-          CHANGES_TODAY=$(git diff --since="midnight" --format="%H" -- source/ apps/)
+          CHANGES_TODAY=$(git diff --since="midnight" --format="%H")
           echo $CHANGES_TODAY
 
           # If there are changes today in the 'source' or 'apps' folders
