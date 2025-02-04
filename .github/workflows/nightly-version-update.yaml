@@ -25,7 +25,12 @@ jobs:
           echo "Last commit date: $LAST_COMMIT_DATE"
           echo "Today's date: $TODAY_DATE"
 
-          if [[ "$LAST_COMMIT_DATE" == "$TODAY_DATE" ]]; then
+          # Check if there are changes in the 'source' or 'apps' directories
+          CHANGED_FILES=$(git diff --name-only HEAD~1..HEAD -- source/ apps/)
+          echo "Changed files: $CHANGED_FILES"
+
+          # Check if there were any changes in the specified folders today
+          if [[ "$LAST_COMMIT_DATE" == "$TODAY_DATE" ]] && [[ -n "$CHANGED_FILES" ]]; then
             echo "New commits found for today. Proceeding with version update."
             echo "has_commits=true" >> $GITHUB_ENV
           else
