@@ -103,7 +103,7 @@ class TerrainImporter:
             self.configure_env_origins()
         elif self.cfg.terrain_type == "plane":
             # load the plane
-            self.import_ground_plane("terrain")
+            self.import_ground_plane("terrain", color=self.cfg.color)
             # configure the origins in a grid
             self.configure_env_origins()
         else:
@@ -176,12 +176,13 @@ class TerrainImporter:
     Operations - Import.
     """
 
-    def import_ground_plane(self, key: str, size: tuple[float, float] = (2.0e6, 2.0e6)):
+    def import_ground_plane(self, key: str, size: tuple[float, float] = (2.0e6, 2.0e6), color: tuple[float, float, float] = (0.0, 0.0, 0.0)):
         """Add a plane to the terrain importer.
 
         Args:
             key: The key to store the mesh.
             size: The size of the plane. Defaults to (2.0e6, 2.0e6).
+            color: The color of the plane. Defaults to (0.0, 0.0, 0.0).
 
         Raises:
             ValueError: If a terrain with the same key already exists.
@@ -198,7 +199,7 @@ class TerrainImporter:
         self.warp_meshes[key] = convert_to_warp_mesh(mesh.vertices, mesh.faces, device=device)
 
         # get the mesh
-        ground_plane_cfg = sim_utils.GroundPlaneCfg(physics_material=self.cfg.physics_material, size=size)
+        ground_plane_cfg = sim_utils.GroundPlaneCfg(physics_material=self.cfg.physics_material, size=size, color=color)
         ground_plane_cfg.func(self.cfg.prim_path, ground_plane_cfg)
 
     def import_mesh(self, key: str, mesh: trimesh.Trimesh):
