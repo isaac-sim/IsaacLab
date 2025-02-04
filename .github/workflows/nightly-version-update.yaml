@@ -25,7 +25,7 @@ jobs:
           echo "Last commit date: $LAST_COMMIT_DATE"
           echo "Today's date: $TODAY_DATE"
 
-          # Get all commits from today (commits after midnight UTC)
+          # Get changes from today (commits after midnight UTC)
           CHANGES_TODAY=$(git diff --since="midnight" --format="%H" -- source/ apps/)
           echo $CHANGES_TODAY
 
