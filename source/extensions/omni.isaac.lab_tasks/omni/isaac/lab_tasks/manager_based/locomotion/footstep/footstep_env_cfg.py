@@ -98,7 +98,10 @@ class CommandsCfg:
         ),
     )
 
-    next_footstep = 
+    next_footstep = mdp.FootstepPoseCommandCfg(
+        asset_name="robot",
+        resampling_time_range=(10.0, 10.0)
+    )        
 
 @configclass
 class ActionsCfg:
