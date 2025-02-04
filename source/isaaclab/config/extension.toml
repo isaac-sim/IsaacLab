@@ -32,5 +32,8 @@ modules = [
 
 use_online_index=true
 
+[core]
+reloadable = false
+
 [[python.module]]
 name = "isaaclab"
