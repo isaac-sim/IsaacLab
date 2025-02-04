@@ -39,7 +39,7 @@ jobs:
           fi
 
       - name: Read current version
-        # if: env.has_changes == 'true'
+        if: env.has_changes == 'true'
         id: read_version
         run: |
           VERSION=$(cat VERSION)
@@ -59,11 +59,11 @@ jobs:
           echo "NEW_VERSION=$NEW_VERSION" >> $GITHUB_ENV
 
       - name: Update VERSION file
-        # if: env.has_changes == 'true'
+        if: env.has_changes == 'true'
         run: echo "${{ env.NEW_VERSION }}" > VERSION
 
       - name: Commit and push changes
-        # if: env.has_changes == 'true'
+        if: env.has_changes == 'true'
         uses: EndBug/add-and-commit@v7
         with:
           author_name: 'GitHub Actions'
