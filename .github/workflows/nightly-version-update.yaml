@@ -26,7 +26,7 @@ jobs:
           echo "Today's date: $TODAY_DATE"
 
           # Get all commits from today (commits after midnight UTC)
-          COMMITS_TODAY=$(git log --since="midnight" --format="%H" -- source/ apps/)
+          COMMITS_TODAY=$(git log --since="midnight" --format="%H" -- apps/)
           echo $COMMITS_TODAY
 
           # If there are commits today that changed files in the 'source' or 'apps' folders
