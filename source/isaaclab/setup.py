@@ -42,7 +42,7 @@ PYTORCH_INDEX_URL = ["https://download.pytorch.org/whl/cu118"]
 
 # Installation operation
 setup(
-    name="isaaclab",
+    name="isaaclab-test",
     author="Isaac Lab Project Developers",
     maintainer="Isaac Lab Project Developers",
     url=EXTENSION_TOML_DATA["package"]["repository"],
