@@ -142,13 +142,13 @@ Verifying the Isaac Sim installation
 
 .. attention::
 
-   The first run will prompt users to accept the Nvidia Omniverse License Agreement.
+   The first run will prompt users to accept the NVIDIA Software License Agreement.
    To accept the EULA, reply ``Yes`` when prompted with the below message:
 
    .. code:: bash
 
-      By installing or using Isaac Sim, I agree to the terms of NVIDIA OMNIVERSE LICENSE AGREEMENT (EULA)
-      in https://docs.isaacsim.omniverse.nvidia.com/latest/common/NVIDIA_Omniverse_License_Agreement.html
+      By installing or using Isaac Sim, I agree to the terms of NVIDIA SOFTWARE LICENSE AGREEMENT (EULA)
+      in https://www.nvidia.com/en-us/agreements/enterprise-software/nvidia-software-license-agreement
 
       Do you accept the EULA? (Yes/No): Yes
 

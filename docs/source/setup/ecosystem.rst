@@ -10,7 +10,7 @@ and robot learning algorithms.
 
 Working with Isaac Lab requires the installation of Isaac Sim, which is packaged with core robotics tools
 that Isaac Lab depends on, including URDF and MJCF importers, simulation managers, and ROS features. Isaac
-Sim also builds on top of the Nvidia Omniverse platform, leveraging advanced physics simulation from PhysX,
+Sim also builds on top of the NVIDIA Omniverse platform, leveraging advanced physics simulation from PhysX,
 photorealistic rendering technologies, and Universal Scene Description (USD) for scene creation.
 
 Isaac Lab not only inherits the capabilities of Isaac Sim, but also adds a number
@@ -20,13 +20,13 @@ simulation, procedural terrain generation, and support to collect data from huma
 .. image:: ../_static/setup/ecosystem-light.jpg
     :class: only-light
     :align: center
-    :alt: The Isaac Lab, Isaac Sim, and Nvidia Omniverse ecosystem
+    :alt: The Isaac Lab, Isaac Sim, and NVIDIA Omniverse ecosystem
 
 .. image:: ../_static/setup/ecosystem-dark.jpg
     :class: only-dark
     :align: center
-    :alt: The Isaac Lab, Isaac Sim, and Nvidia Omniverse ecosystem
+    :alt: The Isaac Lab, Isaac Sim, and NVIDIA Omniverse ecosystem
 
 
-For a detailed explanation of Nvidia's development journey of robot learning frameworks, please visit
+For a detailed explanation of NVIDIA's development journey of robot learning frameworks, please visit
 the `FAQ page <faq.html>`_.
