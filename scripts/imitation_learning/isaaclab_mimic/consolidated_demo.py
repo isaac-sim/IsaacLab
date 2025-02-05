@@ -190,7 +190,14 @@ def pre_process_actions(delta_pose: torch.Tensor, gripper_command: bool) -> torc
 
 
 async def run_teleop_robot(
-    env, env_id, env_action_queue, shared_datagen_info_pool, success_term, exported_dataset_path, teleop_interface=None
+    env,
+    env_id,
+    env_reset_queue,
+    env_action_queue,
+    shared_datagen_info_pool,
+    success_term,
+    exported_dataset_path,
+    teleop_interface=None,
 ):
     """Run teleop robot."""
     global num_recorded
@@ -225,7 +232,8 @@ async def run_teleop_robot(
     while True:
         if should_reset_teleop_instance:
             env.unwrapped.recorder_manager.reset(env_id_tensor)
-            env.unwrapped.reset(env_ids=env_id_tensor)
+            await env_reset_queue.put(env_id_tensor)
+            await env_reset_queue.join()
             should_reset_teleop_instance = False
             success_step_count = 0
 
@@ -259,7 +267,14 @@ async def run_teleop_robot(
 
 
 async def run_data_generator(
-    env, env_id, env_action_queue, shared_datagen_info_pool, success_term, pause_subtask=False, export_demo=True
+    env,
+    env_id,
+    env_reset_queue,
+    env_action_queue,
+    shared_datagen_info_pool,
+    success_term,
+    pause_subtask=False,
+    export_demo=True,
 ):
     """Run data generator."""
     global num_success, num_failures, num_attempts
@@ -273,6 +288,7 @@ async def run_data_generator(
         results = await data_generator.generate(
             env_id=env_id,
             success_term=success_term,
+            env_reset_queue=env_reset_queue,
             env_action_queue=env_action_queue,
             select_src_per_subtask=env.unwrapped.cfg.datagen_config.generation_select_src_per_subtask,
             transform_first_robot_pose=env.unwrapped.cfg.datagen_config.generation_transform_first_robot_pose,
@@ -287,9 +303,10 @@ async def run_data_generator(
         num_attempts += 1
 
 
-def env_loop(env, env_action_queue, shared_datagen_info_pool, asyncio_event_loop):
+def env_loop(env, env_reset_queue, env_action_queue, shared_datagen_info_pool, asyncio_event_loop):
     """Main loop for the environment."""
     global num_recorded, num_success, num_failures, num_attempts
+    env_id_tensor = torch.tensor([0], dtype=torch.int64, device=env.device)
     prev_num_attempts = 0
     prev_num_recorded = 0
 
@@ -301,6 +318,14 @@ def env_loop(env, env_action_queue, shared_datagen_info_pool, asyncio_event_loop
     is_first_print = True
     with contextlib.suppress(KeyboardInterrupt) and torch.inference_mode():
         while True:
+
+            # check if any environment needs to be reset while waiting for actions
+            while env_action_queue.qsize() != env.num_envs:
+                asyncio_event_loop.run_until_complete(asyncio.sleep(0))
+                while not env_reset_queue.empty():
+                    env_id_tensor[0] = env_reset_queue.get_nowait()
+                    env.reset(env_ids=env_id_tensor)
+                    env_reset_queue.task_done()
 
             actions = torch.zeros(env.unwrapped.action_space.shape)
 
@@ -401,7 +426,7 @@ def main():
         env_cfg.recorders.dataset_export_mode = DatasetExportMode.EXPORT_SUCCEEDED_ONLY
 
     # create environment
-    env = gym.make(env_name, cfg=env_cfg)
+    env = gym.make(env_name, cfg=env_cfg).unwrapped
 
     if not isinstance(env.unwrapped, ManagerBasedRLMimicEnv):
         raise ValueError("The environment should be derived from ManagerBasedRLMimicEnv")
@@ -422,6 +447,7 @@ def main():
 
     # Set up asyncio stuff
     asyncio_event_loop = asyncio.get_event_loop()
+    env_reset_queue = asyncio.Queue()
     env_action_queue = asyncio.Queue()
 
     shared_datagen_info_pool_lock = asyncio.Lock()
@@ -439,7 +465,13 @@ def main():
             data_generator_asyncio_tasks.append(
                 asyncio_event_loop.create_task(
                     run_teleop_robot(
-                        env, i, env_action_queue, shared_datagen_info_pool, success_term, args_cli.output_file
+                        env,
+                        i,
+                        env_reset_queue,
+                        env_action_queue,
+                        shared_datagen_info_pool,
+                        success_term,
+                        args_cli.output_file,
                     )
                 )
             )
@@ -449,6 +481,7 @@ def main():
                 run_data_generator(
                     env,
                     i,
+                    env_reset_queue,
                     env_action_queue,
                     shared_datagen_info_pool,
                     success_term,
@@ -462,7 +495,7 @@ def main():
     except asyncio.CancelledError:
         print("Tasks were cancelled.")
 
-    env_loop(env, env_action_queue, shared_datagen_info_pool, asyncio_event_loop)
+    env_loop(env, env_reset_queue, env_action_queue, shared_datagen_info_pool, asyncio_event_loop)
 
 
 if __name__ == "__main__":

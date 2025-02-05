@@ -195,6 +195,7 @@ class DataGenerator:
         self,
         env_id,
         success_term,
+        env_reset_queue: asyncio.Queue | None = None,
         env_action_queue: asyncio.Queue | None = None,
         select_src_per_subtask=False,
         transform_first_robot_pose=False,
@@ -209,6 +210,8 @@ class DataGenerator:
             env_id (int): environment ID
 
             success_term (TerminationTermCfg): success function to check if the task is successful
+
+            env_reset_queue (asyncio.Queue): queue to store environment IDs for reset
 
             env_action_queue (asyncio.Queue): queue to store actions for each environment
 
@@ -246,7 +249,8 @@ class DataGenerator:
         # reset the env to create a new task demo instance
         env_id_tensor = torch.tensor([env_id], dtype=torch.int64, device=self.env.device)
         self.env.recorder_manager.reset(env_ids=env_id_tensor)
-        self.env.reset(env_ids=env_id_tensor)
+        await env_reset_queue.put(env_id)
+        await env_reset_queue.join()
         new_initial_state = self.env.scene.get_state(is_relative=True)
 
         # some state variables used during generation
