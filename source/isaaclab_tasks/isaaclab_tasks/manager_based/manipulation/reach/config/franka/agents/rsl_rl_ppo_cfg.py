@@ -15,7 +15,6 @@ class FrankaReachPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     save_interval = 50
     experiment_name = "franka_reach"
     run_name = ""
-    resume = False
     empirical_normalization = False
     policy = RslRlPpoActorCriticCfg(
         init_noise_std=1.0,
