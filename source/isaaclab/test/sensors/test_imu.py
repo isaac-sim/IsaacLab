@@ -279,6 +279,7 @@ class TestImu(unittest.TestCase):
             if idx == 0:
                 _ = self.scene.sensors["imu_ball"].data.lin_acc_b
                 _ = self.scene.sensors["imu_ball"].data.ang_acc_b
+
             # write data to sim
             self.scene.write_data_to_sim()
             # perform step
