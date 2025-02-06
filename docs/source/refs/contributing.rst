@@ -151,7 +151,7 @@ in the terminal:
 
 .. code:: bash
 
-   xdg-open docs/_build/html/index.html
+   xdg-open docs/_build/current/index.html
 
 .. hint::
 
