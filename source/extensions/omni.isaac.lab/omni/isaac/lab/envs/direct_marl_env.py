@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2024, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -576,12 +576,15 @@ class DirectMARLEnv:
         the operations of the event manager to apply the scene-level randomization.
 
         It must be called only before the simulation/physics is started.
+
+        Note: A duplicate function exists in manager_based_env.py please make sure to carry over
+        any changes made to this function.
         """
         # check if scene randomization is enabled
         applied_scene_randomization = False
         # iterate over all event terms
         for term_name, term_cfg in self.cfg.events.__dict__.items():
-            # check for non config
+            # check for none config
             if term_cfg is None:
                 continue
             # call event terms corresponding to the scene-level randomization

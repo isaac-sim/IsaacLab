@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2024, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -117,6 +117,7 @@ class ManagerBasedEnv:
         print("[INFO]: Scene manager: ", self.scene)
 
         # randomization at scene level
+        # note: this must happened after the scene is constructed because it involves modifying Xform attributes
         with Timer("[INFO]: Time taken for scene randomization", "scene_randomization"):
             self._apply_scene_randomization()
 
@@ -358,6 +359,9 @@ class ManagerBasedEnv:
         the operations of the event manager to apply the scene-level randomization.
 
         It must be called only before the simulation/physics is started.
+
+        Note: A duplicate function exists in direct_marl_env.py please make sure to carry over
+        any changes made to this function.
         """
         # check if scene randomization is enabled
         applied_scene_randomization = False

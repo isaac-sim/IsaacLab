@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2024, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -63,6 +63,10 @@ def randomize_shape_color(env: ManagerBasedEnv, env_ids: torch.Tensor | None, as
             # spawn single instance
             prim_spec = Sdf.CreatePrimInLayer(stage.GetRootLayer(), prim_paths[env_id])
 
+            # check to make sure input:diffuseColor attribute exists
+            if not prim_spec.GetAttributeAtPath(prim_paths[env_id] + "/geometry/material/Shader.inputs:diffuseColor"):
+                raise ValueError("inputs:diffuseColor not a valid attribute. Please set to an existing attribute.")
+
             # get the attribute to randomize
             color_spec = prim_spec.GetAttributeAtPath(
                 prim_paths[env_id] + "/geometry/material/Shader.inputs:diffuseColor"
@@ -100,11 +104,17 @@ def randomize_scale(
     # extract the used quantities (to enable type-hinting)
     asset: RigidObject | Articulation = env.scene[asset_cfg.name]
 
+    # check to make sure scale randomization is not triggered while simulation is running
+    if env.sim.is_playing():
+        raise ValueError(
+            "Unable to randomize scale while scene is running."
+            " Assure scale randomization called prior to simulation start."
+        )
+
     # check to make sure replicate_physics is set to False, else raise warning
     if env.cfg.scene.replicate_physics:
         raise ValueError(
-            "Unable to randomize scale - ensure InteractiveSceneCfg's replicate_physics parameter"
-            " is set to False."
+            "Unable to randomize scale - ensure InteractiveSceneCfg's replicate_physics parameter is set to False."
         )
 
     # resolve environment ids
@@ -132,6 +142,10 @@ def randomize_scale(
         for i, env_id in enumerate(env_ids):
             # spawn single instance
             prim_spec = Sdf.CreatePrimInLayer(stage.GetRootLayer(), prim_paths[env_id])
+
+            # check to make sure xformOp:scale attribute exists
+            if not prim_spec.GetAttributeAtPath(prim_paths[env_id] + ".xformOp:scale"):
+                raise ValueError("xforOp:scale not a valid attribute. Please set to an existing attribute.")
 
             # get the attribute to randomize
             scale_spec = prim_spec.GetAttributeAtPath(prim_paths[env_id] + ".xformOp:scale")

@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2024, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -24,7 +24,7 @@ from __future__ import annotations
 from omni.isaac.lab.app import AppLauncher, run_tests
 
 # Can set this to False to see the GUI for debugging
-HEADLESS = False
+HEADLESS = True
 
 # launch omniverse app
 app_launcher = AppLauncher(headless=HEADLESS, enable_cameras=True)
@@ -34,6 +34,9 @@ simulation_app = app_launcher.app
 
 import torch
 import unittest
+
+import omni.usd
+from pxr import Sdf
 
 import omni.isaac.lab.envs.mdp as mdp
 import omni.isaac.lab.sim as sim_utils
@@ -159,9 +162,22 @@ class MySceneCfg(InteractiveSceneCfg):
     # add terrain
     terrain = TerrainImporterCfg(prim_path="/World/ground", terrain_type="plane", debug_vis=False)
 
-    # add cube
-    cube: RigidObjectCfg = RigidObjectCfg(
-        prim_path="{ENV_REGEX_NS}/cube",
+    # add cube for scale randomization
+    cube1: RigidObjectCfg = RigidObjectCfg(
+        prim_path="{ENV_REGEX_NS}/cube1",
+        spawn=sim_utils.CuboidCfg(
+            size=(0.2, 0.2, 0.2),
+            rigid_props=sim_utils.RigidBodyPropertiesCfg(max_depenetration_velocity=1.0, disable_gravity=True),
+            mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+            physics_material=sim_utils.RigidBodyMaterialCfg(),
+            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 0.0)),
+        ),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 5)),
+    )
+
+    # add cube for static scale values
+    cube2: RigidObjectCfg = RigidObjectCfg(
+        prim_path="{ENV_REGEX_NS}/cube2",
         spawn=sim_utils.CuboidCfg(
             size=(0.2, 0.2, 0.2),
             rigid_props=sim_utils.RigidBodyPropertiesCfg(max_depenetration_velocity=1.0, disable_gravity=True),
@@ -188,7 +204,7 @@ class MySceneCfg(InteractiveSceneCfg):
 class ActionsCfg:
     """Action specifications for the MDP."""
 
-    joint_pos = CubeActionTermCfg(asset_name="cube")
+    joint_pos = CubeActionTermCfg(asset_name="cube1")
 
 
 @configclass
@@ -200,7 +216,7 @@ class ObservationsCfg:
         """Observations for policy group."""
 
         # cube velocity
-        position = ObsTerm(func=base_position, params={"asset_cfg": SceneEntityCfg("cube")})
+        position = ObsTerm(func=base_position, params={"asset_cfg": SceneEntityCfg("cube1")})
 
         def __post_init__(self):
             self.enable_corruption = True
@@ -224,16 +240,27 @@ class EventCfg:
                 "y": (-0.5, 0.5),
                 "z": (-0.5, 0.5),
             },
-            "asset_cfg": SceneEntityCfg("cube"),
+            "asset_cfg": SceneEntityCfg("cube1"),
         },
     )
 
-    randomize_scale = EventTerm(
+    # Scale randomization as intended
+    randomize_scale1 = EventTerm(
         func=mdp.randomize_scale,
         mode="scene",
         params={
             "scale_range": {"x": (0.5, 1.5), "y": (0.5, 1.5), "z": (0.5, 1.5)},
-            "asset_cfg": SceneEntityCfg("cube"),
+            "asset_cfg": SceneEntityCfg("cube1"),
+        },
+    )
+
+    # Static scale values
+    randomize_scale2 = EventTerm(
+        func=mdp.randomize_scale,
+        mode="scene",
+        params={
+            "scale_range": {"x": (1.0, 1.0), "y": (1.0, 1.0), "z": (1.0, 1.0)},
+            "asset_cfg": SceneEntityCfg("cube2"),
         },
     )
 
@@ -248,7 +275,7 @@ class CubeEnvCfg(ManagerBasedEnvCfg):
     """Configuration for the locomotion velocity-tracking environment."""
 
     # Scene settings
-    scene: MySceneCfg = MySceneCfg(num_envs=64, env_spacing=2.5, replicate_physics=False)
+    scene: MySceneCfg = MySceneCfg(num_envs=10, env_spacing=2.5, replicate_physics=False)
     # Basic settings
     observations: ObservationsCfg = ObservationsCfg()
     actions: ActionsCfg = ActionsCfg()
@@ -281,29 +308,46 @@ class TestScaleRandomization(unittest.TestCase):
         # offset all targets so that they move to the world origin
         target_position -= env.scene.env_origins
 
+        stage = omni.usd.get_context().get_stage()
+
+        # Test to make sure randomized values are truly random
+        applied_scaling_randomization = set()
+        prim_paths = sim_utils.find_matching_prim_paths("/World/envs/env_.*/cube1")
+        for i in range(3):
+            prim_spec = Sdf.CreatePrimInLayer(stage.GetRootLayer(), prim_paths[i])
+            scale_spec = prim_spec.GetAttributeAtPath(prim_paths[i] + ".xformOp:scale")
+            if scale_spec.default in applied_scaling_randomization:
+                raise ValueError(
+                    "Detected repeat in applied scale values - indication scaling randomizatio is not working."
+                )
+            applied_scaling_randomization.add(scale_spec.default)
+
+        # Test to make sure that fixed values are assigned correctly
+        prim_paths = sim_utils.find_matching_prim_paths("/World/envs/env_.*/cube2")
+        for i in range(3):
+            prim_spec = Sdf.CreatePrimInLayer(stage.GetRootLayer(), prim_paths[i])
+            scale_spec = prim_spec.GetAttributeAtPath(prim_paths[i] + ".xformOp:scale")
+            torch.testing.assert_close(tuple(scale_spec.default), (1.0, 1.0, 1.0))
+
         # simulate physics
         count = 0
-        obs, _ = env.reset()
         while simulation_app.is_running():
             with torch.inference_mode():
                 # reset
-                if count % 300 == 0:
-                    count = 0
-                    obs, _ = env.reset()
-                    print("-" * 80)
-                    print("[INFO]: Resetting environment...")
-                # step env
-                obs, _ = env.step(target_position)
-                # print mean squared position error between target and current position
-                error = torch.norm(obs["policy"] - target_position).mean().item()
-                print(f"[Step: {count:04d}]: Mean position error: {error:.4f}")
+                if count % 100 == 0:
+                    env.reset()
+
+                # step the environment
+                env.step(target_position)
+
                 # update counter
                 count += 1
+
+                # After 2 iterations finish the test and close env
+                if count >= 200:
+                    env.close()
+                    break
 
 
 if __name__ == "__main__":
     run_tests()
-    # # run the main function
-    # main()
-    # # close sim app
-    # simulation_app.close()
