@@ -4,17 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 """
-This script creates a simple environment with a floating cube. The cube is controlled by a PD
-controller to track an arbitrary target position.
-
-While going through this tutorial, we recommend you to pay attention to how a custom action term
-is defined. The action term is responsible for processing the raw actions and applying them to the
-scene entities. The rest of the environment is similar to the previous tutorials.
-
-.. code-block:: bash
-
-    # Run the script
-    ./isaaclab.sh -p source/standalone/tutorials/03_envs/create_cube_base_env.py --num_envs 32
+This script checks the functionality of scale randomization.
 """
 
 from __future__ import annotations
@@ -310,7 +300,7 @@ class TestScaleRandomization(unittest.TestCase):
 
         stage = omni.usd.get_context().get_stage()
 
-        # Test to make sure randomized values are truly random
+        # test to make sure randomized values are truly random
         applied_scaling_randomization = set()
         prim_paths = sim_utils.find_matching_prim_paths("/World/envs/env_.*/cube1")
         for i in range(3):
@@ -322,7 +312,7 @@ class TestScaleRandomization(unittest.TestCase):
                 )
             applied_scaling_randomization.add(scale_spec.default)
 
-        # Test to make sure that fixed values are assigned correctly
+        # test to make sure that fixed values are assigned correctly
         prim_paths = sim_utils.find_matching_prim_paths("/World/envs/env_.*/cube2")
         for i in range(3):
             prim_spec = Sdf.CreatePrimInLayer(stage.GetRootLayer(), prim_paths[i])
@@ -343,7 +333,7 @@ class TestScaleRandomization(unittest.TestCase):
                 # update counter
                 count += 1
 
-                # After 2 iterations finish the test and close env
+                # after 2 iterations finish the test and close env
                 if count >= 200:
                     env.close()
                     break
