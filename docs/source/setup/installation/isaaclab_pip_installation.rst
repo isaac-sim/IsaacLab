@@ -91,7 +91,7 @@ To learn about how to set up your own extension project on top of Isaac Lab, vis
 
    .. code-block:: none
 
-      pip install isaaclab[isaacsim,all]==2.0.0 --extra-index-url https://pypi.nvidia.com
+      pip install isaaclab[isaacsim,all]==2.0.1 --extra-index-url https://pypi.nvidia.com
 
 
 Verifying the Isaac Sim installation
