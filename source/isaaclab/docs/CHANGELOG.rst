@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.33.15 (2025-02-01)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed Imu sensor based observations at first step by updating scene during :meth:`~isaaclab.envs.ManagerBasedEnv.init`
+
+
 0.33.14 (2025-02-01)
 ~~~~~~~~~~~~~~~~~~~~
 
