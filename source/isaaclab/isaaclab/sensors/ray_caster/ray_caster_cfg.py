@@ -23,16 +23,6 @@ class RayCasterCfg(SensorBaseCfg):
     """Configuration for the ray-cast sensor."""
 
     @configclass
-    class RaycastTargetCfg:
-        """Configuration for different ray-cast targets."""
-
-        target_prim_expr: str = MISSING
-        """The regex to specify the target prim to ray cast against."""
-
-        is_global: bool = False
-        """Whether the target prim is a global object or exists for each environment instance. Defaults to False."""
-
-    @configclass
     class OffsetCfg:
         """The offset pose of the sensor's frame from the sensor's parent frame."""
 
@@ -43,8 +33,13 @@ class RayCasterCfg(SensorBaseCfg):
 
     class_type: type = RayCaster
 
-    mesh_prim_paths: list[str | RaycastTargetCfg] = MISSING
-    """The list of mesh primitive paths to ray cast against."""
+    mesh_prim_paths: list[str] = MISSING
+    """The list of mesh primitive paths to ray cast against.
+
+    Note:
+        Currently, only a single static mesh is supported. We are working on supporting multiple
+        static meshes and dynamic meshes.
+    """
 
     offset: OffsetCfg = OffsetCfg()
     """The offset pose of the sensor's frame from the sensor's parent frame. Defaults to identity."""
@@ -101,11 +96,4 @@ class RayCasterCfg(SensorBaseCfg):
 
     Note:
         This attribute is only used when debug visualization is enabled.
-    """
-
-    track_mesh_transforms: bool = False
-    """Whether the meshes transformations should be tracked. Defaults to False.
-
-    Note:
-        Not tracking the mesh transformations is recommended when the meshes are static to increase performance.
     """

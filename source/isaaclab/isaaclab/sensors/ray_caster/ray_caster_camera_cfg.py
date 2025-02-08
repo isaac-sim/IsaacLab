@@ -46,7 +46,6 @@ class RayCasterCameraCfg(RayCasterCfg):
     data_types: list[str] = ["distance_to_image_plane"]
     """List of sensor names/types to enable for the camera. Defaults to ["distance_to_image_plane"]."""
 
-<<<<<<< HEAD:source/isaaclab/isaaclab/sensors/ray_caster/ray_caster_camera_cfg.py
     depth_clipping_behavior: Literal["max", "zero", "none"] = "none"
     """Clipping behavior for the camera for values exceed the maximum value. Defaults to "none".
 
@@ -58,9 +57,6 @@ class RayCasterCameraCfg(RayCasterCfg):
 
     pattern_cfg: PinholeCameraPatternCfg = MISSING
     """The pattern that defines the local ray starting positions and directions in a pinhole camera pattern."""
-=======
-    pattern_cfg: PinholeCameraPatternCfg = MISSING
->>>>>>> 0045671df6 (Adds multi-mesh raycaster from Orbit (#4)):source/extensions/omni.isaac.lab/omni/isaac/lab/sensors/ray_caster/ray_caster_camera_cfg.py
 
     def __post_init__(self):
         # for cameras, this quantity should be False always.

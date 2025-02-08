@@ -6,6 +6,10 @@
 """Sub-module for Warp-based ray-cast sensor."""
 
 from . import patterns
+from .multi_mesh_ray_caster import MultiMeshRayCaster
+from .multi_mesh_ray_caster_camera import MultiMeshRayCasterCamera
+from .multi_mesh_ray_caster_camera_cfg import MultiMeshRayCasterCameraCfg
+from .multi_mesh_ray_caster_cfg import MultiMeshRayCasterCfg
 from .ray_caster import RayCaster
 from .ray_caster_camera import RayCasterCamera
 from .ray_caster_camera_cfg import RayCasterCameraCfg

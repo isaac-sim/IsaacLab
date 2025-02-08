@@ -16,9 +16,8 @@ from isaacsim.core.prims import XFormPrim
 import isaaclab.utils.math as math_utils
 from isaaclab.sensors.camera import CameraData
 from omni.isaac.lab.sensors.camera.utils import convert_orientation_convention, create_rotation_matrix_from_view
-from omni.isaac.lab.utils.warp import raycast_dynamic_meshes
+from omni.isaac.lab.utils.warp import raycast_mesh
 
-from ..utils import compute_world_poses
 from .ray_caster import RayCaster
 
 if TYPE_CHECKING:
@@ -40,6 +39,10 @@ class RayCasterCamera(RayCaster):
     - ``"distance_to_camera"``: An image containing the distance to camera optical center.
     - ``"distance_to_image_plane"``: An image containing distances of 3D points from camera plane along camera's z-axis.
     - ``"normals"``: An image containing the local surface normal vectors at each pixel.
+
+    .. note::
+        Currently, only static meshes are supported. Extending the warp mesh to support dynamic meshes
+        is a work in progress.
     """
 
     cfg: RayCasterCameraCfg
@@ -186,7 +189,7 @@ class RayCasterCamera(RayCaster):
             env_ids = self._ALL_INDICES
 
         # get current positions
-        pos_w, quat_w = compute_world_poses(self._view, env_ids)
+        pos_w, quat_w = self._compute_view_world_poses(env_ids)
         if positions is not None:
             # transform to camera frame
             pos_offset_world_frame = positions - pos_w
@@ -268,38 +271,23 @@ class RayCasterCamera(RayCaster):
         ray_starts_w += pos_w.unsqueeze(1)
         ray_directions_w = math_utils.quat_apply(quat_w.repeat(1, self.num_rays), self.ray_directions[env_ids])
 
-        if self.cfg.track_mesh_transforms:
-            # Update the mesh positions and rotations
-            mesh_idx = 0
-            for view, target_cfg in zip(self._mesh_views, self._raycast_targets_cfg):
-                # update position of the target meshes
-                pos_w, ori_w = compute_world_poses(view, None)
-                pos_w = pos_w.squeeze(0) if len(pos_w.shape) == 3 else pos_w
-                ori_w = ori_w.squeeze(0) if len(ori_w.shape) == 3 else ori_w
-
-                count = view.count
-                if not target_cfg.is_global:
-                    count = count // self._num_envs
-                    pos_w = pos_w.view(self._num_envs, count, 3)
-                    ori_w = ori_w.view(self._num_envs, count, 4)
-
-                self._mesh_positions_w[:, mesh_idx : mesh_idx + count] = pos_w
-                self._mesh_orientations_w[:, mesh_idx : mesh_idx + count] = ori_w
-                mesh_idx += count
-
         # ray cast and store the hits
-        self.ray_hits_w, ray_depth, ray_normal = raycast_dynamic_meshes(
+        # note: we set max distance to 1e6 during the ray-casting. THis is because we clip the distance
+        # to the image plane and distance to the camera to the maximum distance afterwards in-order to
+        # match the USD camera behavior.
+
+        # TODO: Make ray-casting work for multiple meshes?
+        # necessary for regular dictionaries.
+        self.ray_hits_w, ray_depth, ray_normal, _ = raycast_mesh(
             ray_starts_w,
             ray_directions_w,
-            mesh_ids_wp=self._mesh_ids_wp,  # list with shape num_envs x num_meshes_per_env
-            max_dist=self.cfg.max_distance,
-            mesh_positions_w=self._mesh_positions_w[env_ids] if self.cfg.track_mesh_transforms else None,
-            mesh_orientations_w=self._mesh_orientations_w[env_ids] if self.cfg.track_mesh_transforms else None,
+            mesh=RayCasterCamera.meshes[self.cfg.mesh_prim_paths[0]],
+            max_dist=1e6,
             return_distance=any(
                 [name in self.cfg.data_types for name in ["distance_to_image_plane", "distance_to_camera"]]
             ),
             return_normal="normals" in self.cfg.data_types,
-        )[:3]
+        )
         # update output buffers
         if "distance_to_image_plane" in self.cfg.data_types:
             # note: data is in camera frame so we only take the first component (z-axis of camera frame)
@@ -437,7 +425,7 @@ class RayCasterCamera(RayCaster):
             A tuple of the position (in meters) and quaternion (w, x, y, z) in "world" convention.
         """
         # get the pose of the view the camera is attached to
-        pos_w, quat_w = compute_world_poses(self._view, env_ids)
+        pos_w, quat_w = self._compute_view_world_poses(env_ids)
         # apply offsets
         # need to apply quat because offset relative to parent frame
         pos_w += math_utils.quat_apply(quat_w, self._offset_pos[env_ids])

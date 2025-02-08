@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -9,18 +9,19 @@ This script shows how to use the ray caster from the Isaac Lab framework.
 .. code-block:: bash
 
     # Usage
-    ./isaaclab.sh -p source/isaaclab/test/sensors/test_ray_caster.py --headless
+    ./isaaclab.sh -p source/extensions/omni.isaac.lab/test/sensors/test_ray_caster.py --headless
 """
 
 """Launch Isaac Sim Simulator first."""
 
 import argparse
 
-from isaaclab.app import AppLauncher
+from omni.isaac.lab.app import AppLauncher
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Ray Caster Test Script")
-parser.add_argument("--num_envs", type=int, default=128, help="Number of environments to clone.")
+parser.add_argument("--num_envs", type=int, default=16, help="Number of environments to clone.")
+parser.add_argument("--num_objects", type=int, default=0, help="Number of additional objects to clone.")
 parser.add_argument(
     "--terrain_type",
     type=str,
@@ -39,28 +40,29 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
+import random
 import torch
 
-import isaacsim.core.utils.prims as prim_utils
-from isaacsim.core.api.simulation_context import SimulationContext
-from isaacsim.core.cloner import GridCloner
-from isaacsim.core.prims import RigidPrim
-from isaacsim.core.utils.viewports import set_camera_view
+import omni.isaac.core.utils.prims as prim_utils
+from omni.isaac.cloner import GridCloner
+from omni.isaac.core.prims import RigidPrimView
+from omni.isaac.core.simulation_context import SimulationContext
+from omni.isaac.core.utils.viewports import set_camera_view
 
-import isaaclab.sim as sim_utils
-import isaaclab.terrains as terrain_gen
-from isaaclab.sensors.ray_caster import RayCaster, RayCasterCfg, patterns
-from isaaclab.terrains.config.rough import ROUGH_TERRAINS_CFG
-from isaaclab.terrains.terrain_importer import TerrainImporter
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
-from isaaclab.utils.math import quat_from_euler_xyz
-from isaaclab.utils.timer import Timer
+import omni.isaac.lab.sim as sim_utils
+import omni.isaac.lab.terrains as terrain_gen
+from omni.isaac.lab.sensors.ray_caster import MultiMeshRayCaster, MultiMeshRayCasterCfg, patterns
+from omni.isaac.lab.terrains.config.rough import ROUGH_TERRAINS_CFG
+from omni.isaac.lab.terrains.terrain_importer import TerrainImporter
+from omni.isaac.lab.utils.assets import ISAAC_NUCLEUS_DIR
+from omni.isaac.lab.utils.math import quat_from_euler_xyz
+from omni.isaac.lab.utils.timer import Timer
 
 
 def design_scene(sim: SimulationContext, num_envs: int = 2048):
     """Design the scene."""
     # Create interface to clone the scene
-    cloner = GridCloner(spacing=2.0)
+    cloner = GridCloner(spacing=10.0)
     cloner.define_base_env("/World/envs")
     # Everything under the namespace "/World/envs/env_0" will be cloned
     prim_utils.define_prim("/World/envs/env_0")
@@ -77,6 +79,24 @@ def design_scene(sim: SimulationContext, num_envs: int = 2048):
         visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 1.0)),
     )
     cfg.func("/World/envs/env_0/ball", cfg, translation=(0.0, 0.0, 5.0))
+
+    for i in range(args_cli.num_objects):
+        object = sim_utils.CuboidCfg(
+            size=(0.5 + random.random() * 0.5, 0.5 + random.random() * 0.5, 0.1 + random.random() * 0.05),
+            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+            mass_props=sim_utils.MassPropertiesCfg(mass=0.5),
+            collision_props=sim_utils.CollisionPropertiesCfg(),
+            visual_material=sim_utils.PreviewSurfaceCfg(
+                diffuse_color=(0.0 + i / args_cli.num_objects, 0.0, 1.0 - i / args_cli.num_objects)
+            ),
+        )
+        object.func(
+            f"/World/envs/env_0/object_{i}",
+            object,
+            translation=(0.0 + random.random(), 0.0 + random.random(), 1.0),
+            orientation=quat_from_euler_xyz(torch.Tensor(0), torch.Tensor(0), torch.rand(1) * torch.pi).numpy(),
+        )
+
     # Clone the scene
     cloner.define_base_env("/World/envs")
     envs_prim_paths = cloner.generate_paths("/World/envs/env", num_paths=num_envs)
@@ -114,22 +134,30 @@ def main():
         terrain_type=args_cli.terrain_type,
         terrain_generator=ROUGH_TERRAINS_CFG,
         usd_path=f"{ISAAC_NUCLEUS_DIR}/Environments/Terrains/rough_plane.usd",
-        max_init_terrain_level=None,
+        max_init_terrain_level=0,
         num_envs=1,
     )
     _ = TerrainImporter(terrain_importer_cfg)
 
+    mesh_targets: list[MultiMeshRayCasterCfg.RaycastTargetCfg] = [
+        MultiMeshRayCasterCfg.RaycastTargetCfg(target_prim_expr="/World/ground", is_global=True),
+    ]
+    if args_cli.num_objects != 0:
+        mesh_targets.append(
+            MultiMeshRayCasterCfg.RaycastTargetCfg(target_prim_expr="/World/envs/env_.*/object_.*", is_global=False)
+        )
     # Create a ray-caster sensor
-    ray_caster_cfg = RayCasterCfg(
+    ray_caster_cfg = MultiMeshRayCasterCfg(
         prim_path="/World/envs/env_.*/ball",
-        mesh_prim_paths=["/World/ground"],
+        mesh_prim_paths=mesh_targets,
         pattern_cfg=patterns.GridPatternCfg(resolution=0.1, size=(1.6, 1.0)),
-        ray_alignment="yaw",
+        attach_yaw_only=True,
         debug_vis=not args_cli.headless,
+        track_mesh_transforms=args_cli.num_objects != 0,
     )
-    ray_caster = RayCaster(cfg=ray_caster_cfg)
+    ray_caster = MultiMeshRayCaster(cfg=ray_caster_cfg)
     # Create a view over all the balls
-    ball_view = RigidPrim("/World/envs/env_.*/ball", reset_xform_properties=False)
+    ball_view = RigidPrimView("/World/envs/env_.*/ball", reset_xform_properties=False)
 
     # Play simulator
     sim.reset()
