@@ -1,11 +1,8 @@
-Application Development
+Extension Development
 =======================
 
-Extensions
-~~~~~~~~~~
-
-Extensions are the recommended way to develop applications in Isaac Sim. They are
-modularized packages that formulate the Omniverse ecosystem. Each extension
+Everything in Omniverse is either an extension, or a collection of extensions (an application). They are
+modularized packages that form the atoms of the Omniverse ecosystem. Each extension
 provides a set of functionalities that can be used by other extensions or
 standalone applications. A folder is recognized as an extension if it contains
 an ``extension.toml`` file in the ``config`` directory. More information on extensions can be found in the
@@ -30,7 +27,7 @@ Each extension in Isaac Lab is written as a python package and follows the follo
 
 The ``config/extension.toml`` file contains the metadata of the extension. This
 includes the name, version, description, dependencies, etc. This information is used
-by Omniverse to load the extension. The ``docs`` directory contains the documentation
+by the Omniverse API to load the extension. The ``docs`` directory contains the documentation
 for the extension with more detailed information about the extension and a CHANGELOG
 file that contains the changes made to the extension in each version.
 
@@ -83,11 +80,11 @@ standalone applications.
 Custom Extension Dependency Management
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Certain extensions may have dependencies which require installation of additional packages before the extension
+Certain extensions may have dependencies which require the installation of additional packages before the extension
 can be used. While Python dependencies are handled by the `setuptools <https://setuptools.readthedocs.io/en/latest/>`__
 package and specified in the ``setup.py`` file, non-Python dependencies such as `ROS <https://www.ros.org/>`__
 packages or `apt <https://en.wikipedia.org/wiki/APT_(software)>`__ packages are not handled by setuptools.
-To handle these dependencies, we have created an additional setup procedure described in the next section.
+Handling these kinds of dependencies requires an additional procedure.
 
 There are two types of dependencies that can be specified in the ``extension.toml`` file
 under the ``isaac_lab_settings`` section:
@@ -117,7 +114,7 @@ To install all dependencies for all extensions, run the following command:
    # execute from the root of the repository
    # the script expects the type of dependencies to install and the path to the extensions directory
    # available types are: 'apt', 'rosdep' and 'all'
-   python tools/install_deps.py all ${ISAACLAB_PATH}/source/extensions
+   python tools/install_deps.py all ${ISAACLAB_PATH}/source
 
 .. note::
    Currently, this script is automatically executed during the build process of the ``Dockerfile.base``
@@ -128,15 +125,14 @@ To install all dependencies for all extensions, run the following command:
 Standalone applications
 ~~~~~~~~~~~~~~~~~~~~~~~
 
-In a typical Omniverse workflow, the simulator is launched first, after which the extensions are
-enabled that load the python module and run the python application. While this is a recommended
-workflow, it is not always possible to use this workflow.
+In a typical Omniverse workflow, the simulator is launched first and then the extensions are
+enabled. The loading of python modules and other python applications happens automagically, under the hood, and while this is the recommended
+workflow, it is not always possible.
 
-For example, for robot learning, it is essential to have complete control over simulation stepping
-and all the other functionalities instead of asynchronously waiting for the simulator to step. In
-such cases, it is necessary to write a standalone application that launches the simulator using
-:class:`~omni.isaac.lab.app.AppLauncher` and allows complete control over the simulation through
-the :class:`~omni.isaac.lab.sim.SimulationContext` class.
+For example, consider robot reinforcement learning. It is essential to have complete control over the simulation step
+and when things update instead of asynchronously waiting for the result. In
+such cases, we require direct control of the simulation, and so it is necessary to write a standalone application. These applications are functionally similar in that they launch the simulator using the :class:`~isaaclab.app.AppLauncher` and
+then control the simulation directly through the :class:`~isaaclab.sim.SimulationContext`. In these cases, python modules from extensions **must** be imported after the app is launched.  Doing so before the app is launched will cause missing module errors.
 
 The following snippet shows how to write a standalone application:
 
@@ -144,7 +140,7 @@ The following snippet shows how to write a standalone application:
 
    """Launch Isaac Sim Simulator first."""
 
-   from omni.isaac.lab.app import AppLauncher
+   from isaaclab.app import AppLauncher
 
    # launch omniverse app
    app_launcher = AppLauncher(headless=False)
@@ -153,7 +149,7 @@ The following snippet shows how to write a standalone application:
 
    """Rest everything follows."""
 
-   from omni.isaac.lab.sim import SimulationContext
+   from isaaclab.sim import SimulationContext
 
    if __name__ == "__main__":
       # get simulation context
@@ -171,6 +167,4 @@ The following snippet shows how to write a standalone application:
 
 It is necessary to launch the simulator before running any other code because extensions are hot-loaded
 when the simulator starts. Many Omniverse modules become available only after the simulator is launched.
-To do this, use the :class:~omni.isaac.lab.app.AppLauncher class to start the simulator. After that,
-the :class:~omni.isaac.lab.sim.SimulationContext class can be used to control the simulation. For further
-details, we recommend exploring the Isaac Lab tutorials.
+For further details, we recommend exploring the Isaac Lab :ref:`tutorials`.
