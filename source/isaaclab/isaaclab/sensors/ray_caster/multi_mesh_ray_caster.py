@@ -8,7 +8,7 @@ from __future__ import annotations
 import numpy as np
 import torch
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, ClassVar
+from typing import TYPE_CHECKING
 
 import omni.log
 import omni.physics.tensors.impl.api as physx
@@ -43,29 +43,6 @@ class MultiMeshRayCaster(RayCaster):
     cfg: MultiMeshRayCasterCfg
     """The configuration parameters."""
 
-    meshes: ClassVar[dict[str, list[list[wp.Mesh]]]] = {}
-    """The warp meshes available for raycasting. Stored as a dictionary.
-
-    For each target_prim_cfg in the ray_caster_cfg.mesh_prim_paths, the dictionary stores the warp meshes
-    for each environment instance. The list has shape (num_envs, num_meshes_per_env).
-    Note that wp.Mesh are references to the warp mesh objects, so they are not duplicated for each environment if
-    not necessary.
-
-    The keys correspond to the prim path for the meshes, and values are the corresponding warp Mesh objects.
-
-    .. note::
-           We store a global dictionary of all warp meshes to prevent re-loading the mesh for different ray-cast sensor instances.
-    """
-
-    mesh_views: ClassVar[dict[str, physx.RigidBodyView | physx.ArticulationView | XFormPrimView]] = {}
-    """The views of the meshes available for raycasting.
-
-    The keys correspond to the prim path for the meshes, and values are the corresponding views of the prims.
-
-    .. note::
-           We store a global dictionary of all views to prevent re-loading for different ray-cast sensor instances.
-    """
-
     def __init__(self, cfg: MultiMeshRayCasterCfg):
         """Initializes the ray-caster object.
 
@@ -74,6 +51,7 @@ class MultiMeshRayCaster(RayCaster):
         """
         # Initialize base class
         super().__init__(cfg)
+
         # Create empty variables for storing output data
         self._num_meshes_per_env: dict[str, int] = {}
         """Keeps track of the number of meshes per env for each ray_cast target.
@@ -87,6 +65,11 @@ class MultiMeshRayCaster(RayCaster):
                 self._raycast_targets_cfg.append(cfg.RaycastTargetCfg(target_prim_expr=target, is_global=True))
             else:
                 self._raycast_targets_cfg.append(target)
+
+        # store the views of the meshes available for raycasting to allow movement tracking
+        self.mesh_views: dict[str, physx.RigidBodyView | physx.ArticulationView | XFormPrimView] = {}
+        # store the warp meshes available for raycasting
+        self.meshes: dict[str, list[list[wp.Mesh]]] = {}
 
     def __str__(self) -> str:
         """Returns: A string containing information about the instance."""
@@ -110,10 +93,8 @@ class MultiMeshRayCaster(RayCaster):
             # target prim path to ray cast against
             mesh_prim_path = target_cfg.target_prim_expr
             # check if mesh already casted into warp mesh and get the number of meshes per env
-            if mesh_prim_path in MultiMeshRayCaster.meshes:
-                self._num_meshes_per_env[mesh_prim_path] = (
-                    len(MultiMeshRayCaster.meshes[mesh_prim_path]) // self._num_envs
-                )
+            if mesh_prim_path in self.meshes:
+                self._num_meshes_per_env[mesh_prim_path] = len(self.meshes[mesh_prim_path]) // self._num_envs
                 continue
             paths = sim_utils.find_matching_prim_paths(mesh_prim_path)
             if len(paths) == 0:
@@ -171,36 +152,34 @@ class MultiMeshRayCaster(RayCaster):
 
             if target_cfg.is_global:
                 # reference the mesh for each environment to ray cast against
-                MultiMeshRayCaster.meshes[mesh_prim_path] = [wp_meshes] * self._num_envs
+                self.meshes[mesh_prim_path] = [wp_meshes] * self._num_envs
                 self._num_meshes_per_env[mesh_prim_path] = len(wp_meshes)
             else:
                 # split up the meshes for each environment. Little bit ugly, since
                 # the current order is interleaved (env1_obj1, env1_obj2, env2_obj1, env2_obj2, ...)
-                MultiMeshRayCaster.meshes[mesh_prim_path] = []
+                self.meshes[mesh_prim_path] = []
                 mesh_idx = 0
                 n_meshes_per_env = len(wp_meshes) // self._num_envs
                 self._num_meshes_per_env[mesh_prim_path] = n_meshes_per_env
                 for _ in range(self._num_envs):
-                    MultiMeshRayCaster.meshes[mesh_prim_path].append(wp_meshes[mesh_idx : mesh_idx + n_meshes_per_env])
+                    self.meshes[mesh_prim_path].append(wp_meshes[mesh_idx : mesh_idx + n_meshes_per_env])
                     mesh_idx += n_meshes_per_env
 
             if self.cfg.track_mesh_transforms:
                 # create view based on the type of prim
                 mesh_prim_api = sim_utils.find_first_matching_prim(mesh_prim_path)
                 if mesh_prim_api.HasAPI(UsdPhysics.ArticulationRootAPI):
-                    MultiMeshRayCaster.mesh_views[mesh_prim_path] = self._physics_sim_view.create_articulation_view(
+                    self.mesh_views[mesh_prim_path] = self._physics_sim_view.create_articulation_view(
                         mesh_prim_path.replace(".*", "*")
                     )
                     omni.log.info(f"Created articulation view for mesh prim at path: {mesh_prim_path}")
                 elif mesh_prim_api.HasAPI(UsdPhysics.RigidBodyAPI):
-                    MultiMeshRayCaster.mesh_views[mesh_prim_path] = self._physics_sim_view.create_rigid_body_view(
+                    self.mesh_views[mesh_prim_path] = self._physics_sim_view.create_rigid_body_view(
                         mesh_prim_path.replace(".*", "*")
                     )
                     omni.log.info(f"Created rigid body view for mesh prim at path: {mesh_prim_path}")
                 else:
-                    MultiMeshRayCaster.mesh_views[mesh_prim_path] = XFormPrimView(
-                        mesh_prim_path, reset_xform_properties=False
-                    )
+                    self.mesh_views[mesh_prim_path] = XFormPrimView(mesh_prim_path, reset_xform_properties=False)
                     omni.log.warn(
                         f"The prim at path {mesh_prim_path} is not a physics prim, but track_mesh_transforms is"
                         " enabled! Defaulting to XFormPrimView. \n The pose of the mesh will most likely not"
@@ -208,9 +187,7 @@ class MultiMeshRayCaster(RayCaster):
                     )
 
         # throw an error if no meshes are found
-        if all(
-            [target_cfg.target_prim_expr not in MultiMeshRayCaster.meshes for target_cfg in self._raycast_targets_cfg]
-        ):
+        if all([target_cfg.target_prim_expr not in self.meshes for target_cfg in self._raycast_targets_cfg]):
             raise RuntimeError(
                 f"No meshes found for ray-casting! Please check the mesh prim paths: {self.cfg.mesh_prim_paths}"
             )
@@ -224,12 +201,12 @@ class MultiMeshRayCaster(RayCaster):
         for env_idx in range(self._num_envs):
             meshes_in_env = []
             for target_cfg in self._raycast_targets_cfg:
-                meshes_in_env.extend(MultiMeshRayCaster.meshes[target_cfg.target_prim_expr][env_idx])
+                meshes_in_env.extend(self.meshes[target_cfg.target_prim_expr][env_idx])
             self._meshes.append(meshes_in_env)
 
         if self.cfg.track_mesh_transforms:
             self._mesh_views = [
-                MultiMeshRayCaster.mesh_views[target_cfg.target_prim_expr] for target_cfg in self._raycast_targets_cfg
+                self.mesh_views[target_cfg.target_prim_expr] for target_cfg in self._raycast_targets_cfg
             ]
 
         # save a warp array with mesh ids that is passed to the raycast function

@@ -131,7 +131,7 @@ class TestWarpCamera(unittest.TestCase):
             # update camera
             camera.update(self.dt)
             # check image data
-            for im_data in camera.data.output.to_dict().values():
+            for im_data in camera.data.output.values():
                 self.assertEqual(
                     im_data.shape, (1, self.camera_cfg.pattern_cfg.height, self.camera_cfg.pattern_cfg.width, 1)
                 )
@@ -151,7 +151,7 @@ class TestWarpCamera(unittest.TestCase):
             self.sim.step()
         camera.update(self.dt)
         # access image data and compare shapes
-        for im_data in camera.data.output.to_dict().values():
+        for im_data in camera.data.output.values():
             self.assertTrue(
                 im_data.shape == (1, self.camera_cfg.pattern_cfg.height, self.camera_cfg.pattern_cfg.width, 1)
             )
@@ -301,7 +301,7 @@ class TestWarpCamera(unittest.TestCase):
             cam_2.update(self.dt)
             # check image data
             for cam in [cam_1, cam_2]:
-                for im_data in cam.data.output.to_dict().values():
+                for im_data in cam.data.output.values():
                     self.assertEqual(
                         im_data.shape, (1, self.camera_cfg.pattern_cfg.height, self.camera_cfg.pattern_cfg.width, 1)
                     )
@@ -412,7 +412,7 @@ class TestWarpCamera(unittest.TestCase):
             with Timer(f"Time taken for writing data with shape {camera.image_shape}   "):
                 # Pack data back into replicator format to save them using its writer
                 rep_output = {"annotators": {}}
-                camera_data = convert_dict_to_backend(camera.data.output[0].to_dict(), backend="numpy")
+                camera_data = convert_dict_to_backend(camera.data.output, backend="numpy")
                 for key, data, info in zip(camera_data.keys(), camera_data.values(), camera.data.info[0].values()):
                     if info is not None:
                         rep_output["annotators"][key] = {"render_product": {"data": data, **info}}

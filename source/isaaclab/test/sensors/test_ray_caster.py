@@ -18,7 +18,7 @@ import unittest
 import warp as wp
 
 from omni.isaac.lab.utils.math import matrix_from_quat, quat_from_euler_xyz, random_orientation
-from omni.isaac.lab.utils.warp.ops import convert_to_warp_mesh, raycast_dynamic_meshes, raycast_mesh
+from omni.isaac.lab.utils.warp.ops import convert_to_warp_mesh, raycast_dynamic_meshes, raycast_single_mesh
 
 
 class TestRaycast(unittest.TestCase):
@@ -91,7 +91,7 @@ class TestRaycast(unittest.TestCase):
     def test_raycast_single_cube(self):
         """Test raycasting against a single cube."""
         # Convert meshes to warp formatay_hits.to(device).view(shape), ray_distance, ray_normal, ray_face_id
-        ray_hits, ray_distance, ray_normal, ray_face_id = raycast_mesh(
+        ray_hits, ray_distance, ray_normal, ray_face_id = raycast_single_mesh(
             self.ray_starts,
             self.ray_directions,
             self.single_mesh_id,
