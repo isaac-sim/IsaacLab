@@ -1,6 +1,12 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 from isaaclab.utils import configclass
 
 from .rough_env_cfg import DigitRoughEnvCfg
+
 
 @configclass
 class DigitFlatEnvCfg(DigitRoughEnvCfg):
@@ -11,8 +17,8 @@ class DigitFlatEnvCfg(DigitRoughEnvCfg):
         self.scene.terrain.terrain_type = "plane"
         self.scene.terrain.terrain_generator = None
         # Remove height scanner.
-        # self.scene.height_scanner = None
-        # self.observations.policy.height_scan = None
+        self.scene.height_scanner = None
+        self.observations.policy.height_scan = None
         # Remove terrain curriculum.
         self.curriculum.terrain_levels = None
 
@@ -31,7 +37,11 @@ class DigitFlatEnvCfg_PLAY(DigitFlatEnvCfg):
         self.randomization.base_external_force_torque = None
         self.randomization.push_robot = None
         self.randomization.reset_base.params = {
-            "pose_range": {"x": (-0.0, 0.0), "y": (-0.0, 0.0), "yaw": (-3.1415 * 0, 3.1415 * 0),},
+            "pose_range": {
+                "x": (-0.0, 0.0),
+                "y": (-0.0, 0.0),
+                "yaw": (-3.1415 * 0, 3.1415 * 0),
+            },
             "velocity_range": {
                 "x": (-0.0, 0.0),
                 "y": (-0.0, 0.0),

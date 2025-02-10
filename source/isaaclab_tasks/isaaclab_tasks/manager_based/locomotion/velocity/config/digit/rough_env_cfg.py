@@ -21,8 +21,6 @@ from isaaclab.utils.noise import AdditiveUniformNoiseCfg as Unoise
 import isaaclab_tasks.manager_based.locomotion.velocity.mdp as mdp
 from isaaclab_tasks.manager_based.locomotion.velocity.velocity_env_cfg import LocomotionVelocityRoughEnvCfg
 
-from . import rewards as digit_rewards
-
 LEG_JOINT_NAMES = [
     ".*_hip_roll",
     ".*_hip_yaw",
@@ -56,8 +54,8 @@ class DigitRewards:
         },
     )
     feet_air_time = RewardTermCfg(
-        func=digit_rewards.feet_air_time_l2,
-        weight=20.0,
+        func=mdp.feet_air_time_positive_biped,
+        weight=0.25,
         params={
             "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*_leg_toe_roll"),
             "threshold": 0.8,

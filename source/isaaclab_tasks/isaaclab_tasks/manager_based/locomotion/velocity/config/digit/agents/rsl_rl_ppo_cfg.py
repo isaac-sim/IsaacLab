@@ -44,6 +44,18 @@ class DigitRoughPPORunnerCfg(RslRlOnPolicyRunnerCfg):
 
 
 @configclass
+class DigitFlatPPORunnerCfg(DigitRoughPPORunnerCfg):
+    def __post_init__(self):
+        super().__post_init__()
+
+        self.max_iterations = 2000
+        self.experiment_name = "digit_flat"
+
+        self.policy.actor_hidden_dims = [128, 128, 128]
+        self.policy.critic_hidden_dims = [128, 128, 128]
+
+
+@configclass
 class DigitLocoManipPPORunnerCfg(DigitRoughPPORunnerCfg):
     def __post_init__(self):
         super().__post_init__()
