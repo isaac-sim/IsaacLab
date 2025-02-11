@@ -24,11 +24,11 @@ jobs:
           LAST_COMMIT_DATE=$(git log -1 --format=%cd --date=short -- source apps)
           TODAY_DATE=$(date +'%Y-%m-%d')
           LAST_WEEK_DATE=$(date -d "7 days ago" +'%Y-%m-%d')
-    
+
           echo "Last commit date: $LAST_COMMIT_DATE"
           echo "Today's date: $TODAY_DATE"
           echo "Date one week ago: $LAST_WEEK_DATE"
-          
+
           # If the last commit is within the past week
           if [[ "$LAST_COMMIT_DATE" > "$LAST_WEEK_DATE" ]]; then
             echo "Changes detected in the source or apps folders for this week. Proceeding with version update."
