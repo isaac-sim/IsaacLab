@@ -2,8 +2,8 @@ name: Nightly Version Update
 
 on:
   schedule:
-    # Runs at midnight every night (UTC)
-    - cron: '0 0 * * *'
+    # Runs at midnight (UTC) every Monday
+    - cron: '0 0 * * 1'
   workflow_dispatch:  # Allow manual trigger if needed for testing
 
 jobs:
