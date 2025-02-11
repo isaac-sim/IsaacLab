@@ -1,4 +1,4 @@
-name: Nightly Version Update
+name: Automated Version Update
 
 on:
   schedule:
@@ -31,10 +31,10 @@ jobs:
           
           # If the last commit is within the past week
           if [[ "$LAST_COMMIT_DATE" > "$LAST_WEEK_DATE" ]]; then
-            echo "Changes detected in the source or apps folders today. Proceeding with version update."
+            echo "Changes detected in the source or apps folders for this week. Proceeding with version update."
             echo "has_changes=true" >> $GITHUB_ENV
           else
-            echo "No changes in the source or apps folders today. Skipping version update."
+            echo "No changes in the source or apps folders for this week. Skipping version update."
             echo "has_changes=false" >> $GITHUB_ENV
           fi
 
