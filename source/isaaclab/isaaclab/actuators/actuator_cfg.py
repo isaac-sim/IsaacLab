@@ -45,7 +45,7 @@ class ActuatorBaseCfg:
     .. note::
 
         velocity_limit is not used in ActuatorBaseCfg but is provided for inherited version like
-        :class:`omni.isaac.lab.actuators.DCMotor`.
+        :class:`isaaclab.actuators.DCMotor`.
     """
 
     effort_limit_sim: dict[str, float] | float | None = None
