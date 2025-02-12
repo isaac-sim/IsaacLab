@@ -72,6 +72,12 @@ class RslRlPpoAlgorithmCfg:
     max_grad_norm: float = MISSING
     """The maximum gradient norm."""
 
+    rnd_cfg: dict | None = (MISSING,)
+    """The configuration for Random Network Distillation (RND)."""
+
+    symmetry_cfg: dict | None = (MISSING,)
+    """The configuration for Symmetry-based Augmentation."""
+
 
 @configclass
 class RslRlOnPolicyRunnerCfg:
