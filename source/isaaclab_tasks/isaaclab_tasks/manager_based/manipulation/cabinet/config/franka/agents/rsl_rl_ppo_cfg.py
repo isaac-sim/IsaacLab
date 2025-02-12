@@ -34,6 +34,4 @@ class CabinetPPORunnerCfg(RslRlOnPolicyRunnerCfg):
         lam=0.95,
         desired_kl=0.02,
         max_grad_norm=1.0,
-        rnd_cfg=None,
-        symmetry_cfg=None,
     )

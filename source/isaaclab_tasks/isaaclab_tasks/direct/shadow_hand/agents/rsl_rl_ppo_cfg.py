@@ -34,8 +34,6 @@ class ShadowHandPPORunnerCfg(RslRlOnPolicyRunnerCfg):
         lam=0.95,
         desired_kl=0.016,
         max_grad_norm=1.0,
-        rnd_cfg=None,
-        symmetry_cfg=None,
     )
 
 
@@ -65,8 +63,6 @@ class ShadowHandAsymFFPPORunnerCfg(RslRlOnPolicyRunnerCfg):
         lam=0.95,
         desired_kl=0.01,
         max_grad_norm=1.0,
-        rnd_cfg=None,
-        symmetry_cfg=None,
     )
 
 
@@ -96,6 +92,4 @@ class ShadowHandVisionFFPPORunnerCfg(RslRlOnPolicyRunnerCfg):
         lam=0.95,
         desired_kl=0.01,
         max_grad_norm=1.0,
-        rnd_cfg=None,
-        symmetry_cfg=None,
     )
