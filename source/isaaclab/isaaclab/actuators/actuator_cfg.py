@@ -256,6 +256,10 @@ class DelayedPDActuatorCfg(IdealPDActuatorCfg):
     max_delay: int = 0
     """Maximum number of physics time-steps with which the actuator command may be delayed. Defaults to 0."""
 
+    motor_strength: tuple[float, float] = (1.0, 1.0)
+    """The strength of the motor which is characterized by the motor torque. Defaults to (1.0, 1.0).
+    The final applied torque will be scaled with a value between the range of the tuple."""
+
 
 @configclass
 class RemotizedPDActuatorCfg(DelayedPDActuatorCfg):
