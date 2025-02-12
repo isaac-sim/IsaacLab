@@ -51,16 +51,17 @@ class ActuatorBaseCfg:
     effort_limit_sim: dict[str, float] | float | None = None
     """Force/Torque limit of the joints in the group that will be propagated to the simulation physics solver. Defaults to None.
 
-    If None, the limit is set to the value specified in the USD joint prim for ImplicitActuators or 1.0e9 for explicit actuators (e.g. IdealPDActuator). The simulation effort limits prevent
-    computed torques from exceeding. If effort limits are too tight issues with solver convergence may occur.
+    If None, the limit is set to the value specified in the USD joint prim for ImplicitActuators or 1.0e9 for explicit
+    actuators (e.g. IdealPDActuator). The simulation effort limits prevent computed torques from exceeding. If effort
+    limits are too tight issues with solver convergence may occur. It is suggested to keep these value large.
     """
 
     velocity_limit_sim: dict[str, float] | float | None = None
     """Velocity limit of the joints in the group that will be propagated to the simulation physics solver. Defaults to None.
 
     If None, the limit is set to the value specified in the USD joint prim. Resulting solver solutions will constrain
-    velocities by these limits. If velocity limits are too tight issues with solver convergence may occur.
-
+    velocities by these limits. If velocity_limit_sim is too tight issues with solver convergence may occur. It is
+    suggested to keep these value large.
     """
 
     stiffness: dict[str, float] | float | None = MISSING
