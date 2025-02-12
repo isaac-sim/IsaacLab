@@ -76,6 +76,7 @@ Guidelines for modifications:
 * Qian Wan
 * Qinxi Yu
 * René Zurbrügg
+* Renhong Zhang
 * Ritvik Singh
 * Rosario Scalise
 * Ryley McCarroll

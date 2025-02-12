@@ -21,7 +21,7 @@ requirements = [
     "tensorboard",
     "stable-baselines3>=2.1",
     "rl-games==1.6.1",
-    "rsl-rl@git+https://github.com/leggedrobotics/rsl_rl.git",
+    "rsl-rl-lib@git+https://github.com/leggedrobotics/rsl_rl.git",
     "skrl>=1.3.0"
 ]
 

@@ -43,7 +43,7 @@ EXTRAS_REQUIRE = {
     "sb3": ["stable-baselines3>=2.1"],
     "skrl": ["skrl>=1.3.0"],
     "rl-games": ["rl-games==1.6.1", "gym"],  # rl-games still needs gym :(
-    "rsl-rl": ["rsl-rl@git+https://github.com/leggedrobotics/rsl_rl.git"],
+    "rsl-rl": ["rsl-rl-lib@git+https://github.com/leggedrobotics/rsl_rl.git"],
     "robomimic": [],
 }
 # Add the names with hyphens as aliases for convenience
