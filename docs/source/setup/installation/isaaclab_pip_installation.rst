@@ -71,7 +71,7 @@ To learn about how to set up your own extension project on top of Isaac Lab, vis
 
    .. code-block:: bash
 
-      pip install rsl-rl@git+https://github.com/leggedrobotics/rsl_rl.git
+      pip install rsl-rl-lib@git+https://github.com/leggedrobotics/rsl_rl.git
 
 -  Before installing Isaac Lab, ensure the latest pip version is installed. To update pip, run
 
