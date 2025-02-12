@@ -51,7 +51,7 @@ class ActuatorBaseCfg:
     effort_limit_sim: dict[str, float] | float | None = None
     """Force/Torque limit of the joints in the group that will be propagated to the simulation physics solver. Defaults to None.
 
-    If None, the limit is set to the value specified in the USD joint prim. The simulation effort limits prevent
+    If None, the limit is set to the value specified in the USD joint prim for ImplicitActuators or 1.0e9 for explicit actuators (e.g. IdealPDActuator). The simulation effort limits prevent
     computed torques from exceeding. If effort limits are too tight issues with solver convergence may occur.
     """
 
