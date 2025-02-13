@@ -675,11 +675,6 @@ CUDA 12</label><div class="sd-tab-content docutils">
 </div>
 </div>
 </li>
-<li><p>Due to limitations of PyPI, we were not able to package the RSL RL library into the Isaac Lab pip package. Therefore, we recommend first installing the RSL RL library separately</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span>rsl-rl-lib@git+https://github.com/leggedrobotics/rsl_rl.git
-</pre></div>
-</div>
-</li>
 <li><p>Before installing Isaac Lab, ensure the latest pip version is installed. To update pip, run</p>
 <div class="sd-tab-set docutils">
 <input checked="checked" id="sd-tab-item-6" name="sd-tab-set-3" type="radio">
@@ -699,7 +694,7 @@ CUDA 12</label><div class="sd-tab-content docutils">
 </div>
 </li>
 <li><p>Then, install the Isaac Lab packages, this will also install Isaac Sim.</p>
-<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>pip install isaaclab[isaacsim,all]==2.0.0 --extra-index-url https://pypi.nvidia.com
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>pip install isaaclab[isaacsim,all]==2.0.1 --extra-index-url https://pypi.nvidia.com
 </pre></div>
 </div>
 </li>
