@@ -1,0 +1,37 @@
+{
+    "output": {
+      "filePath": "repomix-isaaclab.txt",
+      "style": "plain",
+      "removeComments": false,
+      "removeEmptyLines": false,
+      "topFilesLength": 8,
+      "showLineNumbers": false,
+      "copyToClipboard": true
+    },
+    "include": [
+        "source/isaaclab_tasks/isaaclab_tasks/manager_based/**"
+    ],
+    "ignore": {
+      "useGitignore": true,
+      "useDefaultPatterns": true,
+      "customPatterns": [
+        "**/allegro_hand/**",
+        "**/anymal*/**",
+        "**/ur_10/**",
+        "**/go1/**",
+        "**/go2/**",
+        "**/g1/**",
+        "**/h1/**",
+        "**/spot/**",
+        "**/cabinet/**",
+        "**/inhand/**",
+        "**/*.svg",
+        "**/*.rst",
+        "**/test/**",
+        "uv.lock"
+      ]
+    },
+    "security": {
+      "enableSecurityCheck": true
+    }
+  }
