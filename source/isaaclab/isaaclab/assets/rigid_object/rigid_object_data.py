@@ -6,7 +6,6 @@
 import torch
 import weakref
 
-import omni.log
 import omni.physics.tensors.impl.api as physx
 
 import isaaclab.utils.math as math_utils
