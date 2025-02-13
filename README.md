@@ -52,7 +52,9 @@ We encourage you to utilize our [Show & Tell](https://github.com/isaac-sim/Isaac
 * Showcase your learning content
 * Present exciting projects you've developed
 
-By sharing your work, you'll inspire others and contribute to the collective knowledge of our community. Your contributions can spark new ideas and collaborations, fostering innovation in robotics and simulation.
+By sharing your work, you'll inspire others and contribute to the collective knowledge
+of our community. Your contributions can spark new ideas and collaborations, fostering
+innovation in robotics and simulation.
 
 ## Troubleshooting
 
