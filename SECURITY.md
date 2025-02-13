@@ -3,7 +3,7 @@
 NVIDIA is dedicated to the security and trust of our software products and services, including all source code
 repositories managed through our organization.
 
-If you need to report a security issue, please use the appropriate contact points outlined below. **Please do 
+If you need to report a security issue, please use the appropriate contact points outlined below. **Please do
 not report security vulnerabilities through GitHub.**
 
 ## Reporting Potential Security Vulnerability in an NVIDIA Product
@@ -28,8 +28,8 @@ To report a potential security vulnerability in any NVIDIA product:
 
     - Potential impact of the vulnerability, including how an attacker could exploit the vulnerability
 
-While NVIDIA currently does not have a bug bounty program, we do offer acknowledgement when an 
-externally reported security issue is addressed under our coordinated vulnerability disclosure policy. Please 
+While NVIDIA currently does not have a bug bounty program, we do offer acknowledgement when an
+externally reported security issue is addressed under our coordinated vulnerability disclosure policy. Please
 visit our [Product Security Incident Response Team (PSIRT)](https://www.nvidia.com/en-us/security/psirt-policies/)
 policies page for more information.
 
