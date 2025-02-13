@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.10.24 (2025-02-13)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Set ``Isaac-Stack-Cube-Franka-IK-Rel-v0`` to use sim parameters from base ``StackEnvCfg``, improving simulation stability.
+
+
 0.10.23 (2025-02-11)
 ~~~~~~~~~~~~~~~~~~~~
 
