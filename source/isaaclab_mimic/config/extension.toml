@@ -20,6 +20,9 @@ keywords = ["extension", "template", "isaaclab"]
 "isaaclab_tasks" = {}
 # NOTE: Add additional dependencies here
 
+[core]
+reloadable = false
+
 [[python.module]]
 name = "isaaclab_mimic"
 

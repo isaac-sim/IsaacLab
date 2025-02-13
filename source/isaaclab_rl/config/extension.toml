@@ -16,5 +16,8 @@ keywords = ["robotics", "rl", "wrappers", "learning"]
 "isaaclab_assets" = {}
 "isaaclab_tasks" = {}
 
+[core]
+reloadable = false
+
 [[python.module]]
 name = "isaaclab_rl"
