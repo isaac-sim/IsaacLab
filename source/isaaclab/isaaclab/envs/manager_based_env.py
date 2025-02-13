@@ -139,8 +139,8 @@ class ManagerBasedEnv:
             print("[INFO]: Starting the simulation. This may take a few seconds. Please wait...")
             with Timer("[INFO]: Time taken for simulation start", "simulation_start"):
                 self.sim.reset()
-            # add timeline event to load managers
-            self.scene.update(dt=self.physics_dt)
+                # add timeline event to load managers
+                self.scene.update(dt=self.physics_dt)
             self.load_managers()
 
         # make sure torch is running on the correct device
