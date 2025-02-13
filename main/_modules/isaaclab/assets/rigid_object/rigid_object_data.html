@@ -537,7 +537,6 @@
 <span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">weakref</span>
 
-<span class="kn">import</span><span class="w"> </span><span class="nn">omni.log</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">omni.physics.tensors.impl.api</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">physx</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab.utils.math</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">math_utils</span>
@@ -712,11 +711,6 @@
 <span class="sd">        The position and orientation are of the rigid bodies&#39; actor frame. Meanwhile, the linear and angular</span>
 <span class="sd">        velocities are of the rigid bodies&#39; center of mass frame.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-
-        <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
-            <span class="s2">&quot;DeprecationWarning: body_state_w and it&#39;s derived properties will be deprecated in a future release.&quot;</span>
-            <span class="s2">&quot; Please use body_link_state_w or body_com_state_w.&quot;</span>
-        <span class="p">)</span>
 
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">root_state_w</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">13</span><span class="p">)</span>
 
