@@ -1,6 +1,24 @@
 Changelog
 ---------
 
+0.33.16 (2025-02-09)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Removes old deprecation warning from :attr:`isaaclab.assets.RigidObectData.body_state_w`
+
+
+0.33.15 (2025-02-09)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed not updating the ``drift`` when calling :func:`~isaaclab.sensors.RayCaster.reset`
+
+
 0.33.14 (2025-02-01)
 ~~~~~~~~~~~~~~~~~~~~
 

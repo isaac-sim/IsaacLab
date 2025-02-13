@@ -67,11 +67,6 @@ To learn about how to set up your own extension project on top of Isaac Lab, vis
 
             pip install torch==2.5.1 --index-url https://download.pytorch.org/whl/cu121
 
--  Due to limitations of PyPI, we were not able to package the RSL RL library into the Isaac Lab pip package. Therefore, we recommend first installing the RSL RL library separately
-
-   .. code-block:: bash
-
-      pip install rsl-rl@git+https://github.com/leggedrobotics/rsl_rl.git
 
 -  Before installing Isaac Lab, ensure the latest pip version is installed. To update pip, run
 
@@ -96,7 +91,7 @@ To learn about how to set up your own extension project on top of Isaac Lab, vis
 
    .. code-block:: none
 
-      pip install isaaclab[isaacsim,all]==2.0.0 --extra-index-url https://pypi.nvidia.com
+      pip install isaaclab[isaacsim,all]==2.0.1 --extra-index-url https://pypi.nvidia.com
 
 
 Verifying the Isaac Sim installation
