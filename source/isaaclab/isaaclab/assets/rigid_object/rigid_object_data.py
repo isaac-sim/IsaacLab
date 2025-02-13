@@ -182,11 +182,6 @@ class RigidObjectData:
         velocities are of the rigid bodies' center of mass frame.
         """
 
-        omni.log.warn(
-            "DeprecationWarning: body_state_w and it's derived properties will be deprecated in a future release."
-            " Please use body_link_state_w or body_com_state_w."
-        )
-
         return self.root_state_w.view(-1, 1, 13)
 
     @property
