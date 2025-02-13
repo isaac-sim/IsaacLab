@@ -79,14 +79,6 @@ class TerrainImporterCfg:
         This parameter is used only when the ``terrain_type`` is ``"generator"``.
     """
 
-    color: tuple[float, float, float] = (0.0, 0.0, 0.0)
-    """The color of the terrain. Defaults to black.
-
-    .. note::
-        This parameter is used only when the ``terrain_type`` is ``"plane"``.
-    
-    """
-
     physics_material: sim_utils.RigidBodyMaterialCfg = sim_utils.RigidBodyMaterialCfg()
     """The physics material of the terrain. Defaults to a default physics material.
 
