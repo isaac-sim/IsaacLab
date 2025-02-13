@@ -147,11 +147,11 @@ def object_obs(
 
     return torch.cat(
         (
-            cube_1_pos_w,
+            cube_1_pos_w - env.scene.env_origins,
             cube_1_quat_w,
-            cube_2_pos_w,
+            cube_2_pos_w - env.scene.env_origins,
             cube_2_quat_w,
-            cube_3_pos_w,
+            cube_3_pos_w - env.scene.env_origins,
             cube_3_quat_w,
             gripper_to_cube_1,
             gripper_to_cube_2,
@@ -225,11 +225,11 @@ def instance_randomize_object_obs(
 
     return torch.cat(
         (
-            cube_1_pos_w,
+            cube_1_pos_w - env.scene.env_origins,
             cube_1_quat_w,
-            cube_2_pos_w,
+            cube_2_pos_w - env.scene.env_origins,
             cube_2_quat_w,
-            cube_3_pos_w,
+            cube_3_pos_w - env.scene.env_origins,
             cube_3_quat_w,
             gripper_to_cube_1,
             gripper_to_cube_2,
