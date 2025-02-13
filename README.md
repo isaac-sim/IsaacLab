@@ -45,8 +45,10 @@ These may happen as bug reports, feature requests, or code contributions. For de
 
 ## Show & Tell: Share Your Inspiration
 
-We encourage you to utilize our [Show & Tell](https://github.com/isaac-sim/IsaacLab/discussions/categories/show-and-tell) area in the Discussions section of this repository. This space is designed for you to:
-* Share tutorials you've created
+We encourage you to utilize our [Show & Tell](https://github.com/isaac-sim/IsaacLab/discussions/categories/show-and-tell) area in the
+`Discussions` section of this repository. This space is designed for you to:
+
+* Share the tutorials you've created
 * Showcase your learning content
 * Present exciting projects you've developed
 
