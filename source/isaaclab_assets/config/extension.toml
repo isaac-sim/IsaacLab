@@ -13,6 +13,9 @@ keywords = ["kit", "robotics", "assets", "isaaclab"]
 [dependencies]
 "isaaclab" = {}
 
+[core]
+reloadable = false
+
 # Main python module this extension provides.
 [[python.module]]
 name = "isaaclab_assets"
