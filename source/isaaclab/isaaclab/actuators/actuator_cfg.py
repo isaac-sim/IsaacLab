@@ -35,6 +35,9 @@ class ActuatorBaseCfg:
 
     This limit is used to clip the computed torque sent to the simulation. If None, the limit is set to the value
     specified in the USD joint prim.
+
+    For ImplicitActuators this value will be collapsed with effort_limit_sim due to duplicating functionality. If both
+    are set the effort_limit_sim will be used priority.
     """
 
     velocity_limit: dict[str, float] | float | None = None
@@ -46,14 +49,17 @@ class ActuatorBaseCfg:
 
         velocity_limit is not used in ActuatorBaseCfg but is provided for inherited version like
         :class:`isaaclab.actuators.DCMotor`.
+
+    For ImplicitActuators this value will be collapsed with velocity_limit_sim due to duplicating functionality. If both
+    are set the effort_limit_sim will be used priority.
     """
 
     effort_limit_sim: dict[str, float] | float | None = None
     """Force/Torque limit of the joints in the group that will be propagated to the simulation physics solver. Defaults to None.
 
     If None, the limit is set to the value specified in the USD joint prim for ImplicitActuators or 1.0e9 for explicit
-    actuators (e.g. IdealPDActuator). The simulation effort limits prevent computed torques from exceeding. If effort
-    limits are too tight issues with solver convergence may occur. It is suggested to keep these value large.
+    actuators (e.g. IdealPDActuator). The simulation effort limits prevent computed torques from exceeding the specified
+    limit. If effort limits are too tight issues with solver convergence may occur. It is suggested to keep these value large.
     """
 
     velocity_limit_sim: dict[str, float] | float | None = None
