@@ -1,195 +1,147 @@
-# Copyright (c) 2022-2025, Elevate Robotics
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
 
-from dataclasses import MISSING
+import math
 
 import isaaclab.sim as sim_utils
-from isaaclab.assets import ArticulationCfg, AssetBaseCfg
-from isaaclab.envs import ManagerBasedRLEnvCfg
-from isaaclab.managers import CommandTermCfg as CommandTerm
-from isaaclab.managers import EventTermCfg as EventTerm
-from isaaclab.managers import ObservationGroupCfg as ObsGroup
-from isaaclab.managers import ObservationTermCfg as ObsTerm
-from isaaclab.managers import RewardTermCfg as RewTerm
+from isaaclab.assets import ArticulationCfg
+from isaaclab.controllers.differential_ik_cfg import DifferentialIKControllerCfg
+from isaaclab.envs.mdp.actions.actions_cfg import (
+    DifferentialInverseKinematicsActionCfg,
+    HolonomicBaseActionCfg,
+)
 from isaaclab.managers import SceneEntityCfg
-from isaaclab.managers import TerminationTermCfg as DoneTerm
-from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.sensors.frame_transformer.frame_transformer_cfg import FrameTransformerCfg
-from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg
+from isaaclab.sensors import FrameTransformerCfg
+from isaaclab.sensors.frame_transformer.frame_transformer_cfg import OffsetCfg
 from isaaclab.utils import configclass
-from isaaclab.utils.noise import AdditiveUniformNoiseCfg as Unoise
 
-from . import mdp
-
-##
-# Scene definition
-##
-
-@configclass
-class MobileReachSceneCfg(InteractiveSceneCfg):
-    """Configuration for a scene with a mobile manipulator."""
-
-    # Ground plane
-    ground = AssetBaseCfg(
-        prim_path="/World/ground",
-        spawn=GroundPlaneCfg(),
-        init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, 0.0, 0.0)),
-    )
-
-    # Mobile base with arm - to be populated by specific robot config
-    robot: ArticulationCfg = MISSING
-
-    # End-effector frames - to be populated by specific robot config
-    ee_frame: FrameTransformerCfg = MISSING
-
-    # Lights
-    light = AssetBaseCfg(
-        prim_path="/World/light",
-        spawn=sim_utils.DomeLightCfg(color=(0.75, 0.75, 0.75), intensity=2500.0),
-    )
+from isaaclab_tasks.manager_based.mobile_manipulation.reach.reach_env_cfg import MobileReachEnvCfg
 
 ##
-# MDP settings
+# Pre-defined configs
 ##
+from isaaclab.markers.config import FRAME_MARKER_CFG  # isort: skip
+from isaaclab_assets.robots.franka import FRANKA_PANDA_HIGH_PD_CFG  # isort: skip
+
 
 @configclass
-class CommandsCfg:
-    """Command terms for the MDP."""
-
-    ee_pose = mdp.UniformPoseCommandCfg(
-        asset_name="robot",
-        body_name=MISSING,  # Set by specific robot config
-        resampling_time_range=(4.0, 4.0),
-        debug_vis=True,
-        ranges=mdp.UniformPoseCommandCfg.Ranges(
-            pos_x=(0.0, 2.0),    # Larger workspace due to mobile base
-            pos_y=(-1.0, 1.0),
-            pos_z=(0.3, 1.0),    # Keep targets above ground
-            roll=(0.0, 0.0),     # Start with just position control
-            pitch=(0.0, 0.0),
-            yaw=(0.0, 0.0),
-        ),
-    )
-
-@configclass
-class ActionsCfg:
-    """Action specifications for the MDP."""
-
-    # Will be set by specific robot config
-    arm_action = MISSING
-    base_action = MISSING
-
-@configclass
-class ObservationsCfg:
-    """Observation specifications for the MDP."""
-
-    @configclass
-    class PolicyCfg(ObsGroup):
-        """Observations for policy group."""
-
-        # Base state
-        base_pos = ObsTerm(func=mdp.base_pos_rel, noise=Unoise(n_min=-0.01, n_max=0.01))
-        base_vel = ObsTerm(func=mdp.base_vel_rel, noise=Unoise(n_min=-0.01, n_max=0.01))
-        base_rpy = ObsTerm(func=mdp.base_rpy, noise=Unoise(n_min=-0.01, n_max=0.01))
-
-        # Arm state
-        joint_pos = ObsTerm(func=mdp.joint_pos_rel, noise=Unoise(n_min=-0.01, n_max=0.01))
-        joint_vel = ObsTerm(func=mdp.joint_vel_rel, noise=Unoise(n_min=-0.01, n_max=0.01))
-
-        # Task state
-        ee_pose_command = ObsTerm(func=mdp.generated_commands, params={"command_name": "ee_pose"})
-        actions = ObsTerm(func=mdp.last_action)
-
-        def __post_init__(self):
-            self.enable_corruption = True
-            self.concatenate_terms = True
-
-    # Observation groups
-    policy: PolicyCfg = PolicyCfg()
-
-@configclass
-class EventCfg:
-    """Configuration for events."""
-
-    reset_robot_joints = EventTerm(
-        func=mdp.reset_joints_by_scale,
-        mode="reset",
-        params={
-            "position_range": (0.5, 1.5),
-            "velocity_range": (0.0, 0.0),
-        },
-    )
-
-    reset_robot_base = EventTerm(
-        func=mdp.reset_root_state_uniform,
-        mode="reset",
-        params={
-            "pose_range": {"x": (-0.5, 0.5), "y": (-0.5, 0.5), "yaw": (-3.14, 3.14)},
-            "velocity_range": {
-                "x": (0.0, 0.0),
-                "y": (0.0, 0.0),
-                "z": (0.0, 0.0),
-                "roll": (0.0, 0.0),
-                "pitch": (0.0, 0.0),
-                "yaw": (0.0, 0.0),
-            },
-        },
-    )
-
-@configclass
-class RewardsCfg:
-    """Reward terms for the MDP."""
-
-    # Task objective
-    ee_pos_tracking = RewTerm(
-        func=mdp.ee_pos_tracking_error,
-        weight=1.0,
-        params={"command_name": "ee_pose", "std": 0.5}
-    )
-
-    # Costs/regularization
-    action_rate = RewTerm(func=mdp.action_rate_l2, weight=-0.0001)
-    joint_acc = RewTerm(func=mdp.joint_acc_l2, weight=-0.0001)
-    base_acc = RewTerm(func=mdp.base_acc_l2, weight=-0.0001)
-
-@configclass
-class TerminationsCfg:
-    """Termination terms for the MDP."""
-
-    time_out = DoneTerm(func=mdp.time_out, time_out=True)
-
-##
-# Environment configuration
-##
-
-@configclass
-class MobileReachEnvCfg(ManagerBasedRLEnvCfg):
-    """Configuration for the mobile reach environment."""
-
-    # Scene settings
-    scene: MobileReachSceneCfg = MobileReachSceneCfg(num_envs=4096, env_spacing=4.0)
-
-    # Basic settings
-    observations: ObservationsCfg = ObservationsCfg()
-    actions: ActionsCfg = ActionsCfg()
-    commands: CommandsCfg = CommandsCfg()
-
-    # MDP settings
-    rewards: RewardsCfg = RewardsCfg()
-    terminations: TerminationsCfg = TerminationsCfg()
-    events: EventCfg = EventCfg()
+class FrankaMobileReachEnvCfg(MobileReachEnvCfg):
+    """Configuration for Franka arm on mobile base reach environment."""
 
     def __post_init__(self):
-        """Post initialization."""
-        # General settings
-        self.decimation = 2
-        self.episode_length_s = 10.0
+        # Post init of parent
+        super().__post_init__()
 
-        # Simulation settings
-        self.sim.dt = 0.02  # 50 Hz
-        self.sim.render_interval = self.decimation
-        self.sim.disable_contact_processing = False
+        # Setup mobile Franka
+        self.scene.robot = ArticulationCfg(
+            prim_path="{ENV_REGEX_NS}/Robot",
+            init_state=ArticulationCfg.InitialStateCfg(
+                pos=(0.0, 0.0, 0.0),  # Base starts at ground level
+                rot=(1.0, 0.0, 0.0, 0.0),  # Identity rotation
+                joint_pos={
+                    ".*": 0.0,  # Default pose for all joints
+                    # Specific joint overrides for good starting pose
+                    "panda_joint1": 0.0,
+                    "panda_joint2": -0.785,
+                    "panda_joint3": 0.0,
+                    "panda_joint4": -2.356,
+                    "panda_joint5": 0.0,
+                    "panda_joint6": 1.571,
+                    "panda_joint7": 0.785,
+                },
+            ),
+            spawn=sim_utils.UsdComposerCfg(
+                components=[
+                    # Mobile base
+                    sim_utils.HolonomicBaseCfg(
+                        mass=50.0,
+                        size=(0.6, 0.6, 0.4),  # Size to stably support arm
+                        wheel_radius=0.1,
+                        wheel_width=0.05,
+                        wheel_friction=0.7,
+                        wheel_dampening=10.0,
+                    ),
+                    # Franka arm
+                    FRANKA_PANDA_HIGH_PD_CFG.spawn,
+                ],
+                component_positions=[
+                    (0.0, 0.0, 0.2),  # Base center at origin
+                    (0.0, 0.0, 0.4),  # Arm mounted on top of base
+                ],
+                component_orientations=[
+                    (1.0, 0.0, 0.0, 0.0),  # Base aligned with world
+                    (1.0, 0.0, 0.0, 0.0),  # Arm aligned with base
+                ],
+            ),
+        )
 
-        # Viewer settings
-        self.viewer.eye = (5.0, 5.0, 3.0)
-        self.viewer.lookat = (0.0, 0.0, 0.0)
+        # Setup actions
+        self.actions.base_action = HolonomicBaseActionCfg(
+            asset_name="robot",
+            joint_names=[".*_wheel_.*"],  # All wheel joints
+            scale=1.0,  # Max 1 m/s and 1 rad/s
+        )
+
+        self.actions.arm_action = DifferentialInverseKinematicsActionCfg(
+            asset_name="robot",
+            joint_names=["panda_joint.*"],  # Arm joints only
+            body_name="panda_hand",
+            controller=DifferentialIKControllerCfg(
+                command_type="pose",
+                use_relative_mode=True,
+                ik_method="dls",
+            ),
+            scale=0.5,  # Slower arm movement for coordination
+            body_offset=DifferentialInverseKinematicsActionCfg.OffsetCfg(
+                pos=[0.0, 0.0, 0.107],  # Offset to end effector
+            ),
+        )
+
+        # Setup end-effector frame tracking
+        marker_cfg = FRAME_MARKER_CFG.copy()
+        marker_cfg.markers["frame"].scale = (0.1, 0.1, 0.1)
+        marker_cfg.prim_path = "/Visuals/FrameTransformer"
+        self.scene.ee_frame = FrameTransformerCfg(
+            prim_path="{ENV_REGEX_NS}/Robot/panda_link0",
+            debug_vis=False,
+            visualizer_cfg=marker_cfg,
+            target_frames=[
+                FrameTransformerCfg.FrameCfg(
+                    prim_path="{ENV_REGEX_NS}/Robot/panda_hand",
+                    name="end_effector",
+                    offset=OffsetCfg(
+                        pos=[0.0, 0.0, 0.107],
+                    ),
+                ),
+            ],
+        )
+
+        # Set target body for rewards
+        self.rewards.ee_position_tracking.params["asset_cfg"].body_names = ["panda_hand"]
+        self.rewards.ee_position_tracking_fine.params["asset_cfg"].body_names = ["panda_hand"]
+
+        # Adjust command ranges for larger workspace
+        self.commands.ee_pose.ranges.pos_x = (-2.0, 2.0)
+        self.commands.ee_pose.ranges.pos_y = (-2.0, 2.0)
+        self.commands.ee_pose.ranges.pos_z = (0.3, 0.8)
+
+        # Adjust environment settings
+        self.scene.env_spacing = 4.0  # More space for mobile base
+        self.episode_length_s = 8.0  # Slightly longer episodes
+        self.viewer.eye = (6.0, 6.0, 4.0)  # Wider view for mobile workspace
+
+
+@configclass
+class FrankaMobileReachEnvCfg_PLAY(FrankaMobileReachEnvCfg):
+    """Play configuration with smaller number of environments."""
+
+    def __post_init__(self):
+        # Post init of parent
+        super().__post_init__()
+        # Make a smaller scene for play
+        self.scene.num_envs = 50
+        self.scene.env_spacing = 4.0
+        # Disable randomization for play
+        self.observations.policy.enable_corruption = False

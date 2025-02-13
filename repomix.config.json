@@ -9,6 +9,7 @@
       "copyToClipboard": true
     },
     "include": [
+        "scripts/reinforcement_learning/skrl/**",
         "source/isaaclab_tasks/isaaclab_tasks/manager_based/**"
     ],
     "ignore": {
