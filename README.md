@@ -69,9 +69,12 @@ or opening a question on its [forums](https://forums.developer.nvidia.com/c/agx-
 
 ## Connect with the NVIDIA Omniverse Community
 
-Have a project or resource you'd like to share more widely? We'd love to hear from you! Reach out to the NVIDIA Omniverse Community team at OmniverseCommunity@nvidia.com to discuss potential opportunities for broader dissemination of your work.
+Have a project or resource you'd like to share more widely? We'd love to hear from you! Reach out to the
+NVIDIA Omniverse Community team at OmniverseCommunity@nvidia.com to discuss potential opportunities
+for broader dissemination of your work.
 
-Join us in building a vibrant, collaborative ecosystem where creativity and technology intersect. Your contributions can make a significant impact on the Isaac Lab community and beyond!
+Join us in building a vibrant, collaborative ecosystem where creativity and technology intersect. Your
+contributions can make a significant impact on the Isaac Lab community and beyond!
 
 ## License
 
