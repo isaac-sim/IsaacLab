@@ -40,8 +40,11 @@ goto :eof
 
 rem extract the python from isaacsim
 :extract_python_exe
-rem check if using conda
-if not "%CONDA_PREFIX%"=="" (
+rem check if .venv exists in isaac lab directory
+if exist "%ISAACLAB_PATH%\.venv\Scripts\python.exe" (
+    rem use venv python
+    set python_exe=%ISAACLAB_PATH%\.venv\Scripts\python.exe
+) else if not "%CONDA_PREFIX%"=="" (
     rem use conda python
     set python_exe=%CONDA_PREFIX%\python.exe
 ) else (
@@ -63,8 +66,9 @@ if not exist "%python_exe%" (
 if not exist "%python_exe%" (
     echo [ERROR] Unable to find any Python executable at path: %python_exe%
     echo %tab%This could be due to the following reasons:
-    echo %tab%1. Conda environment is not activated.
-    echo %tab%2. Python executable is not available at the default path: %ISAACLAB_PATH%\_isaac_sim\python.bat
+    echo %tab%1. Virtual environment is not created at: %ISAACLAB_PATH%\.venv
+    echo %tab%2. Conda environment is not activated.
+    echo %tab%3. Python executable is not available at the default path: %ISAACLAB_PATH%\_isaac_sim\python.bat
     exit /b 1
 )
 goto :eof
@@ -290,8 +294,15 @@ if "%arg%"=="-i" (
         set framework_name=%2
         shift
     )
-    rem install the rl-frameworks specified
-    call !python_exe! -m pip install -e %ISAACLAB_PATH%\source\isaaclab_rl[!framework_name!]
+    rem First install the base package in editable mode
+    call !python_exe! -m pip install -e %ISAACLAB_PATH%\source\isaaclab_rl
+
+    rem Then install the extra dependencies
+    if "!framework_name!"=="all" (
+        call !python_exe! -m pip install -e "%ISAACLAB_PATH%\source\isaaclab_rl[all]"
+    ) else (
+        call !python_exe! -m pip install -e "%ISAACLAB_PATH%\source\isaaclab_rl[!framework_name!]"
+    )
     shift
 ) else if "%arg%"=="--install" (
     rem install the python packages in source directory
@@ -315,8 +326,15 @@ if "%arg%"=="-i" (
         set framework_name=%2
         shift
     )
-    rem install the rl-frameworks specified
-    call !python_exe! -m pip install -e %ISAACLAB_PATH%\source\isaaclab_rl[!framework_name!]
+    rem First install the base package in editable mode
+    call !python_exe! -m pip install -e %ISAACLAB_PATH%\source\isaaclab_rl
+
+    rem Then install the extra dependencies
+    if "!framework_name!"=="all" (
+        call !python_exe! -m pip install -e "%ISAACLAB_PATH%\source\isaaclab_rl[all]"
+    ) else (
+        call !python_exe! -m pip install -e "%ISAACLAB_PATH%\source\isaaclab_rl[!framework_name!]"
+    )
     rem update the vscode settings
     rem once we have a docker container, we need to disable vscode settings
     call :update_vscode_settings
