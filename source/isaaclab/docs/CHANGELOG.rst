@@ -64,7 +64,7 @@ Fixed
 Fixed
 ^^^^^
 
-]* Removed deprecation of :attr:`isaaclab.assets.ArticulationData.root_state_w` and
+* Removed deprecation of :attr:`isaaclab.assets.ArticulationData.root_state_w` and
   :attr:`isaaclab.assets.ArticulationData.body_state_w` derived properties.
 * Removed deprecation of :meth:`isaaclab.assets.Articulation.write_root_state_to_sim`.
 * Replaced calls to :attr:`isaaclab.assets.ArticulationData.root_com_state_w` and
