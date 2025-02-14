@@ -5,6 +5,7 @@
 
 import torch
 import weakref
+from functools import cache
 
 import omni.physics.tensors.impl.api as physx
 
@@ -90,6 +91,9 @@ class ArticulationData:
 
     joint_names: list[str] = None
     """Joint names in the order parsed by the simulation view."""
+
+    mimic_joint_names: list[str] = None
+    """Mimic joint names in the order parsed by the simulation view."""
 
     fixed_tendon_names: list[str] = None
     """Fixed tendon names in the order parsed by the simulation view."""
@@ -220,6 +224,42 @@ class ArticulationData:
 
     joint_velocity_limits: torch.Tensor = None
     """Joint maximum velocity provided to simulation. Shape is (num_instances, num_joints)."""
+
+    ##
+    # Mimic joint properties.
+    ##
+    mimic_joint_indices: torch.Tensor = None
+
+    mimic_joint_parents_indices: torch.Tensor = None
+
+    mimic_joint_assignements: torch.Tensor = None
+
+    mimic_joint_infos: torch.Tensor = None
+    actuated_joint_names: list[str] = None
+    """Actuated joint names in the order parsed by the simulation view."""
+
+    actuated_joint_indices: torch.Tensor = None
+    """Actuated joint indices in the order parsed by the simulation view."""
+
+    @property
+    @cache
+    def underactuated_joint_names(self):
+        """Underactuated joint names in the order parsed by the simulation view."""
+        names = []
+        for name in self.joint_names:
+            if name not in self.actuated_joint_names:
+                names.append(name)
+        return names
+
+    @property
+    @cache
+    def underactuated_joint_indices(self):
+        """Underactuated joint indices in the order parsed by the simulation view."""
+        indices = []
+        for idx, name in enumerate(self.joint_names):
+            if name not in self.actuated_joint_names:
+                indices.append(idx)
+        return indices
 
     ##
     # Fixed tendon properties.

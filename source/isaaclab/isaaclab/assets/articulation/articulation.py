@@ -503,6 +503,21 @@ class Articulation(AssetBase):
         self._data._body_state_w.timestamp = -1.0
         self._data._body_link_state_w.timestamp = -1.0
         self._data._body_com_state_w.timestamp = -1.0
+
+        if len(self._data.mimic_joint_names) > 0:
+            # check for mimic joints
+            controlled_joints = self._data.mimic_joint_assignements[joint_ids]
+            valid_mask = controlled_joints != -1
+
+            child_joint_ids = controlled_joints[valid_mask]
+            mimic_params = self._data.mimic_joint_infos[child_joint_ids]
+            ref_joint_pos = self._data.joint_pos[env_ids, joint_ids][:, valid_mask]
+            mimic_pos = mimic_params[:, 0] * ref_joint_pos + mimic_params[:, 1]
+            # broadcast env_ids if needed to allow double indexing
+            if not isinstance(env_ids, slice) and env_ids.ndim == 1:
+                env_ids = env_ids[:, None]
+            self._data.joint_pos[env_ids, child_joint_ids] = mimic_pos
+
         # set into simulation
         self.root_physx_view.set_dof_positions(self._data.joint_pos, indices=physx_env_ids)
         self.root_physx_view.set_dof_velocities(self._data.joint_vel, indices=physx_env_ids)
@@ -1152,6 +1167,74 @@ class Articulation(AssetBase):
         # -- properties
         self._data.joint_names = self.joint_names
         self._data.body_names = self.body_names
+
+        # load actuated joint indices
+        actuated_joints_expr = self.cfg.actuated_joints_expr
+
+        if actuated_joints_expr is None:
+            actuated_joints_expr = [".*"]
+        elif isinstance(actuated_joints_expr, str):
+            actuated_joints_expr = [actuated_joints_expr]
+
+        mimic_joints = self.cfg.mimic_joints
+        if mimic_joints is None:
+            mimic_joints = {}
+
+        self._data.actuated_joint_names = []
+        self._data.actuated_joint_indices = []
+
+        self._data.mimic_joint_names = []
+        self._data.mimic_joint_indices = []
+        self._data.mimic_joint_parents_indices = []
+
+        self._data.mimic_joint_assignements = torch.zeros(self.num_joints, dtype=torch.long, device=self.device) - 1
+        self._data.mimic_joint_infos = torch.zeros(self.num_joints, 2, device=self.device)
+
+        import re
+
+        for joint_name in self.joint_names:
+            for expr in actuated_joints_expr:
+                if re.fullmatch(expr, joint_name):
+                    if joint_name in self._data.actuated_joint_names:
+                        omni.log.warn(
+                            f"Joint '{joint_name}' is already in the actuated joints list. Multiple expressions are"
+                            " matching the same joint. Ignoring."
+                        )
+                        continue
+                    self._data.actuated_joint_names.append(joint_name)
+                    self._data.actuated_joint_indices.append(self.joint_names.index(joint_name))
+
+            for mimic_joint_name in mimic_joints:
+                if mimic_joint_name == joint_name:
+                    omni.log.info(f"Joint '{joint_name}' is a mimic joint.")
+                    omni.log.info(f"Parent: {mimic_joints[mimic_joint_name]['parent']}")
+                    omni.log.info(f"Multiplier: {mimic_joints[mimic_joint_name].get('multiplier', 1.0)}")
+                    omni.log.info(f"Offset: {mimic_joints[mimic_joint_name].get('offset', 0.0)}")
+
+                    parent = mimic_joints[mimic_joint_name]["parent"]
+                    parent_idx = self.joint_names.index(parent)
+                    child_idx = self.joint_names.index(mimic_joint_name)
+                    multiplier = mimic_joints[mimic_joint_name].get("multiplier", 1.0)
+                    offset = mimic_joints[mimic_joint_name].get("offset", 0.0)
+                    self._data.mimic_joint_names.append(mimic_joint_name)
+                    self._data.mimic_joint_indices.append(child_idx)
+                    self._data.mimic_joint_parents_indices.append(parent_idx)
+
+                    self._data.mimic_joint_infos[child_idx, 0] = multiplier
+                    self._data.mimic_joint_infos[child_idx, 1] = offset
+                    self._data.mimic_joint_assignements[parent_idx] = child_idx
+
+                    break
+
+        if len(self._data.mimic_joint_names) != len(mimic_joints):
+            raise ValueError("Mimic joint names do not match the number of mimic joints.")
+
+        # convert everything to tensors
+        self._data.actuated_joint_indices = torch.tensor(self._data.actuated_joint_indices, device=self.device)
+        self._data.mimic_joint_indices = torch.tensor(self._data.mimic_joint_indices, device=self.device)
+        self._data.mimic_joint_parents_indices = torch.tensor(
+            self._data.mimic_joint_parents_indices, device=self.device
+        )
 
         # -- bodies
         self._data.default_mass = self.root_physx_view.get_masses().clone()

@@ -48,5 +48,11 @@ class ArticulationCfg(AssetBaseCfg):
     This is accessible in the articulation data through :attr:`ArticulationData.soft_joint_pos_limits` attribute.
     """
 
+    actuated_joints_expr: list[str] | str | None = None
+    """Regular expression to specify the actuated joints. Defaults to None which means all joints are actuated."""
+
+    mimic_joints: dict[str, dict[str, float | str]] | None = None
+    """Mimic joints configuration for the articulation. Defaults to None."""
+
     actuators: dict[str, ActuatorBaseCfg] = MISSING
     """Actuators for the robot with corresponding joint names."""
