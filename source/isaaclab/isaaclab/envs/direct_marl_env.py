@@ -134,7 +134,7 @@ class DirectMARLEnv(gym.Env):
             with Timer("[INFO]: Time taken for simulation start", "simulation_start"):
                 self.sim.reset()
                 # update scene to pre populate data buffers for assets and sensors
-                self.scene.update()
+                self.scene.update(dt=self.physics_dt)
 
         # -- event manager used for randomization
         if self.cfg.events:
