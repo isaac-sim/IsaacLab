@@ -7,8 +7,7 @@ from isaaclab.assets.articulation import ArticulationCfg
 from isaaclab.controllers.differential_ik_cfg import DifferentialIKControllerCfg
 from isaaclab.envs.mdp.actions.actions_cfg import DifferentialInverseKinematicsActionCfg
 from isaaclab.utils import configclass
-
-from source.isaaclab_tasks.isaaclab_tasks.manager_based.mobile_manipulation.reach.mobile_reach_env_cfg import (
+from isaaclab_tasks.manager_based.mobile_manipulation.reach.mobile_reach_env_cfg import (
     MobileReachEnvCfg,
 )
 

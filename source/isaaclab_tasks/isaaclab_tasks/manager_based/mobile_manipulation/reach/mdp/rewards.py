@@ -3,12 +3,11 @@
 
 from __future__ import annotations
 
-import torch
 from typing import TYPE_CHECKING
 
+import torch
 from isaaclab.assets import Articulation
 from isaaclab.managers import SceneEntityCfg
-from isaaclab.sensors import FrameTransformer
 from isaaclab.utils.math import combine_frame_transforms
 
 if TYPE_CHECKING:
@@ -29,11 +28,10 @@ def position_command_error(
     # obtain the desired and current positions
     des_pos_b = command[:, :3]
     des_pos_w, _ = combine_frame_transforms(
-        asset.data.root_pos_w[:, :3],
-        asset.data.root_quat_w,
-        des_pos_b
+        asset.data.root_pos_w[:, :3], asset.data.root_quat_w, des_pos_b
     )
-    curr_pos_w = asset.data.body_state_w[:, asset_cfg.body_ids[0], :3]
+    body_id = asset_cfg.body_ids[0]
+    curr_pos_w = asset.data.body_state_w[:, body_id, :3]
     return torch.norm(curr_pos_w - des_pos_w, dim=1)
 
 
@@ -50,11 +48,10 @@ def position_command_error_tanh(
     # obtain the desired and current positions
     des_pos_b = command[:, :3]
     des_pos_w, _ = combine_frame_transforms(
-        asset.data.root_pos_w[:, :3],
-        asset.data.root_quat_w,
-        des_pos_b
+        asset.data.root_pos_w[:, :3], asset.data.root_quat_w, des_pos_b
     )
-    curr_pos_w = asset.data.body_state_w[:, asset_cfg.body_ids[0], :3]
+    body_id = asset_cfg.body_ids[0]
+    curr_pos_w = asset.data.body_state_w[:, body_id, :3]
     distance = torch.norm(curr_pos_w - des_pos_w, dim=1)
     return 1 - torch.tanh(distance / std)
 
@@ -72,6 +69,16 @@ def base_vel_l2(
     lin_vel = torch.norm(asset.data.root_lin_vel_w[:, :2], dim=1)
     ang_vel = torch.abs(asset.data.root_ang_vel_w[:, 2])
     return lin_vel + 0.5 * ang_vel
+
+
+def joint_vel_l2(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg) -> torch.Tensor:
+    """Penalize joint velocity using L2-norm.
+
+    Encourages smooth joint movement.
+    """
+    asset: Articulation = env.scene[asset_cfg.name]
+    joint_vel = torch.norm(asset.data.joint_vel, dim=1)
+    return joint_vel
 
 
 def arm_manipulability(
@@ -98,14 +105,12 @@ def arm_manipulability(
 def base_heading_to_target(
     env: ManagerBasedRLEnv,
     command_name: str = "ee_pose",
-    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
 ) -> torch.Tensor:
     """Reward for base heading aligned with target direction.
 
     Encourages the base to face the target location for better manipulation.
     """
     # extract the used quantities (to enable type-hinting)
-    asset: Articulation = env.scene[asset_cfg.name]
     command = env.command_manager.get_command(command_name)
 
     # Get target position relative to base
@@ -127,7 +132,7 @@ def reached_goal(
     env: ManagerBasedRLEnv,
     command_name: str,
     threshold: float,
-    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+    asset_cfg: SceneEntityCfg,
 ) -> torch.Tensor:
     """Check if end-effector has reached the target position."""
     # Get position error
