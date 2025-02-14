@@ -236,11 +236,12 @@ def randomize_rigid_body_mass(
         # set the inertia tensors into the physics simulation
         asset.root_physx_view.set_inertias(inertias, env_ids)
 
+
 def randomize_rigid_body_com(
-    env: ManagerBasedEnv, 
-    env_ids: torch.Tensor | None, 
-    com_range: dict[str, tuple[float, float]], 
-    asset_cfg: SceneEntityCfg
+    env: ManagerBasedEnv,
+    env_ids: torch.Tensor | None,
+    com_range: dict[str, tuple[float, float]],
+    asset_cfg: SceneEntityCfg,
 ):
     """Randomize the center of mass (CoM) of rigid bodies by adding a random value sampled from the given ranges.
 
@@ -266,7 +267,9 @@ def randomize_rigid_body_com(
     # sample random CoM values
     range_list = [com_range.get(key, (0.0, 0.0)) for key in ["x", "y", "z"]]
     ranges = torch.tensor(range_list, device="cpu")
-    rand_samples = math_utils.sample_uniform(ranges[:, 0], ranges[:, 1], (len(env_ids), len(body_ids), 3), device="cpu").unsqueeze(1)
+    rand_samples = math_utils.sample_uniform(
+        ranges[:, 0], ranges[:, 1], (len(env_ids), len(body_ids), 3), device="cpu"
+    ).unsqueeze(1)
 
     # get the current com of the bodies (num_assets, num_bodies)
     coms = asset.root_physx_view.get_coms().clone()
@@ -275,7 +278,7 @@ def randomize_rigid_body_com(
     coms[:, body_ids, :3] += rand_samples
 
     # Set the new coms
-    asset.root_physx_view.set_coms(new_coms, env_ids)
+    asset.root_physx_view.set_coms(coms, env_ids)
 
 
 def randomize_physics_scene_gravity(

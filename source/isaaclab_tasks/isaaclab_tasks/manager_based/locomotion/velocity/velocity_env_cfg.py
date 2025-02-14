@@ -172,7 +172,7 @@ class EventCfg:
             "operation": "add",
         },
     )
-    
+
     base_com = EventTerm(
         func=mdp.randomize_rigid_body_com,
         mode="startup",
