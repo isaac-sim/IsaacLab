@@ -8,7 +8,7 @@ Removed
 ^^^^^^^
 
 * Removed the attribute ``disable_contact_processing`` from :class:`~isaaclab.sim.SimulationContact`.
-  
+
 Changed
 ^^^^^^^
 
