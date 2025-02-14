@@ -199,7 +199,7 @@ def main():
     current_recorded_demo_count = 0
     success_step_count = 0
     with contextlib.suppress(KeyboardInterrupt) and torch.inference_mode():
-        while True:
+        while simulation_app.is_running():
             # get keyboard command
             delta_pose, gripper_command = teleop_interface.advance()
             # convert to torch
