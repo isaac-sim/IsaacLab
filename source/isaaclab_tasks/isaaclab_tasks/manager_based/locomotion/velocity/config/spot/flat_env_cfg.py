@@ -319,7 +319,6 @@ class SpotFlatEnvCfg(LocomotionVelocityRoughEnvCfg):
         # simulation settings
         self.sim.dt = 0.002  # 500 Hz
         self.sim.render_interval = self.decimation
-        self.sim.disable_contact_processing = True
         self.sim.physics_material.static_friction = 1.0
         self.sim.physics_material.dynamic_friction = 1.0
         self.sim.physics_material.friction_combine_mode = "multiply"
