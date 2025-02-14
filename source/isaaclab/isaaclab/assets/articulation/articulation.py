@@ -162,13 +162,10 @@ class Articulation(AssetBase):
         # use ellipses object to skip initial indices.
         if env_ids is None:
             env_ids = slice(None)
-        print(f"env_ids: {env_ids}")
         # reset actuators
         for actuator in self.actuators.values():
             actuator.reset(env_ids)
         # reset external wrench
-        print(f"external_force_b shape: {self._external_force_b.shape}")
-        print(f"external_torque_b shape: {self._external_torque_b.shape}")
         self._external_force_b[env_ids] = 0.0
         self._external_torque_b[env_ids] = 0.0
 

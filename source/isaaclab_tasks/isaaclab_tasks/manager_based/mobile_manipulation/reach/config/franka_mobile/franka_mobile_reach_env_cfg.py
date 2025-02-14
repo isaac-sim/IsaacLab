@@ -6,6 +6,8 @@ from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets.articulation import ArticulationCfg
 from isaaclab.controllers.differential_ik_cfg import DifferentialIKControllerCfg
 from isaaclab.envs.mdp.actions.actions_cfg import DifferentialInverseKinematicsActionCfg
+
+from isaaclab.markers.config import FRAME_MARKER_CFG  # isort: skip
 from isaaclab.utils import configclass
 from isaaclab_tasks.manager_based.mobile_manipulation.reach.mobile_reach_env_cfg import (
     MobileReachEnvCfg,
@@ -100,7 +102,7 @@ class FrankaMobileReachEnvCfg(MobileReachEnvCfg):
         self.actions.arm_action = DifferentialInverseKinematicsActionCfg(
             asset_name="robot",
             joint_names=["panda_joint.*"],  # Only Franka arm joints
-            body_name="panda_link7",
+            body_name="panda_hand",
             controller=DifferentialIKControllerCfg(
                 command_type="pose",
                 use_relative_mode=True,
@@ -121,43 +123,24 @@ class FrankaMobileReachEnvCfg(MobileReachEnvCfg):
             scale=0.5,
         )
 
-        # Setup end-effector frame tracking
-        # IMPORTANT: The order of the frames in the list is important. The first frame is the tool center point (TCP)
-        # the other frames are the fingers
-        # self.scene.ee_frame = FrameTransformerCfg(
-        #     prim_path="{ENV_REGEX_NS}/ridgeback_franka/panda_link0",
-        #     debug_vis=False,
-        #     target_frames=[
-        #         FrameTransformerCfg.FrameCfg(
-        #             prim_path="{ENV_REGEX_NS}/ridgeback_franka/panda_hand",
-        #             name="ee_tcp",
-        #             offset=OffsetCfg(
-        #                 pos=(0.0, 0.0, 0.1034),
-        #             ),
-        #         ),
-        #         FrameTransformerCfg.FrameCfg(
-        #             prim_path="{ENV_REGEX_NS}/ridgeback_franka/panda_leftfinger",
-        #             name="tool_leftfinger",
-        #             offset=OffsetCfg(
-        #                 pos=(0.0, 0.0, 0.046),
-        #             ),
-        #         ),
-        #         FrameTransformerCfg.FrameCfg(
-        #             prim_path="{ENV_REGEX_NS}/ridgeback_franka/panda_rightfinger",
-        #             name="tool_rightfinger",
-        #             offset=OffsetCfg(
-        #                 pos=(0.0, 0.0, 0.046),
-        #             ),
-        #         ),
-        #     ],
-        # )
+        # Visualize current and goal poses
+        current_pose_marker = FRAME_MARKER_CFG.copy()
+        current_pose_marker.markers["frame"].scale = (0.2, 0.2, 0.2)
+        self.commands.ee_pose.current_pose_visualizer_cfg = current_pose_marker.replace(
+            prim_path="/Visuals/Command/current_pose"
+        )
+        goal_pose_marker = FRAME_MARKER_CFG.copy()
+        goal_pose_marker.markers["frame"].scale = (0.3, 0.3, 0.3)
+        self.commands.ee_pose.goal_pose_visualizer_cfg = goal_pose_marker.replace(
+            prim_path="/Visuals/Command/goal_pose"
+        )
 
         # Set target body for rewards
         self.rewards.ee_position_tracking.params["asset_cfg"].body_names = [
-            "panda_link7"
+            "panda_hand"
         ]
         self.rewards.ee_position_tracking_fine.params["asset_cfg"].body_names = [
-            "panda_link7"
+            "panda_hand"
         ]
 
         # Adjust command ranges for larger workspace
@@ -171,7 +154,7 @@ class FrankaMobileReachEnvCfg(MobileReachEnvCfg):
         self.viewer.eye = (6.0, 6.0, 4.0)  # Wider view for mobile workspace
 
         # Set target body for commands
-        self.commands.ee_pose.body_name = "panda_link7"
+        self.commands.ee_pose.body_name = "panda_hand"
 
 
 @configclass
