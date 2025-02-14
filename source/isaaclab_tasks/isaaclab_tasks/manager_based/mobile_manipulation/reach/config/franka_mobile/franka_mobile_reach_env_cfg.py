@@ -39,7 +39,7 @@ class FrankaMobileReachEnvCfg(MobileReachEnvCfg):
         # Setup mobile Franka using USD file
         # self.scene.robot = RIDGEBACK_FRANKA_PANDA_CFG
         self.scene.robot = ArticulationCfg(
-            prim_path="/World/ridgeback_franka",
+            prim_path="{ENV_REGEX_NS}/ridgeback_franka",
             spawn=sim_utils.UsdFileCfg(
                 usd_path=self.usd_path,
                 articulation_props=sim_utils.ArticulationRootPropertiesCfg(
@@ -125,25 +125,25 @@ class FrankaMobileReachEnvCfg(MobileReachEnvCfg):
         # IMPORTANT: The order of the frames in the list is important. The first frame is the tool center point (TCP)
         # the other frames are the fingers
         # self.scene.ee_frame = FrameTransformerCfg(
-        #     prim_path="/World/ridgeback_franka/panda_link0",
+        #     prim_path="{ENV_REGEX_NS}/ridgeback_franka/panda_link0",
         #     debug_vis=False,
         #     target_frames=[
         #         FrameTransformerCfg.FrameCfg(
-        #             prim_path="/World/ridgeback_franka/panda_hand",
+        #             prim_path="{ENV_REGEX_NS}/ridgeback_franka/panda_hand",
         #             name="ee_tcp",
         #             offset=OffsetCfg(
         #                 pos=(0.0, 0.0, 0.1034),
         #             ),
         #         ),
         #         FrameTransformerCfg.FrameCfg(
-        #             prim_path="/World/ridgeback_franka/panda_leftfinger",
+        #             prim_path="{ENV_REGEX_NS}/ridgeback_franka/panda_leftfinger",
         #             name="tool_leftfinger",
         #             offset=OffsetCfg(
         #                 pos=(0.0, 0.0, 0.046),
         #             ),
         #         ),
         #         FrameTransformerCfg.FrameCfg(
-        #             prim_path="/World/ridgeback_franka/panda_rightfinger",
+        #             prim_path="{ENV_REGEX_NS}/ridgeback_franka/panda_rightfinger",
         #             name="tool_rightfinger",
         #             offset=OffsetCfg(
         #                 pos=(0.0, 0.0, 0.046),

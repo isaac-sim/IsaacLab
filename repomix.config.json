@@ -25,6 +25,8 @@
         "**/g1/**",
         "**/h1/**",
         "**/spot/**",
+        "**/classic/**",
+        "**/locomotion/**",
         "**/cabinet/**",
         "**/inhand/**",
         "**/*.svg",
