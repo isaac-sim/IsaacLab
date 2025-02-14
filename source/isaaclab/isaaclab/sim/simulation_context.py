@@ -129,6 +129,7 @@ class SimulationContext(_SimulationContext):
         carb_settings_iface.set_bool("/persistent/omnihydra/useSceneGraphInstancing", True)
         # change dispatcher to use the default dispatcher in PhysX SDK instead of carb tasking
         # note: dispatcher handles how threads are launched for multi-threaded physics
+        carb_settings_iface.set_bool("/physics/physxDispatcher", True)
         # disable contact processing in omni.physx
         # note: we disable it by default to avoid the overhead of contact processing when it isn't needed.
         #   The physics flag gets enabled when a contact sensor is created.
