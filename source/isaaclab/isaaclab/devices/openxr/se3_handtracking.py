@@ -21,6 +21,9 @@ with contextlib.suppress(ModuleNotFoundError):
 
     from . import teleop_command
 
+from isaaclab.markers import VisualizationMarkers
+from isaaclab.markers.config import FRAME_MARKER_CFG
+
 
 class Se3HandTracking(DeviceBase):
     """A OpenXR powered hand tracker for sending SE(3) commands as delta poses
@@ -28,7 +31,13 @@ class Se3HandTracking(DeviceBase):
 
     The command comprises of two parts as well as callbacks for teleop commands:
 
-    * delta pose: a 6D vector of (x, y, z, roll, pitch, yaw) in meters and radians.
+    * delta pose: a 6D vector of (x, y, z, roll, pitch, yaw) in meters and radians while in rel mode
+    * or a 7D vector of (x, y, z, qw, qx, qy, qz) (meters/quat) in abs mode.
+    * The pose is based on the center of the "pinch" gesture, aka the average position/rotation of the
+    * thumb tip and index finger tip described here:
+    * https://registry.khronos.org/OpenXR/specs/1.0/html/xrspec.html#convention-of-hand-joints
+    * If use_wrist_position is True, the wrist position is used instead, this is the default behavior.
+    * Note: delta_pos_scale_factor and delta_rot_scale_factor do not apply in abs mode.
     * gripper: a binary command to open or close the gripper.
     *
     * Teleop commands can be subscribed via the add_callback function, the available keys are:
@@ -45,18 +54,20 @@ class Se3HandTracking(DeviceBase):
         abs=True,
         zero_out_xy_rotation=False,
         use_wrist_rotation=False,
+        use_wrist_position=True,
         delta_pos_scale_factor=10,
         delta_rot_scale_factor=10,
     ):
         self._openxr = OpenXR()
         self._previous_pos = np.zeros(3)
-        self._previous_rot = np.zeros(3)
+        self._previous_rot = Rotation.identity()
         self._previous_grip_distance = 0.0
         self._previous_gripper_command = False
         self._hand = hand
         self._abs = abs
         self._zero_out_xy_rotation = zero_out_xy_rotation
         self._use_wrist_rotation = use_wrist_rotation
+        self._use_wrist_position = use_wrist_position
         self._additional_callbacks = dict()
         self._vc = teleop_command.TeleopCommand()
         self._vc_subscription = (
@@ -79,6 +90,9 @@ class Se3HandTracking(DeviceBase):
         viewport_api.set_hd_engine("rtx", "RaytracedLighting")
         self._delta_pos_scale_factor = delta_pos_scale_factor
         self._delta_rot_scale_factor = delta_rot_scale_factor
+        self._frame_marker_cfg = FRAME_MARKER_CFG.copy()
+        self._frame_marker_cfg.markers["frame"].scale = (0.1, 0.1, 0.1)
+        self._goal_marker = VisualizationMarkers(self._frame_marker_cfg.replace(prim_path="/Visuals/ee_goal"))
 
     def __del__(self):
         return
@@ -92,7 +106,7 @@ class Se3HandTracking(DeviceBase):
 
     def reset(self):
         self._previous_pos = np.zeros(3)
-        self._previous_rot = np.zeros(3)
+        self._previous_rot = Rotation.identity()
         self._previous_grip_distance = 0.0
         self._previous_gripper_command = False
 
@@ -100,79 +114,129 @@ class Se3HandTracking(DeviceBase):
         self._additional_callbacks[key] = func
 
     def advance(self) -> tuple[np.ndarray, bool]:
-        """Provides the result from spacemouse event state.
+        """Provides the result from teleop device event state.
 
         Returns:
-            A tuple containing the delta pose command and gripper commands.
+            A tuple containing the delta or abs pose command and gripper commands.
         """
 
         hand_joints = self._openxr.locate_hand_joints(self._hand)
 
-        if hand_joints is None:
-            return np.zeros(6), self._previous_gripper_command
+        return self._calculate_target_pose(hand_joints), self._calculate_gripper_command(hand_joints)
 
-        if self._abs:
-            pose = self._calculate_abs_target_pose(hand_joints)
+    def visualize(self, enable):
+        if enable:
+            self._goal_marker.set_visibility(True)
+            trans = np.array([self._previous_pos])
+            quat = self._previous_rot.as_quat()
+            rot = np.array([np.array([quat[3], quat[0], quat[1], quat[2]])])
+            self._goal_marker.visualize(translations=trans, orientations=rot)
         else:
-            pose = self._calculate_target_delta_pose(hand_joints)
-
-        return pose, self._calculate_gripper_command(hand_joints)
+            self._goal_marker.set_visibility(False)
 
     """
     Internal helpers.
     """
 
+    def _calculate_target_pose(self, hand_joints):
+        if self._abs:
+            return self._calculate_abs_target_pose(hand_joints)
+        else:
+            return self._calculate_target_delta_pose(hand_joints)
+
     def _calculate_abs_target_pose(self, hand_joints):
-        if not self._tracking:
-            return np.zeros(6)
+        if hand_joints is None or not self._tracking:
+            previous_rot = self._previous_rot.as_quat()
+            previous_rot = [previous_rot[3], previous_rot[0], previous_rot[1], previous_rot[2]]
+            return np.concatenate([self._previous_pos, previous_rot])
 
         index_tip = hand_joints[OpenXRSpec.HandJointEXT.XR_HAND_JOINT_INDEX_TIP_EXT]
         thumb_tip = hand_joints[OpenXRSpec.HandJointEXT.XR_HAND_JOINT_THUMB_TIP_EXT]
+        wrist = hand_joints[OpenXRSpec.HandJointEXT.XR_HAND_JOINT_WRIST_EXT]
 
         # position:
-        if not index_tip.locationFlags & OpenXRSpec.XR_SPACE_LOCATION_POSITION_VALID_BIT:
-            target_pos = self._previous_pos
-        if not thumb_tip.locationFlags & OpenXRSpec.XR_SPACE_LOCATION_POSITION_VALID_BIT:
-            target_pos = self._previous_pos
+        if self._use_wrist_position:
+            if not wrist.locationFlags & OpenXRSpec.XR_SPACE_LOCATION_POSITION_VALID_BIT:
+                target_pos = self._previous_pos
+            else:
+                wrist_pos = wrist.pose.position
+                wrist_position = np.array([wrist_pos.x, wrist_pos.y, wrist_pos.z], dtype=np.float32)
+                target_pos = wrist_position
+
         else:
-            index_tip_pos = index_tip.pose.position
-            index_tip_position = np.array([index_tip_pos.x, index_tip_pos.y, index_tip_pos.z], dtype=np.float32)
+            if (
+                not index_tip.locationFlags & OpenXRSpec.XR_SPACE_LOCATION_POSITION_VALID_BIT
+                or not thumb_tip.locationFlags & OpenXRSpec.XR_SPACE_LOCATION_POSITION_VALID_BIT
+            ):
+                target_pos = self._previous_pos
+            else:
+                index_tip_pos = index_tip.pose.position
+                index_tip_position = np.array([index_tip_pos.x, index_tip_pos.y, index_tip_pos.z], dtype=np.float32)
 
-            thumb_tip_pos = thumb_tip.pose.position
-            thumb_tip_position = np.array([thumb_tip_pos.x, thumb_tip_pos.y, thumb_tip_pos.z], dtype=np.float32)
+                thumb_tip_pos = thumb_tip.pose.position
+                thumb_tip_position = np.array([thumb_tip_pos.x, thumb_tip_pos.y, thumb_tip_pos.z], dtype=np.float32)
 
-            target_pos = (index_tip_position + thumb_tip_position) / 2
-            self._previous_pos = target_pos
+                target_pos = (index_tip_position + thumb_tip_position) / 2
+
+        self._previous_pos = target_pos
 
         # rotation
-        if not index_tip.locationFlags & OpenXRSpec.XR_SPACE_LOCATION_ORIENTATION_VALID_BIT:
-            target_rot = self._previous_rot
-        if not thumb_tip.locationFlags & OpenXRSpec.XR_SPACE_LOCATION_ORIENTATION_VALID_BIT:
-            target_rot = self._previous_rot
+        if self._use_wrist_rotation:
+            if not wrist.locationFlags & OpenXRSpec.XR_SPACE_LOCATION_ORIENTATION_VALID_BIT:
+                target_rot = self._previous_rot.as_quat()
+            else:
+                wrist_quat = wrist.pose.orientation
+                wrist_quat = np.array([wrist_quat.x, wrist_quat.y, wrist_quat.z, wrist_quat.w], dtype=np.float32)
+                target_rot = wrist_quat
+                self._previous_rot = Rotation.from_quat(wrist_quat)
+
         else:
-            index_tip_quat = index_tip.pose.orientation
-            index_tip_quat = np.array(
-                [index_tip_quat.x, index_tip_quat.y, index_tip_quat.z, index_tip_quat.w], dtype=np.float32
-            )
+            # use the rotation based on the average position of the index tip and thumb tip
+            if (
+                not index_tip.locationFlags & OpenXRSpec.XR_SPACE_LOCATION_ORIENTATION_VALID_BIT
+                or not thumb_tip.locationFlags & OpenXRSpec.XR_SPACE_LOCATION_ORIENTATION_VALID_BIT
+            ):
+                target_rot = self._previous_rot.as_quat()
+            else:
+                index_tip_quat = index_tip.pose.orientation
+                index_tip_quat = np.array(
+                    [index_tip_quat.x, index_tip_quat.y, index_tip_quat.z, index_tip_quat.w], dtype=np.float32
+                )
 
-            thumb_tip_quat = thumb_tip.pose.orientation
-            thumb_tip_quat = np.array(
-                [thumb_tip_quat.x, thumb_tip_quat.y, thumb_tip_quat.z, thumb_tip_quat.w], dtype=np.float32
-            )
+                thumb_tip_quat = thumb_tip.pose.orientation
+                thumb_tip_quat = np.array(
+                    [thumb_tip_quat.x, thumb_tip_quat.y, thumb_tip_quat.z, thumb_tip_quat.w], dtype=np.float32
+                )
 
-            r0 = Rotation.from_quat(index_tip_quat)
-            r1 = Rotation.from_quat(thumb_tip_quat)
-            key_times = [0, 1]
-            slerp = Slerp(key_times, Rotation.concatenate([r0, r1]))
-            interp_time = [0.5]
-            interp_rotation = slerp(interp_time)[0]
+                r0 = Rotation.from_quat(index_tip_quat)
+                r1 = Rotation.from_quat(thumb_tip_quat)
+                key_times = [0, 1]
+                slerp = Slerp(key_times, Rotation.concatenate([r0, r1]))
+                interp_time = [0.5]
+                # thumb tip is rotated about the z axis as seen here
+                # https://registry.khronos.org/OpenXR/specs/1.0/html/xrspec.html#convention-of-hand-joints
+                # which requires us to rotate the final pose to align the EE more naturally with the pinch gesture
+                interp_rotation = slerp(interp_time)[0] * Rotation.from_euler("x", 90, degrees=True)
 
-            target_rot = interp_rotation.as_rotvec()
-            self._previous_rot = target_rot
+                self._previous_rot = interp_rotation
+                target_rot = interp_rotation.as_quat()
+
+        if self._zero_out_xy_rotation:
+            z, y, x = Rotation.from_quat(target_rot).as_euler("ZYX")
+            y = 0.0  # Zero out rotation around y-axis
+            x = 0.0  # Zero out rotation around x-axis
+            target_rot = (
+                Rotation.from_euler("ZYX", [z, y, x]) * Rotation.from_euler("X", np.pi, degrees=False)
+            ).as_quat()
+
+        target_rot = [target_rot[3], target_rot[0], target_rot[1], target_rot[2]]
 
         return np.concatenate([target_pos, target_rot])
 
     def _calculate_target_delta_pose(self, hand_joints):
+        if hand_joints is None:
+            return np.zeros(6)
+
         index_tip = hand_joints[OpenXRSpec.HandJointEXT.XR_HAND_JOINT_INDEX_TIP_EXT]
         thumb_tip = hand_joints[OpenXRSpec.HandJointEXT.XR_HAND_JOINT_THUMB_TIP_EXT]
         wrist = hand_joints[OpenXRSpec.HandJointEXT.XR_HAND_JOINT_WRIST_EXT]
@@ -182,15 +246,32 @@ class Se3HandTracking(DeviceBase):
         ROTATION_THRESHOLD = 0.01
 
         # position:
-        if not wrist.locationFlags & OpenXRSpec.XR_SPACE_LOCATION_POSITION_VALID_BIT:
-            delta_pos = np.zeros(3)
+        if self._use_wrist_position:
+            if not wrist.locationFlags & OpenXRSpec.XR_SPACE_LOCATION_POSITION_VALID_BIT:
+                delta_pos = np.zeros(3)
+            else:
+                wrist_pos = wrist.pose.position
+                target_pos = np.array([wrist_pos.x, wrist_pos.y, wrist_pos.z], dtype=np.float32)
+
+                delta_pos = target_pos - self._previous_pos
+
         else:
-            wrist_pos = wrist.pose.position
-            target_pos = np.array([wrist_pos.x, wrist_pos.y, wrist_pos.z], dtype=np.float32)
+            if (
+                not index_tip.locationFlags & OpenXRSpec.XR_SPACE_LOCATION_POSITION_VALID_BIT
+                or not thumb_tip.locationFlags & OpenXRSpec.XR_SPACE_LOCATION_POSITION_VALID_BIT
+            ):
+                target_pos = self._previous_pos
+            else:
+                index_tip_pos = index_tip.pose.position
+                index_tip_position = np.array([index_tip_pos.x, index_tip_pos.y, index_tip_pos.z], dtype=np.float32)
 
-            delta_pos = target_pos - self._previous_pos
-            self._previous_pos = target_pos
+                thumb_tip_pos = thumb_tip.pose.position
+                thumb_tip_position = np.array([thumb_tip_pos.x, thumb_tip_pos.y, thumb_tip_pos.z], dtype=np.float32)
 
+                target_pos = (index_tip_position + thumb_tip_position) / 2
+                delta_pos = target_pos - self._previous_pos
+
+        self._previous_pos = target_pos
         self._smoothed_delta_pos = (self._alpha_pos * delta_pos) + ((1 - self._alpha_pos) * self._smoothed_delta_pos)
 
         # Apply position threshold
@@ -209,12 +290,13 @@ class Se3HandTracking(DeviceBase):
                 wrist_rotation = Rotation.from_quat(wrist_quat)
                 target_rot = wrist_rotation.as_rotvec()
 
-                delta_rot = target_rot - self._previous_rot
-                self._previous_rot = target_rot
+                delta_rot = target_rot - self._previous_rot.as_rotvec()
+                self._previous_rot = wrist_rotation
         else:
-            if not index_tip.locationFlags & OpenXRSpec.XR_SPACE_LOCATION_ORIENTATION_VALID_BIT:
-                delta_rot = np.zeros(3)
-            if not thumb_tip.locationFlags & OpenXRSpec.XR_SPACE_LOCATION_ORIENTATION_VALID_BIT:
+            if (
+                not index_tip.locationFlags & OpenXRSpec.XR_SPACE_LOCATION_ORIENTATION_VALID_BIT
+                or not thumb_tip.locationFlags & OpenXRSpec.XR_SPACE_LOCATION_ORIENTATION_VALID_BIT
+            ):
                 delta_rot = np.zeros(3)
             else:
                 index_tip_quat = index_tip.pose.orientation
@@ -234,9 +316,9 @@ class Se3HandTracking(DeviceBase):
                 interp_time = [0.5]
                 interp_rotation = slerp(interp_time)[0]
 
-                target_rot = interp_rotation.as_rotvec()
-                delta_rot = target_rot - self._previous_rot
-                self._previous_rot = target_rot
+                relative_rotation = interp_rotation * self._previous_rot.inv()
+                delta_rot = relative_rotation.as_rotvec()
+                self._previous_rot = interp_rotation
 
         if self._zero_out_xy_rotation:
             delta_rot[0] = 0.0  # Zero out rotation around x-axis
@@ -258,6 +340,9 @@ class Se3HandTracking(DeviceBase):
         return np.concatenate([delta_pos * self._delta_pos_scale_factor, delta_rot * self._delta_rot_scale_factor])
 
     def _calculate_gripper_command(self, hand_joints):
+        if hand_joints is None:
+            return self._previous_gripper_command
+
         index_tip = hand_joints[OpenXRSpec.HandJointEXT.XR_HAND_JOINT_INDEX_TIP_EXT]
         thumb_tip = hand_joints[OpenXRSpec.HandJointEXT.XR_HAND_JOINT_THUMB_TIP_EXT]
 
