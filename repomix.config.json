@@ -4,19 +4,25 @@
       "style": "plain",
       "removeComments": false,
       "removeEmptyLines": false,
-      "topFilesLength": 8,
+      "topFilesLength": 20,
       "showLineNumbers": false,
       "copyToClipboard": true
     },
     "include": [
         "scripts/reinforcement_learning/skrl/**",
         "source/isaaclab/isaaclab/envs/mdp/**",
+        "source/isaaclab/isaaclab/managers/**",
+        "source/isaaclab/isaaclab/scene/**",
+        "source/isaaclab/isaaclab/sim/**",
         "source/isaaclab_tasks/isaaclab_tasks/manager_based/**"
     ],
     "ignore": {
       "useGitignore": true,
       "useDefaultPatterns": true,
       "customPatterns": [
+        "**/spawners/**",
+        "**/converters/**",
+        "**/schemas/**",
         "**/allegro_hand/**",
         "**/anymal*/**",
         "**/ur_10/**",
@@ -27,6 +33,8 @@
         "**/spot/**",
         "**/classic/**",
         "**/locomotion/**",
+        "**/lift/**",
+        "**/stack/**",
         "**/cabinet/**",
         "**/inhand/**",
         "**/*.svg",
