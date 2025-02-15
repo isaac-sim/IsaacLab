@@ -13,15 +13,12 @@ and useful for everyone. These may happen in forms of:
   * Documentation improvements
   * Tutorials and tutorial improvements
 
+We prefer GitHub `discussions <https://github.com/isaac-sim/IsaacLab/discussions>`_ for discussing ideas,
+asking questions, conversations and requests for new features.
 
-.. attention::
-
-   We prefer GitHub `discussions <https://github.com/isaac-sim/IsaacLab/discussions>`_ for discussing ideas,
-   asking questions, conversations and requests for new features.
-
-   Please use the
-   `issue tracker <https://github.com/isaac-sim/IsaacLab/issues>`_ only to track executable pieces of work
-   with a definite scope and a clear deliverable. These can be fixing bugs, new features, or general updates.
+Please use the
+`issue tracker <https://github.com/isaac-sim/IsaacLab/issues>`_ only to track executable pieces of work
+with a definite scope and a clear deliverable. These can be fixing bugs, new features, or general updates.
 
 
 Contributing Code
@@ -279,11 +276,10 @@ For instance, the following are bad examples for various reasons:
 .. code:: python
 
    def my_function(a, b):
-      return a + b
-
-   def my_function(a, b):
       """
       This is a bad example.
+
+      Reason: No type hints anywhere.
 
       Args:
          a: The first argument.
@@ -297,6 +293,23 @@ For instance, the following are bad examples for various reasons:
    def my_function(a, b):
       """
       This is a bad example.
+
+      Reason: Type hints in the docstring and not in the function signature.
+
+      Args:
+         a (int): The first argument.
+         b (int): The second argument.
+
+      Returns:
+         int: The sum of the two arguments.
+      """
+      return a + b
+
+   def my_function(a: int, b: int) -> int:
+      """
+      This is a bad example.
+
+      Reason: Type hints in the docstring and in the function signature. Redundancy.
 
       Args:
          a (int): The first argument.
@@ -314,6 +327,8 @@ The following is how we expect you to write the docstrings and type hints:
    def my_function(a: int, b: int) -> int:
       """
       This is a good example.
+
+      Reason: Type hints in the function signature and not in the docstring.
 
       Args:
          a: The first argument.
