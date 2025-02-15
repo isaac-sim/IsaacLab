@@ -1374,10 +1374,10 @@ class Articulation(AssetBase):
             )
         # convert everything to tensors for faster indexing
         self._data.actuated_joint_indices = torch.tensor(
-            self._data.actuated_joint_indices, dtype=torch.long, device=self.device
+            actuated_joint_indices, dtype=torch.long, device=self.device
         )
         self._data.mimic_joint_indices = torch.tensor(
-            self._data.mimic_joint_indices, dtype=torch.long, device=self.device
+            mimic_joint_indices, dtype=torch.long, device=self.device
         )
 
     def _process_actuators_cfg(self):
