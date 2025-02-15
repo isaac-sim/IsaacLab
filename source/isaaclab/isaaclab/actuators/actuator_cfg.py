@@ -38,16 +38,16 @@ class ActuatorBaseCfg:
 
     .. attention::
 
-        The :attr:`effort_limit_sim` attribute should be used to set the effort limit for the simulation physics solver.
+        The :attr:`effort_limit_sim` attribute should be used to set the effort limit for the simulation physics
+        solver.
 
-        The :attr:`effort_limit` attribute is used for clipping the effort output of the actuator model *only* in th
-        case of explicit actuators, such as the :class:`~isaaclab.actuators.IdealPDActuator`.
+        The :attr:`effort_limit` attribute is used for clipping the effort output of the actuator model *only*
+        in the case of explicit actuators, such as the :class:`~isaaclab.actuators.IdealPDActuator`.
 
     .. note::
 
-        For implicit actuators, the attributes :attr:`effort_limit` and :attr:`effort_limit_sim` are resolved to the same
-        value. For backwards compatibility, the :attr:`effort_limit` attribute is provided but should not be used for implicit
-        actuators.
+        For implicit actuators, the attributes :attr:`effort_limit` and :attr:`effort_limit_sim` are equivalent.
+        However, we suggest using the :attr:`effort_limit_sim` attribute for its clarity.
 
     """
 
@@ -58,16 +58,17 @@ class ActuatorBaseCfg:
 
     .. attention::
 
-        The :attr:`velocity_limit_sim` attribute should be used to set the velocity limit for the simulation physics solver.
+        The :attr:`velocity_limit_sim` attribute should be used to set the velocity limit for the simulation physics
+        solver.
 
-        The :attr:`velocity_limit` attribute is used for clipping the effort output of the actuator model *only* in th
-        case of explicit actuators, such as the :class:`~isaaclab.actuators.IdealPDActuator`.
+        The :attr:`velocity_limit` attribute is used for clipping the effort output of the actuator model *only*
+        in the case of explicit actuators, such as the :class:`~isaaclab.actuators.IdealPDActuator`.
 
     .. note::
 
-        For implicit actuators, the attributes :attr:`velocity_limit` and :attr:`velocity_limit_sim` are resolved to the same
-        value. For backwards compatibility, the :attr:`velocity_limit` attribute is provided but should not be used for implicit
-        actuators.
+        For implicit actuators, the attributes :attr:`velocity_limit` and :attr:`velocity_limit_sim` are equivalent.
+        However, we suggest using the :attr:`velocity_limit_sim` attribute for its clarity.
+
     """
 
     effort_limit_sim: dict[str, float] | float | None = None
@@ -76,12 +77,15 @@ class ActuatorBaseCfg:
     The effort limit is used to constrain the computed joint efforts in the physics engine. If the computed effort
     exceeds this limit, the physics engine will clip the effort to this value.
 
-    Since explicit actuators (e.g. DC motor), compute and clip the effort in the actuator model, this limit is by default
-    set to a large value to prevent the physics engine from any additional clipping. However, at times, it may be necessary
-    to set this limit to a smaller value as a safety measure.
+    Since explicit actuators (e.g. DC motor), compute and clip the effort in the actuator model, this limit is by
+    default set to a large value to prevent the physics engine from any additional clipping. However, at times,
+    it may be necessary to set this limit to a smaller value as a safety measure.
 
-    If None, the limit is resolved based on the type of actuator model. For implicit actuators, the limit is set to the value
-    specified in the USD joint prim. For explicit actuators, the limit is set to 1.0e9.
+    If None, the limit is resolved based on the type of actuator model:
+
+    * For implicit actuators, the limit is set to the value specified in the USD joint prim.
+    * For explicit actuators, the limit is set to 1.0e9.
+
     """
 
     velocity_limit_sim: dict[str, float] | float | None = None
