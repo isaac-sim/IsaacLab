@@ -142,7 +142,7 @@ Maintaining a changelog and extension.toml
 ------------------------------------------
 
 Each extension maintains a changelog in the ``CHANGELOG.rst`` file in the ``docs`` directory,
-as well as a ``extension.toml`` file in the ``configs`` directory.
+as well as a ``extension.toml`` file in the ``config`` directory.
 
 The ``extension.toml`` file contains the metadata for the extension. It is used to describe the
 name, version, description, and other metadata of the extension.
