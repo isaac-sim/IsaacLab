@@ -43,8 +43,8 @@ def generate_articulation_cfg(
     articulation_type: Literal["humanoid", "panda", "anymal", "shadow_hand", "single_joint"],
     stiffness: float | None = 10.0,
     damping: float | None = 2.0,
-    vel_limit: float | None = 100.0,
-    effort_limit: float | None = 400.0,
+    vel_limit_sim: float | None = None,
+    effort_limit_sim: float | None = None,
 ) -> ArticulationCfg:
     """Generate an articulation configuration.
 
@@ -75,8 +75,8 @@ def generate_articulation_cfg(
             actuators={
                 "joint": ImplicitActuatorCfg(
                     joint_names_expr=[".*"],
-                    effort_limit=effort_limit,
-                    velocity_limit=vel_limit,
+                    effort_limit_sim=effort_limit_sim,
+                    velocity_limit_sim=vel_limit_sim,
                     stiffness=0.0,
                     damping=10.0,
                 ),
@@ -900,7 +900,7 @@ class TestArticulation(unittest.TestCase):
                         torch.testing.assert_close(articulation.actuators["body"].stiffness, expected_stiffness)
                         torch.testing.assert_close(articulation.actuators["body"].damping, expected_damping)
 
-    def test_setting_velocity_limits(self):
+    def test_setting_velocity_sim_limits(self):
         """Test that velocity limits are loaded form the configuration correctly."""
         for num_articulations in (1, 2):
             for device in ("cuda:0", "cpu"):
@@ -911,7 +911,7 @@ class TestArticulation(unittest.TestCase):
                         ) as sim:
                             sim._app_control_on_stop_handle = None
                             articulation_cfg = generate_articulation_cfg(
-                                articulation_type="single_joint", vel_limit=limit, effort_limit=limit
+                                articulation_type="single_joint", vel_limit_sim=limit, effort_limit_sim=limit
                             )
                             articulation, _ = generate_articulation(
                                 articulation_cfg=articulation_cfg, num_articulations=num_articulations, device=device
@@ -928,7 +928,7 @@ class TestArticulation(unittest.TestCase):
                                 )
                                 # Check that gains are loaded from USD file
                                 torch.testing.assert_close(
-                                    articulation.actuators["joint"].velocity_limit, expected_velocity_limit
+                                    articulation.actuators["joint"].velocity_limit_sim, expected_velocity_limit
                                 )
                                 torch.testing.assert_close(
                                     articulation.data.joint_velocity_limits, expected_velocity_limit

@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.34.0 (2025-02-14)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Adds attributes velocity_limits_sim and effort_limits_sim to :class:`isaaclab.actuators.AssetBaseCfg` to separate
+  solver limits from actuator limits.
+
+
 0.33.17 (2025-02-13)
 ~~~~~~~~~~~~~~~~~~~~
 
