@@ -1353,7 +1353,7 @@ class Articulation(AssetBase):
                 self.write_joint_damping_to_sim(0.0, joint_ids=actuator.joint_indices)
 
             # Set common properties into the simulation
-            self.write_joint_effort_limit_to_sim(actuator.effort_limit_sim, joint_ids=actuator.joint_indices,)
+            self.write_joint_effort_limit_to_sim(actuator.effort_limit_sim, joint_ids=actuator.joint_indices)
             self.write_joint_velocity_limit_to_sim(actuator.velocity_limit_sim, joint_ids=actuator.joint_indices)
             self.write_joint_armature_to_sim(actuator.armature, joint_ids=actuator.joint_indices)
             self.write_joint_friction_to_sim(actuator.friction, joint_ids=actuator.joint_indices)
@@ -1497,9 +1497,9 @@ class Articulation(AssetBase):
         velocity_limits = self.root_physx_view.get_dof_max_velocities()[0].tolist()
         effort_limits = self.root_physx_view.get_dof_max_forces()[0].tolist()
         # create table for term information
-        table = PrettyTable(float_format=".3f")
-        table.title = f"Simulation Joint Information (Prim path: {self.cfg.prim_path})"
-        table.field_names = [
+        joint_table = PrettyTable()
+        joint_table.title = f"Simulation Joint Information (Prim path: {self.cfg.prim_path})"
+        joint_table.field_names = [
             "Index",
             "Name",
             "Stiffness",
@@ -1510,11 +1510,13 @@ class Articulation(AssetBase):
             "Velocity Limits",
             "Effort Limits",
         ]
+        joint_table.float_format = ".3"
+        joint_table.custom_format["Position Limits"] = lambda f, v: f"[{v[0]:.3f}, {v[1]:.3f}]"
         # set alignment of table columns
-        table.align["Name"] = "l"
+        joint_table.align["Name"] = "l"
         # add info on each term
         for index, name in enumerate(self.joint_names):
-            table.add_row([
+            joint_table.add_row([
                 index,
                 name,
                 stiffnesses[index],
@@ -1526,7 +1528,7 @@ class Articulation(AssetBase):
                 effort_limits[index],
             ])
         # convert table to string
-        omni.log.info(f"Simulation parameters for joints in {self.cfg.prim_path}:\n" + table.get_string())
+        omni.log.info(f"Simulation parameters for joints in {self.cfg.prim_path}:\n" + joint_table.get_string())
 
         # read out all tendon parameters from simulation
         if self.num_fixed_tendons > 0:
@@ -1539,17 +1541,19 @@ class Articulation(AssetBase):
             ft_rest_lengths = self.root_physx_view.get_fixed_tendon_rest_lengths()[0].tolist()
             ft_offsets = self.root_physx_view.get_fixed_tendon_offsets()[0].tolist()
             # create table for term information
-            tendon_table = PrettyTable(float_format=".3f")
-            tendon_table.title = f"Simulation Tendon Information (Prim path: {self.cfg.prim_path})"
+            tendon_table = PrettyTable()
+            tendon_table.title = f"Simulation Fixed Tendon Information (Prim path: {self.cfg.prim_path})"
             tendon_table.field_names = [
                 "Index",
                 "Stiffness",
                 "Damping",
                 "Limit Stiffness",
-                "Limit",
+                "Limits",
                 "Rest Length",
                 "Offset",
             ]
+            tendon_table.float_format = ".3"
+            joint_table.custom_format["Limits"] = lambda f, v: f"[{v[0]:.3f}, {v[1]:.3f}]"
             # add info on each term
             for index in range(self.num_fixed_tendons):
                 tendon_table.add_row([

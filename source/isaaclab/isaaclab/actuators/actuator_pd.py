@@ -56,30 +56,32 @@ class ImplicitActuator(ActuatorBase):
     def __init__(self, cfg: ImplicitActuatorCfg, *args, **kwargs):
         # effort limits
         if cfg.effort_limit_sim is None and cfg.effort_limit is not None:
-            omni.log.warn(
-                "The <ImplicitActuatorCfg> object has 'effort_limit_sim' as None but 'effort_limit' as not None."
-                " Please only set 'effort_limit_sim' for implicit actuators."
-                " For now, the 'effort_limit' will be set to 'effort_limit_sim' internally."
-            )
+            # TODO: Eventually we want to throw a warning here to only use 'effort_limit_sim'.
+            #   We should do this once all parameters have an "_sim" suffix.
             cfg.effort_limit_sim = cfg.effort_limit
+        elif cfg.effort_limit_sim is not None and cfg.effort_limit is None:
+            # TODO: Eventually we want to get rid of 'effort_limit' for implicit actuators.
+            #   We should do this once all parameters have an "_sim" suffix.
+            cfg.effort_limit = cfg.effort_limit_sim
         elif cfg.effort_limit_sim is not None and cfg.effort_limit is not None:
             raise ValueError(
                 "The <ImplicitActuatorCfg> object has set both 'effort_limit_sim' and 'effort_limit'."
-                " Please only set 'effort_limit_sim' for implicit actuators."
+                " Please only set one of 'effort_limit' or 'effort_limit_sim' for implicit actuators."
             )
 
         # velocity limits
         if cfg.velocity_limit_sim is None and cfg.velocity_limit is not None:
-            omni.log.warn(
-                "The <ImplicitActuatorCfg> object has 'velocity_limit_sim' as None but 'velocity_limit' as not None."
-                " Please only set 'velocity_limit_sim' for implicit actuators."
-                " For now, the 'velocity_limit' will be set to 'velocity_limit_sim' internally."
-            )
+            # TODO: Eventually we want to throw a warning here to only use 'velocity_limit_sim'.
+            #   We should do this once all parameters have an "_sim" suffix.
             cfg.velocity_limit_sim = cfg.velocity_limit
+        elif cfg.velocity_limit_sim is not None and cfg.velocity_limit is None:
+            # TODO: Eventually we want to get rid of 'velocity_limit' for implicit actuators.
+            #   We should do this once all parameters have an "_sim" suffix.
+            cfg.velocity_limit = cfg.velocity_limit_sim
         elif cfg.velocity_limit_sim is not None and cfg.velocity_limit is not None:
             raise ValueError(
                 "The <ImplicitActuatorCfg> object has set both 'velocity_limit_sim' and 'velocity_limit'."
-                " Please only set 'velocity_limit_sim' for implicit actuators."
+                " Please only set one of 'velocity_limit' or 'velocity_limit_sim' for implicit actuators."
             )
 
         # set implicit actuator model flag
