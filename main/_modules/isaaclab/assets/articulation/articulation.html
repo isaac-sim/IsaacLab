@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.0.1" />
-    <meta name="docbuild:last-update" content="Feb 14, 2025"/>
+    <meta name="docbuild:last-update" content="Feb 15, 2025"/>
   </head>
   
   
@@ -1870,11 +1870,36 @@
             <span class="c1"># set the passed gains and limits into the simulation</span>
             <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">actuator</span><span class="p">,</span> <span class="n">ImplicitActuator</span><span class="p">):</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">_has_implicit_actuators</span> <span class="o">=</span> <span class="kc">True</span>
+                <span class="c1"># resolve actuator limit duplication for ImplicitActuators</span>
+                <span class="c1"># effort limits</span>
+                <span class="k">if</span> <span class="n">actuator</span><span class="o">.</span><span class="n">effort_limit_sim</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">actuator</span><span class="o">.</span><span class="n">effort_limit</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
+                        <span class="sa">f</span><span class="s2">&quot;ImplicitActuatorCfg </span><span class="si">{</span><span class="n">actuator_name</span><span class="si">}</span><span class="s2"> has effort_limit_sim=None but is specifying effort_limit.&quot;</span>
+                        <span class="s2">&quot;effort_limit will be applied to effort_limit_sim for ImplicitActuators.&quot;</span>
+                    <span class="p">)</span>
+                    <span class="n">actuator</span><span class="o">.</span><span class="n">effort_limit_sim</span> <span class="o">=</span> <span class="n">actuator</span><span class="o">.</span><span class="n">effort_limit</span>
+                <span class="k">elif</span> <span class="n">actuator</span><span class="o">.</span><span class="n">effort_limit_sim</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">actuator</span><span class="o">.</span><span class="n">effort_limit</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
+                        <span class="sa">f</span><span class="s2">&quot;ImplicitActuatorCfg </span><span class="si">{</span><span class="n">actuator_name</span><span class="si">}</span><span class="s2"> has set both effort_limit_sim and effort_limit.&quot;</span>
+                        <span class="s2">&quot;Only effort_limit_sim will be used for ImplicitActuators.&quot;</span>
+                    <span class="p">)</span>
+                <span class="c1"># velocity limits</span>
+                <span class="k">if</span> <span class="n">actuator</span><span class="o">.</span><span class="n">velocity_limit_sim</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">actuator</span><span class="o">.</span><span class="n">velocity_limit</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
+                        <span class="sa">f</span><span class="s2">&quot;ImplicitActuatorCfg </span><span class="si">{</span><span class="n">actuator_name</span><span class="si">}</span><span class="s2"> has velocity_limit_sim=None but is specifying&quot;</span>
+                        <span class="s2">&quot; velocity_limit.velocity_limit will be applied to velocity_limit_sim for ImplicitActuators.&quot;</span>
+                    <span class="p">)</span>
+                    <span class="n">actuator</span><span class="o">.</span><span class="n">velocity_limit_sim</span> <span class="o">=</span> <span class="n">actuator</span><span class="o">.</span><span class="n">velocity_limit</span>
+                <span class="k">elif</span> <span class="n">actuator</span><span class="o">.</span><span class="n">velocity_limit_sim</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">actuator</span><span class="o">.</span><span class="n">velocity_limit</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
+                        <span class="sa">f</span><span class="s2">&quot;ImplicitActuatorCfg </span><span class="si">{</span><span class="n">actuator_name</span><span class="si">}</span><span class="s2"> has set both velocity_limit_sim and velocity_limit.&quot;</span>
+                        <span class="s2">&quot;Only velocity_limit_sim will be used for ImplicitActuators.&quot;</span>
+                    <span class="p">)</span>
                 <span class="c1"># the gains and limits are set into the simulation since actuator model is implicit</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">write_joint_stiffness_to_sim</span><span class="p">(</span><span class="n">actuator</span><span class="o">.</span><span class="n">stiffness</span><span class="p">,</span> <span class="n">joint_ids</span><span class="o">=</span><span class="n">actuator</span><span class="o">.</span><span class="n">joint_indices</span><span class="p">)</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">write_joint_damping_to_sim</span><span class="p">(</span><span class="n">actuator</span><span class="o">.</span><span class="n">damping</span><span class="p">,</span> <span class="n">joint_ids</span><span class="o">=</span><span class="n">actuator</span><span class="o">.</span><span class="n">joint_indices</span><span class="p">)</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">write_joint_effort_limit_to_sim</span><span class="p">(</span><span class="n">actuator</span><span class="o">.</span><span class="n">effort_limit</span><span class="p">,</span> <span class="n">joint_ids</span><span class="o">=</span><span class="n">actuator</span><span class="o">.</span><span class="n">joint_indices</span><span class="p">)</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">write_joint_velocity_limit_to_sim</span><span class="p">(</span><span class="n">actuator</span><span class="o">.</span><span class="n">velocity_limit</span><span class="p">,</span> <span class="n">joint_ids</span><span class="o">=</span><span class="n">actuator</span><span class="o">.</span><span class="n">joint_indices</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">write_joint_effort_limit_to_sim</span><span class="p">(</span><span class="n">actuator</span><span class="o">.</span><span class="n">effort_limit_sim</span><span class="p">,</span> <span class="n">joint_ids</span><span class="o">=</span><span class="n">actuator</span><span class="o">.</span><span class="n">joint_indices</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">write_joint_velocity_limit_to_sim</span><span class="p">(</span><span class="n">actuator</span><span class="o">.</span><span class="n">velocity_limit_sim</span><span class="p">,</span> <span class="n">joint_ids</span><span class="o">=</span><span class="n">actuator</span><span class="o">.</span><span class="n">joint_indices</span><span class="p">)</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">write_joint_armature_to_sim</span><span class="p">(</span><span class="n">actuator</span><span class="o">.</span><span class="n">armature</span><span class="p">,</span> <span class="n">joint_ids</span><span class="o">=</span><span class="n">actuator</span><span class="o">.</span><span class="n">joint_indices</span><span class="p">)</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">write_joint_friction_to_sim</span><span class="p">(</span><span class="n">actuator</span><span class="o">.</span><span class="n">friction</span><span class="p">,</span> <span class="n">joint_ids</span><span class="o">=</span><span class="n">actuator</span><span class="o">.</span><span class="n">joint_indices</span><span class="p">)</span>
             <span class="k">else</span><span class="p">:</span>
@@ -1882,8 +1907,11 @@
                 <span class="c1"># we set gains to zero, and torque limit to a high value in simulation to avoid any interference</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">write_joint_stiffness_to_sim</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="n">joint_ids</span><span class="o">=</span><span class="n">actuator</span><span class="o">.</span><span class="n">joint_indices</span><span class="p">)</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">write_joint_damping_to_sim</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="n">joint_ids</span><span class="o">=</span><span class="n">actuator</span><span class="o">.</span><span class="n">joint_indices</span><span class="p">)</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">write_joint_effort_limit_to_sim</span><span class="p">(</span><span class="mf">1.0e9</span><span class="p">,</span> <span class="n">joint_ids</span><span class="o">=</span><span class="n">actuator</span><span class="o">.</span><span class="n">joint_indices</span><span class="p">)</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">write_joint_velocity_limit_to_sim</span><span class="p">(</span><span class="n">actuator</span><span class="o">.</span><span class="n">velocity_limit</span><span class="p">,</span> <span class="n">joint_ids</span><span class="o">=</span><span class="n">actuator</span><span class="o">.</span><span class="n">joint_indices</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">write_joint_effort_limit_to_sim</span><span class="p">(</span>
+                    <span class="mf">1.0e9</span> <span class="k">if</span> <span class="n">actuator</span><span class="o">.</span><span class="n">effort_limit_sim</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">actuator</span><span class="o">.</span><span class="n">effort_limit_sim</span><span class="p">,</span>
+                    <span class="n">joint_ids</span><span class="o">=</span><span class="n">actuator</span><span class="o">.</span><span class="n">joint_indices</span><span class="p">,</span>
+                <span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">write_joint_velocity_limit_to_sim</span><span class="p">(</span><span class="n">actuator</span><span class="o">.</span><span class="n">velocity_limit_sim</span><span class="p">,</span> <span class="n">joint_ids</span><span class="o">=</span><span class="n">actuator</span><span class="o">.</span><span class="n">joint_indices</span><span class="p">)</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">write_joint_armature_to_sim</span><span class="p">(</span><span class="n">actuator</span><span class="o">.</span><span class="n">armature</span><span class="p">,</span> <span class="n">joint_ids</span><span class="o">=</span><span class="n">actuator</span><span class="o">.</span><span class="n">joint_indices</span><span class="p">)</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">write_joint_friction_to_sim</span><span class="p">(</span><span class="n">actuator</span><span class="o">.</span><span class="n">friction</span><span class="p">,</span> <span class="n">joint_ids</span><span class="o">=</span><span class="n">actuator</span><span class="o">.</span><span class="n">joint_indices</span><span class="p">)</span>
             <span class="c1"># Store the actual default stiffness and damping values for explicit and implicit actuators (not written the sim)</span>
@@ -2137,7 +2165,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Feb 14, 2025.
+  Last updated on Feb 15, 2025.
   <br/>
 </p>
   </div>

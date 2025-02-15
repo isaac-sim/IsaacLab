@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.0.1" />
-    <meta name="docbuild:last-update" content="Feb 14, 2025"/>
+    <meta name="docbuild:last-update" content="Feb 15, 2025"/>
   </head>
   
   
@@ -641,6 +641,8 @@
         <span class="c1"># note: for velocity limits, we don&#39;t have USD parameter, so default is infinity</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">effort_limit</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_parse_joint_parameter</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">effort_limit</span><span class="p">,</span> <span class="n">effort_limit</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">velocity_limit</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_parse_joint_parameter</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">velocity_limit</span><span class="p">,</span> <span class="n">velocity_limit</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">effort_limit_sim</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_parse_joint_parameter</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">effort_limit_sim</span><span class="p">,</span> <span class="n">effort_limit</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">velocity_limit_sim</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_parse_joint_parameter</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">velocity_limit_sim</span><span class="p">,</span> <span class="n">velocity_limit</span><span class="p">)</span>
 
         <span class="c1"># create commands buffers for allocation</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">computed_effort</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_num_envs</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_joints</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="p">)</span>
@@ -837,7 +839,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Feb 14, 2025.
+  Last updated on Feb 15, 2025.
   <br/>
 </p>
   </div>
