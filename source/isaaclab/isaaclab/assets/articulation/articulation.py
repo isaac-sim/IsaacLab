@@ -1134,8 +1134,8 @@ class Articulation(AssetBase):
         # create buffers
         self._create_buffers()
         # process configuration
+        self._process_mimic_cfg()
         self._process_cfg()
-        self._process_mimic_joints_cfg()
         self._process_actuators_cfg()
         self._process_fixed_tendons()
         # validate configuration
@@ -1276,6 +1276,11 @@ class Articulation(AssetBase):
         self._data.default_joint_limits = self.root_physx_view.get_dof_limits().to(device=self.device).clone()
         self._data.joint_limits = self._data.default_joint_limits.clone()
 
+        # apply mimic joints masking
+        self._apply_mimic_joints_masking(
+            data=self._data.default_joint_pos, env_ids=slice(None), joint_ids=slice(None)
+        )
+
     """
     Internal simulation callbacks.
     """
@@ -1292,7 +1297,7 @@ class Articulation(AssetBase):
     Internal helpers -- Actuators.
     """
 
-    def _process_mimic_joints_cfg(self):
+    def _process_mimic_cfg(self):
         """Process and apply mimic joints configuration."""
         # cast to list if string
         if isinstance(self.cfg.actuated_joint_names, str):
@@ -1524,11 +1529,16 @@ class Articulation(AssetBase):
             if hasattr(actuator, "gear_ratio"):
                 self._data.gear_ratio[:, actuator.joint_indices] = actuator.gear_ratio
 
-    def _apply_mimic_joints_masking(self, data: torch.Tensor, env_ids: torch.Tensor, joint_ids: torch.Tensor):
+    def _apply_mimic_joints_masking(
+        self, data: torch.Tensor, env_ids: torch.Tensor | slice, joint_ids: torch.Tensor | slice
+    ):
         """Apply mimic joints masking.
 
         This function applies mimic joints masking to the given data tensor. It checks for mimic joints
         in the articulation and applies the mimic joint transformations to the specified joint indices.
+
+        Although the function can be used to apply mimic joints masking to any data tensor, it is primarily
+        used to apply mimic joints masking to the joint positions and velocities.
 
         Args:
             data: The data tensor to apply mimic joints masking to. Shape is (num_envs, num_joints).
