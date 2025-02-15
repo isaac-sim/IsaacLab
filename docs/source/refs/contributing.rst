@@ -138,13 +138,25 @@ In case you have any questions, please feel free to reach out to us through e-ma
 in the repository.
 
 
-Maintaining a changelog
------------------------
+Maintaining a changelog and extension.toml
+------------------------------------------
 
-Each extension maintains a changelog in the ``CHANGELOG.rst`` file in the ``docs`` directory. The
-file is written in `reStructuredText <https://docutils.sourceforge.io/rst.html>`__ format. It
-contains a curated, chronologically ordered list of notable changes for each version of the extension.
+Each extension maintains a changelog in the ``CHANGELOG.rst`` file in the ``docs`` directory,
+as well as a ``extension.toml`` file in the ``configs`` directory.
 
+The ``extension.toml`` file contains the metadata for the extension. It is used to describe the
+name, version, description, and other metadata of the extension.
+
+The ``CHANGELOG.rst`` is a file that contains the curated, chronologically ordered list of notable changes
+for each version of the extension.
+
+.. note::
+
+   The version number on the ``extension.toml`` file should be updated according to
+   `Semantic Versioning <https://semver.org/>`__ and should match the version number in the
+   ``CHANGELOG.rst`` file.
+
+The changelog file is written in `reStructuredText <https://docutils.sourceforge.io/rst.html>`__ format.
 The goal of this changelog is to help users and contributors see precisely what notable changes have
 been made between each release (or version) of the extension. This is a *MUST* for every extension.
 
@@ -162,7 +174,16 @@ For updating the changelog, please follow the following guidelines:
   * ``Fixed``: For any bug fixes.
 
 * Each change is described in its corresponding sub-section with a bullet point.
-* The bullet points are written in the past tense and in imperative mode.
+* The bullet points are written in the **past tense and in imperative mode**.
+  
+  * This means that the change is described as if it has already happened.
+  * The bullet points should be concise and to the point. They should not be verbose.
+  * The bullet point should also include the reason for the change, if applicable.
+
+
+.. tip::
+
+   When in doubt, please check the style in the existing changelog files and follow the same style.
 
 For example, the following is a sample changelog:
 
@@ -177,35 +198,30 @@ For example, the following is a sample changelog:
     Added
     ^^^^^
 
-    * Added a new feature.
+    * Added a new feature that helps in a 10x speedup.
 
     Changed
     ^^^^^^^
 
-    * Changed an existing feature.
+    * Changed an existing feature. Earlier, we were using :meth:`torch.bmm` to perform the matrix multiplication.
+      However, this was slow for large matrices. We have now switched to using :meth:`torch.einsum` which is
+      significantly faster.
 
     Deprecated
     ^^^^^^^^^^
 
-    * Deprecated an existing feature.
+    * Deprecated an existing feature in favor of a new feature.
 
     Removed
     ^^^^^^^
 
-    * Removed an existing feature.
+    * Removed an existing feature. This was done to simplify the codebase and reduce the complexity.
 
     Fixed
     ^^^^^
 
-    * Fixed a bug.
-
-    0.0.1 (2021-01-01)
-    ~~~~~~~~~~~~~~~~~~
-
-    Added
-    ^^^^^
-
-    * Added a new feature.
+    * Fixed crashing of the :meth:`my_function` when the input was too large.
+      We now use :meth:`torch.einsum` that is able to handle larger inputs.
 
 
 Coding Style
@@ -362,6 +378,9 @@ the ``what``, ``why`` and ``how`` of the code. Often we see documentation that o
 
 We suggest always thinking of the documentation from a new user's perspective. They should be able to directly
 check the documentation and have a good understanding of the code.
+
+Please use directives like ``.. code-block:: python`` or ``.. note::`` to highlight the code snippets
+and important notes in the documentation.
 
 
 Unit Testing
