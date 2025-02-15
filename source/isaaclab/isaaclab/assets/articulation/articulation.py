@@ -833,6 +833,8 @@ class Articulation(AssetBase):
             env_ids = env_ids[:, None]
         # set targets
         self._data.joint_pos_target[env_ids, joint_ids] = target
+        # apply mimic joints masking
+        self._apply_mimic_joints_masking(data=self._data.joint_pos_target, env_ids=env_ids, joint_ids=joint_ids)
 
     def set_joint_velocity_target(
         self, target: torch.Tensor, joint_ids: Sequence[int] | slice | None = None, env_ids: Sequence[int] | None = None
