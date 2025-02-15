@@ -303,6 +303,37 @@ class ArticulationData:
     """Joint maximum effort provided to the simulation. Shape is (num_instances, num_joints)."""
 
     ##
+    # Joint properties - Custom.
+    ##
+
+    soft_joint_pos_limits: torch.Tensor = None
+    r"""Soft joint positions limits for all joints. Shape is (num_instances, num_joints, 2).
+
+    The limits are in the order :math:`[lower, upper]`. The soft joint position limits are computed as
+    a sub-region of the :attr:`joint_pos_limits` based on the
+    :attr:`~isaaclab.assets.ArticulationCfg.soft_joint_pos_limit_factor` parameter.
+
+    Consider the joint position limits :math:`[lower, upper]` and the soft joint position limits
+    :math:`[soft_lower, soft_upper]`. The soft joint position limits are computed as:
+
+    .. math::
+
+        soft\_lower = (lower + upper) / 2 - factor * (upper - lower) / 2
+        soft\_upper = (lower + upper) / 2 + factor * (upper - lower) / 2
+
+    """
+
+    soft_joint_vel_limits: torch.Tensor = None
+    """Soft joint velocity limits for all joints. Shape is (num_instances, num_joints).
+
+    These are obtained from the actuator model. It may differ from :attr:`joint_vel_limits` if the actuator model
+    has a variable velocity limit model. For instance, in a variable gear ratio actuator model.
+    """
+
+    gear_ratio: torch.Tensor = None
+    """Gear ratio for relating motor torques to applied Joint torques. Shape is (num_instances, num_joints)."""
+
+    ##
     # Fixed tendon properties.
     ##
 
@@ -323,19 +354,6 @@ class ArticulationData:
 
     fixed_tendon_limit: torch.Tensor = None
     """Fixed tendon limits provided to the simulation. Shape is (num_instances, num_fixed_tendons, 2)."""
-
-    ##
-    # Other Data.
-    ##
-
-    soft_joint_pos_limits: torch.Tensor = None
-    """Joint positions limits for all joints. Shape is (num_instances, num_joints, 2)."""
-
-    soft_joint_vel_limits: torch.Tensor = None
-    """Joint velocity limits for all joints. Shape is (num_instances, num_joints)."""
-
-    gear_ratio: torch.Tensor = None
-    """Gear ratio for relating motor torques to applied Joint torques. Shape is (num_instances, num_joints)."""
 
     ##
     # Properties.
