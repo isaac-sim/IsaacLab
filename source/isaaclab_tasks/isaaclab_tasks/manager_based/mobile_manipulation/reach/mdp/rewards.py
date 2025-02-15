@@ -6,7 +6,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import torch
-from isaaclab.assets import Articulation
+from isaaclab.assets import Articulation, RigidObject
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.utils.math import combine_frame_transforms
 
@@ -128,13 +128,40 @@ def base_heading_to_target(
     return torch.where(target_dist > 0.5, alignment, torch.zeros_like(alignment))
 
 
+def base_position_error(
+    env: ManagerBasedRLEnv,
+    body_name: str = "base_link",
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+) -> torch.Tensor:
+    """Penalize tracking of the base position error using L2-norm.
+
+    The function computes the position error between a fixed desired position (1,0,0) and the
+    current position of the asset's body (in world frame), accounting for environment tiling.
+    """
+    # Get the asset and current position
+    asset: RigidObject = env.scene[asset_cfg.name]
+    body_idx = asset.find_bodies(body_name)[0][0]
+    curr_pos_w = asset.data.body_state_w[:, body_idx, :3]  # type: ignore
+
+    # Get environment origins from the scene
+    env_origins = env.scene.env_origins
+
+    # Subtract environment origins to get local positions
+    local_pos_w = curr_pos_w - env_origins
+
+    # Define desired position in local coordinates
+    des_pos_w = torch.tensor([1.0, 0.0, 0.0], device=curr_pos_w.device).expand(
+        curr_pos_w.shape[0], -1
+    )
+    xy_distance = torch.norm(local_pos_w[:, :2] - des_pos_w[:, :2], dim=1)
+    return xy_distance
+
+
 def reached_goal(
     env: ManagerBasedRLEnv,
-    command_name: str,
     threshold: float,
-    asset_cfg: SceneEntityCfg,
 ) -> torch.Tensor:
     """Check if end-effector has reached the target position."""
     # Get position error
-    error = position_command_error(env, command_name, asset_cfg)
+    error = base_position_error(env)
     return error < threshold

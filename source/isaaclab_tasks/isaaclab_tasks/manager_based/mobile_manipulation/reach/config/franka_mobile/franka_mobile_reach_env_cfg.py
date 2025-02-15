@@ -4,10 +4,7 @@
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets.articulation import ArticulationCfg
-from isaaclab.controllers.differential_ik_cfg import DifferentialIKControllerCfg
-from isaaclab.envs.mdp.actions.actions_cfg import DifferentialInverseKinematicsActionCfg
-
-from isaaclab.markers.config import FRAME_MARKER_CFG  # isort: skip
+from isaaclab.envs.mdp.actions.actions_cfg import HolonomicBaseActionCfg
 from isaaclab.utils import configclass
 from isaaclab_tasks.manager_based.mobile_manipulation.reach.mobile_reach_env_cfg import (
     MobileReachEnvCfg,
@@ -99,54 +96,39 @@ class FrankaMobileReachEnvCfg(MobileReachEnvCfg):
                 ),
             },
         )
-        self.actions.arm_action = DifferentialInverseKinematicsActionCfg(
+        # self.actions.arm_action = DifferentialInverseKinematicsActionCfg(
+        #     asset_name="robot",
+        #     joint_names=["panda_joint.*"],  # Only Franka arm joints
+        #     body_name="panda_hand",
+        #     controller=DifferentialIKControllerCfg(
+        #         command_type="pose",
+        #         use_relative_mode=True,
+        #         ik_method="dls",
+        #     ),
+        #     scale=0.5,  # Slower arm movement for coordination
+        #     body_offset=DifferentialInverseKinematicsActionCfg.OffsetCfg(
+        #         pos=[0.0, 0.0, 0.107],  # Offset to end effector
+        #     ),
+        # )
+        self.actions.base_action = HolonomicBaseActionCfg(
             asset_name="robot",
-            joint_names=["panda_joint.*"],  # Only Franka arm joints
-            body_name="panda_hand",
-            controller=DifferentialIKControllerCfg(
-                command_type="pose",
-                use_relative_mode=True,
-                ik_method="dls",
-            ),
-            scale=0.5,  # Slower arm movement for coordination
-            body_offset=DifferentialInverseKinematicsActionCfg.OffsetCfg(
-                pos=[0.0, 0.0, 0.107],  # Offset to end effector
-            ),
-        )
-        self.actions.base_action = DifferentialInverseKinematicsActionCfg(
-            asset_name="robot",
-            joint_names=["dummy_base_.*"],
             body_name="base_link",
-            controller=DifferentialIKControllerCfg(
-                command_type="pose", use_relative_mode=True, ik_method="dls"
-            ),
-            scale=0.5,
-        )
-
-        # Visualize current and goal poses
-        current_pose_marker = FRAME_MARKER_CFG.copy()
-        current_pose_marker.markers["frame"].scale = (0.2, 0.2, 0.2)
-        self.commands.ee_pose.current_pose_visualizer_cfg = current_pose_marker.replace(
-            prim_path="/Visuals/Command/current_pose"
-        )
-        goal_pose_marker = FRAME_MARKER_CFG.copy()
-        goal_pose_marker.markers["frame"].scale = (0.3, 0.3, 0.3)
-        self.commands.ee_pose.goal_pose_visualizer_cfg = goal_pose_marker.replace(
-            prim_path="/Visuals/Command/goal_pose"
+            x_joint_name="dummy_base_prismatic_x_joint",
+            y_joint_name="dummy_base_prismatic_y_joint",
+            yaw_joint_name="dummy_base_revolute_z_joint",
         )
 
         # Set target body for rewards
-        self.rewards.ee_position_tracking.params["asset_cfg"].body_names = [
-            "panda_hand"
-        ]
-        self.rewards.ee_position_tracking_fine.params["asset_cfg"].body_names = [
-            "panda_hand"
-        ]
+        # self.rewards.ee_position_tracking.params["asset_cfg"].body_names = [
+        #     "panda_hand"
+        # ]
+        # self.rewards.ee_position_tracking_fine.params["asset_cfg"].body_names = [
+        #     "panda_hand"
+        # ]
 
-        # Adjust command ranges for larger workspace
-        self.commands.ee_pose.ranges.pos_x = (-2.0, 2.0)
-        self.commands.ee_pose.ranges.pos_y = (-2.0, 2.0)
-        self.commands.ee_pose.ranges.pos_z = (0.3, 0.8)
+        self.commands.ee_pose.ranges.pos_x = (-0.0, 0.0)
+        self.commands.ee_pose.ranges.pos_y = (-0.0, 0.0)
+        self.commands.ee_pose.ranges.pos_z = (0.0, 0.0)
 
         # Adjust environment settings
         self.scene.env_spacing = 4.0  # More space for mobile base

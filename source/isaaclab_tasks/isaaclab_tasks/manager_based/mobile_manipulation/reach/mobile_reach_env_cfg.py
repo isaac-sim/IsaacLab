@@ -1,6 +1,8 @@
 # Copyright (c) 2022-2025, Elevate Robotics
 # All rights reserved.
 
+from __future__ import annotations
+
 from dataclasses import MISSING
 
 import isaaclab.sim as sim_utils
@@ -59,16 +61,30 @@ class MobileReachSceneCfg(InteractiveSceneCfg):
 class CommandsCfg:
     """Command terms for the MDP."""
 
+    # Base pose, in world frame
+    base_pose = mdp.UniformPose2dCommandCfg(
+        asset_name="robot",
+        simple_heading=True,
+        resampling_time_range=(4.0, 4.0),
+        debug_vis=True,
+        ranges=mdp.UniformPose2dCommandCfg.Ranges(
+            pos_x=(-2.0, 2.0),
+            pos_y=(0.0, 0.0),
+            heading=(0.0, 0.0),
+        ),
+    )
+
+    # End-effector pose, relative to the base
     ee_pose = mdp.UniformPoseCommandCfg(
         asset_name="robot",
         body_name=MISSING,  # set by robot-specific config
         resampling_time_range=(4.0, 4.0),
         debug_vis=True,
         ranges=mdp.UniformPoseCommandCfg.Ranges(
-            pos_x=(-1.0, 1.0),  # Larger workspace due to mobile base
-            pos_y=(-1.0, 1.0),
-            pos_z=(0.3, 0.7),  # Reasonable heights for manipulation
-            roll=(0.0, 0.0),  # Keep end-effector upright for now
+            pos_x=(-0.3, 0.3),
+            pos_y=(-0.3, 0.3),
+            pos_z=(0.3, 0.7),
+            roll=(0.0, 0.0),
             pitch=(0.0, 0.0),
             yaw=(0.0, 0.0),
         ),
@@ -80,7 +96,7 @@ class ActionsCfg:
     """Action specifications for the MDP."""
 
     # Will be set by robot-specific config
-    arm_action: ActionTerm = MISSING
+    # arm_action: ActionTerm = MISSING
     base_action: ActionTerm = MISSING
 
 
@@ -132,39 +148,45 @@ class ObservationsCfg:
 class RewardsCfg:
     """Reward terms for the MDP."""
 
+    base_position_error = RewTerm(
+        func=mdp.base_position_error,
+        weight=-0.1,
+        params={"body_name": "base_link"},
+    )
+
     # Task terms - tracking end-effector target
-    ee_position_tracking = RewTerm(
-        func=mdp.position_command_error,
-        weight=-0.5,
-        params={
-            "asset_cfg": SceneEntityCfg("robot", body_names=["panda_link7"]),
-            "command_name": "ee_pose",
-        },
-    )
+    # ee_position_tracking = RewTerm(
+    #     func=mdp.position_command_error,
+    #     weight=-0.5,
+    #     params={
+    #         "asset_cfg": SceneEntityCfg("robot", body_names=["panda_hand"]),
+    #         "command_name": "ee_pose",
+    #     },
+    # )
 
-    ee_position_tracking_fine = RewTerm(
-        func=mdp.position_command_error_tanh,
-        weight=0.2,
-        params={
-            "asset_cfg": SceneEntityCfg("robot", body_names=["panda_link7"]),
-            "std": 0.2,
-            "command_name": "ee_pose",
-        },
-    )
+    # ee_position_tracking_fine = RewTerm(
+    #     func=mdp.position_command_error_tanh,
+    #     weight=0.2,
+    #     params={
+    #         "asset_cfg": SceneEntityCfg("robot", body_names=["panda_hand"]),
+    #         "std": 0.2,
+    #         "command_name": "ee_pose",
+    #     },
+    # )
 
-    base_heading_to_target = RewTerm(
-        func=mdp.base_heading_to_target,
-        weight=0.0001,
-        params={"command_name": "ee_pose"},
-    )
+    # base_heading_to_target = RewTerm(
+    #     func=mdp.base_heading_to_target,
+    #     weight=0.0001,
+    #     params={"command_name": "ee_pose"},
+    # )
 
-    # Energy costs
-    joint_vel = RewTerm(
-        func=mdp.joint_vel_l2,
-        weight=-0.0001,
-        params={"asset_cfg": SceneEntityCfg("robot")},
-    )
-    base_vel = RewTerm(func=mdp.base_vel_l2, weight=-0.0001)
+    # # Energy costs
+    # joint_vel = RewTerm(
+    #     func=mdp.joint_vel_l2,
+    #     weight=-0.0001,
+    #     params={"asset_cfg": SceneEntityCfg("robot")},
+    # )
+    # base_vel = RewTerm(func=mdp.base_vel_l2, weight=-0.0001)
 
 
 @configclass
@@ -177,9 +199,7 @@ class TerminationsCfg:
     success = DoneTerm(
         func=mdp.reached_goal,
         params={
-            "asset_cfg": SceneEntityCfg("robot", body_names=["panda_link7"]),
-            "command_name": "ee_pose",
-            "threshold": 0.05,
+            "threshold": 0.1,
         },
     )
 
