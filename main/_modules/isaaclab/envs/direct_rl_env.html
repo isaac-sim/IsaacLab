@@ -670,6 +670,9 @@
             <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[INFO]: Starting the simulation. This may take a few seconds. Please wait...&quot;</span><span class="p">)</span>
             <span class="k">with</span> <span class="n">Timer</span><span class="p">(</span><span class="s2">&quot;[INFO]: Time taken for simulation start&quot;</span><span class="p">,</span> <span class="s2">&quot;simulation_start&quot;</span><span class="p">):</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
+                <span class="c1"># update scene to pre populate data buffers for assets and sensors.</span>
+                <span class="c1"># this is needed for the observation manager to get valid tensors for initialization.</span>
+                <span class="c1"># this shouldn&#39;t cause an issue since later on, users do a reset over all the environments so the lazy buffers would be reset.</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">dt</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">physics_dt</span><span class="p">)</span>
 
         <span class="c1"># -- event manager used for randomization</span>
