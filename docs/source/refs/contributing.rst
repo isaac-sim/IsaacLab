@@ -27,6 +27,12 @@ and useful for everyone. These may happen in forms of:
 Contributing Code
 -----------------
 
+.. attention::
+
+   Please refer to the `Google Style Guide <https://google.github.io/styleguide/pyguide.html>`__
+   for the coding style before contributing to the codebase. In the coding style section,
+   we outline the specific deviations from the style guide that we follow in the codebase.
+
 We use `GitHub <https://github.com/isaac-sim/IsaacLab>`__ for code hosting. Please
 follow the following steps to contribute code:
 
@@ -50,73 +56,6 @@ Please ensure that your code is well-formatted, documented and passes all the te
    maintainers to review your code. If you are making multiple changes, please send multiple pull requests.
    Large pull requests are difficult to review and may take a long time to merge.
 
-
-Coding Style
-------------
-
-We follow the `Google Style
-Guides <https://google.github.io/styleguide/pyguide.html>`__ for the
-codebase. For Python code, the PEP guidelines are followed. Most
-important ones are `PEP-8 <https://www.python.org/dev/peps/pep-0008/>`__
-for code comments and layout,
-`PEP-484 <http://www.python.org/dev/peps/pep-0484>`__ and
-`PEP-585 <https://www.python.org/dev/peps/pep-0585/>`__ for
-type-hinting.
-
-For documentation, we adopt the `Google Style Guide <https://sphinxcontrib-napoleon.readthedocs.io/en/latest/example_google.html>`__
-for docstrings. We use `Sphinx <https://www.sphinx-doc.org/en/master/>`__ for generating the documentation.
-Please make sure that your code is well-documented and follows the guidelines.
-
-Circular Imports
-^^^^^^^^^^^^^^^^
-
-Circular imports happen when two modules import each other, which is a common issue in Python.
-You can prevent circular imports by adhering to the best practices outlined in this
-`StackOverflow post <https://stackoverflow.com/questions/744373/circular-or-cyclic-imports-in-python>`__.
-
-In general, it is essential to avoid circular imports as they can lead to unpredictable behavior.
-
-However, in our codebase, we encounter circular imports at a sub-package level. This situation arises
-due to our specific code structure. We organize classes or functions and their corresponding configuration
-objects into separate files. This separation enhances code readability and maintainability. Nevertheless,
-it can result in circular imports because, in many configuration objects, we specify classes or functions
-as default values using the attributes ``class_type`` and ``func`` respectively.
-
-To address circular imports, we leverage the `typing.TYPE_CHECKING
-<https://docs.python.org/3/library/typing.html#typing.TYPE_CHECKING>`_ variable. This special variable is
-evaluated only during type-checking, allowing us to import classes or functions in the configuration objects
-without triggering circular imports.
-
-It is important to note that this is the sole instance within our codebase where circular imports are used
-and are acceptable. In all other scenarios, we adhere to best practices and recommend that you do the same.
-
-Type-hinting
-^^^^^^^^^^^^
-
-To make the code more readable, we use `type hints <https://docs.python.org/3/library/typing.html>`__ for
-all the functions and classes. This helps in understanding the code and makes it easier to maintain. Following
-this practice also helps in catching bugs early with static type checkers like `mypy <https://mypy.readthedocs.io/en/stable/>`__.
-
-To avoid duplication of efforts, we do not specify type hints for the arguments and return values in the docstrings.
-However, if your function or class is not self-explanatory, please add a docstring with the type hints.
-
-Tools
-^^^^^
-
-We use the following tools for maintaining code quality:
-
-* `pre-commit <https://pre-commit.com/>`__: Runs a list of formatters and linters over the codebase.
-* `black <https://black.readthedocs.io/en/stable/>`__: The uncompromising code formatter.
-* `flake8 <https://flake8.pycqa.org/en/latest/>`__: A wrapper around PyFlakes, pycodestyle and
-  McCabe complexity checker.
-
-Please check `here <https://pre-commit.com/#install>`__ for instructions
-to set these up. To run over the entire repository, please execute the
-following command in the terminal:
-
-.. code:: bash
-
-   ./isaaclab.sh --format  # or "./isaaclab.sh -f"
 
 Contributing Documentation
 --------------------------
@@ -267,3 +206,186 @@ For example, the following is a sample changelog:
     ^^^^^
 
     * Added a new feature.
+
+
+Coding Style
+------------
+
+We follow the `Google Style
+Guides <https://google.github.io/styleguide/pyguide.html>`__ for the
+codebase. For Python code, the PEP guidelines are followed. Most
+important ones are `PEP-8 <https://www.python.org/dev/peps/pep-0008/>`__
+for code comments and layout,
+`PEP-484 <http://www.python.org/dev/peps/pep-0484>`__ and
+`PEP-585 <https://www.python.org/dev/peps/pep-0585/>`__ for
+type-hinting.
+
+For documentation, we adopt the `Google Style Guide <https://sphinxcontrib-napoleon.readthedocs.io/en/latest/example_google.html>`__
+for docstrings. We use `Sphinx <https://www.sphinx-doc.org/en/master/>`__ for generating the documentation.
+Please make sure that your code is well-documented and follows the guidelines.
+
+Circular Imports
+^^^^^^^^^^^^^^^^
+
+Circular imports happen when two modules import each other, which is a common issue in Python.
+You can prevent circular imports by adhering to the best practices outlined in this
+`StackOverflow post <https://stackoverflow.com/questions/744373/circular-or-cyclic-imports-in-python>`__.
+
+In general, it is essential to avoid circular imports as they can lead to unpredictable behavior.
+
+However, in our codebase, we encounter circular imports at a sub-package level. This situation arises
+due to our specific code structure. We organize classes or functions and their corresponding configuration
+objects into separate files. This separation enhances code readability and maintainability. Nevertheless,
+it can result in circular imports because, in many configuration objects, we specify classes or functions
+as default values using the attributes ``class_type`` and ``func`` respectively.
+
+To address circular imports, we leverage the `typing.TYPE_CHECKING
+<https://docs.python.org/3/library/typing.html#typing.TYPE_CHECKING>`_ variable. This special variable is
+evaluated only during type-checking, allowing us to import classes or functions in the configuration objects
+without triggering circular imports.
+
+It is important to note that this is the sole instance within our codebase where circular imports are used
+and are acceptable. In all other scenarios, we adhere to best practices and recommend that you do the same.
+
+Type-hinting
+^^^^^^^^^^^^
+
+To make the code more readable, we use `type hints <https://docs.python.org/3/library/typing.html>`__ for
+all the functions and classes. This helps in understanding the code and makes it easier to maintain. Following
+this practice also helps in catching bugs early with static type checkers like `mypy <https://mypy.readthedocs.io/en/stable/>`__.
+
+**Type-hinting only in the function signature**
+
+To avoid duplication of efforts, we do not specify type hints for the arguments and return values in the docstrings.
+
+For instance, the following are bad examples for various reasons:
+
+.. code:: python
+
+   def my_function(a, b):
+      return a + b
+
+   def my_function(a, b):
+      """
+      This is a bad example.
+
+      Args:
+         a: The first argument.
+         b: The second argument.
+
+      Returns:
+         The sum of the two arguments.
+      """
+      return a + b
+
+   def my_function(a, b):
+      """
+      This is a bad example.
+
+      Args:
+         a (int): The first argument.
+         b (int): The second argument.
+
+      Returns:
+         int: The sum of the two arguments.
+      """
+      return a + b
+
+The following is how we expect you to write the docstrings and type hints:
+
+.. code:: python
+
+   def my_function(a: int, b: int) -> int:
+      """
+      This is a good example.
+
+      Args:
+         a: The first argument.
+         b: The second argument.
+
+      Returns:
+         The sum of the two arguments.
+      """
+      return a + b
+
+**No type-hinting for :obj:`None`**
+
+We do not specify the return type of :obj:`None` in the docstrings. This is because
+it is not necessary and can be inferred from the function signature.
+
+For instance, the following is a bad example:
+
+.. code:: python
+
+   def my_function(x: int | None) -> None:
+      pass
+
+Instead, we recommend the following:
+
+.. code:: python
+
+   def my_function(x: int | None):
+      pass
+
+Documenting the code
+^^^^^^^^^^^^^^^^^^^^
+
+The code documentation is as important as the code itself. It helps in understanding the code and makes
+it easier to maintain. However, more often than not, the documentation is an afterthought or gets rushed
+to keep up with the development pace.
+
+**What is considered as a bad documentation?**
+
+* If someone else wants to use the code, they cannot understand the code just by reading the documentation.
+
+What this means is that the documentation is not complete or is not written in a way that is easy to understand.
+The next time someone wants to use the code, they will have to spend time understanding the code (in the best
+case scenario), or scrap the code and start from scratch (in the worst case scenario).
+
+* Certain design subtleties are not documented and are only apparent from the code.
+
+Often certain design decisions are made to address specific use cases. These use cases are not
+obvious to someone who wants to use the code. They may change the code in a way that is not intuitive
+and unintentionally break the code.
+
+* The documentation is not updated when the code is updated.
+
+This means that the documentation is not kept up to date with the code. It is important to update the
+documentation when the code is updated. This helps in keeping the documentation up to date and in sync
+with the code.
+
+**What is considered as a good documentation?**
+
+We recommend thinking of the code documentation as a living document that helps the reader understand
+the ``what``, ``why`` and ``how`` of the code. Often we see documentation that only explains the
+``what`` and ``how`` but not the ``why``. This is not helpful in the long run.
+
+We suggest always thinking of the documentation from a new user's perspective. They should be able to directly
+check the documentation and have a good understanding of the code.
+
+
+Unit Testing
+^^^^^^^^^^^^
+
+We use `unittest <https://docs.python.org/3/library/unittest.html>`__ for unit testing.
+Good tests not only cover the basic functionality of the code but also the edge cases.
+They should be able to catch regressions and ensure that the code is working as expected.
+Please make sure that you add tests for your changes.
+
+Tools
+^^^^^
+
+We use the following tools for maintaining code quality:
+
+* `pre-commit <https://pre-commit.com/>`__: Runs a list of formatters and linters over the codebase.
+* `black <https://black.readthedocs.io/en/stable/>`__: The uncompromising code formatter.
+* `flake8 <https://flake8.pycqa.org/en/latest/>`__: A wrapper around PyFlakes, pycodestyle and
+  McCabe complexity checker.
+
+Please check `here <https://pre-commit.com/#install>`__ for instructions
+to set these up. To run over the entire repository, please execute the
+following command in the terminal:
+
+.. code:: bash
+
+   ./isaaclab.sh --format  # or "./isaaclab.sh -f"
