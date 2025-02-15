@@ -7,6 +7,7 @@ import torch
 import weakref
 
 import omni.physics.tensors.impl.api as physx
+import omni.log
 
 import isaaclab.utils.math as math_utils
 from isaaclab.utils.buffers import TimestampedBuffer
@@ -99,60 +100,122 @@ class ArticulationData:
     ##
 
     default_root_state: torch.Tensor = None
-    """Default root state ``[pos, quat, lin_vel, ang_vel]`` in local environment frame. Shape is (num_instances, 13).
+    """Default root state ``[pos, quat, lin_vel, ang_vel]`` in the local environment frame. Shape is (num_instances, 13).
 
     The position and quaternion are of the articulation root's actor frame. Meanwhile, the linear and angular
     velocities are of its center of mass frame.
-    """
 
-    default_mass: torch.Tensor = None
-    """Default mass read from the simulation. Shape is (num_instances, num_bodies)."""
-
-    default_inertia: torch.Tensor = None
-    """Default inertia read from the simulation. Shape is (num_instances, num_bodies, 9).
-
-    The inertia is the inertia tensor relative to the center of mass frame. The values are stored in
-    the order :math:`[I_{xx}, I_{xy}, I_{xz}, I_{yx}, I_{yy}, I_{yz}, I_{zx}, I_{zy}, I_{zz}]`.
+    This quantity is configured through the :attr:`isaaclab.assets.ArticulationCfg.init_state` parameter.
     """
 
     default_joint_pos: torch.Tensor = None
-    """Default joint positions of all joints. Shape is (num_instances, num_joints)."""
+    """Default joint positions of all joints. Shape is (num_instances, num_joints).
+
+    This quantity is configured through the :attr:`isaaclab.assets.ArticulationCfg.init_state` parameter.
+    """
 
     default_joint_vel: torch.Tensor = None
-    """Default joint velocities of all joints. Shape is (num_instances, num_joints)."""
+    """Default joint velocities of all joints. Shape is (num_instances, num_joints).
+
+    This quantity is configured through the :attr:`isaaclab.assets.ArticulationCfg.init_state` parameter.
+    """
 
     default_joint_stiffness: torch.Tensor = None
-    """Default joint stiffness of all joints. Shape is (num_instances, num_joints)."""
+    """Default joint stiffness of all joints. Shape is (num_instances, num_joints).
+
+    This quantity is configured through the actuator model's :attr:`isaaclab.actuators.ActuatorBaseCfg.stiffness`
+    parameter. If the parameter's value is None, the value parsed from the USD schema, at the time of initialization,
+    is used.
+
+    .. attention::
+        The default stiffness is the value configured by the user or the value parsed from the USD schema.
+        It should not be confused with :attr:`joint_stiffness`, which is the value set into the simulation.
+    """
 
     default_joint_damping: torch.Tensor = None
-    """Default joint damping of all joints. Shape is (num_instances, num_joints)."""
+    """Default joint damping of all joints. Shape is (num_instances, num_joints).
+
+    This quantity is configured through the actuator model's :attr:`isaaclab.actuators.ActuatorBaseCfg.damping`
+    parameter. If the parameter's value is None, the value parsed from the USD schema, at the time of initialization,
+    is used.
+
+    .. attention::
+        The default stiffness is the value configured by the user or the value parsed from the USD schema.
+        It should not be confused with :attr:`joint_damping`, which is the value set into the simulation.
+    """
 
     default_joint_armature: torch.Tensor = None
-    """Default joint armature of all joints. Shape is (num_instances, num_joints)."""
+    """Default joint armature of all joints. Shape is (num_instances, num_joints).
+
+    This quantity is configured through the actuator model's :attr:`isaaclab.actuators.ActuatorBaseCfg.armature`
+    parameter. If the parameter's value is None, the value parsed from the USD schema, at the time of initialization,
+    is used.
+    """
 
     default_joint_friction: torch.Tensor = None
-    """Default joint friction of all joints. Shape is (num_instances, num_joints)."""
+    """Default joint friction of all joints. Shape is (num_instances, num_joints).
 
-    default_joint_limits: torch.Tensor = None
-    """Default joint limits of all joints. Shape is (num_instances, num_joints, 2)."""
+    This quantity is configured through the actuator model's :attr:`isaaclab.actuators.ActuatorBaseCfg.friction`
+    parameter. If the parameter's value is None, the value parsed from the USD schema, at the time of initialization,
+    is used.
+    """
+
+    default_joint_pos_limits: torch.Tensor = None
+    """Default joint position limits of all joints. Shape is (num_instances, num_joints, 2).
+
+    The limits are in the order :math:`[lower, upper]`. They are parsed from the USD schema at the time of initialization.
+    """
 
     default_fixed_tendon_stiffness: torch.Tensor = None
-    """Default tendon stiffness of all tendons. Shape is (num_instances, num_fixed_tendons)."""
+    """Default tendon stiffness of all tendons. Shape is (num_instances, num_fixed_tendons).
+
+    This quantity is parsed from the USD schema at the time of initialization.
+    """
 
     default_fixed_tendon_damping: torch.Tensor = None
-    """Default tendon damping of all tendons. Shape is (num_instances, num_fixed_tendons)."""
+    """Default tendon damping of all tendons. Shape is (num_instances, num_fixed_tendons).
+
+    This quantity is parsed from the USD schema at the time of initialization.
+    """
 
     default_fixed_tendon_limit_stiffness: torch.Tensor = None
-    """Default tendon limit stiffness of all tendons. Shape is (num_instances, num_fixed_tendons)."""
+    """Default tendon limit stiffness of all tendons. Shape is (num_instances, num_fixed_tendons).
+
+    This quantity is parsed from the USD schema at the time of initialization.
+    """
 
     default_fixed_tendon_rest_length: torch.Tensor = None
-    """Default tendon rest length of all tendons. Shape is (num_instances, num_fixed_tendons)."""
+    """Default tendon rest length of all tendons. Shape is (num_instances, num_fixed_tendons).
+
+    This quantity is parsed from the USD schema at the time of initialization.
+    """
 
     default_fixed_tendon_offset: torch.Tensor = None
-    """Default tendon offset of all tendons. Shape is (num_instances, num_fixed_tendons)."""
+    """Default tendon offset of all tendons. Shape is (num_instances, num_fixed_tendons).
+
+    This quantity is parsed from the USD schema at the time of initialization.
+    """
 
     default_fixed_tendon_limit: torch.Tensor = None
-    """Default tendon limits of all tendons. Shape is (num_instances, num_fixed_tendons, 2)."""
+    """Default tendon limits of all tendons. Shape is (num_instances, num_fixed_tendons, 2).
+
+    The limits are in the order :math:`[lower, upper]`. They are parsed from the USD schema at the time of initialization.
+    """
+
+    default_mass: torch.Tensor = None
+    """Default mass for all the bodies in the articulation. Shape is (num_instances, num_bodies).
+
+    This quantity is parsed from the USD schema at the time of initialization.
+    """
+
+    default_inertia: torch.Tensor = None
+    """Default inertia for all the bodies in the articulation. Shape is (num_instances, num_bodies, 9).
+
+    The inertia is the inertia tensor relative to the center of mass frame. The values are stored in
+    the order :math:`[I_{xx}, I_{xy}, I_{xz}, I_{yx}, I_{yy}, I_{yz}, I_{zx}, I_{zy}, I_{zz}]`.
+
+    This quantity is parsed from the USD schema at the time of initialization.
+    """
 
     ##
     # Joint commands -- Set into simulation.
@@ -210,38 +273,56 @@ class ArticulationData:
     ##
 
     joint_stiffness: torch.Tensor = None
-    """Joint stiffness provided to simulation. Shape is (num_instances, num_joints)."""
+    """Joint stiffness provided to the simulation. Shape is (num_instances, num_joints).
+
+    In the case of explicit actuators, the value for the corresponding joints is zero.
+    """
 
     joint_damping: torch.Tensor = None
-    """Joint damping provided to simulation. Shape is (num_instances, num_joints)."""
+    """Joint damping provided to the simulation. Shape is (num_instances, num_joints)
 
-    joint_limits: torch.Tensor = None
-    """Joint limits provided to simulation. Shape is (num_instances, num_joints, 2)."""
+    In the case of explicit actuators, the value for the corresponding joints is zero.
+    """
 
-    joint_velocity_limits: torch.Tensor = None
-    """Joint maximum velocity provided to simulation. Shape is (num_instances, num_joints)."""
+    joint_armature: torch.Tensor = None
+    """Joint armature provided to the simulation. Shape is (num_instances, num_joints)."""
+
+    joint_friction: torch.Tensor = None
+    """Joint friction provided to the simulation. Shape is (num_instances, num_joints)."""
+
+    joint_pos_limits: torch.Tensor = None
+    """Joint position limits provided to the simulation. Shape is (num_instances, num_joints, 2).
+
+    The limits are in the order :math:`[lower, upper]`.
+    """
+
+    joint_vel_limits: torch.Tensor = None
+    """Joint maximum velocity provided to the simulation. Shape is (num_instances, num_joints)."""
+
+    joint_effort_limits: torch.Tensor = None
+    """Joint maximum effort provided to the simulation. Shape is (num_instances, num_joints)."""
 
     ##
     # Fixed tendon properties.
     ##
 
     fixed_tendon_stiffness: torch.Tensor = None
-    """Fixed tendon stiffness provided to simulation. Shape is (num_instances, num_fixed_tendons)."""
+    """Fixed tendon stiffness provided to the simulation. Shape is (num_instances, num_fixed_tendons)."""
 
     fixed_tendon_damping: torch.Tensor = None
-    """Fixed tendon damping provided to simulation. Shape is (num_instances, num_fixed_tendons)."""
+    """Fixed tendon damping provided to the simulation. Shape is (num_instances, num_fixed_tendons)."""
 
     fixed_tendon_limit_stiffness: torch.Tensor = None
-    """Fixed tendon limit stiffness provided to simulation. Shape is (num_instances, num_fixed_tendons)."""
+    """Fixed tendon limit stiffness provided to the simulation. Shape is (num_instances, num_fixed_tendons)."""
 
     fixed_tendon_rest_length: torch.Tensor = None
-    """Fixed tendon rest length provided to simulation. Shape is (num_instances, num_fixed_tendons)."""
+    """Fixed tendon rest length provided to the simulation. Shape is (num_instances, num_fixed_tendons)."""
 
     fixed_tendon_offset: torch.Tensor = None
-    """Fixed tendon offset provided to simulation. Shape is (num_instances, num_fixed_tendons)."""
+    """Fixed tendon offset provided to the simulation. Shape is (num_instances, num_fixed_tendons)."""
 
     fixed_tendon_limit: torch.Tensor = None
-    """Fixed tendon limits provided to simulation. Shape is (num_instances, num_fixed_tendons, 2)."""
+    """Fixed tendon limits provided to the simulation. Shape is (num_instances, num_fixed_tendons, 2)."""
 
     ##
     # Other Data.
@@ -517,9 +598,9 @@ class ArticulationData:
         """
         return math_utils.quat_rotate_inverse(self.root_quat_w, self.root_ang_vel_w)
 
-    #
+    ##
     # Derived Root Link Frame Properties
-    #
+    ##
 
     @property
     def root_link_pos_w(self) -> torch.Tensor:
@@ -589,9 +670,9 @@ class ArticulationData:
         """
         return math_utils.quat_rotate_inverse(self.root_link_quat_w, self.root_link_ang_vel_w)
 
-    #
+    ##
     # Root Center of Mass state properties
-    #
+    ##
 
     @property
     def root_com_pos_w(self) -> torch.Tensor:
@@ -721,9 +802,9 @@ class ArticulationData:
         """
         return self.body_acc_w[..., 3:6]
 
-    #
+    ##
     # Link body properties
-    #
+    ##
 
     @property
     def body_link_pos_w(self) -> torch.Tensor:
@@ -777,9 +858,9 @@ class ArticulationData:
         """
         return self.body_link_state_w[..., 10:13]
 
-    #
+    ##
     # Center of mass body properties
-    #
+    ##
 
     @property
     def body_com_pos_w(self) -> torch.Tensor:
@@ -846,9 +927,37 @@ class ArticulationData:
 
     @property
     def com_quat_b(self) -> torch.Tensor:
-        """Orientation (w,x,y,z) of the prinicple axies of inertia of all of the bodies in simulation world frame. Shape is (num_instances, num_bodies, 4).
+        """Orientation (w,x,y,z) of the principle axies of inertia of all of the bodies in simulation world frame. Shape is (num_instances, num_bodies, 4).
 
         This quantity is the orientation of the principles axes of inertia relative to its body frame.
         """
         quat = self._root_physx_view.get_coms().to(self.device)[..., 3:7]
         return math_utils.convert_quat(quat, to="wxyz")
+
+    ##
+    # Backward compatibility.
+    ##
+
+    @property
+    def joint_limits(self) -> torch.Tensor:
+        omni.log.warn(
+            "The `joint_limits` property is deprecated. Please use `joint_pos_limits` instead."
+            " Returning joint position limits.",
+        )
+        return self.soft_joint_pos_limits
+
+    @property
+    def default_joint_limits(self) -> torch.Tensor:
+        omni.log.warn(
+            "The `default_joint_limits` property is deprecated. Please use `default_joint_pos_limits` instead."
+            " Returning default joint position limits.",
+        )
+        return self.default_joint_pos_limits
+
+    @property
+    def joint_velocity_limits(self) -> torch.Tensor:
+        omni.log.warn(
+            "The `joint_velocity_limits` property is deprecated. Please use `joint_vel_limits` instead."
+            " Returning joint velocity limits.",
+        )
+        return self.joint_vel_limits
