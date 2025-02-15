@@ -10,7 +10,7 @@ import argparse
 from isaaclab.app import AppLauncher
 
 # add argparse arguments
-parser = argparse.ArgumentParser(description="Tutorial on using the mimic joints.")
+parser = argparse.ArgumentParser(description="Demo on using the mimic joints for Robotiq 140 gripper.")
 parser.add_argument("--num_envs", type=int, default=2, help="Number of environments to spawn.")
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
@@ -32,7 +32,6 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
-from isaaclab.utils.math import subtract_frame_transforms
 
 
 @configclass
