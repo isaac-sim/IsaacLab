@@ -9,8 +9,6 @@ import torch
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
-import omni.log
-
 from isaaclab.utils import DelayBuffer, LinearInterpolation
 from isaaclab.utils.types import ArticulationActions
 
