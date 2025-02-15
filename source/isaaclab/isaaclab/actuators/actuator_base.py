@@ -110,6 +110,8 @@ class ActuatorBase(ABC):
         # note: for velocity limits, we don't have USD parameter, so default is infinity
         self.effort_limit = self._parse_joint_parameter(self.cfg.effort_limit, effort_limit)
         self.velocity_limit = self._parse_joint_parameter(self.cfg.velocity_limit, velocity_limit)
+        self.effort_limit_sim = self._parse_joint_parameter(self.cfg.effort_limit_sim, effort_limit)
+        self.velocity_limit_sim = self._parse_joint_parameter(self.cfg.velocity_limit_sim, velocity_limit)
 
         # create commands buffers for allocation
         self.computed_effort = torch.zeros(self._num_envs, self.num_joints, device=self._device)
