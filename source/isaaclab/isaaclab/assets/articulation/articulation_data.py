@@ -366,7 +366,6 @@ class ArticulationData:
         The position and quaternion are of the articulation root's actor frame relative to the world. Meanwhile,
         the linear and angular velocities are of the articulation root's center of mass frame.
         """
-
         if self._root_state_w.timestamp < self._sim_timestamp:
             # read data from simulation
             pose = self._root_physx_view.get_root_transforms().clone()
