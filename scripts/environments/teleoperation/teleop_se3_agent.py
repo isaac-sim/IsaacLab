@@ -109,7 +109,8 @@ def main():
         ViewportCameraController(env, viewer)
     else:
         raise ValueError(
-            f"Invalid device interface '{args_cli.teleop_device}'. Supported: 'keyboard', 'spacemouse''handtracking'."
+            f"Invalid device interface '{args_cli.teleop_device}'. Supported: 'keyboard', 'spacemouse', 'gamepad',"
+            " 'handtracking'."
         )
 
     # add teleoperation key for env reset
