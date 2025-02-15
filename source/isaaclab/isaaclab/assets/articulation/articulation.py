@@ -8,11 +8,11 @@
 
 from __future__ import annotations
 
+import re
 import torch
 from collections.abc import Sequence
 from prettytable import PrettyTable
 from typing import TYPE_CHECKING
-import re
 
 import isaacsim.core.utils.stage as stage_utils
 import omni.log
@@ -1277,9 +1277,7 @@ class Articulation(AssetBase):
         self._data.joint_limits = self._data.default_joint_limits.clone()
 
         # apply mimic joints masking
-        self._apply_mimic_joints_masking(
-            data=self._data.default_joint_pos, env_ids=slice(None), joint_ids=slice(None)
-        )
+        self._apply_mimic_joints_masking(data=self._data.default_joint_pos, env_ids=slice(None), joint_ids=slice(None))
 
     """
     Internal simulation callbacks.
@@ -1373,12 +1371,8 @@ class Articulation(AssetBase):
                 f" \tParsed Mimic joint names: {self._data.mimic_joint_names}"
             )
         # convert everything to tensors for faster indexing
-        self._data.actuated_joint_indices = torch.tensor(
-            actuated_joint_indices, dtype=torch.long, device=self.device
-        )
-        self._data.mimic_joint_indices = torch.tensor(
-            mimic_joint_indices, dtype=torch.long, device=self.device
-        )
+        self._data.actuated_joint_indices = torch.tensor(actuated_joint_indices, dtype=torch.long, device=self.device)
+        self._data.mimic_joint_indices = torch.tensor(mimic_joint_indices, dtype=torch.long, device=self.device)
 
     def _process_actuators_cfg(self):
         """Process and apply articulation joint properties."""
