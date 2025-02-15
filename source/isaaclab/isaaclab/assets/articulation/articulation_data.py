@@ -92,9 +92,6 @@ class ArticulationData:
     joint_names: list[str] = None
     """Joint names in the order parsed by the simulation view."""
 
-    mimic_joint_names: list[str] = None
-    """Mimic joint names in the order parsed by the simulation view."""
-
     fixed_tendon_names: list[str] = None
     """Fixed tendon names in the order parsed by the simulation view."""
 
@@ -228,18 +225,34 @@ class ArticulationData:
     ##
     # Mimic joint properties.
     ##
-    mimic_joint_indices: torch.Tensor = None
 
-    mimic_joint_parents_indices: torch.Tensor = None
-
-    mimic_joint_assignements: torch.Tensor = None
-
-    mimic_joint_infos: torch.Tensor = None
     actuated_joint_names: list[str] = None
     """Actuated joint names in the order parsed by the simulation view."""
 
     actuated_joint_indices: torch.Tensor = None
     """Actuated joint indices in the order parsed by the simulation view."""
+
+    mimic_joint_names: list[str] = None
+    """Mimic joint names in the order parsed by the simulation view."""
+
+    mimic_joint_indices: torch.Tensor = None
+    """Mimic joint indices in the order parsed by the simulation view."""
+
+    mimic_joint_assignments: torch.Tensor = None
+    """Mimic joint assignments in the order parsed by the simulation view. Shape is (num_joints,).
+
+    The index of the tensor corresponds to the index of the parent joint. The value at that index is the index
+    of the mimic joint that is assigned to the parent joint.
+
+    A value of ``-1`` indicates that the joint is not a parent of any mimic joint.
+    """
+
+    mimic_joint_params: torch.Tensor = None
+    """Mimic joint parameters in the order parsed by the simulation view. Shape is (num_joints, 2).
+
+    The first column and second column correspond to the multiplier and offset for the mimic joint, respectively.
+    In case of no mimic joint, the values are set to 0.0.
+    """
 
     @property
     @cache

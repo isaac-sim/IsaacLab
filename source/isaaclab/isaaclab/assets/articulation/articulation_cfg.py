@@ -48,11 +48,29 @@ class ArticulationCfg(AssetBaseCfg):
     This is accessible in the articulation data through :attr:`ArticulationData.soft_joint_pos_limits` attribute.
     """
 
-    actuated_joints_expr: list[str] | str | None = None
-    """Regular expression to specify the actuated joints. Defaults to None which means all joints are actuated."""
+    actuated_joint_names: list[str] | str = ".*"
+    """List of joint names or regular expression to specify the actuated joints. Defaults to '.*' which means all
+    joints are actuated."""
 
-    mimic_joints: dict[str, dict[str, float | str]] | None = None
-    """Mimic joints configuration for the articulation. Defaults to None."""
+    mimic_joints_info: dict[str, dict[str, float | str]] = {}
+    """Mimic joints configuration for the articulation. Defaults to an empty dictionary.
+
+    The key indicates the name of the joint that is being mimicked. The value is a dictionary with the following keys:
+
+    * ``"parent"``: The name of the parent joint.
+    * ``"multiplier"``: The multiplier for the mimic joint.
+    * ``"offset"``: The offset for the mimic joint. Defaults to 0.0.
+
+    For example, the following configuration mimics the joint ``"joint_1"`` with the parent joint ``"joint_0"``
+    with a multiplier of ``2.0`` and an offset of ``1.0``:
+
+    .. code-block:: python
+
+        mimic_joints_info = {
+            "joint_1": {"parent": "joint_0", "multiplier": 2.0, "offset": 1.0}
+        }
+
+    """
 
     actuators: dict[str, ActuatorBaseCfg] = MISSING
     """Actuators for the robot with corresponding joint names."""

@@ -12,6 +12,7 @@ import torch
 from collections.abc import Sequence
 from prettytable import PrettyTable
 from typing import TYPE_CHECKING
+import re
 
 import isaacsim.core.utils.stage as stage_utils
 import omni.log
@@ -504,19 +505,8 @@ class Articulation(AssetBase):
         self._data._body_link_state_w.timestamp = -1.0
         self._data._body_com_state_w.timestamp = -1.0
 
-        if len(self._data.mimic_joint_names) > 0:
-            # check for mimic joints
-            controlled_joints = self._data.mimic_joint_assignements[joint_ids]
-            valid_mask = controlled_joints != -1
-
-            child_joint_ids = controlled_joints[valid_mask]
-            mimic_params = self._data.mimic_joint_infos[child_joint_ids]
-            ref_joint_pos = self._data.joint_pos[env_ids, joint_ids][:, valid_mask]
-            mimic_pos = mimic_params[:, 0] * ref_joint_pos + mimic_params[:, 1]
-            # broadcast env_ids if needed to allow double indexing
-            if not isinstance(env_ids, slice) and env_ids.ndim == 1:
-                env_ids = env_ids[:, None]
-            self._data.joint_pos[env_ids, child_joint_ids] = mimic_pos
+        # apply mimic joints masking
+        self._apply_mimic_joints_masking(data=self._data.joint_pos, env_ids=env_ids, joint_ids=joint_ids)
 
         # set into simulation
         self.root_physx_view.set_dof_positions(self._data.joint_pos, indices=physx_env_ids)
@@ -1145,6 +1135,7 @@ class Articulation(AssetBase):
         self._create_buffers()
         # process configuration
         self._process_cfg()
+        self._process_mimic_joints_cfg()
         self._process_actuators_cfg()
         self._process_fixed_tendons()
         # validate configuration
@@ -1167,74 +1158,6 @@ class Articulation(AssetBase):
         # -- properties
         self._data.joint_names = self.joint_names
         self._data.body_names = self.body_names
-
-        # load actuated joint indices
-        actuated_joints_expr = self.cfg.actuated_joints_expr
-
-        if actuated_joints_expr is None:
-            actuated_joints_expr = [".*"]
-        elif isinstance(actuated_joints_expr, str):
-            actuated_joints_expr = [actuated_joints_expr]
-
-        mimic_joints = self.cfg.mimic_joints
-        if mimic_joints is None:
-            mimic_joints = {}
-
-        self._data.actuated_joint_names = []
-        self._data.actuated_joint_indices = []
-
-        self._data.mimic_joint_names = []
-        self._data.mimic_joint_indices = []
-        self._data.mimic_joint_parents_indices = []
-
-        self._data.mimic_joint_assignements = torch.zeros(self.num_joints, dtype=torch.long, device=self.device) - 1
-        self._data.mimic_joint_infos = torch.zeros(self.num_joints, 2, device=self.device)
-
-        import re
-
-        for joint_name in self.joint_names:
-            for expr in actuated_joints_expr:
-                if re.fullmatch(expr, joint_name):
-                    if joint_name in self._data.actuated_joint_names:
-                        omni.log.warn(
-                            f"Joint '{joint_name}' is already in the actuated joints list. Multiple expressions are"
-                            " matching the same joint. Ignoring."
-                        )
-                        continue
-                    self._data.actuated_joint_names.append(joint_name)
-                    self._data.actuated_joint_indices.append(self.joint_names.index(joint_name))
-
-            for mimic_joint_name in mimic_joints:
-                if mimic_joint_name == joint_name:
-                    omni.log.info(f"Joint '{joint_name}' is a mimic joint.")
-                    omni.log.info(f"Parent: {mimic_joints[mimic_joint_name]['parent']}")
-                    omni.log.info(f"Multiplier: {mimic_joints[mimic_joint_name].get('multiplier', 1.0)}")
-                    omni.log.info(f"Offset: {mimic_joints[mimic_joint_name].get('offset', 0.0)}")
-
-                    parent = mimic_joints[mimic_joint_name]["parent"]
-                    parent_idx = self.joint_names.index(parent)
-                    child_idx = self.joint_names.index(mimic_joint_name)
-                    multiplier = mimic_joints[mimic_joint_name].get("multiplier", 1.0)
-                    offset = mimic_joints[mimic_joint_name].get("offset", 0.0)
-                    self._data.mimic_joint_names.append(mimic_joint_name)
-                    self._data.mimic_joint_indices.append(child_idx)
-                    self._data.mimic_joint_parents_indices.append(parent_idx)
-
-                    self._data.mimic_joint_infos[child_idx, 0] = multiplier
-                    self._data.mimic_joint_infos[child_idx, 1] = offset
-                    self._data.mimic_joint_assignements[parent_idx] = child_idx
-
-                    break
-
-        if len(self._data.mimic_joint_names) != len(mimic_joints):
-            raise ValueError("Mimic joint names do not match the number of mimic joints.")
-
-        # convert everything to tensors
-        self._data.actuated_joint_indices = torch.tensor(self._data.actuated_joint_indices, device=self.device)
-        self._data.mimic_joint_indices = torch.tensor(self._data.mimic_joint_indices, device=self.device)
-        self._data.mimic_joint_parents_indices = torch.tensor(
-            self._data.mimic_joint_parents_indices, device=self.device
-        )
 
         # -- bodies
         self._data.default_mass = self.root_physx_view.get_masses().clone()
@@ -1368,6 +1291,89 @@ class Articulation(AssetBase):
     """
     Internal helpers -- Actuators.
     """
+
+    def _process_mimic_joints_cfg(self):
+        """Process and apply mimic joints configuration."""
+        # cast to list if string
+        if isinstance(self.cfg.actuated_joint_names, str):
+            self.cfg.actuated_joint_names = [self.cfg.actuated_joint_names]
+
+        if not isinstance(self.cfg.mimic_joints_info, dict):
+            raise TypeError("Mimic joints configuration must be a dictionary.")
+
+        # create buffers for mimic joints
+        self._data.actuated_joint_names = []
+        actuated_joint_indices = []
+
+        self._data.mimic_joint_names = []
+        mimic_joint_indices = []
+
+        self._data.mimic_joint_assignments = torch.full((self.num_joints,), -1, dtype=torch.long, device=self.device)
+        self._data.mimic_joint_params = torch.zeros(self.num_joints, 2, device=self.device)
+
+        for joint_idx, joint_name in enumerate(self.joint_names):
+            # check if joint is actuated
+            for expr in self.cfg.actuated_joint_names:
+                if re.fullmatch(expr, joint_name):
+                    # check that joint is not already in the list
+                    if joint_name in self._data.actuated_joint_names:
+                        omni.log.warn(
+                            f"Joint '{joint_name}' is already in the actuated joints list."
+                            " Multiple expressions are matching the same joint. Ignoring...."
+                        )
+                        continue
+                    # add to actuated joints
+                    self._data.actuated_joint_names.append(joint_name)
+                    actuated_joint_indices.append(joint_idx)
+
+            # we iterate over all mimic joints and check if the current joint is a mimic joint
+            # if it is, we store the parameters and log information
+            for mimic_joint_name, mimic_joint_params in self.cfg.mimic_joints_info.items():
+                # check if joint is mimic joint
+                if mimic_joint_name == joint_name:
+                    # parse parameters
+                    parent_name: str = mimic_joint_params["parent"]  # type: ignore
+                    multiplier: float = mimic_joint_params["multiplier"]  # type: ignore
+                    offset: float = mimic_joint_params.get("offset", 0.0)  # type: ignore
+
+                    # resolve the indices of the parent and child joints
+                    parent_idx = self.joint_names.index(parent_name)
+                    child_idx = joint_idx
+
+                    # add to mimic joints
+                    self._data.mimic_joint_names.append(mimic_joint_name)
+                    mimic_joint_indices.append(child_idx)
+
+                    # store parameters
+                    self._data.mimic_joint_assignments[parent_idx] = child_idx
+                    self._data.mimic_joint_params[child_idx, 0] = multiplier
+                    self._data.mimic_joint_params[child_idx, 1] = offset
+
+                    # log information on mimic joint
+                    omni.log.info(
+                        f"Mimic joint found at: '{joint_name}' [{joint_idx}]"
+                        f"\n\tParent: {parent_name} [{parent_idx}]"
+                        f"\n\tMultiplier: {multiplier}"
+                        f"\n\tOffset: {offset}"
+                    )
+
+                    break
+
+        # check if we parsed all mimic joints
+        if len(self._data.mimic_joint_names) != len(self.cfg.mimic_joints_info):
+            raise ValueError(
+                "The parsed mimic joint names do not match the number of mimic joints."
+                f"Expected {len(self.cfg.mimic_joints_info)} but got {len(self._data.mimic_joint_names)}."
+                f" \tInput Mimic joints info: {list(self.cfg.mimic_joints_info.keys())}"
+                f" \tParsed Mimic joint names: {self._data.mimic_joint_names}"
+            )
+        # convert everything to tensors for faster indexing
+        self._data.actuated_joint_indices = torch.tensor(
+            self._data.actuated_joint_indices, dtype=torch.long, device=self.device
+        )
+        self._data.mimic_joint_indices = torch.tensor(
+            self._data.mimic_joint_indices, dtype=torch.long, device=self.device
+        )
 
     def _process_actuators_cfg(self):
         """Process and apply articulation joint properties."""
@@ -1517,6 +1523,37 @@ class Articulation(AssetBase):
             # TODO: find a cleaner way to handle gear ratio. Only needed for variable gear ratio actuators.
             if hasattr(actuator, "gear_ratio"):
                 self._data.gear_ratio[:, actuator.joint_indices] = actuator.gear_ratio
+
+    def _apply_mimic_joints_masking(self, data: torch.Tensor, env_ids: torch.Tensor, joint_ids: torch.Tensor):
+        """Apply mimic joints masking.
+
+        This function applies mimic joints masking to the given data tensor. It checks for mimic joints
+        in the articulation and applies the mimic joint transformations to the specified joint indices.
+
+        Args:
+            data: The data tensor to apply mimic joints masking to. Shape is (num_envs, num_joints).
+            env_ids: The environment ids to apply mimic joints masking to.
+            joint_ids: The joint ids to apply mimic joints masking to.
+        """
+        # check for trivial case when no mimic joints are present
+        if len(self._data.mimic_joint_names) == 0:
+            return
+
+        # check for mimic joints in the provided joint ids
+        controlled_joints = self._data.mimic_joint_assignments[joint_ids]
+        valid_mask = controlled_joints != -1
+
+        # get the child joint ids
+        child_joint_ids = controlled_joints[valid_mask]
+        mimic_params = self._data.mimic_joint_params[child_joint_ids]
+
+        # obtain the reference data for the mimic joints (this corresponds to the parent joint data)
+        mimic_joint_ref_data = data[env_ids, joint_ids][:, valid_mask]
+        # apply the mimic joint transformations
+        mimic_joint_data = mimic_params[:, 0] * mimic_joint_ref_data + mimic_params[:, 1]
+
+        # apply the mimic joint transformations
+        data[env_ids, child_joint_ids] = mimic_joint_data
 
     """
     Internal helpers -- Debugging.
