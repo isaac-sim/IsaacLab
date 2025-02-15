@@ -290,6 +290,8 @@ For instance, the following are bad examples for various reasons:
       """
       return a + b
 
+.. code:: python
+
    def my_function(a, b):
       """
       This is a bad example.
@@ -304,6 +306,8 @@ For instance, the following are bad examples for various reasons:
          int: The sum of the two arguments.
       """
       return a + b
+
+.. code:: python
 
    def my_function(a: int, b: int) -> int:
       """
