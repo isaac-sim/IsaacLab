@@ -4,7 +4,7 @@
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets.articulation import ArticulationCfg
-from isaaclab.envs.mdp.actions.actions_cfg import HolonomicBaseActionCfg
+from isaaclab.envs.mdp.actions.actions_cfg import NonHolonomicActionCfg
 from isaaclab.utils import configclass
 from isaaclab_tasks.manager_based.mobile_manipulation.reach.mobile_reach_env_cfg import (
     MobileReachEnvCfg,
@@ -54,12 +54,12 @@ class FrankaMobileReachEnvCfg(MobileReachEnvCfg):
                     "dummy_base_revolute_z_joint": 0.0,
                     # franka arm
                     "panda_joint1": 0.0,
-                    "panda_joint2": -0.569,
+                    "panda_joint2": 0.0,  # -0.569,
                     "panda_joint3": 0.0,
-                    "panda_joint4": -2.810,
+                    "panda_joint4": 0.0,  # -2.810,
                     "panda_joint5": 0.0,
-                    "panda_joint6": 2.0,
-                    "panda_joint7": 0.741,
+                    "panda_joint6": 0.0,  # 2.0,
+                    "panda_joint7": 0.0,  # 0.741,
                     # tool
                     "panda_finger_joint.*": 0.035,
                 },
@@ -96,6 +96,11 @@ class FrankaMobileReachEnvCfg(MobileReachEnvCfg):
                 ),
             },
         )
+
+        print(
+            f"[FrankaMobileReachEnvCfg] Initial joint positions: {self.scene.robot.init_state.joint_pos}"
+        )
+
         # self.actions.arm_action = DifferentialInverseKinematicsActionCfg(
         #     asset_name="robot",
         #     joint_names=["panda_joint.*"],  # Only Franka arm joints
@@ -110,7 +115,7 @@ class FrankaMobileReachEnvCfg(MobileReachEnvCfg):
         #         pos=[0.0, 0.0, 0.107],  # Offset to end effector
         #     ),
         # )
-        self.actions.base_action = HolonomicBaseActionCfg(
+        self.actions.base_action = NonHolonomicActionCfg(
             asset_name="robot",
             body_name="base_link",
             x_joint_name="dummy_base_prismatic_x_joint",

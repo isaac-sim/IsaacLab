@@ -50,6 +50,11 @@ class HolonomicBaseAction(ActionTerm):
         self._joint_ids = [x_joint_id[0], y_joint_id[0], yaw_joint_id[0]]
         self._joint_names = [x_joint_name[0], y_joint_name[0], yaw_joint_name[0]]
 
+        # Debug: Log which joints are used
+        print(
+            f"[HolonomicBaseAction] Initialized with joints: X -> {self._joint_names[0]}, Y -> {self._joint_names[1]}, Yaw -> {self._joint_names[2]}"
+        )
+
         # Initialize tensors
         self._raw_actions = torch.zeros(
             self.num_envs, self.action_dim, device=self.device
@@ -75,11 +80,17 @@ class HolonomicBaseAction(ActionTerm):
     def process_actions(self, actions: torch.Tensor):
         """Process raw actions with scaling and offset."""
         self._raw_actions[:] = actions
-        self._processed_actions = self.raw_actions * self._scale + self._offset
+        self._processed_actions[:] = self.raw_actions * self._scale + self._offset
+        # Debug: Log raw and processed actions
+        print(f"[HolonomicBaseAction] Raw actions: {self._raw_actions}")
+        print(f"[HolonomicBaseAction] Processed actions: {self._processed_actions}")
 
     def apply_actions(self):
         """Apply velocity commands directly to the joints."""
-        # Set joint velocity targets directly
+        # Debug: Log before applying joint commands
+        print(
+            f"[HolonomicBaseAction] Applying commands: {self._processed_actions} to joints: {self._joint_ids}"
+        )
         self._asset.set_joint_velocity_target(
             self._processed_actions, joint_ids=self._joint_ids
         )
@@ -87,3 +98,4 @@ class HolonomicBaseAction(ActionTerm):
     def reset(self, env_ids: Sequence[int] | None = None):
         """Reset actions to zero."""
         self._raw_actions[env_ids] = 0.0
+        self._processed_actions[env_ids] = 0.0
