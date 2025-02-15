@@ -373,33 +373,36 @@ to keep up with the development pace.
 
 * If someone else wants to use the code, they cannot understand the code just by reading the documentation.
 
-What this means is that the documentation is not complete or is not written in a way that is easy to understand.
-The next time someone wants to use the code, they will have to spend time understanding the code (in the best
-case scenario), or scrap the code and start from scratch (in the worst case scenario).
+  What this means is that the documentation is not complete or is not written in a way that is easy to understand.
+  The next time someone wants to use the code, they will have to spend time understanding the code (in the best
+  case scenario), or scrap the code and start from scratch (in the worst case scenario).
 
 * Certain design subtleties are not documented and are only apparent from the code.
 
-Often certain design decisions are made to address specific use cases. These use cases are not
-obvious to someone who wants to use the code. They may change the code in a way that is not intuitive
-and unintentionally break the code.
+  Often certain design decisions are made to address specific use cases. These use cases are not
+  obvious to someone who wants to use the code. They may change the code in a way that is not intuitive
+  and unintentionally break the code.
 
 * The documentation is not updated when the code is updated.
 
-This means that the documentation is not kept up to date with the code. It is important to update the
-documentation when the code is updated. This helps in keeping the documentation up to date and in sync
-with the code.
+  This means that the documentation is not kept up to date with the code. It is important to update the
+  documentation when the code is updated. This helps in keeping the documentation up to date and in sync
+  with the code.
 
 **What is considered as a good documentation?**
 
 We recommend thinking of the code documentation as a living document that helps the reader understand
-the ``what``, ``why`` and ``how`` of the code. Often we see documentation that only explains the
-``what`` and ``how`` but not the ``why``. This is not helpful in the long run.
+the *what, why and how* of the code. Often we see documentation that only explains the
+what but not the how or why. This is not helpful in the long run.
 
 We suggest always thinking of the documentation from a new user's perspective. They should be able to directly
 check the documentation and have a good understanding of the code.
 
-Please use directives like ``.. code-block:: python`` or ``.. note::`` to highlight the code snippets
-and important notes in the documentation.
+.. attention::
+
+   For information on how to write good documentation, please check the notes on
+   `Dart's effective documentation <https://dart.dev/effective-dart/documentation>`__
+   and `technical writing <https://en.wikiversity.org/wiki/Technical_writing/Style>`__.
 
 
 Unit Testing
