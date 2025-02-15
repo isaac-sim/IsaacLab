@@ -17,7 +17,8 @@ Fixed
 Fixed
 ^^^^^
 
-* Fixed Imu sensor based observations at first step by updating scene during :meth:`~isaaclab.envs.ManagerBasedEnv.init`
+* Fixed Imu sensor based observations at first step by updating scene during initialization for
+  :class:`~isaaclab.envs.ManagerBasedEnv`, :class:`~isaaclab.envs.DirectRLEnv`, and :class:`~isaaclab.envs.DirectMARLEnv`
 
 
 0.33.16 (2025-02-09)

@@ -139,8 +139,11 @@ class ManagerBasedEnv:
             print("[INFO]: Starting the simulation. This may take a few seconds. Please wait...")
             with Timer("[INFO]: Time taken for simulation start", "simulation_start"):
                 self.sim.reset()
-                # add timeline event to load managers
+                # update scene to pre populate data buffers for assets and sensors.
+                # this is needed for the observation manager to get valid tensors for initialization.
+                # this shouldn't cause an issue since later on, users do a reset over all the environments so the lazy buffers would be reset.
                 self.scene.update(dt=self.physics_dt)
+            # add timeline event to load managers
             self.load_managers()
 
         # make sure torch is running on the correct device
