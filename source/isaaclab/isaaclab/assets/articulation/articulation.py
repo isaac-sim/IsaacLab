@@ -1312,14 +1312,18 @@ class Articulation(AssetBase):
                     f"No joints found for actuator group: {actuator_name} with joint name expression:"
                     f" {actuator_cfg.joint_names_expr}."
                 )
+            # resolve joint indices
+            # we pass a slice if all joints are selected to avoid indexing overhead
+            if len(joint_names) == self.num_joints:
+                joint_ids = slice(None)
+            else:
+                joint_ids = torch.tensor(joint_ids, device=self.device)
             # create actuator collection
             # note: for efficiency avoid indexing when over all indices
             actuator: ActuatorBase = actuator_cfg.class_type(
                 cfg=actuator_cfg,
                 joint_names=joint_names,
-                joint_ids=(
-                    slice(None) if len(joint_names) == self.num_joints else torch.tensor(joint_ids, device=self.device)
-                ),
+                joint_ids=joint_ids,
                 num_envs=self.num_instances,
                 device=self.device,
                 stiffness=self._data.default_joint_stiffness[:, joint_ids],
