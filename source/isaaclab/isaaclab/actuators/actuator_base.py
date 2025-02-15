@@ -8,7 +8,7 @@ from __future__ import annotations
 import torch
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
 import isaaclab.utils.string as string_utils
 from isaaclab.utils.types import ArticulationActions
@@ -36,14 +36,39 @@ class ActuatorBase(ABC):
     To see how the class is used, check the :class:`isaaclab.assets.Articulation` class.
     """
 
+    is_implicit_model: ClassVar[bool] = False
+    """Flag indicating if the actuator is an implicit actuator."""
+
     computed_effort: torch.Tensor
     """The computed effort for the actuator group. Shape is (num_envs, num_joints)."""
     applied_effort: torch.Tensor
     """The applied effort for the actuator group. Shape is (num_envs, num_joints)."""
+
     effort_limit: torch.Tensor
-    """The effort limit for the actuator group. Shape is (num_envs, num_joints)."""
+    """The effort limit for the actuator group. Shape is (num_envs, num_joints).
+
+    Note:
+        For implicit actuators, the :attr:`effort_limit` and :attr:`effort_limit_sim` are the same.
+    """
+    effort_limit_sim: torch.Tensor
+    """The effort limit for the actuator group in the simulation. Shape is (num_envs, num_joints).
+
+    Note:
+        For implicit actuators, the :attr:`effort_limit` and :attr:`effort_limit_sim` are the same.
+    """
     velocity_limit: torch.Tensor
-    """The velocity limit for the actuator group. Shape is (num_envs, num_joints)."""
+    """The velocity limit for the actuator group. Shape is (num_envs, num_joints).
+
+    Note:
+        For implicit actuators, the :attr:`velocity_limit` and :attr:`velocity_limit_sim` are the same.
+    """
+    velocity_limit_sim: torch.Tensor
+    """The velocity limit for the actuator group in the simulation. Shape is (num_envs, num_joints).
+
+    Note:
+        For implicit actuators, the :attr:`velocity_limit` and :attr:`velocity_limit_sim` are the same
+    """
+
     stiffness: torch.Tensor
     """The stiffness (P gain) of the PD controller. Shape is (num_envs, num_joints)."""
     damping: torch.Tensor
@@ -100,6 +125,11 @@ class ActuatorBase(ABC):
         self._joint_names = joint_names
         self._joint_indices = joint_ids
 
+        # For explicit models, we do not want to enforce the effort limit through the solver
+        # (unless it is explicitly set)
+        if not ActuatorBase.is_implicit_model and self.cfg.effort_limit_sim is None:
+            self.cfg.effort_limit_sim = 1.0e9
+
         # parse joint stiffness and damping
         self.stiffness = self._parse_joint_parameter(self.cfg.stiffness, stiffness)
         self.damping = self._parse_joint_parameter(self.cfg.damping, damping)
@@ -107,11 +137,12 @@ class ActuatorBase(ABC):
         self.armature = self._parse_joint_parameter(self.cfg.armature, armature)
         self.friction = self._parse_joint_parameter(self.cfg.friction, friction)
         # parse joint limits
-        # note: for velocity limits, we don't have USD parameter, so default is infinity
-        self.effort_limit = self._parse_joint_parameter(self.cfg.effort_limit, effort_limit)
+        # -- velocity
         self.velocity_limit = self._parse_joint_parameter(self.cfg.velocity_limit, velocity_limit)
-        self.effort_limit_sim = self._parse_joint_parameter(self.cfg.effort_limit_sim, effort_limit)
         self.velocity_limit_sim = self._parse_joint_parameter(self.cfg.velocity_limit_sim, velocity_limit)
+        # -- effort
+        self.effort_limit = self._parse_joint_parameter(self.cfg.effort_limit, effort_limit)
+        self.effort_limit_sim = self._parse_joint_parameter(self.cfg.effort_limit_sim, effort_limit)
 
         # create commands buffers for allocation
         self.computed_effort = torch.zeros(self._num_envs, self.num_joints, device=self._device)

@@ -9,6 +9,8 @@ import torch
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
+import omni.log
+
 from isaaclab.utils import DelayBuffer, LinearInterpolation
 from isaaclab.utils.types import ArticulationActions
 
@@ -50,6 +52,40 @@ class ImplicitActuator(ActuatorBase):
 
     cfg: ImplicitActuatorCfg
     """The configuration for the actuator model."""
+
+    def __init__(self, cfg: ImplicitActuatorCfg, *args, **kwargs):
+        # effort limits
+        if cfg.effort_limit_sim is None and cfg.effort_limit is not None:
+            omni.log.warn(
+                "The <ImplicitActuatorCfg> object has 'effort_limit_sim' as None but 'effort_limit' as not None."
+                " Please only set 'effort_limit_sim' for implicit actuators."
+                " For now, the 'effort_limit' will be set to 'effort_limit_sim' internally."
+            )
+            cfg.effort_limit_sim = cfg.effort_limit
+        elif cfg.effort_limit_sim is not None and cfg.effort_limit is not None:
+            raise ValueError(
+                "The <ImplicitActuatorCfg> object has set both 'effort_limit_sim' and 'effort_limit'."
+                " Please only set 'effort_limit_sim' for implicit actuators."
+            )
+
+        # velocity limits
+        if cfg.velocity_limit_sim is None and cfg.velocity_limit is not None:
+            omni.log.warn(
+                "The <ImplicitActuatorCfg> object has 'velocity_limit_sim' as None but 'velocity_limit' as not None."
+                " Please only set 'velocity_limit_sim' for implicit actuators."
+                " For now, the 'velocity_limit' will be set to 'velocity_limit_sim' internally."
+            )
+            cfg.velocity_limit_sim = cfg.velocity_limit
+        elif cfg.velocity_limit_sim is not None and cfg.velocity_limit is not None:
+            raise ValueError(
+                "The <ImplicitActuatorCfg> object has set both 'velocity_limit_sim' and 'velocity_limit'."
+                " Please only set 'velocity_limit_sim' for implicit actuators."
+            )
+
+        # set implicit actuator model flag
+        ImplicitActuator.is_implicit_model = True
+        # call the base class
+        super().__init__(cfg, *args, **kwargs)
 
     """
     Operations.
@@ -296,7 +332,7 @@ class DelayedPDActuator(IdealPDActuator):
 class RemotizedPDActuator(DelayedPDActuator):
     """Ideal PD actuator with angle-dependent torque limits.
 
-    This class extends the :class:`DelayedPDActuator` class by adding angle-dependent torque limits to the actuator.
+    This class extends the :class:`DelayedPDActuator` class by adding angle-dependent torque limits to the self.
     The torque limits are applied by querying a lookup table describing the relationship between the joint angle
     and the maximum output torque. The lookup table is provided in the configuration instance passed to the class.
 
