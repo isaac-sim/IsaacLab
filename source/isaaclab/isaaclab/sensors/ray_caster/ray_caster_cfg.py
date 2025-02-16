@@ -33,12 +33,7 @@ class RayCasterCfg(SensorBaseCfg):
     class_type: type = RayCaster
 
     mesh_prim_paths: list[str] = MISSING
-    """The list of mesh primitive paths to ray cast against.
-
-    Note:
-        Currently, only a single static mesh is supported. We are working on supporting multiple
-        static meshes and dynamic meshes.
-    """
+    """The list of mesh primitive paths to ray cast against."""
 
     offset: OffsetCfg = OffsetCfg()
     """The offset pose of the sensor's frame from the sensor's parent frame. Defaults to identity."""

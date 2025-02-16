@@ -155,7 +155,7 @@ parser.add_argument(
     nargs="+",
     type=str,
     default=["/World/ground"],
-    help="WARNING: Ray Caster can currently only cast against a single, static, object",
+    help="The mesh primitive paths to ray cast against.",
 )
 
 parser.add_argument(
@@ -231,8 +231,6 @@ args_cli.enable_cameras = True
 if args_cli.autotune:
     import pynvml
 
-if len(args_cli.ray_caster_visible_mesh_prim_paths) > 1:
-    print("[WARNING]: Ray Casting is only currently supported for a single, static object")
 # launch omniverse app
 app_launcher = AppLauncher(args_cli)
 simulation_app = app_launcher.app
