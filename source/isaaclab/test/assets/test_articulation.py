@@ -951,10 +951,12 @@ class TestArticulation(unittest.TestCase):
 
     def test_setting_velocity_limit_implicit(self):
         """Test that velocity limit is set correctly for implicit actuators."""
+        sim_val = 1e5
+        act_val = 1e2
         for num_articulations in (1, 2):
             for device in ("cuda:0", "cpu"):
-                for sim_limit in (1e5, None):
-                    for act_limit in (1e2, None):
+                for sim_limit in (sim_val, None):
+                    for act_limit in (act_val, None):
                         with self.subTest(
                             num_articulations=num_articulations,
                             device=device,
@@ -984,13 +986,11 @@ class TestArticulation(unittest.TestCase):
                                     # initialize. The Exception is not caught with self.assertRaises or try-except
                                     self.assertTrue(len(articulation.actuators) == 0)
                                 elif (sim_limit is None) and (act_limit is None):
-                                    # check to make sure the root_physx_view does not match either:
-                                    # velocity_limit or velocity_limit_sim
+                                    # check to make sure the root_physx_view dof limit is not modified
                                     measured = (
                                         articulation.root_physx_view.get_dof_max_velocities().squeeze(-1).tolist()[0]
                                     )
-                                    self.assertTrue(measured != sim_limit)
-                                    self.assertTrue(measured != act_limit)
+                                    self.assertTrue(measured > 1e10)
                                 else:
                                     measured_physx_vel_limit = articulation.root_physx_view.get_dof_max_velocities().to(
                                         device=device
@@ -1018,6 +1018,104 @@ class TestArticulation(unittest.TestCase):
                                     torch.testing.assert_close(
                                         articulation.data.joint_velocity_limits, expected_velocity_limit
                                     )
+
+    def test_setting_velocity_limit_idealpd(self):
+        """Test that velocity limit is set correctly for ideal PD actuators."""
+        sim_val = 1e5
+        act_val = 1e2
+        for num_articulations in (1, 2):
+            for device in ("cuda:0", "cpu"):
+                for sim_limit in (sim_val, None):
+                    for act_limit in (act_val, None):
+                        with self.subTest(
+                            num_articulations=num_articulations,
+                            device=device,
+                            sim_limit=sim_limit,
+                            act_limit=act_limit,
+                        ):
+                            with build_simulation_context(
+                                device=device, add_ground_plane=False, auto_add_lighting=True
+                            ) as sim:
+                                # create simulation
+                                sim._app_control_on_stop_handle = None
+                                articulation_cfg = generate_articulation_cfg(
+                                    articulation_type="single_joint_idealpd",
+                                    vel_limit_sim=sim_limit,
+                                    vel_limit=act_limit,
+                                )
+                                articulation, _ = generate_articulation(
+                                    articulation_cfg=articulation_cfg,
+                                    num_articulations=num_articulations,
+                                    device=device,
+                                )
+                                # Play sim
+                                sim.reset()
+
+                                measured = articulation.root_physx_view.get_dof_max_velocities().squeeze(-1).tolist()[0]
+                                # check to make sure the velocity_limit is not propagated to root_physx_view
+                                self.assertTrue(abs(measured - act_val) > 1e-4)
+
+                                if sim_limit is None:
+                                    # check to make sure the measured value isn't changed
+                                    self.assertTrue(measured > 1e10)
+                                elif sim_limit is not None:
+                                    expected_velocity_limit = torch.full(
+                                        (articulation.num_instances, articulation.num_joints),
+                                        sim_limit,
+                                        device=articulation.device,
+                                    )
+                                    measured_physx_vel_limit = articulation.root_physx_view.get_dof_max_velocities().to(
+                                        device=device
+                                    )
+                                    # check root_physx_view
+                                    torch.testing.assert_close(
+                                        expected_velocity_limit,
+                                        measured_physx_vel_limit,
+                                    )
+                                    # check actuator
+                                    torch.testing.assert_close(
+                                        articulation.actuators["joint"].velocity_limit_sim, expected_velocity_limit
+                                    )
+                                    # check data buffer
+                                    torch.testing.assert_close(
+                                        articulation.data.joint_velocity_limits, expected_velocity_limit
+                                    )
+
+                                # if (sim_limit is not None) and (act_limit is not None):
+                                #     # during initialization, the actuator will raise a ValueError and fail to
+                                #     # initialize. The Exception is not caught with self.assertRaises or try-except
+                                #     self.assertTrue(len(articulation.actuators)==0)
+                                # elif (sim_limit is None) and (act_limit is None):
+                                #     # check to make sure the root_physx_view does not match either:
+                                #     # velocity_limit or velocity_limit_sim
+                                #     measured = articulation.root_physx_view.get_dof_max_velocities().squeeze(-1).tolist()[0]
+                                #     self.assertTrue(measured != sim_limit)
+                                #     self.assertTrue(measured != act_limit)
+                                # else:
+                                #     measured_physx_vel_limit = articulation.root_physx_view.get_dof_max_velocities().to(device=device)
+                                #     if sim_limit is not None and act_limit is None:
+                                #         limit=sim_limit
+                                #     elif sim_limit is None and act_limit is not None:
+                                #         limit=act_limit
+
+                                #     expected_velocity_limit = torch.full(
+                                #             (articulation.num_instances, articulation.num_joints),
+                                #             limit,
+                                #             device=articulation.device,
+                                #         )
+                                #     # check root_physx_view
+                                #     torch.testing.assert_close(
+                                #         expected_velocity_limit,
+                                #         measured_physx_vel_limit,
+                                #     )
+                                #     # check actuator
+                                #     torch.testing.assert_close(
+                                #         articulation.actuators["joint"].velocity_limit_sim, expected_velocity_limit
+                                #     )
+                                #     # check data buffer
+                                #     torch.testing.assert_close(
+                                #         articulation.data.joint_velocity_limits, expected_velocity_limit
+                                #     )
 
     def test_setting_effort_limit_implicit(self):
         """Test that effort limit is set correctly for implicit actuators."""
