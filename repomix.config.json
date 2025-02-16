@@ -14,7 +14,8 @@
         "source/isaaclab/isaaclab/managers/**",
         "source/isaaclab/isaaclab/scene/**",
         "source/isaaclab/isaaclab/sim/**",
-        "source/isaaclab_tasks/isaaclab_tasks/manager_based/**"
+        "source/isaaclab_tasks/isaaclab_tasks/manager_based/**",
+        "scripts/tutorials/05_controllers/run_diff_ik.py"
     ],
     "ignore": {
       "useGitignore": true,
@@ -33,6 +34,7 @@
         "**/spot/**",
         "**/classic/**",
         "**/locomotion/**",
+        "**/mobile_manipulation/**",
         "**/lift/**",
         "**/stack/**",
         "**/cabinet/**",
