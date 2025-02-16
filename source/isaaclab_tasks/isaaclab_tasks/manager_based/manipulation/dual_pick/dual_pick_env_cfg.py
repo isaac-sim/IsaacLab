@@ -190,6 +190,23 @@ class EventCfg:
         },
     )
 
+    reset_box = EventTerm(
+        func=mdp.reset_root_state_uniform,
+        mode="reset",
+        params={
+            "pose_range": {
+                "x": (0.0, 0.0),  # Fixed x position
+                "y": (0.0, 0.0),  # Fixed y position
+                "z": (0.0, 0.0),  # Fixed z position
+                "roll": (0.0, 0.0),
+                "pitch": (0.0, 0.0),
+                "yaw": (0.0, 0.0),
+            },
+            "velocity_range": {},  # Empty dict means zero velocities
+            "asset_cfg": SceneEntityCfg("box"),
+        },
+    )
+
     # TODO: Add box reset event
 
     # reset_robot_right_joints = EventTerm(
