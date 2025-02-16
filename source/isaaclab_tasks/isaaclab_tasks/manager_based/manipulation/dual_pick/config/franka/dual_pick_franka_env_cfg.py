@@ -3,7 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-import math
 
 from isaaclab.controllers.differential_ik_cfg import DifferentialIKControllerCfg
 from isaaclab.envs.mdp.actions.actions_cfg import (
@@ -30,7 +29,20 @@ class FrankaDualPickEnvCfg(DualPickEnvCfg):
 
         # Set Franka robots
         self.scene.robot_left = FRANKA_PANDA_CFG.replace(
-            prim_path="{ENV_REGEX_NS}/RobotLeft"
+            prim_path="{ENV_REGEX_NS}/RobotLeft",
+            init_state=FRANKA_PANDA_CFG.InitialStateCfg(
+                joint_pos={
+                    "panda_joint1": 0.0,
+                    "panda_joint2": -0.569,
+                    "panda_joint3": 0.0,
+                    "panda_joint4": -2.810,
+                    "panda_joint5": 0.0,
+                    "panda_joint6": 3.037,
+                    "panda_joint7": 0.741,
+                },
+                joint_vel={".*": 0.0},
+                pos=[0.0, 0.3, 0.0],
+            ),
         )
 
         # override actions
@@ -40,29 +52,8 @@ class FrankaDualPickEnvCfg(DualPickEnvCfg):
             scale=0.5,
             use_default_offset=True,
         )
-        # override command generator body
-        # end-effector is along z-direction
-        self.commands.left_ee_pose.body_name = "panda_hand"
-        self.commands.left_ee_pose.ranges.pitch = (math.pi, math.pi)
 
         return
-
-        # self.scene.robot_left = FRANKA_PANDA_CFG.replace(
-        #     prim_path="{ENV_REGEX_NS}/RobotLeft",
-        #     init_state=FRANKA_PANDA_CFG.InitialStateCfg(
-        #         joint_pos={
-        #             "panda_joint1": 0.0,
-        #             "panda_joint2": -0.569,
-        #             "panda_joint3": 0.0,
-        #             "panda_joint4": -2.810,
-        #             "panda_joint5": 0.0,
-        #             "panda_joint6": 3.037,
-        #             "panda_joint7": 0.741,
-        #         },
-        #         joint_vel={".*": 0.0},
-        #         pos=[0.0, 0.0, 0.0],
-        #     ),
-        # )
 
         # self.scene.robot_right = FRANKA_PANDA_CFG.replace(
         #     prim_path="{ENV_REGEX_NS}/RobotRight",
