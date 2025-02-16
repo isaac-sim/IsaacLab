@@ -28,7 +28,7 @@ import isaacsim.core.utils.prims as prim_utils
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
 import isaaclab.utils.string as string_utils
-from isaaclab.actuators import IdealPDActuatorCfg, ImplicitActuatorCfg  # DCMotorCfg,
+from isaaclab.actuators import IdealPDActuatorCfg, ImplicitActuatorCfg
 from isaaclab.assets import Articulation, ArticulationCfg
 from isaaclab.sim import build_simulation_context
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
@@ -1080,42 +1080,6 @@ class TestArticulation(unittest.TestCase):
                                     torch.testing.assert_close(
                                         articulation.data.joint_velocity_limits, expected_velocity_limit
                                     )
-
-                                # if (sim_limit is not None) and (act_limit is not None):
-                                #     # during initialization, the actuator will raise a ValueError and fail to
-                                #     # initialize. The Exception is not caught with self.assertRaises or try-except
-                                #     self.assertTrue(len(articulation.actuators)==0)
-                                # elif (sim_limit is None) and (act_limit is None):
-                                #     # check to make sure the root_physx_view does not match either:
-                                #     # velocity_limit or velocity_limit_sim
-                                #     measured = articulation.root_physx_view.get_dof_max_velocities().squeeze(-1).tolist()[0]
-                                #     self.assertTrue(measured != sim_limit)
-                                #     self.assertTrue(measured != act_limit)
-                                # else:
-                                #     measured_physx_vel_limit = articulation.root_physx_view.get_dof_max_velocities().to(device=device)
-                                #     if sim_limit is not None and act_limit is None:
-                                #         limit=sim_limit
-                                #     elif sim_limit is None and act_limit is not None:
-                                #         limit=act_limit
-
-                                #     expected_velocity_limit = torch.full(
-                                #             (articulation.num_instances, articulation.num_joints),
-                                #             limit,
-                                #             device=articulation.device,
-                                #         )
-                                #     # check root_physx_view
-                                #     torch.testing.assert_close(
-                                #         expected_velocity_limit,
-                                #         measured_physx_vel_limit,
-                                #     )
-                                #     # check actuator
-                                #     torch.testing.assert_close(
-                                #         articulation.actuators["joint"].velocity_limit_sim, expected_velocity_limit
-                                #     )
-                                #     # check data buffer
-                                #     torch.testing.assert_close(
-                                #         articulation.data.joint_velocity_limits, expected_velocity_limit
-                                #     )
 
     def test_setting_effort_limit_implicit(self):
         """Test that effort limit is set correctly for implicit actuators."""
