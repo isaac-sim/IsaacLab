@@ -54,7 +54,7 @@ class DualPickSceneCfg(InteractiveSceneCfg):
         init_state=RigidObjectCfg.InitialStateCfg(pos=[0.5, 0, 0.3], rot=[1, 0, 0, 0]),
         spawn=UsdFileCfg(
             usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd",
-            scale=(0.3, 0.3, 0.3),
+            scale=(3.0, 3.0, 3.0),
             rigid_props=RigidBodyPropertiesCfg(
                 solver_position_iteration_count=16,
                 solver_velocity_iteration_count=1,
@@ -67,7 +67,7 @@ class DualPickSceneCfg(InteractiveSceneCfg):
     )
 
     # robots
-    robot: ArticulationCfg = MISSING
+    robot_left: ArticulationCfg = MISSING
     # robot_right: ArticulationCfg = MISSING
 
     # lights
@@ -85,7 +85,7 @@ class DualPickSceneCfg(InteractiveSceneCfg):
 class ActionsCfg:
     """Action specifications for the MDP."""
 
-    arm_action: ActionTerm = MISSING
+    left_arm_action: ActionTerm = MISSING
     # left_gripper_action: ActionTerm = MISSING
     # right_arm_action: ActionTerm = MISSING
     # right_gripper_action: ActionTerm = MISSING
@@ -100,18 +100,18 @@ class ObservationsCfg:
         """Observations for policy group."""
 
         # Left arm observations
-        joint_pos = ObsTerm(
+        left_joint_pos = ObsTerm(
             func=mdp.joint_pos_rel,
-            params={"asset_cfg": SceneEntityCfg("robot")},
+            params={"asset_cfg": SceneEntityCfg("robot_left")},
             noise=Unoise(n_min=-0.01, n_max=0.01),
         )
-        joint_vel = ObsTerm(
+        left_joint_vel = ObsTerm(
             func=mdp.joint_vel_rel,
-            params={"asset_cfg": SceneEntityCfg("robot")},
+            params={"asset_cfg": SceneEntityCfg("robot_left")},
             noise=Unoise(n_min=-0.01, n_max=0.01),
         )
-        pose_command = ObsTerm(
-            func=mdp.generated_commands, params={"command_name": "ee_pose"}
+        left_pose_command = ObsTerm(
+            func=mdp.generated_commands, params={"command_name": "left_ee_pose"}
         )
 
         # Right arm observations
@@ -186,9 +186,11 @@ class EventCfg:
         params={
             "position_range": (0.5, 1.5),
             "velocity_range": (0.0, 0.0),
-            "asset_cfg": SceneEntityCfg("robot"),
+            "asset_cfg": SceneEntityCfg("robot_left"),
         },
     )
+
+    # TODO: Add box reset event
 
     # reset_robot_right_joints = EventTerm(
     #     func=mdp.reset_joints_by_scale,
@@ -206,29 +208,29 @@ class RewardsCfg:
     """Reward terms for the MDP."""
 
     # Left arm tracking
-    end_effector_position_tracking = RewTerm(
+    left_ee_position_tracking = RewTerm(
         func=mdp.position_command_error,
         weight=-0.2,
         params={
-            "asset_cfg": SceneEntityCfg("robot", body_names=["panda_hand"]),
-            "command_name": "ee_pose",
+            "asset_cfg": SceneEntityCfg("robot_left", body_names=["panda_hand"]),
+            "command_name": "left_ee_pose",
         },
     )
-    end_effector_position_tracking_fine_grained = RewTerm(
+    left_ee_position_tracking_fine_grained = RewTerm(
         func=mdp.position_command_error_tanh,
         weight=0.1,
         params={
-            "asset_cfg": SceneEntityCfg("robot", body_names=["panda_hand"]),
+            "asset_cfg": SceneEntityCfg("robot_left", body_names=["panda_hand"]),
             "std": 0.1,
-            "command_name": "ee_pose",
+            "command_name": "left_ee_pose",
         },
     )
-    end_effector_orientation_tracking = RewTerm(
+    left_ee_orientation_tracking = RewTerm(
         func=mdp.orientation_command_error,
         weight=-0.1,
         params={
-            "asset_cfg": SceneEntityCfg("robot", body_names=["panda_hand"]),
-            "command_name": "ee_pose",
+            "asset_cfg": SceneEntityCfg("robot_left", body_names=["panda_hand"]),
+            "command_name": "left_ee_pose",
         },
     )
 
@@ -256,10 +258,10 @@ class RewardsCfg:
         func=mdp.action_rate_l2,
         weight=-0.0001,
     )
-    joint_vel = RewTerm(
+    left_joint_vel = RewTerm(
         func=mdp.joint_vel_l2,
         weight=-0.0001,
-        params={"asset_cfg": SceneEntityCfg("robot")},
+        params={"asset_cfg": SceneEntityCfg("robot_left")},
     )
 
     # TODO: Add right arm regularization
@@ -284,9 +286,9 @@ class CurriculumCfg:
         params={"term_name": "action_rate", "weight": -0.005, "num_steps": 4500},
     )
 
-    joint_vel = CurrTerm(
+    left_joint_vel = CurrTerm(
         func=mdp.modify_reward_weight,
-        params={"term_name": "joint_vel", "weight": -0.001, "num_steps": 4500},
+        params={"term_name": "left_joint_vel", "weight": -0.001, "num_steps": 4500},
     )
 
 
@@ -294,8 +296,8 @@ class CurriculumCfg:
 class CommandsCfg:
     """Command terms for the MDP."""
 
-    ee_pose = mdp.UniformPoseCommandCfg(
-        asset_name="robot",
+    left_ee_pose = mdp.UniformPoseCommandCfg(
+        asset_name="robot_left",
         body_name="panda_hand",
         resampling_time_range=(4.0, 4.0),
         debug_vis=True,

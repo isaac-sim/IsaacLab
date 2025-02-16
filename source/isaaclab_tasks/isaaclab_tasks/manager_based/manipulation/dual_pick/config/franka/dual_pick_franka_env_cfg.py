@@ -29,29 +29,21 @@ class FrankaDualPickEnvCfg(DualPickEnvCfg):
         super().__post_init__()
 
         # Set Franka robots
-        self.scene.robot = FRANKA_PANDA_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
-        # override rewards
-        self.rewards.end_effector_position_tracking.params["asset_cfg"].body_names = [
-            "panda_hand"
-        ]
-        self.rewards.end_effector_position_tracking_fine_grained.params[
-            "asset_cfg"
-        ].body_names = ["panda_hand"]
-        self.rewards.end_effector_orientation_tracking.params[
-            "asset_cfg"
-        ].body_names = ["panda_hand"]
+        self.scene.robot_left = FRANKA_PANDA_CFG.replace(
+            prim_path="{ENV_REGEX_NS}/RobotLeft"
+        )
 
         # override actions
-        self.actions.arm_action = mdp.JointPositionActionCfg(
-            asset_name="robot",
+        self.actions.left_arm_action = mdp.JointPositionActionCfg(
+            asset_name="robot_left",
             joint_names=["panda_joint.*"],
             scale=0.5,
             use_default_offset=True,
         )
         # override command generator body
         # end-effector is along z-direction
-        self.commands.ee_pose.body_name = "panda_hand"
-        self.commands.ee_pose.ranges.pitch = (math.pi, math.pi)
+        self.commands.left_ee_pose.body_name = "panda_hand"
+        self.commands.left_ee_pose.ranges.pitch = (math.pi, math.pi)
 
         return
 
