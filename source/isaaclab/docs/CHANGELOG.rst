@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.34.2 (2025-02-21)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed crash when using reset_root_state_from_terrain
+
+
 0.34.1 (2025-02-17)
 ~~~~~~~~~~~~~~~~~~~
 
