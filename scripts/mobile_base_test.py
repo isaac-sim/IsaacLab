@@ -46,7 +46,7 @@ class SimpleSceneCfg(InteractiveSceneCfg):
     robot = ArticulationCfg(
         prim_path="{ENV_REGEX_NS}/ridgeback_franka",
         spawn=sim_utils.UsdFileCfg(
-            usd_path="C:\\Users\\duhad\\elevate\\cratos\\usd\\ridgeback_panda.usd",
+            usd_path=f"/home/apptronik/workspaces/isaac_ros-dev/src/cratos/usd/customized_panda.usd",
             articulation_props=sim_utils.ArticulationRootPropertiesCfg(
                 enabled_self_collisions=False
             ),
@@ -89,13 +89,6 @@ class SimpleSceneCfg(InteractiveSceneCfg):
                 velocity_limit=100.0,
                 stiffness=800.0,
                 damping=40.0,
-            ),
-            "panda_hand": ImplicitActuatorCfg(
-                joint_names_expr=["panda_finger_joint.*"],
-                effort_limit=200.0,
-                velocity_limit=0.2,
-                stiffness=1e5,
-                damping=1e3,
             ),
         },
     )
@@ -154,7 +147,6 @@ def main():
 
     base_joint_indices = [8, 9, 6]
     arm_joint_indices = [2, 0, 1, 3, 4, 5, 7]
-    finger_joint_indices = [10, 11]
 
     arm_action = JointPositionActionCfg(
         joint_names=[
@@ -188,7 +180,7 @@ def main():
     )
     base_move_command = torch.tensor([[0.5, 0.2, 0.2]], device="cuda:0")
 
-    NUM_JOINTS = 12
+    NUM_JOINTS = 10
     ALL_ENV_INDICES = torch.arange(scene.num_envs, dtype=torch.long, device="cuda:0")
 
     root_physx_view = scene._articulations["robot"].root_physx_view
