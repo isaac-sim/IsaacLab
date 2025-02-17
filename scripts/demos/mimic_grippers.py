@@ -189,12 +189,12 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
     joint_limits = {
         "finger_joint": (0.0, 0.7),
         "right_outer_knuckle_joint": (0.0, math.radians(45)),
-        "left_outer_finger_joint": (0.0, math.radians(45)),
-        "right_outer_finger_joint": (0.0, math.radians(45)),
-        "left_inner_finger_pad_joint": (-math.radians(45), 0.0),
-        "right_inner_finger_pad_joint": (-math.radians(45), 0.0),
-        "left_inner_finger_joint": (-math.radians(45), 0.0),
-        "right_inner_finger_joint": (-math.radians(45), 0.0),
+        "left_outer_finger_joint": (-math.radians(45), 0.0),
+        "right_outer_finger_joint": (-math.radians(45), 0.0),
+        "left_inner_finger_pad_joint": (0.0, math.radians(45)),
+        "right_inner_finger_pad_joint": (0.0, math.radians(45)),
+        "left_inner_finger_joint": (-math.radians(45), math.radians(45)),
+        "right_inner_finger_joint": (-math.radians(45), math.radians(45)),
     }
     joint_indices = robot.find_joints(list(joint_limits.keys()), preserve_order=True)[0]
     joint_limits_tensor = torch.tensor([joint_limits[joint_name] for joint_name in joint_limits], device=robot.device)
@@ -203,7 +203,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
     # in the original asset, some joints have stiffness and damping which leads to oscillations
     # we set them to 0 to avoid that (besides the finger joint where we actually want some stiffness)
     dummy_ones_tensor = torch.ones_like(joint_limits_tensor[:, 0])
-    robot.write_joint_stiffness_to_sim(dummy_ones_tensor[1:] * 0.0, joint_ids=joint_indices[1:])
+    robot.write_joint_stiffness_to_sim(dummy_ones_tensor[1:] * 0.01, joint_ids=joint_indices[1:])
     robot.write_joint_damping_to_sim(dummy_ones_tensor[1:] * 0.001, joint_ids=joint_indices[1:])
 
     # Initial gripper state
