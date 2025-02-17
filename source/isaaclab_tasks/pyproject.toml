@@ -1,3 +1,38 @@
 [build-system]
 requires = ["setuptools", "wheel", "toml"]
 build-backend = "setuptools.build_meta"
+
+[project]
+name = "isaaclab_tasks"
+version = "0.10.24"
+description = "Extension containing suite of environments for robot learning."
+readme = "docs/README.md"
+requires-python = ">=3.10"
+license = { text = "BSD-3-Clause" }
+keywords = ["robotics", "rl", "il", "learning"]
+authors = [{ name = "Isaac Lab Project Developers" }]
+maintainers = [{ name = "Isaac Lab Project Developers" }]
+classifiers = [
+  "Natural Language :: English",
+  "Programming Language :: Python :: 3.10",
+  "Isaac Sim :: 4.5.0",
+]
+
+dependencies = [
+  "numpy",
+  "torch==2.5.1",
+  "torchvision>=0.14.1",
+  "protobuf>=3.20.2, < 5.0.0",
+  "tensorboard",
+]
+
+[project.urls]
+Repository = "https://github.com/isaac-sim/IsaacLab"
+
+[tool.setuptools]
+include-package-data = true
+zip-safe = false
+packages = ["isaaclab_tasks"]
+
+[tool.pip]
+extra-index-url = ["https://download.pytorch.org/whl/cu118"]

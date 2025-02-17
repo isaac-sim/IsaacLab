@@ -1,3 +1,29 @@
 [build-system]
 requires = ["setuptools", "wheel", "toml"]
 build-backend = "setuptools.build_meta"
+
+[project]
+name = "isaaclab_assets"
+version = "0.2.1"
+description = "Extension containing configuration instances of different assets and sensors"
+readme = "docs/README.md"
+requires-python = ">=3.10"
+license = { text = "BSD-3-Clause" }
+keywords = ["kit", "robotics", "assets", "isaaclab"]
+authors = [{ name = "Isaac Lab Project Developers" }]
+maintainers = [{ name = "Isaac Lab Project Developers" }]
+classifiers = [
+  "Natural Language :: English",
+  "Programming Language :: Python :: 3.10",
+  "Isaac Sim :: 4.5.0",
+]
+
+dependencies = ["isaaclab"]
+
+[project.urls]
+Repository = "https://github.com/isaac-sim/IsaacLab"
+
+[tool.setuptools]
+include-package-data = true
+zip-safe = false
+packages = ["isaaclab_assets"]

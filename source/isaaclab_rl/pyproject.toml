@@ -1,3 +1,58 @@
 [build-system]
 requires = ["setuptools", "wheel", "toml"]
 build-backend = "setuptools.build_meta"
+
+[project]
+name = "isaaclab_rl"
+version = "0.1.0"
+description = "Extension containing collection of wrappers for reinforcement learning."
+readme = "docs/README.md"
+requires-python = ">=3.10"
+license = { text = "BSD-3-Clause" }
+keywords = ["robotics", "rl", "wrappers", "learning"]
+authors = [{ name = "Isaac Lab Project Developers" }]
+maintainers = [{ name = "Isaac Lab Project Developers" }]
+classifiers = [
+  "Natural Language :: English",
+  "Programming Language :: Python :: 3.10",
+  "Isaac Sim :: 4.5.0",
+]
+
+dependencies = [
+  "isaaclab",
+  "isaaclab_assets",
+  "isaaclab_tasks",
+  "numpy",
+  "torch==2.5.1",
+  "torchvision>=0.14.1",
+  "protobuf>=3.20.2, < 5.0.0",
+  "hydra-core",
+  "h5py",
+  "tensorboard",
+  "moviepy",
+  "pillow==11.0.0",
+]
+
+[project.optional-dependencies]
+sb3 = ["stable-baselines3>=2.1"]
+skrl = ["skrl>=1.4.1"]
+rl_games = ["rl-games==1.6.1", "gym"]
+rsl_rl = ["rsl-rl-lib>=2.1.1"]
+all = [
+  "stable-baselines3>=2.1",
+  "skrl>=1.4.1",
+  "rl-games==1.6.1",
+  "gym",
+  "rsl-rl-lib>=2.1.1",
+]
+
+[project.urls]
+Repository = "https://github.com/isaac-sim/IsaacLab"
+
+[tool.setuptools]
+include-package-data = true
+zip-safe = false
+packages = ["isaaclab_rl"]
+
+[tool.pip]
+extra-index-url = ["https://download.pytorch.org/whl/cu118"]

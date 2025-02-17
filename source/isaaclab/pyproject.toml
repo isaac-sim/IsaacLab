@@ -1,3 +1,46 @@
 [build-system]
 requires = ["setuptools", "wheel", "toml"]
 build-backend = "setuptools.build_meta"
+
+[project]
+name = "isaaclab"
+version = "0.34.0"
+description = "Extension providing main framework interfaces and abstractions for robot learning."
+readme = "docs/README.md"
+requires-python = ">=3.10"
+license = { text = "BSD-3-Clause" }
+keywords = ["kit", "robotics", "learning", "ai"]
+authors = [{ name = "Isaac Lab Project Developers" }]
+maintainers = [{ name = "Isaac Lab Project Developers" }]
+classifiers = [
+  "Natural Language :: English",
+  "Programming Language :: Python :: 3.10",
+  "Isaac Sim :: 4.5.0",
+]
+
+dependencies = [
+  "numpy<2",
+  "torch==2.5.1",
+  "onnx==1.16.1",
+  "prettytable==3.3.0",
+  "toml",
+  "hidapi==0.14.0.post2",
+  "gymnasium==0.29.0",
+  "trimesh",
+  "pyglet<2",
+  "transformers",
+  "einops",
+  "warp-lang",
+  "pillow==11.0.0",
+]
+
+[project.urls]
+Repository = "https://github.com/isaac-sim/IsaacLab"
+
+[tool.setuptools]
+include-package-data = true
+zip-safe = false
+packages = ["isaaclab"]
+
+[tool.pip]
+extra-index-url = ["https://download.pytorch.org/whl/cu118"]
