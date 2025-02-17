@@ -5,10 +5,7 @@
 
 from dataclasses import MISSING
 
-from isaaclab.controllers import (
-    DifferentialIKControllerCfg,
-    OperationalSpaceControllerCfg,
-)
+from isaaclab.controllers import DifferentialIKControllerCfg, OperationalSpaceControllerCfg
 from isaaclab.managers.action_manager import ActionTerm, ActionTermCfg
 from isaaclab.utils import configclass
 
@@ -142,9 +139,7 @@ class EMAJointPositionToLimitsActionCfg(JointPositionToLimitsActionCfg):
     See :class:`EMAJointPositionToLimitsAction` for more details.
     """
 
-    class_type: type[ActionTerm] = (
-        joint_actions_to_limits.EMAJointPositionToLimitsAction
-    )
+    class_type: type[ActionTerm] = joint_actions_to_limits.EMAJointPositionToLimitsAction
 
     alpha: float | dict[str, float] = 1.0
     """The weight for the moving average (float or dict of regex expressions). Defaults to 1.0.
@@ -248,9 +243,7 @@ class DifferentialInverseKinematicsActionCfg(ActionTermCfg):
         rot: tuple[float, float, float, float] = (1.0, 0.0, 0.0, 0.0)
         """Quaternion rotation ``(w, x, y, z)`` w.r.t. the parent frame. Defaults to (1.0, 0.0, 0.0, 0.0)."""
 
-    class_type: type[ActionTerm] = (
-        task_space_actions.DifferentialInverseKinematicsAction
-    )
+    class_type: type[ActionTerm] = task_space_actions.DifferentialInverseKinematicsAction
 
     joint_names: list[str] = MISSING
     """List of joint names or regex expressions that the action will be mapped to."""

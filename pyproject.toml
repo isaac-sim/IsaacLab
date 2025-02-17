@@ -95,3 +95,6 @@ quiet-level = 0
 ignore-words-list = "haa,slq,collapsable,buss"
 # todo: this is hack to deal with incorrect spelling of "Environment" in the Isaac Sim grid world asset
 exclude-file = "source/isaaclab/isaaclab/sim/spawners/from_files/from_files.py"
+
+[tool.ruff]
+line-length = 120
