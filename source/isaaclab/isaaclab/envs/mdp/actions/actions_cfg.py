@@ -9,7 +9,14 @@ from isaaclab.controllers import DifferentialIKControllerCfg, OperationalSpaceCo
 from isaaclab.managers.action_manager import ActionTerm, ActionTermCfg
 from isaaclab.utils import configclass
 
-from . import binary_joint_actions, joint_actions, joint_actions_to_limits, non_holonomic_actions, task_space_actions
+from . import (
+    binary_joint_actions,
+    holonomic_actions,
+    joint_actions,
+    joint_actions_to_limits,
+    non_holonomic_actions,
+    task_space_actions,
+)
 
 ##
 # Joint actions.
@@ -310,3 +317,24 @@ class OperationalSpaceControllerActionCfg(ActionTermCfg):
     Note: Functional only when ``nullspace_control`` is set to ``"position"`` within the
         ``OperationalSpaceControllerCfg``.
     """
+
+
+@configclass
+class HolonomicBaseActionCfg(ActionTermCfg):
+    """Configuration for holonomic base action with two prismatic and one revolute joint."""
+
+    class_type: type[ActionTerm] = holonomic_actions.HolonomicBaseAction
+
+    x_joint_name: str = MISSING
+    """The prismatic joint name in x direction."""
+    y_joint_name: str = MISSING
+    """The prismatic joint name in y direction."""
+    yaw_joint_name: str = MISSING
+    """The revolute joint name for yaw rotation."""
+    body_name: str = MISSING
+    """Name of the base body."""
+
+    scale: tuple[float, float, float] = (1.0, 1.0, 1.0)
+    """Scale factors for (x_vel, y_vel, yaw_vel). Defaults to (1.0, 1.0, 1.0)."""
+    offset: tuple[float, float, float] = (0.0, 0.0, 0.0)
+    """Offset values for (x_vel, y_vel, yaw_vel). Defaults to (0.0, 0.0, 0.0)."""

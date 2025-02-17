@@ -1,0 +1,51 @@
+{
+    "output": {
+      "filePath": "repomix-isaaclab.txt",
+      "style": "plain",
+      "removeComments": false,
+      "removeEmptyLines": false,
+      "topFilesLength": 20,
+      "showLineNumbers": false,
+      "copyToClipboard": true
+    },
+    "include": [
+        "scripts/reinforcement_learning/skrl/**",
+        "source/isaaclab/isaaclab/envs/mdp/**",
+        "source/isaaclab/isaaclab/managers/**",
+        "source/isaaclab/isaaclab/scene/**",
+        "source/isaaclab/isaaclab/sim/**",
+        "source/isaaclab_tasks/isaaclab_tasks/manager_based/**",
+        "scripts/tutorials/05_controllers/run_diff_ik.py"
+    ],
+    "ignore": {
+      "useGitignore": true,
+      "useDefaultPatterns": true,
+      "customPatterns": [
+        "**/spawners/**",
+        "**/converters/**",
+        "**/schemas/**",
+        "**/allegro_hand/**",
+        "**/anymal*/**",
+        "**/ur_10/**",
+        "**/go1/**",
+        "**/go2/**",
+        "**/g1/**",
+        "**/h1/**",
+        "**/spot/**",
+        "**/classic/**",
+        "**/locomotion/**",
+        "**/mobile_manipulation/**",
+        "**/lift/**",
+        "**/stack/**",
+        "**/cabinet/**",
+        "**/inhand/**",
+        "**/*.svg",
+        "**/*.rst",
+        "**/test/**",
+        "uv.lock"
+      ]
+    },
+    "security": {
+      "enableSecurityCheck": true
+    }
+  }
