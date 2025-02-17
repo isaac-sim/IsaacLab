@@ -263,9 +263,9 @@ class TerminationsCfg:
     """Termination terms for the MDP."""
 
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
-    # box_fall = DoneTerm(
-    #     func=mdp.box_height_threshold, params={"box_name": "box", "min_height": 0.05}
-    # )
+    box_fall = DoneTerm(
+        func=mdp.box_height_threshold, params={"box_name": "box", "min_height": -0.1}
+    )
 
 
 @configclass
