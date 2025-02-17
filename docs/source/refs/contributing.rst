@@ -343,7 +343,7 @@ The following is how we expect you to write the docstrings and type hints:
       """
       return a + b
 
-**No type-hinting for :obj:`None`**
+**No type-hinting for None**
 
 We do not specify the return type of :obj:`None` in the docstrings. This is because
 it is not necessary and can be inferred from the function signature.
@@ -398,11 +398,20 @@ what but not the how or why. This is not helpful in the long run.
 We suggest always thinking of the documentation from a new user's perspective. They should be able to directly
 check the documentation and have a good understanding of the code.
 
-.. attention::
+For information on how to write good documentation, please check the notes on
+`Dart's effective documentation <https://dart.dev/effective-dart/documentation>`__
+and `technical writing <https://en.wikiversity.org/wiki/Technical_writing/Style>`__.
+We summarize the key points below:
 
-   For information on how to write good documentation, please check the notes on
-   `Dart's effective documentation <https://dart.dev/effective-dart/documentation>`__
-   and `technical writing <https://en.wikiversity.org/wiki/Technical_writing/Style>`__.
+* Inform (educate the reader) and persuade (convince the reader).
+  * Have a clear aim in mind, and make sure everything you write is towards that aim alone.
+  * Use examples and analogies before introducing abstract concepts.
+* Use the right tone for the audience.
+* Compose simple sentences in active voice.
+* Avoid unnecessary jargon and repetition. Use plain English.
+* Avoid ambiguous phrases such as 'kind of', 'sort of', 'a bit', etc.
+* State important information at the beginning of the sentence.
+* Say exactly what you mean. Don't avoid writing the uncomfortable truth.
 
 
 Unit Testing
