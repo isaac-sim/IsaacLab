@@ -47,7 +47,7 @@ class ActuatorNetLSTM(DCMotor):
 
         # load the model from JIT file
         file_bytes = read_file(self.cfg.network_file)
-        self.network = torch.jit.load(file_bytes, map_location=self._device)
+        self.network = torch.jit.load(file_bytes, map_location=self._device).eval()
 
         # extract number of lstm layers and hidden dim from the shape of weights
         num_layers = len(self.network.lstm.state_dict()) // 4
@@ -126,7 +126,7 @@ class ActuatorNetMLP(DCMotor):
 
         # load the model from JIT file
         file_bytes = read_file(self.cfg.network_file)
-        self.network = torch.jit.load(file_bytes, map_location=self._device)
+        self.network = torch.jit.load(file_bytes, map_location=self._device).eval()
 
         # create buffers for MLP history
         history_length = max(self.cfg.input_idx) + 1
@@ -175,7 +175,8 @@ class ActuatorNetMLP(DCMotor):
             )
 
         # run network inference
-        torques = self.network(network_input).view(self._num_envs, self.num_joints)
+        with torch.inference_mode():
+            torques = self.network(network_input).view(self._num_envs, self.num_joints)
         self.computed_effort = torques.view(self._num_envs, self.num_joints) * self.cfg.torque_scale
 
         # clip the computed effort based on the motor limits
