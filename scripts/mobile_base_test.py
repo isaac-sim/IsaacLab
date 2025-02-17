@@ -2,6 +2,7 @@
 
 import argparse
 import math
+import numpy as np
 import time
 
 from isaaclab.app import AppLauncher
@@ -69,13 +70,13 @@ class SimpleSceneCfg(InteractiveSceneCfg):
             joint_vel={".*": 0.0},
         ),
         actuators={
-            "base": ImplicitActuatorCfg(
-                joint_names_expr=["dummy_base_.*"],
-                velocity_limit=100.0,
-                effort_limit=1000.0,
-                stiffness=1e7,
-                damping=1e5,
-            ),
+            #"base": ImplicitActuatorCfg(
+            #    joint_names_expr=["dummy_base_.*"],
+            #    velocity_limit=100.0,
+            #    effort_limit=1000.0,
+            #    stiffness=1e7,
+            #    damping=1e5,
+            #),
             "panda_shoulder": ImplicitActuatorCfg(
                 joint_names_expr=["panda_joint[1-4]"],
                 effort_limit=87.0,
@@ -148,66 +149,29 @@ def main():
     base_joint_indices = [8, 9, 6]
     arm_joint_indices = [2, 0, 1, 3, 4, 5, 7]
 
-    arm_action = JointPositionActionCfg(
-        joint_names=[
-            "panda_joint1",
-            "panda_joint2",
-            "panda_joint3",
-            "panda_joint4",
-            "panda_joint5",
-            "panda_joint6",
-            "panda_joint7",
-        ],
-        asset_name="robot",
-        scale=1.0,
-    )
-    base_action = JointPositionActionCfg(
-        joint_names=[
-            "dummy_base_prismatic_x_joint",
-            "dummy_base_prismatic_y_joint",
-            "dummy_base_revolute_z_joint",
-        ],
-        asset_name="robot",
-        scale=1.0,
-    )
-
-    # Initialize base action controller with environment wrapper
-    base_controller = base_action.class_type(base_action, env)
-    arm_controller = arm_action.class_type(arm_action, env)
-
-    arm_move_command = torch.tensor(
-        [[0.569, 0.0, 0.0, 2.8, 0.0, 0.0, 0.0]], device="cuda:0"
-    )
-    base_move_command = torch.tensor([[0.5, 0.2, 0.2]], device="cuda:0")
-
     NUM_JOINTS = 10
     ALL_ENV_INDICES = torch.arange(scene.num_envs, dtype=torch.long, device="cuda:0")
 
     root_physx_view = scene._articulations["robot"].root_physx_view
     joint_pos_target = torch.zeros((1, NUM_JOINTS), device="cuda:0")
-    joint_pos_target[:, arm_joint_indices] = torch.tensor(
-        [[0.0, 0.0, 0.0, 0.0, 0.0, 2.0, 0.74]], device="cuda:0"
-    )
 
     # Simulate
     step_count = 0
     while sim.app.is_running():
-        # Process and apply forward velocity command
-        base_controller.process_actions(base_move_command)
-        base_controller.apply_actions()
+        # Set the base position via root transform
+        target_base_x = 0.5 * math.cos(step_count / 60.0)
+        target_base_y = 0.2 * math.sin(step_count / 60.0)
+        base_pose = root_physx_view.get_root_transforms()
+        base_pose[:, 0] = target_base_x
+        base_pose[:, 1] = target_base_y
+        indices = torch.arange(base_pose.shape[0], dtype=torch.int32, device="cuda")
+        root_physx_view.set_root_transforms(base_pose, indices=indices)
 
-        arm_controller.process_actions(arm_move_command)
-        arm_controller.apply_actions()
-
-        # scene.write_data_to_sim()
-
-        step_count += 1
-        joint_pos_target[0, 2] = math.cos(step_count / 120.0)
-        joint_pos_target[0, 6] = math.sin(step_count / 120.0)
-        joint_pos_target[0, 8] = math.cos(step_count / 120.0)
-        joint_pos_target[0, 9] = math.cos(step_count / 120.0)
-
-        root_physx_view.set_dof_position_targets(joint_pos_target, ALL_ENV_INDICES)
+        # Sinusoidal actuation of one arm joint
+        joint_pos_target[0, arm_joint_indices] = torch.tensor(
+            [[0.0, 0.0, math.cos(step_count / 60.0), 0.0, 0.0, 2.0, 0.74]], device="cuda:0"
+        )
+        root_physx_view.set_dof_position_targets(joint_pos_target, torch.arange(len(arm_joint_indices), dtype=torch.int32, device="cuda"))
 
         sim.step(render=True)
 
@@ -218,6 +182,7 @@ def main():
         )
 
         time.sleep(1 / 120.0)
+        step_count += 1
 
 
 if __name__ == "__main__":
