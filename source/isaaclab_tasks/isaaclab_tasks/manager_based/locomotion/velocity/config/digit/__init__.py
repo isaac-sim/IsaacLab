@@ -31,6 +31,7 @@ gym.register(
     },
 )
 
+
 gym.register(
     id="Isaac-Velocity-Rough-Digit-v0",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
