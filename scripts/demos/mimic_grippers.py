@@ -11,7 +11,7 @@ from isaaclab.app import AppLauncher
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Demo on using the mimic joints for Robotiq 140 gripper.")
-parser.add_argument("--num_envs", type=int, default=2, help="Number of environments to spawn.")
+parser.add_argument("--num_envs", type=int, default=4, help="Number of environments to spawn.")
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
@@ -24,7 +24,7 @@ simulation_app = app_launcher.app
 """Rest everything follows."""
 
 import math
-
+import torch
 import isaaclab.sim as sim_utils
 from isaaclab.actuators.actuator_cfg import ImplicitActuatorCfg
 from isaaclab.assets import Articulation, ArticulationCfg, AssetBaseCfg
@@ -82,6 +82,14 @@ class TableTopSceneCfg(InteractiveSceneCfg):
                 "wrist_1_joint": 0.0,
                 "wrist_2_joint": 0.0,
                 "wrist_3_joint": 0.0,
+                "finger_joint": 0.0,
+                "right_outer_knuckle_joint": 0.0,
+                "left_outer_finger_joint": 0.0,
+                "right_outer_finger_joint": 0.0,
+                "left_inner_finger_joint": 0.0,
+                "right_inner_finger_joint": 0.0,
+                "left_inner_finger_pad_joint": 0.0,
+                "right_inner_finger_pad_joint": 0.0,
             },
             pos=(0.0, 0.0, 0.0),
             # rot=(0.0, 0.0, 0.0, 1.0),
@@ -153,55 +161,12 @@ class TableTopSceneCfg(InteractiveSceneCfg):
                 # friction=0.0,
                 # armature=0.0,
             ),
-            # "left_inner_finger_joint": ImplicitActuatorCfg(
-            #     joint_names_expr=["left_inner_finger_joint"],
-            #     effort_limit=1.0,
-            #     velocity_limit=1e6,
-            #     stiffness=0.002,
-            #     damping=0.0001,
-            #     friction=0.0,
-            #     armature=0.0,
-            # ),
-            # "right_inner_finger_joint": ImplicitActuatorCfg(
-            #     joint_names_expr=["right_inner_finger_joint"],
-            #     effort_limit=1.0,
-            #     velocity_limit=1e6,
-            #     stiffness=0.002,
-            #     damping=0.0001,
-            #     friction=0.0,
-            #     armature=0.0,
-            # ),
         },
         actuated_joint_names=["shoulder_.*", "elbow_joint", "wrist_.*", "finger_joint"],
         mimic_joints_info={
             "right_outer_knuckle_joint": {
                 "parent": "finger_joint",
                 "multiplier": -1.0,
-                "offset": 0.0,
-            },
-            "right_inner_finger_joint": {
-                "parent": "finger_joint",
-                "multiplier": 1.0,
-                "offset": 0.0,
-            },
-            "right_inner_finger_pad_joint": {
-                "parent": "finger_joint",
-                "multiplier": 1.0,
-                "offset": 0.0,
-            },
-            "left_outer_finger_joint": {
-                "parent": "finger_joint",
-                "multiplier": 1.0,
-                "offset": 0.0,
-            },
-            "left_inner_finger_joint": {
-                "parent": "finger_joint",
-                "multiplier": 1.0,
-                "offset": 0.0,
-            },
-            "left_inner_finger_pad_joint": {
-                "parent": "finger_joint",
-                "multiplier": 1.0,
                 "offset": 0.0,
             },
         },
@@ -220,13 +185,36 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
     # Resolving the scene entities
     robot_entity_cfg.resolve(scene)
 
+    # set the joint limits for the gripper
+    joint_limits = {
+        "finger_joint": (0.0, 0.7),
+        "right_outer_knuckle_joint": (0.0, math.radians(45)),
+        "left_outer_finger_joint": (0.0, math.radians(45)),
+        "right_outer_finger_joint": (0.0, math.radians(45)),
+        "left_inner_finger_pad_joint": (-math.radians(45), 0.0),
+        "right_inner_finger_pad_joint": (-math.radians(45), 0.0),
+        "left_inner_finger_joint": (-math.radians(45), 0.0),
+        "right_inner_finger_joint": (-math.radians(45), 0.0),
+    }
+    joint_indices = robot.find_joints(list(joint_limits.keys()), preserve_order=True)[0]
+    joint_limits_tensor = torch.tensor([joint_limits[joint_name] for joint_name in joint_limits], device=robot.device)
+    robot.write_joint_limits_to_sim(joint_limits_tensor, joint_ids=joint_indices)
+
+    # in the original asset, some joints have stiffness and damping which leads to oscillations
+    # we set them to 0 to avoid that (besides the finger joint where we actually want some stiffness)
+    dummy_ones_tensor = torch.ones_like(joint_limits_tensor[:, 0])
+    robot.write_joint_stiffness_to_sim(dummy_ones_tensor[1:] * 0.0, joint_ids=joint_indices[1:])
+    robot.write_joint_damping_to_sim(dummy_ones_tensor[1:] * 0.001, joint_ids=joint_indices[1:])
+
+    # Initial gripper state
+    toggle_gripper = False
     # Define simulation stepping
     sim_dt = sim.get_physics_dt()
     count = 0
     # Simulation loop
     while simulation_app.is_running():
         # reset
-        if count % 150 == 0:
+        if count % 500 == 0:
             # reset time
             count = 0
             # reset joint state
@@ -237,16 +225,20 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
             # reset actions
             joint_pos_des = joint_pos[:, robot_entity_cfg.joint_ids].clone()
 
+        # flip the gripper command every 50 steps
+        if count % 100 == 0:
+            toggle_gripper = not toggle_gripper
+            print(f"[Step {count:04d}] Gripper state: {'open' if toggle_gripper else 'closed'}")
+
         # set gripper joint position
-        gripper_joint_pos = joint_pos_des[:, -1:] * 0.0
-        gripper_width = 0
-        gripper_width = math.radians(45)  # open: 0, close=45 degrees
-        gripper_joint_pos += gripper_width
+        gripper_width = 0.0 if toggle_gripper else math.radians(45)  # open: 0, close=45 degrees
+        gripper_joint_pos = torch.full_like(joint_pos_des[:, -1:], gripper_width)
 
         # apply actions
         robot.set_joint_position_target(joint_pos_des[:, :6], joint_ids=robot_entity_cfg.joint_ids[:6])
         robot.set_joint_position_target(gripper_joint_pos, joint_ids=[6])
 
+        # write data to sim
         scene.write_data_to_sim()
         # perform step
         sim.step()
@@ -265,7 +257,7 @@ def main():
     # Set main camera
     sim.set_camera_view((2.5, 2.5, 2.5), (0.0, 0.0, 0.0))
     # Design scene
-    scene_cfg = TableTopSceneCfg(num_envs=args_cli.num_envs, env_spacing=2.0)
+    scene_cfg = TableTopSceneCfg(num_envs=args_cli.num_envs, env_spacing=2.0, replicate_physics=False)
     scene = InteractiveScene(scene_cfg)
     # Play the simulator
     sim.reset()

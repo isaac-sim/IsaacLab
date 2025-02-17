@@ -696,7 +696,7 @@ class Articulation(AssetBase):
 
     def write_joint_limits_to_sim(
         self,
-        limits: torch.Tensor | float,
+        limits: torch.Tensor,
         joint_ids: Sequence[int] | slice | None = None,
         env_ids: Sequence[int] | None = None,
         warn_limit_violation: bool = True,
