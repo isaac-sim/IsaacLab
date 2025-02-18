@@ -48,8 +48,8 @@ class TestValidEntitiesConfigs(unittest.TestCase):
     def test_asset_configs(self):
         """Check all registered asset configurations."""
         # iterate over all registered assets
-        for asset_name, entity_cfg in self.registered_entities.items():
-            for device in ("cuda:0", "cpu"):
+        for device in ("cpu", "cuda:0"):
+            for asset_name, entity_cfg in self.registered_entities.items():
                 with self.subTest(asset_name=asset_name, device=device):
                     with build_simulation_context(device=device, auto_add_lighting=True) as sim:
                         sim._app_control_on_stop_handle = None
