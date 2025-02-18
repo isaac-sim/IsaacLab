@@ -9,6 +9,8 @@ import torch
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
+import omni.log
+
 from isaaclab.utils import DelayBuffer, LinearInterpolation
 from isaaclab.utils.types import ArticulationActions
 
@@ -54,8 +56,12 @@ class ImplicitActuator(ActuatorBase):
     def __init__(self, cfg: ImplicitActuatorCfg, *args, **kwargs):
         # effort limits
         if cfg.effort_limit_sim is None and cfg.effort_limit is not None:
-            # TODO: Eventually we want to throw a warning here to only use 'effort_limit_sim'.
-            #   We should do this once all parameters have an "_sim" suffix.
+            # throw a warning that we have a replacement for the deprecated parameter
+            omni.log.warn(
+                "The <ImplicitActuatorCfg> object has a value for 'effort_limit'."
+                " This parameter will be removed in the future."
+                " To set the effort limit, please use 'effort_limit_sim' instead."
+            )
             cfg.effort_limit_sim = cfg.effort_limit
         elif cfg.effort_limit_sim is not None and cfg.effort_limit is None:
             # TODO: Eventually we want to get rid of 'effort_limit' for implicit actuators.
@@ -64,14 +70,21 @@ class ImplicitActuator(ActuatorBase):
         elif cfg.effort_limit_sim is not None and cfg.effort_limit is not None:
             raise ValueError(
                 "The <ImplicitActuatorCfg> object has set both 'effort_limit_sim' and 'effort_limit'."
-                " Please only set one of 'effort_limit' or 'effort_limit_sim' for implicit actuators."
+                " Please only set 'effort_limit_sim' for implicit actuators."
             )
 
         # velocity limits
         if cfg.velocity_limit_sim is None and cfg.velocity_limit is not None:
-            # TODO: Eventually we want to throw a warning here to only use 'velocity_limit_sim'.
-            #   We should do this once all parameters have an "_sim" suffix.
-            cfg.velocity_limit_sim = cfg.velocity_limit
+            # throw a warning that previously this was not set
+            # it leads to different simulation behavior so we want to remain backwards compatible
+            omni.log.warn(
+                "The <ImplicitActuatorCfg> object has a value for 'velocity_limit'."
+                " Previously, although this value was specified, it was not getting used by implicit"
+                " actuators. Since this parameter affects the simulation behavior, we continue to not"
+                " use it. This parameter will be removed in the future."
+                " To set the velocity limit, please use 'velocity_limit_sim' instead."
+            )
+            cfg.velocity_limit = None
         elif cfg.velocity_limit_sim is not None and cfg.velocity_limit is None:
             # TODO: Eventually we want to get rid of 'velocity_limit' for implicit actuators.
             #   We should do this once all parameters have an "_sim" suffix.
@@ -79,7 +92,7 @@ class ImplicitActuator(ActuatorBase):
         elif cfg.velocity_limit_sim is not None and cfg.velocity_limit is not None:
             raise ValueError(
                 "The <ImplicitActuatorCfg> object has set both 'velocity_limit_sim' and 'velocity_limit'."
-                " Please only set one of 'velocity_limit' or 'velocity_limit_sim' for implicit actuators."
+                " Please only set 'velocity_limit_sim' for implicit actuators."
             )
 
         # set implicit actuator model flag
