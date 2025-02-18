@@ -79,7 +79,7 @@ Breaking Changes
 * Renames Isaac Lab extensions and folders by @kellyguo11
 * Restructures extension folders and removes old imitation learning scripts by @kellyguo11
 * Renames conda and venv Python environment from ``isaaclab`` to ``env_isaaclab`` by @Toni-SM
-* The RSL-RL package has been renamed from ``rsl-rl`` to ``rsl-rl-lib`` by @samibouziri
+* Fixes RSL-RL package name in `setup.py` according to PyPI installation by @samibouziri
 
 Migration Guide
 ---------------
