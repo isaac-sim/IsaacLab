@@ -1057,6 +1057,8 @@ class TestArticulation(unittest.TestCase):
 
                                 if sim_limit is None:
                                     # check to make sure the measured value isn't changed
+                                    # TODO come up with a better way to check that the default usd limit hasn't been
+                                    # overwritten
                                     self.assertTrue(measured > 1e10)
                                 elif sim_limit is not None:
                                     expected_velocity_limit = torch.full(
@@ -1143,6 +1145,59 @@ class TestArticulation(unittest.TestCase):
                                     # check actuator
                                     torch.testing.assert_close(
                                         articulation.actuators["joint"].effort_limit_sim, expected_effort_limit
+                                    )
+
+    def test_setting_effort_limit_idealpd(self):
+        """Test that effort limit is set correctly for idealpd actuators."""
+
+        for num_articulations in (1, 2):
+            for device in ("cuda:0", "cpu"):
+                for sim_limit in (1e5, None):
+                    for act_limit in (1e2, None):
+                        with self.subTest(
+                            num_articulations=num_articulations,
+                            device=device,
+                            sim_limit=sim_limit,
+                            act_limit=act_limit,
+                        ):
+                            with build_simulation_context(
+                                device=device, add_ground_plane=False, auto_add_lighting=True
+                            ) as sim:
+                                # create simulation
+                                sim._app_control_on_stop_handle = None
+                                articulation_cfg = generate_articulation_cfg(
+                                    articulation_type="single_joint_idealpd",
+                                    effort_limit_sim=sim_limit,
+                                    effort_limit=act_limit,
+                                )
+                                articulation, _ = generate_articulation(
+                                    articulation_cfg=articulation_cfg,
+                                    num_articulations=num_articulations,
+                                    device=device,
+                                )
+                                # Play sim
+                                sim.reset()
+
+                                measured = articulation.root_physx_view.get_dof_max_forces().squeeze(-1).tolist()[0]
+                                print(measured)
+                                if sim_limit is None:
+                                    # check to make sure the measured value isn't changed
+                                    # TODO come up with a better way to check that the default usd limit hasn't been
+                                    # overwritten
+                                    self.assertTrue(measured > 1e8)
+                                elif sim_limit is not None:
+                                    expected_effort_limit = torch.full(
+                                        (articulation.num_instances, articulation.num_joints),
+                                        sim_limit,
+                                        device=articulation.device,
+                                    )
+                                    measured_physx_effort_limit = articulation.root_physx_view.get_dof_max_forces().to(
+                                        device=device
+                                    )
+                                    # check root_physx_view
+                                    torch.testing.assert_close(
+                                        expected_effort_limit,
+                                        measured_physx_effort_limit,
                                     )
 
     def test_reset(self):
