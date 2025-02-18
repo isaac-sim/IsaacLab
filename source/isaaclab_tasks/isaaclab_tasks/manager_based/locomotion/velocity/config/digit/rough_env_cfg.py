@@ -5,33 +5,14 @@
 
 import math
 
-from isaaclab_assets.robots.agility import get_digit_articulation_cfg
+from isaaclab_assets.robots.agility import ARM_JOINT_NAMES, DIGIT_V4_CFG, LEG_JOINT_NAMES
 
-from isaaclab.managers import (
-    EventTermCfg,
-    ObservationGroupCfg,
-    ObservationTermCfg,
-    RewardTermCfg,
-    SceneEntityCfg,
-    TerminationTermCfg,
-)
+from isaaclab.managers import ObservationGroupCfg, ObservationTermCfg, RewardTermCfg, SceneEntityCfg, TerminationTermCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.noise import AdditiveUniformNoiseCfg as Unoise
 
 import isaaclab_tasks.manager_based.locomotion.velocity.mdp as mdp
 from isaaclab_tasks.manager_based.locomotion.velocity.velocity_env_cfg import LocomotionVelocityRoughEnvCfg
-
-LEG_JOINT_NAMES = [
-    ".*_hip_roll",
-    ".*_hip_yaw",
-    ".*_hip_pitch",
-    ".*_knee",
-    ".*_toe_a",
-    ".*_toe_b",
-]
-
-
-ARM_JOINT_NAMES = [".*_arm_.*"]
 
 
 @configclass
@@ -88,7 +69,7 @@ class DigitRewards:
         weight=-2.5,
     )
     stand_still = RewardTermCfg(
-        func=mdp.stand_still_error,
+        func=mdp.stand_still_joint_deviation_l1,
         weight=-0.4,
         params={
             "command_name": "base_velocity",
@@ -224,88 +205,11 @@ class ActionsCfg:
 
 
 @configclass
-class EventCfg:
-    """Configuration for randomization."""
-
-    # Startup events:
-    physics_material = EventTermCfg(
-        func=mdp.randomize_rigid_body_material,
-        mode="startup",
-        params={
-            "asset_cfg": SceneEntityCfg("robot", body_names=".*"),
-            "static_friction_range": (0.6, 1.0),
-            "dynamic_friction_range": (0.6, 0.6),
-            "restitution_range": (0.0, 0.0),
-            "num_buckets": 64,
-        },
-    )
-
-    add_base_mass = EventTermCfg(
-        func=mdp.randomize_rigid_body_mass,
-        mode="startup",
-        params={
-            "asset_cfg": SceneEntityCfg("robot", body_names="torso_base"),
-            "mass_distribution_params": (-5.0, 5.0),
-            "operation": "add",
-        },
-    )
-
-    # Reset events:
-    base_external_force_torque = EventTermCfg(
-        func=mdp.apply_external_force_torque,
-        mode="reset",
-        params={
-            "asset_cfg": SceneEntityCfg("robot", body_names="torso_base"),
-            "force_range": (0.0, 0.0),
-            "torque_range": (-0.0, 0.0),
-        },
-    )
-
-    reset_base = EventTermCfg(
-        func=mdp.reset_root_state_uniform,
-        mode="reset",
-        params={
-            "pose_range": {
-                "x": (-0.5, 0.5),
-                "y": (-0.5, 0.5),
-                "yaw": (0.0, 0.0),
-            },
-            "velocity_range": {
-                "x": (-0.5, 0.5),
-                "y": (-0.5, 0.5),
-                "z": (-0.5, 0.5),
-                "roll": (-0.5, 0.5),
-                "pitch": (-0.5, 0.5),
-                "yaw": (-0.5, 0.5),
-            },
-        },
-    )
-
-    reset_robot_joints = EventTermCfg(
-        func=mdp.reset_joints_by_scale,
-        mode="reset",
-        params={
-            "position_range": (1.0, 1.0),
-            "velocity_range": (0.0, 0.0),
-        },
-    )
-
-    # Interval events:
-    push_robot = EventTermCfg(
-        func=mdp.push_by_setting_velocity,
-        mode="interval",
-        interval_range_s=(10.0, 15.0),
-        params={"velocity_range": {"x": (-0.5, 0.5), "y": (-0.5, 0.5)}},
-    )
-
-
-@configclass
 class DigitRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
     rewards: DigitRewards = DigitRewards()
     observations: DigitObservations = DigitObservations()
     terminations: TerminationsCfg = TerminationsCfg()
     actions: ActionsCfg = ActionsCfg()
-    events: EventCfg = EventCfg()
 
     def __post_init__(self):
         super().__post_init__()
@@ -313,11 +217,17 @@ class DigitRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
         self.sim.dt = 0.005
 
         # Scene
-        self.scene.robot = get_digit_articulation_cfg().replace(prim_path="{ENV_REGEX_NS}/Robot")
+        self.scene.robot = DIGIT_V4_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
         self.scene.height_scanner.prim_path = "{ENV_REGEX_NS}/Robot/torso_base"
         self.scene.contact_forces.history_length = self.decimation
         self.scene.contact_forces.update_period = self.sim.dt
         self.scene.height_scanner.update_period = self.decimation * self.sim.dt
+
+        # Events:
+        self.events.add_base_mass.params["asset_cfg"] = SceneEntityCfg("robot", body_names="torso_base")
+        self.events.base_external_force_torque.params["asset_cfg"] = SceneEntityCfg("robot", body_names="torso_base")
+        # Don't randomize the initial joint positions because we have closed loops.
+        self.events.reset_robot_joints.params["position_range"] = (1.0, 1.0)
 
         # Commands
         self.commands.base_velocity.ranges.lin_vel_x = (-0.8, 0.8)
@@ -343,9 +253,6 @@ class DigitRoughEnvCfg_PLAY(DigitRoughEnvCfg):
             self.scene.terrain.terrain_generator.num_cols = 5
             self.scene.terrain.terrain_generator.curriculum = False
 
-        self.commands.base_velocity.ranges.lin_vel_x = (1.0, 1.0)
-        self.commands.base_velocity.ranges.lin_vel_y = (0.0, 0.0)
-        self.commands.base_velocity.ranges.heading = (0.0, 0.0)
         # Disable randomization for play.
         self.observations.policy.enable_corruption = False
         # Remove random pushing.

@@ -24,7 +24,6 @@ class DigitFlatEnvCfg(DigitRoughEnvCfg):
 
 
 class DigitFlatEnvCfg_PLAY(DigitFlatEnvCfg):
-
     def __post_init__(self) -> None:
         super().__post_init__()
 
@@ -36,20 +35,3 @@ class DigitFlatEnvCfg_PLAY(DigitFlatEnvCfg):
         # Remove random pushing.
         self.randomization.base_external_force_torque = None
         self.randomization.push_robot = None
-        self.randomization.reset_base.params = {
-            "pose_range": {
-                "x": (-0.0, 0.0),
-                "y": (-0.0, 0.0),
-                "yaw": (-3.1415 * 0, 3.1415 * 0),
-            },
-            "velocity_range": {
-                "x": (-0.0, 0.0),
-                "y": (-0.0, 0.0),
-                "z": (-0.0, 0.0),
-                "roll": (-0.0, 0.0),
-                "pitch": (-0.0, 0.0),
-                "yaw": (-0.0, 0.0),
-            },
-        }
-
-        self.commands.base_velocity.ranges.heading = (0.0, 0.0)

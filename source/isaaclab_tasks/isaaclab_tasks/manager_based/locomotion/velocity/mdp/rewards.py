@@ -14,6 +14,7 @@ from __future__ import annotations
 import torch
 from typing import TYPE_CHECKING
 
+from isaaclab.envs import mdp
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.sensors import ContactSensor
 from isaaclab.utils.math import quat_rotate_inverse, yaw_quat
@@ -106,19 +107,20 @@ def track_ang_vel_z_world_exp(
     return torch.exp(-ang_vel_error / std**2)
 
 
-def stand_still_error(env, command_name: str, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
+def stand_still_joint_deviation_l1(
+    env, command_name: str, command_threshold: float = 0.06, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
+) -> torch.Tensor:
     """Penalize offsets from the default joint positions when the command is very small."""
-    asset = env.scene[asset_cfg.name]
     command = env.command_manager.get_command(command_name)
-    # Penalize motion at zero commands
-    offset = asset.data.default_joint_pos[:, asset_cfg.joint_ids] - asset.data.joint_pos[:, asset_cfg.joint_ids]
-    return torch.sum(torch.abs(offset), dim=1) * (torch.norm(command[:, :2], dim=1) < 0.06)
+    # Penalize motion when command is nearly zero.
+    return mdp.joint_deviation_l1(env, asset_cfg) * (torch.norm(command[:, :2], dim=1) < command_threshold)
 
 
-def no_jumps(env, sensor_cfg: SceneEntityCfg) -> torch.Tensor:
+def no_jumps(env, sensor_cfg: SceneEntityCfg, threshold: float = 1.0) -> torch.Tensor:
     """Penalize if both feet are in the air."""
     contact_sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
-    contacts = contact_sensor.data.net_forces_w_history[:, :, sensor_cfg.body_ids, :].norm(dim=-1).max(dim=1)[0] > 1.0
+    contacts = (
+        contact_sensor.data.net_forces_w_history[:, :, sensor_cfg.body_ids, :].norm(dim=-1).max(dim=1)[0] > threshold
+    )
     zero_contact = (~contacts).all(dim=1)
     return 1.0 * zero_contact
-

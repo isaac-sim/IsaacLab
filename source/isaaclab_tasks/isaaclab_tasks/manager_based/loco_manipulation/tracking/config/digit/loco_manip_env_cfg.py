@@ -5,6 +5,8 @@
 
 import math
 
+from isaaclab_assets.robots.agility import ARM_JOINT_NAMES, LEG_JOINT_NAMES
+
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import RewardTermCfg as RewTerm
@@ -14,8 +16,7 @@ from isaaclab.utils.noise import AdditiveUniformNoiseCfg as Unoise
 
 import isaaclab_tasks.manager_based.locomotion.velocity.mdp as mdp
 import isaaclab_tasks.manager_based.manipulation.reach.mdp as manipulation_mdp
-
-from .rough_env_cfg import ARM_JOINT_NAMES, LEG_JOINT_NAMES, DigitRewards, DigitRoughEnvCfg
+from isaaclab_tasks.manager_based.locomotion.velocity.config.digit.rough_env_cfg import DigitRewards, DigitRoughEnvCfg
 
 
 @configclass
@@ -33,7 +34,7 @@ class DigitLocoManipRewards(DigitRewards):
         weight=-2.0,
         params={
             "asset_cfg": SceneEntityCfg("robot", body_names="left_arm_wrist_yaw"),
-            "command_name": "left_ee_position",
+            "command_name": "left_ee_pose",
         },
     )
 
@@ -42,7 +43,7 @@ class DigitLocoManipRewards(DigitRewards):
         params={
             "asset_cfg": SceneEntityCfg("robot", body_names="left_arm_wrist_yaw"),
             "std": 0.05,
-            "command_name": "left_ee_position",
+            "command_name": "left_ee_pose",
         },
         weight=2.0,
     )
@@ -52,7 +53,7 @@ class DigitLocoManipRewards(DigitRewards):
         weight=-0.2,
         params={
             "asset_cfg": SceneEntityCfg("robot", body_names="left_arm_wrist_yaw"),
-            "command_name": "left_ee_position",
+            "command_name": "left_ee_pose",
         },
     )
 
@@ -61,7 +62,7 @@ class DigitLocoManipRewards(DigitRewards):
         weight=-2.0,
         params={
             "asset_cfg": SceneEntityCfg("robot", body_names="right_arm_wrist_yaw"),
-            "command_name": "right_ee_position",
+            "command_name": "right_ee_pose",
         },
     )
 
@@ -70,7 +71,7 @@ class DigitLocoManipRewards(DigitRewards):
         params={
             "asset_cfg": SceneEntityCfg("robot", body_names="right_arm_wrist_yaw"),
             "std": 0.05,
-            "command_name": "right_ee_position",
+            "command_name": "right_ee_pose",
         },
         weight=2.0,
     )
@@ -80,7 +81,7 @@ class DigitLocoManipRewards(DigitRewards):
         weight=-0.2,
         params={
             "asset_cfg": SceneEntityCfg("robot", body_names="right_arm_wrist_yaw"),
-            "command_name": "right_ee_position",
+            "command_name": "right_ee_pose",
         },
     )
 
@@ -90,8 +91,14 @@ class DigitLocoManipObservations:
 
     @configclass
     class PolicyCfg(ObsGroup):
-        base_lin_vel = ObsTerm(func=mdp.base_lin_vel, noise=Unoise(n_min=-0.1, n_max=0.1),)
-        base_ang_vel = ObsTerm(func=mdp.base_ang_vel, noise=Unoise(n_min=-0.2, n_max=0.2),)
+        base_lin_vel = ObsTerm(
+            func=mdp.base_lin_vel,
+            noise=Unoise(n_min=-0.1, n_max=0.1),
+        )
+        base_ang_vel = ObsTerm(
+            func=mdp.base_ang_vel,
+            noise=Unoise(n_min=-0.2, n_max=0.2),
+        )
         projected_gravity = ObsTerm(
             func=mdp.projected_gravity,
             noise=Unoise(n_min=-0.05, n_max=0.05),
@@ -100,13 +107,13 @@ class DigitLocoManipObservations:
             func=mdp.generated_commands,
             params={"command_name": "base_velocity"},
         )
-        left_ee_pos_command = ObsTerm(
+        left_ee_pose_command = ObsTerm(
             func=mdp.generated_commands,
-            params={"command_name": "left_ee_position"},
+            params={"command_name": "left_ee_pose"},
         )
-        right_ee_pos_command = ObsTerm(
+        right_ee_pose_command = ObsTerm(
             func=mdp.generated_commands,
-            params={"command_name": "right_ee_position"},
+            params={"command_name": "right_ee_pose"},
         )
         joint_pos = ObsTerm(
             func=mdp.joint_pos_rel,
@@ -119,12 +126,10 @@ class DigitLocoManipObservations:
             noise=Unoise(n_min=-1.5, n_max=1.5),
         )
         actions = ObsTerm(func=mdp.last_action)
-        height_scan = ObsTerm(
-            func=mdp.height_scan,
-            params={"sensor_cfg": SceneEntityCfg("height_scanner")},
-            noise=Unoise(n_min=-0.1, n_max=0.1),
-            clip=(-1.0, 1.0),
-        )
+
+        def __post_init__(self):
+            self.enable_corruption = True
+            self.concatenate_terms = True
 
     policy = PolicyCfg()
 
@@ -146,7 +151,7 @@ class DigitLocoManipCommands:
         ),
     )
 
-    left_ee_position = mdp.UniformPoseCommandCfg(
+    left_ee_pose = mdp.UniformPoseCommandCfg(
         asset_name="robot",
         body_name="left_arm_wrist_yaw",
         resampling_time_range=(1.0, 3.0),
@@ -155,13 +160,13 @@ class DigitLocoManipCommands:
             pos_x=(0.25, 0.45),
             pos_y=(0.15, 0.3),
             pos_z=(-0.05, 0.15),
-            roll=(0.0, 0.0),
-            pitch=(0.0, 0.0),
-            yaw=(math.pi / 2.0, math.pi / 2.0),
+            roll=(-0.1, 0.1),
+            pitch=(-0.1, 0.1),
+            yaw=(math.pi / 2.0 - 0.1, math.pi / 2.0 + 0.1),
         ),
     )
 
-    right_ee_position = mdp.UniformPoseCommandCfg(
+    right_ee_pose = mdp.UniformPoseCommandCfg(
         asset_name="robot",
         body_name="right_arm_wrist_yaw",
         resampling_time_range=(1.0, 3.0),
@@ -170,9 +175,9 @@ class DigitLocoManipCommands:
             pos_x=(0.25, 0.45),
             pos_y=(-0.3, -0.15),
             pos_z=(-0.05, 0.15),
-            roll=(0.0, 0.0),
-            pitch=(0.0, 0.0),
-            yaw=(-math.pi / 2.0, -math.pi / 2.0),
+            roll=(-0.1, 0.1),
+            pitch=(-0.1, 0.1),
+            yaw=(-math.pi / 2.0 - 0.1, -math.pi / 2.0 + 0.1),
         ),
     )
 
@@ -220,16 +225,3 @@ class DigitLocoManipEnvCfg_PLAY(DigitLocoManipEnvCfg):
         # Remove random pushing.
         self.randomization.base_external_force_torque = None
         self.randomization.push_robot = None
-        self.randomization.reset_base.params = {
-            "pose_range": {"x": (-0.0, 0.0), "y": (-0.0, 0.0), "yaw": (-3.1415 * 0, 3.1415 * 0),},
-            "velocity_range": {
-                "x": (-0.0, 0.0),
-                "y": (-0.0, 0.0),
-                "z": (-0.0, 0.0),
-                "roll": (-0.0, 0.0),
-                "pitch": (-0.0, 0.0),
-                "yaw": (-0.0, 0.0),
-            },
-        }
-
-        self.commands.base_velocity.ranges.heading = (0.0, 0.0)
