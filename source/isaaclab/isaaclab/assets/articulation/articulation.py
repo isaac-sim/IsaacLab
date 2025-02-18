@@ -1354,7 +1354,7 @@ class Articulation(AssetBase):
 
             # Set common properties into the simulation
             self.write_joint_effort_limit_to_sim(actuator.effort_limit_sim, joint_ids=actuator.joint_indices)
-            self.write_joint_velocity_limit_to_sim(actuator.velocity_limit_sim, joint_ids=actuator.joint_indices)
+            # self.write_joint_velocity_limit_to_sim(actuator.velocity_limit_sim, joint_ids=actuator.joint_indices)
             self.write_joint_armature_to_sim(actuator.armature, joint_ids=actuator.joint_indices)
             self.write_joint_friction_to_sim(actuator.friction, joint_ids=actuator.joint_indices)
 
