@@ -317,7 +317,7 @@ class TestScaleRandomization(unittest.TestCase):
         for i in range(3):
             prim_spec = Sdf.CreatePrimInLayer(stage.GetRootLayer(), prim_paths[i])
             scale_spec = prim_spec.GetAttributeAtPath(prim_paths[i] + ".xformOp:scale")
-            torch.testing.assert_close(tuple(scale_spec.default), (1.0, 1.0, 1.0))
+            self.assertEqual(tuple(scale_spec.default), (1.0, 1.0, 1.0))
 
         # simulate physics
         count = 0
