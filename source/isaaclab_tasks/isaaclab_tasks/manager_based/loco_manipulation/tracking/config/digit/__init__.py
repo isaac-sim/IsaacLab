@@ -11,7 +11,7 @@ from . import agents
 # Register Gym environments.
 ##
 gym.register(
-    id="Isaac-Velocity-LocoManip-Digit-v0",
+    id="Isaac-Tracking-LocoManip-Digit-v0",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
@@ -22,7 +22,7 @@ gym.register(
 
 
 gym.register(
-    id="Isaac-Velocity-LocoManip-Digit-Play-v0",
+    id="Isaac-Tracking-LocoManip-Digit-Play-v0",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
