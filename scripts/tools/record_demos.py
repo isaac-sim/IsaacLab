@@ -51,11 +51,12 @@ AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
 args_cli = parser.parse_args()
 
+app_launcher_args = vars(args_cli)
 if args_cli.teleop_device.lower() == "handtracking":
-    vars(args_cli)["experience"] = f'{os.environ["ISAACLAB_PATH"]}/apps/isaaclab.python.xr.openxr.kit'
+    app_launcher_args["xr"] = True
 
 # launch the simulator
-app_launcher = AppLauncher(args_cli)
+app_launcher = AppLauncher(app_launcher_args)
 simulation_app = app_launcher.app
 
 """Rest everything follows."""

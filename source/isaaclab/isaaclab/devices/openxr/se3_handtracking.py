@@ -11,7 +11,6 @@ from scipy.spatial.transform import Rotation, Slerp
 from typing import Final
 
 import carb
-from omni.kit.viewport.utility import get_active_viewport
 
 from ..device_base import DeviceBase
 
@@ -83,11 +82,6 @@ class Se3HandTracking(DeviceBase):
         self._alpha_rot = 0.5
         self._smoothed_delta_pos = np.zeros(3)
         self._smoothed_delta_rot = np.zeros(3)
-        # Set the XR anchormode to active camera
-        carb.settings.get_settings().set_string("/xrstage/profile/ar/anchorMode", "active camera")
-        # Select RTX - RealTime for Renderer
-        viewport_api = get_active_viewport()
-        viewport_api.set_hd_engine("rtx", "RaytracedLighting")
         self._delta_pos_scale_factor = delta_pos_scale_factor
         self._delta_rot_scale_factor = delta_rot_scale_factor
         self._frame_marker_cfg = FRAME_MARKER_CFG.copy()

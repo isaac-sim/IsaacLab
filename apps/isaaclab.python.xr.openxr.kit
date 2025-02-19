@@ -24,6 +24,7 @@ app.asyncRenderingLowLatency = true
 
 # For XR, set this back to default "#define OMNI_MAX_DEVICE_GROUP_DEVICE_COUNT 16"
 renderer.multiGpu.maxGpuCount = 16
+renderer.gpuEnumeration.glInterop.enabled = true # Allow Kit XR OpenXR to render headless
 
 [dependencies]
 "isaaclab.python.rendering" = {}
@@ -34,11 +35,14 @@ renderer.multiGpu.maxGpuCount = 16
 "omni.kit.xr.profile.ar" = {}
 
 [settings]
+app.xr.enabled = true
+
 # xr settings
 xr.ui.enabled = false
 xrstage.profile.ar.anchorMode = "active camera"
 xr.depth.aov = "GBufferDepth"
 defaults.xr.profile.ar.renderQuality = "off"
+rtx.rendermode = "RaytracedLighting"
 
 # Register extension folder from this repo in kit
 [settings.app.exts]

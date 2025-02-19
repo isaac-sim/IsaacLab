@@ -8,15 +8,11 @@
 """Launch Isaac Sim Simulator first."""
 
 import argparse
-import os
 
 from isaaclab.app import AppLauncher
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Keyboard teleoperation for Isaac Lab environments.")
-parser.add_argument(
-    "--disable_fabric", action="store_true", default=False, help="Disable fabric and use USD I/O operations."
-)
 parser.add_argument("--num_envs", type=int, default=1, help="Number of environments to simulate.")
 parser.add_argument("--teleop_device", type=str, default="keyboard", help="Device for interacting with environment")
 parser.add_argument("--task", type=str, default=None, help="Name of the task.")
@@ -28,7 +24,7 @@ args_cli = parser.parse_args()
 
 app_launcher_args = vars(args_cli)
 if args_cli.teleop_device.lower() == "handtracking":
-    app_launcher_args["experience"] = f'{os.environ["ISAACLAB_PATH"]}/apps/isaaclab.python.xr.openxr.kit'
+    app_launcher_args["xr"] = True
 # launch omniverse app
 app_launcher = AppLauncher(app_launcher_args)
 simulation_app = app_launcher.app
@@ -69,9 +65,7 @@ def pre_process_actions(delta_pose: torch.Tensor, gripper_command: bool) -> torc
 def main():
     """Running keyboard teleoperation with Isaac Lab manipulation environment."""
     # parse configuration
-    env_cfg = parse_env_cfg(
-        args_cli.task, device=args_cli.device, num_envs=args_cli.num_envs, use_fabric=not args_cli.disable_fabric
-    )
+    env_cfg = parse_env_cfg(args_cli.task, device=args_cli.device, num_envs=args_cli.num_envs)
     # modify configuration
     env_cfg.terminations.time_out = None
     if "Lift" in args_cli.task:

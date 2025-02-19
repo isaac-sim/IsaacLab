@@ -249,9 +249,14 @@ class AppLauncher:
             help="Enable camera sensors and relevant extension dependencies.",
         )
         arg_group.add_argument(
+            "--xr",
+            action="store_true",
+            default=AppLauncher._APPLAUNCHER_CFG_INFO["xr"][1],
+            help="Enable XR mode for VR/AR applications.",
+        )
+        arg_group.add_argument(
             "--device",
             type=str,
-            default=AppLauncher._APPLAUNCHER_CFG_INFO["device"][1],
             help='The device to run the simulation on. Can be "cpu", "cuda", "cuda:N", where N is the device ID',
         )
         # Add the deprecated cpu flag to raise an error if it is used
@@ -300,6 +305,7 @@ class AppLauncher:
         "headless": ([bool], False),
         "livestream": ([int], -1),
         "enable_cameras": ([bool], False),
+        "xr": ([bool], False),
         "device": ([str], "cuda:0"),
         "experience": ([str], ""),
     }
@@ -396,10 +402,31 @@ class AppLauncher:
         Args:
             launcher_args: A dictionary of all input arguments passed to the class object.
         """
-        # Handle all control logic resolution
+        # Handle core settings
+        livestream_arg, livestream_env = self._resolve_livestream_settings(launcher_args)
+        self._resolve_headless_settings(launcher_args, livestream_arg, livestream_env)
+        self._resolve_camera_settings(launcher_args)
+        self._resolve_xr_settings(launcher_args)
+        self._resolve_viewport_settings(launcher_args)
 
-        # --LIVESTREAM logic--
-        #
+        # Handle device and distributed settings
+        self._resolve_device_settings(launcher_args)
+
+        # Handle experience file settings
+        self._resolve_experience_file(launcher_args)
+
+        # Handle additional arguments
+        self._resolve_kit_args(launcher_args)
+
+        # Prepare final simulation app config
+        # Remove all values from input keyword args which are not meant for SimulationApp
+        # Assign all the passed settings to a dictionary for the simulation app
+        self._sim_app_config = {
+            key: launcher_args[key] for key in set(AppLauncher._SIM_APP_CFG_TYPES.keys()) & set(launcher_args.keys())
+        }
+
+    def _resolve_livestream_settings(self, launcher_args: dict) -> tuple[int, int]:
+        """Resolve livestream related settings."""
         livestream_env = int(os.environ.get("LIVESTREAM", 0))
         livestream_arg = launcher_args.pop("livestream", AppLauncher._APPLAUNCHER_CFG_INFO["livestream"][1])
         livestream_valid_vals = {0, 1, 2}
@@ -426,8 +453,38 @@ class AppLauncher:
         else:
             self._livestream = livestream_env
 
-        # --HEADLESS logic--
-        #
+        # Process livestream here before launching kit because some of the extensions only work when launched with the kit file
+        self._livestream_args = []
+        if self._livestream >= 1:
+            # Note: Only one livestream extension can be enabled at a time
+            if self._livestream == 1:
+                warnings.warn(
+                    "Native Livestream is deprecated. Please use WebRTC Livestream instead with --livestream 2."
+                )
+                self._livestream_args += [
+                    '--/app/livestream/proto="ws"',
+                    "--/app/livestream/allowResize=true",
+                    "--enable",
+                    "omni.kit.livestream.core-4.1.2",
+                    "--enable",
+                    "omni.kit.livestream.native-5.0.1",
+                    "--enable",
+                    "omni.kit.streamsdk.plugins-4.1.1",
+                ]
+            elif self._livestream == 2:
+                self._livestream_args += [
+                    "--/app/livestream/allowResize=false",
+                    "--enable",
+                    "omni.kit.livestream.webrtc",
+                ]
+            else:
+                raise ValueError(f"Invalid value for livestream: {self._livestream}. Expected: 1, 2 .")
+            sys.argv += self._livestream_args
+
+        return livestream_arg, livestream_env
+
+    def _resolve_headless_settings(self, launcher_args: dict, livestream_arg: int, livestream_env: int):
+        """Resolve headless related settings."""
         # Resolve headless execution of simulation app
         # HEADLESS is initially passed as an int instead of
         # the bool of headless_arg to avoid messy string processing,
@@ -463,8 +520,8 @@ class AppLauncher:
         # Headless needs to be passed to the SimulationApp so we keep it here
         launcher_args["headless"] = self._headless
 
-        # --enable_cameras logic--
-        #
+    def _resolve_camera_settings(self, launcher_args: dict):
+        """Resolve camera related settings."""
         enable_cameras_env = int(os.environ.get("ENABLE_CAMERAS", 0))
         enable_cameras_arg = launcher_args.pop("enable_cameras", AppLauncher._APPLAUNCHER_CFG_INFO["enable_cameras"][1])
         enable_cameras_valid_vals = {0, 1}
@@ -482,6 +539,21 @@ class AppLauncher:
         if self._enable_cameras and self._headless:
             self._offscreen_render = True
 
+    def _resolve_xr_settings(self, launcher_args: dict):
+        """Resolve XR related settings."""
+        xr_env = int(os.environ.get("XR", 0))
+        xr_arg = launcher_args.pop("xr", AppLauncher._APPLAUNCHER_CFG_INFO["xr"][1])
+        xr_valid_vals = {0, 1}
+        if xr_env not in xr_valid_vals:
+            raise ValueError(f"Invalid value for environment variable `XR`: {xr_env} .Expected: {xr_valid_vals} .")
+        # We allow xr kwarg to supersede XR envvar
+        if xr_arg is True:
+            self._xr = xr_arg
+        else:
+            self._xr = bool(xr_env)
+
+    def _resolve_viewport_settings(self, launcher_args: dict):
+        """Resolve viewport related settings."""
         # Check if we can disable the viewport to improve performance
         #   This should only happen if we are running headless and do not require livestreaming or video recording
         #   This is different from offscreen_render because this only affects the default viewport and not other renderproducts in the scene
@@ -497,14 +569,20 @@ class AppLauncher:
         # avoid creating new stage at startup by default for performance reasons
         launcher_args["create_new_stage"] = False
 
-        # --simulation GPU device logic --
+    def _resolve_device_settings(self, launcher_args: dict):
+        """Resolve simulation GPU device related settings."""
         self.device_id = 0
-        device = launcher_args.get("device", AppLauncher._APPLAUNCHER_CFG_INFO["device"][1])
+        device = launcher_args.get("device")
+        if device is None:
+            # If no device is specified, default to the GPU device if we are not running in XR
+            device = "cpu" if self._xr else AppLauncher._APPLAUNCHER_CFG_INFO["device"][1]
+
         if "cuda" not in device and "cpu" not in device:
             raise ValueError(
                 f"Invalid value for input keyword argument `device`: {device}."
                 " Expected: a string with the format 'cuda', 'cuda:<device_id>', or 'cpu'."
             )
+
         if "cuda:" in device:
             self.device_id = int(device.split(":")[-1])
 
@@ -534,6 +612,10 @@ class AppLauncher:
         launcher_args["physics_gpu"] = self.device_id
         launcher_args["active_gpu"] = self.device_id
 
+        print(f"[INFO][AppLauncher]: Using device: {device}")
+
+    def _resolve_experience_file(self, launcher_args: dict):
+        """Resolve experience file related settings."""
         # Check if input keywords contain an 'experience' file setting
         # Note: since experience is taken as a separate argument by Simulation App, we store it separately
         self._sim_experience_file = launcher_args.pop("experience", "")
@@ -550,6 +632,13 @@ class AppLauncher:
                     )
                 else:
                     self._sim_experience_file = os.path.join(isaaclab_app_exp_path, "isaaclab.python.rendering.kit")
+            elif self._xr:
+                if self._headless:
+                    self._sim_experience_file = os.path.join(
+                        isaaclab_app_exp_path, "isaaclab.python.xr.openxr.headless.kit"
+                    )
+                else:
+                    self._sim_experience_file = os.path.join(isaaclab_app_exp_path, "isaaclab.python.xr.openxr.kit")
             elif self._headless and not self._livestream:
                 self._sim_experience_file = os.path.join(isaaclab_app_exp_path, "isaaclab.python.headless.kit")
             else:
@@ -605,21 +694,17 @@ class AppLauncher:
             else:
                 raise ValueError(f"Invalid value for livestream: {self._livestream}. Expected: 1, 2 .")
             sys.argv += self._livestream_args
+        # Resolve the absolute path of the experience file
+        self._sim_experience_file = os.path.abspath(self._sim_experience_file)
+        print(f"[INFO][AppLauncher]: Loading experience file: {self._sim_experience_file}")
 
+    def _resolve_kit_args(self, launcher_args: dict):
+        """Resolve additional arguments passed to Kit."""
         # Resolve additional arguments passed to Kit
         self._kit_args = []
         if "kit_args" in launcher_args:
             self._kit_args = [arg for arg in launcher_args["kit_args"].split()]
             sys.argv += self._kit_args
-
-        # Resolve the absolute path of the experience file
-        self._sim_experience_file = os.path.abspath(self._sim_experience_file)
-        print(f"[INFO][AppLauncher]: Loading experience file: {self._sim_experience_file}")
-        # Remove all values from input keyword args which are not meant for SimulationApp
-        # Assign all the passed settings to a dictionary for the simulation app
-        self._sim_app_config = {
-            key: launcher_args[key] for key in set(AppLauncher._SIM_APP_CFG_TYPES.keys()) & set(launcher_args.keys())
-        }
 
     def _create_app(self):
         """Launch and create the SimulationApp based on the parsed simulation config."""
@@ -659,7 +744,7 @@ class AppLauncher:
         """Check if rendering is required by the app."""
         # Indicates whether rendering is required by the app.
         # Extensions required for rendering bring startup and simulation costs, so we do not enable them if not required.
-        return not self._headless or self._livestream >= 1 or self._enable_cameras
+        return not self._headless or self._livestream >= 1 or self._enable_cameras or self._xr
 
     def _load_extensions(self):
         """Load correct extensions based on AppLauncher's resolved config member variables."""

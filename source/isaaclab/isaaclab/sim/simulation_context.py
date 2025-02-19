@@ -154,6 +154,8 @@ class SimulationContext(_SimulationContext):
         self._local_gui = carb_settings_iface.get("/app/window/enabled")
         # read flag for whether livestreaming GUI is enabled
         self._livestream_gui = carb_settings_iface.get("/app/livestream/enabled")
+        # read flag for whether XR GUI is enabled
+        self._xr_gui = carb_settings_iface.get("/app/xr/enabled")
 
         # read flag for whether the Isaac Lab viewport capture pipeline will be used,
         # casting None to False if the flag doesn't exist
@@ -162,7 +164,7 @@ class SimulationContext(_SimulationContext):
         # read flag for whether the default viewport should be enabled
         self._render_viewport = bool(carb_settings_iface.get("/isaaclab/render/active_viewport"))
         # flag for whether any GUI will be rendered (local, livestreamed or viewport)
-        self._has_gui = self._local_gui or self._livestream_gui
+        self._has_gui = self._local_gui or self._livestream_gui or self._xr_gui
 
         # apply render settings from render config
         if self.cfg.render.enable_translucency is not None:
@@ -193,6 +195,8 @@ class SimulationContext(_SimulationContext):
                 import omni.replicator.core as rep
 
                 rep.settings.set_render_rtx_realtime(antialiasing=self.cfg.render.antialiasing_mode)
+                # WAR: The omni.replicator.core extension sets /rtx/renderMode=RayTracedLighting with incorrect casing.
+                carb_settings_iface.set("/rtx/rendermode", "RaytracedLighting")
             except Exception:
                 pass
 
