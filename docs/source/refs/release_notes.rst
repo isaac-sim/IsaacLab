@@ -43,7 +43,7 @@ Highlights from the Isaac Sim 4.5 release
 - Enhanced OmniPVD for debugging physics simulation, enabling capturing reinforcement learning simulation
   workloads of up to 2000 environments
 - Physics simulation performance optimizations improving throughput of up to 70%
-- Physics support for dedicated cylinder and cone geometry designed for robot wheels that is fully GPU accelerated 
+- Physics support for dedicated cylinder and cone geometry designed for robot wheels that is fully GPU accelerated
 - A new physics GPU filtering mechanism allowing co-location of reinforcement learning environments at the
   origin with minimal performance loss for scenes with limited collider counts
 - Improvements in simulation stability for mimic joints at high joint gains
@@ -51,34 +51,34 @@ Highlights from the Isaac Sim 4.5 release
 New Features
 ------------
 
-* Adds humanoid AMP tasks for direct workflow by @Toni-SM 
-* Adds Isaac Lab Mimic based on MimicGen data generation for Imitation Learning by @peterd-NV @nvcyc @ashwinvkNV @karsten-nvidia 
-* Adds consolidated demo script for showcasing recording and mimic dataset generation in real-time in one simulation script by @nvcyc 
-* Adds Franka stacking environment for GR00T mimic by @peterd-NV @nvcyc 
-* Adds option to filter collisions and real-time playback by @kellyguo11 
+* Adds humanoid AMP tasks for direct workflow by @Toni-SM
+* Adds Isaac Lab Mimic based on MimicGen data generation for Imitation Learning by @peterd-NV @nvcyc @ashwinvkNV @karsten-nvidia
+* Adds consolidated demo script for showcasing recording and mimic dataset generation in real-time in one simulation script by @nvcyc
+* Adds Franka stacking environment for GR00T mimic by @peterd-NV @nvcyc
+* Adds option to filter collisions and real-time playback by @kellyguo11
 
 Improvements
 ------------
 
 * Adds a tutorial for policy inference in a prebuilt USD scene by @oahmednv
-* Adds unit tests for multi-tiled cameras by @matthewtrepte  
-* Updates render setting defaults for better quality by @kellyguo11 
-* Adds a flag to wait for texture loading completion when reset by @oahmednv 
-* Adds pre-trained checkpoints and tools for generating and uploading checkpoints by @nv-cupright 
-* Adds new denoiser optimization flags for rendering by @kellyguo11 
-* Updates torch to 2.5.1 by @kellyguo11 
+* Adds unit tests for multi-tiled cameras by @matthewtrepte
+* Updates render setting defaults for better quality by @kellyguo11
+* Adds a flag to wait for texture loading completion when reset by @oahmednv
+* Adds pre-trained checkpoints and tools for generating and uploading checkpoints by @nv-cupright
+* Adds new denoiser optimization flags for rendering by @kellyguo11
+* Updates torch to 2.5.1 by @kellyguo11
 
 Bug Fixes
 ---------
 
-* Fixes external force buffers to set to zero when no forces/torques are applied by @matthewtrepte 
+* Fixes external force buffers to set to zero when no forces/torques are applied by @matthewtrepte
 * Fixes RSL-RL package name in ``setup.py`` according to PyPI installation by @samibouziri
 
 Breaking Changes
 ----------------
 
-* Updates the URDF and MJCF importers for Isaac Sim 4.5 by @Dhoeller19 
-* Renames Isaac Lab extensions and folders by @kellyguo11 
+* Updates the URDF and MJCF importers for Isaac Sim 4.5 by @Dhoeller19
+* Renames Isaac Lab extensions and folders by @kellyguo11
 * Restructures extension folders and removes old imitation learning scripts by @kellyguo11
 * Renames default conda and venv Python environment from ``isaaclab`` to ``env_isaaclab`` by @Toni-SM
 
