@@ -629,12 +629,13 @@ extensions to Omniverse Kit:</p>
 <ul class="simple">
 <li><p><strong>URDF Importer</strong> - Import assets from URDF files.</p></li>
 <li><p><strong>MJCF Importer</strong> - Import assets from MJCF files.</p></li>
-<li><p><strong>Asset Importer</strong> - Import assets from various file formats, including
+<li><p><strong>Mesh Importer</strong> - Import assets from various file formats, including
 OBJ, FBX, STL, and glTF.</p></li>
 </ul>
 <p>The recommended workflow from NVIDIA is to use the above importers to convert
 the asset into its USD representation. Once the asset is in USD format, you can
-use the Omniverse Kit to edit the asset and export it to other file formats. Isaac Sim includes these importers by default. They can also be enabled manually in Omniverse Kit.</p>
+use the Omniverse Kit to edit the asset and export it to other file formats. Isaac Sim includes
+these importers by default. They can also be enabled manually in Omniverse Kit.</p>
 <p>An important note to use assets for large-scale simulation is to ensure that they
 are in <a class="reference external" href="https://openusd.org/dev/api/_usd__page__scenegraph_instancing.html">instanceable</a> format. This allows the asset to be efficiently loaded
 into memory and used multiple times in a scene. Otherwise, the asset will be
@@ -699,7 +700,10 @@ git<span class="w"> </span>clone<span class="w"> </span>git@github.com:isaac-orb
 ./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/tools/convert_urdf.py<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>~/git/anymal_d_simple_description/urdf/anymal.urdf<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>source/isaaclab_assets/data/Robots/ANYbotics/anymal_d.usd<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--merge-joints
+<span class="w">  </span>--merge-joints<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--joint-stiffness<span class="w"> </span><span class="m">0</span>.0<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--joint-damping<span class="w"> </span><span class="m">0</span>.0<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--joint-target-type<span class="w"> </span>none
 </pre></div>
 </div>
 <p>Executing the above script will create a USD file inside the
@@ -717,8 +721,15 @@ exit the script after the conversion is complete.</p>
 </section>
 <section id="using-mjcf-importer">
 <h2>Using MJCF Importer<a class="headerlink" href="#using-mjcf-importer" title="Permalink to this heading">#</a></h2>
-<p>Similar to the URDF Importer, the MJCF Importer also has a GUI interface. Please check the documentation at <a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/latest/robot_setup/import_mjcf.html">MJCF importer</a> for more details. For using the MJCF importer from Python scripts, we include a utility tool called <code class="docutils literal notranslate"><span class="pre">convert_mjcf.py</span></code>. This script creates an instance of <code class="xref py py-class docutils literal notranslate"><span class="pre">MjcfConverterCfg</span></code> which is then passed to the <code class="xref py py-class docutils literal notranslate"><span class="pre">MjcfConverter</span></code> class.</p>
-<p>The default values for the importer’s configuration parameters are specified in the <code class="xref py py-class docutils literal notranslate"><span class="pre">MjcfConverterCfg</span></code> class. The configuration parameters are listed below. We made a few commonly modified settings to be available as command-line arguments when calling the <code class="docutils literal notranslate"><span class="pre">convert_mjcf.py</span></code>, and they are marked with <code class="docutils literal notranslate"><span class="pre">*</span></code> in the list. For a comprehensive list of the configuration parameters, please check the the documentation at <a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/latest/robot_setup/import_mjcf.html">MJCF importer</a>.</p>
+<p>Similar to the URDF Importer, the MJCF Importer also has a GUI interface. Please check the documentation at
+<a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/latest/robot_setup/import_mjcf.html">MJCF importer</a> for more details. For using the MJCF importer from Python scripts, we include a utility tool
+called <code class="docutils literal notranslate"><span class="pre">convert_mjcf.py</span></code>. This script creates an instance of <code class="xref py py-class docutils literal notranslate"><span class="pre">MjcfConverterCfg</span></code>
+which is then passed to the <code class="xref py py-class docutils literal notranslate"><span class="pre">MjcfConverter</span></code> class.</p>
+<p>The default values for the importer’s configuration parameters are specified in the
+<code class="xref py py-class docutils literal notranslate"><span class="pre">MjcfConverterCfg</span></code> class. The configuration parameters are listed below.
+We made a few commonly modified settings to be available as command-line arguments when calling the
+<code class="docutils literal notranslate"><span class="pre">convert_mjcf.py</span></code>, and they are marked with <code class="docutils literal notranslate"><span class="pre">*</span></code> in the list. For a comprehensive list of the configuration
+parameters, please check the the documentation at <a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/latest/robot_setup/import_mjcf.html">MJCF importer</a>.</p>
 <ul class="simple">
 <li><p><code class="xref py py-attr docutils literal notranslate"><span class="pre">fix_base*</span></code> - Whether to fix the base of the robot.
 This depends on whether you have a floating-base or fixed-base robot. The command-line flag is

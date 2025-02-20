@@ -594,15 +594,17 @@
             <nav aria-label="Page">
                 <ul class="visible nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#contributing-code">Contributing Code</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#contributing-documentation">Contributing Documentation</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#contributing-assets">Contributing assets</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#maintaining-a-changelog-and-extension-toml">Maintaining a changelog and extension.toml</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#coding-style">Coding Style</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#circular-imports">Circular Imports</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#type-hinting">Type-hinting</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#documenting-the-code">Documenting the code</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#unit-testing">Unit Testing</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#tools">Tools</a></li>
 </ul>
 </li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#contributing-documentation">Contributing Documentation</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#contributing-assets">Contributing assets</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#maintaining-a-changelog">Maintaining a changelog</a></li>
 </ul>
             </nav>
         </div>
@@ -630,16 +632,19 @@ and useful for everyone. These may happen in forms of:</p>
 </ul>
 </li>
 </ul>
-<div class="admonition attention">
-<p class="admonition-title">Attention</p>
 <p>We prefer GitHub <a class="reference external" href="https://github.com/isaac-sim/IsaacLab/discussions">discussions</a> for discussing ideas,
 asking questions, conversations and requests for new features.</p>
 <p>Please use the
 <a class="reference external" href="https://github.com/isaac-sim/IsaacLab/issues">issue tracker</a> only to track executable pieces of work
 with a definite scope and a clear deliverable. These can be fixing bugs, new features, or general updates.</p>
-</div>
 <section id="contributing-code">
 <h2>Contributing Code<a class="headerlink" href="#contributing-code" title="Permalink to this heading">#</a></h2>
+<div class="admonition attention">
+<p class="admonition-title">Attention</p>
+<p>Please refer to the <a class="reference external" href="https://google.github.io/styleguide/pyguide.html">Google Style Guide</a>
+for the coding style before contributing to the codebase. In the coding style section,
+we outline the specific deviations from the style guide that we follow in the codebase.</p>
+</div>
 <p>We use <a class="reference external" href="https://github.com/isaac-sim/IsaacLab">GitHub</a> for code hosting. Please
 follow the following steps to contribute code:</p>
 <ol class="arabic simple">
@@ -661,61 +666,6 @@ sure that the changes are aligned with the roadmap of the project.</p></li>
 maintainers to review your code. If you are making multiple changes, please send multiple pull requests.
 Large pull requests are difficult to review and may take a long time to merge.</p>
 </div>
-</section>
-<section id="coding-style">
-<h2>Coding Style<a class="headerlink" href="#coding-style" title="Permalink to this heading">#</a></h2>
-<p>We follow the <a class="reference external" href="https://google.github.io/styleguide/pyguide.html">Google Style
-Guides</a> for the
-codebase. For Python code, the PEP guidelines are followed. Most
-important ones are <a class="reference external" href="https://www.python.org/dev/peps/pep-0008/">PEP-8</a>
-for code comments and layout,
-<a class="reference external" href="http://www.python.org/dev/peps/pep-0484">PEP-484</a> and
-<a class="reference external" href="https://www.python.org/dev/peps/pep-0585/">PEP-585</a> for
-type-hinting.</p>
-<p>For documentation, we adopt the <a class="reference external" href="https://sphinxcontrib-napoleon.readthedocs.io/en/latest/example_google.html">Google Style Guide</a>
-for docstrings. We use <a class="reference external" href="https://www.sphinx-doc.org/en/master/">Sphinx</a> for generating the documentation.
-Please make sure that your code is well-documented and follows the guidelines.</p>
-<section id="circular-imports">
-<h3>Circular Imports<a class="headerlink" href="#circular-imports" title="Permalink to this heading">#</a></h3>
-<p>Circular imports happen when two modules import each other, which is a common issue in Python.
-You can prevent circular imports by adhering to the best practices outlined in this
-<a class="reference external" href="https://stackoverflow.com/questions/744373/circular-or-cyclic-imports-in-python">StackOverflow post</a>.</p>
-<p>In general, it is essential to avoid circular imports as they can lead to unpredictable behavior.</p>
-<p>However, in our codebase, we encounter circular imports at a sub-package level. This situation arises
-due to our specific code structure. We organize classes or functions and their corresponding configuration
-objects into separate files. This separation enhances code readability and maintainability. Nevertheless,
-it can result in circular imports because, in many configuration objects, we specify classes or functions
-as default values using the attributes <code class="docutils literal notranslate"><span class="pre">class_type</span></code> and <code class="docutils literal notranslate"><span class="pre">func</span></code> respectively.</p>
-<p>To address circular imports, we leverage the <a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.TYPE_CHECKING">typing.TYPE_CHECKING</a> variable. This special variable is
-evaluated only during type-checking, allowing us to import classes or functions in the configuration objects
-without triggering circular imports.</p>
-<p>It is important to note that this is the sole instance within our codebase where circular imports are used
-and are acceptable. In all other scenarios, we adhere to best practices and recommend that you do the same.</p>
-</section>
-<section id="type-hinting">
-<h3>Type-hinting<a class="headerlink" href="#type-hinting" title="Permalink to this heading">#</a></h3>
-<p>To make the code more readable, we use <a class="reference external" href="https://docs.python.org/3/library/typing.html">type hints</a> for
-all the functions and classes. This helps in understanding the code and makes it easier to maintain. Following
-this practice also helps in catching bugs early with static type checkers like <a class="reference external" href="https://mypy.readthedocs.io/en/stable/">mypy</a>.</p>
-<p>To avoid duplication of efforts, we do not specify type hints for the arguments and return values in the docstrings.
-However, if your function or class is not self-explanatory, please add a docstring with the type hints.</p>
-</section>
-<section id="tools">
-<h3>Tools<a class="headerlink" href="#tools" title="Permalink to this heading">#</a></h3>
-<p>We use the following tools for maintaining code quality:</p>
-<ul class="simple">
-<li><p><a class="reference external" href="https://pre-commit.com/">pre-commit</a>: Runs a list of formatters and linters over the codebase.</p></li>
-<li><p><a class="reference external" href="https://black.readthedocs.io/en/stable/">black</a>: The uncompromising code formatter.</p></li>
-<li><p><a class="reference external" href="https://flake8.pycqa.org/en/latest/">flake8</a>: A wrapper around PyFlakes, pycodestyle and
-McCabe complexity checker.</p></li>
-</ul>
-<p>Please check <a class="reference external" href="https://pre-commit.com/#install">here</a> for instructions
-to set these up. To run over the entire repository, please execute the
-following command in the terminal:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>--format<span class="w">  </span><span class="c1"># or &quot;./isaaclab.sh -f&quot;</span>
-</pre></div>
-</div>
-</section>
 </section>
 <section id="contributing-documentation">
 <h2>Contributing Documentation<a class="headerlink" href="#contributing-documentation" title="Permalink to this heading">#</a></h2>
@@ -780,12 +730,22 @@ have a solution. In the meantime, please follow the steps mentioned below.</p>
 In case you have any questions, please feel free to reach out to us through e-mail or by opening an issue
 in the repository.</p>
 </section>
-<section id="maintaining-a-changelog">
-<h2>Maintaining a changelog<a class="headerlink" href="#maintaining-a-changelog" title="Permalink to this heading">#</a></h2>
-<p>Each extension maintains a changelog in the <code class="docutils literal notranslate"><span class="pre">CHANGELOG.rst</span></code> file in the <code class="docutils literal notranslate"><span class="pre">docs</span></code> directory. The
-file is written in <a class="reference external" href="https://docutils.sourceforge.io/rst.html">reStructuredText</a> format. It
-contains a curated, chronologically ordered list of notable changes for each version of the extension.</p>
-<p>The goal of this changelog is to help users and contributors see precisely what notable changes have
+<section id="maintaining-a-changelog-and-extension-toml">
+<h2>Maintaining a changelog and extension.toml<a class="headerlink" href="#maintaining-a-changelog-and-extension-toml" title="Permalink to this heading">#</a></h2>
+<p>Each extension maintains a changelog in the <code class="docutils literal notranslate"><span class="pre">CHANGELOG.rst</span></code> file in the <code class="docutils literal notranslate"><span class="pre">docs</span></code> directory,
+as well as a <code class="docutils literal notranslate"><span class="pre">extension.toml</span></code> file in the <code class="docutils literal notranslate"><span class="pre">config</span></code> directory.</p>
+<p>The <code class="docutils literal notranslate"><span class="pre">extension.toml</span></code> file contains the metadata for the extension. It is used to describe the
+name, version, description, and other metadata of the extension.</p>
+<p>The <code class="docutils literal notranslate"><span class="pre">CHANGELOG.rst</span></code> is a file that contains the curated, chronologically ordered list of notable changes
+for each version of the extension.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The version number on the <code class="docutils literal notranslate"><span class="pre">extension.toml</span></code> file should be updated according to
+<a class="reference external" href="https://semver.org/">Semantic Versioning</a> and should match the version number in the
+<code class="docutils literal notranslate"><span class="pre">CHANGELOG.rst</span></code> file.</p>
+</div>
+<p>The changelog file is written in <a class="reference external" href="https://docutils.sourceforge.io/rst.html">reStructuredText</a> format.
+The goal of this changelog is to help users and contributors see precisely what notable changes have
 been made between each release (or version) of the extension. This is a <em>MUST</em> for every extension.</p>
 <p>For updating the changelog, please follow the following guidelines:</p>
 <ul class="simple">
@@ -802,8 +762,18 @@ release date is the date on which the version is released.</p></li>
 </ul>
 </li>
 <li><p>Each change is described in its corresponding sub-section with a bullet point.</p></li>
-<li><p>The bullet points are written in the past tense and in imperative mode.</p></li>
+<li><p>The bullet points are written in the <strong>past tense</strong>.</p>
+<ul>
+<li><p>This means that the change is described as if it has already happened.</p></li>
+<li><p>The bullet points should be concise and to the point. They should not be verbose.</p></li>
+<li><p>The bullet point should also include the reason for the change, if applicable.</p></li>
 </ul>
+</li>
+</ul>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>When in doubt, please check the style in the existing changelog files and follow the same style.</p>
+</div>
 <p>For example, the following is a sample changelog:</p>
 <div class="highlight-rst notranslate"><div class="highlight"><pre><span></span><span class="gh">Changelog</span>
 <span class="gh">---------</span>
@@ -814,37 +784,217 @@ release date is the date on which the version is released.</p></li>
 <span class="gh">Added</span>
 <span class="gh">^^^^^</span>
 
-<span class="m">*</span> Added a new feature.
+<span class="m">*</span> Added a new feature that helps in a 10x speedup.
 
 <span class="gh">Changed</span>
 <span class="gh">^^^^^^^</span>
 
-<span class="m">*</span> Changed an existing feature.
+<span class="m">*</span> Changed an existing feature. Earlier, we were using <span class="na">:meth:</span><span class="nv">`torch.bmm`</span> to perform the matrix multiplication.
+  However, this was slow for large matrices. We have now switched to using <span class="na">:meth:</span><span class="nv">`torch.einsum`</span> which is
+  significantly faster.
 
 <span class="gh">Deprecated</span>
 <span class="gh">^^^^^^^^^^</span>
 
-<span class="m">*</span> Deprecated an existing feature.
+<span class="m">*</span> Deprecated an existing feature in favor of a new feature.
 
 <span class="gh">Removed</span>
 <span class="gh">^^^^^^^</span>
 
-<span class="m">*</span> Removed an existing feature.
+<span class="m">*</span> Removed an existing feature. This was done to simplify the codebase and reduce the complexity.
 
 <span class="gh">Fixed</span>
 <span class="gh">^^^^^</span>
 
-<span class="m">*</span> Fixed a bug.
-
-<span class="gh">0.0.1 (2021-01-01)</span>
-<span class="gh">~~~~~~~~~~~~~~~~~~</span>
-
-<span class="gh">Added</span>
-<span class="gh">^^^^^</span>
-
-<span class="m">*</span> Added a new feature.
+<span class="m">*</span> Fixed crashing of the <span class="na">:meth:</span><span class="nv">`my_function`</span> when the input was too large.
+  We now use <span class="na">:meth:</span><span class="nv">`torch.einsum`</span> that is able to handle larger inputs.
 </pre></div>
 </div>
+</section>
+<section id="coding-style">
+<h2>Coding Style<a class="headerlink" href="#coding-style" title="Permalink to this heading">#</a></h2>
+<p>We follow the <a class="reference external" href="https://google.github.io/styleguide/pyguide.html">Google Style
+Guides</a> for the
+codebase. For Python code, the PEP guidelines are followed. Most
+important ones are <a class="reference external" href="https://www.python.org/dev/peps/pep-0008/">PEP-8</a>
+for code comments and layout,
+<a class="reference external" href="http://www.python.org/dev/peps/pep-0484">PEP-484</a> and
+<a class="reference external" href="https://www.python.org/dev/peps/pep-0585/">PEP-585</a> for
+type-hinting.</p>
+<p>For documentation, we adopt the <a class="reference external" href="https://sphinxcontrib-napoleon.readthedocs.io/en/latest/example_google.html">Google Style Guide</a>
+for docstrings. We use <a class="reference external" href="https://www.sphinx-doc.org/en/master/">Sphinx</a> for generating the documentation.
+Please make sure that your code is well-documented and follows the guidelines.</p>
+<section id="circular-imports">
+<h3>Circular Imports<a class="headerlink" href="#circular-imports" title="Permalink to this heading">#</a></h3>
+<p>Circular imports happen when two modules import each other, which is a common issue in Python.
+You can prevent circular imports by adhering to the best practices outlined in this
+<a class="reference external" href="https://stackoverflow.com/questions/744373/circular-or-cyclic-imports-in-python">StackOverflow post</a>.</p>
+<p>In general, it is essential to avoid circular imports as they can lead to unpredictable behavior.</p>
+<p>However, in our codebase, we encounter circular imports at a sub-package level. This situation arises
+due to our specific code structure. We organize classes or functions and their corresponding configuration
+objects into separate files. This separation enhances code readability and maintainability. Nevertheless,
+it can result in circular imports because, in many configuration objects, we specify classes or functions
+as default values using the attributes <code class="docutils literal notranslate"><span class="pre">class_type</span></code> and <code class="docutils literal notranslate"><span class="pre">func</span></code> respectively.</p>
+<p>To address circular imports, we leverage the <a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.TYPE_CHECKING">typing.TYPE_CHECKING</a> variable. This special variable is
+evaluated only during type-checking, allowing us to import classes or functions in the configuration objects
+without triggering circular imports.</p>
+<p>It is important to note that this is the sole instance within our codebase where circular imports are used
+and are acceptable. In all other scenarios, we adhere to best practices and recommend that you do the same.</p>
+</section>
+<section id="type-hinting">
+<h3>Type-hinting<a class="headerlink" href="#type-hinting" title="Permalink to this heading">#</a></h3>
+<p>To make the code more readable, we use <a class="reference external" href="https://docs.python.org/3/library/typing.html">type hints</a> for
+all the functions and classes. This helps in understanding the code and makes it easier to maintain. Following
+this practice also helps in catching bugs early with static type checkers like <a class="reference external" href="https://mypy.readthedocs.io/en/stable/">mypy</a>.</p>
+<p><strong>Type-hinting only in the function signature</strong></p>
+<p>To avoid duplication of efforts, we do not specify type hints for the arguments and return values in the docstrings.</p>
+<p>For instance, the following are bad examples for various reasons:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span><span class="w"> </span><span class="nf">my_function</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">):</span>
+<span class="w">   </span><span class="sd">&quot;&quot;&quot;Adds two numbers.</span>
+
+<span class="sd">   This function is a bad example. Reason: No type hints anywhere.</span>
+
+<span class="sd">   Args:</span>
+<span class="sd">      a: The first argument.</span>
+<span class="sd">      b: The second argument.</span>
+
+<span class="sd">   Returns:</span>
+<span class="sd">      The sum of the two arguments.</span>
+<span class="sd">   &quot;&quot;&quot;</span>
+   <span class="k">return</span> <span class="n">a</span> <span class="o">+</span> <span class="n">b</span>
+</pre></div>
+</div>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span><span class="w"> </span><span class="nf">my_function</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">):</span>
+<span class="w">   </span><span class="sd">&quot;&quot;&quot;Adds two numbers.</span>
+
+<span class="sd">   This function is a bad example. Reason: Type hints in the docstring and not in the</span>
+<span class="sd">   function signature.</span>
+
+<span class="sd">   Args:</span>
+<span class="sd">      a (int): The first argument.</span>
+<span class="sd">      b (int): The second argument.</span>
+
+<span class="sd">   Returns:</span>
+<span class="sd">      int: The sum of the two arguments.</span>
+<span class="sd">   &quot;&quot;&quot;</span>
+   <span class="k">return</span> <span class="n">a</span> <span class="o">+</span> <span class="n">b</span>
+</pre></div>
+</div>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span><span class="w"> </span><span class="nf">my_function</span><span class="p">(</span><span class="n">a</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">b</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<span class="w">   </span><span class="sd">&quot;&quot;&quot;Adds two numbers.</span>
+
+<span class="sd">   This function is a bad example. Reason: Type hints in the docstring and in the function</span>
+<span class="sd">   signature. Redundancy.</span>
+
+<span class="sd">   Args:</span>
+<span class="sd">      a (int): The first argument.</span>
+<span class="sd">      b (int): The second argument.</span>
+
+<span class="sd">   Returns:</span>
+<span class="sd">      int: The sum of the two arguments.</span>
+<span class="sd">   &quot;&quot;&quot;</span>
+   <span class="k">return</span> <span class="n">a</span> <span class="o">+</span> <span class="n">b</span>
+</pre></div>
+</div>
+<p>The following is how we expect you to write the docstrings and type hints:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span><span class="w"> </span><span class="nf">my_function</span><span class="p">(</span><span class="n">a</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">b</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<span class="w">   </span><span class="sd">&quot;&quot;&quot;Adds two numbers.</span>
+
+<span class="sd">   This function is a good example. Reason: Type hints in the function signature and not in the</span>
+<span class="sd">   docstring.</span>
+
+<span class="sd">   Args:</span>
+<span class="sd">      a: The first argument.</span>
+<span class="sd">      b: The second argument.</span>
+
+<span class="sd">   Returns:</span>
+<span class="sd">      The sum of the two arguments.</span>
+<span class="sd">   &quot;&quot;&quot;</span>
+   <span class="k">return</span> <span class="n">a</span> <span class="o">+</span> <span class="n">b</span>
+</pre></div>
+</div>
+<p><strong>No type-hinting for None</strong></p>
+<p>We do not specify the return type of <a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">None</span></code></a> in the docstrings. This is because
+it is not necessary and can be inferred from the function signature.</p>
+<p>For instance, the following is a bad example:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span><span class="w"> </span><span class="nf">my_function</span><span class="p">(</span><span class="n">x</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+   <span class="k">pass</span>
+</pre></div>
+</div>
+<p>Instead, we recommend the following:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span><span class="w"> </span><span class="nf">my_function</span><span class="p">(</span><span class="n">x</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span><span class="p">):</span>
+   <span class="k">pass</span>
+</pre></div>
+</div>
+</section>
+<section id="documenting-the-code">
+<h3>Documenting the code<a class="headerlink" href="#documenting-the-code" title="Permalink to this heading">#</a></h3>
+<p>The code documentation is as important as the code itself. It helps in understanding the code and makes
+it easier to maintain. However, more often than not, the documentation is an afterthought or gets rushed
+to keep up with the development pace.</p>
+<p><strong>What is considered as a bad documentation?</strong></p>
+<ul>
+<li><p>If someone else wants to use the code, they cannot understand the code just by reading the documentation.</p>
+<p>What this means is that the documentation is not complete or is not written in a way that is easy to understand.
+The next time someone wants to use the code, they will have to spend time understanding the code (in the best
+case scenario), or scrap the code and start from scratch (in the worst case scenario).</p>
+</li>
+<li><p>Certain design subtleties are not documented and are only apparent from the code.</p>
+<p>Often certain design decisions are made to address specific use cases. These use cases are not
+obvious to someone who wants to use the code. They may change the code in a way that is not intuitive
+and unintentionally break the code.</p>
+</li>
+<li><p>The documentation is not updated when the code is updated.</p>
+<p>This means that the documentation is not kept up to date with the code. It is important to update the
+documentation when the code is updated. This helps in keeping the documentation up to date and in sync
+with the code.</p>
+</li>
+</ul>
+<p><strong>What is considered good documentation?</strong></p>
+<p>We recommend thinking of the code documentation as a living document that helps the reader understand
+the <em>what, why and how</em> of the code. Often we see documentation that only explains the
+what but not the how or why. This is not helpful in the long run.</p>
+<p>We suggest always thinking of the documentation from a new user’s perspective. They should be able to directly
+check the documentation and have a good understanding of the code.</p>
+<p>For information on how to write good documentation, please check the notes on
+<a class="reference external" href="https://dart.dev/effective-dart/documentation">Dart’s effective documentation</a>
+and <a class="reference external" href="https://en.wikiversity.org/wiki/Technical_writing/Style">technical writing</a>.
+We summarize the key points below:</p>
+<ul class="simple">
+<li><p>Inform (educate the reader) and persuade (convince the reader).
+* Have a clear aim in mind, and make sure everything you write is towards that aim alone.
+* Use examples and analogies before introducing abstract concepts.</p></li>
+<li><p>Use the right tone for the audience.</p></li>
+<li><p>Compose simple sentences in active voice.</p></li>
+<li><p>Avoid unnecessary jargon and repetition. Use plain English.</p></li>
+<li><p>Avoid ambiguous phrases such as ‘kind of’, ‘sort of’, ‘a bit’, etc.</p></li>
+<li><p>State important information at the beginning of the sentence.</p></li>
+<li><p>Say exactly what you mean. Don’t avoid writing the uncomfortable truth.</p></li>
+</ul>
+</section>
+<section id="unit-testing">
+<h3>Unit Testing<a class="headerlink" href="#unit-testing" title="Permalink to this heading">#</a></h3>
+<p>We use <a class="reference external" href="https://docs.python.org/3/library/unittest.html">unittest</a> for unit testing.
+Good tests not only cover the basic functionality of the code but also the edge cases.
+They should be able to catch regressions and ensure that the code is working as expected.
+Please make sure that you add tests for your changes.</p>
+</section>
+<section id="tools">
+<h3>Tools<a class="headerlink" href="#tools" title="Permalink to this heading">#</a></h3>
+<p>We use the following tools for maintaining code quality:</p>
+<ul class="simple">
+<li><p><a class="reference external" href="https://pre-commit.com/">pre-commit</a>: Runs a list of formatters and linters over the codebase.</p></li>
+<li><p><a class="reference external" href="https://black.readthedocs.io/en/stable/">black</a>: The uncompromising code formatter.</p></li>
+<li><p><a class="reference external" href="https://flake8.pycqa.org/en/latest/">flake8</a>: A wrapper around PyFlakes, pycodestyle and
+McCabe complexity checker.</p></li>
+</ul>
+<p>Please check <a class="reference external" href="https://pre-commit.com/#install">here</a> for instructions
+to set these up. To run over the entire repository, please execute the
+following command in the terminal:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>--format<span class="w">  </span><span class="c1"># or &quot;./isaaclab.sh -f&quot;</span>
+</pre></div>
+</div>
+</section>
 </section>
 </section>
 
@@ -895,15 +1045,17 @@ release date is the date on which the version is released.</p></li>
   <nav class="bd-toc-nav page-toc">
     <ul class="visible nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#contributing-code">Contributing Code</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#contributing-documentation">Contributing Documentation</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#contributing-assets">Contributing assets</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#maintaining-a-changelog-and-extension-toml">Maintaining a changelog and extension.toml</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#coding-style">Coding Style</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#circular-imports">Circular Imports</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#type-hinting">Type-hinting</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#documenting-the-code">Documenting the code</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#unit-testing">Unit Testing</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#tools">Tools</a></li>
 </ul>
 </li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#contributing-documentation">Contributing Documentation</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#contributing-assets">Contributing assets</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#maintaining-a-changelog">Maintaining a changelog</a></li>
 </ul>
   </nav></div>
 

@@ -1262,7 +1262,7 @@ difficult to move the USD asset to a different location.</p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
 <tbody>
 <tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sim.converters.UrdfConverterCfg.JointDriveCfg" title="isaaclab.sim.converters.UrdfConverterCfg.JointDriveCfg"><code class="xref py py-obj docutils literal notranslate"><span class="pre">JointDriveCfg</span></code></a></p></td>
-<td><p>JointDriveCfg(drive_type: Union[dict[str, Literal['acceleration', 'force']], Literal['acceleration', 'force']] = &lt;factory&gt;, target_type: Union[dict[str, Literal['none', 'position', 'velocity']], Literal['none', 'position', 'velocity']] = &lt;factory&gt;, gains: isaaclab.sim.converters.urdf_converter_cfg.UrdfConverterCfg.JointDriveCfg.PDGainsCfg | isaaclab.sim.converters.urdf_converter_cfg.UrdfConverterCfg.JointDriveCfg.NaturalFrequencyGainsCfg = &lt;factory&gt;)</p></td>
+<td><p>Configuration for the joint drive.</p></td>
 </tr>
 </tbody>
 </table>
@@ -1304,7 +1304,7 @@ difficult to move the USD asset to a different location.</p>
 <td><p>The joint drive settings.</p></td>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sim.converters.UrdfConverterCfg.collision_from_visuals" title="isaaclab.sim.converters.UrdfConverterCfg.collision_from_visuals"><code class="xref py py-obj docutils literal notranslate"><span class="pre">collision_from_visuals</span></code></a></p></td>
-<td><p>Create collision geometry from visual geometry.</p></td>
+<td><p>Whether to create collision geometry from visual geometry.</p></td>
 </tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sim.converters.UrdfConverterCfg.collider_type" title="isaaclab.sim.converters.UrdfConverterCfg.collider_type"><code class="xref py py-obj docutils literal notranslate"><span class="pre">collider_type</span></code></a></p></td>
 <td><p>The collision shape simplification.</p></td>
@@ -1322,7 +1322,7 @@ difficult to move the USD asset to a different location.</p>
 <dt class="sig sig-object py" id="isaaclab.sim.converters.UrdfConverterCfg.JointDriveCfg">
 <em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">JointDriveCfg</span></span><a class="reference internal" href="../../../_modules/isaaclab/sim/converters/urdf_converter_cfg.html#UrdfConverterCfg.JointDriveCfg"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.sim.converters.UrdfConverterCfg.JointDriveCfg" title="Permalink to this definition">#</a></dt>
 <dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
-<p>JointDriveCfg(drive_type: Union[dict[str, Literal[‘acceleration’, ‘force’]], Literal[‘acceleration’, ‘force’]] = &lt;factory&gt;, target_type: Union[dict[str, Literal[‘none’, ‘position’, ‘velocity’]], Literal[‘none’, ‘position’, ‘velocity’]] = &lt;factory&gt;, gains: isaaclab.sim.converters.urdf_converter_cfg.UrdfConverterCfg.JointDriveCfg.PDGainsCfg | isaaclab.sim.converters.urdf_converter_cfg.UrdfConverterCfg.JointDriveCfg.NaturalFrequencyGainsCfg = &lt;factory&gt;)</p>
+<p>Configuration for the joint drive.</p>
 <p><strong>Classes:</strong></p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
 <tbody>
@@ -1534,20 +1534,21 @@ used in the scene. For more information, please check the USD documentation on
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab.sim.converters.UrdfConverterCfg.joint_drive">
 <span class="sig-name descname"><span class="pre">joint_drive</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="#isaaclab.sim.converters.UrdfConverterCfg.JointDriveCfg" title="isaaclab.sim.converters.urdf_converter_cfg.UrdfConverterCfg.JointDriveCfg"><span class="pre">JointDriveCfg</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></em><a class="headerlink" href="#isaaclab.sim.converters.UrdfConverterCfg.joint_drive" title="Permalink to this definition">#</a></dt>
-<dd><p>The joint drive settings.</p>
-<p>None can be used for URDFs without joints.</p>
+<dd><p>The joint drive settings. Defaults to <a class="reference internal" href="#isaaclab.sim.converters.UrdfConverterCfg.JointDriveCfg" title="isaaclab.sim.converters.UrdfConverterCfg.JointDriveCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">JointDriveCfg</span></code></a>.</p>
+<p>The parameter can be set to <code class="docutils literal notranslate"><span class="pre">None</span></code> for URDFs without joints.</p>
 </dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab.sim.converters.UrdfConverterCfg.collision_from_visuals">
 <span class="sig-name descname"><span class="pre">collision_from_visuals</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a></em><a class="headerlink" href="#isaaclab.sim.converters.UrdfConverterCfg.collision_from_visuals" title="Permalink to this definition">#</a></dt>
-<dd><p>Create collision geometry from visual geometry.</p>
+<dd><p>Whether to create collision geometry from visual geometry. Defaults to False.</p>
 </dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab.sim.converters.UrdfConverterCfg.collider_type">
 <span class="sig-name descname"><span class="pre">collider_type</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Literal" title="(in Python v3.13)"><span class="pre">Literal</span></a><span class="p"><span class="pre">[</span></span><span class="s"><span class="pre">'convex_hull'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'convex_decomposition'</span></span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#isaaclab.sim.converters.UrdfConverterCfg.collider_type" title="Permalink to this definition">#</a></dt>
-<dd><p>The collision shape simplification. Defaults to <code class="docutils literal notranslate"><span class="pre">&quot;convex_hull&quot;</span></code>.</p>
+<dd><p>The collision shape simplification. Defaults to “convex_hull”.</p>
+<p>Supported values are:</p>
 <ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">&quot;convex_hull&quot;</span></code>: The collision shape is simplified to a convex hull.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">&quot;convex_decomposition&quot;</span></code>: The collision shape is decomposed into smaller convex shapes for a closer fit.</p></li>

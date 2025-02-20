@@ -5501,7 +5501,7 @@ This is done by calling the respective function with the specified properties.</
 <td><p>Replace cylinder shapes with capsule shapes.</p></td>
 </tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sim.spawners.from_files.UrdfFileCfg.collision_from_visuals" title="isaaclab.sim.spawners.from_files.UrdfFileCfg.collision_from_visuals"><code class="xref py py-obj docutils literal notranslate"><span class="pre">collision_from_visuals</span></code></a></p></td>
-<td><p>Create collision geometry from visual geometry.</p></td>
+<td><p>Whether to create collision geometry from visual geometry.</p></td>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sim.spawners.from_files.UrdfFileCfg.visible" title="isaaclab.sim.spawners.from_files.UrdfFileCfg.visible"><code class="xref py py-obj docutils literal notranslate"><span class="pre">visible</span></code></a></p></td>
 <td><p>Whether the spawned asset should be visible.</p></td>
@@ -5625,14 +5625,15 @@ used in the scene. For more information, please check the USD documentation on
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab.sim.spawners.from_files.UrdfFileCfg.joint_drive">
 <span class="sig-name descname"><span class="pre">joint_drive</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="isaaclab.sim.converters.html#isaaclab.sim.converters.UrdfConverterCfg.JointDriveCfg" title="isaaclab.sim.converters.urdf_converter_cfg.UrdfConverterCfg.JointDriveCfg"><span class="pre">JointDriveCfg</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></em><a class="headerlink" href="#isaaclab.sim.spawners.from_files.UrdfFileCfg.joint_drive" title="Permalink to this definition">#</a></dt>
-<dd><p>The joint drive settings.</p>
-<p>None can be used for URDFs without joints.</p>
+<dd><p>The joint drive settings. Defaults to <code class="xref py py-class docutils literal notranslate"><span class="pre">JointDriveCfg</span></code>.</p>
+<p>The parameter can be set to <code class="docutils literal notranslate"><span class="pre">None</span></code> for URDFs without joints.</p>
 </dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab.sim.spawners.from_files.UrdfFileCfg.collider_type">
 <span class="sig-name descname"><span class="pre">collider_type</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Literal" title="(in Python v3.13)"><span class="pre">Literal</span></a><span class="p"><span class="pre">[</span></span><span class="s"><span class="pre">'convex_hull'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'convex_decomposition'</span></span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#isaaclab.sim.spawners.from_files.UrdfFileCfg.collider_type" title="Permalink to this definition">#</a></dt>
-<dd><p>The collision shape simplification. Defaults to <code class="docutils literal notranslate"><span class="pre">&quot;convex_hull&quot;</span></code>.</p>
+<dd><p>The collision shape simplification. Defaults to “convex_hull”.</p>
+<p>Supported values are:</p>
 <ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">&quot;convex_hull&quot;</span></code>: The collision shape is simplified to a convex hull.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">&quot;convex_decomposition&quot;</span></code>: The collision shape is decomposed into smaller convex shapes for a closer fit.</p></li>
@@ -5654,7 +5655,7 @@ used in the scene. For more information, please check the USD documentation on
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab.sim.spawners.from_files.UrdfFileCfg.collision_from_visuals">
 <span class="sig-name descname"><span class="pre">collision_from_visuals</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a></em><a class="headerlink" href="#isaaclab.sim.spawners.from_files.UrdfFileCfg.collision_from_visuals" title="Permalink to this definition">#</a></dt>
-<dd><p>Create collision geometry from visual geometry.</p>
+<dd><p>Whether to create collision geometry from visual geometry. Defaults to False.</p>
 </dd></dl>
 
 <dl class="py attribute">

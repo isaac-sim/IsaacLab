@@ -548,6 +548,7 @@
 
 <div class="viewcode-block" id="UrdfConverterCfg.JointDriveCfg"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.sim.converters.html#isaaclab.sim.converters.UrdfConverterCfg.JointDriveCfg">[docs]</a>    <span class="nd">@configclass</span>
     <span class="k">class</span><span class="w"> </span><span class="nc">JointDriveCfg</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Configuration for the joint drive.&quot;&quot;&quot;</span>
 
 <div class="viewcode-block" id="UrdfConverterCfg.JointDriveCfg.PDGainsCfg"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.sim.converters.html#isaaclab.sim.converters.UrdfConverterCfg.JointDriveCfg.PDGainsCfg">[docs]</a>        <span class="nd">@configclass</span>
         <span class="k">class</span><span class="w"> </span><span class="nc">PDGainsCfg</span><span class="p">:</span>
@@ -637,16 +638,18 @@
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Convert mimic joints to normal joints. Defaults to False.&quot;&quot;&quot;</span>
 
     <span class="n">joint_drive</span><span class="p">:</span> <span class="n">JointDriveCfg</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="n">JointDriveCfg</span><span class="p">()</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;The joint drive settings.</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The joint drive settings. Defaults to :class:`JointDriveCfg`.</span>
 
-<span class="sd">    None can be used for URDFs without joints.</span>
+<span class="sd">    The parameter can be set to ``None`` for URDFs without joints.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">collision_from_visuals</span> <span class="o">=</span> <span class="kc">False</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Create collision geometry from visual geometry.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Whether to create collision geometry from visual geometry. Defaults to False.&quot;&quot;&quot;</span>
 
     <span class="n">collider_type</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;convex_hull&quot;</span><span class="p">,</span> <span class="s2">&quot;convex_decomposition&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;convex_hull&quot;</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;The collision shape simplification. Defaults to ``&quot;convex_hull&quot;``.</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The collision shape simplification. Defaults to &quot;convex_hull&quot;.</span>
+
+<span class="sd">    Supported values are:</span>
 
 <span class="sd">    * ``&quot;convex_hull&quot;``: The collision shape is simplified to a convex hull.</span>
 <span class="sd">    * ``&quot;convex_decomposition&quot;``: The collision shape is decomposed into smaller convex shapes for a closer fit.</span>
