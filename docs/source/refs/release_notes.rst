@@ -123,13 +123,16 @@ Changes in URDF Importer
 
 Isaac Sim 4.5 brings some updates to the URDF Importer, with a fresh UI to allow for better configurations
 when importing robots from URDF. As a result, the Isaac Lab URDF Converter has also been updated to
-reflect these changes. The :class:`UrdfConverterCfg` includes some new settings, such as :class:`PDGainsCfg`
-and :class:`NaturalFrequencyGainsCfg` classes for configuring the gains of the drives.
+reflect these changes. The :class:`isaaclab.sim.converters.UrdfConverterCfg` includes some new settings,
+such as :class:`~isaaclab.sim.converters.JointDriveCfg.PDGainsCfg`
+and :class:`~isaaclab.sim.converters.JointDriveCfg.NaturalFrequencyGainsCfg` classes for configuring
+the gains of the drives.
 
-One breaking change to note is that the :attr:`UrdfConverterCfg.JointDriveCfg.gains` attribute must
-be of class type :class:`PDGainsCfg` or :class:`NaturalFrequencyGainsCfg`.
+One breaking change to note is that the :attr:`~isaaclab.sim.converters.UrdfConverterCfg.JointDriveCfg.gains`
+attribute must be of class type :class:`~isaaclab.sim.converters.JointDriveCfg.PDGainsCfg` or
+:class:`~isaaclab.sim.converters.JointDriveCfg.NaturalFrequencyGainsCfg`.
 
-The stiffness of the :class:`PDGainsCfg` must be specified, as such:
+The stiffness of the :class:`~isaaclab.sim.converters.JointDriveCfg.PDGainsCfg` must be specified, as such:
 
 .. code-block:: python
 
@@ -138,7 +141,8 @@ The stiffness of the :class:`PDGainsCfg` must be specified, as such:
     )
 
 
-The :attr:`natural_frequency` attribute must be specified for :class:`NaturalFrequencyGainsCfg`.
+The :attr:`~isaaclab.sim.converters.JointDriveCfg.NaturalFrequencyGainsCfg.natural_frequency` attribute must
+be specified for :class:`~isaaclab.sim.converters.JointDriveCfg.NaturalFrequencyGainsCfg`.
 
 
 Renaming of Isaac Lab Extensions and Folders
