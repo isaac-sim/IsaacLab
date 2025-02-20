@@ -1,6 +1,24 @@
 Changelog
 ---------
 
+0.34.2 (2025-02-17)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added a new attribute :attr:`is_implicit_model` to the :class:`isaaclab.actuators.ActuatorBase` class to
+  indicate if the actuator model is implicit or explicit. This helps checking that the correct model type
+  is being used when initializing the actuator models.
+
+Fixed
+^^^^^
+
+* Added copy of configurations to :class:`isaaclab.assets.AssetBase` and :class:`isaaclab.sensors.SensorBase`
+  to prevent modifications of the configurations from leaking outside of the classes.
+* Moved warnings and checks for implicit actuator models to the :class:`isaaclab.actuators.ImplicitActuator` class.
+
+
 0.34.1 (2025-02-17)
 ~~~~~~~~~~~~~~~~~~~
 
