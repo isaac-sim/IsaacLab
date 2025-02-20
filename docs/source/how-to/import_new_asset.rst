@@ -15,12 +15,13 @@ extensions to Omniverse Kit:
 
 * **URDF Importer** - Import assets from URDF files.
 * **MJCF Importer** - Import assets from MJCF files.
-* **Asset Importer** - Import assets from various file formats, including
+* **Mesh Importer** - Import assets from various file formats, including
   OBJ, FBX, STL, and glTF.
 
 The recommended workflow from NVIDIA is to use the above importers to convert
 the asset into its USD representation. Once the asset is in USD format, you can
-use the Omniverse Kit to edit the asset and export it to other file formats. Isaac Sim includes these importers by default. They can also be enabled manually in Omniverse Kit.
+use the Omniverse Kit to edit the asset and export it to other file formats. Isaac Sim includes
+these importers by default. They can also be enabled manually in Omniverse Kit.
 
 
 An important note to use assets for large-scale simulation is to ensure that they
@@ -92,7 +93,10 @@ The following shows the steps to clone the repository and run the converter:
   ./isaaclab.sh -p scripts/tools/convert_urdf.py \
     ~/git/anymal_d_simple_description/urdf/anymal.urdf \
     source/isaaclab_assets/data/Robots/ANYbotics/anymal_d.usd \
-    --merge-joints
+    --merge-joints \
+    --joint-stiffness 0.0 \
+    --joint-damping 0.0 \
+    --joint-target-type none
 
 
 Executing the above script will create a USD file inside the
@@ -117,9 +121,16 @@ You can press play on the opened window to see the asset in the scene. The asset
 Using MJCF Importer
 -------------------
 
-Similar to the URDF Importer, the MJCF Importer also has a GUI interface. Please check the documentation at `MJCF importer`_ for more details. For using the MJCF importer from Python scripts, we include a utility tool called ``convert_mjcf.py``. This script creates an instance of :class:`~sim.converters.MjcfConverterCfg` which is then passed to the :class:`~sim.converters.MjcfConverter` class.
+Similar to the URDF Importer, the MJCF Importer also has a GUI interface. Please check the documentation at
+`MJCF importer`_ for more details. For using the MJCF importer from Python scripts, we include a utility tool
+called ``convert_mjcf.py``. This script creates an instance of :class:`~sim.converters.MjcfConverterCfg`
+which is then passed to the :class:`~sim.converters.MjcfConverter` class.
 
-The default values for the importer's configuration parameters are specified in the :class:`~sim.converters.MjcfConverterCfg` class. The configuration parameters are listed below. We made a few commonly modified settings to be available as command-line arguments when calling the ``convert_mjcf.py``, and they are marked with ``*`` in the list. For a comprehensive list of the configuration parameters, please check the the documentation at `MJCF importer`_.
+The default values for the importer's configuration parameters are specified in the
+:class:`~sim.converters.MjcfConverterCfg` class. The configuration parameters are listed below.
+We made a few commonly modified settings to be available as command-line arguments when calling the
+``convert_mjcf.py``, and they are marked with ``*`` in the list. For a comprehensive list of the configuration
+parameters, please check the the documentation at `MJCF importer`_.
 
 
 * :attr:`~sim.converters.MjcfConverterCfg.fix_base*` - Whether to fix the base of the robot.
@@ -165,8 +176,6 @@ Executing the above script will create USD files inside the
     :align: center
     :figwidth: 100%
     :alt: result of convert_mjcf.py
-
-
 
 
 Using Mesh Importer
