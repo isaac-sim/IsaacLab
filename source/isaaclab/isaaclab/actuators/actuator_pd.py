@@ -68,10 +68,12 @@ class ImplicitActuator(ActuatorBase):
             #   We should do this once all parameters have an "_sim" suffix.
             cfg.effort_limit = cfg.effort_limit_sim
         elif cfg.effort_limit_sim is not None and cfg.effort_limit is not None:
-            raise ValueError(
-                "The <ImplicitActuatorCfg> object has set both 'effort_limit_sim' and 'effort_limit'."
-                " Please only set 'effort_limit_sim' for implicit actuators."
-            )
+            if cfg.effort_limit_sim != cfg.effort_limit:
+                raise ValueError(
+                    "The <ImplicitActuatorCfg> object has set both 'effort_limit_sim' and 'effort_limit'"
+                    f" and they have different values {cfg.effort_limit_sim} != {cfg.effort_limit}."
+                    " Please only set 'effort_limit_sim' for implicit actuators."
+                )
 
         # velocity limits
         if cfg.velocity_limit_sim is None and cfg.velocity_limit is not None:
@@ -90,10 +92,12 @@ class ImplicitActuator(ActuatorBase):
             #   We should do this once all parameters have an "_sim" suffix.
             cfg.velocity_limit = cfg.velocity_limit_sim
         elif cfg.velocity_limit_sim is not None and cfg.velocity_limit is not None:
-            raise ValueError(
-                "The <ImplicitActuatorCfg> object has set both 'velocity_limit_sim' and 'velocity_limit'."
-                " Please only set 'velocity_limit_sim' for implicit actuators."
-            )
+            if cfg.velocity_limit_sim != cfg.velocity_limit:
+                raise ValueError(
+                    "The <ImplicitActuatorCfg> object has set both 'velocity_limit_sim' and 'velocity_limit'"
+                    f" and they have different values {cfg.velocity_limit_sim} != {cfg.velocity_limit}."
+                    " Please only set 'velocity_limit_sim' for implicit actuators."
+                )
 
         # set implicit actuator model flag
         ImplicitActuator.is_implicit_model = True
