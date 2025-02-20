@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.0.1" />
-    <meta name="docbuild:last-update" content="Feb 18, 2025"/>
+    <meta name="docbuild:last-update" content="Feb 20, 2025"/>
   </head>
   
   
@@ -374,6 +374,7 @@
 
 
 
+
 <li class="toctree-l1"><a class="reference internal" href="changelog.html">Extensions Changelog</a></li>
 <li class="toctree-l1"><a class="reference internal" href="license.html">License</a></li>
 <li class="toctree-l1"><a class="reference internal" href="bibliography.html">Bibliography</a></li>
@@ -595,46 +596,55 @@
 <li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#">Release Notes</a></li>
 <li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#v2-0-0">v2.0.0</a><ul class="visible nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#overview">Overview</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#highlights-from-the-isaac-sim-4-5-release">Highlights from the Isaac Sim 4.5 release</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#new-features">New Features</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#improvements">Improvements</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#bug-fixes">Bug Fixes</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#breaking-changes">Breaking Changes</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id1">Migration Guide</a><ul class="nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#migration-guide">Migration Guide</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#renaming-of-isaac-sim-extensions">Renaming of Isaac Sim Extensions</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#renaming-of-the-urdf-and-mjcf-importers">Renaming of the URDF and MJCF Importers</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#changes-in-urdf-importer">Changes in URDF Importer</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#renaming-of-omni-isaac-core-classes">Renaming of omni.isaac.core Classes</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#renaming-of-isaac-lab-extensions-and-folders">Renaming of Isaac Lab Extensions and Folders</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#restructuring-of-isaac-lab-extensions">Restructuring of Isaac Lab Extensions</a></li>
 </ul>
 </li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#new-contributors">New Contributors</a></li>
+</ul>
+</li>
+<li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#v1-4-1">v1.4.1</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id1">Overview</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id2">New Features</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id3">Improvements</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id4">Bug Fixes</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#new-contributors">New Contributors</a></li>
+</ul>
+</li>
 </ul>
 </li>
 <li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#v1-4-0">v1.4.0</a><ul class="visible nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id2">Overview</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id3">New Features</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id4">Improvements</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id5">Bug Fixes</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id6">Breaking Changes</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id7">New Contributors</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id5">Overview</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id6">New Features</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id7">Improvements</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id8">Bug Fixes</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id9">Breaking Changes</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id10">New Contributors</a></li>
 </ul>
 </li>
 <li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#v1-3-0">v1.3.0</a><ul class="visible nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id8">Overview</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id9">New Features</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id10">Improvements</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id11">Bug Fixes</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id12">New Contributors</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id11">Overview</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id12">New Features</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id13">Improvements</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id14">Bug Fixes</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id15">New Contributors</a></li>
 </ul>
 </li>
 <li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#v1-2-0">v1.2.0</a><ul class="visible nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id13">Overview</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id14">New Features</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id16">Improvements</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id17">Bug Fixes</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id18">Breaking Changes</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id19">Migration Guide</a><ul class="nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id16">Overview</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id17">New Features</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id18">Improvements</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id19">Bug Fixes</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id20">Breaking Changes</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id21">Migration Guide</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#setting-the-simulation-device-into-the-simulation-context">Setting the simulation device into the simulation context</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#setting-the-simulation-device-from-cli">Setting the simulation device from CLI</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#renaming-of-teleoperation-device-cli-in-standalone-scripts">Renaming of teleoperation device CLI in standalone scripts</a></li>
@@ -643,21 +653,20 @@
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#drops-support-for-the-tiled-camera-with-isaac-sim-4-1">Drops support for the tiled camera with Isaac Sim 4.1</a></li>
 </ul>
 </li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id20">New Contributors</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id22">New Contributors</a></li>
 </ul>
 </li>
 <li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#v1-1-0">v1.1.0</a><ul class="visible nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id21">Overview</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id23">New Features</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id24">Improvements</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id25">Bug Fixes</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id26">Breaking Changes</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id27">Migration Guide</a><ul class="nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id23">Overview</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id24">New Features</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id25">Improvements</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id26">Bug Fixes</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id27">Breaking Changes</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id28">Migration Guide</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#renaming-of-simulationcfg-substeps">Renaming of <code class="docutils literal notranslate"><span class="pre">SimulationCfg.substeps</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#removal-of-deprecated-attributes">Removal of Deprecated Attributes</a></li>
 </ul>
 </li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id28">New Contributors</a></li>
 </ul>
 </li>
 <li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#v1-0-0">v1.0.0</a><ul class="visible nav section-nav flex-column">
@@ -683,27 +692,45 @@
                   
   <section id="release-notes">
 <h1>Release Notes<a class="headerlink" href="#release-notes" title="Permalink to this heading">#</a></h1>
+<p>The release notes are now available in the <a class="reference external" href="https://github.com/isaac-sim/IsaacLab/releases">Isaac Lab GitHub repository</a>.
+We summarize the release notes here for convenience.</p>
 </section>
 <section id="v2-0-0">
 <h1>v2.0.0<a class="headerlink" href="#v2-0-0" title="Permalink to this heading">#</a></h1>
 <section id="overview">
 <h2>Overview<a class="headerlink" href="#overview" title="Permalink to this heading">#</a></h2>
-<p>Isaac Lab 2.0 brings some exciting new features, including a new addition to the Imitation Learning
-workflow with the <strong>Isaac Lab Mimic</strong> extension.
-Isaac Lab Mimic provides the ability to automatically generate additional trajectories based on
-just a few human collected demonstrations, allowing for larger training datasets with less human effort.
-This work is based on the <a class="reference external" href="https://mimicgen.github.io/">MimicGenv</a> work for Scalable Robot Learning using Human Demonstrations.</p>
-<p>Additionally, we introduced a new set of AMP tasks based on <a class="reference external" href="https://xbpeng.github.io/projects/AMP/index.html">Adversarial Motion Priors</a>,
-training humanoid robots to walk, run, and dance 👯</p>
-<p>Along with Isaac Lab 2.0, Isaac Sim 4.5 brings several new and breaking changes, including a full refactor of the Isaac Sim extensions,
-an improved URDF importer, an update to the PyTorch dependency to version 2.5.1,
-and many fixes for tiled rendering that now supports multiple tiled
-cameras at different resolutions.</p>
+<p>Isaac Lab 2.0 brings some exciting new features, including a new addition to the Imitation Learning workflow with
+the <strong>Isaac Lab Mimic</strong> extension.</p>
+<p>Isaac Lab Mimic provides the ability to automatically generate additional trajectories based on just a few human
+collected demonstrations, allowing for larger training datasets with less human effort. This work is based on the
+<a class="reference external" href="https://mimicgen.github.io/">MimicGen</a> work for Scalable Robot Learning using Human Demonstrations.</p>
+<p>Additionally, we introduced a new set of AMP tasks based on
+<a class="reference external" href="https://xbpeng.github.io/projects/AMP/index.html">Adversarial Motion Priors</a>, training humanoid robots to walk, run,
+and dance.</p>
+<p>Along with Isaac Lab 2.0, Isaac Sim 4.5 brings several new and breaking changes, including a full refactor of the
+Isaac Sim extensions, an improved URDF importer, an update to the PyTorch dependency to version 2.5.1, and many
+fixes for tiled rendering that now supports multiple tiled cameras at different resolutions.</p>
 <p>To follow the refactoring in Isaac Sim, we made similar refactoring and restructuring changes to Isaac Lab.
-These breaking changes will no longer be compatible with previous Isaac Sim versions. Please make sure to update to Isaac Sim 4.5
-when using the Isaac Lab 2.0 release.</p>
-<p>Please refer to <a class="reference external" href="migration.html">Migration Guide</a> for a detailed list of breaking changes and guides for updating your codebase.</p>
-<p><strong>Full Changelog</strong>: <a class="reference external" href="https://github.com/isaac-sim/IsaacLab/compare/v1.4.0...v2.0.0">https://github.com/isaac-sim/IsaacLab/compare/v1.4.0…v2.0.0</a></p>
+These breaking changes will no longer be compatible with previous Isaac Sim versions.</p>
+<div class="admonition attention">
+<p class="admonition-title">Attention</p>
+<p>Please make sure to update to Isaac Sim 4.5 when using the Isaac Lab 2.0 release.</p>
+</div>
+<p><strong>Full Changelog</strong>: <a class="reference external" href="https://github.com/isaac-sim/IsaacLab/compare/v1.4.1...v2.0.0">https://github.com/isaac-sim/IsaacLab/compare/v1.4.1…v2.0.0</a></p>
+</section>
+<section id="highlights-from-the-isaac-sim-4-5-release">
+<h2>Highlights from the Isaac Sim 4.5 release<a class="headerlink" href="#highlights-from-the-isaac-sim-4-5-release" title="Permalink to this heading">#</a></h2>
+<ul class="simple">
+<li><p>Support for multiple <code class="docutils literal notranslate"><span class="pre">TiledCamera</span></code> instances and varying resolutions</p></li>
+<li><p>Improved rendering performance by up to 1.2x</p></li>
+<li><p>Faster startup time through optimizations in the Cloner class that improves startup time by 30%</p></li>
+<li><p>Enhanced OmniPVD for debugging physics simulation, enabling capturing reinforcement learning simulation</p></li>
+<li><p>Physics simulation performance optimizations improving throughput of up to 70%</p></li>
+<li><p>Physics support for dedicated cylinder and cone geometry designed for robot wheels that is fully GPU accelerated</p></li>
+<li><p>A new physics GPU filtering mechanism allowing co-location of reinforcement learning environments at the
+origin with minimal performance loss for scenes with limited collider counts</p></li>
+<li><p>Improvements in simulation stability for mimic joints at high joint gains</p></li>
+</ul>
 </section>
 <section id="new-features">
 <h2>New Features<a class="headerlink" href="#new-features" title="Permalink to this heading">#</a></h2>
@@ -718,15 +745,10 @@ when using the Isaac Lab 2.0 release.</p>
 <section id="improvements">
 <h2>Improvements<a class="headerlink" href="#improvements" title="Permalink to this heading">#</a></h2>
 <ul class="simple">
-<li><p>Adds body tracking option to ViewerCfg by &#64;KyleM73 in <a class="github reference external" href="https://github.com/isaac-sim/IsaacLab/pull/1620">isaac-sim/IsaacLab#1620</a></p></li>
-<li><p>Updates pip installation documentation to clarify options by &#64;steple in <a class="github reference external" href="https://github.com/isaac-sim/IsaacLab/pull/1621">isaac-sim/IsaacLab#1621</a></p></li>
-<li><p>Adds dict conversion test for ActuatorBase configs by &#64;mschweig in <a class="github reference external" href="https://github.com/isaac-sim/IsaacLab/pull/1608">isaac-sim/IsaacLab#1608</a></p></li>
-<li><p>Adds documentation and demo script for IMU sensor by &#64;mpgussert in <a class="github reference external" href="https://github.com/isaac-sim/IsaacLab/pull/1694">isaac-sim/IsaacLab#1694</a></p></li>
-<li><p>Removes deprecation for root_state_w properties and setters by &#64;jtigue-bdai in <a class="github reference external" href="https://github.com/isaac-sim/IsaacLab/pull/1695">isaac-sim/IsaacLab#1695</a></p></li>
 <li><p>Adds a tutorial for policy inference in a prebuilt USD scene by &#64;oahmednv</p></li>
-<li><p>Adds unit tests for multi tiled cameras by &#64;matthewtrepte</p></li>
+<li><p>Adds unit tests for multi-tiled cameras by &#64;matthewtrepte</p></li>
 <li><p>Updates render setting defaults for better quality by &#64;kellyguo11</p></li>
-<li><p>Adds flag to wait for texture loading completion when reset by &#64;oahmednv</p></li>
+<li><p>Adds a flag to wait for texture loading completion when reset by &#64;oahmednv</p></li>
 <li><p>Adds pre-trained checkpoints and tools for generating and uploading checkpoints by &#64;nv-cupright</p></li>
 <li><p>Adds new denoiser optimization flags for rendering by &#64;kellyguo11</p></li>
 <li><p>Updates torch to 2.5.1 by &#64;kellyguo11</p></li>
@@ -735,19 +757,8 @@ when using the Isaac Lab 2.0 release.</p>
 <section id="bug-fixes">
 <h2>Bug Fixes<a class="headerlink" href="#bug-fixes" title="Permalink to this heading">#</a></h2>
 <ul class="simple">
-<li><p>Fixes JointAction not preserving order when using all joints by &#64;T-K-233 in <a class="github reference external" href="https://github.com/isaac-sim/IsaacLab/pull/1587">isaac-sim/IsaacLab#1587</a></p></li>
-<li><p>Fixes event term for pushing root by setting velocity by &#64;Mayankm96 in <a class="github reference external" href="https://github.com/isaac-sim/IsaacLab/pull/1584">isaac-sim/IsaacLab#1584</a></p></li>
-<li><p>Fixes error in Articulation where default_joint_stiffness and default_joint_damping is not correctly set if actuator is instance of ImplicitActuator by &#64;zoctipus in <a class="github reference external" href="https://github.com/isaac-sim/IsaacLab/pull/1580">isaac-sim/IsaacLab#1580</a></p></li>
-<li><p>Fixes MARL workflows for recording videos during training/inferencing by &#64;Rishi-V in <a class="github reference external" href="https://github.com/isaac-sim/IsaacLab/pull/1596">isaac-sim/IsaacLab#1596</a></p></li>
-<li><p>Fixes the <code class="docutils literal notranslate"><span class="pre">joint_parameter_lookup</span></code> type in <code class="docutils literal notranslate"><span class="pre">RemotizedPDActuatorCfg</span></code> to support list format by &#64;fan-ziqi in <a class="github reference external" href="https://github.com/isaac-sim/IsaacLab/pull/1626">isaac-sim/IsaacLab#1626</a></p></li>
-<li><p>Fixes action reset of pre_trained_policy_action by &#64;nicolaloi in <a class="github reference external" href="https://github.com/isaac-sim/IsaacLab/pull/1623">isaac-sim/IsaacLab#1623</a></p></li>
-<li><p>Fixes issue where the indices were not created correctly. by &#64;AntoineRichard in <a class="github reference external" href="https://github.com/isaac-sim/IsaacLab/pull/1660">isaac-sim/IsaacLab#1660</a></p></li>
-<li><p>Fixes errors in tools and tutorial scripts by &#64;kellyguo11 in <a class="github reference external" href="https://github.com/isaac-sim/IsaacLab/pull/1669">isaac-sim/IsaacLab#1669</a></p></li>
-<li><p>Fixes rigid object’s root com velocities timestamp check by &#64;ori-gadot in <a class="github reference external" href="https://github.com/isaac-sim/IsaacLab/pull/1674">isaac-sim/IsaacLab#1674</a></p></li>
-<li><p>Fixes infinite loop in repeated_objects_terrain: respawn only wrong object samples  by &#64;nicolaloi in <a class="github reference external" href="https://github.com/isaac-sim/IsaacLab/pull/1612">isaac-sim/IsaacLab#1612</a></p></li>
-<li><p>Corrects calculation of target height adjustment based on sensor data by &#64;fan-ziqi in <a class="github reference external" href="https://github.com/isaac-sim/IsaacLab/pull/1710">isaac-sim/IsaacLab#1710</a></p></li>
-<li><p>Clarifies Ray Documentation and Fixes Minor Issues by &#64;garylvov in <a class="github reference external" href="https://github.com/isaac-sim/IsaacLab/pull/1717">isaac-sim/IsaacLab#1717</a></p></li>
 <li><p>Fixes external force buffers to set to zero when no forces/torques are applied by &#64;matthewtrepte</p></li>
+<li><p>Fixes RSL-RL package name in <code class="docutils literal notranslate"><span class="pre">setup.py</span></code> according to PyPI installation by &#64;samibouziri</p></li>
 </ul>
 </section>
 <section id="breaking-changes">
@@ -756,12 +767,11 @@ when using the Isaac Lab 2.0 release.</p>
 <li><p>Updates the URDF and MJCF importers for Isaac Sim 4.5 by &#64;Dhoeller19</p></li>
 <li><p>Renames Isaac Lab extensions and folders by &#64;kellyguo11</p></li>
 <li><p>Restructures extension folders and removes old imitation learning scripts by &#64;kellyguo11</p></li>
-<li><p>Renames conda and venv Python environment from <code class="docutils literal notranslate"><span class="pre">isaaclab</span></code> to <code class="docutils literal notranslate"><span class="pre">env_isaaclab</span></code> by &#64;Toni-SM</p></li>
-<li><p>Fixes RSL-RL package name in <cite>setup.py</cite> according to PyPI installation by &#64;samibouziri</p></li>
+<li><p>Renames default conda and venv Python environment from <code class="docutils literal notranslate"><span class="pre">isaaclab</span></code> to <code class="docutils literal notranslate"><span class="pre">env_isaaclab</span></code> by &#64;Toni-SM</p></li>
 </ul>
 </section>
-<section id="id1">
-<h2>Migration Guide<a class="headerlink" href="#id1" title="Permalink to this heading">#</a></h2>
+<section id="migration-guide">
+<h2>Migration Guide<a class="headerlink" href="#migration-guide" title="Permalink to this heading">#</a></h2>
 <section id="renaming-of-isaac-sim-extensions">
 <h3>Renaming of Isaac Sim Extensions<a class="headerlink" href="#renaming-of-isaac-sim-extensions" title="Permalink to this heading">#</a></h3>
 <p>Previously, Isaac Sim extensions have been following the convention of <code class="docutils literal notranslate"><span class="pre">omni.isaac.*</span></code>,
@@ -771,13 +781,13 @@ have been renamed and split into multiple extensions to prepare for a more modul
 framework that can be customized by users through the use of app templates.</p>
 <p>Notably, the following commonly used Isaac Sim extensions in Isaac Lab are renamed as follow:</p>
 <ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">omni.isaac.cloner</span></code> –&gt; <code class="docutils literal notranslate"><span class="pre">isaacsim.core.cloner</span></code></p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">omni.isaac.core.prims</span></code> –&gt; <code class="docutils literal notranslate"><span class="pre">isaacsim.core.prims</span></code></p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">omni.isaac.core.simulation_context</span></code> –&gt; <code class="docutils literal notranslate"><span class="pre">isaacsim.core.api.simulation_context</span></code></p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">omni.isaac.core.utils</span></code> –&gt; <code class="docutils literal notranslate"><span class="pre">isaacsim.core.utils</span></code></p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">omni.isaac.core.world</span></code> –&gt; <code class="docutils literal notranslate"><span class="pre">isaacsim.core.api.world</span></code></p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">omni.isaac.kit.SimulationApp</span></code> –&gt; <code class="docutils literal notranslate"><span class="pre">isaacsim.SimulationApp</span></code></p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">omni.isaac.ui</span></code> –&gt; <code class="docutils literal notranslate"><span class="pre">isaacsim.gui.components</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">omni.isaac.cloner</span></code> –&gt; <code class="xref py py-mod docutils literal notranslate"><span class="pre">isaacsim.core.cloner</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">omni.isaac.core.prims</span></code> –&gt; <code class="xref py py-mod docutils literal notranslate"><span class="pre">isaacsim.core.prims</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">omni.isaac.core.simulation_context</span></code> –&gt; <code class="xref py py-mod docutils literal notranslate"><span class="pre">isaacsim.core.api.simulation_context</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">omni.isaac.core.utils</span></code> –&gt; <code class="xref py py-mod docutils literal notranslate"><span class="pre">isaacsim.core.utils</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">omni.isaac.core.world</span></code> –&gt; <code class="xref py py-mod docutils literal notranslate"><span class="pre">isaacsim.core.api.world</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">omni.isaac.kit.SimulationApp</span></code> –&gt; <code class="xref py py-mod docutils literal notranslate"><span class="pre">isaacsim.SimulationApp</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">omni.isaac.ui</span></code> –&gt; <code class="xref py py-mod docutils literal notranslate"><span class="pre">isaacsim.gui.components</span></code></p></li>
 </ul>
 </section>
 <section id="renaming-of-the-urdf-and-mjcf-importers">
@@ -797,37 +807,21 @@ menu when selecting a corresponding .urdf or .xml file in the file browser.</p>
 <h3>Changes in URDF Importer<a class="headerlink" href="#changes-in-urdf-importer" title="Permalink to this heading">#</a></h3>
 <p>Isaac Sim 4.5 brings some updates to the URDF Importer, with a fresh UI to allow for better configurations
 when importing robots from URDF. As a result, the Isaac Lab URDF Converter has also been updated to
-reflect these changes. The <code class="xref py py-class docutils literal notranslate"><span class="pre">UrdfConverterCfg</span></code> includes some new settings, such as <code class="xref py py-class docutils literal notranslate"><span class="pre">PDGainsCfg</span></code>
-and <code class="xref py py-class docutils literal notranslate"><span class="pre">NaturalFrequencyGainsCfg</span></code> classes for configuring the gains of the drives.</p>
-<p>One breaking change to note is that the <code class="xref py py-attr docutils literal notranslate"><span class="pre">UrdfConverterCfg.JointDriveCfg.gains</span></code> attribute must
-be of class type <code class="xref py py-class docutils literal notranslate"><span class="pre">PDGainsCfg</span></code> or <code class="xref py py-class docutils literal notranslate"><span class="pre">NaturalFrequencyGainsCfg</span></code>.</p>
+reflect these changes. The <a class="reference internal" href="../api/lab/isaaclab.sim.converters.html#isaaclab.sim.converters.UrdfConverterCfg" title="isaaclab.sim.converters.UrdfConverterCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">isaaclab.sim.converters.UrdfConverterCfg</span></code></a> includes some new settings,
+such as <code class="xref py py-class docutils literal notranslate"><span class="pre">PDGainsCfg</span></code>
+and <code class="xref py py-class docutils literal notranslate"><span class="pre">NaturalFrequencyGainsCfg</span></code> classes for configuring
+the gains of the drives.</p>
+<p>One breaking change to note is that the <a class="reference internal" href="../api/lab/isaaclab.sim.converters.html#isaaclab.sim.converters.UrdfConverterCfg.JointDriveCfg.gains" title="isaaclab.sim.converters.UrdfConverterCfg.JointDriveCfg.gains"><code class="xref py py-attr docutils literal notranslate"><span class="pre">gains</span></code></a>
+attribute must be of class type <code class="xref py py-class docutils literal notranslate"><span class="pre">PDGainsCfg</span></code> or
+<code class="xref py py-class docutils literal notranslate"><span class="pre">NaturalFrequencyGainsCfg</span></code>.</p>
 <p>The stiffness of the <code class="xref py py-class docutils literal notranslate"><span class="pre">PDGainsCfg</span></code> must be specified, as such:</p>
-<p>The <code class="xref py py-attr docutils literal notranslate"><span class="pre">natural_frequency</span></code> must be specified for <code class="xref py py-class docutils literal notranslate"><span class="pre">NaturalFrequencyGainsCfg</span></code>.</p>
-</section>
-<section id="renaming-of-omni-isaac-core-classes">
-<h3>Renaming of omni.isaac.core Classes<a class="headerlink" href="#renaming-of-omni-isaac-core-classes" title="Permalink to this heading">#</a></h3>
-<p>Isaac Sim 4.5 introduced some naming changes to the core prim classes that are commonly
-used in Isaac Lab. These affect the single and <code class="docutils literal notranslate"><span class="pre">View</span></code> variations of the prim classes, including
-Articulation, RigidPrim, XFormPrim, and others. Single-object classes are now prefixed with
-<code class="docutils literal notranslate"><span class="pre">Single</span></code>, such as <code class="docutils literal notranslate"><span class="pre">SingleArticulation</span></code>, while tensorized View classes now have the <code class="docutils literal notranslate"><span class="pre">View</span></code>
-suffix removed.</p>
-<p>The exact renamings of the classes are as follow:</p>
-<ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">Articulation</span></code> –&gt; <code class="docutils literal notranslate"><span class="pre">SingleArticulation</span></code></p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">ArticulationView</span></code> –&gt; <code class="docutils literal notranslate"><span class="pre">Articulation</span></code></p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">ClothPrim</span></code> –&gt; <code class="docutils literal notranslate"><span class="pre">SingleClothPrim</span></code></p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">ClothPrimView</span></code> –&gt; <code class="docutils literal notranslate"><span class="pre">ClothPrim</span></code></p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">DeformablePrim</span></code> –&gt; <code class="docutils literal notranslate"><span class="pre">SingleDeformablePrim</span></code></p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">DeformablePrimView</span></code> –&gt; <code class="docutils literal notranslate"><span class="pre">DeformablePrim</span></code></p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">GeometryPrim</span></code> –&gt; <code class="docutils literal notranslate"><span class="pre">SingleGeometryPrim</span></code></p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">GeometryPrimView</span></code> –&gt; <code class="docutils literal notranslate"><span class="pre">GeometryPrim</span></code></p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">ParticleSystem</span></code> –&gt; <code class="docutils literal notranslate"><span class="pre">SingleParticleSystem</span></code></p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">ParticleSystemView</span></code> –&gt; <code class="docutils literal notranslate"><span class="pre">ParticleSystem</span></code></p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">RigidPrim</span></code> –&gt; <code class="docutils literal notranslate"><span class="pre">SingleRigidPrim</span></code></p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">RigidPrimView</span></code> –&gt; <code class="docutils literal notranslate"><span class="pre">RigidPrim</span></code></p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">XFormPrim</span></code> –&gt; <code class="docutils literal notranslate"><span class="pre">SingleXFormPrim</span></code></p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">XFormPrimView</span></code> –&gt; <code class="docutils literal notranslate"><span class="pre">XFormPrim</span></code></p></li>
-</ul>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">joint_drive</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">UrdfConverterCfg</span><span class="o">.</span><span class="n">JointDriveCfg</span><span class="p">(</span>
+    <span class="n">gains</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">UrdfConverterCfg</span><span class="o">.</span><span class="n">JointDriveCfg</span><span class="o">.</span><span class="n">PDGainsCfg</span><span class="p">(</span><span class="n">stiffness</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">damping</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+<p>The <code class="xref py py-attr docutils literal notranslate"><span class="pre">natural_frequency</span></code> attribute must
+be specified for <code class="xref py py-class docutils literal notranslate"><span class="pre">NaturalFrequencyGainsCfg</span></code>.</p>
 </section>
 <section id="renaming-of-isaac-lab-extensions-and-folders">
 <h3>Renaming of Isaac Lab Extensions and Folders<a class="headerlink" href="#renaming-of-isaac-lab-extensions-and-folders" title="Permalink to this heading">#</a></h3>
@@ -837,34 +831,87 @@ The <code class="docutils literal notranslate"><span class="pre">source/apps</sp
 <code class="docutils literal notranslate"><span class="pre">apps/</span></code> and <code class="docutils literal notranslate"><span class="pre">scripts/</span></code>.</p>
 <p>Isaac Lab extensions have been renamed to:</p>
 <ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">omni.isaac.lab</span></code> –&gt; <code class="docutils literal notranslate"><span class="pre">isaaclab</span></code></p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">omni.isaac.lab_assets</span></code> –&gt; <code class="docutils literal notranslate"><span class="pre">isaaclab_assets</span></code></p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">omni.isaac.lab_tasks</span></code> –&gt; <code class="docutils literal notranslate"><span class="pre">isaaclab_tasks</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">omni.isaac.lab</span></code> –&gt; <code class="xref py py-mod docutils literal notranslate"><span class="pre">isaaclab</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">omni.isaac.lab_assets</span></code> –&gt; <code class="xref py py-mod docutils literal notranslate"><span class="pre">isaaclab_assets</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">omni.isaac.lab_tasks</span></code> –&gt; <code class="xref py py-mod docutils literal notranslate"><span class="pre">isaaclab_tasks</span></code></p></li>
 </ul>
 <p>In addition, we have split up the previous <code class="docutils literal notranslate"><span class="pre">source/standalone/workflows</span></code> directory into <code class="docutils literal notranslate"><span class="pre">scripts/imitation_learning</span></code>
 and <code class="docutils literal notranslate"><span class="pre">scripts/reinforcement_learning</span></code> directories. The RSL RL, Stable-Baselines, RL_Games, SKRL, and Ray directories
 are under <code class="docutils literal notranslate"><span class="pre">scripts/reinforcement_learning</span></code>, while Robomimic and the new Isaac Lab Mimic directories are under
 <code class="docutils literal notranslate"><span class="pre">scripts/imitation_learning</span></code>.</p>
-<p>To assist with the renaming of Isaac Lab extensions in your project, we have provided a <a class="reference external" href="https://gist.github.com/kellyguo11/3e8f73f739b1c013b1069ad372277a85">simple script</a> that will traverse
+<p>To assist with the renaming of Isaac Lab extensions in your project, we have provided a
+<a class="reference external" href="https://gist.github.com/kellyguo11/3e8f73f739b1c013b1069ad372277a85">simple script</a> that will traverse
 through the <code class="docutils literal notranslate"><span class="pre">source</span></code> and <code class="docutils literal notranslate"><span class="pre">docs</span></code> directories in your local Isaac Lab project and replace any instance of the renamed
 directories and imports. <strong>Please use the script at your own risk as it will overwrite source files directly.</strong></p>
 </section>
 <section id="restructuring-of-isaac-lab-extensions">
 <h3>Restructuring of Isaac Lab Extensions<a class="headerlink" href="#restructuring-of-isaac-lab-extensions" title="Permalink to this heading">#</a></h3>
-<p>With the introduction of <code class="docutils literal notranslate"><span class="pre">isaaclab_mimic</span></code>, designed for supporting data generation workflows for imitation learning,
-we have also split out the previous <code class="docutils literal notranslate"><span class="pre">wrappers</span></code> folder under <code class="docutils literal notranslate"><span class="pre">isaaclab_tasks</span></code> to its own module, named <code class="docutils literal notranslate"><span class="pre">isaaclab_rl</span></code>.
+<p>With the introduction of <code class="xref py py-mod docutils literal notranslate"><span class="pre">isaaclab_mimic</span></code>, designed for supporting data generation workflows for imitation learning,
+we have also split out the previous <code class="docutils literal notranslate"><span class="pre">wrappers</span></code> folder under <code class="docutils literal notranslate"><span class="pre">isaaclab_tasks</span></code> to its own module, named <a class="reference internal" href="../api/lab_rl/isaaclab_rl.html#module-isaaclab_rl" title="isaaclab_rl"><code class="xref py py-mod docutils literal notranslate"><span class="pre">isaaclab_rl</span></code></a>.
 This new extension will contain reinforcement learning specific wrappers for the various RL libraries supported by Isaac Lab.</p>
-<p>The new <code class="docutils literal notranslate"><span class="pre">isaaclab_mimic</span></code> extension will also replace the previous imitation learning scripts under the <code class="docutils literal notranslate"><span class="pre">robomimic</span></code> folder.
+<p>The new <code class="xref py py-mod docutils literal notranslate"><span class="pre">isaaclab_mimic</span></code> extension will also replace the previous imitation learning scripts under the <code class="docutils literal notranslate"><span class="pre">robomimic</span></code> folder.
 We have removed the old scripts for data collection and dataset preparation in favor of the new mimic workflow. For users
 who prefer to use the previous scripts, they will be available in previous release branches.</p>
-<p>Additionally, we have also restructured the <code class="docutils literal notranslate"><span class="pre">isaaclab_assets</span></code> extension to be split into <code class="docutils literal notranslate"><span class="pre">robots</span></code> and <code class="docutils literal notranslate"><span class="pre">sensors</span></code>
-subdirectories. This allows for clearer separation between the pre-defined configurations provided in the extension.
-For any existing imports such as <code class="docutils literal notranslate"><span class="pre">from</span> <span class="pre">omni.isaac.lab_assets.anymal</span> <span class="pre">import</span> <span class="pre">ANYMAL_C_CFG</span></code>, please replace it with
-<code class="docutils literal notranslate"><span class="pre">from</span> <span class="pre">isaaclab.robots.anymal</span> <span class="pre">import</span> <span class="pre">ANYMAL_C_CFG</span></code>.</p>
+<p>Additionally, we have also restructured the <code class="xref py py-mod docutils literal notranslate"><span class="pre">isaaclab_assets</span></code> extension to be split into <code class="docutils literal notranslate"><span class="pre">robots</span></code> and <code class="docutils literal notranslate"><span class="pre">sensors</span></code>
+subdirectories. This allows for clearer separation between the pre-defined configurations provided in the extension.</p>
+<p>As an example, the following import:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">omni.isaac.lab_assets.anymal</span><span class="w"> </span><span class="kn">import</span> <span class="n">ANYMAL_C_CFG</span>
+</pre></div>
+</div>
+<p>should be replaced with:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab_assets.robots.anymal</span><span class="w"> </span><span class="kn">import</span> <span class="n">ANYMAL_C_CFG</span>
+</pre></div>
+</div>
 </section>
 </section>
+</section>
+<section id="v1-4-1">
+<h1>v1.4.1<a class="headerlink" href="#v1-4-1" title="Permalink to this heading">#</a></h1>
+<section id="id1">
+<h2>Overview<a class="headerlink" href="#id1" title="Permalink to this heading">#</a></h2>
+<p>This release contains a set of improvements and bug fixes.</p>
+<p>Most importantly, we reverted one of the <a class="reference external" href="https://github.com/isaac-sim/IsaacLab/pull/966">changes from the previous release</a>
+to ensure the training throughput performance remains the same.</p>
+<p><strong>Full Changelog</strong>: <a class="reference external" href="https://github.com/isaac-sim/IsaacLab/compare/v1.4.0...v1.4.1">https://github.com/isaac-sim/IsaacLab/compare/v1.4.0…v1.4.1</a></p>
+<p>This is the <strong>final release compatible with Isaac Sim 4.2</strong>. The next release will target Isaac Sim 4.5,
+which introduces breaking changes that will make Isaac Lab incompatible with earlier versions of Isaac Sim.</p>
+</section>
+<section id="id2">
+<h2>New Features<a class="headerlink" href="#id2" title="Permalink to this heading">#</a></h2>
+<ul class="simple">
+<li><p>Adds documentation and demo script for IMU sensor by &#64;mpgussert in <a class="github reference external" href="https://github.com/isaac-sim/IsaacLab/pull/1694">isaac-sim/IsaacLab#1694</a></p></li>
+</ul>
+</section>
+<section id="id3">
+<h2>Improvements<a class="headerlink" href="#id3" title="Permalink to this heading">#</a></h2>
+<ul class="simple">
+<li><p>Removes deprecation for root_state_w properties and setters by &#64;jtigue-bdai in <a class="github reference external" href="https://github.com/isaac-sim/IsaacLab/pull/1695">isaac-sim/IsaacLab#1695</a></p></li>
+<li><p>Fixes MARL workflows for recording videos during training/inferencing by &#64;Rishi-V in <a class="github reference external" href="https://github.com/isaac-sim/IsaacLab/pull/1596">isaac-sim/IsaacLab#1596</a></p></li>
+<li><p>Adds body tracking option to ViewerCfg by &#64;KyleM73 in <a class="github reference external" href="https://github.com/isaac-sim/IsaacLab/pull/1620">isaac-sim/IsaacLab#1620</a></p></li>
+<li><p>Fixes the <code class="docutils literal notranslate"><span class="pre">joint_parameter_lookup</span></code> type in <code class="docutils literal notranslate"><span class="pre">RemotizedPDActuatorCfg</span></code> to support list format by &#64;fan-ziqi in <a class="github reference external" href="https://github.com/isaac-sim/IsaacLab/pull/1626">isaac-sim/IsaacLab#1626</a></p></li>
+<li><p>Updates pip installation documentation to clarify options by &#64;steple in <a class="github reference external" href="https://github.com/isaac-sim/IsaacLab/pull/1621">isaac-sim/IsaacLab#1621</a></p></li>
+<li><p>Fixes docstrings in Articulation Data that report wrong return dimension by &#64;zoctipus in <a class="github reference external" href="https://github.com/isaac-sim/IsaacLab/pull/1652">isaac-sim/IsaacLab#1652</a></p></li>
+<li><p>Fixes documentation error for PD Actuator by &#64;kellyguo11 in <a class="github reference external" href="https://github.com/isaac-sim/IsaacLab/pull/1668">isaac-sim/IsaacLab#1668</a></p></li>
+<li><p>Clarifies ray documentation and fixes minor issues by &#64;garylvov in <a class="github reference external" href="https://github.com/isaac-sim/IsaacLab/pull/1717">isaac-sim/IsaacLab#1717</a></p></li>
+<li><p>Updates code snippets in documentation to reference scripts by &#64;mpgussert in <a class="github reference external" href="https://github.com/isaac-sim/IsaacLab/pull/1693">isaac-sim/IsaacLab#1693</a></p></li>
+<li><p>Adds dict conversion test for ActuatorBase configs by &#64;mschweig in <a class="github reference external" href="https://github.com/isaac-sim/IsaacLab/pull/1608">isaac-sim/IsaacLab#1608</a></p></li>
+</ul>
+</section>
+<section id="id4">
+<h2>Bug Fixes<a class="headerlink" href="#id4" title="Permalink to this heading">#</a></h2>
+<ul class="simple">
+<li><p>Fixes JointAction not preserving order when using all joints by &#64;T-K-233 in <a class="github reference external" href="https://github.com/isaac-sim/IsaacLab/pull/1587">isaac-sim/IsaacLab#1587</a></p></li>
+<li><p>Fixes event term for pushing root by setting velocity by &#64;Mayankm96 in <a class="github reference external" href="https://github.com/isaac-sim/IsaacLab/pull/1584">isaac-sim/IsaacLab#1584</a></p></li>
+<li><p>Fixes error in Articulation where <code class="docutils literal notranslate"><span class="pre">default_joint_stiffness</span></code> and <code class="docutils literal notranslate"><span class="pre">default_joint_damping</span></code> are not correctly set for implicit actuator by &#64;zoctipus in <a class="github reference external" href="https://github.com/isaac-sim/IsaacLab/pull/1580">isaac-sim/IsaacLab#1580</a></p></li>
+<li><p>Fixes action reset of <code class="docutils literal notranslate"><span class="pre">pre_trained_policy_action</span></code> in navigation environment by &#64;nicolaloi in <a class="github reference external" href="https://github.com/isaac-sim/IsaacLab/pull/1623">isaac-sim/IsaacLab#1623</a></p></li>
+<li><p>Fixes rigid object’s root com velocities timestamp check by &#64;ori-gadot in <a class="github reference external" href="https://github.com/isaac-sim/IsaacLab/pull/1674">isaac-sim/IsaacLab#1674</a></p></li>
+<li><p>Adds interval resampling on event manager’s reset call by &#64;Mayankm96 in <a class="github reference external" href="https://github.com/isaac-sim/IsaacLab/pull/1750">isaac-sim/IsaacLab#1750</a></p></li>
+<li><p>Corrects calculation of target height adjustment based on sensor data by &#64;fan-ziqi in <a class="github reference external" href="https://github.com/isaac-sim/IsaacLab/pull/1710">isaac-sim/IsaacLab#1710</a></p></li>
+<li><p>Fixes infinite loop in <code class="docutils literal notranslate"><span class="pre">repeated_objects_terrain</span></code> method  by &#64;nicolaloi in <a class="github reference external" href="https://github.com/isaac-sim/IsaacLab/pull/1612">isaac-sim/IsaacLab#1612</a></p></li>
+<li><p>Fixes issue where the indices were not created correctly for articulation setters by &#64;AntoineRichard in <a class="github reference external" href="https://github.com/isaac-sim/IsaacLab/pull/1660">isaac-sim/IsaacLab#1660</a></p></li>
+</ul>
 <section id="new-contributors">
-<h2>New Contributors<a class="headerlink" href="#new-contributors" title="Permalink to this heading">#</a></h2>
+<h3>New Contributors<a class="headerlink" href="#new-contributors" title="Permalink to this heading">#</a></h3>
 <ul class="simple">
 <li><p>&#64;T-K-233 made their first contribution in <a class="github reference external" href="https://github.com/isaac-sim/IsaacLab/pull/1587">isaac-sim/IsaacLab#1587</a></p></li>
 <li><p>&#64;steple made their first contribution in <a class="github reference external" href="https://github.com/isaac-sim/IsaacLab/pull/1616">isaac-sim/IsaacLab#1616</a></p></li>
@@ -877,16 +924,21 @@ For any existing imports such as <code class="docutils literal notranslate"><spa
 </ul>
 </section>
 </section>
+</section>
 <section id="v1-4-0">
 <h1>v1.4.0<a class="headerlink" href="#v1-4-0" title="Permalink to this heading">#</a></h1>
-<section id="id2">
-<h2>Overview<a class="headerlink" href="#id2" title="Permalink to this heading">#</a></h2>
-<p>Due to a great amount of amazing updates, we are putting out one more Isaac Lab release based off of Isaac Sim 4.2. This release contains many great new additions and bug fixes, including several new environments, distributed training and hyperparameter support with Ray, new live plot feature for Manager-based environments, and more.</p>
-<p>We will now spend more focus on the next Isaac Lab release geared towards the new Isaac Sim 4.5 release coming soon. The upcoming release will contain breaking changes in both Isaac Lab and Isaac Sim and breaks backwards compatibility, but will come with many great fixes and improvements.</p>
-<p>Full Changelog: <a class="reference external" href="https://github.com/isaac-sim/IsaacLab/compare/v1.3.0...v1.4.0">https://github.com/isaac-sim/IsaacLab/compare/v1.3.0…v1.4.0</a></p>
+<section id="id5">
+<h2>Overview<a class="headerlink" href="#id5" title="Permalink to this heading">#</a></h2>
+<p>Due to a great amount of amazing updates, we are putting out one more Isaac Lab release based off of Isaac Sim 4.2.
+This release contains many great new additions and bug fixes, including several new environments, distributed training
+and hyperparameter support with Ray, new live plot feature for Manager-based environments, and more.</p>
+<p>We will now spend more focus on the next Isaac Lab release geared towards the new Isaac Sim 4.5 release coming
+soon. The upcoming release will contain breaking changes in both Isaac Lab and Isaac Sim and breaks backwards
+compatibility, but will come with many great fixes and improvements.</p>
+<p><strong>Full Changelog</strong>: <a class="reference external" href="https://github.com/isaac-sim/IsaacLab/compare/v1.3.0...v1.4.0">https://github.com/isaac-sim/IsaacLab/compare/v1.3.0…v1.4.0</a></p>
 </section>
-<section id="id3">
-<h2>New Features<a class="headerlink" href="#id3" title="Permalink to this heading">#</a></h2>
+<section id="id6">
+<h2>New Features<a class="headerlink" href="#id6" title="Permalink to this heading">#</a></h2>
 <ul class="simple">
 <li><p>Adds Factory contact-rich manipulation tasks to IsaacLab by &#64;noseworm in <a class="github reference external" href="https://github.com/isaac-sim/IsaacLab/pull/1520">isaac-sim/IsaacLab#1520</a></p></li>
 <li><p>Adds a Franka stacking ManagerBasedRLEnv by &#64;peterd-NV in <a class="github reference external" href="https://github.com/isaac-sim/IsaacLab/pull/1494">isaac-sim/IsaacLab#1494</a></p></li>
@@ -898,8 +950,8 @@ For any existing imports such as <code class="docutils literal notranslate"><spa
 <li><p>Adds live plots to managers by &#64;pascal-roth in <a class="github reference external" href="https://github.com/isaac-sim/IsaacLab/pull/893">isaac-sim/IsaacLab#893</a></p></li>
 </ul>
 </section>
-<section id="id4">
-<h2>Improvements<a class="headerlink" href="#id4" title="Permalink to this heading">#</a></h2>
+<section id="id7">
+<h2>Improvements<a class="headerlink" href="#id7" title="Permalink to this heading">#</a></h2>
 <ul class="simple">
 <li><p>Adds documentation and example scripts for sensors by &#64;mpgussert in <a class="github reference external" href="https://github.com/isaac-sim/IsaacLab/pull/1443">isaac-sim/IsaacLab#1443</a></p></li>
 <li><p>Removes duplicated <code class="docutils literal notranslate"><span class="pre">TerminationsCfg</span></code> code in G1 and H1 RoughEnvCfg by &#64;fan-ziqi in <a class="github reference external" href="https://github.com/isaac-sim/IsaacLab/pull/1484">isaac-sim/IsaacLab#1484</a></p></li>
@@ -910,8 +962,8 @@ For any existing imports such as <code class="docutils literal notranslate"><spa
 <li><p>Adds clip range for JointAction by &#64;fan-ziqi in <a class="github reference external" href="https://github.com/isaac-sim/IsaacLab/pull/1476">isaac-sim/IsaacLab#1476</a></p></li>
 </ul>
 </section>
-<section id="id5">
-<h2>Bug Fixes<a class="headerlink" href="#id5" title="Permalink to this heading">#</a></h2>
+<section id="id8">
+<h2>Bug Fixes<a class="headerlink" href="#id8" title="Permalink to this heading">#</a></h2>
 <ul class="simple">
 <li><p>Fixes noise_model initialized in direct_marl_env by &#64;NoneJou072 in <a class="github reference external" href="https://github.com/isaac-sim/IsaacLab/pull/1480">isaac-sim/IsaacLab#1480</a></p></li>
 <li><p>Fixes entry_point and kwargs in isaaclab_tasks README by &#64;fan-ziqi in <a class="github reference external" href="https://github.com/isaac-sim/IsaacLab/pull/1485">isaac-sim/IsaacLab#1485</a></p></li>
@@ -926,14 +978,14 @@ For any existing imports such as <code class="docutils literal notranslate"><spa
 <li><p>Fixes order of logging metrics and sampling commands in command manager by &#64;Mayankm96 in <a class="github reference external" href="https://github.com/isaac-sim/IsaacLab/pull/1352">isaac-sim/IsaacLab#1352</a></p></li>
 </ul>
 </section>
-<section id="id6">
-<h2>Breaking Changes<a class="headerlink" href="#id6" title="Permalink to this heading">#</a></h2>
+<section id="id9">
+<h2>Breaking Changes<a class="headerlink" href="#id9" title="Permalink to this heading">#</a></h2>
 <ul class="simple">
 <li><p>Refactors pose and velocities to link frame and COM frame APIs by &#64;jtigue-bdai in <a class="github reference external" href="https://github.com/isaac-sim/IsaacLab/pull/966">isaac-sim/IsaacLab#966</a></p></li>
 </ul>
 </section>
-<section id="id7">
-<h2>New Contributors<a class="headerlink" href="#id7" title="Permalink to this heading">#</a></h2>
+<section id="id10">
+<h2>New Contributors<a class="headerlink" href="#id10" title="Permalink to this heading">#</a></h2>
 <ul class="simple">
 <li><p>&#64;nvcyc made their first contribution in <a class="github reference external" href="https://github.com/isaac-sim/IsaacLab/pull/1336">isaac-sim/IsaacLab#1336</a></p></li>
 <li><p>&#64;peterd-NV made their first contribution in <a class="github reference external" href="https://github.com/isaac-sim/IsaacLab/pull/1494">isaac-sim/IsaacLab#1494</a></p></li>
@@ -946,13 +998,16 @@ For any existing imports such as <code class="docutils literal notranslate"><spa
 </section>
 <section id="v1-3-0">
 <h1>v1.3.0<a class="headerlink" href="#v1-3-0" title="Permalink to this heading">#</a></h1>
-<section id="id8">
-<h2>Overview<a class="headerlink" href="#id8" title="Permalink to this heading">#</a></h2>
-<p>This release will be a final release based on Isaac Sim 4.2 before the transition to Isaac Sim 4.5, which will likely contain breaking changes and no longer backwards compatible with Isaac Sim 4.2 and earlier. In this release, we introduce many features, improvements, and bug fixes, including IMU sensors, support for various types of gymnasium spaces, manager-based perception environments, and more.</p>
+<section id="id11">
+<h2>Overview<a class="headerlink" href="#id11" title="Permalink to this heading">#</a></h2>
+<p>This release will be a final release based on Isaac Sim 4.2 before the transition to Isaac Sim 4.5, which will
+likely contain breaking changes and no longer backwards compatible with Isaac Sim 4.2 and earlier. In this release,
+we introduce many features, improvements, and bug fixes, including IMU sensors, support for various types of
+gymnasium spaces, manager-based perception environments, and more.</p>
 <p><strong>Full Changelog</strong>: <a class="reference external" href="https://github.com/isaac-sim/IsaacLab/compare/v1.2.0...v1.3.0">https://github.com/isaac-sim/IsaacLab/compare/v1.2.0…v1.3.0</a></p>
 </section>
-<section id="id9">
-<h2>New Features<a class="headerlink" href="#id9" title="Permalink to this heading">#</a></h2>
+<section id="id12">
+<h2>New Features<a class="headerlink" href="#id12" title="Permalink to this heading">#</a></h2>
 <ul class="simple">
 <li><p>Adds <code class="docutils literal notranslate"><span class="pre">IMU</span></code> sensor  by &#64;pascal-roth in <a class="github reference external" href="https://github.com/isaac-sim/IsaacLab/pull/619">isaac-sim/IsaacLab#619</a></p></li>
 <li><p>Add Camera Benchmark Tool and Allow Correct Unprojection of distance_to_camera depth image by &#64;glvov-bdai in <a class="github reference external" href="https://github.com/isaac-sim/IsaacLab/pull/976">isaac-sim/IsaacLab#976</a></p></li>
@@ -966,8 +1021,8 @@ For any existing imports such as <code class="docutils literal notranslate"><spa
 <li><p>Adds Isaac Lab Reference Architecture documentation by &#64;OOmotuyi in <a class="github reference external" href="https://github.com/isaac-sim/IsaacLab/pull/1371">isaac-sim/IsaacLab#1371</a></p></li>
 </ul>
 </section>
-<section id="id10">
-<h2>Improvements<a class="headerlink" href="#id10" title="Permalink to this heading">#</a></h2>
+<section id="id13">
+<h2>Improvements<a class="headerlink" href="#id13" title="Permalink to this heading">#</a></h2>
 <ul class="simple">
 <li><p>Expands functionality of FrameTransformer to allow multi-body transforms by &#64;jsmith-bdai in <a class="github reference external" href="https://github.com/isaac-sim/IsaacLab/pull/858">isaac-sim/IsaacLab#858</a></p></li>
 <li><p>Inverts SE-2 keyboard device actions (Z, X)  for yaw command by &#64;riccardorancan in <a class="github reference external" href="https://github.com/isaac-sim/IsaacLab/pull/1030">isaac-sim/IsaacLab#1030</a></p></li>
@@ -994,8 +1049,8 @@ For any existing imports such as <code class="docutils literal notranslate"><spa
 <li><p>Allows configclass <code class="docutils literal notranslate"><span class="pre">to_dict</span></code> operation to handle a list of configclasses by &#64;jtigue-bdai in <a class="github reference external" href="https://github.com/isaac-sim/IsaacLab/pull/1227">isaac-sim/IsaacLab#1227</a></p></li>
 </ul>
 </section>
-<section id="id11">
-<h2>Bug Fixes<a class="headerlink" href="#id11" title="Permalink to this heading">#</a></h2>
+<section id="id14">
+<h2>Bug Fixes<a class="headerlink" href="#id14" title="Permalink to this heading">#</a></h2>
 <ul class="simple">
 <li><p>Disables replicate physics for deformable teddy lift environment by &#64;Mayankm96 in <a class="github reference external" href="https://github.com/isaac-sim/IsaacLab/pull/1026">isaac-sim/IsaacLab#1026</a></p></li>
 <li><p>Fixes Jacobian joint indices for floating base articulations by &#64;lorenwel in <a class="github reference external" href="https://github.com/isaac-sim/IsaacLab/pull/1033">isaac-sim/IsaacLab#1033</a></p></li>
@@ -1018,8 +1073,8 @@ For any existing imports such as <code class="docutils literal notranslate"><spa
 <li><p>Fixes <code class="docutils literal notranslate"><span class="pre">net_arch</span></code> in <code class="docutils literal notranslate"><span class="pre">sb3_ppo_cfg.yaml</span></code> for Isaac-Lift-Cube-Franka-v0 task by &#64;LinghengMeng in <a class="github reference external" href="https://github.com/isaac-sim/IsaacLab/pull/1249">isaac-sim/IsaacLab#1249</a></p></li>
 </ul>
 </section>
-<section id="id12">
-<h2>New Contributors<a class="headerlink" href="#id12" title="Permalink to this heading">#</a></h2>
+<section id="id15">
+<h2>New Contributors<a class="headerlink" href="#id15" title="Permalink to this heading">#</a></h2>
 <ul class="simple">
 <li><p>&#64;riccardorancan made their first contribution in <a class="github reference external" href="https://github.com/isaac-sim/IsaacLab/pull/1030">isaac-sim/IsaacLab#1030</a></p></li>
 <li><p>&#64;glvov-bdai made their first contribution in <a class="github reference external" href="https://github.com/isaac-sim/IsaacLab/pull/976">isaac-sim/IsaacLab#976</a></p></li>
@@ -1041,24 +1096,29 @@ For any existing imports such as <code class="docutils literal notranslate"><spa
 </section>
 <section id="v1-2-0">
 <h1>v1.2.0<a class="headerlink" href="#v1-2-0" title="Permalink to this heading">#</a></h1>
-<section id="id13">
-<h2>Overview<a class="headerlink" href="#id13" title="Permalink to this heading">#</a></h2>
-<p>We leverage the new release of Isaac Sim, 4.2.0, and bring RTX-based tiled rendering, support for multi-agent environments, and introduce many bug fixes and improvements.</p>
-<p>Additionally, we have published an example for generating rewards using an LLM based on <a class="reference external" href="https://github.com/eureka-research/Eureka">Eureka</a>, available here <a class="github reference external" href="https://github.com/isaac-sim/IsaacLabEureka">isaac-sim/IsaacLabEureka</a>.</p>
+<section id="id16">
+<h2>Overview<a class="headerlink" href="#id16" title="Permalink to this heading">#</a></h2>
+<p>We leverage the new release of Isaac Sim, 4.2.0, and bring RTX-based tiled rendering, support for multi-agent
+environments, and introduce many bug fixes and improvements.</p>
+<p>Additionally, we have published an example for generating rewards using an LLM based on
+<a class="reference external" href="https://github.com/eureka-research/Eureka">Eureka</a>, available here: <a class="github reference external" href="https://github.com/isaac-sim/IsaacLabEureka">isaac-sim/IsaacLabEureka</a></p>
 <p><strong>Full Changelog</strong>: <a class="reference external" href="https://github.com/isaac-sim/IsaacLab/compare/v1.1.0...v1.2.0">https://github.com/isaac-sim/IsaacLab/compare/v1.1.0…v1.2.0</a></p>
 </section>
-<section id="id14">
-<h2>New Features<a class="headerlink" href="#id14" title="Permalink to this heading">#</a></h2>
+<section id="id17">
+<h2>New Features<a class="headerlink" href="#id17" title="Permalink to this heading">#</a></h2>
 <ul class="simple">
 <li><p>Adds RTX-based tiled rendering. This improves the overall rendering speed and quality.</p></li>
 <li><p>Adds the direct workflow perceptive Shadowhand Cube Repose environment <code class="docutils literal notranslate"><span class="pre">Isaac-Repose-Cube-Shadow-Vision-Direct-v0</span></code> by &#64;kellyguo11.</p></li>
 <li><p>Adds support for multi-agent environments with the Direct workflow, with support for MAPPO and IPPO in SKRL by &#64;Toni-SM</p></li>
 <li><p>Adds the direct workflow multi-agent environments <code class="docutils literal notranslate"><span class="pre">Isaac-Cart-Double-Pendulum-Direct-v0</span></code> and <code class="docutils literal notranslate"><span class="pre">Isaac-Shadow-Hand-Over-Direct-v0</span></code> by &#64;Toni-SM</p></li>
 <li><p>Adds throughput benchmarking scripts for the different learning workflows by &#64;kellyguo11 in <a class="github reference external" href="https://github.com/isaac-sim/IsaacLab/pull/759">isaac-sim/IsaacLab#759</a></p></li>
-<li><p>Adds results for the benchmarks in the documentation <a class="reference external" href="https://isaac-sim.github.io/IsaacLab/main/source/overview/reinforcement-learning/performance_benchmarks.html">here</a> for different types of hardware by &#64;kellyguo11</p></li>
+<li><p>Adds results for the benchmarks in the documentation
+<a class="reference external" href="https://isaac-sim.github.io/IsaacLab/main/source/overview/reinforcement-learning/performance_benchmarks.html">here</a>
+for different types of hardware by &#64;kellyguo11</p></li>
 <li><p>Adds the direct workflow Allegro hand environment by &#64;kellyguo11 in <a class="github reference external" href="https://github.com/isaac-sim/IsaacLab/pull/709">isaac-sim/IsaacLab#709</a></p></li>
 <li><p>Adds video recording to the play scripts in RL workflows by &#64;j3soon in <a class="github reference external" href="https://github.com/isaac-sim/IsaacLab/pull/763">isaac-sim/IsaacLab#763</a></p></li>
-<li><p>Adds comparison tables for the supported RL libraries <a class="reference external" href="https://isaac-sim.github.io/IsaacLab/main/source/overview/reinforcement-learning/rl_frameworks.html">here</a> by &#64;kellyguo11</p></li>
+<li><p>Adds comparison tables for the supported RL libraries
+<a class="reference external" href="https://isaac-sim.github.io/IsaacLab/main/source/overview/reinforcement-learning/rl_frameworks.html">here</a> by &#64;kellyguo11</p></li>
 <li><p>Add APIs for deformable asset by &#64;masoudmoghani in <a class="github reference external" href="https://github.com/isaac-sim/IsaacLab/pull/630">isaac-sim/IsaacLab#630</a></p></li>
 <li><p>Adds support for MJCF converter by &#64;qqqwan in <a class="github reference external" href="https://github.com/isaac-sim/IsaacLab/pull/957">isaac-sim/IsaacLab#957</a></p></li>
 <li><p>Adds a function to define camera configs through intrinsic matrix by &#64;pascal-roth in <a class="github reference external" href="https://github.com/isaac-sim/IsaacLab/pull/617">isaac-sim/IsaacLab#617</a></p></li>
@@ -1066,8 +1126,8 @@ For any existing imports such as <code class="docutils literal notranslate"><spa
 <li><p>Adds the Hydra configuration system for RL training by &#64;Dhoeller19 in <a class="github reference external" href="https://github.com/isaac-sim/IsaacLab/pull/700">isaac-sim/IsaacLab#700</a></p></li>
 </ul>
 </section>
-<section id="id16">
-<h2>Improvements<a class="headerlink" href="#id16" title="Permalink to this heading">#</a></h2>
+<section id="id18">
+<h2>Improvements<a class="headerlink" href="#id18" title="Permalink to this heading">#</a></h2>
 <ul class="simple">
 <li><p>Uses PhysX accelerations for rigid body acceleration data by &#64;Mayankm96 in <a class="github reference external" href="https://github.com/isaac-sim/IsaacLab/pull/760">isaac-sim/IsaacLab#760</a></p></li>
 <li><p>Adds documentation on the frames for asset data by &#64;Mayankm96 in <a class="github reference external" href="https://github.com/isaac-sim/IsaacLab/pull/742">isaac-sim/IsaacLab#742</a></p></li>
@@ -1089,28 +1149,28 @@ For any existing imports such as <code class="docutils literal notranslate"><spa
 <li><p>Simplifies the if-elses inside the event manager apply method by &#64;Mayankm96 in <a class="github reference external" href="https://github.com/isaac-sim/IsaacLab/pull/948">isaac-sim/IsaacLab#948</a></p></li>
 </ul>
 </section>
-<section id="id17">
-<h2>Bug Fixes<a class="headerlink" href="#id17" title="Permalink to this heading">#</a></h2>
+<section id="id19">
+<h2>Bug Fixes<a class="headerlink" href="#id19" title="Permalink to this heading">#</a></h2>
 <ul class="simple">
-<li><p>Fixes rendering frame delays. Rendered images now faithfully represent the latest state of the physics scene. We added the flag</p></li>
+<li><p>Fixes rendering frame delays. Rendered images now faithfully represent the latest state of the physics scene. We added the flag
+<code class="docutils literal notranslate"><span class="pre">rerender_on_reset</span></code> in the environment configs to toggle an additional render step when a reset happens. When activated, the images/observation always represent the latest state of the environment, but this also reduces performance.</p></li>
+<li><p>Fixes <code class="docutils literal notranslate"><span class="pre">wrap_to_pi</span></code> function in math utilities by &#64;Mayankm96 in <a class="github reference external" href="https://github.com/isaac-sim/IsaacLab/pull/771">isaac-sim/IsaacLab#771</a></p></li>
+<li><p>Fixes setting of pose when spawning a mesh by &#64;masoudmoghani in <a class="github reference external" href="https://github.com/isaac-sim/IsaacLab/pull/692">isaac-sim/IsaacLab#692</a></p></li>
+<li><p>Fixes caching of the terrain using the terrain generator by &#64;Mayankm96 in <a class="github reference external" href="https://github.com/isaac-sim/IsaacLab/pull/757">isaac-sim/IsaacLab#757</a></p></li>
+<li><p>Fixes running train scripts when rsl_rl is not installed by &#64;Dhoeller19 in <a class="github reference external" href="https://github.com/isaac-sim/IsaacLab/pull/784">isaac-sim/IsaacLab#784</a>, <a class="github reference external" href="https://github.com/isaac-sim/IsaacLab/pull/789">isaac-sim/IsaacLab#789</a></p></li>
+<li><p>Adds flag to recompute inertia when randomizing the mass of a rigid body by &#64;Mayankm96 in <a class="github reference external" href="https://github.com/isaac-sim/IsaacLab/pull/989">isaac-sim/IsaacLab#989</a></p></li>
+<li><p>Fixes support for <code class="docutils literal notranslate"><span class="pre">classmethod</span></code> when defining a configclass by &#64;Mayankm96 in <a class="github reference external" href="https://github.com/isaac-sim/IsaacLab/pull/901">isaac-sim/IsaacLab#901</a></p></li>
+<li><p>Fixes <code class="docutils literal notranslate"><span class="pre">Sb3VecEnvWrapper</span></code> to clear buffer on reset by &#64;EricJin2002 in <a class="github reference external" href="https://github.com/isaac-sim/IsaacLab/pull/974">isaac-sim/IsaacLab#974</a></p></li>
+<li><p>Fixes venv and conda pip installation on windows by &#64;kellyguo11 in <a class="github reference external" href="https://github.com/isaac-sim/IsaacLab/pull/970">isaac-sim/IsaacLab#970</a></p></li>
+<li><p>Sets native livestream extensions to Isaac Sim 4.1-4.0 defaults by &#64;jtigue-bdai in <a class="github reference external" href="https://github.com/isaac-sim/IsaacLab/pull/954">isaac-sim/IsaacLab#954</a></p></li>
+<li><p>Defaults the gym video recorder fps to match episode decimation by &#64;ozhanozen in <a class="github reference external" href="https://github.com/isaac-sim/IsaacLab/pull/894">isaac-sim/IsaacLab#894</a></p></li>
+<li><p>Fixes the event manager’s apply method by &#64;kellyguo11 in <a class="github reference external" href="https://github.com/isaac-sim/IsaacLab/pull/936">isaac-sim/IsaacLab#936</a></p></li>
+<li><p>Updates camera docs with world units and introduces new test for intrinsics by &#64;pascal-roth in <a class="github reference external" href="https://github.com/isaac-sim/IsaacLab/pull/886">isaac-sim/IsaacLab#886</a></p></li>
+<li><p>Adds the ability to resume training from a checkpoint with rl_games by &#64;sizsJEon in <a class="github reference external" href="https://github.com/isaac-sim/IsaacLab/pull/797">isaac-sim/IsaacLab#797</a></p></li>
 </ul>
-<p><code class="docutils literal notranslate"><span class="pre">rerender_on_reset</span></code> in the environment configs to toggle an additional render step when a reset happens. When activated, the images/observation always represent the latest state of the environment, but this also reduces performance.
-* Fixes <code class="docutils literal notranslate"><span class="pre">wrap_to_pi</span></code> function in math utilities by &#64;Mayankm96 in <a class="github reference external" href="https://github.com/isaac-sim/IsaacLab/pull/771">isaac-sim/IsaacLab#771</a>
-* Fixes setting of pose when spawning a mesh by &#64;masoudmoghani in <a class="github reference external" href="https://github.com/isaac-sim/IsaacLab/pull/692">isaac-sim/IsaacLab#692</a>
-* Fixes caching of the terrain using the terrain generator by &#64;Mayankm96 in <a class="github reference external" href="https://github.com/isaac-sim/IsaacLab/pull/757">isaac-sim/IsaacLab#757</a>
-* Fixes running train scripts when rsl_rl is not installed by &#64;Dhoeller19 in <a class="github reference external" href="https://github.com/isaac-sim/IsaacLab/pull/784">isaac-sim/IsaacLab#784</a>, <a class="github reference external" href="https://github.com/isaac-sim/IsaacLab/pull/789">isaac-sim/IsaacLab#789</a>
-* Adds flag to recompute inertia when randomizing the mass of a rigid body by &#64;Mayankm96 in <a class="github reference external" href="https://github.com/isaac-sim/IsaacLab/pull/989">isaac-sim/IsaacLab#989</a>
-* Fixes support for <code class="docutils literal notranslate"><span class="pre">classmethod</span></code> when defining a configclass by &#64;Mayankm96 in <a class="github reference external" href="https://github.com/isaac-sim/IsaacLab/pull/901">isaac-sim/IsaacLab#901</a>
-* Fixes <code class="docutils literal notranslate"><span class="pre">Sb3VecEnvWrapper</span></code> to clear buffer on reset by &#64;EricJin2002 in <a class="github reference external" href="https://github.com/isaac-sim/IsaacLab/pull/974">isaac-sim/IsaacLab#974</a>
-* Fixes venv and conda pip installation on windows by &#64;kellyguo11 in <a class="github reference external" href="https://github.com/isaac-sim/IsaacLab/pull/970">isaac-sim/IsaacLab#970</a>
-* Sets native livestream extensions to Isaac Sim 4.1-4.0 defaults by &#64;jtigue-bdai in <a class="github reference external" href="https://github.com/isaac-sim/IsaacLab/pull/954">isaac-sim/IsaacLab#954</a>
-* Defaults the gym video recorder fps to match episode decimation by &#64;ozhanozen in <a class="github reference external" href="https://github.com/isaac-sim/IsaacLab/pull/894">isaac-sim/IsaacLab#894</a>
-* Fixes the event manager’s apply method by &#64;kellyguo11 in <a class="github reference external" href="https://github.com/isaac-sim/IsaacLab/pull/936">isaac-sim/IsaacLab#936</a>
-* Updates camera docs with world units and introduces new test for intrinsics by &#64;pascal-roth in <a class="github reference external" href="https://github.com/isaac-sim/IsaacLab/pull/886">isaac-sim/IsaacLab#886</a>
-* Adds the ability to resume training from a checkpoint with rl_games by &#64;sizsJEon in <a class="github reference external" href="https://github.com/isaac-sim/IsaacLab/pull/797">isaac-sim/IsaacLab#797</a></p>
 </section>
-<section id="id18">
-<h2>Breaking Changes<a class="headerlink" href="#id18" title="Permalink to this heading">#</a></h2>
+<section id="id20">
+<h2>Breaking Changes<a class="headerlink" href="#id20" title="Permalink to this heading">#</a></h2>
 <ul class="simple">
 <li><p>Simplifies device setting in SimulationCfg and AppLauncher by &#64;Dhoeller19 in <a class="github reference external" href="https://github.com/isaac-sim/IsaacLab/pull/696">isaac-sim/IsaacLab#696</a></p></li>
 <li><p>Fixes conflict in teleop-device command line argument in scripts by &#64;Dhoeller19 in <a class="github reference external" href="https://github.com/isaac-sim/IsaacLab/pull/791">isaac-sim/IsaacLab#791</a></p></li>
@@ -1118,8 +1178,8 @@ For any existing imports such as <code class="docutils literal notranslate"><spa
 <li><p>Drops support for <code class="docutils literal notranslate"><span class="pre">TiledCamera</span></code> for Isaac Sim 4.1</p></li>
 </ul>
 </section>
-<section id="id19">
-<h2>Migration Guide<a class="headerlink" href="#id19" title="Permalink to this heading">#</a></h2>
+<section id="id21">
+<h2>Migration Guide<a class="headerlink" href="#id21" title="Permalink to this heading">#</a></h2>
 <section id="setting-the-simulation-device-into-the-simulation-context">
 <h3>Setting the simulation device into the simulation context<a class="headerlink" href="#setting-the-simulation-device-into-the-simulation-context" title="Permalink to this heading">#</a></h3>
 <p>Previously, changing the simulation device to CPU required users to set other simulation parameters (such as disabling GPU physics and GPU pipelines). This made setting up the device appear complex. We now simplify the checks for device directly inside the simulation context, so users only need to specify the device through the configuration object.</p>
@@ -1185,8 +1245,8 @@ For any existing imports such as <code class="docutils literal notranslate"><spa
 <p>Various fixes have been made to the tiled camera rendering pipeline in Isaac Sim 4.2. This made supporting the tiled camera with Isaac Sim 4.1 difficult. Hence, for the best experience, we advice switching to Isaac Sim 4.2 with this release of Isaac Lab.</p>
 </section>
 </section>
-<section id="id20">
-<h2>New Contributors<a class="headerlink" href="#id20" title="Permalink to this heading">#</a></h2>
+<section id="id22">
+<h2>New Contributors<a class="headerlink" href="#id22" title="Permalink to this heading">#</a></h2>
 <ul class="simple">
 <li><p>&#64;xav-nal made their first contribution in <a class="github reference external" href="https://github.com/isaac-sim/IsaacLab/pull/787">isaac-sim/IsaacLab#787</a></p></li>
 <li><p>&#64;sizsJEon made their first contribution in <a class="github reference external" href="https://github.com/isaac-sim/IsaacLab/pull/797">isaac-sim/IsaacLab#797</a></p></li>
@@ -1206,14 +1266,18 @@ For any existing imports such as <code class="docutils literal notranslate"><spa
 </section>
 <section id="v1-1-0">
 <h1>v1.1.0<a class="headerlink" href="#v1-1-0" title="Permalink to this heading">#</a></h1>
-<section id="id21">
-<h2>Overview<a class="headerlink" href="#id21" title="Permalink to this heading">#</a></h2>
-<p>With the release of Isaac Sim 4.0 and 4.1, support for Isaac Sim 2023.1.1 has been discontinued. We strongly encourage all users to upgrade to Isaac Sim 4.1 to take advantage of the latest features and improvements. For detailed information on this upgrade, please refer to the release notes available <a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/latest/overview/release_notes.html#">here</a>.</p>
-<p>Besides the above, the Isaac Lab release brings new features and improvements, as detailed below. We thank all our contributors for their continued support.</p>
+<section id="id23">
+<h2>Overview<a class="headerlink" href="#id23" title="Permalink to this heading">#</a></h2>
+<p>With the release of Isaac Sim 4.0 and 4.1, support for Isaac Sim 2023.1.1 has been discontinued.
+We strongly encourage all users to upgrade to Isaac Sim 4.1 to take advantage of the latest features
+and improvements. For detailed information on this upgrade, please refer to the release notes available
+<a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/latest/overview/release_notes.html#">here</a>.</p>
+<p>Besides the above, the Isaac Lab release brings new features and improvements, as detailed below. We thank
+all our contributors for their continued support.</p>
 <p><strong>Full Changelog</strong>: <a class="reference external" href="https://github.com/isaac-sim/IsaacLab/compare/v1.0.0...v1.1.0">https://github.com/isaac-sim/IsaacLab/compare/v1.0.0…v1.1.0</a></p>
 </section>
-<section id="id23">
-<h2>New Features<a class="headerlink" href="#id23" title="Permalink to this heading">#</a></h2>
+<section id="id24">
+<h2>New Features<a class="headerlink" href="#id24" title="Permalink to this heading">#</a></h2>
 <ul class="simple">
 <li><p>Adds distributed multi-GPU learning support for skrl by &#64;Toni-SM in <a class="github reference external" href="https://github.com/isaac-sim/IsaacLab/pull/574">isaac-sim/IsaacLab#574</a></p></li>
 <li><p>Updates skrl integration to support training/evaluation using JAX by &#64;Toni-SM in <a class="github reference external" href="https://github.com/isaac-sim/IsaacLab/pull/592">isaac-sim/IsaacLab#592</a></p></li>
@@ -1222,8 +1286,8 @@ For any existing imports such as <code class="docutils literal notranslate"><spa
 <li><p>Adds APIs for spawning deformable meshes by &#64;Mayankm96 in <a class="github reference external" href="https://github.com/isaac-sim/IsaacLab/pull/613">isaac-sim/IsaacLab#613</a></p></li>
 </ul>
 </section>
-<section id="id24">
-<h2>Improvements<a class="headerlink" href="#id24" title="Permalink to this heading">#</a></h2>
+<section id="id25">
+<h2>Improvements<a class="headerlink" href="#id25" title="Permalink to this heading">#</a></h2>
 <ul class="simple">
 <li><p>Changes documentation color to the green theme by &#64;Mayankm96 in <a class="github reference external" href="https://github.com/isaac-sim/IsaacLab/pull/585">isaac-sim/IsaacLab#585</a></p></li>
 <li><p>Fixes sphinx tabs to make them work in dark theme by &#64;Mayankm96 in <a class="github reference external" href="https://github.com/isaac-sim/IsaacLab/pull/584">isaac-sim/IsaacLab#584</a></p></li>
@@ -1233,8 +1297,8 @@ For any existing imports such as <code class="docutils literal notranslate"><spa
 <li><p>Improves docker X11 forwarding documentation by &#64;j3soon in <a class="github reference external" href="https://github.com/isaac-sim/IsaacLab/pull/685">isaac-sim/IsaacLab#685</a></p></li>
 </ul>
 </section>
-<section id="id25">
-<h2>Bug Fixes<a class="headerlink" href="#id25" title="Permalink to this heading">#</a></h2>
+<section id="id26">
+<h2>Bug Fixes<a class="headerlink" href="#id26" title="Permalink to this heading">#</a></h2>
 <ul class="simple">
 <li><p>Reads gravity direction from simulation inside <code class="docutils literal notranslate"><span class="pre">RigidObjectData</span></code> by &#64;Mayankm96 in <a class="github reference external" href="https://github.com/isaac-sim/IsaacLab/pull/582">isaac-sim/IsaacLab#582</a></p></li>
 <li><p>Fixes reference count in asset instances due to circular references by &#64;Mayankm96 in <a class="github reference external" href="https://github.com/isaac-sim/IsaacLab/pull/580">isaac-sim/IsaacLab#580</a></p></li>
@@ -1247,16 +1311,16 @@ For any existing imports such as <code class="docutils literal notranslate"><spa
 <li><p>Adds event manager call to simple manage-based env by &#64;Mayankm96 in <a class="github reference external" href="https://github.com/isaac-sim/IsaacLab/pull/666">isaac-sim/IsaacLab#666</a></p></li>
 </ul>
 </section>
-<section id="id26">
-<h2>Breaking Changes<a class="headerlink" href="#id26" title="Permalink to this heading">#</a></h2>
+<section id="id27">
+<h2>Breaking Changes<a class="headerlink" href="#id27" title="Permalink to this heading">#</a></h2>
 <ul class="simple">
 <li><p>Drops official support for Isaac Sim 2023.1.1</p></li>
 <li><p>Removes the use of body view inside the asset classes by &#64;Mayankm96 in <a class="github reference external" href="https://github.com/isaac-sim/IsaacLab/pull/643">isaac-sim/IsaacLab#643</a></p></li>
 <li><p>Renames <code class="docutils literal notranslate"><span class="pre">SimulationCfg.substeps</span></code> to <code class="docutils literal notranslate"><span class="pre">SimulationCfg.render_interval</span></code> by &#64;Dhoeller19 in <a class="github reference external" href="https://github.com/isaac-sim/IsaacLab/pull/515">isaac-sim/IsaacLab#515</a></p></li>
 </ul>
 </section>
-<section id="id27">
-<h2>Migration Guide<a class="headerlink" href="#id27" title="Permalink to this heading">#</a></h2>
+<section id="id28">
+<h2>Migration Guide<a class="headerlink" href="#id28" title="Permalink to this heading">#</a></h2>
 <section id="renaming-of-simulationcfg-substeps">
 <h3>Renaming of <code class="docutils literal notranslate"><span class="pre">SimulationCfg.substeps</span></code><a class="headerlink" href="#renaming-of-simulationcfg-substeps" title="Permalink to this heading">#</a></h3>
 <p>Previously, the users set both <code class="docutils literal notranslate"><span class="pre">omni.isaac.lab.sim.SimulationCfg.dt</span></code> and <code class="docutils literal notranslate"><span class="pre">omni.isaac.lab.sim.SimulationCfg.substeps</span></code>, which marked the physics insulation time-step and sub-steps, respectively. It was unclear whether sub-steps meant the number of integration steps inside the physics time-step <code class="docutils literal notranslate"><span class="pre">dt</span></code> or the number of physics steps inside a rendering step.</p>
@@ -1267,22 +1331,17 @@ For any existing imports such as <code class="docutils literal notranslate"><spa
 <p>As notified in previous releases, we removed the classes and attributes marked as deprecated. These are as follows:</p>
 <ul class="simple">
 <li><p>The <code class="docutils literal notranslate"><span class="pre">mdp.add_body_mass</span></code> method in the events. Please use the <code class="docutils literal notranslate"><span class="pre">mdp.randomize_rigid_body_mass</span></code> instead.</p></li>
-<li><p>The classes <code class="docutils literal notranslate"><span class="pre">managers.RandomizationManager</span></code> and <code class="docutils literal notranslate"><span class="pre">managers.RandomizationTermCfg</span></code>. Please use the <code class="docutils literal notranslate"><span class="pre">managers.EventManager</span></code> and <code class="docutils literal notranslate"><span class="pre">managers.EventTermCfg</span></code> classes instead.</p></li>
-<li><dl class="simple">
-<dt>The following properties in <code class="docutils literal notranslate"><span class="pre">omni.isaac.lab.sensors.FrameTransformerData</span></code>:</dt><dd><ul>
-<li><p><code class="docutils literal notranslate"><span class="pre">target_rot_source</span></code> –&gt; <code class="docutils literal notranslate"><span class="pre">target_quat_w</span></code></p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">target_rot_w</span></code> –&gt; <code class="docutils literal notranslate"><span class="pre">target_quat_source</span></code></p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">source_rot_w</span></code> –&gt; <code class="docutils literal notranslate"><span class="pre">source_quat_w</span></code></p></li>
-</ul>
-</dd>
-</dl>
-</li>
-<li><p>The attribute <code class="docutils literal notranslate"><span class="pre">body_physx_view</span></code> from the <code class="docutils literal notranslate"><span class="pre">omni.isaac.lab.assets.Articulation</span></code> and <code class="docutils literal notranslate"><span class="pre">omni.isaac.lab.assets.RigidObject</span></code> classes. These caused confusion when used with the articulation view since the body names did not follow the same ordering.</p></li>
+<li><p>The classes <code class="docutils literal notranslate"><span class="pre">managers.RandomizationManager</span></code> and <code class="docutils literal notranslate"><span class="pre">managers.RandomizationTermCfg</span></code>. Please use the
+<code class="docutils literal notranslate"><span class="pre">managers.EventManager</span></code> and <code class="docutils literal notranslate"><span class="pre">managers.EventTermCfg</span></code> classes instead.</p></li>
+<li><p>The following properties in <code class="docutils literal notranslate"><span class="pre">omni.isaac.lab.sensors.FrameTransformerData</span></code>:
+* <code class="docutils literal notranslate"><span class="pre">target_rot_source</span></code> –&gt; <code class="docutils literal notranslate"><span class="pre">target_quat_w</span></code>
+* <code class="docutils literal notranslate"><span class="pre">target_rot_w</span></code> –&gt; <code class="docutils literal notranslate"><span class="pre">target_quat_source</span></code>
+* <code class="docutils literal notranslate"><span class="pre">source_rot_w</span></code> –&gt; <code class="docutils literal notranslate"><span class="pre">source_quat_w</span></code></p></li>
+<li><p>The attribute <code class="docutils literal notranslate"><span class="pre">body_physx_view</span></code> from the <code class="docutils literal notranslate"><span class="pre">omni.isaac.lab.assets.Articulation</span></code> and
+<code class="docutils literal notranslate"><span class="pre">omni.isaac.lab.assets.RigidObject</span></code> classes. These caused confusion when used with the articulation view
+since the body names did not follow the same ordering.</p></li>
 </ul>
 </section>
-</section>
-<section id="id28">
-<h2>New Contributors<a class="headerlink" href="#id28" title="Permalink to this heading">#</a></h2>
 </section>
 </section>
 <section id="v1-0-0">
@@ -1290,8 +1349,12 @@ For any existing imports such as <code class="docutils literal notranslate"><spa
 <section id="id29">
 <h2>Overview<a class="headerlink" href="#id29" title="Permalink to this heading">#</a></h2>
 <p>Welcome to the first official release of Isaac Lab!</p>
-<p>Building upon the foundation of the <a class="reference external" href="https://isaac-orbit.github.io/">Orbit</a> framework, we have integrated the RL environment designing workflow from <a class="reference external" href="https://github.com/NVIDIA-Omniverse/OmniIsaacGymEnvs">OmniIsaacGymEnvs</a>. This allows users to choose a suitable <a class="reference external" href="https://isaac-sim.github.io/IsaacLab/source/features/task_workflows.html">task-design approach</a> for their applications.</p>
-<p>While we maintain backward compatibility with Isaac Sim 2023.1.1, we highly recommend using Isaac Lab with Isaac Sim 4.0.0 version for the latest features and improvements.</p>
+<p>Building upon the foundation of the <a class="reference external" href="https://isaac-orbit.github.io/">Orbit</a> framework, we have integrated
+the RL environment designing workflow from <a class="reference external" href="https://github.com/NVIDIA-Omniverse/OmniIsaacGymEnvs">OmniIsaacGymEnvs</a>.
+This allows users to choose a suitable <a class="reference external" href="https://isaac-sim.github.io/IsaacLab/source/features/task_workflows.html">task-design approach</a>
+for their applications.</p>
+<p>While we maintain backward compatibility with Isaac Sim 2023.1.1, we highly recommend using Isaac Lab with
+Isaac Sim 4.0.0 version for the latest features and improvements.</p>
 <p><strong>Full Changelog</strong>: <a class="reference external" href="https://github.com/isaac-sim/IsaacLab/compare/v0.3.1...v1.0.0">https://github.com/isaac-sim/IsaacLab/compare/v0.3.1…v1.0.0</a></p>
 </section>
 <section id="id30">
@@ -1392,46 +1455,55 @@ For any existing imports such as <code class="docutils literal notranslate"><spa
 <li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#">Release Notes</a></li>
 <li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#v2-0-0">v2.0.0</a><ul class="visible nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#overview">Overview</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#highlights-from-the-isaac-sim-4-5-release">Highlights from the Isaac Sim 4.5 release</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#new-features">New Features</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#improvements">Improvements</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#bug-fixes">Bug Fixes</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#breaking-changes">Breaking Changes</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id1">Migration Guide</a><ul class="nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#migration-guide">Migration Guide</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#renaming-of-isaac-sim-extensions">Renaming of Isaac Sim Extensions</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#renaming-of-the-urdf-and-mjcf-importers">Renaming of the URDF and MJCF Importers</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#changes-in-urdf-importer">Changes in URDF Importer</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#renaming-of-omni-isaac-core-classes">Renaming of omni.isaac.core Classes</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#renaming-of-isaac-lab-extensions-and-folders">Renaming of Isaac Lab Extensions and Folders</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#restructuring-of-isaac-lab-extensions">Restructuring of Isaac Lab Extensions</a></li>
 </ul>
 </li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#new-contributors">New Contributors</a></li>
+</ul>
+</li>
+<li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#v1-4-1">v1.4.1</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id1">Overview</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id2">New Features</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id3">Improvements</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id4">Bug Fixes</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#new-contributors">New Contributors</a></li>
+</ul>
+</li>
 </ul>
 </li>
 <li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#v1-4-0">v1.4.0</a><ul class="visible nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id2">Overview</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id3">New Features</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id4">Improvements</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id5">Bug Fixes</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id6">Breaking Changes</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id7">New Contributors</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id5">Overview</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id6">New Features</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id7">Improvements</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id8">Bug Fixes</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id9">Breaking Changes</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id10">New Contributors</a></li>
 </ul>
 </li>
 <li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#v1-3-0">v1.3.0</a><ul class="visible nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id8">Overview</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id9">New Features</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id10">Improvements</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id11">Bug Fixes</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id12">New Contributors</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id11">Overview</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id12">New Features</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id13">Improvements</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id14">Bug Fixes</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id15">New Contributors</a></li>
 </ul>
 </li>
 <li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#v1-2-0">v1.2.0</a><ul class="visible nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id13">Overview</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id14">New Features</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id16">Improvements</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id17">Bug Fixes</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id18">Breaking Changes</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id19">Migration Guide</a><ul class="nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id16">Overview</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id17">New Features</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id18">Improvements</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id19">Bug Fixes</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id20">Breaking Changes</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id21">Migration Guide</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#setting-the-simulation-device-into-the-simulation-context">Setting the simulation device into the simulation context</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#setting-the-simulation-device-from-cli">Setting the simulation device from CLI</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#renaming-of-teleoperation-device-cli-in-standalone-scripts">Renaming of teleoperation device CLI in standalone scripts</a></li>
@@ -1440,21 +1512,20 @@ For any existing imports such as <code class="docutils literal notranslate"><spa
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#drops-support-for-the-tiled-camera-with-isaac-sim-4-1">Drops support for the tiled camera with Isaac Sim 4.1</a></li>
 </ul>
 </li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id20">New Contributors</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id22">New Contributors</a></li>
 </ul>
 </li>
 <li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#v1-1-0">v1.1.0</a><ul class="visible nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id21">Overview</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id23">New Features</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id24">Improvements</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id25">Bug Fixes</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id26">Breaking Changes</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id27">Migration Guide</a><ul class="nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id23">Overview</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id24">New Features</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id25">Improvements</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id26">Bug Fixes</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id27">Breaking Changes</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id28">Migration Guide</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#renaming-of-simulationcfg-substeps">Renaming of <code class="docutils literal notranslate"><span class="pre">SimulationCfg.substeps</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#removal-of-deprecated-attributes">Removal of Deprecated Attributes</a></li>
 </ul>
 </li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id28">New Contributors</a></li>
 </ul>
 </li>
 <li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#v1-0-0">v1.0.0</a><ul class="visible nav section-nav flex-column">
@@ -1500,7 +1571,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Feb 18, 2025.
+  Last updated on Feb 20, 2025.
   <br/>
 </p>
   </div>
