@@ -37,16 +37,15 @@ These breaking changes will no longer be compatible with previous Isaac Sim vers
 Highlights from the Isaac Sim 4.5 release
 -----------------------------------------
 
-- Support for multiple ``TiledCamera`` instances and varying resolutions
-- Improved rendering performance by up to 1.2x
-- Faster startup time through optimizations in the Cloner class that improves startup time by 30%
-- Enhanced OmniPVD for debugging physics simulation, enabling capturing reinforcement learning simulation
-  workloads of up to 2000 environments
-- Physics simulation performance optimizations improving throughput of up to 70%
-- Physics support for dedicated cylinder and cone geometry designed for robot wheels that is fully GPU accelerated
-- A new physics GPU filtering mechanism allowing co-location of reinforcement learning environments at the
+* Support for multiple ``TiledCamera`` instances and varying resolutions
+* Improved rendering performance by up to 1.2x
+* Faster startup time through optimizations in the Cloner class that improves startup time by 30%
+* Enhanced OmniPVD for debugging physics simulation, enabling capturing reinforcement learning simulation
+* Physics simulation performance optimizations improving throughput of up to 70%
+* Physics support for dedicated cylinder and cone geometry designed for robot wheels that is fully GPU accelerated
+* A new physics GPU filtering mechanism allowing co-location of reinforcement learning environments at the
   origin with minimal performance loss for scenes with limited collider counts
-- Improvements in simulation stability for mimic joints at high joint gains
+* Improvements in simulation stability for mimic joints at high joint gains
 
 New Features
 ------------
@@ -181,7 +180,7 @@ who prefer to use the previous scripts, they will be available in previous relea
 Additionally, we have also restructured the :mod:`isaaclab_assets` extension to be split into ``robots`` and ``sensors``
 subdirectories. This allows for clearer separation between the pre-defined configurations provided in the extension.
 
-As an example, the following imports:
+As an example, the following import:
 
 .. code-block:: python
 
@@ -260,11 +259,16 @@ v1.4.0
 
 Overview
 --------
-Due to a great amount of amazing updates, we are putting out one more Isaac Lab release based off of Isaac Sim 4.2. This release contains many great new additions and bug fixes, including several new environments, distributed training and hyperparameter support with Ray, new live plot feature for Manager-based environments, and more.
 
-We will now spend more focus on the next Isaac Lab release geared towards the new Isaac Sim 4.5 release coming soon. The upcoming release will contain breaking changes in both Isaac Lab and Isaac Sim and breaks backwards compatibility, but will come with many great fixes and improvements.
+Due to a great amount of amazing updates, we are putting out one more Isaac Lab release based off of Isaac Sim 4.2.
+This release contains many great new additions and bug fixes, including several new environments, distributed training
+and hyperparameter support with Ray, new live plot feature for Manager-based environments, and more.
 
-Full Changelog: https://github.com/isaac-sim/IsaacLab/compare/v1.3.0...v1.4.0
+We will now spend more focus on the next Isaac Lab release geared towards the new Isaac Sim 4.5 release coming
+soon. The upcoming release will contain breaking changes in both Isaac Lab and Isaac Sim and breaks backwards
+compatibility, but will come with many great fixes and improvements.
+
+**Full Changelog**: https://github.com/isaac-sim/IsaacLab/compare/v1.3.0...v1.4.0
 
 New Features
 ------------
@@ -325,7 +329,10 @@ v1.3.0
 Overview
 --------
 
-This release will be a final release based on Isaac Sim 4.2 before the transition to Isaac Sim 4.5, which will likely contain breaking changes and no longer backwards compatible with Isaac Sim 4.2 and earlier. In this release, we introduce many features, improvements, and bug fixes, including IMU sensors, support for various types of gymnasium spaces, manager-based perception environments, and more.
+This release will be a final release based on Isaac Sim 4.2 before the transition to Isaac Sim 4.5, which will
+likely contain breaking changes and no longer backwards compatible with Isaac Sim 4.2 and earlier. In this release,
+we introduce many features, improvements, and bug fixes, including IMU sensors, support for various types of
+gymnasium spaces, manager-based perception environments, and more.
 
 **Full Changelog**: https://github.com/isaac-sim/IsaacLab/compare/v1.2.0...v1.3.0
 
@@ -419,9 +426,11 @@ v1.2.0
 Overview
 --------
 
-We leverage the new release of Isaac Sim, 4.2.0, and bring RTX-based tiled rendering, support for multi-agent environments, and introduce many bug fixes and improvements.
+We leverage the new release of Isaac Sim, 4.2.0, and bring RTX-based tiled rendering, support for multi-agent
+environments, and introduce many bug fixes and improvements.
 
-Additionally, we have published an example for generating rewards using an LLM based on `Eureka <https://github.com/eureka-research/Eureka>`_, available here https://github.com/isaac-sim/IsaacLabEureka.
+Additionally, we have published an example for generating rewards using an LLM based on
+`Eureka <https://github.com/eureka-research/Eureka>`_, available here: https://github.com/isaac-sim/IsaacLabEureka
 
 **Full Changelog**: https://github.com/isaac-sim/IsaacLab/compare/v1.1.0...v1.2.0
 
@@ -433,10 +442,13 @@ New Features
 * Adds support for multi-agent environments with the Direct workflow, with support for MAPPO and IPPO in SKRL by @Toni-SM
 * Adds the direct workflow multi-agent environments ``Isaac-Cart-Double-Pendulum-Direct-v0`` and ``Isaac-Shadow-Hand-Over-Direct-v0`` by @Toni-SM
 * Adds throughput benchmarking scripts for the different learning workflows by @kellyguo11 in https://github.com/isaac-sim/IsaacLab/pull/759
-* Adds results for the benchmarks in the documentation `here <https://isaac-sim.github.io/IsaacLab/main/source/overview/reinforcement-learning/performance_benchmarks.html>`_ for different types of hardware by @kellyguo11
+* Adds results for the benchmarks in the documentation
+  `here <https://isaac-sim.github.io/IsaacLab/main/source/overview/reinforcement-learning/performance_benchmarks.html>`__
+  for different types of hardware by @kellyguo11
 * Adds the direct workflow Allegro hand environment by @kellyguo11 in https://github.com/isaac-sim/IsaacLab/pull/709
 * Adds video recording to the play scripts in RL workflows by @j3soon in https://github.com/isaac-sim/IsaacLab/pull/763
-* Adds comparison tables for the supported RL libraries `here <https://isaac-sim.github.io/IsaacLab/main/source/overview/reinforcement-learning/rl_frameworks.html>`_ by @kellyguo11
+* Adds comparison tables for the supported RL libraries
+  `here <https://isaac-sim.github.io/IsaacLab/main/source/overview/reinforcement-learning/rl_frameworks.html>`__ by @kellyguo11
 * Add APIs for deformable asset by @masoudmoghani in https://github.com/isaac-sim/IsaacLab/pull/630
 * Adds support for MJCF converter by @qqqwan in https://github.com/isaac-sim/IsaacLab/pull/957
 * Adds a function to define camera configs through intrinsic matrix by @pascal-roth in https://github.com/isaac-sim/IsaacLab/pull/617
@@ -469,7 +481,7 @@ Bug Fixes
 ---------
 
 * Fixes rendering frame delays. Rendered images now faithfully represent the latest state of the physics scene. We added the flag
-``rerender_on_reset`` in the environment configs to toggle an additional render step when a reset happens. When activated, the images/observation always represent the latest state of the environment, but this also reduces performance.
+  ``rerender_on_reset`` in the environment configs to toggle an additional render step when a reset happens. When activated, the images/observation always represent the latest state of the environment, but this also reduces performance.
 * Fixes ``wrap_to_pi`` function in math utilities by @Mayankm96 in https://github.com/isaac-sim/IsaacLab/pull/771
 * Fixes setting of pose when spawning a mesh by @masoudmoghani in https://github.com/isaac-sim/IsaacLab/pull/692
 * Fixes caching of the terrain using the terrain generator by @Mayankm96 in https://github.com/isaac-sim/IsaacLab/pull/757
@@ -609,9 +621,13 @@ v1.1.0
 Overview
 --------
 
-With the release of Isaac Sim 4.0 and 4.1, support for Isaac Sim 2023.1.1 has been discontinued. We strongly encourage all users to upgrade to Isaac Sim 4.1 to take advantage of the latest features and improvements. For detailed information on this upgrade, please refer to the release notes available `here <https://docs.isaacsim.omniverse.nvidia.com/latest/overview/release_notes.html#>`_.
+With the release of Isaac Sim 4.0 and 4.1, support for Isaac Sim 2023.1.1 has been discontinued.
+We strongly encourage all users to upgrade to Isaac Sim 4.1 to take advantage of the latest features
+and improvements. For detailed information on this upgrade, please refer to the release notes available
+`here <https://docs.isaacsim.omniverse.nvidia.com/latest/overview/release_notes.html#>`__.
 
-Besides the above, the Isaac Lab release brings new features and improvements, as detailed below. We thank all our contributors for their continued support.
+Besides the above, the Isaac Lab release brings new features and improvements, as detailed below. We thank
+all our contributors for their continued support.
 
 **Full Changelog**: https://github.com/isaac-sim/IsaacLab/compare/v1.0.0...v1.1.0
 
@@ -670,15 +686,16 @@ Removal of Deprecated Attributes
 As notified in previous releases, we removed the classes and attributes marked as deprecated. These are as follows:
 
 * The ``mdp.add_body_mass`` method in the events. Please use the ``mdp.randomize_rigid_body_mass`` instead.
-* The classes ``managers.RandomizationManager`` and ``managers.RandomizationTermCfg``. Please use the ``managers.EventManager`` and ``managers.EventTermCfg`` classes instead.
+* The classes ``managers.RandomizationManager`` and ``managers.RandomizationTermCfg``. Please use the
+  ``managers.EventManager`` and ``managers.EventTermCfg`` classes instead.
 * The following properties in ``omni.isaac.lab.sensors.FrameTransformerData``:
-   * ``target_rot_source`` --> ``target_quat_w``
-   * ``target_rot_w`` --> ``target_quat_source``
-   * ``source_rot_w`` --> ``source_quat_w``
-* The attribute ``body_physx_view`` from the ``omni.isaac.lab.assets.Articulation`` and ``omni.isaac.lab.assets.RigidObject`` classes. These caused confusion when used with the articulation view since the body names did not follow the same ordering.
+  * ``target_rot_source`` --> ``target_quat_w``
+  * ``target_rot_w`` --> ``target_quat_source``
+  * ``source_rot_w`` --> ``source_quat_w``
 
-New Contributors
-----------------
+* The attribute ``body_physx_view`` from the ``omni.isaac.lab.assets.Articulation`` and
+  ``omni.isaac.lab.assets.RigidObject`` classes. These caused confusion when used with the articulation view
+  since the body names did not follow the same ordering.
 
 v1.0.0
 ======
@@ -688,9 +705,13 @@ Overview
 
 Welcome to the first official release of Isaac Lab!
 
-Building upon the foundation of the `Orbit <https://isaac-orbit.github.io/>`_ framework, we have integrated the RL environment designing workflow from `OmniIsaacGymEnvs <https://github.com/NVIDIA-Omniverse/OmniIsaacGymEnvs>`_. This allows users to choose a suitable `task-design approach <https://isaac-sim.github.io/IsaacLab/source/features/task_workflows.html>`_ for their applications.
+Building upon the foundation of the `Orbit <https://isaac-orbit.github.io/>`_ framework, we have integrated
+the RL environment designing workflow from `OmniIsaacGymEnvs <https://github.com/NVIDIA-Omniverse/OmniIsaacGymEnvs>`_.
+This allows users to choose a suitable `task-design approach <https://isaac-sim.github.io/IsaacLab/source/features/task_workflows.html>`_
+for their applications.
 
-While we maintain backward compatibility with Isaac Sim 2023.1.1, we highly recommend using Isaac Lab with Isaac Sim 4.0.0 version for the latest features and improvements.
+While we maintain backward compatibility with Isaac Sim 2023.1.1, we highly recommend using Isaac Lab with
+Isaac Sim 4.0.0 version for the latest features and improvements.
 
 **Full Changelog**: https://github.com/isaac-sim/IsaacLab/compare/v0.3.1...v1.0.0
 
