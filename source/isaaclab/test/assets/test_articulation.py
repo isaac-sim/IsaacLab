@@ -28,7 +28,7 @@ import isaacsim.core.utils.prims as prim_utils
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
 import isaaclab.utils.string as string_utils
-from isaaclab.actuators import ImplicitActuatorCfg
+from isaaclab.actuators import IdealPDActuatorCfg, ImplicitActuatorCfg
 from isaaclab.assets import Articulation, ArticulationCfg
 from isaaclab.sim import build_simulation_context
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
@@ -40,18 +40,32 @@ from isaaclab_assets import ANYMAL_C_CFG, FRANKA_PANDA_CFG, SHADOW_HAND_CFG  # i
 
 
 def generate_articulation_cfg(
-    articulation_type: Literal["humanoid", "panda", "anymal", "shadow_hand", "single_joint"],
+    articulation_type: str,
     stiffness: float | None = 10.0,
     damping: float | None = 2.0,
-    vel_limit_sim: float | None = None,
+    velocity_limit: float | None = None,
+    effort_limit: float | None = None,
+    velocity_limit_sim: float | None = None,
     effort_limit_sim: float | None = None,
 ) -> ArticulationCfg:
     """Generate an articulation configuration.
 
     Args:
         articulation_type: Type of articulation to generate.
-        stiffness: Stiffness value for the articulation's actuators. Only currently used for humanoid.
-        damping: Damping value for the articulation's actuators. Only currently used for humanoid.
+            It should be one of: "humanoid", "panda", "anymal", "shadow_hand", "single_joint_implicit",
+            "single_joint_explicit".
+        stiffness: Stiffness value for the articulation's actuators. Only currently used for "humanoid".
+            Defaults to 10.0.
+        damping: Damping value for the articulation's actuators. Only currently used for "humanoid".
+            Defaults to 2.0.
+        velocity_limit: Velocity limit for the actuators. Only currently used for "single_joint_implicit"
+            and "single_joint_explicit".
+        effort_limit: Effort limit for the actuators. Only currently used for "single_joint_implicit"
+            and "single_joint_explicit".
+        velocity_limit_sim: Velocity limit for the actuators (set into the simulation).
+            Only currently used for "single_joint_implicit" and "single_joint_explicit".
+        effort_limit_sim: Effort limit for the actuators (set into the simulation).
+            Only currently used for "single_joint_implicit" and "single_joint_explicit".
 
     Returns:
         The articulation configuration for the requested articulation type.
@@ -69,14 +83,31 @@ def generate_articulation_cfg(
         articulation_cfg = ANYMAL_C_CFG
     elif articulation_type == "shadow_hand":
         articulation_cfg = SHADOW_HAND_CFG
-    elif articulation_type == "single_joint":
+    elif articulation_type == "single_joint_implicit":
         articulation_cfg = ArticulationCfg(
             spawn=sim_utils.UsdFileCfg(usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/Simple/revolute_articulation.usd"),
             actuators={
                 "joint": ImplicitActuatorCfg(
                     joint_names_expr=[".*"],
                     effort_limit_sim=effort_limit_sim,
-                    velocity_limit_sim=vel_limit_sim,
+                    velocity_limit_sim=velocity_limit_sim,
+                    effort_limit=effort_limit,
+                    velocity_limit=velocity_limit,
+                    stiffness=0.0,
+                    damping=10.0,
+                ),
+            },
+        )
+    elif articulation_type == "single_joint_explicit":
+        articulation_cfg = ArticulationCfg(
+            spawn=sim_utils.UsdFileCfg(usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/Simple/revolute_articulation.usd"),
+            actuators={
+                "joint": IdealPDActuatorCfg(
+                    joint_names_expr=[".*"],
+                    effort_limit_sim=effort_limit_sim,
+                    velocity_limit_sim=velocity_limit_sim,
+                    effort_limit=effort_limit,
+                    velocity_limit=velocity_limit,
                     stiffness=0.0,
                     damping=10.0,
                 ),
@@ -171,6 +202,12 @@ class TestArticulation(unittest.TestCase):
                             path.split("/")[-1] for path in articulation.root_physx_view.link_paths[0]
                         ]
                         self.assertListEqual(prim_path_body_names, articulation.body_names)
+                        # -- actuator type
+                        for actuator_name, actuator in articulation.actuators.items():
+                            is_implicit_model_cfg = isinstance(
+                                articulation_cfg.actuators[actuator_name], ImplicitActuatorCfg
+                            )
+                            self.assertEqual(actuator.is_implicit_model, is_implicit_model_cfg)
 
                         # Simulate physics
                         for _ in range(10):
@@ -227,6 +264,12 @@ class TestArticulation(unittest.TestCase):
                             path.split("/")[-1] for path in articulation.root_physx_view.link_paths[0]
                         ]
                         self.assertListEqual(prim_path_body_names, articulation.body_names)
+                        # -- actuator type
+                        for actuator_name, actuator in articulation.actuators.items():
+                            is_implicit_model_cfg = isinstance(
+                                articulation_cfg.actuators[actuator_name], ImplicitActuatorCfg
+                            )
+                            self.assertEqual(actuator.is_implicit_model, is_implicit_model_cfg)
 
                         # Simulate physics
                         for _ in range(10):
@@ -281,6 +324,12 @@ class TestArticulation(unittest.TestCase):
                             path.split("/")[-1] for path in articulation.root_physx_view.link_paths[0]
                         ]
                         self.assertListEqual(prim_path_body_names, articulation.body_names)
+                        # -- actuator type
+                        for actuator_name, actuator in articulation.actuators.items():
+                            is_implicit_model_cfg = isinstance(
+                                articulation_cfg.actuators[actuator_name], ImplicitActuatorCfg
+                            )
+                            self.assertEqual(actuator.is_implicit_model, is_implicit_model_cfg)
 
                         # Simulate physics
                         for _ in range(10):
@@ -302,7 +351,7 @@ class TestArticulation(unittest.TestCase):
                 with self.subTest(num_articulations=num_articulations, device=device):
                     with build_simulation_context(device=device, add_ground_plane=True, auto_add_lighting=True) as sim:
                         sim._app_control_on_stop_handle = None
-                        articulation_cfg = generate_articulation_cfg(articulation_type="single_joint")
+                        articulation_cfg = generate_articulation_cfg(articulation_type="single_joint_implicit")
                         articulation, translations = generate_articulation(articulation_cfg, num_articulations, device)
 
                         # Check that boundedness of articulation is correct
@@ -341,6 +390,12 @@ class TestArticulation(unittest.TestCase):
                             path.split("/")[-1] for path in articulation.root_physx_view.link_paths[0]
                         ]
                         self.assertListEqual(prim_path_body_names, articulation.body_names)
+                        # -- actuator type
+                        for actuator_name, actuator in articulation.actuators.items():
+                            is_implicit_model_cfg = isinstance(
+                                articulation_cfg.actuators[actuator_name], ImplicitActuatorCfg
+                            )
+                            self.assertEqual(actuator.is_implicit_model, is_implicit_model_cfg)
 
                         # Simulate physics
                         for _ in range(10):
@@ -396,6 +451,12 @@ class TestArticulation(unittest.TestCase):
                             articulation.root_physx_view.max_links,
                             articulation.root_physx_view.shared_metatype.link_count,
                         )
+                        # -- actuator type
+                        for actuator_name, actuator in articulation.actuators.items():
+                            is_implicit_model_cfg = isinstance(
+                                articulation_cfg.actuators[actuator_name], ImplicitActuatorCfg
+                            )
+                            self.assertEqual(actuator.is_implicit_model, is_implicit_model_cfg)
 
                         # Simulate physics
                         for _ in range(10):
@@ -900,43 +961,345 @@ class TestArticulation(unittest.TestCase):
                         torch.testing.assert_close(articulation.actuators["body"].stiffness, expected_stiffness)
                         torch.testing.assert_close(articulation.actuators["body"].damping, expected_damping)
 
-    def test_setting_velocity_sim_limits(self):
-        """Test that velocity limits are loaded form the configuration correctly."""
+    def test_setting_velocity_limit_implicit(self):
+        """Test setting of velocity limit for implicit actuators.
+
+        This test checks that the behavior of setting velocity limits are consistent for implicit actuators
+        with previously defined behaviors.
+
+        We do not set velocity limit to simulation when `velocity_limit` is specified. This is mainly for backwards
+        compatibility. To set the velocity limit to simulation, users should set `velocity_limit_sim`.
+        """
         for num_articulations in (1, 2):
             for device in ("cuda:0", "cpu"):
-                for limit in (5.0, None):
-                    with self.subTest(num_articulations=num_articulations, device=device, limit=limit):
-                        with build_simulation_context(
-                            device=device, add_ground_plane=False, auto_add_lighting=True
-                        ) as sim:
-                            sim._app_control_on_stop_handle = None
-                            articulation_cfg = generate_articulation_cfg(
-                                articulation_type="single_joint", vel_limit_sim=limit, effort_limit_sim=limit
-                            )
-                            articulation, _ = generate_articulation(
-                                articulation_cfg=articulation_cfg, num_articulations=num_articulations, device=device
-                            )
-                            # Play sim
-                            sim.reset()
+                for vel_limit_sim in (1e5, None):
+                    for vel_limit in (1e2, None):
+                        with self.subTest(
+                            num_articulations=num_articulations,
+                            device=device,
+                            vel_limit_sim=vel_limit_sim,
+                            vel_limit=vel_limit,
+                        ):
+                            with build_simulation_context(
+                                device=device, add_ground_plane=False, auto_add_lighting=True
+                            ) as sim:
+                                # create simulation
+                                sim._app_control_on_stop_handle = None
+                                articulation_cfg = generate_articulation_cfg(
+                                    articulation_type="single_joint_implicit",
+                                    velocity_limit_sim=vel_limit_sim,
+                                    velocity_limit=vel_limit,
+                                )
+                                articulation, _ = generate_articulation(
+                                    articulation_cfg=articulation_cfg,
+                                    num_articulations=num_articulations,
+                                    device=device,
+                                )
+                                # Play sim
+                                sim.reset()
 
-                            if limit is not None:
-                                # Expected gains
-                                expected_velocity_limit = torch.full(
-                                    (articulation.num_instances, articulation.num_joints),
-                                    limit,
-                                    device=articulation.device,
+                                if vel_limit_sim is not None and vel_limit is not None:
+                                    # during initialization, the actuator will raise a ValueError and fail to
+                                    # initialize when both these attributes are set.
+                                    # note: The Exception is not caught with self.assertRaises or try-except
+                                    self.assertTrue(len(articulation.actuators) == 0)
+                                elif vel_limit_sim is None and vel_limit is None:
+                                    # check to make sure the root_physx_view dof limit is not modified
+                                    measured = articulation.root_physx_view.get_dof_max_velocities()[0].item()
+                                    self.assertGreater(measured, 1e10)
+                                    # check the two are parsed and equal
+                                    torch.testing.assert_close(
+                                        articulation.actuators["joint"].velocity_limit_sim,
+                                        articulation.actuators["joint"].velocity_limit,
+                                    )
+                                elif vel_limit_sim is not None and vel_limit is None:
+                                    # read the values set into the simulation
+                                    physx_vel_limit = articulation.root_physx_view.get_dof_max_velocities()
+                                    physx_vel_limit = physx_vel_limit.to(device=device)
+
+                                    expected_velocity_limit = torch.full(
+                                        (articulation.num_instances, articulation.num_joints),
+                                        vel_limit_sim,
+                                        device=articulation.device,
+                                    )
+                                    # check root_physx_view
+                                    torch.testing.assert_close(physx_vel_limit, expected_velocity_limit)
+                                    # check actuator
+                                    torch.testing.assert_close(
+                                        articulation.actuators["joint"].velocity_limit_sim, expected_velocity_limit
+                                    )
+                                    # check data buffer
+                                    torch.testing.assert_close(
+                                        articulation.data.joint_velocity_limits, expected_velocity_limit
+                                    )
+                                else:
+                                    # read the values set into the simulation
+                                    physx_vel_limit = articulation.root_physx_view.get_dof_max_velocities()
+                                    physx_vel_limit = physx_vel_limit.to(device=device)
+
+                                    # we do not set velocity limit though `vel_limit` so it is USD default
+                                    expected_velocity_limit = physx_vel_limit.clone()
+                                    # check root_physx_view
+                                    torch.testing.assert_close(physx_vel_limit, expected_velocity_limit)
+                                    # check actuator
+                                    torch.testing.assert_close(
+                                        articulation.actuators["joint"].velocity_limit_sim, expected_velocity_limit
+                                    )
+                                    # check data buffer
+                                    torch.testing.assert_close(
+                                        articulation.data.joint_velocity_limits, expected_velocity_limit
+                                    )
+
+    def test_setting_velocity_limit_explicit(self):
+        """Test setting of velocity limit for explicit actuators.
+
+        This test checks that the behavior of setting velocity limits are consistent for explicit actuators
+        with previously defined behaviors.
+
+        Velocity limits to simulation for explicit actuators are only configured through `velocity_limit_sim`.
+        """
+        for num_articulations in (1, 2):
+            for device in ("cuda:0", "cpu"):
+                for vel_limit_sim in (1e5, None):
+                    for vel_limit in (1e2, None):
+                        with self.subTest(
+                            num_articulations=num_articulations,
+                            device=device,
+                            vel_limit_sim=vel_limit_sim,
+                            vel_limit=vel_limit,
+                        ):
+                            with build_simulation_context(
+                                device=device, add_ground_plane=False, auto_add_lighting=True
+                            ) as sim:
+                                # create simulation
+                                sim._app_control_on_stop_handle = None
+                                articulation_cfg = generate_articulation_cfg(
+                                    articulation_type="single_joint_explicit",
+                                    velocity_limit_sim=vel_limit_sim,
+                                    velocity_limit=vel_limit,
                                 )
-                                # Check that gains are loaded from USD file
-                                torch.testing.assert_close(
-                                    articulation.actuators["joint"].velocity_limit_sim, expected_velocity_limit
+                                articulation, _ = generate_articulation(
+                                    articulation_cfg=articulation_cfg,
+                                    num_articulations=num_articulations,
+                                    device=device,
                                 )
-                                torch.testing.assert_close(
-                                    articulation.data.joint_velocity_limits, expected_velocity_limit
+                                # Play sim
+                                sim.reset()
+
+                                if vel_limit is not None and vel_limit_sim is None:
+                                    measured = articulation.root_physx_view.get_dof_max_velocities()[0].item()
+                                    # check to make sure the velocity_limit is not propagated to root_physx_view
+                                    self.assertNotEqual(measured, vel_limit)
+                                    self.assertAlmostEqual(measured, 1.0e9)
+                                elif vel_limit is None and vel_limit_sim is None:
+                                    # check to make sure the measured value isn't changed
+                                    measured = articulation.root_physx_view.get_dof_max_velocities()[0].item()
+                                    # TODO: Come up with a better way to check that the default usd limit hasn't been
+                                    # overwritten.
+                                    self.assertTrue(measured > 1e10)
+                                    torch.testing.assert_close(
+                                        articulation.actuators["joint"].velocity_limit_sim,
+                                        articulation.actuators["joint"].velocity_limit,
+                                    )
+                                elif vel_limit is None and vel_limit_sim is not None:
+                                    expected_velocity_limit = torch.full(
+                                        (articulation.num_instances, articulation.num_joints),
+                                        vel_limit_sim,
+                                        device=articulation.device,
+                                    )
+                                    physx_velocity_limit = articulation.root_physx_view.get_dof_max_velocities().to(
+                                        device=device
+                                    )
+                                    # check root_physx_view
+                                    torch.testing.assert_close(physx_velocity_limit, expected_velocity_limit)
+                                    # check actuator
+                                    torch.testing.assert_close(
+                                        articulation.actuators["joint"].velocity_limit_sim, expected_velocity_limit
+                                    )
+                                    # check data buffer
+                                    torch.testing.assert_close(
+                                        articulation.data.joint_velocity_limits, expected_velocity_limit
+                                    )
+                                else:
+                                    physx_velocity_limit = articulation.root_physx_view.get_dof_max_velocities().to(
+                                        device=device
+                                    )
+                                    # we do not set velocity limit though `vel_limit` so it is USD default
+                                    expected_velocity_limit = physx_velocity_limit.clone()
+                                    # check actuator
+                                    torch.testing.assert_close(
+                                        articulation.actuators["joint"].velocity_limit_sim, expected_velocity_limit
+                                    )
+                                    # check data buffer
+                                    torch.testing.assert_close(
+                                        articulation.data.joint_velocity_limits, expected_velocity_limit
+                                    )
+
+    def test_setting_effort_limit_implicit(self):
+        """Test setting of the effort limit for implicit actuators.
+
+        In this case, the `effort_limit` and `effort_limit_sim` are treated as equivalent parameters.
+        """
+        for num_articulations in (1, 2):
+            for device in ("cuda:0", "cpu"):
+                for effort_limit_sim in (1e5, None):
+                    for effort_limit in (1e2, None):
+                        with self.subTest(
+                            num_articulations=num_articulations,
+                            device=device,
+                            effort_limit_sim=effort_limit_sim,
+                            effort_limit=effort_limit,
+                        ):
+                            with build_simulation_context(
+                                device=device, add_ground_plane=False, auto_add_lighting=True
+                            ) as sim:
+                                # create simulation
+                                sim._app_control_on_stop_handle = None
+                                articulation_cfg = generate_articulation_cfg(
+                                    articulation_type="single_joint_implicit",
+                                    effort_limit_sim=effort_limit_sim,
+                                    effort_limit=effort_limit,
                                 )
-                                torch.testing.assert_close(
-                                    articulation.root_physx_view.get_dof_max_velocities().to(device),
-                                    expected_velocity_limit,
+                                articulation, _ = generate_articulation(
+                                    articulation_cfg=articulation_cfg,
+                                    num_articulations=num_articulations,
+                                    device=device,
                                 )
+                                # Play sim
+                                sim.reset()
+
+                                if effort_limit_sim is not None and effort_limit is not None:
+                                    # during initialization, the actuator will raise a ValueError and fail to
+                                    # initialize. The Exception is not caught with self.assertRaises or try-except
+                                    self.assertTrue(len(articulation.actuators) == 0)
+                                elif effort_limit_sim is None and effort_limit is None:
+                                    # check to make sure the root_physx_view does not match either:
+                                    # effort_limit or effort_limit_sim
+                                    measured = articulation.root_physx_view.get_dof_max_forces()[0].item()
+                                    self.assertNotEqual(measured, effort_limit_sim)
+                                    self.assertNotEqual(measured, effort_limit)
+
+                                    torch.testing.assert_close(
+                                        articulation.actuators["joint"].effort_limit_sim,
+                                        articulation.actuators["joint"].effort_limit,
+                                    )
+                                else:
+                                    physx_effort_limit = articulation.root_physx_view.get_dof_max_forces()
+                                    physx_effort_limit = physx_effort_limit.to(device=device)
+
+                                    if effort_limit_sim is not None and effort_limit is None:
+                                        limit = effort_limit_sim
+                                    elif effort_limit_sim is None and effort_limit is not None:
+                                        limit = effort_limit
+
+                                    expected_effort_limit = torch.full(
+                                        (articulation.num_instances, articulation.num_joints),
+                                        limit,
+                                        device=articulation.device,
+                                    )
+                                    # check root_physx_view
+                                    torch.testing.assert_close(
+                                        physx_effort_limit,
+                                        expected_effort_limit,
+                                    )
+                                    # check actuator
+                                    torch.testing.assert_close(
+                                        articulation.actuators["joint"].effort_limit_sim, expected_effort_limit
+                                    )
+                                    torch.testing.assert_close(
+                                        articulation.actuators["joint"].effort_limit_sim,
+                                        articulation.actuators["joint"].effort_limit,
+                                    )
+
+    def test_setting_effort_limit_explicit(self):
+        """Test setting of effort limit for explicit actuators.
+
+        This test checks that the behavior of setting effort limits are consistent for explicit actuators
+        with previously defined behaviors.
+
+        Effort limits to simulation for explicit actuators are only configured through `effort_limit_sim`.
+        """
+        for num_articulations in (1, 2):
+            for device in ("cuda:0", "cpu"):
+                for effort_limit_sim in (1e5, None):
+                    for effort_limit in (1e2, None):
+                        with self.subTest(
+                            num_articulations=num_articulations,
+                            device=device,
+                            effort_limit_sim=effort_limit_sim,
+                            effort_limit=effort_limit,
+                        ):
+                            with build_simulation_context(
+                                device=device, add_ground_plane=False, auto_add_lighting=True
+                            ) as sim:
+                                # create simulation
+                                sim._app_control_on_stop_handle = None
+                                articulation_cfg = generate_articulation_cfg(
+                                    articulation_type="single_joint_explicit",
+                                    effort_limit_sim=effort_limit_sim,
+                                    effort_limit=effort_limit,
+                                )
+                                articulation, _ = generate_articulation(
+                                    articulation_cfg=articulation_cfg,
+                                    num_articulations=num_articulations,
+                                    device=device,
+                                )
+                                # Play sim
+                                sim.reset()
+
+                                if effort_limit is None and effort_limit_sim is None:
+                                    # check to make sure the measured value isn't changed
+                                    measured = articulation.root_physx_view.get_dof_max_forces()[0].item()
+                                    # TODO: come up with a better way to check that the default usd limit hasn't been
+                                    # overwritten
+                                    self.assertTrue(measured > 1e8)
+
+                                    torch.testing.assert_close(
+                                        articulation.actuators["joint"].effort_limit_sim,
+                                        articulation.actuators["joint"].effort_limit,
+                                    )
+                                elif effort_limit is not None and effort_limit_sim is not None:
+                                    check_is_close = torch.isclose(
+                                        articulation.actuators["joint"].effort_limit_sim,
+                                        articulation.actuators["joint"].effort_limit,
+                                    )
+                                    self.assertFalse(check_is_close)
+
+                                    expected_effort_limit = torch.full(
+                                        (articulation.num_instances, articulation.num_joints),
+                                        effort_limit_sim,
+                                        device=articulation.device,
+                                    )
+                                    physx_effort_limit = articulation.root_physx_view.get_dof_max_forces().to(
+                                        device=device
+                                    )
+                                    # check root_physx_view
+                                    torch.testing.assert_close(
+                                        physx_effort_limit, expected_effort_limit
+                                    )
+                                elif effort_limit is None and effort_limit_sim is not None:
+                                    expected_effort_limit = torch.full(
+                                        (articulation.num_instances, articulation.num_joints),
+                                        effort_limit_sim,
+                                        device=articulation.device,
+                                    )
+                                    physx_effort_limit = articulation.root_physx_view.get_dof_max_forces().to(
+                                        device=device
+                                    )
+                                    # check root_physx_view
+                                    torch.testing.assert_close(
+                                        physx_effort_limit, expected_effort_limit
+                                    )
+                                else:
+                                    expected_effort_limit = torch.full(
+                                        (articulation.num_instances, articulation.num_joints),
+                                        effort_limit_sim,
+                                        device=articulation.device,
+                                    )
+                                    physx_effort_limit = articulation.root_physx_view.get_dof_max_forces()
+                                    physx_effort_limit = physx_effort_limit.to(device=device)
+                                    # check root_physx_view
+                                    torch.testing.assert_close(physx_effort_limit, expected_effort_limit)
 
     def test_reset(self):
         """Test that reset method works properly.
@@ -970,6 +1333,7 @@ class TestArticulation(unittest.TestCase):
                         self.assertEqual(torch.count_nonzero(articulation._external_torque_b), 0)
 
     def test_apply_joint_command(self):
+        """Test applying of joint position target functions correctly for a robotic arm."""
         for num_articulations in (1, 2):
             for device in ("cuda:0", "cpu"):
                 with self.subTest(num_articulations=num_articulations, device=device):
@@ -1011,7 +1375,7 @@ class TestArticulation(unittest.TestCase):
                         assert not torch.allclose(articulation.data.joint_pos, joint_pos)
 
     def test_body_root_state(self):
-        """Test for the root_state_w property"""
+        """Test for reading the `body_state_w` property"""
         for num_articulations in (1, 2):
             # for num_articulations in ( 2,):
             for device in ("cuda:0", "cpu"):
@@ -1023,7 +1387,7 @@ class TestArticulation(unittest.TestCase):
                             device=device, add_ground_plane=False, auto_add_lighting=True
                         ) as sim:
                             sim._app_control_on_stop_handle = None
-                            articulation_cfg = generate_articulation_cfg(articulation_type="single_joint")
+                            articulation_cfg = generate_articulation_cfg(articulation_type="single_joint_implicit")
                             articulation, env_pos = generate_articulation(articulation_cfg, num_articulations, device)
                             env_idx = torch.tensor([x for x in range(num_articulations)])
                             # Check that boundedness of articulation is correct
@@ -1194,30 +1558,6 @@ class TestArticulation(unittest.TestCase):
                                         torch.testing.assert_close(rand_state, articulation.data.root_com_state_w)
                                     elif state_location == "link":
                                         torch.testing.assert_close(rand_state, articulation.data.root_link_state_w)
-
-    def test_transform_inverses(self):
-        """Test if math utilities are true inverses of each other."""
-
-        pose01 = torch.rand(1, 7)
-        pose01[:, 3:7] = torch.nn.functional.normalize(pose01[..., 3:7], dim=-1)
-
-        pose12 = torch.rand(1, 7)
-        pose12[:, 3:7] = torch.nn.functional.normalize(pose12[..., 3:7], dim=-1)
-
-        pos02, quat02 = math_utils.combine_frame_transforms(
-            pose01[..., :3], pose01[..., 3:7], pose12[:, :3], pose12[:, 3:7]
-        )
-
-        pos01, quat01 = math_utils.combine_frame_transforms(
-            pos02,
-            quat02,
-            math_utils.quat_rotate(math_utils.quat_inv(pose12[:, 3:7]), -pose12[:, :3]),
-            math_utils.quat_inv(pose12[:, 3:7]),
-        )
-        print("")
-        print(pose01)
-        print(pos01, quat01)
-        torch.testing.assert_close(pose01, torch.cat((pos01, quat01), dim=-1))
 
 
 if __name__ == "__main__":

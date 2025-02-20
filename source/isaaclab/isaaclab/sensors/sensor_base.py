@@ -51,7 +51,7 @@ class SensorBase(ABC):
         # check that the config is valid
         cfg.validate()
         # store inputs
-        self.cfg = cfg
+        self.cfg = cfg.copy()
         # flag for whether the sensor is initialized
         self._is_initialized = False
         # flag for whether the sensor is in visualization mode

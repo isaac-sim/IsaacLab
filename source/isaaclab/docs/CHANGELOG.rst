@@ -1,6 +1,24 @@
 Changelog
 ---------
 
+0.34.2 (2025-02-17)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added a new attribute :attr:`is_implicit_model` to the :class:`isaaclab.actuators.ActuatorBase` class to
+  indicate if the actuator model is implicit or explicit. This helps checking that the correct model type
+  is being used when initializing the actuator models.
+
+Fixed
+^^^^^
+
+* Added copy of configurations to :class:`isaaclab.assets.AssetBase` and :class:`isaaclab.sensors.SensorBase`
+  to prevent modifications of the configurations from leaking outside of the classes.
+* Moved warnings and checks for implicit actuator models to the :class:`isaaclab.actuators.ImplicitActuator` class.
+
+
 0.34.1 (2025-02-17)
 ~~~~~~~~~~~~~~~~~~~
 
@@ -17,8 +35,8 @@ Fixed
 Fixed
 ^^^^^
 
-* Adds attributes velocity_limits_sim and effort_limits_sim to :class:`isaaclab.actuators.AssetBaseCfg` to separate
-  solver limits from actuator limits.
+* Added attributes :attr:`velocity_limits_sim` and :attr:`effort_limits_sim` to the
+  :class:`isaaclab.actuators.ActuatorBaseCfg` class to separate solver limits from actuator limits.
 
 
 0.33.17 (2025-02-13)
