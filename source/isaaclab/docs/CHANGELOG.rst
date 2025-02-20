@@ -1,6 +1,24 @@
 Changelog
 ---------
 
+0.35.0 (2025-02-14)
+~~~~~~~~~~~~~~~~~~~
+
+Removed
+^^^^^^^
+
+* Removed the attribute ``disable_contact_processing`` from :class:`~isaaclab.sim.SimulationContact`.
+
+Changed
+^^^^^^^
+
+* Enabled the physics flag for disabling contact processing in the :class:`~isaaclab.sim.SimulationContact`
+  class. This means that by default, no contact reporting is done by the physics engine, which should provide
+  a performance boost in simulations with no contact processing requirements.
+* Disabled the physics flag for disabling contact processing in the :class:`~isaaclab.sensors.ContactSensor`
+  class when the sensor is created to allow contact reporting for the sensor.
+
+
 0.34.1 (2025-02-17)
 ~~~~~~~~~~~~~~~~~~~
 
@@ -9,6 +27,7 @@ Fixed
 
 * Ensured that the loaded torch JIT models inside actuator networks are correctly set to eval mode
   to prevent any unexpected behavior during inference.
+
 
 
 0.34.0 (2025-02-14)

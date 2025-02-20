@@ -70,53 +70,52 @@ depending on the complexity of the environment, the number of expected contacts 
 and the number of actors in the environment. The :class:`~isaaclab.sim.PhysxCfg` class provides access
 for setting the GPU buffer dimensions.
 
-+--------------------------------------------------------------+-------------------------------------------------------------------+
-|                                                              |                                                                   |
-|.. code-block:: yaml                                          |.. code-block:: python                                             |
-|                                                              |                                                                   |
-|  # OmniIsaacGymEnvs                                          | # IsaacLab                                                        |
-|  sim:                                                        | sim: SimulationCfg = SimulationCfg(                               |
-|                                                              |    device = "cuda:0" # can be "cpu", "cuda", "cuda:<device_id>"   |
-|    dt: 0.0083 # 1/120 s                                      |    dt=1 / 120,                                                    |
-|    use_gpu_pipeline: ${eq:${...pipeline},"gpu"}              |    # use_gpu_pipeline is deduced from the device                  |
-|    use_fabric: True                                          |    use_fabric=True,                                               |
-|    enable_scene_query_support: False                         |    enable_scene_query_support=False,                              |
-|    disable_contact_processing: False                         |    disable_contact_processing=False,                              |
-|    gravity: [0.0, 0.0, -9.81]                                |    gravity=(0.0, 0.0, -9.81),                                     |
-|                                                              |                                                                   |
-|    default_physics_material:                                 |    physics_material=RigidBodyMaterialCfg(                         |
-|      static_friction: 1.0                                    |        static_friction=1.0,                                       |
-|      dynamic_friction: 1.0                                   |        dynamic_friction=1.0,                                      |
-|      restitution: 0.0                                        |        restitution=0.0                                            |
-|                                                              |    )                                                              |
-|    physx:                                                    |    physx: PhysxCfg = PhysxCfg(                                    |
-|      worker_thread_count: ${....num_threads}                 |        # worker_thread_count is no longer needed                  |
-|      solver_type: ${....solver_type}                         |        solver_type=1,                                             |
-|      use_gpu: ${contains:"cuda",${....sim_device}}           |        # use_gpu is deduced from the device                       |
-|      solver_position_iteration_count: 4                      |        max_position_iteration_count=4,                            |
-|      solver_velocity_iteration_count: 0                      |        max_velocity_iteration_count=0,                            |
-|      contact_offset: 0.02                                    |        # moved to actor config                                    |
-|      rest_offset: 0.001                                      |        # moved to actor config                                    |
-|      bounce_threshold_velocity: 0.2                          |        bounce_threshold_velocity=0.2,                             |
-|      friction_offset_threshold: 0.04                         |        friction_offset_threshold=0.04,                            |
-|      friction_correlation_distance: 0.025                    |        friction_correlation_distance=0.025,                       |
-|      enable_sleeping: True                                   |        # enable_sleeping is no longer needed                      |
-|      enable_stabilization: True                              |        enable_stabilization=True,                                 |
-|      max_depenetration_velocity: 100.0                       |        # moved to RigidBodyPropertiesCfg                          |
-|                                                              |                                                                   |
-|      gpu_max_rigid_contact_count: 524288                     |        gpu_max_rigid_contact_count=2**23,                         |
-|      gpu_max_rigid_patch_count: 81920                        |        gpu_max_rigid_patch_count=5 * 2**15,                       |
-|      gpu_found_lost_pairs_capacity: 1024                     |        gpu_found_lost_pairs_capacity=2**21,                       |
-|      gpu_found_lost_aggregate_pairs_capacity: 262144         |        gpu_found_lost_aggregate_pairs_capacity=2**25,             |
-|      gpu_total_aggregate_pairs_capacity: 1024                |        gpu_total_aggregate_pairs_capacity=2**21,                  |
-|      gpu_heap_capacity: 67108864                             |        gpu_heap_capacity=2**26,                                   |
-|      gpu_temp_buffer_capacity: 16777216                      |        gpu_temp_buffer_capacity=2**24,                            |
-|      gpu_max_num_partitions: 8                               |        gpu_max_num_partitions=8,                                  |
-|      gpu_max_soft_body_contacts: 1048576                     |        gpu_max_soft_body_contacts=2**20,                          |
-|      gpu_max_particle_contacts: 1048576                      |        gpu_max_particle_contacts=2**20,                           |
-|                                                              |    )                                                              |
-|                                                              | )                                                                 |
-+--------------------------------------------------------------+-------------------------------------------------------------------+
++--------------------------------------------------+---------------------------------------------------------------+
+||                                                 ||                                                              |
+||                                                 ||                                                              |
+|| # OmniIsaacGymEnvs                              || # IsaacLab                                                   |
+|| sim:                                            || sim: SimulationCfg = SimulationCfg(                          |
+||                                                 || device = "cuda:0" # can be "cpu", "cuda", "cuda:<device_id>" |
+|| dt: 0.0083 # 1/120 s                            || dt=1 / 120,                                                  |
+|| use_gpu_pipeline: ${eq:${...pipeline},"gpu"}    || # use_gpu_pipeline is deduced from the device                |
+|| use_fabric: True                                || use_fabric=True,                                             |
+|| enable_scene_query_support: False               || enable_scene_query_support=False,                            |
+|| disable_contact_processing: False               ||                                                              |
+|| gravity: [0.0, 0.0, -9.81]                      || gravity=(0.0, 0.0, -9.81),                                   |
+||                                                 ||                                                              |
+|| default_physics_material:                       || physics_material=RigidBodyMaterialCfg(                       |
+|| static_friction: 1.0                            || static_friction=1.0,                                         |
+|| dynamic_friction: 1.0                           || dynamic_friction=1.0,                                        |
+|| restitution: 0.0                                || restitution=0.0                                              |
+||                                                 || )                                                            |
+|| physx:                                          || physx: PhysxCfg = PhysxCfg(                                  |
+|| worker_thread_count: ${....num_threads}         || # worker_thread_count is no longer needed                    |
+|| solver_type: ${....solver_type}                 || solver_type=1,                                               |
+|| use_gpu: ${contains:"cuda",${....sim_device}}   || # use_gpu is deduced from the device                         |
+|| solver_position_iteration_count: 4              || max_position_iteration_count=4,                              |
+|| solver_velocity_iteration_count: 0              || max_velocity_iteration_count=0,                              |
+|| contact_offset: 0.02                            || # moved to actor config                                      |
+|| rest_offset: 0.001                              || # moved to actor config                                      |
+|| bounce_threshold_velocity: 0.2                  || bounce_threshold_velocity=0.2,                               |
+|| friction_offset_threshold: 0.04                 || friction_offset_threshold=0.04,                              |
+|| friction_correlation_distance: 0.025            || friction_correlation_distance=0.025,                         |
+|| enable_sleeping: True                           || # enable_sleeping is no longer needed                        |
+|| enable_stabilization: True                      || enable_stabilization=True,                                   |
+|| max_depenetration_velocity: 100.0               || # moved to RigidBodyPropertiesCfg                            |
+||                                                 ||                                                              |
+|| gpu_max_rigid_contact_count: 524288             || gpu_max_rigid_contact_count=2**23,                           |
+|| gpu_max_rigid_patch_count: 81920                || gpu_max_rigid_patch_count=5 * 2**15,                         |
+|| gpu_found_lost_pairs_capacity: 1024             || gpu_found_lost_pairs_capacity=2**21,                         |
+|| gpu_found_lost_aggregate_pairs_capacity: 262144 || gpu_found_lost_aggregate_pairs_capacity=2**25,               |
+|| gpu_total_aggregate_pairs_capacity: 1024        || gpu_total_aggregate_pairs_capacity=2**21,                    |
+|| gpu_heap_capacity: 67108864                     || gpu_heap_capacity=2**26,                                     |
+|| gpu_temp_buffer_capacity: 16777216              || gpu_temp_buffer_capacity=2**24,                              |
+|| gpu_max_num_partitions: 8                       || gpu_max_num_partitions=8,                                    |
+|| gpu_max_soft_body_contacts: 1048576             || gpu_max_soft_body_contacts=2**20,                            |
+|| gpu_max_particle_contacts: 1048576              || gpu_max_particle_contacts=2**20,                             |
+||                                                 || )                                                            |
+||                                                 || )                                                            |
++--------------------------------------------------+---------------------------------------------------------------+
 
 Parameters such as ``add_ground_plane`` and ``add_distant_light`` are now part of the task logic when creating the scene.
 ``enable_cameras`` is now a command line argument ``--enable_cameras`` that can be passed directly to the training script.
