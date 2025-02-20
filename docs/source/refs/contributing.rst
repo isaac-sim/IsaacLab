@@ -276,10 +276,9 @@ For instance, the following are bad examples for various reasons:
 .. code:: python
 
    def my_function(a, b):
-      """
-      This is a bad example.
+      """Adds two numbers.
 
-      Reason: No type hints anywhere.
+      This function is a bad example. Reason: No type hints anywhere.
 
       Args:
          a: The first argument.
@@ -293,10 +292,10 @@ For instance, the following are bad examples for various reasons:
 .. code:: python
 
    def my_function(a, b):
-      """
-      This is a bad example.
+      """Adds two numbers.
 
-      Reason: Type hints in the docstring and not in the function signature.
+      This function is a bad example. Reason: Type hints in the docstring and not in the
+      function signature.
 
       Args:
          a (int): The first argument.
@@ -310,10 +309,10 @@ For instance, the following are bad examples for various reasons:
 .. code:: python
 
    def my_function(a: int, b: int) -> int:
-      """
-      This is a bad example.
+      """Adds two numbers.
 
-      Reason: Type hints in the docstring and in the function signature. Redundancy.
+      This function is a bad example. Reason: Type hints in the docstring and in the function 
+      signature. Redundancy.
 
       Args:
          a (int): The first argument.
@@ -329,10 +328,10 @@ The following is how we expect you to write the docstrings and type hints:
 .. code:: python
 
    def my_function(a: int, b: int) -> int:
-      """
-      This is a good example.
+      """Adds two numbers.
 
-      Reason: Type hints in the function signature and not in the docstring.
+      This function is a good example. Reason: Type hints in the function signature and not in the 
+      docstring.
 
       Args:
          a: The first argument.
