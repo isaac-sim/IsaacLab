@@ -62,7 +62,7 @@ class ActuatorBase(ABC):
     velocity_limit_sim: torch.Tensor
     """The velocity limit for the actuator group in the simulation. Shape is (num_envs, num_joints).
 
-    For implicit actuators, the :attr:`velocity_limit` and :attr:`velocity_limit_sim` are the same
+    For implicit actuators, the :attr:`velocity_limit` and :attr:`velocity_limit_sim` are the same.
     """
 
     stiffness: torch.Tensor
