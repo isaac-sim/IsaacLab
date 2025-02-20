@@ -63,7 +63,10 @@ class ImplicitActuator(ActuatorBase):
                 " To set the effort limit, please use 'effort_limit_sim' instead."
             )
             cfg.effort_limit_sim = cfg.effort_limit
-            cfg.effort_limit = None
+        elif cfg.effort_limit_sim is not None and cfg.effort_limit is None:
+            # TODO: Eventually we want to get rid of 'effort_limit' for implicit actuators.
+            #   We should do this once all parameters have an "_sim" suffix.
+            cfg.effort_limit = cfg.effort_limit_sim
         elif cfg.effort_limit_sim is not None and cfg.effort_limit is not None:
             if cfg.effort_limit_sim != cfg.effort_limit:
                 raise ValueError(
