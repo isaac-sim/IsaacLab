@@ -311,7 +311,7 @@ For instance, the following are bad examples for various reasons:
    def my_function(a: int, b: int) -> int:
       """Adds two numbers.
 
-      This function is a bad example. Reason: Type hints in the docstring and in the function 
+      This function is a bad example. Reason: Type hints in the docstring and in the function
       signature. Redundancy.
 
       Args:
@@ -330,7 +330,7 @@ The following is how we expect you to write the docstrings and type hints:
    def my_function(a: int, b: int) -> int:
       """Adds two numbers.
 
-      This function is a good example. Reason: Type hints in the function signature and not in the 
+      This function is a good example. Reason: Type hints in the function signature and not in the
       docstring.
 
       Args:
