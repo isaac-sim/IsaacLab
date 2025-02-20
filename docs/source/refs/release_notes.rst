@@ -1,85 +1,86 @@
 Release Notes
 =============
 
+The release notes are now available in the `Isaac Lab GitHub repository <https://github.com/isaac-sim/IsaacLab/releases>`_.
+We summarize the release notes here for convenience.
+
 v2.0.0
 ======
 
 Overview
 --------
 
-Isaac Lab 2.0 brings some exciting new features, including a new addition to the Imitation Learning
-workflow with the **Isaac Lab Mimic** extension.
-Isaac Lab Mimic provides the ability to automatically generate additional trajectories based on
-just a few human collected demonstrations, allowing for larger training datasets with less human effort.
-This work is based on the `MimicGenv <https://mimicgen.github.io/>`_ work for Scalable Robot Learning using Human Demonstrations.
+Isaac Lab 2.0 brings some exciting new features, including a new addition to the Imitation Learning workflow with
+the **Isaac Lab Mimic** extension.
 
-Additionally, we introduced a new set of AMP tasks based on `Adversarial Motion Priors <https://xbpeng.github.io/projects/AMP/index.html>`_,
-training humanoid robots to walk, run, and dance 👯
+Isaac Lab Mimic provides the ability to automatically generate additional trajectories based on just a few human
+collected demonstrations, allowing for larger training datasets with less human effort. This work is based on the
+`MimicGen <https://mimicgen.github.io/>`_ work for Scalable Robot Learning using Human Demonstrations.
 
-Along with Isaac Lab 2.0, Isaac Sim 4.5 brings several new and breaking changes, including a full refactor of the Isaac Sim extensions,
-an improved URDF importer, an update to the PyTorch dependency to version 2.5.1,
-and many fixes for tiled rendering that now supports multiple tiled
-cameras at different resolutions.
+Additionally, we introduced a new set of AMP tasks based on
+`Adversarial Motion Priors <https://xbpeng.github.io/projects/AMP/index.html>`_, training humanoid robots to walk, run,
+and dance.
+
+Along with Isaac Lab 2.0, Isaac Sim 4.5 brings several new and breaking changes, including a full refactor of the
+Isaac Sim extensions, an improved URDF importer, an update to the PyTorch dependency to version 2.5.1, and many
+fixes for tiled rendering that now supports multiple tiled cameras at different resolutions.
 
 To follow the refactoring in Isaac Sim, we made similar refactoring and restructuring changes to Isaac Lab.
-These breaking changes will no longer be compatible with previous Isaac Sim versions. Please make sure to update to Isaac Sim 4.5
-when using the Isaac Lab 2.0 release.
+These breaking changes will no longer be compatible with previous Isaac Sim versions.
 
-Please refer to `Migration Guide <migration.html>`_ for a detailed list of breaking changes and guides for updating your codebase.
+.. attention::
 
-**Full Changelog**: https://github.com/isaac-sim/IsaacLab/compare/v1.4.0...v2.0.0
+    Please make sure to update to Isaac Sim 4.5 when using the Isaac Lab 2.0 release.
 
+**Full Changelog**: https://github.com/isaac-sim/IsaacLab/compare/v1.4.1...v2.0.0
+
+Highlights from the Isaac Sim 4.5 release
+-----------------------------------------
+
+- Support for multiple ``TiledCamera`` instances and varying resolutions
+- Improved rendering performance by up to 1.2x
+- Faster startup time through optimizations in the Cloner class that improves startup time by 30%
+- Enhanced OmniPVD for debugging physics simulation, enabling capturing reinforcement learning simulation
+  workloads of up to 2000 environments
+- Physics simulation performance optimizations improving throughput of up to 70%
+- Physics support for dedicated cylinder and cone geometry designed for robot wheels that is fully GPU accelerated 
+- A new physics GPU filtering mechanism allowing co-location of reinforcement learning environments at the
+  origin with minimal performance loss for scenes with limited collider counts
+- Improvements in simulation stability for mimic joints at high joint gains
 
 New Features
 ------------
 
-* Adds humanoid AMP tasks for direct workflow by @Toni-SM
-* Adds Isaac Lab Mimic based on MimicGen data generation for Imitation Learning by @peterd-NV @nvcyc @ashwinvkNV @karsten-nvidia
-* Adds consolidated demo script for showcasing recording and mimic dataset generation in real-time in one simulation script by @nvcyc
-* Adds Franka stacking environment for GR00T mimic by @peterd-NV @nvcyc
-* Adds option to filter collisions and real-time playback by @kellyguo11
+* Adds humanoid AMP tasks for direct workflow by @Toni-SM 
+* Adds Isaac Lab Mimic based on MimicGen data generation for Imitation Learning by @peterd-NV @nvcyc @ashwinvkNV @karsten-nvidia 
+* Adds consolidated demo script for showcasing recording and mimic dataset generation in real-time in one simulation script by @nvcyc 
+* Adds Franka stacking environment for GR00T mimic by @peterd-NV @nvcyc 
+* Adds option to filter collisions and real-time playback by @kellyguo11 
 
 Improvements
 ------------
 
-* Adds body tracking option to ViewerCfg by @KyleM73 in https://github.com/isaac-sim/IsaacLab/pull/1620
-* Updates pip installation documentation to clarify options by @steple in https://github.com/isaac-sim/IsaacLab/pull/1621
-* Adds dict conversion test for ActuatorBase configs by @mschweig in https://github.com/isaac-sim/IsaacLab/pull/1608
-* Adds documentation and demo script for IMU sensor by @mpgussert in https://github.com/isaac-sim/IsaacLab/pull/1694
-* Removes deprecation for root_state_w properties and setters by @jtigue-bdai in https://github.com/isaac-sim/IsaacLab/pull/1695
 * Adds a tutorial for policy inference in a prebuilt USD scene by @oahmednv
-* Adds unit tests for multi tiled cameras by @matthewtrepte
-* Updates render setting defaults for better quality by @kellyguo11
-* Adds flag to wait for texture loading completion when reset by @oahmednv
-* Adds pre-trained checkpoints and tools for generating and uploading checkpoints by @nv-cupright
-* Adds new denoiser optimization flags for rendering by @kellyguo11
-* Updates torch to 2.5.1 by @kellyguo11
+* Adds unit tests for multi-tiled cameras by @matthewtrepte  
+* Updates render setting defaults for better quality by @kellyguo11 
+* Adds a flag to wait for texture loading completion when reset by @oahmednv 
+* Adds pre-trained checkpoints and tools for generating and uploading checkpoints by @nv-cupright 
+* Adds new denoiser optimization flags for rendering by @kellyguo11 
+* Updates torch to 2.5.1 by @kellyguo11 
 
 Bug Fixes
 ---------
 
-* Fixes JointAction not preserving order when using all joints by @T-K-233 in https://github.com/isaac-sim/IsaacLab/pull/1587
-* Fixes event term for pushing root by setting velocity by @Mayankm96 in https://github.com/isaac-sim/IsaacLab/pull/1584
-* Fixes error in Articulation where default_joint_stiffness and default_joint_damping is not correctly set if actuator is instance of ImplicitActuator by @zoctipus in https://github.com/isaac-sim/IsaacLab/pull/1580
-* Fixes MARL workflows for recording videos during training/inferencing by @Rishi-V in https://github.com/isaac-sim/IsaacLab/pull/1596
-* Fixes the ``joint_parameter_lookup`` type in ``RemotizedPDActuatorCfg`` to support list format by @fan-ziqi in https://github.com/isaac-sim/IsaacLab/pull/1626
-* Fixes action reset of pre_trained_policy_action by @nicolaloi in https://github.com/isaac-sim/IsaacLab/pull/1623
-* Fixes issue where the indices were not created correctly. by @AntoineRichard in https://github.com/isaac-sim/IsaacLab/pull/1660
-* Fixes errors in tools and tutorial scripts by @kellyguo11 in https://github.com/isaac-sim/IsaacLab/pull/1669
-* Fixes rigid object's root com velocities timestamp check by @ori-gadot in https://github.com/isaac-sim/IsaacLab/pull/1674
-* Fixes infinite loop in repeated_objects_terrain: respawn only wrong object samples  by @nicolaloi in https://github.com/isaac-sim/IsaacLab/pull/1612
-* Corrects calculation of target height adjustment based on sensor data by @fan-ziqi in https://github.com/isaac-sim/IsaacLab/pull/1710
-* Clarifies Ray Documentation and Fixes Minor Issues by @garylvov in https://github.com/isaac-sim/IsaacLab/pull/1717
-* Fixes external force buffers to set to zero when no forces/torques are applied by @matthewtrepte
+* Fixes external force buffers to set to zero when no forces/torques are applied by @matthewtrepte 
+* Fixes RSL-RL package name in ``setup.py`` according to PyPI installation by @samibouziri
 
 Breaking Changes
 ----------------
 
-* Updates the URDF and MJCF importers for Isaac Sim 4.5 by @Dhoeller19
-* Renames Isaac Lab extensions and folders by @kellyguo11
+* Updates the URDF and MJCF importers for Isaac Sim 4.5 by @Dhoeller19 
+* Renames Isaac Lab extensions and folders by @kellyguo11 
 * Restructures extension folders and removes old imitation learning scripts by @kellyguo11
-* Renames conda and venv Python environment from ``isaaclab`` to ``env_isaaclab`` by @Toni-SM
-* Fixes RSL-RL package name in `setup.py` according to PyPI installation by @samibouziri
+* Renames default conda and venv Python environment from ``isaaclab`` to ``env_isaaclab`` by @Toni-SM
 
 Migration Guide
 ---------------
@@ -95,14 +96,13 @@ framework that can be customized by users through the use of app templates.
 
 Notably, the following commonly used Isaac Sim extensions in Isaac Lab are renamed as follow:
 
-* ``omni.isaac.cloner`` --> ``isaacsim.core.cloner``
-* ``omni.isaac.core.prims`` --> ``isaacsim.core.prims``
-* ``omni.isaac.core.simulation_context`` --> ``isaacsim.core.api.simulation_context``
-* ``omni.isaac.core.utils`` --> ``isaacsim.core.utils``
-* ``omni.isaac.core.world`` --> ``isaacsim.core.api.world``
-* ``omni.isaac.kit.SimulationApp`` --> ``isaacsim.SimulationApp``
-* ``omni.isaac.ui`` --> ``isaacsim.gui.components``
-
+* ``omni.isaac.cloner`` --> :mod:`isaacsim.core.cloner`
+* ``omni.isaac.core.prims`` --> :mod:`isaacsim.core.prims`
+* ``omni.isaac.core.simulation_context`` --> :mod:`isaacsim.core.api.simulation_context``
+* ``omni.isaac.core.utils`` --> :mod:`isaacsim.core.utils``
+* ``omni.isaac.core.world`` --> :mod:`isaacsim.core.api.world``
+* ``omni.isaac.kit.SimulationApp`` --> :mod:`isaacsim.SimulationApp``
+* ``omni.isaac.ui`` --> :mod:`isaacsim.gui.components``
 
 Renaming of the URDF and MJCF Importers
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -119,7 +119,6 @@ Due to the extension name change, the Python module names have also been changed
 From the Isaac Sim UI, both URDF and MJCF importers can now be accessed directly from the File > Import
 menu when selecting a corresponding .urdf or .xml file in the file browser.
 
-
 Changes in URDF Importer
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -133,40 +132,14 @@ be of class type :class:`PDGainsCfg` or :class:`NaturalFrequencyGainsCfg`.
 
 The stiffness of the :class:`PDGainsCfg` must be specified, as such:
 
-.. code::python
+.. code-block:: python
 
     joint_drive=sim_utils.UrdfConverterCfg.JointDriveCfg(
         gains=sim_utils.UrdfConverterCfg.JointDriveCfg.PDGainsCfg(stiffness=None, damping=None)
     )
 
-The :attr:`natural_frequency` must be specified for :class:`NaturalFrequencyGainsCfg`.
 
-
-Renaming of omni.isaac.core Classes
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Isaac Sim 4.5 introduced some naming changes to the core prim classes that are commonly
-used in Isaac Lab. These affect the single and ``View`` variations of the prim classes, including
-Articulation, RigidPrim, XFormPrim, and others. Single-object classes are now prefixed with
-``Single``, such as ``SingleArticulation``, while tensorized View classes now have the ``View``
-suffix removed.
-
-The exact renamings of the classes are as follow:
-
-* ``Articulation`` --> ``SingleArticulation``
-* ``ArticulationView`` --> ``Articulation``
-* ``ClothPrim`` --> ``SingleClothPrim``
-* ``ClothPrimView`` --> ``ClothPrim``
-* ``DeformablePrim`` --> ``SingleDeformablePrim``
-* ``DeformablePrimView`` --> ``DeformablePrim``
-* ``GeometryPrim`` --> ``SingleGeometryPrim``
-* ``GeometryPrimView`` --> ``GeometryPrim``
-* ``ParticleSystem`` --> ``SingleParticleSystem``
-* ``ParticleSystemView`` --> ``ParticleSystem``
-* ``RigidPrim`` --> ``SingleRigidPrim``
-* ``RigidPrimView`` --> ``RigidPrim``
-* ``XFormPrim`` --> ``SingleXFormPrim``
-* ``XFormPrimView`` --> ``XFormPrim``
+The :attr:`natural_frequency` attribute must be specified for :class:`NaturalFrequencyGainsCfg`.
 
 
 Renaming of Isaac Lab Extensions and Folders
@@ -179,16 +152,17 @@ The ``source/apps`` and ``source/standalone`` folders have been moved to the roo
 
 Isaac Lab extensions have been renamed to:
 
-* ``omni.isaac.lab`` --> ``isaaclab``
-* ``omni.isaac.lab_assets`` --> ``isaaclab_assets``
-* ``omni.isaac.lab_tasks`` --> ``isaaclab_tasks``
+* ``omni.isaac.lab`` --> :mod:`isaaclab`
+* ``omni.isaac.lab_assets`` --> :mod:`isaaclab_assets`
+* ``omni.isaac.lab_tasks`` --> :mod:`isaaclab_tasks`
 
 In addition, we have split up the previous ``source/standalone/workflows`` directory into ``scripts/imitation_learning``
 and ``scripts/reinforcement_learning`` directories. The RSL RL, Stable-Baselines, RL_Games, SKRL, and Ray directories
 are under ``scripts/reinforcement_learning``, while Robomimic and the new Isaac Lab Mimic directories are under
 ``scripts/imitation_learning``.
 
-To assist with the renaming of Isaac Lab extensions in your project, we have provided a `simple script`_ that will traverse
+To assist with the renaming of Isaac Lab extensions in your project, we have provided a
+`simple script <https://gist.github.com/kellyguo11/3e8f73f739b1c013b1069ad372277a85>`_ that will traverse
 through the ``source`` and ``docs`` directories in your local Isaac Lab project and replace any instance of the renamed
 directories and imports. **Please use the script at your own risk as it will overwrite source files directly.**
 
@@ -196,22 +170,80 @@ directories and imports. **Please use the script at your own risk as it will ove
 Restructuring of Isaac Lab Extensions
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-With the introduction of ``isaaclab_mimic``, designed for supporting data generation workflows for imitation learning,
-we have also split out the previous ``wrappers`` folder under ``isaaclab_tasks`` to its own module, named ``isaaclab_rl``.
+With the introduction of :mod:`isaaclab_mimic`, designed for supporting data generation workflows for imitation learning,
+we have also split out the previous ``wrappers`` folder under ``isaaclab_tasks`` to its own module, named :mod:`isaaclab_rl`.
 This new extension will contain reinforcement learning specific wrappers for the various RL libraries supported by Isaac Lab.
 
-The new ``isaaclab_mimic`` extension will also replace the previous imitation learning scripts under the ``robomimic`` folder.
+The new :mod:`isaaclab_mimic` extension will also replace the previous imitation learning scripts under the ``robomimic`` folder.
 We have removed the old scripts for data collection and dataset preparation in favor of the new mimic workflow. For users
 who prefer to use the previous scripts, they will be available in previous release branches.
 
-Additionally, we have also restructured the ``isaaclab_assets`` extension to be split into ``robots`` and ``sensors``
+Additionally, we have also restructured the :mod:`isaaclab_assets` extension to be split into ``robots`` and ``sensors``
 subdirectories. This allows for clearer separation between the pre-defined configurations provided in the extension.
-For any existing imports such as ``from omni.isaac.lab_assets.anymal import ANYMAL_C_CFG``, please replace it with
-``from isaaclab.robots.anymal import ANYMAL_C_CFG``.
 
+As an example, the following imports:
+
+.. code-block:: python
+
+    from omni.isaac.lab_assets.anymal import ANYMAL_C_CFG
+
+should be replaced with:
+
+.. code-block:: python
+
+    from isaaclab_assets.robots.anymal import ANYMAL_C_CFG
+
+
+v1.4.1
+======
+
+Overview
+--------
+
+This release contains a set of improvements and bug fixes.
+
+Most importantly, we reverted one of the `changes from the previous release <https://github.com/isaac-sim/IsaacLab/pull/966>`_
+to ensure the training throughput performance remains the same.
+
+**Full Changelog**: https://github.com/isaac-sim/IsaacLab/compare/v1.4.0...v1.4.1
+
+This is the **final release compatible with Isaac Sim 4.2**. The next release will target Isaac Sim 4.5,
+which introduces breaking changes that will make Isaac Lab incompatible with earlier versions of Isaac Sim.
+
+New Features
+------------
+
+* Adds documentation and demo script for IMU sensor by @mpgussert in https://github.com/isaac-sim/IsaacLab/pull/1694
+
+Improvements
+------------
+
+* Removes deprecation for root_state_w properties and setters by @jtigue-bdai in https://github.com/isaac-sim/IsaacLab/pull/1695
+* Fixes MARL workflows for recording videos during training/inferencing by @Rishi-V in https://github.com/isaac-sim/IsaacLab/pull/1596
+* Adds body tracking option to ViewerCfg by @KyleM73 in https://github.com/isaac-sim/IsaacLab/pull/1620
+* Fixes the ``joint_parameter_lookup`` type in ``RemotizedPDActuatorCfg`` to support list format by @fan-ziqi in https://github.com/isaac-sim/IsaacLab/pull/1626
+* Updates pip installation documentation to clarify options by @steple in https://github.com/isaac-sim/IsaacLab/pull/1621
+* Fixes docstrings in Articulation Data that report wrong return dimension by @zoctipus in https://github.com/isaac-sim/IsaacLab/pull/1652
+* Fixes documentation error for PD Actuator by @kellyguo11 in https://github.com/isaac-sim/IsaacLab/pull/1668
+* Clarifies ray documentation and fixes minor issues by @garylvov in https://github.com/isaac-sim/IsaacLab/pull/1717
+* Updates code snippets in documentation to reference scripts by @mpgussert in https://github.com/isaac-sim/IsaacLab/pull/1693
+* Adds dict conversion test for ActuatorBase configs by @mschweig in https://github.com/isaac-sim/IsaacLab/pull/1608
+
+Bug Fixes
+---------
+
+* Fixes JointAction not preserving order when using all joints by @T-K-233 in https://github.com/isaac-sim/IsaacLab/pull/1587
+* Fixes event term for pushing root by setting velocity by @Mayankm96 in https://github.com/isaac-sim/IsaacLab/pull/1584
+* Fixes error in Articulation where ``default_joint_stiffness`` and ``default_joint_damping`` are not correctly set for implicit actuator by @zoctipus in https://github.com/isaac-sim/IsaacLab/pull/1580
+* Fixes action reset of ``pre_trained_policy_action`` in navigation environment by @nicolaloi in https://github.com/isaac-sim/IsaacLab/pull/1623
+* Fixes rigid object's root com velocities timestamp check by @ori-gadot in https://github.com/isaac-sim/IsaacLab/pull/1674
+* Adds interval resampling on event manager's reset call by @Mayankm96 in https://github.com/isaac-sim/IsaacLab/pull/1750
+* Corrects calculation of target height adjustment based on sensor data by @fan-ziqi in https://github.com/isaac-sim/IsaacLab/pull/1710
+* Fixes infinite loop in ``repeated_objects_terrain`` method  by @nicolaloi in https://github.com/isaac-sim/IsaacLab/pull/1612
+* Fixes issue where the indices were not created correctly for articulation setters by @AntoineRichard in https://github.com/isaac-sim/IsaacLab/pull/1660
 
 New Contributors
-----------------
+~~~~~~~~~~~~~~~~
 
 * @T-K-233 made their first contribution in https://github.com/isaac-sim/IsaacLab/pull/1587
 * @steple made their first contribution in https://github.com/isaac-sim/IsaacLab/pull/1616
