@@ -4,9 +4,11 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 """
-This scripts run training with rsl-rl library over a subset of the environments.
+This scripts run training with different RL libraries over a subset of the environments.
 
 It calls the script ``scripts/reinforcement_learning/${args.lib_name}/train.py`` with the appropriate arguments.
+Each training run has the corresponding "commit tag" appended to the run name, which allows comparing different
+training logs of the same environments.
 
 Example usage:
 
