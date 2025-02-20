@@ -171,7 +171,7 @@ For updating the changelog, please follow the following guidelines:
   * ``Fixed``: For any bug fixes.
 
 * Each change is described in its corresponding sub-section with a bullet point.
-* The bullet points are written in the **past tense and in imperative mode**.
+* The bullet points are written in the **past tense**.
 
   * This means that the change is described as if it has already happened.
   * The bullet points should be concise and to the point. They should not be verbose.
