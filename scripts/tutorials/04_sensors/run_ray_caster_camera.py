@@ -6,7 +6,7 @@
 """
 This script shows how to use the ray-cast camera sensor from the Isaac Lab framework.
 
-The camera sensor is based on using Warp kernels which do ray-casting against static meshes.
+The camera sensor is based on using Warp kernels which do ray-casting against meshes.
 
 .. code-block:: bash
 
