@@ -97,11 +97,11 @@ Notably, the following commonly used Isaac Sim extensions in Isaac Lab are renam
 
 * ``omni.isaac.cloner`` --> :mod:`isaacsim.core.cloner`
 * ``omni.isaac.core.prims`` --> :mod:`isaacsim.core.prims`
-* ``omni.isaac.core.simulation_context`` --> :mod:`isaacsim.core.api.simulation_context``
-* ``omni.isaac.core.utils`` --> :mod:`isaacsim.core.utils``
-* ``omni.isaac.core.world`` --> :mod:`isaacsim.core.api.world``
-* ``omni.isaac.kit.SimulationApp`` --> :mod:`isaacsim.SimulationApp``
-* ``omni.isaac.ui`` --> :mod:`isaacsim.gui.components``
+* ``omni.isaac.core.simulation_context`` --> :mod:`isaacsim.core.api.simulation_context`
+* ``omni.isaac.core.utils`` --> :mod:`isaacsim.core.utils`
+* ``omni.isaac.core.world`` --> :mod:`isaacsim.core.api.world`
+* ``omni.isaac.kit.SimulationApp`` --> :mod:`isaacsim.SimulationApp`
+* ``omni.isaac.ui`` --> :mod:`isaacsim.gui.components`
 
 Renaming of the URDF and MJCF Importers
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
