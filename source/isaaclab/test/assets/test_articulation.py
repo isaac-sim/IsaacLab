@@ -171,6 +171,12 @@ class TestArticulation(unittest.TestCase):
                             path.split("/")[-1] for path in articulation.root_physx_view.link_paths[0]
                         ]
                         self.assertListEqual(prim_path_body_names, articulation.body_names)
+                        # -- actuator type
+                        for actuator_name, actuator in articulation.actuators.items():
+                            is_implicit_model_cfg = isinstance(
+                                articulation_cfg.actuators[actuator_name], ImplicitActuatorCfg
+                            )
+                            self.assertEqual(actuator.is_implicit_model, is_implicit_model_cfg)
 
                         # Simulate physics
                         for _ in range(10):
@@ -227,6 +233,12 @@ class TestArticulation(unittest.TestCase):
                             path.split("/")[-1] for path in articulation.root_physx_view.link_paths[0]
                         ]
                         self.assertListEqual(prim_path_body_names, articulation.body_names)
+                        # -- actuator type
+                        for actuator_name, actuator in articulation.actuators.items():
+                            is_implicit_model_cfg = isinstance(
+                                articulation_cfg.actuators[actuator_name], ImplicitActuatorCfg
+                            )
+                            self.assertEqual(actuator.is_implicit_model, is_implicit_model_cfg)
 
                         # Simulate physics
                         for _ in range(10):
@@ -281,6 +293,12 @@ class TestArticulation(unittest.TestCase):
                             path.split("/")[-1] for path in articulation.root_physx_view.link_paths[0]
                         ]
                         self.assertListEqual(prim_path_body_names, articulation.body_names)
+                        # -- actuator type
+                        for actuator_name, actuator in articulation.actuators.items():
+                            is_implicit_model_cfg = isinstance(
+                                articulation_cfg.actuators[actuator_name], ImplicitActuatorCfg
+                            )
+                            self.assertEqual(actuator.is_implicit_model, is_implicit_model_cfg)
 
                         # Simulate physics
                         for _ in range(10):
@@ -341,6 +359,12 @@ class TestArticulation(unittest.TestCase):
                             path.split("/")[-1] for path in articulation.root_physx_view.link_paths[0]
                         ]
                         self.assertListEqual(prim_path_body_names, articulation.body_names)
+                        # -- actuator type
+                        for actuator_name, actuator in articulation.actuators.items():
+                            is_implicit_model_cfg = isinstance(
+                                articulation_cfg.actuators[actuator_name], ImplicitActuatorCfg
+                            )
+                            self.assertEqual(actuator.is_implicit_model, is_implicit_model_cfg)
 
                         # Simulate physics
                         for _ in range(10):
@@ -396,6 +420,12 @@ class TestArticulation(unittest.TestCase):
                             articulation.root_physx_view.max_links,
                             articulation.root_physx_view.shared_metatype.link_count,
                         )
+                        # -- actuator type
+                        for actuator_name, actuator in articulation.actuators.items():
+                            is_implicit_model_cfg = isinstance(
+                                articulation_cfg.actuators[actuator_name], ImplicitActuatorCfg
+                            )
+                            self.assertEqual(actuator.is_implicit_model, is_implicit_model_cfg)
 
                         # Simulate physics
                         for _ in range(10):

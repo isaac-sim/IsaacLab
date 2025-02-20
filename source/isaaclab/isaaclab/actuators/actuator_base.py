@@ -153,8 +153,12 @@ class ActuatorBase(ABC):
         joint_indices = self.joint_indices
         if joint_indices == slice(None):
             joint_indices = list(range(self.num_joints))
+        # resolve model type (implicit or explicit)
+        model_type = "implicit" if self.is_implicit_model else "explicit"
+
         return (
             f"<class {self.__class__.__name__}> object:\n"
+            f"\tModel type            : {model_type}\n"
             f"\tNumber of joints      : {self.num_joints}\n"
             f"\tJoint names expression: {self.cfg.joint_names_expr}\n"
             f"\tJoint names           : {self.joint_names}\n"

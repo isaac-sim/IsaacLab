@@ -345,7 +345,7 @@ class DelayedPDActuator(IdealPDActuator):
 class RemotizedPDActuator(DelayedPDActuator):
     """Ideal PD actuator with angle-dependent torque limits.
 
-    This class extends the :class:`DelayedPDActuator` class by adding angle-dependent torque limits to the self.
+    This class extends the :class:`DelayedPDActuator` class by adding angle-dependent torque limits to the actuator.
     The torque limits are applied by querying a lookup table describing the relationship between the joint angle
     and the maximum output torque. The lookup table is provided in the configuration instance passed to the class.
 
