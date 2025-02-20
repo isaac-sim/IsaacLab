@@ -389,7 +389,7 @@ to keep up with the development pace.
   documentation when the code is updated. This helps in keeping the documentation up to date and in sync
   with the code.
 
-**What is considered as a good documentation?**
+**What is considered good documentation?**
 
 We recommend thinking of the code documentation as a living document that helps the reader understand
 the *what, why and how* of the code. Often we see documentation that only explains the
