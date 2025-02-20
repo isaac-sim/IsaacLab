@@ -14,9 +14,6 @@ Example usage:
     # for rsl-rl
     python run_train_envs.py --lib-name rsl_rl
 
-    # for skrl
-    python run_train_envs.py --lib-name skrl
-
 """
 
 import argparse
@@ -43,6 +40,13 @@ def main(args: argparse.Namespace):
     # get the git commit hash
     git_commit_hash = subprocess.check_output(["git", "rev-parse", "HEAD"]).decode("utf-8").strip()
 
+    # add run name based on library
+    if args.lib_name == "rsl_rl":
+        extra_args = ["--run_name", git_commit_hash]
+    else:
+        # TODO: Modify this for other libraries as well.
+        extra_args = []
+
     # train on each environment
     for env_name in TEST_RL_ENVS:
         # print a colored output to catch the attention of the user
@@ -62,9 +66,8 @@ def main(args: argparse.Namespace):
                 "--task",
                 env_name,
                 "--headless",
-                "--run_name",
-                git_commit_hash,
-            ],
+            ]
+            + extra_args,
             check=False,  # do not raise an error if the script fails
         )
 
