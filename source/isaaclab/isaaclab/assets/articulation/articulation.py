@@ -1339,11 +1339,36 @@ class Articulation(AssetBase):
             # set the passed gains and limits into the simulation
             if isinstance(actuator, ImplicitActuator):
                 self._has_implicit_actuators = True
+                # resolve actuator limit duplication for ImplicitActuators
+                # effort limits
+                if actuator.effort_limit_sim is None and actuator.effort_limit is not None:
+                    omni.log.warn(
+                        f"ImplicitActuatorCfg {actuator_name} has effort_limit_sim=None but is specifying effort_limit."
+                        "effort_limit will be applied to effort_limit_sim for ImplicitActuators."
+                    )
+                    actuator.effort_limit_sim = actuator.effort_limit
+                elif actuator.effort_limit_sim is not None and actuator.effort_limit is not None:
+                    omni.log.warn(
+                        f"ImplicitActuatorCfg {actuator_name} has set both effort_limit_sim and effort_limit."
+                        "Only effort_limit_sim will be used for ImplicitActuators."
+                    )
+                # velocity limits
+                if actuator.velocity_limit_sim is None and actuator.velocity_limit is not None:
+                    omni.log.warn(
+                        f"ImplicitActuatorCfg {actuator_name} has velocity_limit_sim=None but is specifying"
+                        " velocity_limit.velocity_limit will be applied to velocity_limit_sim for ImplicitActuators."
+                    )
+                    actuator.velocity_limit_sim = actuator.velocity_limit
+                elif actuator.velocity_limit_sim is not None and actuator.velocity_limit is not None:
+                    omni.log.warn(
+                        f"ImplicitActuatorCfg {actuator_name} has set both velocity_limit_sim and velocity_limit."
+                        "Only velocity_limit_sim will be used for ImplicitActuators."
+                    )
                 # the gains and limits are set into the simulation since actuator model is implicit
                 self.write_joint_stiffness_to_sim(actuator.stiffness, joint_ids=actuator.joint_indices)
                 self.write_joint_damping_to_sim(actuator.damping, joint_ids=actuator.joint_indices)
-                self.write_joint_effort_limit_to_sim(actuator.effort_limit, joint_ids=actuator.joint_indices)
-                self.write_joint_velocity_limit_to_sim(actuator.velocity_limit, joint_ids=actuator.joint_indices)
+                self.write_joint_effort_limit_to_sim(actuator.effort_limit_sim, joint_ids=actuator.joint_indices)
+                self.write_joint_velocity_limit_to_sim(actuator.velocity_limit_sim, joint_ids=actuator.joint_indices)
                 self.write_joint_armature_to_sim(actuator.armature, joint_ids=actuator.joint_indices)
                 self.write_joint_friction_to_sim(actuator.friction, joint_ids=actuator.joint_indices)
             else:
@@ -1351,8 +1376,11 @@ class Articulation(AssetBase):
                 # we set gains to zero, and torque limit to a high value in simulation to avoid any interference
                 self.write_joint_stiffness_to_sim(0.0, joint_ids=actuator.joint_indices)
                 self.write_joint_damping_to_sim(0.0, joint_ids=actuator.joint_indices)
-                self.write_joint_effort_limit_to_sim(1.0e9, joint_ids=actuator.joint_indices)
-                self.write_joint_velocity_limit_to_sim(actuator.velocity_limit, joint_ids=actuator.joint_indices)
+                self.write_joint_effort_limit_to_sim(
+                    1.0e9 if actuator.effort_limit_sim is None else actuator.effort_limit_sim,
+                    joint_ids=actuator.joint_indices,
+                )
+                self.write_joint_velocity_limit_to_sim(actuator.velocity_limit_sim, joint_ids=actuator.joint_indices)
                 self.write_joint_armature_to_sim(actuator.armature, joint_ids=actuator.joint_indices)
                 self.write_joint_friction_to_sim(actuator.friction, joint_ids=actuator.joint_indices)
             # Store the actual default stiffness and damping values for explicit and implicit actuators (not written the sim)
