@@ -110,7 +110,7 @@ If you encounter any issues, please report them to the
 
    .. code-block:: none
 
-      pip install isaacsim[all,extscache]==4.5.0 --extra-index-url https://pypi.nvidia.com
+      pip install 'isaacsim[all,extscache]==4.5.0' --extra-index-url https://pypi.nvidia.com
 
 
 Verifying the Isaac Sim installation
