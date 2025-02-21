@@ -607,6 +607,5 @@ class TestMathUtilities(unittest.TestCase):
             np.testing.assert_array_almost_equal(result_pos, expected_pos, decimal=DECIMAL_PRECISION)
 
 
-
 if __name__ == "__main__":
     run_tests()
