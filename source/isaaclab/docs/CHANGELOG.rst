@@ -7,7 +7,8 @@ Changelog
 Fixed
 ^^^^^
 
-* Fixed crash when using reset_root_state_from_terrain
+* Fixed setting of root velocities inside the event term :meth:`reset_root_state_from_terrain`. Earlier, the indexing
+  based on the environment IDs was missing.
 
 
 0.34.1 (2025-02-17)
