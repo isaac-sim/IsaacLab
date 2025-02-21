@@ -196,9 +196,13 @@ class TerrainImporter:
         # create a warp mesh
         device = "cuda" if "cuda" in self.device else "cpu"
         self.warp_meshes[key] = convert_to_warp_mesh(mesh.vertices, mesh.faces, device=device)
+        # get visual properties
+        material = self.cfg.visual_material.to_dict()
+        # use default color from PreviewSurfaceCfg if not set
+        color = material["diffuse_color"] if "diffuse_color" in material.keys() else (0.18, 0.18, 0.18)
 
         # get the mesh
-        ground_plane_cfg = sim_utils.GroundPlaneCfg(physics_material=self.cfg.physics_material, size=size)
+        ground_plane_cfg = sim_utils.GroundPlaneCfg(physics_material=self.cfg.physics_material, size=size, color=color)
         ground_plane_cfg.func(self.cfg.prim_path, ground_plane_cfg)
 
     def import_mesh(self, key: str, mesh: trimesh.Trimesh):
