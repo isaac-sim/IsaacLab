@@ -86,6 +86,7 @@ Guidelines for modifications:
 * Rosario Scalise
 * Ryley McCarroll
 * Shafeef Omar
+* Shundo Kishi
 * Stephan Pleines
 * Vladimir Fokow
 * Wei Yang
