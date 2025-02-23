@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+1.0.3 (2025-02-05)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^^^
+
+* Fixed the issue where environment reset invoked in mimic's asyncio data generation task throws error when
+  camera rendering is enabled.
+
+
 1.0.2 (2025-01-10)
 ~~~~~~~~~~~~~~~~~~
 

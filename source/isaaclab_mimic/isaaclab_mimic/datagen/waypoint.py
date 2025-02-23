@@ -347,8 +347,8 @@ class WaypointTrajectory:
         self,
         env,
         env_id,
+        env_action_queue: asyncio.Queue,
         success_term,
-        env_action_queue: asyncio.Queue | None = None,
     ):
         """
         Main function to execute the trajectory. Will use env_interface.target_eef_pose_to_action to
@@ -358,8 +358,8 @@ class WaypointTrajectory:
         Args:
             env (Isaac Lab ManagerBasedEnv instance): environment to use for executing trajectory
             env_id (int): environment index
-            success_term: success term to check if the task is successful
             env_action_queue (asyncio.Queue): queue for sending actions to the environment
+            success_term: success term to check if the task is successful
 
         Returns:
             results (dict): dictionary with the following items for the executed trajectory:
@@ -404,12 +404,9 @@ class WaypointTrajectory:
                 if play_action.dim() == 1 and play_action.size(0) == 7:
                     play_action = play_action.unsqueeze(0)  # Reshape to [1, 7]
 
-                if env_action_queue is None:
-                    obs, _, _, _, _ = env.step(play_action)
-                else:
-                    await env_action_queue.put((env_id, play_action[0]))
-                    await env_action_queue.join()
-                    obs = env.obs_buf
+                await env_action_queue.put((env_id, play_action[0]))
+                await env_action_queue.join()
+                obs = env.obs_buf
 
                 # collect data
                 states.append(state)
