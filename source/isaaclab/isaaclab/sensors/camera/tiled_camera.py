@@ -16,7 +16,7 @@ import omni.usd
 import warp as wp
 from isaacsim.core.prims import XFormPrim
 from isaacsim.core.version import get_version
-from pxr import UsdGeom
+from pxr import Sdf, UsdGeom
 
 from isaaclab.utils.warp.kernels import reshape_tiled_image
 
@@ -91,6 +91,13 @@ class TiledCamera(Camera):
                 " update to Isaac Sim 4.2.0"
             )
         super().__init__(cfg)
+
+        # HACK: we need to disable instancing for semantic_segmentation and instance_segmentation_fast to work
+        if "semantic_segmentation" in self.cfg.data_types or "instance_segmentation_fast" in self.cfg.data_types:
+            stage = omni.usd.get_context().get_stage()
+            with Sdf.ChangeBlock():
+                for prim in stage.Traverse():
+                    prim.SetInstanceable(False)
 
     def __del__(self):
         """Unsubscribes from callbacks and detach from the replicator registry."""
