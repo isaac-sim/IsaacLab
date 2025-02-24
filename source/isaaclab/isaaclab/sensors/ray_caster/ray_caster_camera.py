@@ -15,7 +15,7 @@ from isaacsim.core.prims import XFormPrim
 
 import isaaclab.utils.math as math_utils
 from isaaclab.sensors.camera import CameraData
-from isaaclab.utils.warp import raycast_mesh
+from isaaclab.utils.warp import convert_to_warp_mesh, raycast_mesh
 
 from .ray_caster import RayCaster
 
@@ -38,10 +38,6 @@ class RayCasterCamera(RayCaster):
     - ``"distance_to_camera"``: An image containing the distance to camera optical center.
     - ``"distance_to_image_plane"``: An image containing distances of 3D points from camera plane along camera's z-axis.
     - ``"normals"``: An image containing the local surface normal vectors at each pixel.
-
-    .. note::
-        Currently, only static meshes are supported. Extending the warp mesh to support dynamic meshes
-        is a work in progress.
     """
 
     cfg: RayCasterCameraCfg
@@ -110,7 +106,7 @@ class RayCasterCamera(RayCaster):
         return (self.cfg.pattern_cfg.height, self.cfg.pattern_cfg.width)
 
     @property
-    def frame(self) -> torch.tensor:
+    def frame(self) -> torch.Tensor:
         """Frame number when the measurement took place."""
         return self._frame
 
@@ -270,30 +266,57 @@ class RayCasterCamera(RayCaster):
         ray_starts_w += pos_w.unsqueeze(1)
         ray_directions_w = math_utils.quat_apply(quat_w.repeat(1, self.num_rays), self.ray_directions[env_ids])
 
-        # ray cast and store the hits
-        # note: we set max distance to 1e6 during the ray-casting. THis is because we clip the distance
-        # to the image plane and distance to the camera to the maximum distance afterwards in-order to
-        # match the USD camera behavior.
+        # initialize buffers for accumulating results.
+        final_hits = torch.full((self._view.count, self.num_rays, 3), float("inf"), device=self.device)
+        final_depth = torch.full((self._view.count, self.num_rays), float("inf"), device=self.device)
+        final_normals = torch.full((self._view.count, self.num_rays, 3), float("inf"), device=self.device)
 
-        # TODO: Make ray-casting work for multiple meshes?
-        # necessary for regular dictionaries.
-        self.ray_hits_w, ray_depth, ray_normal, _ = raycast_mesh(
-            ray_starts_w,
-            ray_directions_w,
-            mesh=self.meshes[self.cfg.mesh_prim_paths[0]],
-            max_dist=1e6,
-            return_distance=any(
-                [name in self.cfg.data_types for name in ["distance_to_image_plane", "distance_to_camera"]]
-            ),
-            return_normal="normals" in self.cfg.data_types,
-        )
-        # update output buffers
+        # loop over all mesh and their corresponding mesh infos.
+        for pattern, mesh_info_list in self.meshes.items():
+            for mesh_info in mesh_info_list:
+                # retrieve the current transform of the mesh using its xform view.
+                mesh_view = mesh_info["xform_view"]
+                indices = torch.arange(mesh_view.count, device=self.device)
+                mesh_pos, mesh_quat = mesh_view.get_world_poses(indices)
+                base_points = torch.tensor(mesh_info["base_points"], device=self.device, dtype=torch.float32)
+                # update vertex positions by applying the current mesh transformation.
+                new_points = math_utils.quat_apply(
+                    mesh_quat, base_points.unsqueeze(0).repeat(mesh_view.count, 1, 1)
+                ) + mesh_pos.unsqueeze(1)
+                new_points_np = new_points.cpu().numpy().reshape(-1, 3)
+                # rebuild the warp mesh with updated vertex positions.
+                new_wp_mesh = convert_to_warp_mesh(new_points_np, mesh_info["indices"], device=self.device)
+                # store the updated warp mesh in the mesh info dictionary.
+                mesh_info["warp_mesh"] = new_wp_mesh
+                # perform raycasting for this dynamic mesh
+                # note: we set max distance to 1e6 during the ray-casting. This is because we clip the distance
+                # to the image plane and distance to the camera to the maximum distance afterwards in-order to
+                # match the USD camera behavior.
+                hit, depth, normal, _ = raycast_mesh(
+                    ray_starts_w,
+                    ray_directions_w,
+                    max_dist=1e6,
+                    mesh=new_wp_mesh,
+                    return_distance=True,
+                    return_normal="normals" in self.cfg.data_types,
+                )
+                # update the final results if this mesh produces a closer hit.
+                mask = depth < final_depth
+                final_depth[mask] = depth[mask]
+                final_hits[mask] = hit[mask]
+                if "normals" in self.cfg.data_types:
+                    final_normals[mask] = normal[mask]
+
+        # save the computed ray hit positions.
+        self.ray_hits_w[env_ids] = final_hits[env_ids]
+
+        # process and store camera-specific outputs.
         if "distance_to_image_plane" in self.cfg.data_types:
             # note: data is in camera frame so we only take the first component (z-axis of camera frame)
             distance_to_image_plane = (
                 math_utils.quat_apply(
                     math_utils.quat_inv(quat_w).repeat(1, self.num_rays),
-                    (ray_depth[:, :, None] * ray_directions_w),
+                    (final_depth[:, :, None] * ray_directions_w),
                 )
             )[:, :, 0]
             # apply the maximum distance after the transformation
@@ -308,6 +331,7 @@ class RayCasterCamera(RayCaster):
             )
 
         if "distance_to_camera" in self.cfg.data_types:
+            ray_depth = final_depth
             if self.cfg.depth_clipping_behavior == "max":
                 ray_depth = torch.clip(ray_depth, max=self.cfg.max_distance)
             elif self.cfg.depth_clipping_behavior == "zero":
@@ -315,7 +339,7 @@ class RayCasterCamera(RayCaster):
             self._data.output["distance_to_camera"][env_ids] = ray_depth.view(-1, *self.image_shape, 1)
 
         if "normals" in self.cfg.data_types:
-            self._data.output["normals"][env_ids] = ray_normal.view(-1, *self.image_shape, 3)
+            self._data.output["normals"][env_ids] = final_normals.view(-1, *self.image_shape, 3)
 
     def _debug_vis_callback(self, event):
         # in case it crashes be safe
