@@ -62,7 +62,7 @@ class AssetBase(ABC):
         # check that the config is valid
         cfg.validate()
         # store inputs
-        self.cfg = cfg
+        self.cfg = cfg.copy()
         # flag for whether the asset is initialized
         self._is_initialized = False
 
