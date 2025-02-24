@@ -114,7 +114,21 @@ def base_height_l2(
     if sensor_cfg is not None:
         sensor: RayCaster = env.scene[sensor_cfg.name]
         # Adjust the target height using the sensor data
-        adjusted_target_height = target_height + torch.mean(sensor.data.ray_hits_w[..., 2], dim=1)
+        ray_hits = sensor.data.ray_hits_w[..., 2]
+        if torch.isnan(ray_hits).any() or torch.isinf(ray_hits).any() or torch.max(torch.abs(ray_hits)) > 1e6:
+            num_nan = torch.sum(torch.isnan(ray_hits),dim=-1)
+            ray_hits[torch.isnan(ray_hits)] = 0.0
+            num_inf = torch.sum(torch.isinf(ray_hits),dim=-1)
+            ray_hits[torch.isinf(ray_hits)] = 0.0
+            num_outlier = torch.sum(torch.abs(ray_hits) > 1e6,dim=-1)
+            ray_hits[torch.abs(ray_hits) > 1e6] = 0.0
+            # Use the average of the valid ray hits to adjust the target height
+            adjusted_target_height = target_height + torch.sum(ray_hits,dim=-1) / (ray_hits.shape[1]-num_nan-num_inf-num_outlier)
+            # If all the ray hits are illegal, use the root link position
+            all_illegal_env = ((num_nan+num_inf+num_outlier)==ray_hits.shape[1])
+            adjusted_target_height[all_illegal_env] = asset.data.root_link_pos_w[all_illegal_env, 2]
+        else:
+            adjusted_target_height = target_height + torch.mean(ray_hits, dim=1)
     else:
         # Use the provided target height directly for flat terrain
         adjusted_target_height = target_height
