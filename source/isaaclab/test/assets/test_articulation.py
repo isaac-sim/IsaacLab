@@ -21,7 +21,6 @@ simulation_app = app_launcher.app
 import ctypes
 import torch
 import unittest
-from typing import Literal
 
 import isaacsim.core.utils.prims as prim_utils
 
@@ -1014,8 +1013,7 @@ class TestArticulation(unittest.TestCase):
                                     )
                                 elif vel_limit_sim is not None and vel_limit is None:
                                     # read the values set into the simulation
-                                    physx_vel_limit = articulation.root_physx_view.get_dof_max_velocities()
-                                    physx_vel_limit = physx_vel_limit.to(device=device)
+                                    physx_vel_limit = articulation.root_physx_view.get_dof_max_velocities().to(device)
 
                                     expected_velocity_limit = torch.full(
                                         (articulation.num_instances, articulation.num_joints),
@@ -1086,54 +1084,55 @@ class TestArticulation(unittest.TestCase):
                                 # Play sim
                                 sim.reset()
 
-                                if vel_limit is not None and vel_limit_sim is None:
-                                    measured = articulation.root_physx_view.get_dof_max_velocities()[0].item()
-                                    # check to make sure the velocity_limit is not propagated to root_physx_view
-                                    self.assertNotEqual(measured, vel_limit)
-                                    self.assertAlmostEqual(measured, 1.0e9)
-                                elif vel_limit is None and vel_limit_sim is None:
-                                    # check to make sure the measured value isn't changed
-                                    measured = articulation.root_physx_view.get_dof_max_velocities()[0].item()
-                                    # TODO: Come up with a better way to check that the default usd limit hasn't been
-                                    # overwritten.
-                                    self.assertTrue(measured > 1e10)
-                                    torch.testing.assert_close(
-                                        articulation.actuators["joint"].velocity_limit_sim,
-                                        articulation.actuators["joint"].velocity_limit,
+                                # collect limit init values
+                                physx_vel_limit = articulation.root_physx_view.get_dof_max_velocities().to(device)
+                                actuator_vel_limit = articulation.actuators["joint"].velocity_limit
+                                actuator_vel_limit_sim = articulation.actuators["joint"].velocity_limit_sim
+
+                                # check data buffer for joint_velocity_limits_sim
+                                torch.testing.assert_close(
+                                    articulation.data.joint_velocity_limits,
+                                    physx_vel_limit,
+                                )
+
+                                if vel_limit is not None:
+                                    expected_actuator_velocity_limit = torch.full(
+                                        (articulation.num_instances, articulation.num_joints),
+                                        vel_limit,
+                                        device=articulation.device,
                                     )
-                                elif vel_limit is None and vel_limit_sim is not None:
+                                    # check actuator is set
+                                    torch.testing.assert_close(
+                                        actuator_vel_limit,
+                                        expected_actuator_velocity_limit,
+                                    )
+                                    # check physx is not velocity_limit
+                                    self.assertGreater(physx_vel_limit[0].item(), vel_limit)
+                                else:
+                                    # check actuator is not set
+                                    self.assertGreater(actuator_vel_limit[0], 1.0e9)
+
+                                if vel_limit_sim is not None:
                                     expected_velocity_limit = torch.full(
                                         (articulation.num_instances, articulation.num_joints),
                                         vel_limit_sim,
                                         device=articulation.device,
                                     )
-                                    physx_velocity_limit = articulation.root_physx_view.get_dof_max_velocities().to(
-                                        device=device
-                                    )
-                                    # check root_physx_view
-                                    torch.testing.assert_close(physx_velocity_limit, expected_velocity_limit)
-                                    # check actuator
+                                    # check actuator is set
                                     torch.testing.assert_close(
-                                        articulation.actuators["joint"].velocity_limit_sim, expected_velocity_limit
+                                        actuator_vel_limit_sim,
+                                        expected_velocity_limit,
                                     )
-                                    # check data buffer
-                                    torch.testing.assert_close(
-                                        articulation.data.joint_velocity_limits, expected_velocity_limit
-                                    )
+                                    # check physx is set to expected value
+                                    torch.testing.assert_close(expected_velocity_limit, physx_vel_limit)
+
                                 else:
-                                    physx_velocity_limit = articulation.root_physx_view.get_dof_max_velocities().to(
-                                        device=device
-                                    )
-                                    # we do not set velocity limit though `vel_limit` so it is USD default
-                                    expected_velocity_limit = physx_velocity_limit.clone()
-                                    # check actuator
-                                    torch.testing.assert_close(
-                                        articulation.actuators["joint"].velocity_limit_sim, expected_velocity_limit
-                                    )
-                                    # check data buffer
-                                    torch.testing.assert_close(
-                                        articulation.data.joint_velocity_limits, expected_velocity_limit
-                                    )
+                                    # check physx is not set by vel_limit_sim
+                                    self.assertGreater(physx_vel_limit[0].item(), 1.0e9)
+                                    # check actuator velocity_limit_sim is set to physx
+                                    torch.testing.assert_close(actuator_vel_limit_sim, physx_vel_limit)
+                                    # check data buffer is set to physx limit
+                                    torch.testing.assert_close(articulation.data.joint_velocity_limits, physx_vel_limit)
 
     def test_setting_effort_limit_implicit(self):
         """Test setting of the effort limit for implicit actuators.
@@ -1247,59 +1246,47 @@ class TestArticulation(unittest.TestCase):
                                 # Play sim
                                 sim.reset()
 
-                                if effort_limit is None and effort_limit_sim is None:
-                                    # check to make sure the measured value isn't changed
-                                    measured = articulation.root_physx_view.get_dof_max_forces()[0].item()
-                                    # TODO: come up with a better way to check that the default usd limit hasn't been
-                                    # overwritten
-                                    self.assertTrue(measured > 1e8)
+                                # collect limit init values
+                                physx_effort_limit = articulation.root_physx_view.get_dof_max_forces().to(device)
+                                actuator_effort_limit = articulation.actuators["joint"].effort_limit
+                                actuator_effort_limit_sim = articulation.actuators["joint"].effort_limit_sim
 
-                                    torch.testing.assert_close(
-                                        articulation.actuators["joint"].effort_limit_sim,
-                                        articulation.actuators["joint"].effort_limit,
-                                    )
-                                elif effort_limit is not None and effort_limit_sim is not None:
-                                    check_is_close = torch.isclose(
-                                        articulation.actuators["joint"].effort_limit_sim,
-                                        articulation.actuators["joint"].effort_limit,
-                                    )
-                                    self.assertFalse(check_is_close)
-
-                                    expected_effort_limit = torch.full(
+                                if effort_limit is not None:
+                                    expected_actuator_effort_limit = torch.full(
                                         (articulation.num_instances, articulation.num_joints),
-                                        effort_limit_sim,
+                                        effort_limit,
                                         device=articulation.device,
                                     )
-                                    physx_effort_limit = articulation.root_physx_view.get_dof_max_forces().to(
-                                        device=device
-                                    )
-                                    # check root_physx_view
+                                    # check actuator is set
                                     torch.testing.assert_close(
-                                        physx_effort_limit, expected_effort_limit
+                                        actuator_effort_limit,
+                                        expected_actuator_effort_limit,
                                     )
-                                elif effort_limit is None and effort_limit_sim is not None:
-                                    expected_effort_limit = torch.full(
-                                        (articulation.num_instances, articulation.num_joints),
-                                        effort_limit_sim,
-                                        device=articulation.device,
-                                    )
-                                    physx_effort_limit = articulation.root_physx_view.get_dof_max_forces().to(
-                                        device=device
-                                    )
-                                    # check root_physx_view
-                                    torch.testing.assert_close(
-                                        physx_effort_limit, expected_effort_limit
-                                    )
+                                    # check physx is not effort_limit
+                                    self.assertGreater(physx_effort_limit[0].item(), effort_limit)
                                 else:
+                                    # check actuator effort_limit is greater than or equal to effort_limit_sim
+                                    self.assertGreaterEqual(actuator_effort_limit[0], actuator_effort_limit_sim[0])
+
+                                if effort_limit_sim is not None:
                                     expected_effort_limit = torch.full(
                                         (articulation.num_instances, articulation.num_joints),
                                         effort_limit_sim,
                                         device=articulation.device,
                                     )
-                                    physx_effort_limit = articulation.root_physx_view.get_dof_max_forces()
-                                    physx_effort_limit = physx_effort_limit.to(device=device)
-                                    # check root_physx_view
-                                    torch.testing.assert_close(physx_effort_limit, expected_effort_limit)
+                                    # check actuator is set
+                                    torch.testing.assert_close(
+                                        actuator_effort_limit_sim,
+                                        expected_effort_limit,
+                                    )
+                                    # check physx is set to expected value
+                                    torch.testing.assert_close(expected_effort_limit, physx_effort_limit)
+
+                                else:
+                                    # check physx is not set by vel_limit_sim
+                                    self.assertGreaterEqual(physx_effort_limit[0].item(), 1.0e9)
+                                    # check actuator effort_limit_sim is set to physx
+                                    torch.testing.assert_close(actuator_effort_limit_sim, physx_effort_limit)
 
     def test_reset(self):
         """Test that reset method works properly.
