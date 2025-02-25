@@ -207,4 +207,4 @@ following commands:
    ./isaaclab.sh -p scripts/tutorials/04_sensors/run_ray_caster_camera.py
 
    # USD Camera
-   ./isaaclab.sh -p scripts/tutorials/04_sensors/run_usd_camera.py
+   ./isaaclab.sh -p scripts/tutorials/04_sensors/run_usd_camera.py --enable_cameras
