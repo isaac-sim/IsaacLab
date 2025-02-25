@@ -38,6 +38,7 @@ Guidelines for modifications:
 * Alice Zhou
 * Amr Mousa
 * Andrej Orsula
+* Anjie Xu
 * Anton Bjørndahl Mortensen
 * Arjun Bhardwaj
 * Ashwin Varghese Kuruttukulam
