@@ -93,11 +93,12 @@ class TiledCamera(Camera):
         super().__init__(cfg)
 
         # HACK: we need to disable instancing for semantic_segmentation and instance_segmentation_fast to work
-        if "semantic_segmentation" in self.cfg.data_types or "instance_segmentation_fast" in self.cfg.data_types:
-            stage = omni.usd.get_context().get_stage()
-            with Sdf.ChangeBlock():
-                for prim in stage.Traverse():
-                    prim.SetInstanceable(False)
+        if isaac_sim_version == 4.5:
+            if "semantic_segmentation" in self.cfg.data_types or "instance_segmentation_fast" in self.cfg.data_types:
+                stage = omni.usd.get_context().get_stage()
+                with Sdf.ChangeBlock():
+                    for prim in stage.Traverse():
+                        prim.SetInstanceable(False)
 
     def __del__(self):
         """Unsubscribes from callbacks and detach from the replicator registry."""
