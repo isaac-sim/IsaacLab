@@ -271,6 +271,7 @@ class ObservationManager(ManagerBase):
 
         # Cache the observations.
         self._obs_buffer = obs_buffer
+        breakpoint()
         return obs_buffer
 
     def compute_group(self, group_name: str) -> torch.Tensor | dict[str, torch.Tensor]:
@@ -318,6 +319,11 @@ class ObservationManager(ManagerBase):
         # read attributes for each term
         obs_terms = zip(group_term_names, self._group_obs_term_cfgs[group_name])
 
+        # Extract group-level configuration for clarity.
+        group_history_length = self._group_obs_history_length[group_name]
+        flatten_group_history = self._group_obs_flatten_history_dim[group_name]
+        concatenate_obs = self._group_obs_concatenate[group_name]
+
         # evaluate terms: compute, add noise, clip, scale, custom modifiers
         for term_name, term_cfg in obs_terms:
             # compute term's value
@@ -334,33 +340,31 @@ class ObservationManager(ManagerBase):
                 obs = obs.mul_(term_cfg.scale)
             # Update the history buffer if observation term has history enabled
             if term_cfg.history_length > 0:
-                self._group_obs_term_history_buffer[group_name][term_name].append(obs)
-                if (
-                    self._group_obs_history_length[group_name] is not None
-                    or not term_cfg.flatten_history_dim
-                ):
-                    # Preserve history shape if desired, or if flattening as a group.
-                    group_obs[term_name] = self._group_obs_term_history_buffer[
-                        group_name
-                    ][term_name].buffer
-                else:
-                    group_obs[term_name] = self._group_obs_term_history_buffer[
-                        group_name
-                    ][term_name].buffer.reshape(self._env.num_envs, -1)
+                # Append the current observation to the term's history buffer.
+                history_buffer = self._group_obs_term_history_buffer[group_name][
+                    term_name
+                ]
+                history_buffer.append(obs)
 
+                # Decide whether to preserve the full history shape.
+                if group_history_length is not None or not term_cfg.flatten_history_dim:
+                    # Preserve history shape.
+                    group_obs[term_name] = history_buffer.buffer
+                else:
+                    # Flatten the history: merge all historical steps into the feature dimension.
+                    group_obs[term_name] = history_buffer.buffer.reshape(
+                        self._env.num_envs, -1
+                    )
             else:
                 group_obs[term_name] = obs
 
-        # concatenate all observations in the group together
-        if self._group_obs_concatenate[group_name]:
+        # Concatenate observations if required.
+        if concatenate_obs:
             concatenated_obs = torch.cat(list(group_obs.values()), dim=-1)
-            if self._group_obs_history_length[group_name] is not None:
-                if self._group_obs_flatten_history_dim[group_name]:
-                    return concatenated_obs.reshape(self._env.num_envs, -1)
-                else:
-                    return concatenated_obs
-            else:
-                return concatenated_obs
+            # If a group-level history is specified and we want to flatten it, reshape accordingly.
+            if group_history_length is not None and flatten_group_history:
+                return concatenated_obs.reshape(self._env.num_envs, -1)
+            return concatenated_obs
         else:
             return group_obs
 
