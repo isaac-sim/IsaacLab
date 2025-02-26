@@ -3,16 +3,18 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import asyncio
 import contextlib
 import torch
-import asyncio
 from typing import Any
 
 from isaaclab_mimic.datagen.data_generator import DataGenerator
 from isaaclab_mimic.datagen.datagen_info_pool import DataGenInfoPool
-from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
+
 from isaaclab.envs.mdp.recorders.recorders_cfg import ActionStateRecorderManagerCfg
 from isaaclab.managers import DatasetExportMode
+
+from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
 
 # global variable to keep track of the data generation statistics
 num_success = 0
@@ -85,10 +87,17 @@ def env_loop(env, env_action_queue, shared_datagen_info_pool, asyncio_event_loop
 
     env.close()
 
-def setup_env_config(env_name: str, output_dir: str, output_file_name: str, 
-                    num_envs: int, device: str, generation_num_trials: int | None = None) -> tuple[Any, Any]:
+
+def setup_env_config(
+    env_name: str,
+    output_dir: str,
+    output_file_name: str,
+    num_envs: int,
+    device: str,
+    generation_num_trials: int | None = None,
+) -> tuple[Any, Any]:
     """Configure the environment for data generation.
-    
+
     Args:
         env_name: Name of the environment
         output_dir: Directory to save output
@@ -96,22 +105,22 @@ def setup_env_config(env_name: str, output_dir: str, output_file_name: str,
         num_envs: Number of environments to run
         device: Device to run on
         generation_num_trials: Optional override for number of trials
-        
+
     Returns:
         tuple containing:
             - env_cfg: The environment configuration
             - success_term: The success termination condition
-            
+
     Raises:
         NotImplementedError: If no success termination term found
     """
     env_cfg = parse_env_cfg(env_name, device=device, num_envs=num_envs)
-    
+
     if generation_num_trials is not None:
         env_cfg.datagen_config.generation_num_trials = generation_num_trials
-    
+
     env_cfg.env_name = env_name
-    
+
     # Extract success checking function
     success_term = None
     if hasattr(env_cfg.terminations, "success"):
@@ -123,30 +132,32 @@ def setup_env_config(env_name: str, output_dir: str, output_file_name: str,
     # Configure for data generation
     env_cfg.terminations = None
     env_cfg.observations.policy.concatenate_terms = False
-    
+
     # Setup recorders
     env_cfg.recorders = ActionStateRecorderManagerCfg()
     env_cfg.recorders.dataset_export_dir_path = output_dir
     env_cfg.recorders.dataset_filename = output_file_name
-    
+
     if env_cfg.datagen_config.generation_keep_failed:
         env_cfg.recorders.dataset_export_mode = DatasetExportMode.EXPORT_SUCCEEDED_FAILED_IN_SEPARATE_FILES
     else:
         env_cfg.recorders.dataset_export_mode = DatasetExportMode.EXPORT_SUCCEEDED_ONLY
-    
+
     return env_cfg, success_term
 
-def setup_async_generation(env: Any, num_envs: int, input_file: str, 
-                         success_term: Any, pause_subtask: bool = False) -> dict[str, Any]:
+
+def setup_async_generation(
+    env: Any, num_envs: int, input_file: str, success_term: Any, pause_subtask: bool = False
+) -> dict[str, Any]:
     """Setup async data generation tasks.
-    
+
     Args:
         env: The environment instance
         num_envs: Number of environments to run
         input_file: Path to input dataset file
         success_term: Success termination condition
         pause_subtask: Whether to pause after subtasks
-        
+
     Returns:
         List of asyncio tasks for data generation
     """
@@ -164,15 +175,13 @@ def setup_async_generation(env: Any, num_envs: int, input_file: str,
     data_generator_asyncio_tasks = []
     for i in range(num_envs):
         task = asyncio_event_loop.create_task(
-            run_data_generator(
-                env, i, env_action_queue, data_generator, success_term, pause_subtask=pause_subtask
-            )
+            run_data_generator(env, i, env_action_queue, data_generator, success_term, pause_subtask=pause_subtask)
         )
         data_generator_asyncio_tasks.append(task)
-        
+
     return {
-        'tasks': data_generator_asyncio_tasks,
-        'event_loop': asyncio_event_loop,
-        'action_queue': env_action_queue,
-        'info_pool': shared_datagen_info_pool
+        "tasks": data_generator_asyncio_tasks,
+        "event_loop": asyncio_event_loop,
+        "action_queue": env_action_queue,
+        "info_pool": shared_datagen_info_pool,
     }
