@@ -83,28 +83,12 @@ class ObservationManager(ManagerBase):
         # call the base class constructor (this will parse the terms config)
         super().__init__(cfg, env)
 
-        # compute combined vector for obs group
+        # Compute combined vector for observation group.
         self._group_obs_dim: dict[str, tuple[int, ...] | list[tuple[int, ...]]] = dict()
         for group_name, group_term_dims in self._group_obs_term_dim.items():
-            # if terms are concatenated, compute the combined shape into a single tuple
-            # otherwise, keep the list of shapes as is
-            if self._group_obs_concatenate[group_name]:
-                try:
-                    term_dims = [
-                        torch.tensor(dims, device="cpu") for dims in group_term_dims
-                    ]
-                    self._group_obs_dim[group_name] = tuple(
-                        torch.sum(torch.stack(term_dims, dim=0), dim=0).tolist()
-                    )
-                except RuntimeError:
-                    raise RuntimeError(
-                        f"Unable to concatenate observation terms in group '{group_name}'."
-                        f" The shapes of the terms are: {group_term_dims}."
-                        " Please ensure that the shapes are compatible for concatenation."
-                        " Otherwise, set 'concatenate_terms' to False in the group configuration."
-                    )
-            else:
-                self._group_obs_dim[group_name] = group_term_dims
+            self._group_obs_dim[group_name] = self.combine_group_dims(
+                group_term_dims, group_name
+            )
 
         # Stores the latest observations.
         self._obs_buffer: dict[str, torch.Tensor | dict[str, torch.Tensor]] | None = (
@@ -271,7 +255,6 @@ class ObservationManager(ManagerBase):
 
         # Cache the observations.
         self._obs_buffer = obs_buffer
-        breakpoint()
         return obs_buffer
 
     def compute_group(self, group_name: str) -> torch.Tensor | dict[str, torch.Tensor]:
@@ -558,3 +541,70 @@ class ObservationManager(ManagerBase):
                     term_cfg.func.reset()
             # add history buffers for each group
             self._group_obs_term_history_buffer[group_name] = group_entry_history_buffer
+
+    def combine_group_dims(
+        self, group_term_dims: list[tuple[int, ...]], group_name: str
+    ) -> tuple[int, ...] | list[tuple[int, ...]]:
+        """
+        Combine observation term dimensions for a given group.
+
+        For unflattened terms (tuples of length >= 2), each dims is expected to be of the form:
+            (H, d1, d2, ..., d_n)
+        This function checks that all terms share the same history (H) and that all trailing dimensions
+        except for the last are identical. It then sums the last dimension across terms.
+
+        For flattened terms (tuples of length 1), it simply sums the single value.
+
+        Raises a RuntimeError if mixed formats are encountered or if dimensions are incompatible.
+        """
+        # Separate flattened and unflattened dimensions.
+        flattened = [dims for dims in group_term_dims if len(dims) == 1]
+        unflattened = [dims for dims in group_term_dims if len(dims) > 1]
+
+        if flattened and unflattened:
+            if self._group_obs_concatenate[group_name]:
+                # Observation shapes should not be mixed if concatenating - raise error.
+                raise RuntimeError(
+                    f"In group '{group_name}', mixed dimension formats encountered: {group_term_dims}"
+                )
+            else:
+                return group_term_dims
+
+        if unflattened:
+            # Unflattened: dims = (H, d1, d2, ..., d_n)
+            histories = [dims[0] for dims in unflattened]
+            if not all(h == histories[0] for h in histories):
+                raise RuntimeError(
+                    f"In group '{group_name}', not all observation terms have the same history dimension: {group_term_dims}"
+                )
+            common_history = histories[0]
+
+            trailing_dims = [dims[1:] for dims in unflattened]
+            trailing_rank = len(trailing_dims[0])
+            if not all(len(td) == trailing_rank for td in trailing_dims):
+                raise RuntimeError(
+                    f"In group '{group_name}', observation terms have different trailing ranks: {group_term_dims}"
+                )
+
+            if trailing_rank == 0:
+                combined_trailing = ()
+            else:
+                # All trailing dims except the last must match.
+                base = trailing_dims[0][:-1]
+                if not all(td[:-1] == base for td in trailing_dims):
+                    raise RuntimeError(
+                        f"In group '{group_name}', trailing dimensions except last must be the same: {group_term_dims}"
+                    )
+                # Sum the last dimension across terms.
+                total_last = sum(td[-1] for td in trailing_dims)
+                combined_trailing = base + (total_last,)
+
+            return (common_history,) + combined_trailing
+
+        elif flattened:
+            # Flattened: dims are already 1D (F,)
+            total_feature = sum(d[0] for d in flattened)
+            return (total_feature,)
+
+        else:
+            return None
