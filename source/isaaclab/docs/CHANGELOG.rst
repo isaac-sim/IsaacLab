@@ -1,7 +1,7 @@
 Changelog
 ---------
 
-0.34.2 (2025-02-23)
+0.34.3 (2025-02-23)
 ~~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -10,6 +10,16 @@ Fixed
 * Fixed issue in :class:`~isaaclab.sensors.TiledCamera` where segmentation outputs only display the first tile
   when scene instancing is enabled. A workaround is added for now to disable instancing when segmentation
   outputs are requested.
+
+
+0.34.2 (2025-02-21)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed setting of root velocities inside the event term :meth:`reset_root_state_from_terrain`. Earlier, the indexing
+  based on the environment IDs was missing.
 
 
 0.34.1 (2025-02-17)
