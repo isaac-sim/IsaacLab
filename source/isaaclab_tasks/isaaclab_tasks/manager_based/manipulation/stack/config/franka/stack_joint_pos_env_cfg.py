@@ -44,6 +44,10 @@ class EventCfg:
             "std": 0.02,
             "asset_cfg": SceneEntityCfg("robot"),
         },
+        randomizable_params={
+            "mean": (0.0, 0.5, 0.01),
+            "std": (0.0, 0.1, 0.01),
+        },
     )
 
     randomize_cube_positions = EventTerm(
@@ -53,6 +57,13 @@ class EventCfg:
             "pose_range": {"x": (0.4, 0.6), "y": (-0.10, 0.10), "z": (0.0203, 0.0203), "yaw": (-1.0, 1, 0)},
             "min_separation": 0.1,
             "asset_cfgs": [SceneEntityCfg("cube_1"), SceneEntityCfg("cube_2"), SceneEntityCfg("cube_3")],
+        },
+        randomizable_params={
+            "pose_range": {
+                "x": (0.3, 0.9, 0.05),  # Allowed range for x min/max
+                "y": (-0.3, 0.3, 0.05),  # Allowed range for y min/max
+            },
+            "min_separation": (0.0, 0.5, 0.05),  # Allowed range for min_separation
         },
     )
 

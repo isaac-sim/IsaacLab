@@ -290,6 +290,9 @@ class EventTermCfg(ManagerTermBaseCfg):
         This is only used if the mode is ``"reset"``.
     """
 
+    randomizable_params: dict | None = None
+    """Optional dictionary specifying which parameters can be randomized and their allowed ranges."""
+
 
 ##
 # Reward manager.
