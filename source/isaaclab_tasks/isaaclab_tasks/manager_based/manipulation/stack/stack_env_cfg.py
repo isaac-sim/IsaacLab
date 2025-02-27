@@ -7,6 +7,7 @@ from dataclasses import MISSING
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg
+from isaaclab.devices.openxr import XrCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
@@ -176,6 +177,11 @@ class StackEnvCfg(ManagerBasedRLEnvCfg):
     rewards = None
     events = None
     curriculum = None
+
+    xr: XrCfg = XrCfg(
+        anchor_pos=(-0.1, -0.5, -1.05),
+        anchor_rot=(0.866, 0, 0, -0.5),
+    )
 
     def __post_init__(self):
         """Post initialization."""

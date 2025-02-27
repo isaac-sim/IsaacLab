@@ -13,12 +13,15 @@ from typing import Final
 import carb
 
 from ..device_base import DeviceBase
+from .xr_cfg import XrCfg
 
 with contextlib.suppress(ModuleNotFoundError):
     from isaacsim.xr.openxr import OpenXR, OpenXRSpec
     from omni.kit.xr.core import XRCore
 
     from . import teleop_command
+
+import isaacsim.core.utils.prims as prim_utils
 
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.markers.config import FRAME_MARKER_CFG
@@ -49,6 +52,7 @@ class Se3HandTracking(DeviceBase):
 
     def __init__(
         self,
+        xr_cfg: XrCfg | None,
         hand,
         abs=True,
         zero_out_xy_rotation=False,
@@ -62,6 +66,7 @@ class Se3HandTracking(DeviceBase):
         self._previous_rot = Rotation.identity()
         self._previous_grip_distance = 0.0
         self._previous_gripper_command = False
+        self._xr_cfg = xr_cfg or XrCfg()
         self._hand = hand
         self._abs = abs
         self._zero_out_xy_rotation = zero_out_xy_rotation
@@ -87,6 +92,13 @@ class Se3HandTracking(DeviceBase):
         self._frame_marker_cfg = FRAME_MARKER_CFG.copy()
         self._frame_marker_cfg.markers["frame"].scale = (0.1, 0.1, 0.1)
         self._goal_marker = VisualizationMarkers(self._frame_marker_cfg.replace(prim_path="/Visuals/ee_goal"))
+
+        # Specify the placement of the simulation when viewed in an XR device using a prim.
+        prim_utils.create_prim(
+            "/XRAnchor", "Xform", position=self._xr_cfg.anchor_pos, orientation=self._xr_cfg.anchor_rot
+        )
+        carb.settings.get_settings().set_string("/persistent/xr/profile/ar/anchorMode", "custom anchor")
+        carb.settings.get_settings().set_string("/xrstage/profile/ar/customAnchor", "/XRAnchor")
 
     def __del__(self):
         return
