@@ -24,15 +24,16 @@ def update_nested_value(d, keys, value):
         d = d.setdefault(k, {})
     d[keys[-1]] = value
 
+
 def reset_env(env, steps=1):
     """Reset environment and step simulation to stabilize state."""
     # Get sim and scene from unwrapped environment
     sim = env.unwrapped.sim
     scene = env.unwrapped.scene
-    
+
     # Reset environment
     env.reset()
-    
+
     # Step simulation multiple times to stabilize
     for _ in range(steps):
         # Write data to sim
@@ -41,6 +42,7 @@ def reset_env(env, steps=1):
         sim.step()
         # Update buffers
         scene.update(dt=env.physics_dt)
+
 
 def get_parameter_input(param_name, current_val, allowed_range, update_fn, env=None, event_term_name=None):
     """Get parameter input using ipywidgets with immediate value updates."""
@@ -51,16 +53,16 @@ def get_parameter_input(param_name, current_val, allowed_range, update_fn, env=N
 
         # Create container with label and range slider
         container = widgets.HBox([
-            widgets.Label(full_param_name, layout=widgets.Layout(width='auto')),
+            widgets.Label(full_param_name, layout=widgets.Layout(width="auto")),
             widgets.FloatRangeSlider(
                 value=[current_val[0], current_val[1]],
                 min=allowed_range[0],
                 max=allowed_range[1],
                 step=step_size,
-                layout=widgets.Layout(width='300px'),
+                layout=widgets.Layout(width="300px"),
                 readout=True,
-                readout_format='.3f',
-            )
+                readout_format=".3f",
+            ),
         ])
 
         def on_value_change(change):
@@ -81,19 +83,19 @@ def get_parameter_input(param_name, current_val, allowed_range, update_fn, env=N
     else:
         step_size = allowed_range[2] if len(allowed_range) > 2 else 0.01
         full_param_name = f"{event_term_name}.{param_name}" if event_term_name else param_name
-        
+
         # Create container with label and slider
         container = widgets.HBox([
-            widgets.Label(full_param_name, layout=widgets.Layout(width='auto')),
+            widgets.Label(full_param_name, layout=widgets.Layout(width="auto")),
             widgets.FloatSlider(
                 value=current_val,
                 min=allowed_range[0],
                 max=allowed_range[1],
                 step=step_size,
-                layout=widgets.Layout(width='300px'),
+                layout=widgets.Layout(width="300px"),
                 readout=True,
-                readout_format='.3f',
-            )
+                readout_format=".3f",
+            ),
         ])
 
         def on_value_change(change):
@@ -117,7 +119,7 @@ def interactive_update_randomizable_params(event_term, param_config, param_path=
     inputs = []
 
     # Get event term name from the event term object
-    event_term_name = event_term.name if hasattr(event_term, 'name') else None
+    event_term_name = event_term.name if hasattr(event_term, "name") else None
 
     for key, allowed_range in param_config.items():
         current_path = f"{param_path}.{key}" if param_path else key
@@ -133,15 +135,16 @@ def interactive_update_randomizable_params(event_term, param_config, param_path=
                     def update_fn(new_val):
                         update_nested_value(event_term.params, k, new_val)
                         print(f"Updated '{full_path}' to {new_val}.")
+
                     return update_fn
 
                 input_widget = get_parameter_input(
-                    current_path, 
-                    current_val, 
-                    allowed_range, 
-                    make_update_fn(keys, current_path), 
+                    current_path,
+                    current_val,
+                    allowed_range,
+                    make_update_fn(keys, current_path),
                     env=env,
-                    event_term_name=event_term_name
+                    event_term_name=event_term_name,
                 )
                 inputs.append((keys, input_widget))
             except KeyError:

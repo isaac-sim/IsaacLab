@@ -239,6 +239,7 @@ class ObservationGroupCfg:
 @configclass
 class EventTermCfg(ManagerTermBaseCfg):
     """Configuration for a event term."""
+
     name: str = ""
 
     func: Callable[..., None] = MISSING
