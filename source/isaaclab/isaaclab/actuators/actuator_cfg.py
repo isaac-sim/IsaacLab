@@ -47,7 +47,7 @@ class ActuatorBaseCfg:
     .. note::
 
         For implicit actuators, the attributes :attr:`effort_limit` and :attr:`effort_limit_sim` are equivalent.
-        However, we suggest using the :attr:`effort_limit_sim` attribute for its clarity.
+        However, we suggest using the :attr:`effort_limit_sim` attribute because it is more intuitive.
 
     """
 
@@ -66,9 +66,9 @@ class ActuatorBaseCfg:
 
     .. note::
 
-        For implicit actuators, the attributes :attr:`velocity_limit` and :attr:`velocity_limit_sim` are equivalent.
-        However, we suggest using the :attr:`velocity_limit_sim` attribute for its clarity.
-
+        For implicit actuators, the attribute :attr:`velocity_limit` is not used. This is to stay backwards compatible
+        with previous versions of the Isaac Lab, where this parameter was unused since PhysX did not support setting
+        the velocity limit for the joints using the Tensor API.
     """
 
     effort_limit_sim: dict[str, float] | float | None = None
