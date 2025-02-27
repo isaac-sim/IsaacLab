@@ -1,6 +1,64 @@
 Changelog
 ---------
 
+0.34.2 (2025-02-21)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed setting of root velocities inside the event term :meth:`reset_root_state_from_terrain`. Earlier, the indexing
+  based on the environment IDs was missing.
+
+
+0.34.1 (2025-02-17)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Ensured that the loaded torch JIT models inside actuator networks are correctly set to eval mode
+  to prevent any unexpected behavior during inference.
+
+
+0.34.0 (2025-02-14)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Adds attributes velocity_limits_sim and effort_limits_sim to :class:`isaaclab.actuators.AssetBaseCfg` to separate
+  solver limits from actuator limits.
+
+
+0.33.17 (2025-02-13)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed Imu sensor based observations at first step by updating scene during initialization for
+  :class:`~isaaclab.envs.ManagerBasedEnv`, :class:`~isaaclab.envs.DirectRLEnv`, and :class:`~isaaclab.envs.DirectMARLEnv`
+
+
+0.33.16 (2025-02-09)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Removes old deprecation warning from :attr:`isaaclab.assets.RigidObectData.body_state_w`
+
+
+0.33.15 (2025-02-09)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed not updating the ``drift`` when calling :func:`~isaaclab.sensors.RayCaster.reset`
+
+
 0.33.14 (2025-02-01)
 ~~~~~~~~~~~~~~~~~~~~
 
@@ -8,6 +66,7 @@ Fixed
 ^^^^^
 
 * Fixed not updating the timestamp of ``body_link_state_w`` and ``body_com_state_w`` when ``write_root_pose_to_sim`` and ``write_joint_state_to_sim`` in the ``Articulation`` class are called.
+
 
 0.33.13 (2025-01-30)
 ~~~~~~~~~~~~~~~~~~~~
