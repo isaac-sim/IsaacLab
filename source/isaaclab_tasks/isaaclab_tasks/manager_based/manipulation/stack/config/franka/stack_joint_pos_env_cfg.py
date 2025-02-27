@@ -29,6 +29,7 @@ class EventCfg:
     """Configuration for events."""
 
     init_franka_arm_pose = EventTerm(
+        name="init_franka_arm_pose",
         func=franka_stack_events.set_default_joint_pose,
         mode="startup",
         params={
@@ -37,6 +38,7 @@ class EventCfg:
     )
 
     randomize_franka_joint_state = EventTerm(
+        name="randomize_franka_joint_state",
         func=franka_stack_events.randomize_joint_by_gaussian_offset,
         mode="reset",
         params={
@@ -51,6 +53,7 @@ class EventCfg:
     )
 
     randomize_cube_positions = EventTerm(
+        name="randomize_cube_positions",
         func=franka_stack_events.randomize_object_pose,
         mode="reset",
         params={
@@ -60,10 +63,10 @@ class EventCfg:
         },
         randomizable_params={
             "pose_range": {
-                "x": (0.3, 0.9, 0.05),  # Allowed range for x min/max
-                "y": (-0.3, 0.3, 0.05),  # Allowed range for y min/max
+                "x": (0.3, 0.9, 0.01),  # Allowed range for x min/max
+                "y": (-0.3, 0.3, 0.01),  # Allowed range for y min/max
             },
-            "min_separation": (0.0, 0.5, 0.05),  # Allowed range for min_separation
+            "min_separation": (0.0, 0.5, 0.01),  # Allowed range for min_separation
         },
     )
 

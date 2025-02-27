@@ -24,110 +24,100 @@ def update_nested_value(d, keys, value):
         d = d.setdefault(k, {})
     d[keys[-1]] = value
 
+def reset_env(env, steps=1):
+    """Reset environment and step simulation to stabilize state."""
+    # Get sim and scene from unwrapped environment
+    sim = env.unwrapped.sim
+    scene = env.unwrapped.scene
+    
+    # Reset environment
+    env.reset()
+    
+    # Step simulation multiple times to stabilize
+    for _ in range(steps):
+        # Write data to sim
+        scene.write_data_to_sim()
+        # Perform step
+        sim.step()
+        # Update buffers
+        scene.update(dt=env.physics_dt)
 
-def get_parameter_input(param_name, current_val, allowed_range, update_fn, env=None):
+def get_parameter_input(param_name, current_val, allowed_range, update_fn, env=None, event_term_name=None):
     """Get parameter input using ipywidgets with immediate value updates."""
 
     if isinstance(current_val, (tuple, list)):
-        # Get step size from allowed_range if provided, else use default
         step_size = allowed_range[2] if len(allowed_range) > 2 else 0.01
+        full_param_name = f"{event_term_name}.{param_name}" if event_term_name else param_name
 
-        # Create two text input widgets for tuple values
-        text1 = widgets.FloatText(
-            value=current_val[0],
-            description=f"{param_name}[0]",
-            style={"description_width": "initial"},
-            placeholder=f"Default: {current_val[0]}",
-            step=step_size,
-        )
-        text2 = widgets.FloatText(
-            value=current_val[1],
-            description=f"{param_name}[1]",
-            style={"description_width": "initial"},
-            placeholder=f"Default: {current_val[1]}",
-            step=step_size,
-        )
-
-        # Add value changed callbacks
-        def on_value1_change(change):
-            if change["new"] < allowed_range[0] or change["new"] > allowed_range[1]:
-                print(f"Value {change['new']} is out of allowed range {allowed_range[:2]}. Keeping current value.")
-                text1.value = change["old"]
-            elif change["new"] > text2.value:
-                print(
-                    f"Minimum value {change['new']} must be less than maximum value {text2.value}. Keeping current"
-                    " value."
-                )
-                text1.value = change["old"]
-            else:
-                new_tuple = (change["new"], text2.value)
-                update_fn(new_tuple)
-                if env is not None:
-                    env.reset()
-
-        def on_value2_change(change):
-            if change["new"] < allowed_range[0] or change["new"] > allowed_range[1]:
-                print(f"Value {change['new']} is out of allowed range {allowed_range[:2]}. Keeping current value.")
-                text2.value = change["old"]
-            elif change["new"] < text1.value:
-                print(
-                    f"Maximum value {change['new']} must be greater than minimum value {text1.value}. Keeping current"
-                    " value."
-                )
-                text2.value = change["old"]
-            else:
-                new_tuple = (text1.value, change["new"])
-                update_fn(new_tuple)
-                if env is not None:
-                    env.reset()
-
-        text1.observe(on_value1_change, names="value")
-        text2.observe(on_value2_change, names="value")
-
-        # Create help text showing the allowed range
-        help_text = widgets.HTML(value=f'<p style="color:gray">Allowed range: {allowed_range[:2]}</p>')
-
-        # Display widgets
-        display(text1)
-        display(text2)
-        display(help_text)
-
-        return (text1, text2)
-    else:
-        # Create single text input widget for float values
-        step_size = allowed_range[2] if len(allowed_range) > 2 else 0.01
-        text = widgets.FloatText(
-            value=current_val,
-            description=param_name,
-            style={"description_width": "initial"},
-            placeholder=f"Default: {current_val}",
-            step=step_size,
-        )
+        # Create container with label and range slider
+        container = widgets.HBox([
+            widgets.Label(full_param_name, layout=widgets.Layout(width='auto')),
+            widgets.FloatRangeSlider(
+                value=[current_val[0], current_val[1]],
+                min=allowed_range[0],
+                max=allowed_range[1],
+                step=step_size,
+                layout=widgets.Layout(width='300px'),
+                readout=True,
+                readout_format='.3f',
+            )
+        ])
 
         def on_value_change(change):
-            if change["new"] < allowed_range[0] or change["new"] > allowed_range[1]:
-                print(f"Value {change['new']} is out of allowed range {allowed_range[:2]}. Keeping current value.")
-                text.value = change["old"]
-            else:
-                update_fn(change["new"])
-                if env is not None:
-                    env.reset()
+            new_tuple = (change["new"][0], change["new"][1])
+            update_fn(new_tuple)
+            if env is not None:
+                reset_env(env, steps=50)
 
-        text.observe(on_value_change, names="value")
+        container.children[1].observe(on_value_change, names="value")
 
         # Create help text showing the allowed range
         help_text = widgets.HTML(value=f'<p style="color:gray">Allowed range: {allowed_range[:2]}</p>')
 
-        # Display widgets
-        display(text)
+        display(container)
         display(help_text)
 
-        return text
+        return container.children[1]
+    else:
+        step_size = allowed_range[2] if len(allowed_range) > 2 else 0.01
+        full_param_name = f"{event_term_name}.{param_name}" if event_term_name else param_name
+        
+        # Create container with label and slider
+        container = widgets.HBox([
+            widgets.Label(full_param_name, layout=widgets.Layout(width='auto')),
+            widgets.FloatSlider(
+                value=current_val,
+                min=allowed_range[0],
+                max=allowed_range[1],
+                step=step_size,
+                layout=widgets.Layout(width='300px'),
+                readout=True,
+                readout_format='.3f',
+            )
+        ])
+
+        def on_value_change(change):
+            update_fn(change["new"])
+            if env is not None:
+                reset_env(env, steps=50)
+
+        container.children[1].observe(on_value_change, names="value")
+
+        # Create help text showing the allowed range
+        help_text = widgets.HTML(value=f'<p style="color:gray">Allowed range: {allowed_range[:2]}</p>')
+
+        display(container)
+        display(help_text)
+
+        return container.children[1]
 
 
 def interactive_update_randomizable_params(event_term, param_config, param_path="", env=None):
     """Interactive parameter updates using ipywidgets."""
     inputs = []
+
+    # Get event term name from the event term object
+    event_term_name = event_term.name if hasattr(event_term, 'name') else None
 
     for key, allowed_range in param_config.items():
         current_path = f"{param_path}.{key}" if param_path else key
@@ -139,15 +129,19 @@ def interactive_update_randomizable_params(event_term, param_config, param_path=
             try:
                 current_val = get_nested_value(event_term.params, keys)
 
-                def make_update_fn(k):
+                def make_update_fn(k, full_path):
                     def update_fn(new_val):
                         update_nested_value(event_term.params, k, new_val)
-                        print(f"Updated '{current_path}' to {new_val}.")
-
+                        print(f"Updated '{full_path}' to {new_val}.")
                     return update_fn
 
                 input_widget = get_parameter_input(
-                    current_path, current_val, allowed_range, make_update_fn(keys), env=env
+                    current_path, 
+                    current_val, 
+                    allowed_range, 
+                    make_update_fn(keys, current_path), 
+                    env=env,
+                    event_term_name=event_term_name
                 )
                 inputs.append((keys, input_widget))
             except KeyError:
