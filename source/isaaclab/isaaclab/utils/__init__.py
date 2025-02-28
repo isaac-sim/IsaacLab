@@ -11,6 +11,7 @@ from .configclass import configclass
 from .dict import *
 from .interpolation import *
 from .modifiers import *
+from .notebook_widgets import *
 from .string import *
 from .timer import Timer
 from .types import *
