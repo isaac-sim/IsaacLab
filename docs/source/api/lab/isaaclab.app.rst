@@ -35,6 +35,8 @@ The following details the behavior of the class based on the environment variabl
     Connecting to an Isaac Sim instance that is currently serving a streaming client
     results in an error for the second user.
 
+* **Public IP Address**: When using the environment variable ``LIVESTREAM={1,2}``, set the ``PUBLIC_IP`` envvar to define the public IP address endpoint for livestreaming remotely.
+
 * **Enable cameras**: If the environment variable ``ENABLE_CAMERAS`` is set to 1, then the
   cameras are enabled. This is useful for running the simulator without a GUI but still rendering the
   viewport and camera images.
