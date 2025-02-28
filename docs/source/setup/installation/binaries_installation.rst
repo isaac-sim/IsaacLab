@@ -66,7 +66,7 @@ variables to your terminal for the remaining of the installation instructions:
       .. code:: bash
 
          # Isaac Sim root directory
-         export ISAACSIM_PATH="${HOME}/Downloads/isaac-sim-standalone@4.5.0"
+         export ISAACSIM_PATH="${HOME}/isaacsim"
          # Isaac Sim python executable
          export ISAACSIM_PYTHON_EXE="${ISAACSIM_PATH}/python.sh"
 
@@ -76,7 +76,7 @@ variables to your terminal for the remaining of the installation instructions:
       .. code:: batch
 
          :: Isaac Sim root directory
-         set ISAACSIM_PATH="%USERPROFILE%/Downloads/isaac-sim-standalone@4.5.0"
+         set ISAACSIM_PATH="%USERPROFILE%/isaacsim"
          :: Isaac Sim python executable
          set ISAACSIM_PYTHON_EXE="%ISAACSIM_PATH:"=%\python.bat"
 
@@ -259,7 +259,7 @@ to index the python modules and look for extensions shipped with Isaac Sim.
          cd IsaacLab
          # create a symbolic link
          ln -s path_to_isaac_sim _isaac_sim
-         # For example: ln -s ${HOME}/Downloads/isaac-sim-standalone@4.5.0 _isaac_sim
+         # For example: ln -s ${HOME}/isaacsim _isaac_sim
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
@@ -270,7 +270,7 @@ to index the python modules and look for extensions shipped with Isaac Sim.
          cd IsaacLab
          :: create a symbolic link - requires launching Command Prompt with Administrator access
          mklink /D _isaac_sim path_to_isaac_sim
-         :: For example: mklink /D _isaac_sim C:/Users/nvidia/Downloads/isaac-sim-standalone@4.5.0
+         :: For example: mklink /D _isaac_sim C:/Users/nvidia/isaacsim
 
 
 Setting up the conda environment (optional)
