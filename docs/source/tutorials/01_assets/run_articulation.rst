@@ -134,7 +134,7 @@ In this tutorial, we learned how to create and interact with a simple articulati
 of an articulation (its root and joint state) and how to apply commands to it. We also saw how to update its
 buffers to read the latest state from the simulation.
 
-In addition to this tutorial, we also provide a few other scripts that spawn different robots.These are included
+In addition to this tutorial, we also provide a few other scripts that spawn different robots. These are included
 in the ``scripts/demos`` directory. You can run these scripts as:
 
 .. code-block:: bash
