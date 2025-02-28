@@ -1,0 +1,1650 @@
+
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
+
+    <title>isaaclab_mimic.datagen &#8212; Isaac Lab Documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../../../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css" />
+    <link rel="stylesheet" href="../../../_static/styles/sphinx-book-theme.css?digest=14f4ca6b54d191a8c7657f6c759bf11a5fb86285" type="text/css" />
+    <link rel="stylesheet" type="text/css" href="/opt/hostedtoolcache/Python/3.10.16/x64/lib/python3.10/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/css/all.min.css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/custom.css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/sphinx-design.4cbf315f70debaebd550c87a6162cf0f.min.css" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../../../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script data-url_root="../../../" id="documentation_options" src="../../../_static/documentation_options.js"></script>
+    <script src="../../../_static/doctools.js"></script>
+    <script src="../../../_static/sphinx_highlight.js"></script>
+    <script src="/opt/hostedtoolcache/Python/3.10.16/x64/lib/python3.10/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/js/all.min.js"></script>
+    <script src="../../../_static/clipboard.min.js"></script>
+    <script src="../../../_static/copybutton.js"></script>
+    <script src="../../../_static/scripts/sphinx-book-theme.js?digest=5a5c038af52cf7bc1a1ec88eea08e6366ee68824"></script>
+    <script src="../../../_static/design-tabs.js"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'source/api/lab_mimic/isaaclab_mimic.datagen';</script>
+    <link rel="icon" href="../../../_static/favicon.ico"/>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+    <link rel="next" title="Reference Architecture" href="../../refs/reference_architecture/index.html" />
+    <link rel="prev" title="isaaclab_tasks.utils" href="../lab_tasks/isaaclab_tasks.utils.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="2.0.1" />
+    <meta name="docbuild:last-update" content="Feb 28, 2025"/>
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+    
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../../../_static/NVIDIA-logo-white.png" class="logo__image only-light" alt=""/>
+    <img src="../../../_static/NVIDIA-logo-black.png" class="logo__image only-dark pst-js-only" alt=""/>
+  
+  
+    <p class="title logo__title">Isaac Lab Documentation</p>
+  
+</a></div>
+        <div class="sidebar-primary-item">
+<nav class="bd-links bd-docs-nav">
+    <div class="bd-toc-item navbar-nav">
+      <ul class="nav bd-sidenav">
+        <li class="toctree-l1 has-children" style="display: flex; justify-content: center; align-items: center; flex-direction: column;">
+          <div  style ="text-align:center;">
+            <label for="version-select" style="font-weight: bold; display: block;">Version</label>
+          </div>
+          <select id="version-select" class="version-dropdown" style="margin: 0 auto; display: block;" onchange="location = this.value;">
+            <option value="../../../../main/source/api/lab_mimic/isaaclab_mimic.datagen.html" >main</option>
+            <option value="isaaclab_mimic.datagen.html" selected>v2.0.1</option>
+            <option value="../../../../v2.0.0/source/api/lab_mimic/isaaclab_mimic.datagen.html" >v2.0.0</option>
+            <option value="../../../../v1.4.1/index.html" >v1.4.1</option>
+            <option value="../../../../v1.4.0/index.html" >v1.4.0</option>
+            <option value="../../../../v1.3.0/index.html" >v1.3.0</option>
+            <option value="../../../../v1.2.0/index.html" >v1.2.0</option>
+            <option value="../../../../v1.1.0/index.html" >v1.1.0</option>
+            <option value="../../../../v1.0.0/index.html" >v1.0.0</option>
+          </select>
+        </li>
+      </ul>
+    </div>
+</nav>
+</div>
+        <div class="sidebar-primary-item"><ul class="navbar-icon-links"
+    aria-label="Quick Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/isaac-sim/IsaacLab" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.5.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+        </li>
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://img.shields.io/github/stars/isaac-sim/IsaacLab?color=fedcba" title="Stars" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/github/stars/isaac-sim/IsaacLab?color=fedcba" class="icon-link-image" alt="Stars"/></a>
+        </li>
+</ul></div>
+        <div class="sidebar-primary-item">
+<form class="bd-search d-flex align-items-center"
+      action="../../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form></div>
+        <div class="sidebar-primary-item"><nav class="bd-links" id="bd-docs-nav" aria-label="Main">
+    <div class="bd-toc-item navbar-nav active">
+        <p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../setup/ecosystem.html">Isaac Lab Ecosystem</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../setup/installation/index.html">Local Installation</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/installation/pip_installation.html">Pip installation (recommended for Ubuntu 22.04 and Windows)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/installation/binaries_installation.html">Binary installation (recommended for Ubuntu 20.04)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/installation/isaaclab_pip_installation.html">Advanced installation (Isaac Lab pip)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/installation/asset_caching.html">Asset caching</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../../setup/installation/cloud_installation.html">Running Isaac Lab in the Cloud</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../setup/faq.html">Frequently Asked Questions</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Overview</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../overview/developer-guide/index.html">Developer’s Guide</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/developer-guide/vs_code.html">Setting up Visual Studio Code</a></li>
+
+<li class="toctree-l2"><a class="reference internal" href="../../overview/developer-guide/repo_structure.html">Repository organization</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/developer-guide/development.html">Extension Development</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/developer-guide/template.html">Building your Own Project</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../overview/core-concepts/index.html">Core Concepts</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/core-concepts/task_workflows.html">Task Design Workflows</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/core-concepts/actuators.html">Actuators</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../overview/sensors/index.html">Sensors</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/sensors/camera.html">Camera</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/sensors/contact_sensor.html">Contact Sensor</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/sensors/frame_transformer.html">Frame Transformer</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/sensors/imu.html">Inertial Measurement Unit (IMU)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/sensors/ray_caster.html">Ray Caster</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../../overview/environments.html">Available Environments</a></li>
+
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../overview/reinforcement-learning/index.html">Reinforcement Learning</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/reinforcement-learning/rl_existing_scripts.html">Reinforcement Learning Wrappers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/reinforcement-learning/rl_frameworks.html">Reinforcement Learning Library Comparison</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/reinforcement-learning/performance_benchmarks.html">Performance Benchmarks</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/reinforcement-learning/training_guide.html">Debugging and Training Guide</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../../overview/teleop_imitation.html">Teleoperation and Imitation Learning</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../overview/showroom.html">Showroom Demos</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../overview/simple_agents.html">Simple Agents</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Features</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../features/hydra.html">Hydra Configuration System</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../features/multi_gpu.html">Multi-GPU and Multi-Node Training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../overview/sensors/camera.html">Tiled Rendering</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../features/ray.html">Ray Job Dispatch and Tuning</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../features/reproducibility.html">Reproducibility and Determinism</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Resources</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../tutorials/index.html">Tutorials</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/00_sim/create_empty.html">Creating an empty scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/00_sim/spawn_prims.html">Spawning prims into the scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/00_sim/launch_app.html">Deep-dive into AppLauncher</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/01_assets/run_rigid_object.html">Interacting with a rigid object</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/01_assets/run_articulation.html">Interacting with an articulation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/01_assets/run_deformable_object.html">Interacting with a deformable object</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/02_scene/create_scene.html">Using the Interactive Scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/03_envs/create_manager_base_env.html">Creating a Manager-Based Base Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/03_envs/create_manager_rl_env.html">Creating a Manager-Based RL Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/03_envs/create_direct_rl_env.html">Creating a Direct Workflow RL Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/03_envs/register_rl_env_gym.html">Registering an Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/03_envs/run_rl_training.html">Training with an RL Agent</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/03_envs/modify_direct_rl_env.html">Modifying an existing Direct RL Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/03_envs/policy_inference_in_usd.html">Policy Inference in USD Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/04_sensors/add_sensors_on_robot.html">Adding sensors on a robot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/05_controllers/run_diff_ik.html">Using a task-space controller</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/05_controllers/run_osc.html">Using an operational space controller</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../how-to/index.html">How-to Guides</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/import_new_asset.html">Importing a New Asset</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/write_articulation_cfg.html">Writing an Asset Configuration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/make_fixed_prim.html">Making a physics prim fixed in the simulation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/multi_asset_spawning.html">Spawning Multiple Assets</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/save_camera_output.html">Saving rendered images and 3D re-projection</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/estimate_how_many_cameras_can_run.html">Find How Many/What Cameras You Should Train With</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/draw_markers.html">Creating Visualization Markers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/wrap_rl_env.html">Wrapping environments</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/add_own_library.html">Adding your own learning library</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/record_animation.html">Recording Animations of Simulations</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/record_video.html">Recording video clips during training</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/master_omniverse.html">Mastering Omniverse for Robotics</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../deployment/index.html">Container Deployment</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../deployment/docker.html">Docker Guide</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../deployment/cluster.html">Cluster Guide</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../deployment/run_docker_example.html">Running an example with Docker</a></li>
+</ul>
+</details></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Migration Guides</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../migration/migrating_from_isaacgymenvs.html">From IsaacGymEnvs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../migration/migrating_from_omniisaacgymenvs.html">From OmniIsaacGymEnvs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../migration/migrating_from_orbit.html">From Orbit</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Source API</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1 current active has-children"><a class="reference internal" href="../index.html">API Reference</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="../lab/isaaclab.app.html">isaaclab.app</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../lab/isaaclab.actuators.html">isaaclab.actuators</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../lab/isaaclab.assets.html">isaaclab.assets</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../lab/isaaclab.controllers.html">isaaclab.controllers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../lab/isaaclab.devices.html">isaaclab.devices</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../lab/isaaclab.envs.html">isaaclab.envs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../lab/isaaclab.managers.html">isaaclab.managers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../lab/isaaclab.markers.html">isaaclab.markers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../lab/isaaclab.scene.html">isaaclab.scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../lab/isaaclab.sensors.html">isaaclab.sensors</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../lab/isaaclab.sim.html">isaaclab.sim</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../lab/isaaclab.terrains.html">isaaclab.terrains</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../lab/isaaclab.utils.html">isaaclab.utils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../lab/isaaclab.envs.mdp.html">isaaclab.envs.mdp</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../lab/isaaclab.envs.ui.html">isaaclab.envs.ui</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../lab/isaaclab.sensors.patterns.html">isaaclab.sensors.patterns</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../lab/isaaclab.sim.converters.html">isaaclab.sim.converters</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../lab/isaaclab.sim.schemas.html">isaaclab.sim.schemas</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../lab/isaaclab.sim.spawners.html">isaaclab.sim.spawners</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../lab_tasks/isaaclab_tasks.utils.html">isaaclab_tasks.utils</a></li>
+<li class="toctree-l2 current active"><a class="current reference internal" href="#">isaaclab_mimic.datagen</a></li>
+</ul>
+</details></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">References</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../refs/reference_architecture/index.html">Reference Architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../refs/additional_resources.html">Additional Resources</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../refs/contributing.html">Contribution Guidelines</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../refs/troubleshooting.html">Tricks and Troubleshooting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../refs/migration.html">Migration Guide (Isaac Sim)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../refs/issues.html">Known Issues</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../refs/release_notes.html">Release Notes</a></li>
+
+
+
+
+
+
+<li class="toctree-l1"><a class="reference internal" href="../../refs/changelog.html">Extensions Changelog</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../refs/license.html">License</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../refs/bibliography.html">Bibliography</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Project Links</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference external" href="https://github.com/isaac-sim/IsaacLab">GitHub</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/latest/index.html">NVIDIA Isaac Sim</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/index.html">NVIDIA PhysX</a></li>
+</ul>
+
+    </div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+
+<div class="sbt-scroll-pixel-helper"></div>
+
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item"><label class="sidebar-toggle primary-toggle btn btn-sm" for="__primary" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <span class="fa-solid fa-bars"></span>
+</label></div>
+      
+    </div>
+  
+  
+    <div class="header-article-items__end">
+      
+        <div class="header-article-item">
+
+<div class="article-header-buttons">
+
+
+
+
+
+<div class="dropdown dropdown-source-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Source repositories">
+    <i class="fab fa-github"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="https://github.com/isaac-sim/IsaacLab" target="_blank"
+   class="btn btn-sm btn-source-repository-button dropdown-item"
+   title="Source repository"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fab fa-github"></i>
+  </span>
+<span class="btn__text-container">Repository</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li><a href="https://github.com/isaac-sim/IsaacLab/edit/main/source/api/lab_mimic/isaaclab_mimic.datagen.rst" target="_blank"
+   class="btn btn-sm btn-source-edit-button dropdown-item"
+   title="Suggest edit"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-pencil-alt"></i>
+  </span>
+<span class="btn__text-container">Suggest edit</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li><a href="https://github.com/isaac-sim/IsaacLab/issues/new?title=Issue%20on%20page%20%2Fsource/api/lab_mimic/isaaclab_mimic.datagen.html&body=Your%20issue%20content%20here." target="_blank"
+   class="btn btn-sm btn-source-issues-button dropdown-item"
+   title="Open an issue"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-lightbulb"></i>
+  </span>
+<span class="btn__text-container">Open issue</span>
+</a>
+</li>
+      
+  </ul>
+</div>
+
+
+
+
+
+
+<div class="dropdown dropdown-download-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Download this page">
+    <i class="fas fa-download"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="../../../_sources/source/api/lab_mimic/isaaclab_mimic.datagen.rst" target="_blank"
+   class="btn btn-sm btn-download-source-button dropdown-item"
+   title="Download source file"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file"></i>
+  </span>
+<span class="btn__text-container">.rst</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li>
+<button onclick="window.print()"
+  class="btn btn-sm btn-download-pdf-button dropdown-item"
+  title="Print to PDF"
+  data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file-pdf"></i>
+  </span>
+<span class="btn__text-container">.pdf</span>
+</button>
+</li>
+      
+  </ul>
+</div>
+
+
+
+
+<button onclick="toggleFullScreen()"
+  class="btn btn-sm btn-fullscreen-button"
+  title="Fullscreen mode"
+  data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-expand"></i>
+  </span>
+
+</button>
+
+
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button>
+
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+<label class="sidebar-toggle secondary-toggle btn btn-sm" for="__secondary"title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <span class="fa-solid fa-list"></span>
+</label>
+</div></div>
+      
+    </div>
+  
+</div>
+</div>
+              
+              
+
+<div id="jb-print-docs-body" class="onlyprint">
+    <h1>isaaclab_mimic.datagen</h1>
+    <!-- Table of contents -->
+    <div id="print-main-content">
+        <div id="jb-print-toc">
+            
+            <div>
+                <h2> Contents </h2>
+            </div>
+            <nav aria-label="Page">
+                <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#data-generator">Data Generator</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.datagen.DataGenerator"><code class="docutils literal notranslate"><span class="pre">DataGenerator</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.datagen.DataGenerator.__init__"><code class="docutils literal notranslate"><span class="pre">DataGenerator.__init__()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.datagen.DataGenerator.randomize_subtask_boundaries"><code class="docutils literal notranslate"><span class="pre">DataGenerator.randomize_subtask_boundaries()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.datagen.DataGenerator.select_source_demo"><code class="docutils literal notranslate"><span class="pre">DataGenerator.select_source_demo()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.datagen.DataGenerator.generate"><code class="docutils literal notranslate"><span class="pre">DataGenerator.generate()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#datagen-info">Datagen Info</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.datagen.DatagenInfo"><code class="docutils literal notranslate"><span class="pre">DatagenInfo</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.datagen.DatagenInfo.__init__"><code class="docutils literal notranslate"><span class="pre">DatagenInfo.__init__()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#datagen-info-pool">Datagen Info Pool</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.datagen.DataGenInfoPool"><code class="docutils literal notranslate"><span class="pre">DataGenInfoPool</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.datagen.DataGenInfoPool.__init__"><code class="docutils literal notranslate"><span class="pre">DataGenInfoPool.__init__()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.datagen.DataGenInfoPool.datagen_infos"><code class="docutils literal notranslate"><span class="pre">DataGenInfoPool.datagen_infos</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.datagen.DataGenInfoPool.subtask_indices"><code class="docutils literal notranslate"><span class="pre">DataGenInfoPool.subtask_indices</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.datagen.DataGenInfoPool.asyncio_lock"><code class="docutils literal notranslate"><span class="pre">DataGenInfoPool.asyncio_lock</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.datagen.DataGenInfoPool.num_datagen_infos"><code class="docutils literal notranslate"><span class="pre">DataGenInfoPool.num_datagen_infos</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.datagen.DataGenInfoPool.add_episode"><code class="docutils literal notranslate"><span class="pre">DataGenInfoPool.add_episode()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.datagen.DataGenInfoPool.load_from_dataset_file"><code class="docutils literal notranslate"><span class="pre">DataGenInfoPool.load_from_dataset_file()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#random-strategy">Random Strategy</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.datagen.RandomStrategy"><code class="docutils literal notranslate"><span class="pre">RandomStrategy</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.datagen.RandomStrategy.select_source_demo"><code class="docutils literal notranslate"><span class="pre">RandomStrategy.select_source_demo()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.datagen.RandomStrategy.__init__"><code class="docutils literal notranslate"><span class="pre">RandomStrategy.__init__()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#nearest-neighbor-object-strategy">Nearest Neighbor Object Strategy</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.datagen.NearestNeighborObjectStrategy"><code class="docutils literal notranslate"><span class="pre">NearestNeighborObjectStrategy</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.datagen.NearestNeighborObjectStrategy.select_source_demo"><code class="docutils literal notranslate"><span class="pre">NearestNeighborObjectStrategy.select_source_demo()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.datagen.NearestNeighborObjectStrategy.__init__"><code class="docutils literal notranslate"><span class="pre">NearestNeighborObjectStrategy.__init__()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#nearest-neighbor-robot-distance-strategy">Nearest Neighbor Robot Distance Strategy</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.datagen.NearestNeighborRobotDistanceStrategy"><code class="docutils literal notranslate"><span class="pre">NearestNeighborRobotDistanceStrategy</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.datagen.NearestNeighborRobotDistanceStrategy.select_source_demo"><code class="docutils literal notranslate"><span class="pre">NearestNeighborRobotDistanceStrategy.select_source_demo()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.datagen.NearestNeighborRobotDistanceStrategy.__init__"><code class="docutils literal notranslate"><span class="pre">NearestNeighborRobotDistanceStrategy.__init__()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#waypoint">Waypoint</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.datagen.Waypoint"><code class="docutils literal notranslate"><span class="pre">Waypoint</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.datagen.Waypoint.__init__"><code class="docutils literal notranslate"><span class="pre">Waypoint.__init__()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#waypoint-sequence">Waypoint Sequence</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.datagen.WaypointSequence"><code class="docutils literal notranslate"><span class="pre">WaypointSequence</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.datagen.WaypointSequence.__init__"><code class="docutils literal notranslate"><span class="pre">WaypointSequence.__init__()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.datagen.WaypointSequence.from_poses"><code class="docutils literal notranslate"><span class="pre">WaypointSequence.from_poses()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.datagen.WaypointSequence.last_waypoint"><code class="docutils literal notranslate"><span class="pre">WaypointSequence.last_waypoint</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.datagen.WaypointSequence.split"><code class="docutils literal notranslate"><span class="pre">WaypointSequence.split()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#waypoint-trajectory">Waypoint Trajectory</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.datagen.WaypointTrajectory"><code class="docutils literal notranslate"><span class="pre">WaypointTrajectory</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.datagen.WaypointTrajectory.__init__"><code class="docutils literal notranslate"><span class="pre">WaypointTrajectory.__init__()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.datagen.WaypointTrajectory.last_waypoint"><code class="docutils literal notranslate"><span class="pre">WaypointTrajectory.last_waypoint</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.datagen.WaypointTrajectory.add_waypoint_sequence"><code class="docutils literal notranslate"><span class="pre">WaypointTrajectory.add_waypoint_sequence()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.datagen.WaypointTrajectory.add_waypoint_sequence_for_target_pose"><code class="docutils literal notranslate"><span class="pre">WaypointTrajectory.add_waypoint_sequence_for_target_pose()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.datagen.WaypointTrajectory.pop_first"><code class="docutils literal notranslate"><span class="pre">WaypointTrajectory.pop_first()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.datagen.WaypointTrajectory.merge"><code class="docutils literal notranslate"><span class="pre">WaypointTrajectory.merge()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.datagen.WaypointTrajectory.execute"><code class="docutils literal notranslate"><span class="pre">WaypointTrajectory.execute()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+            </nav>
+        </div>
+    </div>
+</div>
+
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="module-isaaclab_mimic.datagen">
+<span id="isaaclab-mimic-datagen"></span><h1>isaaclab_mimic.datagen<a class="headerlink" href="#module-isaaclab_mimic.datagen" title="Permalink to this heading">#</a></h1>
+<p>Sub-package with core implementation logic for Isaac Lab Mimic.</p>
+<p class="rubric">Classes</p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_mimic.datagen.DataGenerator" title="isaaclab_mimic.datagen.DataGenerator"><code class="xref py py-obj docutils literal notranslate"><span class="pre">DataGenerator</span></code></a></p></td>
+<td><p>The main data generator object that loads a source dataset, parses it, and generates new trajectories.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_mimic.datagen.DatagenInfo" title="isaaclab_mimic.datagen.DatagenInfo"><code class="xref py py-obj docutils literal notranslate"><span class="pre">DatagenInfo</span></code></a></p></td>
+<td><p>Defines the structure of information required from an environment for data generation processes.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_mimic.datagen.DataGenInfoPool" title="isaaclab_mimic.datagen.DataGenInfoPool"><code class="xref py py-obj docutils literal notranslate"><span class="pre">DataGenInfoPool</span></code></a></p></td>
+<td><p>Pool of DatagenInfo for data generation.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">SelectionStrategy</span></code></p></td>
+<td><p>Defines methods and functions for selection strategies to implement.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_mimic.datagen.RandomStrategy" title="isaaclab_mimic.datagen.RandomStrategy"><code class="xref py py-obj docutils literal notranslate"><span class="pre">RandomStrategy</span></code></a></p></td>
+<td><p>Pick source demonstration randomly.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_mimic.datagen.NearestNeighborObjectStrategy" title="isaaclab_mimic.datagen.NearestNeighborObjectStrategy"><code class="xref py py-obj docutils literal notranslate"><span class="pre">NearestNeighborObjectStrategy</span></code></a></p></td>
+<td><p>Pick source demonstration to be the one with the closest object pose to the object in the current scene.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_mimic.datagen.NearestNeighborRobotDistanceStrategy" title="isaaclab_mimic.datagen.NearestNeighborRobotDistanceStrategy"><code class="xref py py-obj docutils literal notranslate"><span class="pre">NearestNeighborRobotDistanceStrategy</span></code></a></p></td>
+<td><p>Pick source demonstration to be the one that minimizes the distance the robot end effector will need to travel from the current pose to the first pose in the transformed segment.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_mimic.datagen.Waypoint" title="isaaclab_mimic.datagen.Waypoint"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Waypoint</span></code></a></p></td>
+<td><p>Represents a single desired 6-DoF waypoint, along with corresponding gripper actuation for this point.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_mimic.datagen.WaypointSequence" title="isaaclab_mimic.datagen.WaypointSequence"><code class="xref py py-obj docutils literal notranslate"><span class="pre">WaypointSequence</span></code></a></p></td>
+<td><p>Represents a sequence of Waypoint objects.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_mimic.datagen.WaypointTrajectory" title="isaaclab_mimic.datagen.WaypointTrajectory"><code class="xref py py-obj docutils literal notranslate"><span class="pre">WaypointTrajectory</span></code></a></p></td>
+<td><p>A sequence of WaypointSequence objects that corresponds to a full 6-DoF trajectory.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<section id="data-generator">
+<h2>Data Generator<a class="headerlink" href="#data-generator" title="Permalink to this heading">#</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="isaaclab_mimic.datagen.DataGenerator">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">isaaclab_mimic.datagen.</span></span><span class="sig-name descname"><span class="pre">DataGenerator</span></span><a class="reference internal" href="../../../_modules/isaaclab_mimic/datagen/data_generator.html#DataGenerator"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab_mimic.datagen.DataGenerator" title="Permalink to this definition">#</a></dt>
+<dd><p>The main data generator object that loads a source dataset, parses it, and
+generates new trajectories.</p>
+<p><strong>Methods:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_mimic.datagen.DataGenerator.__init__" title="isaaclab_mimic.datagen.DataGenerator.__init__"><code class="xref py py-obj docutils literal notranslate"><span class="pre">__init__</span></code></a>(env[, src_demo_datagen_info_pool, ...])</p></td>
+<td><p><dl class="field-list simple">
+<dt class="field-odd">param env<span class="colon">:</span></dt>
+<dd class="field-odd"><p>environment to use for data generation</p>
+</dd>
+</dl>
+</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_mimic.datagen.DataGenerator.randomize_subtask_boundaries" title="isaaclab_mimic.datagen.DataGenerator.randomize_subtask_boundaries"><code class="xref py py-obj docutils literal notranslate"><span class="pre">randomize_subtask_boundaries</span></code></a>()</p></td>
+<td><p>Apply random offsets to sample subtask boundaries according to the task spec.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_mimic.datagen.DataGenerator.select_source_demo" title="isaaclab_mimic.datagen.DataGenerator.select_source_demo"><code class="xref py py-obj docutils literal notranslate"><span class="pre">select_source_demo</span></code></a>(eef_pose, object_pose, ...)</p></td>
+<td><p>Helper method to run source subtask segment selection.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_mimic.datagen.DataGenerator.generate" title="isaaclab_mimic.datagen.DataGenerator.generate"><code class="xref py py-obj docutils literal notranslate"><span class="pre">generate</span></code></a>(env_id, success_term[, ...])</p></td>
+<td><p>Attempt to generate a new demonstration.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<dl class="py method">
+<dt class="sig sig-object py" id="isaaclab_mimic.datagen.DataGenerator.__init__">
+<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">env</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">src_demo_datagen_info_pool</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dataset_path</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">demo_keys</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/isaaclab_mimic/datagen/data_generator.html#DataGenerator.__init__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab_mimic.datagen.DataGenerator.__init__" title="Permalink to this definition">#</a></dt>
+<dd><dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>env</strong> (<em>Isaac Lab ManagerBasedEnv instance</em>) – environment to use for data generation</p></li>
+<li><p><strong>src_demo_datagen_info_pool</strong> (<a class="reference internal" href="#isaaclab_mimic.datagen.DataGenInfoPool" title="isaaclab_mimic.datagen.DataGenInfoPool"><em>DataGenInfoPool</em></a>) – source demo datagen info pool</p></li>
+<li><p><strong>dataset_path</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><em>str</em></a>) – path to hdf5 dataset to use for generation</p></li>
+<li><p><strong>demo_keys</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.13)"><em>list</em></a><em> of </em><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><em>str</em></a>) – list of demonstration keys to use
+in file. If not provided, all demonstration keys will be
+used.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="isaaclab_mimic.datagen.DataGenerator.randomize_subtask_boundaries">
+<span class="sig-name descname"><span class="pre">randomize_subtask_boundaries</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/isaaclab_mimic/datagen/data_generator.html#DataGenerator.randomize_subtask_boundaries"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab_mimic.datagen.DataGenerator.randomize_subtask_boundaries" title="Permalink to this definition">#</a></dt>
+<dd><p>Apply random offsets to sample subtask boundaries according to the task spec.
+Recall that each demonstration is segmented into a set of subtask segments, and the
+end index of each subtask can have a random offset.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="isaaclab_mimic.datagen.DataGenerator.select_source_demo">
+<span class="sig-name descname"><span class="pre">select_source_demo</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">eef_pose</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">object_pose</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">subtask_ind</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">src_subtask_inds</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">subtask_object_name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">selection_strategy_name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">selection_strategy_kwargs</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/isaaclab_mimic/datagen/data_generator.html#DataGenerator.select_source_demo"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab_mimic.datagen.DataGenerator.select_source_demo" title="Permalink to this definition">#</a></dt>
+<dd><p>Helper method to run source subtask segment selection.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>eef_pose</strong> (<em>np.array</em>) – current end effector pose</p></li>
+<li><p><strong>object_pose</strong> (<em>np.array</em>) – current object pose for this subtask</p></li>
+<li><p><strong>subtask_ind</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><em>int</em></a>) – index of subtask</p></li>
+<li><p><strong>src_subtask_inds</strong> (<em>np.array</em>) – start and end indices for subtask segment in source demonstrations of shape (N, 2)</p></li>
+<li><p><strong>subtask_object_name</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><em>str</em></a>) – name of reference object for this subtask</p></li>
+<li><p><strong>selection_strategy_name</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><em>str</em></a>) – name of selection strategy</p></li>
+<li><p><strong>selection_strategy_kwargs</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.13)"><em>dict</em></a>) – extra kwargs for running selection strategy</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>selected source demo index</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>selected_src_demo_ind (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)">int</a>)</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="isaaclab_mimic.datagen.DataGenerator.generate">
+<em class="property"><span class="pre">async</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">generate</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">env_id</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">success_term</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">env_action_queue</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Queue</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">select_src_per_subtask</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">transform_first_robot_pose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">interpolate_from_last_target_pose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pause_subtask</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">export_demo</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/isaaclab_mimic/datagen/data_generator.html#DataGenerator.generate"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab_mimic.datagen.DataGenerator.generate" title="Permalink to this definition">#</a></dt>
+<dd><p>Attempt to generate a new demonstration.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>env_id</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><em>int</em></a>) – environment ID</p></li>
+<li><p><strong>success_term</strong> (<a class="reference internal" href="../lab/isaaclab.managers.html#isaaclab.managers.TerminationTermCfg" title="isaaclab.managers.TerminationTermCfg"><em>TerminationTermCfg</em></a>) – success function to check if the task is successful</p></li>
+<li><p><strong>env_action_queue</strong> (<a class="reference external" href="https://docs.python.org/3/library/asyncio-queue.html#asyncio.Queue" title="(in Python v3.13)"><em>asyncio.Queue</em></a>) – queue to store actions for each environment</p></li>
+<li><p><strong>select_src_per_subtask</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><em>bool</em></a>) – if True, select a different source demonstration for each subtask
+during data generation, else keep the same one for the entire episode</p></li>
+<li><p><strong>transform_first_robot_pose</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><em>bool</em></a>) – if True, each subtask segment will consist of the first
+robot pose and the target poses instead of just the target poses. Can sometimes help
+improve data generation quality as the interpolation segment will interpolate to where
+the robot started in the source segment instead of the first target pose. Note that the
+first subtask segment of each episode will always include the first robot pose, regardless
+of this argument.</p></li>
+<li><p><strong>interpolate_from_last_target_pose</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><em>bool</em></a>) – if True, each interpolation segment will start from
+the last target pose in the previous subtask segment, instead of the current robot pose. Can
+sometimes improve data generation quality.</p></li>
+<li><p><strong>pause_subtask</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><em>bool</em></a>) – if True, pause after every subtask during generation, for
+debugging.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><dl class="simple">
+<dt>dictionary with the following items:</dt><dd><p>initial_state (dict): initial simulator state for the executed trajectory
+states (list): simulator state at each timestep
+observations (list): observation dictionary at each timestep
+datagen_infos (list): datagen_info at each timestep
+actions (np.array): action executed at each timestep
+success (bool): whether the trajectory successfully solved the task or not
+src_demo_inds (list): list of selected source demonstration indices for each subtask
+src_demo_labels (np.array): same as &#64;src_demo_inds, but repeated to have a label for each timestep of the trajectory</p>
+</dd>
+</dl>
+</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>results (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.13)">dict</a>)</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+<section id="datagen-info">
+<h2>Datagen Info<a class="headerlink" href="#datagen-info" title="Permalink to this heading">#</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="isaaclab_mimic.datagen.DatagenInfo">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">isaaclab_mimic.datagen.</span></span><span class="sig-name descname"><span class="pre">DatagenInfo</span></span><a class="reference internal" href="../../../_modules/isaaclab_mimic/datagen/datagen_info.html#DatagenInfo"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab_mimic.datagen.DatagenInfo" title="Permalink to this definition">#</a></dt>
+<dd><p>Defines the structure of information required from an environment for data generation processes.
+The <cite>DatagenInfo</cite> class centralizes all essential data elements needed for data generation in one place,
+reducing the overhead and complexity of repeatedly querying the environment whenever this information is needed.</p>
+<p>To allow for flexibility,not all information must be present.</p>
+<p>Core Elements:
+- <strong>eef_pose</strong>: Captures the current 6 dimensional poses of the robot’s end-effector.
+- <strong>object_poses</strong>: Captures the 6 dimensional poses of relevant objects in the scene.
+- <strong>subtask_term_signals</strong>: Captures subtask completions signals.
+- <strong>target_eef_pose</strong>: Captures the target 6 dimensional poses for robot’s end effector at each time step.
+- <strong>gripper_action</strong>:  Captures the gripper’s state.</p>
+<p><strong>Methods:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_mimic.datagen.DatagenInfo.__init__" title="isaaclab_mimic.datagen.DatagenInfo.__init__"><code class="xref py py-obj docutils literal notranslate"><span class="pre">__init__</span></code></a>([eef_pose, object_poses, ...])</p></td>
+<td><p><dl class="field-list simple">
+<dt class="field-odd">param eef_pose<span class="colon">:</span></dt>
+<dd class="field-odd"><p>robot end effector poses of shape [..., 4, 4]</p>
+</dd>
+</dl>
+</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<dl class="py method">
+<dt class="sig sig-object py" id="isaaclab_mimic.datagen.DatagenInfo.__init__">
+<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">eef_pose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">object_poses</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">subtask_term_signals</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">target_eef_pose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gripper_action</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/isaaclab_mimic/datagen/datagen_info.html#DatagenInfo.__init__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab_mimic.datagen.DatagenInfo.__init__" title="Permalink to this definition">#</a></dt>
+<dd><dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>eef_pose</strong> (<a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.6)"><em>torch.Tensor</em></a><em> or </em><em>None</em>) – robot end effector poses of shape […, 4, 4]</p></li>
+<li><p><strong>object_poses</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.13)"><em>dict</em></a><em> or </em><em>None</em>) – dictionary mapping object name to object poses
+of shape […, 4, 4]</p></li>
+<li><p><strong>subtask_term_signals</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.13)"><em>dict</em></a><em> or </em><em>None</em>) – dictionary mapping subtask name to a binary
+indicator (0 or 1) on whether subtask has been completed. Each value in the
+dictionary could be an int, float, or torch.Tensor of shape […, 1].</p></li>
+<li><p><strong>target_eef_pose</strong> (<a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.6)"><em>torch.Tensor</em></a><em> or </em><em>None</em>) – target end effector poses of shape […, 4, 4]</p></li>
+<li><p><strong>gripper_action</strong> (<a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.6)"><em>torch.Tensor</em></a><em> or </em><em>None</em>) – gripper actions of shape […, D] where D
+is the dimension of the gripper actuation action for the robot arm</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+<section id="datagen-info-pool">
+<h2>Datagen Info Pool<a class="headerlink" href="#datagen-info-pool" title="Permalink to this heading">#</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="isaaclab_mimic.datagen.DataGenInfoPool">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">isaaclab_mimic.datagen.</span></span><span class="sig-name descname"><span class="pre">DataGenInfoPool</span></span><a class="reference internal" href="../../../_modules/isaaclab_mimic/datagen/datagen_info_pool.html#DataGenInfoPool"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab_mimic.datagen.DataGenInfoPool" title="Permalink to this definition">#</a></dt>
+<dd><p>Pool of DatagenInfo for data generation.</p>
+<p>This class is a container for storing <cite>DatagenInfo</cite> objects that are extracted from episodes.
+The pool supports the use of an asyncio lock to safely add new episodes to the pool while
+consuming the data, so it can be shared across multiple mimic data generators.</p>
+<p><strong>Methods:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_mimic.datagen.DataGenInfoPool.__init__" title="isaaclab_mimic.datagen.DataGenInfoPool.__init__"><code class="xref py py-obj docutils literal notranslate"><span class="pre">__init__</span></code></a>(env, env_cfg, device[, asyncio_lock])</p></td>
+<td><p><dl class="field-list simple">
+<dt class="field-odd">param env_cfg<span class="colon">:</span></dt>
+<dd class="field-odd"><p>environment configuration</p>
+</dd>
+</dl>
+</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_mimic.datagen.DataGenInfoPool.add_episode" title="isaaclab_mimic.datagen.DataGenInfoPool.add_episode"><code class="xref py py-obj docutils literal notranslate"><span class="pre">add_episode</span></code></a>(episode)</p></td>
+<td><p>Add a datagen info from the given episode.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_mimic.datagen.DataGenInfoPool.load_from_dataset_file" title="isaaclab_mimic.datagen.DataGenInfoPool.load_from_dataset_file"><code class="xref py py-obj docutils literal notranslate"><span class="pre">load_from_dataset_file</span></code></a>(file_path[, ...])</p></td>
+<td><p>Load from a dataset file.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Attributes:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_mimic.datagen.DataGenInfoPool.datagen_infos" title="isaaclab_mimic.datagen.DataGenInfoPool.datagen_infos"><code class="xref py py-obj docutils literal notranslate"><span class="pre">datagen_infos</span></code></a></p></td>
+<td><p>Returns the datagen infos.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_mimic.datagen.DataGenInfoPool.subtask_indices" title="isaaclab_mimic.datagen.DataGenInfoPool.subtask_indices"><code class="xref py py-obj docutils literal notranslate"><span class="pre">subtask_indices</span></code></a></p></td>
+<td><p>Returns the subtask indices.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_mimic.datagen.DataGenInfoPool.asyncio_lock" title="isaaclab_mimic.datagen.DataGenInfoPool.asyncio_lock"><code class="xref py py-obj docutils literal notranslate"><span class="pre">asyncio_lock</span></code></a></p></td>
+<td><p>Returns the asyncio lock.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_mimic.datagen.DataGenInfoPool.num_datagen_infos" title="isaaclab_mimic.datagen.DataGenInfoPool.num_datagen_infos"><code class="xref py py-obj docutils literal notranslate"><span class="pre">num_datagen_infos</span></code></a></p></td>
+<td><p>Returns the number of datagen infos.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<dl class="py method">
+<dt class="sig sig-object py" id="isaaclab_mimic.datagen.DataGenInfoPool.__init__">
+<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">env</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">env_cfg</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">device</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">asyncio_lock</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Lock</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/isaaclab_mimic/datagen/datagen_info_pool.html#DataGenInfoPool.__init__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab_mimic.datagen.DataGenInfoPool.__init__" title="Permalink to this definition">#</a></dt>
+<dd><dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>env_cfg</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.13)"><em>dict</em></a>) – environment configuration</p></li>
+<li><p><strong>device</strong> (<a class="reference external" href="https://pytorch.org/docs/stable/tensor_attributes.html#torch.device" title="(in PyTorch v2.6)"><em>torch.device</em></a>) – device to store the data</p></li>
+<li><p><strong>asyncio_lock</strong> (<a class="reference external" href="https://docs.python.org/3/library/asyncio-sync.html#asyncio.Lock" title="(in Python v3.13)"><em>asyncio.Lock</em></a><em> or </em><em>None</em>) – asyncio lock to use for thread safety</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="isaaclab_mimic.datagen.DataGenInfoPool.datagen_infos">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">datagen_infos</span></span><a class="headerlink" href="#isaaclab_mimic.datagen.DataGenInfoPool.datagen_infos" title="Permalink to this definition">#</a></dt>
+<dd><p>Returns the datagen infos.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="isaaclab_mimic.datagen.DataGenInfoPool.subtask_indices">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">subtask_indices</span></span><a class="headerlink" href="#isaaclab_mimic.datagen.DataGenInfoPool.subtask_indices" title="Permalink to this definition">#</a></dt>
+<dd><p>Returns the subtask indices.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="isaaclab_mimic.datagen.DataGenInfoPool.asyncio_lock">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">asyncio_lock</span></span><a class="headerlink" href="#isaaclab_mimic.datagen.DataGenInfoPool.asyncio_lock" title="Permalink to this definition">#</a></dt>
+<dd><p>Returns the asyncio lock.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="isaaclab_mimic.datagen.DataGenInfoPool.num_datagen_infos">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">num_datagen_infos</span></span><a class="headerlink" href="#isaaclab_mimic.datagen.DataGenInfoPool.num_datagen_infos" title="Permalink to this definition">#</a></dt>
+<dd><p>Returns the number of datagen infos.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="isaaclab_mimic.datagen.DataGenInfoPool.add_episode">
+<em class="property"><span class="pre">async</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">add_episode</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">episode</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">EpisodeData</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/isaaclab_mimic/datagen/datagen_info_pool.html#DataGenInfoPool.add_episode"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab_mimic.datagen.DataGenInfoPool.add_episode" title="Permalink to this definition">#</a></dt>
+<dd><p>Add a datagen info from the given episode.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>episode</strong> (<em>EpisodeData</em>) – episode to add</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="isaaclab_mimic.datagen.DataGenInfoPool.load_from_dataset_file">
+<span class="sig-name descname"><span class="pre">load_from_dataset_file</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">file_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">select_demo_keys</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/isaaclab_mimic/datagen/datagen_info_pool.html#DataGenInfoPool.load_from_dataset_file"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab_mimic.datagen.DataGenInfoPool.load_from_dataset_file" title="Permalink to this definition">#</a></dt>
+<dd><p>Load from a dataset file.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>file_path</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><em>str</em></a>) – path to the dataset file</p></li>
+<li><p><strong>select_demo_keys</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><em>str</em></a><em> or </em><em>None</em>) – keys of the demos to load</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+<section id="random-strategy">
+<h2>Random Strategy<a class="headerlink" href="#random-strategy" title="Permalink to this heading">#</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="isaaclab_mimic.datagen.RandomStrategy">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">isaaclab_mimic.datagen.</span></span><span class="sig-name descname"><span class="pre">RandomStrategy</span></span><a class="reference internal" href="../../../_modules/isaaclab_mimic/datagen/selection_strategy.html#RandomStrategy"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab_mimic.datagen.RandomStrategy" title="Permalink to this definition">#</a></dt>
+<dd><p>Pick source demonstration randomly.</p>
+<p><strong>Methods:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_mimic.datagen.RandomStrategy.select_source_demo" title="isaaclab_mimic.datagen.RandomStrategy.select_source_demo"><code class="xref py py-obj docutils literal notranslate"><span class="pre">select_source_demo</span></code></a>(eef_pose, object_pose, ...)</p></td>
+<td><p>Selects source demonstration index using the current robot pose, relevant object pose for the current subtask, and relevant information from the source demonstrations for the current subtask.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_mimic.datagen.RandomStrategy.__init__" title="isaaclab_mimic.datagen.RandomStrategy.__init__"><code class="xref py py-obj docutils literal notranslate"><span class="pre">__init__</span></code></a>()</p></td>
+<td><p></p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<dl class="py method">
+<dt class="sig sig-object py" id="isaaclab_mimic.datagen.RandomStrategy.select_source_demo">
+<span class="sig-name descname"><span class="pre">select_source_demo</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">eef_pose</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">object_pose</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">src_subtask_datagen_infos</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/isaaclab_mimic/datagen/selection_strategy.html#RandomStrategy.select_source_demo"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab_mimic.datagen.RandomStrategy.select_source_demo" title="Permalink to this definition">#</a></dt>
+<dd><p>Selects source demonstration index using the current robot pose, relevant object pose
+for the current subtask, and relevant information from the source demonstrations for the
+current subtask.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>eef_pose</strong> (<a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.6)"><em>torch.Tensor</em></a>) – current 4x4 eef pose</p></li>
+<li><p><strong>object_pose</strong> (<a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.6)"><em>torch.Tensor</em></a>) – current 4x4 object pose, for the object in this subtask</p></li>
+<li><p><strong>src_subtask_datagen_infos</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.13)"><em>list</em></a>) – DatagenInfo instance for the relevant subtask segment
+in the source demonstrations</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>index of source demonstration - indicates which source subtask segment to use</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>source_demo_ind (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)">int</a>)</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="isaaclab_mimic.datagen.RandomStrategy.__init__">
+<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#isaaclab_mimic.datagen.RandomStrategy.__init__" title="Permalink to this definition">#</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</section>
+<section id="nearest-neighbor-object-strategy">
+<h2>Nearest Neighbor Object Strategy<a class="headerlink" href="#nearest-neighbor-object-strategy" title="Permalink to this heading">#</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="isaaclab_mimic.datagen.NearestNeighborObjectStrategy">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">isaaclab_mimic.datagen.</span></span><span class="sig-name descname"><span class="pre">NearestNeighborObjectStrategy</span></span><a class="reference internal" href="../../../_modules/isaaclab_mimic/datagen/selection_strategy.html#NearestNeighborObjectStrategy"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab_mimic.datagen.NearestNeighborObjectStrategy" title="Permalink to this definition">#</a></dt>
+<dd><p>Pick source demonstration to be the one with the closest object pose to the object
+in the current scene.</p>
+<p><strong>Methods:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_mimic.datagen.NearestNeighborObjectStrategy.select_source_demo" title="isaaclab_mimic.datagen.NearestNeighborObjectStrategy.select_source_demo"><code class="xref py py-obj docutils literal notranslate"><span class="pre">select_source_demo</span></code></a>(eef_pose, object_pose, ...)</p></td>
+<td><p>Selects source demonstration index using the current robot pose, relevant object pose for the current subtask, and relevant information from the source demonstrations for the current subtask.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_mimic.datagen.NearestNeighborObjectStrategy.__init__" title="isaaclab_mimic.datagen.NearestNeighborObjectStrategy.__init__"><code class="xref py py-obj docutils literal notranslate"><span class="pre">__init__</span></code></a>()</p></td>
+<td><p></p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<dl class="py method">
+<dt class="sig sig-object py" id="isaaclab_mimic.datagen.NearestNeighborObjectStrategy.select_source_demo">
+<span class="sig-name descname"><span class="pre">select_source_demo</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">eef_pose</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">object_pose</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">src_subtask_datagen_infos</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pos_weight</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rot_weight</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nn_k</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">3</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/isaaclab_mimic/datagen/selection_strategy.html#NearestNeighborObjectStrategy.select_source_demo"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab_mimic.datagen.NearestNeighborObjectStrategy.select_source_demo" title="Permalink to this definition">#</a></dt>
+<dd><p>Selects source demonstration index using the current robot pose, relevant object pose
+for the current subtask, and relevant information from the source demonstrations for the
+current subtask.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>eef_pose</strong> (<a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.6)"><em>torch.Tensor</em></a>) – current 4x4 eef pose</p></li>
+<li><p><strong>object_pose</strong> (<a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.6)"><em>torch.Tensor</em></a>) – current 4x4 object pose, for the object in this subtask</p></li>
+<li><p><strong>src_subtask_datagen_infos</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.13)"><em>list</em></a>) – DatagenInfo instance for the relevant subtask segment
+in the source demonstrations</p></li>
+<li><p><strong>pos_weight</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><em>float</em></a>) – weight on position for minimizing pose distance</p></li>
+<li><p><strong>rot_weight</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><em>float</em></a>) – weight on rotation for minimizing pose distance</p></li>
+<li><p><strong>nn_k</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><em>int</em></a>) – pick source demo index uniformly at randomly from the top &#64;nn_k nearest neighbors</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>index of source demonstration - indicates which source subtask segment to use</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>source_demo_ind (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)">int</a>)</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="isaaclab_mimic.datagen.NearestNeighborObjectStrategy.__init__">
+<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#isaaclab_mimic.datagen.NearestNeighborObjectStrategy.__init__" title="Permalink to this definition">#</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</section>
+<section id="nearest-neighbor-robot-distance-strategy">
+<h2>Nearest Neighbor Robot Distance Strategy<a class="headerlink" href="#nearest-neighbor-robot-distance-strategy" title="Permalink to this heading">#</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="isaaclab_mimic.datagen.NearestNeighborRobotDistanceStrategy">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">isaaclab_mimic.datagen.</span></span><span class="sig-name descname"><span class="pre">NearestNeighborRobotDistanceStrategy</span></span><a class="reference internal" href="../../../_modules/isaaclab_mimic/datagen/selection_strategy.html#NearestNeighborRobotDistanceStrategy"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab_mimic.datagen.NearestNeighborRobotDistanceStrategy" title="Permalink to this definition">#</a></dt>
+<dd><p>Pick source demonstration to be the one that minimizes the distance the robot
+end effector will need to travel from the current pose to the first pose
+in the transformed segment.</p>
+<p><strong>Methods:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_mimic.datagen.NearestNeighborRobotDistanceStrategy.select_source_demo" title="isaaclab_mimic.datagen.NearestNeighborRobotDistanceStrategy.select_source_demo"><code class="xref py py-obj docutils literal notranslate"><span class="pre">select_source_demo</span></code></a>(eef_pose, object_pose, ...)</p></td>
+<td><p>Selects source demonstration index using the current robot pose, relevant object pose for the current subtask, and relevant information from the source demonstrations for the current subtask.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_mimic.datagen.NearestNeighborRobotDistanceStrategy.__init__" title="isaaclab_mimic.datagen.NearestNeighborRobotDistanceStrategy.__init__"><code class="xref py py-obj docutils literal notranslate"><span class="pre">__init__</span></code></a>()</p></td>
+<td><p></p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<dl class="py method">
+<dt class="sig sig-object py" id="isaaclab_mimic.datagen.NearestNeighborRobotDistanceStrategy.select_source_demo">
+<span class="sig-name descname"><span class="pre">select_source_demo</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">eef_pose</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">object_pose</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">src_subtask_datagen_infos</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pos_weight</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rot_weight</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nn_k</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">3</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/isaaclab_mimic/datagen/selection_strategy.html#NearestNeighborRobotDistanceStrategy.select_source_demo"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab_mimic.datagen.NearestNeighborRobotDistanceStrategy.select_source_demo" title="Permalink to this definition">#</a></dt>
+<dd><p>Selects source demonstration index using the current robot pose, relevant object pose
+for the current subtask, and relevant information from the source demonstrations for the
+current subtask.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>eef_pose</strong> (<a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.6)"><em>torch.Tensor</em></a>) – current 4x4 eef pose</p></li>
+<li><p><strong>object_pose</strong> (<a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.6)"><em>torch.Tensor</em></a>) – current 4x4 object pose, for the object in this subtask</p></li>
+<li><p><strong>src_subtask_datagen_infos</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.13)"><em>list</em></a>) – DatagenInfo instance for the relevant subtask segment
+in the source demonstrations</p></li>
+<li><p><strong>pos_weight</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><em>float</em></a>) – weight on position for minimizing pose distance</p></li>
+<li><p><strong>rot_weight</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><em>float</em></a>) – weight on rotation for minimizing pose distance</p></li>
+<li><p><strong>nn_k</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><em>int</em></a>) – pick source demo index uniformly at randomly from the top &#64;nn_k nearest neighbors</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>index of source demonstration - indicates which source subtask segment to use</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>source_demo_ind (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)">int</a>)</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="isaaclab_mimic.datagen.NearestNeighborRobotDistanceStrategy.__init__">
+<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#isaaclab_mimic.datagen.NearestNeighborRobotDistanceStrategy.__init__" title="Permalink to this definition">#</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</section>
+<section id="waypoint">
+<h2>Waypoint<a class="headerlink" href="#waypoint" title="Permalink to this heading">#</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="isaaclab_mimic.datagen.Waypoint">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">isaaclab_mimic.datagen.</span></span><span class="sig-name descname"><span class="pre">Waypoint</span></span><a class="reference internal" href="../../../_modules/isaaclab_mimic/datagen/waypoint.html#Waypoint"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab_mimic.datagen.Waypoint" title="Permalink to this definition">#</a></dt>
+<dd><p>Represents a single desired 6-DoF waypoint, along with corresponding gripper actuation for this point.</p>
+<p><strong>Methods:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_mimic.datagen.Waypoint.__init__" title="isaaclab_mimic.datagen.Waypoint.__init__"><code class="xref py py-obj docutils literal notranslate"><span class="pre">__init__</span></code></a>(eef_names, pose, gripper_action[, ...])</p></td>
+<td><p><dl class="field-list simple">
+<dt class="field-odd">param pose<span class="colon">:</span></dt>
+<dd class="field-odd"><p>4x4 pose target for robot controller</p>
+</dd>
+</dl>
+</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<dl class="py method">
+<dt class="sig sig-object py" id="isaaclab_mimic.datagen.Waypoint.__init__">
+<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">eef_names</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pose</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gripper_action</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">noise</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/isaaclab_mimic/datagen/waypoint.html#Waypoint.__init__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab_mimic.datagen.Waypoint.__init__" title="Permalink to this definition">#</a></dt>
+<dd><dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>pose</strong> (<a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.6)"><em>torch.Tensor</em></a>) – 4x4 pose target for robot controller</p></li>
+<li><p><strong>gripper_action</strong> (<a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.6)"><em>torch.Tensor</em></a>) – gripper action for robot controller</p></li>
+<li><p><strong>noise</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><em>float</em></a><em> or </em><em>None</em>) – action noise amplitude to apply during execution at this timestep
+(for arm actions, not gripper actions)</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+<section id="waypoint-sequence">
+<h2>Waypoint Sequence<a class="headerlink" href="#waypoint-sequence" title="Permalink to this heading">#</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="isaaclab_mimic.datagen.WaypointSequence">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">isaaclab_mimic.datagen.</span></span><span class="sig-name descname"><span class="pre">WaypointSequence</span></span><a class="reference internal" href="../../../_modules/isaaclab_mimic/datagen/waypoint.html#WaypointSequence"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab_mimic.datagen.WaypointSequence" title="Permalink to this definition">#</a></dt>
+<dd><p>Represents a sequence of Waypoint objects.</p>
+<p><strong>Methods:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_mimic.datagen.WaypointSequence.__init__" title="isaaclab_mimic.datagen.WaypointSequence.__init__"><code class="xref py py-obj docutils literal notranslate"><span class="pre">__init__</span></code></a>([sequence])</p></td>
+<td><p><dl class="field-list simple">
+<dt class="field-odd">param sequence<span class="colon">:</span></dt>
+<dd class="field-odd"><p>if provided, should be a list of Waypoint objects</p>
+</dd>
+</dl>
+</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_mimic.datagen.WaypointSequence.from_poses" title="isaaclab_mimic.datagen.WaypointSequence.from_poses"><code class="xref py py-obj docutils literal notranslate"><span class="pre">from_poses</span></code></a>(eef_names, poses, ...)</p></td>
+<td><p>Instantiate a WaypointSequence object given a sequence of poses, gripper actions, and action noise.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_mimic.datagen.WaypointSequence.split" title="isaaclab_mimic.datagen.WaypointSequence.split"><code class="xref py py-obj docutils literal notranslate"><span class="pre">split</span></code></a>(ind)</p></td>
+<td><p>Splits this sequence into 2 pieces, the part up to time index &#64;ind, and the rest.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Attributes:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_mimic.datagen.WaypointSequence.last_waypoint" title="isaaclab_mimic.datagen.WaypointSequence.last_waypoint"><code class="xref py py-obj docutils literal notranslate"><span class="pre">last_waypoint</span></code></a></p></td>
+<td><p>Return last waypoint in sequence.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<dl class="py method">
+<dt class="sig sig-object py" id="isaaclab_mimic.datagen.WaypointSequence.__init__">
+<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">sequence</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/isaaclab_mimic/datagen/waypoint.html#WaypointSequence.__init__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab_mimic.datagen.WaypointSequence.__init__" title="Permalink to this definition">#</a></dt>
+<dd><dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>sequence</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.13)"><em>list</em></a><em> or </em><em>None</em>) – if provided, should be a list of Waypoint objects</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="isaaclab_mimic.datagen.WaypointSequence.from_poses">
+<em class="property"><span class="pre">classmethod</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">from_poses</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">eef_names</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">poses</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gripper_actions</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">action_noise</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/isaaclab_mimic/datagen/waypoint.html#WaypointSequence.from_poses"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab_mimic.datagen.WaypointSequence.from_poses" title="Permalink to this definition">#</a></dt>
+<dd><p>Instantiate a WaypointSequence object given a sequence of poses,
+gripper actions, and action noise.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>poses</strong> (<a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.6)"><em>torch.Tensor</em></a>) – sequence of pose matrices of shape (T, 4, 4)</p></li>
+<li><p><strong>gripper_actions</strong> (<a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.6)"><em>torch.Tensor</em></a>) – sequence of gripper actions
+that should be applied at each timestep of shape (T, D).</p></li>
+<li><p><strong>action_noise</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><em>float</em></a><em> or </em><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.6)"><em>torch.Tensor</em></a>) – sequence of action noise
+magnitudes that should be applied at each timestep. If a
+single float is provided, the noise magnitude will be
+constant over the trajectory.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="isaaclab_mimic.datagen.WaypointSequence.last_waypoint">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">last_waypoint</span></span><a class="headerlink" href="#isaaclab_mimic.datagen.WaypointSequence.last_waypoint" title="Permalink to this definition">#</a></dt>
+<dd><p>Return last waypoint in sequence.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>waypoint (Waypoint instance)</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="isaaclab_mimic.datagen.WaypointSequence.split">
+<span class="sig-name descname"><span class="pre">split</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ind</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/isaaclab_mimic/datagen/waypoint.html#WaypointSequence.split"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab_mimic.datagen.WaypointSequence.split" title="Permalink to this definition">#</a></dt>
+<dd><p>Splits this sequence into 2 pieces, the part up to time index &#64;ind, and the
+rest. Returns 2 WaypointSequence objects.</p>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+<section id="waypoint-trajectory">
+<h2>Waypoint Trajectory<a class="headerlink" href="#waypoint-trajectory" title="Permalink to this heading">#</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="isaaclab_mimic.datagen.WaypointTrajectory">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">isaaclab_mimic.datagen.</span></span><span class="sig-name descname"><span class="pre">WaypointTrajectory</span></span><a class="reference internal" href="../../../_modules/isaaclab_mimic/datagen/waypoint.html#WaypointTrajectory"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab_mimic.datagen.WaypointTrajectory" title="Permalink to this definition">#</a></dt>
+<dd><p>A sequence of WaypointSequence objects that corresponds to a full 6-DoF trajectory.</p>
+<p><strong>Methods:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_mimic.datagen.WaypointTrajectory.__init__" title="isaaclab_mimic.datagen.WaypointTrajectory.__init__"><code class="xref py py-obj docutils literal notranslate"><span class="pre">__init__</span></code></a>()</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_mimic.datagen.WaypointTrajectory.add_waypoint_sequence" title="isaaclab_mimic.datagen.WaypointTrajectory.add_waypoint_sequence"><code class="xref py py-obj docutils literal notranslate"><span class="pre">add_waypoint_sequence</span></code></a>(sequence)</p></td>
+<td><p>Directly append sequence to list (no interpolation).</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_mimic.datagen.WaypointTrajectory.add_waypoint_sequence_for_target_pose" title="isaaclab_mimic.datagen.WaypointTrajectory.add_waypoint_sequence_for_target_pose"><code class="xref py py-obj docutils literal notranslate"><span class="pre">add_waypoint_sequence_for_target_pose</span></code></a>(...[, ...])</p></td>
+<td><p>Adds a new waypoint sequence corresponding to a desired target pose.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_mimic.datagen.WaypointTrajectory.pop_first" title="isaaclab_mimic.datagen.WaypointTrajectory.pop_first"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pop_first</span></code></a>()</p></td>
+<td><p>Removes first waypoint in first waypoint sequence and returns it.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_mimic.datagen.WaypointTrajectory.merge" title="isaaclab_mimic.datagen.WaypointTrajectory.merge"><code class="xref py py-obj docutils literal notranslate"><span class="pre">merge</span></code></a>(other, eef_names[, num_steps_interp, ...])</p></td>
+<td><p>Merge this trajectory with another (&#64;other).</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_mimic.datagen.WaypointTrajectory.execute" title="isaaclab_mimic.datagen.WaypointTrajectory.execute"><code class="xref py py-obj docutils literal notranslate"><span class="pre">execute</span></code></a>(env, env_id, success_term[, ...])</p></td>
+<td><p>Main function to execute the trajectory.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Attributes:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_mimic.datagen.WaypointTrajectory.last_waypoint" title="isaaclab_mimic.datagen.WaypointTrajectory.last_waypoint"><code class="xref py py-obj docutils literal notranslate"><span class="pre">last_waypoint</span></code></a></p></td>
+<td><p>Return last waypoint in sequence.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<dl class="py method">
+<dt class="sig sig-object py" id="isaaclab_mimic.datagen.WaypointTrajectory.__init__">
+<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/isaaclab_mimic/datagen/waypoint.html#WaypointTrajectory.__init__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab_mimic.datagen.WaypointTrajectory.__init__" title="Permalink to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="isaaclab_mimic.datagen.WaypointTrajectory.last_waypoint">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">last_waypoint</span></span><a class="headerlink" href="#isaaclab_mimic.datagen.WaypointTrajectory.last_waypoint" title="Permalink to this definition">#</a></dt>
+<dd><p>Return last waypoint in sequence.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>waypoint (Waypoint instance)</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="isaaclab_mimic.datagen.WaypointTrajectory.add_waypoint_sequence">
+<span class="sig-name descname"><span class="pre">add_waypoint_sequence</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">sequence</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/isaaclab_mimic/datagen/waypoint.html#WaypointTrajectory.add_waypoint_sequence"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab_mimic.datagen.WaypointTrajectory.add_waypoint_sequence" title="Permalink to this definition">#</a></dt>
+<dd><p>Directly append sequence to list (no interpolation).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>sequence</strong> (<em>WaypointSequence instance</em>) – sequence to add</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="isaaclab_mimic.datagen.WaypointTrajectory.add_waypoint_sequence_for_target_pose">
+<span class="sig-name descname"><span class="pre">add_waypoint_sequence_for_target_pose</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">eef_names</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pose</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gripper_action</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">num_steps</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">skip_interpolation</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">action_noise</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/isaaclab_mimic/datagen/waypoint.html#WaypointTrajectory.add_waypoint_sequence_for_target_pose"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab_mimic.datagen.WaypointTrajectory.add_waypoint_sequence_for_target_pose" title="Permalink to this definition">#</a></dt>
+<dd><p>Adds a new waypoint sequence corresponding to a desired target pose. A new WaypointSequence
+will be constructed consisting of &#64;num_steps intermediate Waypoint objects. These can either
+be constructed with linear interpolation from the last waypoint (default) or be a
+constant set of target poses (set &#64;skip_interpolation to True).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>pose</strong> (<a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.6)"><em>torch.Tensor</em></a>) – 4x4 target pose</p></li>
+<li><p><strong>gripper_action</strong> (<a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.6)"><em>torch.Tensor</em></a>) – value for gripper action</p></li>
+<li><p><strong>num_steps</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><em>int</em></a>) – number of action steps when trying to reach this waypoint. Will
+add intermediate linearly interpolated points between the last pose on this trajectory
+and the target pose, so that the total number of steps is &#64;num_steps.</p></li>
+<li><p><strong>skip_interpolation</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><em>bool</em></a>) – if True, keep the target pose fixed and repeat it &#64;num_steps
+times instead of using linearly interpolated targets.</p></li>
+<li><p><strong>action_noise</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><em>float</em></a>) – scale of random gaussian noise to add during action execution (e.g.
+when &#64;execute is called)</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="isaaclab_mimic.datagen.WaypointTrajectory.pop_first">
+<span class="sig-name descname"><span class="pre">pop_first</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/isaaclab_mimic/datagen/waypoint.html#WaypointTrajectory.pop_first"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab_mimic.datagen.WaypointTrajectory.pop_first" title="Permalink to this definition">#</a></dt>
+<dd><p>Removes first waypoint in first waypoint sequence and returns it. If the first waypoint
+sequence is now empty, it is also removed.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>waypoint (Waypoint instance)</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="isaaclab_mimic.datagen.WaypointTrajectory.merge">
+<span class="sig-name descname"><span class="pre">merge</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">other</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">eef_names</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">num_steps_interp</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">num_steps_fixed</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">action_noise</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/isaaclab_mimic/datagen/waypoint.html#WaypointTrajectory.merge"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab_mimic.datagen.WaypointTrajectory.merge" title="Permalink to this definition">#</a></dt>
+<dd><p>Merge this trajectory with another (&#64;other).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>other</strong> (<em>WaypointTrajectory object</em>) – the other trajectory to merge into this one</p></li>
+<li><p><strong>num_steps_interp</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><em>int</em></a><em> or </em><em>None</em>) – if not None, add a waypoint sequence that interpolates
+between the end of the current trajectory and the start of &#64;other</p></li>
+<li><p><strong>num_steps_fixed</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><em>int</em></a><em> or </em><em>None</em>) – if not None, add a waypoint sequence that has constant
+target poses corresponding to the first target pose in &#64;other</p></li>
+<li><p><strong>action_noise</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><em>float</em></a>) – noise to use during the interpolation segment</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="isaaclab_mimic.datagen.WaypointTrajectory.execute">
+<em class="property"><span class="pre">async</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">execute</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">env</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">env_id</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">success_term</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">env_action_queue</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Queue</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/isaaclab_mimic/datagen/waypoint.html#WaypointTrajectory.execute"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab_mimic.datagen.WaypointTrajectory.execute" title="Permalink to this definition">#</a></dt>
+<dd><p>Main function to execute the trajectory. Will use env_interface.target_eef_pose_to_action to
+convert each target pose at each waypoint to an action command, and pass that along to
+env.step.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>env</strong> (<em>Isaac Lab ManagerBasedEnv instance</em>) – environment to use for executing trajectory</p></li>
+<li><p><strong>env_id</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><em>int</em></a>) – environment index</p></li>
+<li><p><strong>success_term</strong> – success term to check if the task is successful</p></li>
+<li><p><strong>env_action_queue</strong> (<a class="reference external" href="https://docs.python.org/3/library/asyncio-queue.html#asyncio.Queue" title="(in Python v3.13)"><em>asyncio.Queue</em></a>) – queue for sending actions to the environment</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><dl class="simple">
+<dt>dictionary with the following items for the executed trajectory:</dt><dd><p>states (list): simulator state at each timestep
+observations (list): observation dictionary at each timestep
+datagen_infos (list): datagen_info at each timestep
+actions (list): action executed at each timestep
+success (bool): whether the trajectory successfully solved the task or not</p>
+</dd>
+</dl>
+</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>results (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.13)">dict</a>)</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+</section>
+
+
+                </article>
+              
+
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="../lab_tasks/isaaclab_tasks.utils.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">isaaclab_tasks.utils</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="../../refs/reference_architecture/index.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Reference Architecture</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+  <div class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> Contents
+  </div>
+  <nav class="bd-toc-nav page-toc">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#data-generator">Data Generator</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.datagen.DataGenerator"><code class="docutils literal notranslate"><span class="pre">DataGenerator</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.datagen.DataGenerator.__init__"><code class="docutils literal notranslate"><span class="pre">DataGenerator.__init__()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.datagen.DataGenerator.randomize_subtask_boundaries"><code class="docutils literal notranslate"><span class="pre">DataGenerator.randomize_subtask_boundaries()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.datagen.DataGenerator.select_source_demo"><code class="docutils literal notranslate"><span class="pre">DataGenerator.select_source_demo()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.datagen.DataGenerator.generate"><code class="docutils literal notranslate"><span class="pre">DataGenerator.generate()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#datagen-info">Datagen Info</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.datagen.DatagenInfo"><code class="docutils literal notranslate"><span class="pre">DatagenInfo</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.datagen.DatagenInfo.__init__"><code class="docutils literal notranslate"><span class="pre">DatagenInfo.__init__()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#datagen-info-pool">Datagen Info Pool</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.datagen.DataGenInfoPool"><code class="docutils literal notranslate"><span class="pre">DataGenInfoPool</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.datagen.DataGenInfoPool.__init__"><code class="docutils literal notranslate"><span class="pre">DataGenInfoPool.__init__()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.datagen.DataGenInfoPool.datagen_infos"><code class="docutils literal notranslate"><span class="pre">DataGenInfoPool.datagen_infos</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.datagen.DataGenInfoPool.subtask_indices"><code class="docutils literal notranslate"><span class="pre">DataGenInfoPool.subtask_indices</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.datagen.DataGenInfoPool.asyncio_lock"><code class="docutils literal notranslate"><span class="pre">DataGenInfoPool.asyncio_lock</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.datagen.DataGenInfoPool.num_datagen_infos"><code class="docutils literal notranslate"><span class="pre">DataGenInfoPool.num_datagen_infos</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.datagen.DataGenInfoPool.add_episode"><code class="docutils literal notranslate"><span class="pre">DataGenInfoPool.add_episode()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.datagen.DataGenInfoPool.load_from_dataset_file"><code class="docutils literal notranslate"><span class="pre">DataGenInfoPool.load_from_dataset_file()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#random-strategy">Random Strategy</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.datagen.RandomStrategy"><code class="docutils literal notranslate"><span class="pre">RandomStrategy</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.datagen.RandomStrategy.select_source_demo"><code class="docutils literal notranslate"><span class="pre">RandomStrategy.select_source_demo()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.datagen.RandomStrategy.__init__"><code class="docutils literal notranslate"><span class="pre">RandomStrategy.__init__()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#nearest-neighbor-object-strategy">Nearest Neighbor Object Strategy</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.datagen.NearestNeighborObjectStrategy"><code class="docutils literal notranslate"><span class="pre">NearestNeighborObjectStrategy</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.datagen.NearestNeighborObjectStrategy.select_source_demo"><code class="docutils literal notranslate"><span class="pre">NearestNeighborObjectStrategy.select_source_demo()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.datagen.NearestNeighborObjectStrategy.__init__"><code class="docutils literal notranslate"><span class="pre">NearestNeighborObjectStrategy.__init__()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#nearest-neighbor-robot-distance-strategy">Nearest Neighbor Robot Distance Strategy</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.datagen.NearestNeighborRobotDistanceStrategy"><code class="docutils literal notranslate"><span class="pre">NearestNeighborRobotDistanceStrategy</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.datagen.NearestNeighborRobotDistanceStrategy.select_source_demo"><code class="docutils literal notranslate"><span class="pre">NearestNeighborRobotDistanceStrategy.select_source_demo()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.datagen.NearestNeighborRobotDistanceStrategy.__init__"><code class="docutils literal notranslate"><span class="pre">NearestNeighborRobotDistanceStrategy.__init__()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#waypoint">Waypoint</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.datagen.Waypoint"><code class="docutils literal notranslate"><span class="pre">Waypoint</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.datagen.Waypoint.__init__"><code class="docutils literal notranslate"><span class="pre">Waypoint.__init__()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#waypoint-sequence">Waypoint Sequence</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.datagen.WaypointSequence"><code class="docutils literal notranslate"><span class="pre">WaypointSequence</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.datagen.WaypointSequence.__init__"><code class="docutils literal notranslate"><span class="pre">WaypointSequence.__init__()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.datagen.WaypointSequence.from_poses"><code class="docutils literal notranslate"><span class="pre">WaypointSequence.from_poses()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.datagen.WaypointSequence.last_waypoint"><code class="docutils literal notranslate"><span class="pre">WaypointSequence.last_waypoint</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.datagen.WaypointSequence.split"><code class="docutils literal notranslate"><span class="pre">WaypointSequence.split()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#waypoint-trajectory">Waypoint Trajectory</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.datagen.WaypointTrajectory"><code class="docutils literal notranslate"><span class="pre">WaypointTrajectory</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.datagen.WaypointTrajectory.__init__"><code class="docutils literal notranslate"><span class="pre">WaypointTrajectory.__init__()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.datagen.WaypointTrajectory.last_waypoint"><code class="docutils literal notranslate"><span class="pre">WaypointTrajectory.last_waypoint</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.datagen.WaypointTrajectory.add_waypoint_sequence"><code class="docutils literal notranslate"><span class="pre">WaypointTrajectory.add_waypoint_sequence()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.datagen.WaypointTrajectory.add_waypoint_sequence_for_target_pose"><code class="docutils literal notranslate"><span class="pre">WaypointTrajectory.add_waypoint_sequence_for_target_pose()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.datagen.WaypointTrajectory.pop_first"><code class="docutils literal notranslate"><span class="pre">WaypointTrajectory.pop_first()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.datagen.WaypointTrajectory.merge"><code class="docutils literal notranslate"><span class="pre">WaypointTrajectory.merge()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.datagen.WaypointTrajectory.execute"><code class="docutils literal notranslate"><span class="pre">WaypointTrajectory.execute()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+<div class="bd-footer-content__inner container">
+  
+  <div class="footer-item">
+    
+<p class="component-author">
+By The Isaac Lab Project Developers.
+</p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+
+  <p class="copyright">
+    
+      © Copyright 2022-2025, The Isaac Lab Project Developers..
+      <br/>
+    
+  </p>
+
+  </div>
+  
+  <div class="footer-item">
+    <p class="last-updated">
+  Last updated on Feb 28, 2025.
+  <br/>
+</p>
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+</div>
+          </footer>
+        
+
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+  </footer>
+  </body>
+</html>

@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.0.1" />
-    <meta name="docbuild:last-update" content="Feb 24, 2025"/>
+    <meta name="docbuild:last-update" content="Feb 28, 2025"/>
   </head>
   
   
@@ -157,6 +157,7 @@
           </div>
           <select id="version-select" class="version-dropdown" style="margin: 0 auto; display: block;" onchange="location = this.value;">
             <option value="isaaclab.envs.html" selected>main</option>
+            <option value="../../../../v2.0.1/source/api/lab/isaaclab.envs.html" >v2.0.1</option>
             <option value="../../../../v2.0.0/source/api/lab/isaaclab.envs.html" >v2.0.0</option>
             <option value="../../../../v1.4.1/index.html" >v1.4.1</option>
             <option value="../../../../v1.4.0/index.html" >v1.4.0</option>
@@ -1418,8 +1419,8 @@ in a vectorized environment.</p>
 <tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.envs.ManagerBasedRLEnv.seed" title="isaaclab.envs.ManagerBasedRLEnv.seed"><code class="xref py py-obj docutils literal notranslate"><span class="pre">seed</span></code></a>([seed])</p></td>
 <td><p>Set the seed for the environment.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.envs.ManagerBasedRLEnv.set_wrapper_attr" title="isaaclab.envs.ManagerBasedRLEnv.set_wrapper_attr"><code class="xref py py-obj docutils literal notranslate"><span class="pre">set_wrapper_attr</span></code></a>(name, value)</p></td>
-<td><p>Sets the attribute <cite>name</cite> on the environment with <cite>value</cite>.</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.envs.ManagerBasedRLEnv.set_wrapper_attr" title="isaaclab.envs.ManagerBasedRLEnv.set_wrapper_attr"><code class="xref py py-obj docutils literal notranslate"><span class="pre">set_wrapper_attr</span></code></a>(name, value, *[, force])</p></td>
+<td><p>Sets the attribute <cite>name</cite> on the environment with <cite>value</cite>, see <cite>Wrapper.set_wrapper_attr</cite> for more info.</p></td>
 </tr>
 </tbody>
 </table>
@@ -1668,8 +1669,8 @@ are not repeated.</p>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="isaaclab.envs.ManagerBasedRLEnv.set_wrapper_attr">
-<span class="sig-name descname"><span class="pre">set_wrapper_attr</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">value</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Any" title="(in Python v3.13)"><span class="pre">Any</span></a></span></em><span class="sig-paren">)</span><a class="headerlink" href="#isaaclab.envs.ManagerBasedRLEnv.set_wrapper_attr" title="Permalink to this definition">#</a></dt>
-<dd><p>Sets the attribute <cite>name</cite> on the environment with <cite>value</cite>.</p>
+<span class="sig-name descname"><span class="pre">set_wrapper_attr</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">value</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Any" title="(in Python v3.13)"><span class="pre">Any</span></a></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">force</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a></span></span><a class="headerlink" href="#isaaclab.envs.ManagerBasedRLEnv.set_wrapper_attr" title="Permalink to this definition">#</a></dt>
+<dd><p>Sets the attribute <cite>name</cite> on the environment with <cite>value</cite>, see <cite>Wrapper.set_wrapper_attr</cite> for more info.</p>
 </dd></dl>
 
 <dl class="py property">
@@ -2020,8 +2021,8 @@ in a vectorized environment.</p>
 <tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.envs.DirectRLEnv.has_wrapper_attr" title="isaaclab.envs.DirectRLEnv.has_wrapper_attr"><code class="xref py py-obj docutils literal notranslate"><span class="pre">has_wrapper_attr</span></code></a>(name)</p></td>
 <td><p>Checks if the attribute <cite>name</cite> exists in the environment.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.envs.DirectRLEnv.set_wrapper_attr" title="isaaclab.envs.DirectRLEnv.set_wrapper_attr"><code class="xref py py-obj docutils literal notranslate"><span class="pre">set_wrapper_attr</span></code></a>(name, value)</p></td>
-<td><p>Sets the attribute <cite>name</cite> on the environment with <cite>value</cite>.</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.envs.DirectRLEnv.set_wrapper_attr" title="isaaclab.envs.DirectRLEnv.set_wrapper_attr"><code class="xref py py-obj docutils literal notranslate"><span class="pre">set_wrapper_attr</span></code></a>(name, value, *[, force])</p></td>
+<td><p>Sets the attribute <cite>name</cite> on the environment with <cite>value</cite>, see <cite>Wrapper.set_wrapper_attr</cite> for more info.</p></td>
 </tr>
 </tbody>
 </table>
@@ -2253,8 +2254,8 @@ the seed will take the value -1.</p>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="isaaclab.envs.DirectRLEnv.set_wrapper_attr">
-<span class="sig-name descname"><span class="pre">set_wrapper_attr</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">value</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Any" title="(in Python v3.13)"><span class="pre">Any</span></a></span></em><span class="sig-paren">)</span><a class="headerlink" href="#isaaclab.envs.DirectRLEnv.set_wrapper_attr" title="Permalink to this definition">#</a></dt>
-<dd><p>Sets the attribute <cite>name</cite> on the environment with <cite>value</cite>.</p>
+<span class="sig-name descname"><span class="pre">set_wrapper_attr</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">value</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Any" title="(in Python v3.13)"><span class="pre">Any</span></a></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">force</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a></span></span><a class="headerlink" href="#isaaclab.envs.DirectRLEnv.set_wrapper_attr" title="Permalink to this definition">#</a></dt>
+<dd><p>Sets the attribute <cite>name</cite> on the environment with <cite>value</cite>, see <cite>Wrapper.set_wrapper_attr</cite> for more info.</p>
 </dd></dl>
 
 <dl class="py property">
@@ -2706,8 +2707,8 @@ in a vectorized environment.</p>
 <tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.envs.DirectMARLEnv.has_wrapper_attr" title="isaaclab.envs.DirectMARLEnv.has_wrapper_attr"><code class="xref py py-obj docutils literal notranslate"><span class="pre">has_wrapper_attr</span></code></a>(name)</p></td>
 <td><p>Checks if the attribute <cite>name</cite> exists in the environment.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.envs.DirectMARLEnv.set_wrapper_attr" title="isaaclab.envs.DirectMARLEnv.set_wrapper_attr"><code class="xref py py-obj docutils literal notranslate"><span class="pre">set_wrapper_attr</span></code></a>(name, value)</p></td>
-<td><p>Sets the attribute <cite>name</cite> on the environment with <cite>value</cite>.</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.envs.DirectMARLEnv.set_wrapper_attr" title="isaaclab.envs.DirectMARLEnv.set_wrapper_attr"><code class="xref py py-obj docutils literal notranslate"><span class="pre">set_wrapper_attr</span></code></a>(name, value, *[, force])</p></td>
+<td><p>Sets the attribute <cite>name</cite> on the environment with <cite>value</cite>, see <cite>Wrapper.set_wrapper_attr</cite> for more info.</p></td>
 </tr>
 </tbody>
 </table>
@@ -2986,8 +2987,8 @@ the seed will take the value -1.</p>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="isaaclab.envs.DirectMARLEnv.set_wrapper_attr">
-<span class="sig-name descname"><span class="pre">set_wrapper_attr</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">value</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Any" title="(in Python v3.13)"><span class="pre">Any</span></a></span></em><span class="sig-paren">)</span><a class="headerlink" href="#isaaclab.envs.DirectMARLEnv.set_wrapper_attr" title="Permalink to this definition">#</a></dt>
-<dd><p>Sets the attribute <cite>name</cite> on the environment with <cite>value</cite>.</p>
+<span class="sig-name descname"><span class="pre">set_wrapper_attr</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">value</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Any" title="(in Python v3.13)"><span class="pre">Any</span></a></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">force</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a></span></span><a class="headerlink" href="#isaaclab.envs.DirectMARLEnv.set_wrapper_attr" title="Permalink to this definition">#</a></dt>
+<dd><p>Sets the attribute <cite>name</cite> on the environment with <cite>value</cite>, see <cite>Wrapper.set_wrapper_attr</cite> for more info.</p>
 </dd></dl>
 
 </dd></dl>
@@ -3389,8 +3390,8 @@ pick-and-place and interacting with articulated objects.</p></li>
 <tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.envs.ManagerBasedRLMimicEnv.seed" title="isaaclab.envs.ManagerBasedRLMimicEnv.seed"><code class="xref py py-obj docutils literal notranslate"><span class="pre">seed</span></code></a>([seed])</p></td>
 <td><p>Set the seed for the environment.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.envs.ManagerBasedRLMimicEnv.set_wrapper_attr" title="isaaclab.envs.ManagerBasedRLMimicEnv.set_wrapper_attr"><code class="xref py py-obj docutils literal notranslate"><span class="pre">set_wrapper_attr</span></code></a>(name, value)</p></td>
-<td><p>Sets the attribute <cite>name</cite> on the environment with <cite>value</cite>.</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.envs.ManagerBasedRLMimicEnv.set_wrapper_attr" title="isaaclab.envs.ManagerBasedRLMimicEnv.set_wrapper_attr"><code class="xref py py-obj docutils literal notranslate"><span class="pre">set_wrapper_attr</span></code></a>(name, value, *[, force])</p></td>
+<td><p>Sets the attribute <cite>name</cite> on the environment with <cite>value</cite>, see <cite>Wrapper.set_wrapper_attr</cite> for more info.</p></td>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.envs.ManagerBasedRLMimicEnv.setup_manager_visualizers" title="isaaclab.envs.ManagerBasedRLMimicEnv.setup_manager_visualizers"><code class="xref py py-obj docutils literal notranslate"><span class="pre">setup_manager_visualizers</span></code></a>()</p></td>
 <td><p>Creates live visualizers for manager terms.</p></td>
@@ -3759,8 +3760,8 @@ are not repeated.</p>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="isaaclab.envs.ManagerBasedRLMimicEnv.set_wrapper_attr">
-<span class="sig-name descname"><span class="pre">set_wrapper_attr</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">value</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Any" title="(in Python v3.13)"><span class="pre">Any</span></a></span></em><span class="sig-paren">)</span><a class="headerlink" href="#isaaclab.envs.ManagerBasedRLMimicEnv.set_wrapper_attr" title="Permalink to this definition">#</a></dt>
-<dd><p>Sets the attribute <cite>name</cite> on the environment with <cite>value</cite>.</p>
+<span class="sig-name descname"><span class="pre">set_wrapper_attr</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">value</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Any" title="(in Python v3.13)"><span class="pre">Any</span></a></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">force</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a></span></span><a class="headerlink" href="#isaaclab.envs.ManagerBasedRLMimicEnv.set_wrapper_attr" title="Permalink to this definition">#</a></dt>
+<dd><p>Sets the attribute <cite>name</cite> on the environment with <cite>value</cite>, see <cite>Wrapper.set_wrapper_attr</cite> for more info.</p>
 </dd></dl>
 
 <dl class="py method">
@@ -4249,7 +4250,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Feb 24, 2025.
+  Last updated on Feb 28, 2025.
   <br/>
 </p>
   </div>

@@ -1,0 +1,1022 @@
+
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
+
+    <title>Reference Architecture &#8212; Isaac Lab Documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../../../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css" />
+    <link rel="stylesheet" href="../../../_static/styles/sphinx-book-theme.css?digest=14f4ca6b54d191a8c7657f6c759bf11a5fb86285" type="text/css" />
+    <link rel="stylesheet" type="text/css" href="/opt/hostedtoolcache/Python/3.10.16/x64/lib/python3.10/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/css/all.min.css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/custom.css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/sphinx-design.4cbf315f70debaebd550c87a6162cf0f.min.css" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../../../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script data-url_root="../../../" id="documentation_options" src="../../../_static/documentation_options.js"></script>
+    <script src="../../../_static/doctools.js"></script>
+    <script src="../../../_static/sphinx_highlight.js"></script>
+    <script src="/opt/hostedtoolcache/Python/3.10.16/x64/lib/python3.10/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/js/all.min.js"></script>
+    <script src="../../../_static/clipboard.min.js"></script>
+    <script src="../../../_static/copybutton.js"></script>
+    <script src="../../../_static/scripts/sphinx-book-theme.js?digest=5a5c038af52cf7bc1a1ec88eea08e6366ee68824"></script>
+    <script src="../../../_static/design-tabs.js"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'source/refs/reference_architecture/index';</script>
+    <link rel="icon" href="../../../_static/favicon.ico"/>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+    <link rel="next" title="Additional Resources" href="../additional_resources.html" />
+    <link rel="prev" title="isaaclab_mimic.datagen" href="../../api/lab_mimic/isaaclab_mimic.datagen.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="2.0.1" />
+    <meta name="docbuild:last-update" content="Feb 28, 2025"/>
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+    
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../../../_static/NVIDIA-logo-white.png" class="logo__image only-light" alt=""/>
+    <img src="../../../_static/NVIDIA-logo-black.png" class="logo__image only-dark pst-js-only" alt=""/>
+  
+  
+    <p class="title logo__title">Isaac Lab Documentation</p>
+  
+</a></div>
+        <div class="sidebar-primary-item">
+<nav class="bd-links bd-docs-nav">
+    <div class="bd-toc-item navbar-nav">
+      <ul class="nav bd-sidenav">
+        <li class="toctree-l1 has-children" style="display: flex; justify-content: center; align-items: center; flex-direction: column;">
+          <div  style ="text-align:center;">
+            <label for="version-select" style="font-weight: bold; display: block;">Version</label>
+          </div>
+          <select id="version-select" class="version-dropdown" style="margin: 0 auto; display: block;" onchange="location = this.value;">
+            <option value="../../../../main/source/refs/reference_architecture/index.html" >main</option>
+            <option value="index.html" selected>v2.0.1</option>
+            <option value="../../../../v2.0.0/source/refs/reference_architecture/index.html" >v2.0.0</option>
+            <option value="../../../../v1.4.1/source/refs/reference_architecture/index.html" >v1.4.1</option>
+            <option value="../../../../v1.4.0/source/refs/reference_architecture/index.html" >v1.4.0</option>
+            <option value="../../../../v1.3.0/source/refs/reference_architecture/index.html" >v1.3.0</option>
+            <option value="../../../../v1.2.0/index.html" >v1.2.0</option>
+            <option value="../../../../v1.1.0/index.html" >v1.1.0</option>
+            <option value="../../../../v1.0.0/index.html" >v1.0.0</option>
+          </select>
+        </li>
+      </ul>
+    </div>
+</nav>
+</div>
+        <div class="sidebar-primary-item"><ul class="navbar-icon-links"
+    aria-label="Quick Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/isaac-sim/IsaacLab" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.5.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+        </li>
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://img.shields.io/github/stars/isaac-sim/IsaacLab?color=fedcba" title="Stars" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/github/stars/isaac-sim/IsaacLab?color=fedcba" class="icon-link-image" alt="Stars"/></a>
+        </li>
+</ul></div>
+        <div class="sidebar-primary-item">
+<form class="bd-search d-flex align-items-center"
+      action="../../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form></div>
+        <div class="sidebar-primary-item"><nav class="bd-links" id="bd-docs-nav" aria-label="Main">
+    <div class="bd-toc-item navbar-nav active">
+        <p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../setup/ecosystem.html">Isaac Lab Ecosystem</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../setup/installation/index.html">Local Installation</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/installation/pip_installation.html">Pip installation (recommended for Ubuntu 22.04 and Windows)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/installation/binaries_installation.html">Binary installation (recommended for Ubuntu 20.04)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/installation/isaaclab_pip_installation.html">Advanced installation (Isaac Lab pip)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/installation/asset_caching.html">Asset caching</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../../setup/installation/cloud_installation.html">Running Isaac Lab in the Cloud</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../setup/faq.html">Frequently Asked Questions</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Overview</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../overview/developer-guide/index.html">Developer’s Guide</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/developer-guide/vs_code.html">Setting up Visual Studio Code</a></li>
+
+<li class="toctree-l2"><a class="reference internal" href="../../overview/developer-guide/repo_structure.html">Repository organization</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/developer-guide/development.html">Extension Development</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/developer-guide/template.html">Building your Own Project</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../overview/core-concepts/index.html">Core Concepts</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/core-concepts/task_workflows.html">Task Design Workflows</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/core-concepts/actuators.html">Actuators</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../overview/sensors/index.html">Sensors</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/sensors/camera.html">Camera</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/sensors/contact_sensor.html">Contact Sensor</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/sensors/frame_transformer.html">Frame Transformer</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/sensors/imu.html">Inertial Measurement Unit (IMU)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/sensors/ray_caster.html">Ray Caster</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../../overview/environments.html">Available Environments</a></li>
+
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../overview/reinforcement-learning/index.html">Reinforcement Learning</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/reinforcement-learning/rl_existing_scripts.html">Reinforcement Learning Wrappers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/reinforcement-learning/rl_frameworks.html">Reinforcement Learning Library Comparison</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/reinforcement-learning/performance_benchmarks.html">Performance Benchmarks</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/reinforcement-learning/training_guide.html">Debugging and Training Guide</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../../overview/teleop_imitation.html">Teleoperation and Imitation Learning</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../overview/showroom.html">Showroom Demos</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../overview/simple_agents.html">Simple Agents</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Features</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../features/hydra.html">Hydra Configuration System</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../features/multi_gpu.html">Multi-GPU and Multi-Node Training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../overview/sensors/camera.html">Tiled Rendering</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../features/ray.html">Ray Job Dispatch and Tuning</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../features/reproducibility.html">Reproducibility and Determinism</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Resources</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../tutorials/index.html">Tutorials</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/00_sim/create_empty.html">Creating an empty scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/00_sim/spawn_prims.html">Spawning prims into the scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/00_sim/launch_app.html">Deep-dive into AppLauncher</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/01_assets/run_rigid_object.html">Interacting with a rigid object</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/01_assets/run_articulation.html">Interacting with an articulation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/01_assets/run_deformable_object.html">Interacting with a deformable object</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/02_scene/create_scene.html">Using the Interactive Scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/03_envs/create_manager_base_env.html">Creating a Manager-Based Base Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/03_envs/create_manager_rl_env.html">Creating a Manager-Based RL Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/03_envs/create_direct_rl_env.html">Creating a Direct Workflow RL Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/03_envs/register_rl_env_gym.html">Registering an Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/03_envs/run_rl_training.html">Training with an RL Agent</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/03_envs/modify_direct_rl_env.html">Modifying an existing Direct RL Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/03_envs/policy_inference_in_usd.html">Policy Inference in USD Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/04_sensors/add_sensors_on_robot.html">Adding sensors on a robot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/05_controllers/run_diff_ik.html">Using a task-space controller</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/05_controllers/run_osc.html">Using an operational space controller</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../how-to/index.html">How-to Guides</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/import_new_asset.html">Importing a New Asset</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/write_articulation_cfg.html">Writing an Asset Configuration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/make_fixed_prim.html">Making a physics prim fixed in the simulation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/multi_asset_spawning.html">Spawning Multiple Assets</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/save_camera_output.html">Saving rendered images and 3D re-projection</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/estimate_how_many_cameras_can_run.html">Find How Many/What Cameras You Should Train With</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/draw_markers.html">Creating Visualization Markers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/wrap_rl_env.html">Wrapping environments</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/add_own_library.html">Adding your own learning library</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/record_animation.html">Recording Animations of Simulations</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/record_video.html">Recording video clips during training</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/master_omniverse.html">Mastering Omniverse for Robotics</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../deployment/index.html">Container Deployment</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../deployment/docker.html">Docker Guide</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../deployment/cluster.html">Cluster Guide</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../deployment/run_docker_example.html">Running an example with Docker</a></li>
+</ul>
+</details></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Migration Guides</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../migration/migrating_from_isaacgymenvs.html">From IsaacGymEnvs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../migration/migrating_from_omniisaacgymenvs.html">From OmniIsaacGymEnvs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../migration/migrating_from_orbit.html">From Orbit</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Source API</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../api/index.html">API Reference</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.app.html">isaaclab.app</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.actuators.html">isaaclab.actuators</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.assets.html">isaaclab.assets</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.controllers.html">isaaclab.controllers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.devices.html">isaaclab.devices</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.envs.html">isaaclab.envs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.managers.html">isaaclab.managers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.markers.html">isaaclab.markers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.scene.html">isaaclab.scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.sensors.html">isaaclab.sensors</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.sim.html">isaaclab.sim</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.terrains.html">isaaclab.terrains</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.utils.html">isaaclab.utils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.envs.mdp.html">isaaclab.envs.mdp</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.envs.ui.html">isaaclab.envs.ui</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.sensors.patterns.html">isaaclab.sensors.patterns</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.sim.converters.html">isaaclab.sim.converters</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.sim.schemas.html">isaaclab.sim.schemas</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.sim.spawners.html">isaaclab.sim.spawners</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab_tasks/isaaclab_tasks.utils.html">isaaclab_tasks.utils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab_mimic/isaaclab_mimic.datagen.html">isaaclab_mimic.datagen</a></li>
+</ul>
+</details></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">References</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">Reference Architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../additional_resources.html">Additional Resources</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../contributing.html">Contribution Guidelines</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../troubleshooting.html">Tricks and Troubleshooting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../migration.html">Migration Guide (Isaac Sim)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../issues.html">Known Issues</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../release_notes.html">Release Notes</a></li>
+
+
+
+
+
+
+<li class="toctree-l1"><a class="reference internal" href="../changelog.html">Extensions Changelog</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../license.html">License</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../bibliography.html">Bibliography</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Project Links</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference external" href="https://github.com/isaac-sim/IsaacLab">GitHub</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/latest/index.html">NVIDIA Isaac Sim</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/index.html">NVIDIA PhysX</a></li>
+</ul>
+
+    </div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+
+<div class="sbt-scroll-pixel-helper"></div>
+
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item"><label class="sidebar-toggle primary-toggle btn btn-sm" for="__primary" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <span class="fa-solid fa-bars"></span>
+</label></div>
+      
+    </div>
+  
+  
+    <div class="header-article-items__end">
+      
+        <div class="header-article-item">
+
+<div class="article-header-buttons">
+
+
+
+
+
+<div class="dropdown dropdown-source-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Source repositories">
+    <i class="fab fa-github"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="https://github.com/isaac-sim/IsaacLab" target="_blank"
+   class="btn btn-sm btn-source-repository-button dropdown-item"
+   title="Source repository"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fab fa-github"></i>
+  </span>
+<span class="btn__text-container">Repository</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li><a href="https://github.com/isaac-sim/IsaacLab/edit/main/source/refs/reference_architecture/index.rst" target="_blank"
+   class="btn btn-sm btn-source-edit-button dropdown-item"
+   title="Suggest edit"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-pencil-alt"></i>
+  </span>
+<span class="btn__text-container">Suggest edit</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li><a href="https://github.com/isaac-sim/IsaacLab/issues/new?title=Issue%20on%20page%20%2Fsource/refs/reference_architecture/index.html&body=Your%20issue%20content%20here." target="_blank"
+   class="btn btn-sm btn-source-issues-button dropdown-item"
+   title="Open an issue"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-lightbulb"></i>
+  </span>
+<span class="btn__text-container">Open issue</span>
+</a>
+</li>
+      
+  </ul>
+</div>
+
+
+
+
+
+
+<div class="dropdown dropdown-download-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Download this page">
+    <i class="fas fa-download"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="../../../_sources/source/refs/reference_architecture/index.rst" target="_blank"
+   class="btn btn-sm btn-download-source-button dropdown-item"
+   title="Download source file"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file"></i>
+  </span>
+<span class="btn__text-container">.rst</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li>
+<button onclick="window.print()"
+  class="btn btn-sm btn-download-pdf-button dropdown-item"
+  title="Print to PDF"
+  data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file-pdf"></i>
+  </span>
+<span class="btn__text-container">.pdf</span>
+</button>
+</li>
+      
+  </ul>
+</div>
+
+
+
+
+<button onclick="toggleFullScreen()"
+  class="btn btn-sm btn-fullscreen-button"
+  title="Fullscreen mode"
+  data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-expand"></i>
+  </span>
+
+</button>
+
+
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button>
+
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+<label class="sidebar-toggle secondary-toggle btn btn-sm" for="__secondary"title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <span class="fa-solid fa-list"></span>
+</label>
+</div></div>
+      
+    </div>
+  
+</div>
+</div>
+              
+              
+
+<div id="jb-print-docs-body" class="onlyprint">
+    <h1>Reference Architecture</h1>
+    <!-- Table of contents -->
+    <div id="print-main-content">
+        <div id="jb-print-toc">
+            
+            <div>
+                <h2> Contents </h2>
+            </div>
+            <nav aria-label="Page">
+                <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#who-is-this-document-for">Who is this document for?</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#components">Components</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#component-1-asset-input">Component 1 - Asset Input</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#component-2-configuration-assets-and-scene">Component 2 -  Configuration (Assets and Scene)</a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#asset-configuration">Asset Configuration</a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#scene-configuration">Scene Configuration</a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#component-3-robot-learning-task-design">Component 3 - Robot Learning Task Design</a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#manager-based">Manager-based</a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#direct">Direct</a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#component-4-register-with-gymnasium">Component 4 - Register with Gymnasium</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#component-5-environment-wrapping">Component 5 - Environment Wrapping</a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#adding-your-own-wrappers">Adding your own wrappers</a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#component-6-run-training">Component 6 - Run Training</a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#single-gpu-training">Single GPU Training</a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#multi-gpu-and-multi-node-training">Multi-GPU and Multi-Node Training</a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#cloud-based-training">Cloud-Based Training</a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#component-7-run-testing">Component 7: Run Testing</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#deployment-on-physical-robots">Deployment on Physical Robots</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#summary">Summary</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#how-to-get-started">How to Get Started</a></li>
+</ul>
+            </nav>
+        </div>
+    </div>
+</div>
+
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="reference-architecture">
+<h1>Reference Architecture<a class="headerlink" href="#reference-architecture" title="Permalink to this heading">#</a></h1>
+<p>This document presents an overview of the end-to-end robot learning process with
+Isaac Lab and Isaac Sim. This is demonstrated using a reference architecture that highlights
+the major building blocks for training and deployment workflows. It provides a comprehensive,
+user-friendly guide on the entire process of developing applications from training to deploying
+the trained model in the real world, including links to demos, working examples, and documentation.</p>
+<section id="who-is-this-document-for">
+<h2>Who is this document for?<a class="headerlink" href="#who-is-this-document-for" title="Permalink to this heading">#</a></h2>
+<p>This document is designed to assist robotics developers and researchers working with NVIDIA Isaac Lab
+in the robot learning field, including those at research labs, Original Equipment Manufacturers (OEM),
+Solutions Providers, Solutions Integrators (SI),  and independent software vendors (ISV). It offers
+guidance on utilizing Isaac Lab’s robot training framework and workflows as a foundational starting
+point for environment configuration, task design, and policy training and testing.</p>
+<img alt="Isaac Lab Reference Architecture" class="only-light align-center" src="../../../_images/isaac-lab-ra-light.svg" /><img alt="Isaac Lab Reference Architecture" class="only-dark align-center" src="../../../_images/isaac-lab-ra-dark.svg" /><div class="line-block">
+<div class="line"><br /></div>
+</div>
+<p>The reference architecture for Isaac Lab comprises the following components:</p>
+<ol class="arabic simple">
+<li><p><a class="reference internal" href="#ra-asset-input"><span class="std std-ref">Asset Input</span></a></p></li>
+<li><p><a class="reference internal" href="#ra-configuration"><span class="std std-ref">Configuration - Assets &amp; Scene</span></a></p></li>
+<li><p><a class="reference internal" href="#ra-robot-learning-task-design"><span class="std std-ref">Robot Learning Task Design</span></a></p></li>
+<li><p><a class="reference internal" href="#ra-register-gym"><span class="std std-ref">Register with Gymnasium</span></a></p></li>
+<li><p><a class="reference internal" href="#ra-env-wrap"><span class="std std-ref">Environment Wrapping</span></a></p></li>
+<li><p><a class="reference internal" href="#ra-run-training"><span class="std std-ref">Run Training</span></a></p></li>
+<li><p><a class="reference internal" href="#ra-run-testing"><span class="std std-ref">Run Testing</span></a></p></li>
+</ol>
+</section>
+<section id="components">
+<h2>Components<a class="headerlink" href="#components" title="Permalink to this heading">#</a></h2>
+<p>In this section, we will briefly discuss the individual blocks for creating a
+sample reference application in Isaac Lab.</p>
+<section id="component-1-asset-input">
+<span id="ra-asset-input"></span><h3>Component 1 - Asset Input<a class="headerlink" href="#component-1-asset-input" title="Permalink to this heading">#</a></h3>
+<p>Isaac Lab accepts URDF, MJCF XML or USD files for the assets. The first step to training using Isaac Lab is to
+have the USD file of your asset and the USD or URDF file of your robot. This can be achieved in
+the following ways:</p>
+<ol class="arabic simple">
+<li><p>Design your assets or robot in Isaac Sim and export the USD file.</p></li>
+<li><p>Design your assets or robot in any software of your choice and export it to USD using Isaac Sim converters. Isaac Sim supports the different converters/importers to USD such as the <a class="reference external" href="https://docs.omniverse.nvidia.com/extensions/latest/ext_cad-converter.html">CAD Converter</a>, <a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/latest/robot_setup/ext_isaacsim_asset_importer_urdf.html">URDF Importer</a>, <a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/latest/robot_setup/ext_isaacsim_asset_importer_mjcf.html">MJCF Importer</a>, <a class="reference external" href="https://docs.omniverse.nvidia.com/extensions/latest/ext_onshape.html">Onshape Importer</a>, etc. More details are found in the <a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/latest/isaac_sim_reference_architecture.html#importing-assets">Importing Assets section</a> in the <a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/latest/isaac_sim_reference_architecture.html">Isaac Sim Reference Architecture</a>.</p></li>
+<li><p>If you already have the URDF or MJCF file of your robot, you do not need to convert to USD as Isaac Lab takes URDF and MJCF XML.</p></li>
+</ol>
+</section>
+<section id="component-2-configuration-assets-and-scene">
+<span id="ra-configuration"></span><h3>Component 2 -  Configuration (Assets and Scene)<a class="headerlink" href="#component-2-configuration-assets-and-scene" title="Permalink to this heading">#</a></h3>
+<section id="asset-configuration">
+<h4>Asset Configuration<a class="headerlink" href="#asset-configuration" title="Permalink to this heading">#</a></h4>
+<p>Given that you have the asset file for your robot and other assets such as environment objects based on the task, the next step is to import them into Isaac Lab. Isaac Lab uses asset configuration classes to spawn various objects (or prims) into the scene using Python. The first step is to write a configuration class to define the properties for the assets needed to complete the task. For example, a simple go-to-goal task for a mobile robot will include the robot asset, an object like cubes to signify the goal pose visually, lights, ground plane, etc. Isaac Lab understands these assets using the configuration classes. Isaac Lab provides various sim-ready assets such as physically accurate
+3D objects that encompass accurate physical properties and behavior. It also provides connected data streams to represent the real world in simulated digital worlds such as <a class="reference external" href="https://github.com/isaac-sim/IsaacLab/tree/main/source/isaaclab_assets/isaaclab_assets">robots</a>
+like ANYbotics Anymal, Unitree H1 Humanoid, etc. as well as <a class="reference external" href="https://github.com/isaac-sim/IsaacLab/tree/main/source/isaaclab/isaaclab/sensors">sensors</a>. We provide these assets configuration classes. Users can also define their own assets using the configuration classes.</p>
+<p>Follow the tutorial on <a class="reference external" href="https://isaac-sim.github.io/IsaacLab/main/source/how-to/write_articulation_cfg.html">how to write an Articulation and ArticulationCfg class</a>.</p>
+</section>
+<section id="scene-configuration">
+<h4>Scene Configuration<a class="headerlink" href="#scene-configuration" title="Permalink to this heading">#</a></h4>
+<p>Given the individual asset configurations, the next step is to put all the assets together into a
+scene. The scene configuration is a simple config class that initializes all the assets in the
+scene that are needed for the task and for visualization. This is an example for the
+<a class="reference external" href="https://isaac-sim.github.io/IsaacLab/main/source/tutorials/02_scene/create_scene.html#scene-configuration">Cartpole example scene configuration</a>,
+which includes the cartpole, ground plane, and dome light.</p>
+</section>
+</section>
+<section id="component-3-robot-learning-task-design">
+<span id="ra-robot-learning-task-design"></span><h3>Component 3 - Robot Learning Task Design<a class="headerlink" href="#component-3-robot-learning-task-design" title="Permalink to this heading">#</a></h3>
+<p>Now, we have the scene for the task, but we need to define the robot learning task. We will focus on
+<a class="reference external" href="https://www.andrew.cmu.edu/course/10-703/textbook/BartoSutton.pdf">reinforcement learning (RL)</a> algorithm here. We define the RL task
+that the agent is going to do. RL tasks are defined as a Markov Decision Process (MDP),
+which is a stochastic decision-making process where optional decisions are made for the agents
+considering their current state and environment they interact with. The environment provides the
+agents’ current state or observations, and executes the actions provided by the agent.
+The environment responds to the agents by providing the next states, reward of taking the
+action, done flag and information about the current episode. Therefore, different components
+of the MDP formulation (the environment) – states, actions, rewards, reset, done, etc. — must
+be defined by the user for the agent to perform the given task.</p>
+<p>In Isaac Lab, we provide two different workflows for designing environments.</p>
+<section id="manager-based">
+<h4>Manager-based<a class="headerlink" href="#manager-based" title="Permalink to this heading">#</a></h4>
+<img alt="Manager-based Task Workflow" class="only-light align-center" src="../../../_images/manager-based-light.svg" /><img alt="Manager-based Task Workflow" class="only-dark align-center" src="../../../_images/manager-based-dark.svg" /><p>This workflow is modular, and the environment is decomposed into individual components (or managers)
+that handle the different aspects of the environment, such as computing observations,
+applying actions, and applying randomization. As a user, you define different configuration classes
+for each component.</p>
+<ul class="simple">
+<li><p>An RL task should have the following configuration classes:</p>
+<ul>
+<li><p>Observations Config: Defines the agents’ observations for the task.</p></li>
+<li><p>Actions Config: Defines the agent’s action type, i.e. how the output of the agent are mapped to
+the robot’s control inputs.</p></li>
+<li><p>Rewards Config: Defines the reward function for the task</p></li>
+<li><p>Terminations Config: Defines the conditions for termination of an episode or when the task
+is completed.</p></li>
+</ul>
+</li>
+<li><p>You can add other optional configuration classes such as Event Config which defines the set of randomizations and noisification for the agent and environment, Curriculum Config for tasks that require <a class="reference external" href="https://arxiv.org/abs/2109.11978">curriculum learning</a> and Commands Config for tasks where the input is from a controller/setpoint controls e.g. a gamepad controller.</p></li>
+</ul>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>To learn more on how you can design your own manager-based environment, see <a class="reference internal" href="../../tutorials/03_envs/create_manager_rl_env.html#tutorial-create-manager-rl-env"><span class="std std-ref">Creating a Manager-Based RL Environment</span></a>.</p>
+</div>
+</section>
+<section id="direct">
+<h4>Direct<a class="headerlink" href="#direct" title="Permalink to this heading">#</a></h4>
+<img alt="Direct-based Task Workflow" class="only-light align-center" src="../../../_images/direct-based-light.svg" /><img alt="Direct-based Task Workflow" class="only-dark align-center" src="../../../_images/direct-based-dark.svg" /><p>In this workflow, you implement a single class that is responsible for computing observations, applying actions, and computing rewards. This workflow allows for direct control of the environment logic.</p>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>To learn more on how you can design your own direct environment, see <a class="reference internal" href="../../tutorials/03_envs/create_direct_rl_env.html#tutorial-create-direct-rl-env"><span class="std std-ref">Creating a Direct Workflow RL Environment</span></a>.</p>
+</div>
+<p>Users can choose from Isaac Lab’s large suite of pre-configured environments or users can define
+their own environments. For more technical information about the two workflows, please see the
+<a class="reference external" href="https://isaac-sim.github.io/IsaacLab/main/source/overview/core-concepts/task_workflows.html">documentation</a>.</p>
+<p>In addition to designing the RL task, you will need to design your agent’s model, the neural
+network policy and value function. To train the RL agent to solve the task, you need to define
+the hyperparameters such as number of epochs, learning rate, etc. for training and the
+policy/value model architecture. This is defined in the training configuration file specific
+to the RL library you want to use. Examples are created under the agent’s folder in each task directory.
+See an example of <a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/locomotion/velocity/config/anymal_b/agents/rsl_rl_ppo_cfg.py">RSL-RL</a> for Anymal-B.</p>
+</section>
+</section>
+<section id="component-4-register-with-gymnasium">
+<span id="ra-register-gym"></span><h3>Component 4 - Register with Gymnasium<a class="headerlink" href="#component-4-register-with-gymnasium" title="Permalink to this heading">#</a></h3>
+<p>The next step is to register the environments with the gymnasium registry to allow you to create the environment using the unique environment name.
+Registration is a way to make the environment accessible and reusable across different
+RL algorithms and experiments. This is common in the RL community. Follow the tutorial on
+<a class="reference external" href="https://isaac-sim.github.io/IsaacLab/main/source/tutorials/03_envs/register_rl_env_gym.html">Registering an Environment</a> to learn more about how to register in your own environment.</p>
+</section>
+<section id="component-5-environment-wrapping">
+<span id="ra-env-wrap"></span><h3>Component 5 - Environment Wrapping<a class="headerlink" href="#component-5-environment-wrapping" title="Permalink to this heading">#</a></h3>
+<p>In running your RL task, you might want to change the behavior of your environment without
+changing the environment itself. For example, you might want to create functions to modify
+observations or rewards, record videos, or enforce time limits. Isaac Lab utilizes the API
+available in the <a class="reference external" href="https://gymnasium.farama.org/api/wrappers/table/">gymnasium.Wrapper</a> class to create interfaces to the simulated environments.</p>
+<p>Some wrappers include:</p>
+<ul class="simple">
+<li><p><a class="reference external" href="https://isaac-sim.github.io/IsaacLab/main/source/how-to/wrap_rl_env.html#wrapper-for-recording-videos">Video Wrappers</a></p></li>
+<li><p><a class="reference external" href="https://isaac-sim.github.io/IsaacLab/main/source/how-to/wrap_rl_env.html#wrapper-for-learning-frameworks">RL Libraries Wrappers</a></p></li>
+</ul>
+<p>Most RL libraries expect their own variation of an environment interface. This means the
+data types needed by each library differs. Isaac Lab provides its own wrappers to convert
+the environment into the expected interface by the RL library a user wants to use. These are
+specified in the <a class="reference external" href="https://isaac-sim.github.io/IsaacLab/main/source/api/lab_tasks/isaaclab_rl.html#module-isaaclab_rl">Isaac Lab utils wrapper module</a>.</p>
+<p>See the <a class="reference external" href="https://gymnasium.farama.org/api/wrappers/#gymnasium.Wrapper">full list</a> of other wrappers APIs. For more information on how these wrappers work,
+please refer to the <a class="reference external" href="https://isaac-sim.github.io/IsaacLab/main/source/how-to/wrap_rl_env.html#how-to-env-wrappers">Wrapping environments</a> documentation.</p>
+<section id="adding-your-own-wrappers">
+<h4>Adding your own wrappers<a class="headerlink" href="#adding-your-own-wrappers" title="Permalink to this heading">#</a></h4>
+<p>You can define your own wrappers by adding them to the Isaac Lab utils wrapper module. More information is available <a class="reference external" href="https://isaac-sim.github.io/IsaacLab/main/source/how-to/wrap_rl_env.html#adding-new-wrappers">on the GitHub page for wrapping environments</a>.</p>
+</section>
+</section>
+<section id="component-6-run-training">
+<span id="ra-run-training"></span><h3>Component 6 - Run Training<a class="headerlink" href="#component-6-run-training" title="Permalink to this heading">#</a></h3>
+<p>Finally, the last step is to run the training of the RL agent. Isaac Lab provides scripts which utilizes four popular RL libraries for training the models (GPU-based training):</p>
+<ul class="simple">
+<li><p><a class="reference external" href="https://stable-baselines3.readthedocs.io/en/master/">StableBaselines3</a></p></li>
+<li><p><a class="reference external" href="https://github.com/leggedrobotics/rsl_rl">RSL-RL</a></p></li>
+<li><p><a class="reference external" href="https://github.com/Denys88/rl_games">RL-Games</a></p></li>
+<li><p><a class="reference external" href="https://skrl.readthedocs.io/en/latest/">SKRL</a></p></li>
+</ul>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Isaac Lab does not provide the implementation of these RL libraries. They are already implemented by different authors. We provide the environments and framework wrappers for the RL libraries.</p>
+</div>
+<p>If you want to integrate a different version of the provided algorithms or your learning library, you can follow
+<a class="reference external" href="https://isaac-sim.github.io/IsaacLab/main/source/how-to/add_own_library.html">these instructions</a>.</p>
+<section id="single-gpu-training">
+<h4>Single GPU Training<a class="headerlink" href="#single-gpu-training" title="Permalink to this heading">#</a></h4>
+<img alt="Single GPU Training Data Flow" class="only-light align-center" src="../../../_images/single-gpu-training-light.svg" /><img alt="Single GPU Training Data Flow" class="only-dark align-center" src="../../../_images/single-gpu-training-dark.svg" /><p>Isaac Lab supports training massively parallel environments to speed up RL training and provides rich data for the model to train.
+For single GPU training, the following steps show how training works in Isaac Sim and Isaac Lab:</p>
+<ol class="arabic simple">
+<li><p><strong>In Isaac Sim</strong></p></li>
+</ol>
+<ul class="simple">
+<li><p>Isaac Sim provides the asset states such as robot and sensor states, including the observations defined in the task observation config class.</p></li>
+</ul>
+<ol class="arabic simple" start="2">
+<li><p><strong>In Isaac Lab</strong></p></li>
+</ol>
+<ul class="simple">
+<li><p>Randomizations are added to the states defined in the event configuration class to obtain the observation for the task. Randomizations are however optional. If not defined, the states are the observations.</p></li>
+<li><p>The observations are computed as PyTorch tensors, and it can optionally include the action provided by the trained model based on the task.</p></li>
+</ul>
+<ol class="arabic simple" start="3">
+<li><p><strong>In the RL library</strong></p></li>
+</ol>
+<ul class="simple">
+<li><p>The observation is passed to the policy.</p></li>
+<li><p>The policy is trained to output the right actions for the robot using RL library algorithms such as PPO, TRPO, etc.</p></li>
+<li><p>The actions can serve either as a setpoint for a controller that generates the action to the robot or used directly as the action to the robot based on the task.</p></li>
+<li><p>Action types such as joint position for a quadruped is an input to a joint controller, velocity of 1 or 0 is used to control the cart directly in the cartpole task, etc.</p></li>
+<li><p>In addition, based on how the task is defined, the previous action can be part of the next set of observations that is sent.</p></li>
+</ul>
+<ol class="arabic simple" start="4">
+<li><p><strong>In Isaac Sim</strong></p></li>
+</ol>
+<ul class="simple">
+<li><p>The actions from the policy are sent back to Isaac Sim to control the agent that is learning i.e. the robot. This is the physics simulation (sim) step. This generates the next states in Isaac Sim and the rewards are calculated in Isaac Lab.</p></li>
+</ul>
+<ol class="arabic simple" start="5">
+<li><p><strong>Rendering</strong></p></li>
+</ol>
+<ul class="simple">
+<li><p>The scene can be rendered to produce the cameras’ images.</p></li>
+</ul>
+<p>The next state is then passed in the flow till the training reaches the specified training steps or epochs. The final product is the trained model/agent.</p>
+</section>
+<section id="multi-gpu-and-multi-node-training">
+<h4>Multi-GPU and Multi-Node Training<a class="headerlink" href="#multi-gpu-and-multi-node-training" title="Permalink to this heading">#</a></h4>
+<img alt="Multi GPU Training Data Flow" class="only-light align-center" src="../../../_images/multi-gpu-training-light.svg" /><img alt="Multi GPU Training Data Flow" class="only-dark align-center" src="../../../_images/multi-gpu-training-dark.svg" /><p>Isaac Lab supports scaling up training by taking advantage of multi-GPU and multi-node training on Linux. Follow the tutorial on <a class="reference external" href="https://isaac-sim.github.io/IsaacLab/main/source/features/multi_gpu.html#multi-gpu-training">Multi-GPU training</a> and <a class="reference external" href="https://isaac-sim.github.io/IsaacLab/main/source/features/multi_gpu.html#multi-node-training">Multi-Node training</a> to get started.</p>
+</section>
+<section id="cloud-based-training">
+<h4>Cloud-Based Training<a class="headerlink" href="#cloud-based-training" title="Permalink to this heading">#</a></h4>
+<p>Isaac Lab can be deployed alongside Isaac Sim onto the public clouds with <a class="reference external" href="https://github.com/isaac-sim/IsaacAutomator">Isaac Automator</a>. AWS, GCP, Azure, and Alibaba Cloud are currently supported. Follow the tutorial on <a class="reference external" href="https://isaac-sim.github.io/IsaacLab/main/source/setup/installation/cloud_installation.html">how to run Isaac Lab in the cloud</a>.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Both multi-GPU and multi-node jobs can be easily scaled across heterogeneous environments with <a class="reference external" href="https://developer.nvidia.com/osmo">OSMO</a>, a cloud-native, orchestration platform for scheduling complex multi-stage and multi-container heterogeneous computing workflows. Isaac Lab also provides the tools to run your RL task in Docker. See more details on <a class="reference external" href="https://isaac-sim.github.io/IsaacLab/main/source/deployment/index.html">container deployment</a>.</p>
+</div>
+</section>
+</section>
+<section id="component-7-run-testing">
+<span id="ra-run-testing"></span><h3>Component 7: Run Testing<a class="headerlink" href="#component-7-run-testing" title="Permalink to this heading">#</a></h3>
+<p>Isaac Lab provides scripts for <a class="reference external" href="https://isaac-sim.github.io/IsaacLab/main/source/tutorials/03_envs/run_rl_training.html#playing-the-trained-agent">testing/playing the trained policy</a> on the environment and functions for converting the trained model from .pt to
+.jit and .onnx for deployment.</p>
+</section>
+</section>
+<section id="deployment-on-physical-robots">
+<h2>Deployment on Physical Robots<a class="headerlink" href="#deployment-on-physical-robots" title="Permalink to this heading">#</a></h2>
+<img alt="Isaac Lab Trained Policy Deployment" class="only-light align-center" src="../../../_images/deployment-light.svg" /><img alt="Isaac Lab Trained Policy Deployment" class="only-dark align-center" src="../../../_images/deployment-dark.svg" /><p>To deploy your trained model on a real robot, you would need what is shown in the flow diagram. Note, this is a sample reference architecture, hence it can be tweaked for a different application.
+First, you need a robot with the required sensors and processing computer such as <a class="reference external" href="https://www.nvidia.com/en-us/autonomous-machines/embedded-systems/">NVIDIA Jetson</a> to deploy on. Next, you need a state estimator for your robot. The state estimator should be able to deliver the list of observations used for training.</p>
+<p>Once the observations are extracted, they are passed into the model which delivers the action using the model inferencing runtime. The commanded action from the model serves as setpoints for the action controller. The action controller outputs scaled actions which are then used to control the robot to get to the next state, and this continues till the task is done.</p>
+<p>NVIDIA Isaac platform provides some tools for state estimation, including visual slam and inferencing engines such as <a class="reference external" href="https://developer.nvidia.com/tensorrt-getting-started#:~:text=NVIDIA%C2%AE%20TensorRT%E2%84%A2%20is,high%20throughput%20for%20production%20applications.">TensorRT</a>. Other inferencing runtime includes <a class="reference external" href="https://onnxruntime.ai/">OnnxRuntime</a>, direct inferencing on the PyTorch model, etc.</p>
+</section>
+<section id="summary">
+<h2>Summary<a class="headerlink" href="#summary" title="Permalink to this heading">#</a></h2>
+<p>This document presents a reference architecture for Isaac Lab that has undergone SQA testing. We have provided a user-friendly guide to end-to-end robot learning with Isaac Lab and Isaac Sim from training to real-world deployment, including demos, examples, and documentation links.</p>
+</section>
+<section id="how-to-get-started">
+<h2>How to Get Started<a class="headerlink" href="#how-to-get-started" title="Permalink to this heading">#</a></h2>
+<p>Check out our resources on using Isaac Lab with your robots.</p>
+<p>Review Our Documentation &amp; Samples Resources</p>
+<ul class="simple">
+<li><p><a class="reference external" href="file:///home/oomotuyi/isaac/IsaacLab/docs/_build/current/source/tutorials/index.html">Isaac Lab Tutorials</a></p></li>
+<li><p><a class="reference external" href="https://developer.nvidia.com/blog/fast-track-robot-learning-in-simulation-using-nvidia-isaac-lab/">Fast-Track Robot Learning in Simulation Using NVIDIA Isaac Lab</a></p></li>
+<li><p><a class="reference external" href="https://developer.nvidia.com/blog/supercharge-robotics-workflows-with-ai-and-simulation-using-nvidia-isaac-sim-4-0-and-nvidia-isaac-lab/">Supercharge Robotics Workflows with AI and Simulation Using NVIDIA Isaac Sim 4.0 and NVIDIA Isaac Lab</a></p></li>
+<li><p><a class="reference external" href="https://developer.nvidia.com/blog/closing-the-sim-to-real-gap-training-spot-quadruped-locomotion-with-nvidia-isaac-lab/">Closing the Sim-to-Real Gap: Training Spot Quadruped Locomotion with NVIDIA Isaac Lab</a></p></li>
+<li><p><a class="reference external" href="https://isaac-sim.github.io/IsaacLab/main/source/refs/additional_resources.html">Additional Resources</a></p></li>
+</ul>
+<p>Learn More About Featured NVIDIA Solutions</p>
+<ul class="simple">
+<li><p><a class="reference external" href="https://developer.nvidia.com/blog/scale-ai-enabled-robotics-development-workloads-with-nvidia-osmo/">Scale AI-Enabled Robotics Development Workloads with NVIDIA OSMO</a></p></li>
+<li><p><a class="reference external" href="https://www.nvidia.com/en-us/on-demand/session/gtc24-s63140/">Parkour and More: How Simulation-Based RL Helps to Push the Boundaries in Legged Locomotion (GTC session)</a></p></li>
+<li><p><a class="reference external" href="https://developer.nvidia.com/isaac/perceptor">Isaac Perceptor</a></p></li>
+<li><p><a class="reference external" href="https://developer.nvidia.com/isaac/manipulator">Isaac Manipulator</a></p></li>
+</ul>
+</section>
+</section>
+
+
+                </article>
+              
+
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="../../api/lab_mimic/isaaclab_mimic.datagen.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">isaaclab_mimic.datagen</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="../additional_resources.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Additional Resources</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+  <div class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> Contents
+  </div>
+  <nav class="bd-toc-nav page-toc">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#who-is-this-document-for">Who is this document for?</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#components">Components</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#component-1-asset-input">Component 1 - Asset Input</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#component-2-configuration-assets-and-scene">Component 2 -  Configuration (Assets and Scene)</a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#asset-configuration">Asset Configuration</a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#scene-configuration">Scene Configuration</a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#component-3-robot-learning-task-design">Component 3 - Robot Learning Task Design</a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#manager-based">Manager-based</a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#direct">Direct</a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#component-4-register-with-gymnasium">Component 4 - Register with Gymnasium</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#component-5-environment-wrapping">Component 5 - Environment Wrapping</a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#adding-your-own-wrappers">Adding your own wrappers</a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#component-6-run-training">Component 6 - Run Training</a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#single-gpu-training">Single GPU Training</a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#multi-gpu-and-multi-node-training">Multi-GPU and Multi-Node Training</a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#cloud-based-training">Cloud-Based Training</a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#component-7-run-testing">Component 7: Run Testing</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#deployment-on-physical-robots">Deployment on Physical Robots</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#summary">Summary</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#how-to-get-started">How to Get Started</a></li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+<div class="bd-footer-content__inner container">
+  
+  <div class="footer-item">
+    
+<p class="component-author">
+By The Isaac Lab Project Developers.
+</p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+
+  <p class="copyright">
+    
+      © Copyright 2022-2025, The Isaac Lab Project Developers..
+      <br/>
+    
+  </p>
+
+  </div>
+  
+  <div class="footer-item">
+    <p class="last-updated">
+  Last updated on Feb 28, 2025.
+  <br/>
+</p>
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+</div>
+          </footer>
+        
+
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+  </footer>
+  </body>
+</html>
