@@ -14,9 +14,20 @@ Added
 Fixed
 ^^^^^
 
-* Added copy of configurations to :class:`isaaclab.assets.AssetBase` and :class:`isaaclab.sensors.SensorBase`
+* Added copy of configurations to :class:`~isaaclab.assets.AssetBase` and :class:`~isaaclab.sensors.SensorBase`
   to prevent modifications of the configurations from leaking outside of the classes.
-* Moved warnings and checks for implicit actuator models to the :class:`isaaclab.actuators.ImplicitActuator` class.
+* Fixed the case where setting velocity/effort limits for the simulation in the
+  :class:`~isaaclab.actuators.ActuatorBaseCfg` class was not being used to update the actuator-specific
+  velocity/effort limits.
+
+Changed
+^^^^^^^
+
+* Moved warnings and checks for implicit actuator models to the :class:`~isaaclab.actuators.ImplicitActuator` class.
+* Reverted to IsaacLab v1.3 behavior where :attr:`isaaclab.actuators.ImplicitActuatorCfg.velocity_limit`
+  attribute was not used for setting the velocity limits in the simulation. This makes it possible to deploy
+  policies from previous release without any changes. If users want to set the velocity limits for the simulation,
+  they should use the :attr:`isaaclab.actuators.ImplicitActuatorCfg.velocity_limit_sim` attribute instead.
 
 
 0.34.3 (2025-02-28)
