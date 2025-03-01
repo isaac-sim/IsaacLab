@@ -13,7 +13,6 @@ from typing import TYPE_CHECKING
 
 import omni.log
 import omni.physics.tensors.impl.api as physx
-import warp as wp
 from isaacsim.core.prims import XFormPrim
 from pxr import UsdGeom, UsdPhysics
 
@@ -38,12 +37,7 @@ class RayCaster(SensorBase):
     a set of meshes with a given ray pattern.
 
     The meshes are parsed from the list of primitive paths provided in the configuration. These are then
-    converted to warp meshes and stored in the `warp_meshes` list. The ray-caster then ray-casts against
-    these warp meshes using the ray pattern provided in the configuration.
-
-    .. note::
-        Currently, only static meshes are supported. Extending the warp mesh to support dynamic meshes
-        is a work in progress.
+    converted to warp meshes and stored in the `meshes` dictionary.
     """
 
     cfg: RayCasterCfg
@@ -69,8 +63,8 @@ class RayCaster(SensorBase):
         super().__init__(cfg)
         # Create empty variables for storing output data
         self._data = RayCasterData()
-        # the warp meshes used for raycasting.
-        self.meshes: dict[str, wp.Mesh] = {}
+        # Dictionary to hold warp mesh info. Keys are mesh prim patterns.
+        self.meshes: dict[str, list[dict]] = {}
 
     def __str__(self) -> str:
         """Returns: A string containing information about the instance."""
@@ -149,57 +143,70 @@ class RayCaster(SensorBase):
         self._initialize_rays_impl()
 
     def _initialize_warp_meshes(self):
-        # check number of mesh prims provided
-        if len(self.cfg.mesh_prim_paths) != 1:
-            raise NotImplementedError(
-                f"RayCaster currently only supports one mesh prim. Received: {len(self.cfg.mesh_prim_paths)}"
-            )
+        """
+        For each mesh in the configuration, search for matching prims.
+        If a prim’s type is not "Mesh" or "Plane", search its children for one that is.
+        Then extract the geometry (or create a plane), build a warp mesh,
+        and create an XFormPrim for dynamic updates.
+        """
 
+        self.meshes = {}
         # read prims to ray-cast
-        for mesh_prim_path in self.cfg.mesh_prim_paths:
-            # check if the prim is a plane - handle PhysX plane as a special case
-            # if a plane exists then we need to create an infinite mesh that is a plane
-            mesh_prim = sim_utils.get_first_matching_child_prim(
-                mesh_prim_path, lambda prim: prim.GetTypeName() == "Plane"
-            )
-            # if we did not find a plane then we need to read the mesh
-            if mesh_prim is None:
-                # obtain the mesh prim
-                mesh_prim = sim_utils.get_first_matching_child_prim(
-                    mesh_prim_path, lambda prim: prim.GetTypeName() == "Mesh"
-                )
-                # check if valid
-                if mesh_prim is None or not mesh_prim.IsValid():
-                    raise RuntimeError(f"Invalid mesh prim path: {mesh_prim_path}")
-                # cast into UsdGeomMesh
-                mesh_prim = UsdGeom.Mesh(mesh_prim)
-                # read the vertices and faces
-                points = np.asarray(mesh_prim.GetPointsAttr().Get())
-                transform_matrix = np.array(omni.usd.get_world_transform_matrix(mesh_prim)).T
-                points = np.matmul(points, transform_matrix[:3, :3].T)
-                points += transform_matrix[:3, 3]
-                indices = np.asarray(mesh_prim.GetFaceVertexIndicesAttr().Get())
-                wp_mesh = convert_to_warp_mesh(points, indices, device=self.device)
-                # print info
-                omni.log.info(
-                    f"Read mesh prim: {mesh_prim.GetPath()} with {len(points)} vertices and {len(indices)} faces."
-                )
-            else:
-                mesh = make_plane(size=(2e6, 2e6), height=0.0, center_zero=True)
-                wp_mesh = convert_to_warp_mesh(mesh.vertices, mesh.faces, device=self.device)
-                # print info
-                omni.log.info(f"Created infinite plane mesh prim: {mesh_prim.GetPath()}.")
-            # add the warp mesh to the list
-            self.meshes[mesh_prim_path] = wp_mesh
-
-        # throw an error if no meshes are found
-        if all([mesh_prim_path not in self.meshes for mesh_prim_path in self.cfg.mesh_prim_paths]):
-            raise RuntimeError(
-                f"No meshes found for ray-casting! Please check the mesh prim paths: {self.cfg.mesh_prim_paths}"
-            )
+        for pattern in self.cfg.mesh_prim_paths:
+            prims = sim_utils.find_matching_prims(pattern)
+            if len(prims) == 0:
+                omni.log.warn(f"No prims found for pattern: {pattern}")
+                continue
+            mesh_info_list = []
+            for prim in prims:
+                prim_type = prim.GetTypeName()
+                # if the prim is not directly a Mesh or Plane, search its children for a valid type.
+                if prim_type not in ["Mesh", "Plane"]:
+                    child = sim_utils.get_first_matching_child_prim(
+                        prim.GetPath().pathString, lambda p: p.GetTypeName() in ["Mesh", "Plane"]
+                    )
+                    if child is not None:
+                        prim = child
+                        prim_type = prim.GetTypeName()
+                    else:
+                        omni.log.warn(f"Prim {prim.GetPath()} does not contain a valid Mesh or Plane child.")
+                        continue
+                # process the prim based on its type.
+                if prim_type == "Plane":
+                    # create an infinite plane mesh.
+                    mesh = make_plane(size=(2e6, 2e6), height=0.0, center_zero=True)
+                    base_points = mesh.vertices
+                    base_indices = mesh.faces
+                    wp_mesh = convert_to_warp_mesh(base_points, base_indices, device=self.device)
+                    is_plane = True
+                elif prim_type == "Mesh":
+                    # read vertices and face indices from the mesh prim.
+                    mesh_prim = UsdGeom.Mesh(prim)
+                    base_points = np.asarray(mesh_prim.GetPointsAttr().Get())
+                    base_indices = np.asarray(mesh_prim.GetFaceVertexIndicesAttr().Get())
+                    wp_mesh = convert_to_warp_mesh(base_points, base_indices, device=self.device)
+                    is_plane = False
+                else:
+                    omni.log.warn(f"Unsupported prim type '{prim_type}' at {prim.GetPath()}")
+                    continue
+                # create an XFormPrim to allow dynamic updates.
+                xform_view = XFormPrim(prim.GetPath().pathString, reset_xform_properties=False)
+                mesh_info = {
+                    "prim_path": prim.GetPath().pathString,
+                    "xform_view": xform_view,
+                    "base_points": base_points,
+                    "indices": base_indices,
+                    "warp_mesh": wp_mesh,
+                    "is_plane": is_plane,
+                }
+                mesh_info_list.append(mesh_info)
+            if len(mesh_info_list) > 0:
+                self.meshes[pattern] = mesh_info_list
+        if len(self.meshes) == 0:
+            raise RuntimeError(f"No valid mesh prims found for ray casting. Patterns: {self.cfg.mesh_prim_paths}")
 
     def _initialize_rays_impl(self):
-        # compute ray stars and directions
+        # compute ray starts and directions
         self.ray_starts, self.ray_directions = self.cfg.pattern_cfg.func(self.cfg.pattern_cfg, self._device)
         self.num_rays = len(self.ray_directions)
         # apply offset transformation to the rays
@@ -250,14 +257,44 @@ class RayCaster(SensorBase):
             ray_starts_w = quat_apply(quat_w.repeat(1, self.num_rays), self.ray_starts[env_ids])
             ray_starts_w += pos_w.unsqueeze(1)
             ray_directions_w = quat_apply(quat_w.repeat(1, self.num_rays), self.ray_directions[env_ids])
-        # ray cast and store the hits
-        # TODO: Make this work for multiple meshes?
-        self._data.ray_hits_w[env_ids] = raycast_mesh(
-            ray_starts_w,
-            ray_directions_w,
-            max_dist=self.cfg.max_distance,
-            mesh=self.meshes[self.cfg.mesh_prim_paths[0]],
-        )[0]
+
+        # initialize buffers for storing the closest hit for each ray
+        final_hits = torch.full((self._view.count, self.num_rays, 3), float("inf"), device=self.device)
+        final_distances = torch.full((self._view.count, self.num_rays), float("inf"), device=self.device)
+
+        # loop over each mesh and its corresponding mesh infos
+        for pattern, mesh_info_list in self.meshes.items():
+            for mesh_info in mesh_info_list:
+                mesh_view = mesh_info["xform_view"]
+                indices = torch.arange(mesh_view.count, device=self.device)
+                # get the current world transforms for the mesh prim (for dynamic updates)
+                mesh_pos, mesh_quat = mesh_view.get_world_poses(indices)
+                base_points = torch.tensor(mesh_info["base_points"], device=self.device, dtype=torch.float32)
+                # vectorize the transformation by applying the current rotation and translation to all base points using broadcasting
+                new_points = quat_apply(
+                    mesh_quat, base_points.unsqueeze(0).repeat(mesh_view.count, 1, 1)
+                ) + mesh_pos.unsqueeze(1)
+                # flatten the transformed points
+                new_points_np = new_points.cpu().numpy().reshape(-1, 3)
+                # create a new warp mesh with updated vertex positions for dynamic collision detection
+                new_wp_mesh = convert_to_warp_mesh(new_points_np, mesh_info["indices"], device=self.device)
+                # update the warp mesh in the mesh info dictionary for future use
+                mesh_info["warp_mesh"] = new_wp_mesh
+                # perform ray casting on the updated warp mesh
+                hit, distance, _, _ = raycast_mesh(
+                    ray_starts_w,
+                    ray_directions_w,
+                    max_dist=self.cfg.max_distance,
+                    mesh=new_wp_mesh,
+                    return_distance=True,
+                )
+                # use a mask to determine which rays hit this mesh closer than previous hits.
+                mask = distance < final_distances
+                final_distances[mask] = distance[mask]
+                final_hits[mask] = hit[mask]
+
+        # update the ray hit data for the specified environments
+        self._data.ray_hits_w[env_ids] = final_hits[env_ids]
 
     def _set_debug_vis_impl(self, debug_vis: bool):
         # set visibility of markers
