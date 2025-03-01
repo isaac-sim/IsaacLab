@@ -37,28 +37,39 @@ class ActuatorBase(ABC):
     """
 
     is_implicit_model: ClassVar[bool] = False
-    """Flag indicating if the actuator is an implicit or explicit actuator model."""
+    """Flag indicating if the actuator is an implicit or explicit actuator model.
+
+    If a class inherits from :class:`ImplicitActuator`, then this flag should be set to :obj:`True`.
+    """
 
     computed_effort: torch.Tensor
     """The computed effort for the actuator group. Shape is (num_envs, num_joints)."""
+
     applied_effort: torch.Tensor
-    """The applied effort for the actuator group. Shape is (num_envs, num_joints)."""
+    """The applied effort for the actuator group. Shape is (num_envs, num_joints).
+
+    This is the effort obtained after clipping the :attr:`computed_effort` based on the
+    actuator characteristics.
+    """
 
     effort_limit: torch.Tensor
     """The effort limit for the actuator group. Shape is (num_envs, num_joints).
 
     For implicit actuators, the :attr:`effort_limit` and :attr:`effort_limit_sim` are the same.
     """
+
     effort_limit_sim: torch.Tensor
     """The effort limit for the actuator group in the simulation. Shape is (num_envs, num_joints).
 
     For implicit actuators, the :attr:`effort_limit` and :attr:`effort_limit_sim` are the same.
     """
+
     velocity_limit: torch.Tensor
     """The velocity limit for the actuator group. Shape is (num_envs, num_joints).
 
     For implicit actuators, the :attr:`velocity_limit` and :attr:`velocity_limit_sim` are the same.
     """
+
     velocity_limit_sim: torch.Tensor
     """The velocity limit for the actuator group in the simulation. Shape is (num_envs, num_joints).
 
@@ -67,10 +78,13 @@ class ActuatorBase(ABC):
 
     stiffness: torch.Tensor
     """The stiffness (P gain) of the PD controller. Shape is (num_envs, num_joints)."""
+
     damping: torch.Tensor
     """The damping (D gain) of the PD controller. Shape is (num_envs, num_joints)."""
+
     armature: torch.Tensor
     """The armature of the actuator joints. Shape is (num_envs, num_joints)."""
+
     friction: torch.Tensor
     """The joint friction of the actuator joints. Shape is (num_envs, num_joints)."""
 

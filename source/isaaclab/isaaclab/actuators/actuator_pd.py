@@ -39,10 +39,10 @@ class ImplicitActuator(ActuatorBase):
     generally more accurate than the explicit PD control law used in :class:`IdealPDActuator` when the simulation
     time-step is large.
 
-    .. note::
-
-        The articulation class sets the stiffness and damping parameters from the configuration into the simulation.
-        Thus, the parameters are not used in this class.
+    The articulation class sets the stiffness and damping parameters from the implicit actuator configuration
+    into the simulation. Thus, the class does not perform its own computations on the joint action that
+    needs to be applied to the simulation. However, it computes the approximate torques for the actuated joint
+    since PhysX does not expose this quantity explicitly.
 
     .. caution::
 
