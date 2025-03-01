@@ -137,8 +137,8 @@ class ActuatorBase(ABC):
         self.friction = self._parse_joint_parameter(self.cfg.friction, friction)
         # parse joint limits
         # -- velocity
-        self.velocity_limit = self._parse_joint_parameter(self.cfg.velocity_limit, velocity_limit)
         self.velocity_limit_sim = self._parse_joint_parameter(self.cfg.velocity_limit_sim, velocity_limit)
+        self.velocity_limit = self._parse_joint_parameter(self.cfg.velocity_limit, self.velocity_limit_sim)
         # -- effort
         self.effort_limit_sim = self._parse_joint_parameter(self.cfg.effort_limit_sim, effort_limit)
         self.effort_limit = self._parse_joint_parameter(self.cfg.effort_limit, self.effort_limit_sim)
