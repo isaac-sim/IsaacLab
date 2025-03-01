@@ -14,7 +14,7 @@ scene entities. The rest of the environment is similar to the previous tutorials
 .. code-block:: bash
 
     # Run the script
-    ./isaaclab.sh -p scripts/tutorials/04_envs/floating_cube.py --num_envs 32
+    ./isaaclab.sh -p scripts/tutorials/04_envs/create_cube_base_env.py --num_envs 32
 """
 
 from __future__ import annotations
