@@ -88,7 +88,7 @@ class H1RoughDemo:
         self._prim_selection = omni.usd.get_context().get_selection()
         self._selected_id = None
         self._previous_selected_id = None
-        self._camera_local_transform = torch.tensor([-1.8, 0.0, 0.6], device=self.device)
+        self._camera_local_transform = torch.tensor([-2.5, 0.0, 0.8], device=self.device)
 
     def create_camera(self):
         stage = omni.usd.get_context().get_stage()
