@@ -1,8 +1,8 @@
 Changelog
 ---------
 
-0.34.2 (2025-02-17)
-~~~~~~~~~~~~~~~~~~~
+0.34.4 (2025-03-01)
+~~~~~~~~~~~~~~~~~~~~
 
 Added
 ^^^^^
@@ -17,6 +17,27 @@ Fixed
 * Added copy of configurations to :class:`isaaclab.assets.AssetBase` and :class:`isaaclab.sensors.SensorBase`
   to prevent modifications of the configurations from leaking outside of the classes.
 * Moved warnings and checks for implicit actuator models to the :class:`isaaclab.actuators.ImplicitActuator` class.
+
+
+0.34.3 (2025-02-28)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added IP address support for WebRTC livestream to allow specifying IP address to stream across networks.
+  This feature requires an updated livestream extension, which is current only available in the pre-built Isaac Lab 2.0.1 docker image.
+  Support for other Isaac Sim builds will become available in Isaac Sim 5.0.
+
+
+0.34.2 (2025-02-21)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed setting of root velocities inside the event term :meth:`reset_root_state_from_terrain`. Earlier, the indexing
+  based on the environment IDs was missing.
 
 
 0.34.1 (2025-02-17)
