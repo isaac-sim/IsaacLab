@@ -46,7 +46,7 @@ def main(args: argparse.Namespace):
     if args.lib_name == "rsl_rl":
         extra_args = ["--run_name", git_commit_hash]
     else:
-        # TODO: Modify this for other libraries as well.
+        # TODO: Modify this for other libraries as well to have commit tag in their saved run logs
         extra_args = []
 
     # train on each environment
