@@ -20,12 +20,12 @@ import unittest
 
 import carb
 import omni.usd
-from isaaclab_rl.skrl import SkrlVecEnvWrapper
 
 from isaaclab.envs import DirectMARLEnv, multi_agent_to_single_agent
 
 import isaaclab_tasks  # noqa: F401
-from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
+from isaaclab_rl.skrl import SkrlVecEnvWrapper
+from isaaclab_rl.utils.parse_cfg import parse_env_cfg
 
 
 class TestSKRLVecEnvWrapper(unittest.TestCase):

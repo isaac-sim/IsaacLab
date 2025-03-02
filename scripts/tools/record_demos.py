@@ -73,7 +73,7 @@ from isaaclab.envs.mdp.recorders.recorders_cfg import ActionStateRecorderManager
 from isaaclab.envs.ui import ViewportCameraController
 
 import isaaclab_tasks  # noqa: F401
-from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
+from isaaclab_rl.utils.parse_cfg import parse_env_cfg
 
 
 class RateLimiter:

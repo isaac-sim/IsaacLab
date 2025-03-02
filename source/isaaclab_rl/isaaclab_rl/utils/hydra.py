@@ -20,7 +20,7 @@ from isaaclab.envs import DirectRLEnvCfg, ManagerBasedRLEnvCfg
 from isaaclab.envs.utils.spaces import replace_env_cfg_spaces_with_strings, replace_strings_with_env_cfg_spaces
 from isaaclab.utils import replace_slices_with_strings, replace_strings_with_slices
 
-from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
+from .parse_cfg import load_cfg_from_registry
 
 
 def register_task_to_hydra(

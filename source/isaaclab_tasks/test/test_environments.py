@@ -25,7 +25,7 @@ from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.envs.utils.spaces import sample_space
 
 import isaaclab_tasks  # noqa: F401
-from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
+from isaaclab_rl.utils.parse_cfg import parse_env_cfg
 
 
 class TestEnvironments(unittest.TestCase):

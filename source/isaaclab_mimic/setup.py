@@ -46,7 +46,7 @@ setup(
     keywords=EXTENSION_TOML_DATA["package"]["keywords"],
     install_requires=INSTALL_REQUIRES,
     extras_require=EXTRAS_REQUIRE,
-    license="MIT",
+    license="Apache-2.0",
     include_package_data=True,
     python_requires=">=3.10",
     classifiers=[

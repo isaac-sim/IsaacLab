@@ -13,7 +13,7 @@ import carb.settings
 
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
-from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry  # noqa: F401
+from isaaclab_rl.utils.parse_cfg import load_cfg_from_registry  # noqa: F401
 
 from .assets import retrieve_file_path
 

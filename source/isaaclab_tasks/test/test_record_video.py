@@ -21,7 +21,7 @@ import unittest
 import omni.usd
 
 import isaaclab_tasks  # noqa: F401
-from isaaclab_tasks.utils import parse_env_cfg
+from isaaclab_rl.utils import parse_env_cfg
 
 
 class TestRecordVideoWrapper(unittest.TestCase):

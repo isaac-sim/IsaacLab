@@ -36,7 +36,7 @@ def load_cfg_from_registry(task_name: str, entry_point_key: str) -> dict | objec
 
     .. code-block:: python
 
-        from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
+        from isaaclab_rl.utils.parse_cfg import load_cfg_from_registry
 
         cfg = load_cfg_from_registry("My-Awesome-Task-v0", "env_entry_point_cfg")
 

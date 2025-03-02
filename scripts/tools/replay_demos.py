@@ -54,7 +54,7 @@ from isaaclab.devices import Se3Keyboard
 from isaaclab.utils.datasets import EpisodeData, HDF5DatasetFileHandler
 
 import isaaclab_tasks  # noqa: F401
-from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
+from isaaclab_rl.utils.parse_cfg import parse_env_cfg
 
 is_paused = False
 

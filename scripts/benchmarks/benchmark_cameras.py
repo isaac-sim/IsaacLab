@@ -263,7 +263,7 @@ from isaaclab.sensors import (
 )
 from isaaclab.utils.math import orthogonalize_perspective_depth, unproject_depth
 
-from isaaclab_tasks.utils import load_cfg_from_registry
+from isaaclab_rl.utils import load_cfg_from_registry
 
 """
 Camera Creation

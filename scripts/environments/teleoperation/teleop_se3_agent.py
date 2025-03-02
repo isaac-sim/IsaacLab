@@ -47,8 +47,8 @@ from isaaclab.envs.ui import ViewportCameraController
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 
 import isaaclab_tasks  # noqa: F401
+from isaaclab_rl.utils import parse_env_cfg
 from isaaclab_tasks.manager_based.manipulation.lift import mdp
-from isaaclab_tasks.utils import parse_env_cfg
 
 
 def pre_process_actions(delta_pose: torch.Tensor, gripper_command: bool) -> torch.Tensor:

@@ -27,7 +27,7 @@ import omni.usd
 from isaaclab.envs.mdp.recorders.recorders_cfg import ActionStateRecorderManagerCfg
 
 import isaaclab_tasks  # noqa: F401
-from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
+from isaaclab_rl.utils.parse_cfg import parse_env_cfg
 
 
 class TestActionStateRecorderManagerCfg(unittest.TestCase):

@@ -27,7 +27,7 @@ from omegaconf import OmegaConf
 from isaaclab.utils import replace_strings_with_slices
 
 import isaaclab_tasks  # noqa: F401
-from isaaclab_tasks.utils.hydra import register_task_to_hydra
+from isaaclab_rl.utils.hydra import register_task_to_hydra
 
 
 def hydra_task_config_test(task_name: str, agent_cfg_entry_point: str) -> Callable:
