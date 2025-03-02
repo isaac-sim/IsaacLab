@@ -5,7 +5,7 @@ version = "0.1.0"
 
 # Description
 title = "Isaac Lab RL"
-description="Extension containing collection of wrappers for reinforcement learning."
+description="Extension containing reinforcement learning related utilities."
 readme  = "docs/README.md"
 repository = "https://github.com/isaac-sim/IsaacLab"
 category = "robotics"
