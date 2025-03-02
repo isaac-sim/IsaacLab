@@ -37,18 +37,6 @@ The following modules are available in the ``isaaclab`` extension:
    lab/isaaclab.sim.schemas
    lab/isaaclab.sim.spawners
 
-isaaclab_tasks extension
-------------------------
-
-The following modules are available in the ``isaaclab_tasks`` extension:
-
-.. currentmodule:: isaaclab_tasks
-
-.. autosummary::
-   :toctree: lab_tasks
-
-   utils
-
 
 isaaclab_rl extension
 ---------------------
@@ -59,6 +47,9 @@ The following wrappers are available in the ``isaaclab_rl`` extension:
 
 .. autosummary::
    :toctree: lab_rl
+
+   wrappers
+   utils
 
 
 isaaclab_mimic extension
@@ -73,3 +64,10 @@ The following modules are available in the ``isaaclab_mimic`` extension:
 
    datagen
    envs
+
+
+isaaclab_tasks extension
+------------------------
+
+This module contains the tasks that are available in the Isaac Lab.
+For more information, please refer to the :ref:`environments`.
