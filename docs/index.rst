@@ -1,5 +1,5 @@
 Welcome to Isaac Lab!
-==========================
+=====================
 
 .. figure:: source/_static/isaaclab.jpg
    :width: 100%
