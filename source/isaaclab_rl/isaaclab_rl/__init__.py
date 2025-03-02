@@ -16,18 +16,6 @@ All wrappers work similar to the :class:`gymnasium.Wrapper` class. Using a wrapp
 the initialized environment instance to the wrapper constructor. However, since learning frameworks
 expect different input and output data structures, their wrapper classes are not compatible with each other.
 Thus, they should always be used in conjunction with the respective learning framework.
-
-For instance, to wrap an environment in the `Stable-Baselines3`_ wrapper, you can do the following:
-
-.. code-block:: python
-
-   from isaaclab_rl.sb3 import Sb3VecEnvWrapper
-
-   env = Sb3VecEnvWrapper(env)
-
-
-.. _Stable-Baselines3: https://github.com/DLR-RM/stable-baselines3
-
 """
 
 from . import sb3

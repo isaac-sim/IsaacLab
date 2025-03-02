@@ -10,3 +10,4 @@ This section we introduce core concepts in Isaac Lab.
   task_workflows
   actuators
   sensors/index.rst
+  motion_generators
