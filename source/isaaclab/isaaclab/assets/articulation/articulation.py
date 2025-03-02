@@ -695,6 +695,31 @@ class Articulation(AssetBase):
     ):
         """Write joint limits into the simulation.
 
+        .. deprecated:: 2.1.0
+            Use :meth:`write_joint_pos_limits_to_sim` instead.
+
+        Args:
+            limits: Joint limits. Shape is (len(env_ids), len(joint_ids), 2).
+            joint_ids: The joint indices to set the limits for. Defaults to None (all joints).
+            env_ids: The environment indices to set the limits for. Defaults to None (all environments).
+            warn_limit_violation: Whether to use warning or info level logging when default joint positions exceed the new limits. Defaults to True.
+        """
+        omni.log.warn(
+            "The function 'write_joint_limits_to_sim' is deprecated. Use 'write_joint_pos_limits_to_sim' instead."
+        )
+        self.write_joint_pos_limits_to_sim(
+            limits=limits, joint_ids=joint_ids, env_ids=env_ids, warn_limit_violation=warn_limit_violation
+        )
+
+    def write_joint_pos_limits_to_sim(
+        self,
+        limits: torch.Tensor | float,
+        joint_ids: Sequence[int] | slice | None = None,
+        env_ids: Sequence[int] | None = None,
+        warn_limit_violation: bool = True,
+    ):
+        """Write joint limits into the simulation.
+
         Args:
             limits: Joint limits. Shape is (len(env_ids), len(joint_ids), 2).
             joint_ids: The joint indices to set the limits for. Defaults to None (all joints).
@@ -1188,8 +1213,8 @@ class Articulation(AssetBase):
         self._data.gear_ratio = torch.ones(self.num_instances, self.num_joints, device=self.device)
 
         # soft joint position limits (recommended not to be too close to limits).
-        joint_pos_mean = (self._data.joint_limits[..., 0] + self._data.joint_limits[..., 1]) / 2
-        joint_pos_range = self._data.joint_limits[..., 1] - self._data.joint_limits[..., 0]
+        joint_pos_mean = (self._data.joint_pos_limits[..., 0] + self._data.joint_pos_limits[..., 1]) / 2
+        joint_pos_range = self._data.joint_pos_limits[..., 1] - self._data.joint_pos_limits[..., 0]
         soft_limit_factor = self.cfg.soft_joint_pos_limit_factor
         # add to data
         self._data.soft_joint_pos_limits = torch.zeros(self.num_instances, self.num_joints, 2, device=self.device)
@@ -1424,10 +1449,10 @@ class Articulation(AssetBase):
             msg = "The following joints have default positions out of the limits: \n"
             for idx in violated_indices:
                 joint_name = self.data.joint_names[idx]
-                joint_limits = joint_pos_limits[idx]
+                joint_limit = joint_pos_limits[idx]
                 joint_pos = self.data.default_joint_pos[0, idx]
                 # add to message
-                msg += f"\t- '{joint_name}': {joint_pos:.3f} not in [{joint_limits[0]:.3f}, {joint_limits[1]:.3f}]\n"
+                msg += f"\t- '{joint_name}': {joint_pos:.3f} not in [{joint_limit[0]:.3f}, {joint_limit[1]:.3f}]\n"
             raise ValueError(msg)
 
         # check that the default joint velocities are within the limits
@@ -1439,10 +1464,10 @@ class Articulation(AssetBase):
             msg = "The following joints have default velocities out of the limits: \n"
             for idx in violated_indices:
                 joint_name = self.data.joint_names[idx]
-                joint_limits = [-joint_max_vel[idx], joint_max_vel[idx]]
+                joint_limit = [-joint_max_vel[idx], joint_max_vel[idx]]
                 joint_vel = self.data.default_joint_vel[0, idx]
                 # add to message
-                msg += f"\t- '{joint_name}': {joint_vel:.3f} not in [{joint_limits[0]:.3f}, {joint_limits[1]:.3f}]\n"
+                msg += f"\t- '{joint_name}': {joint_vel:.3f} not in [{joint_limit[0]:.3f}, {joint_limit[1]:.3f}]\n"
             raise ValueError(msg)
 
     def _log_articulation_info(self):

@@ -309,7 +309,7 @@ class ArticulationData:
     soft_joint_pos_limits: torch.Tensor = None
     r"""Soft joint positions limits for all joints. Shape is (num_instances, num_joints, 2).
 
-    The limits are in the order :math:`[lower, upper]`. The soft joint position limits are computed as
+    The limits are in the order :math:`[lower, upper]`.The soft joint position limits are computed as
     a sub-region of the :attr:`joint_pos_limits` based on the
     :attr:`~isaaclab.assets.ArticulationCfg.soft_joint_pos_limit_factor` parameter.
 
@@ -321,6 +321,8 @@ class ArticulationData:
         soft\_lower = (lower + upper) / 2 - factor * (upper - lower) / 2
         soft\_upper = (lower + upper) / 2 + factor * (upper - lower) / 2
 
+    The soft joint position limits help specify a safety region around the joint limits. It isn't used by the
+    simulation, but is useful for learning agents to prevent the joint positions from violating the limits.
     """
 
     soft_joint_vel_limits: torch.Tensor = None

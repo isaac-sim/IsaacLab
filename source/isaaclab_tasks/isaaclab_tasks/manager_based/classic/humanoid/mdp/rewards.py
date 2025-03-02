@@ -77,8 +77,8 @@ class progress_reward(ManagerTermBase):
         return self.potentials - self.prev_potentials
 
 
-class joint_limits_penalty_ratio(ManagerTermBase):
-    """Penalty for violating joint limits weighted by the gear ratio."""
+class joint_pos_limits_penalty_ratio(ManagerTermBase):
+    """Penalty for violating joint position limits weighted by the gear ratio."""
 
     def __init__(self, env: ManagerBasedRLEnv, cfg: RewardTermCfg):
         # add default argument

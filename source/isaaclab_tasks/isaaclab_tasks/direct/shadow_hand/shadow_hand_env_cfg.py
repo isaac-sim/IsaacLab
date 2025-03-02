@@ -50,7 +50,7 @@ class EventCfg:
             "distribution": "log_uniform",
         },
     )
-    robot_joint_limits = EventTerm(
+    robot_joint_pos_limits = EventTerm(
         func=mdp.randomize_joint_parameters,
         min_step_count_between_reset=720,
         mode="reset",

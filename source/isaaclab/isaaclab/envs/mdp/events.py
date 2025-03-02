@@ -366,12 +366,13 @@ def randomize_joint_parameters(
 ):
     """Randomize the joint parameters of an articulation by adding, scaling, or setting random values.
 
-    This function allows randomizing the joint parameters of the asset.
-    These correspond to the physics engine joint properties that affect the joint behavior.
+    This function allows randomizing the joint parameters of the asset. These correspond to the physics engine
+    joint properties that affect the joint behavior. The properties include the joint friction, armature, and
+    joint position limits.
 
-    The function samples random values from the given distribution parameters and applies the operation to the joint properties.
-    It then sets the values into the physics simulation. If the distribution parameters are not provided for a
-    particular property, the function does not modify the property.
+    The function samples random values from the given distribution parameters and applies the operation to the
+    joint properties. It then sets the values into the physics simulation. If the distribution parameters are
+    not provided for a particular property, the function does not modify the property.
 
     .. tip::
         This function uses CPU tensors to assign the joint properties. It is recommended to use this function
@@ -407,7 +408,7 @@ def randomize_joint_parameters(
         asset.write_joint_armature_to_sim(armature, joint_ids=joint_ids, env_ids=env_ids)
     # -- dof limits
     if lower_limit_distribution_params is not None or upper_limit_distribution_params is not None:
-        dof_limits = asset.data.default_joint_limits.to(asset.device).clone()
+        dof_limits = asset.data.default_joint_pos_limits.to(asset.device).clone()
         if lower_limit_distribution_params is not None:
             lower_limits = dof_limits[..., 0]
             lower_limits = _randomize_prop_by_op(
@@ -436,7 +437,7 @@ def randomize_joint_parameters(
                 " upper joint limits."
             )
 
-        asset.write_joint_limits_to_sim(
+        asset.write_joint_pos_limits_to_sim(
             dof_limits[env_ids][:, joint_ids], joint_ids=joint_ids, env_ids=env_ids, warn_limit_violation=False
         )
 
