@@ -38,7 +38,7 @@ The platform is also designed so that you can add your own robots! please refer 
 
 For more information about the framework, please refer to the `paper <https://arxiv.org/abs/2301.04195>`_
 :cite:`mittal2023orbit`. For clarifications on NVIDIA Isaac ecosystem, please check out the
-:doc:`/source/setup/faq` section.
+:ref:`isaac-lab-ecosystem` section.
 
 .. figure:: source/_static/tasks.jpg
    :width: 100%

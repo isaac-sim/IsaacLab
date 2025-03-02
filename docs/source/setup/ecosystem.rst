@@ -1,3 +1,5 @@
+.. _isaac-lab-ecosystem:
+
 Isaac Lab Ecosystem
 ===================
 
