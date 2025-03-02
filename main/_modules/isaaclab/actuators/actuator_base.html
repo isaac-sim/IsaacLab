@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.0.1" />
-    <meta name="docbuild:last-update" content="Mar 01, 2025"/>
+    <meta name="docbuild:last-update" content="Mar 02, 2025"/>
   </head>
   
   
@@ -541,7 +541,7 @@
 <span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">ABC</span><span class="p">,</span> <span class="n">abstractmethod</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Sequence</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TYPE_CHECKING</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TYPE_CHECKING</span><span class="p">,</span> <span class="n">ClassVar</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab.utils.string</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">string_utils</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils.types</span><span class="w"> </span><span class="kn">import</span> <span class="n">ArticulationActions</span>
@@ -569,20 +569,55 @@
 <span class="sd">    To see how the class is used, check the :class:`isaaclab.assets.Articulation` class.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
+    <span class="n">is_implicit_model</span><span class="p">:</span> <span class="n">ClassVar</span><span class="p">[</span><span class="nb">bool</span><span class="p">]</span> <span class="o">=</span> <span class="kc">False</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Flag indicating if the actuator is an implicit or explicit actuator model.</span>
+
+<span class="sd">    If a class inherits from :class:`ImplicitActuator`, then this flag should be set to :obj:`True`.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
     <span class="n">computed_effort</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The computed effort for the actuator group. Shape is (num_envs, num_joints).&quot;&quot;&quot;</span>
+
     <span class="n">applied_effort</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;The applied effort for the actuator group. Shape is (num_envs, num_joints).&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The applied effort for the actuator group. Shape is (num_envs, num_joints).</span>
+
+<span class="sd">    This is the effort obtained after clipping the :attr:`computed_effort` based on the</span>
+<span class="sd">    actuator characteristics.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
     <span class="n">effort_limit</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;The effort limit for the actuator group. Shape is (num_envs, num_joints).&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The effort limit for the actuator group. Shape is (num_envs, num_joints).</span>
+
+<span class="sd">    For implicit actuators, the :attr:`effort_limit` and :attr:`effort_limit_sim` are the same.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">effort_limit_sim</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The effort limit for the actuator group in the simulation. Shape is (num_envs, num_joints).</span>
+
+<span class="sd">    For implicit actuators, the :attr:`effort_limit` and :attr:`effort_limit_sim` are the same.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
     <span class="n">velocity_limit</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;The velocity limit for the actuator group. Shape is (num_envs, num_joints).&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The velocity limit for the actuator group. Shape is (num_envs, num_joints).</span>
+
+<span class="sd">    For implicit actuators, the :attr:`velocity_limit` and :attr:`velocity_limit_sim` are the same.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">velocity_limit_sim</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The velocity limit for the actuator group in the simulation. Shape is (num_envs, num_joints).</span>
+
+<span class="sd">    For implicit actuators, the :attr:`velocity_limit` and :attr:`velocity_limit_sim` are the same.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
     <span class="n">stiffness</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The stiffness (P gain) of the PD controller. Shape is (num_envs, num_joints).&quot;&quot;&quot;</span>
+
     <span class="n">damping</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The damping (D gain) of the PD controller. Shape is (num_envs, num_joints).&quot;&quot;&quot;</span>
+
     <span class="n">armature</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The armature of the actuator joints. Shape is (num_envs, num_joints).&quot;&quot;&quot;</span>
+
     <span class="n">friction</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The joint friction of the actuator joints. Shape is (num_envs, num_joints).&quot;&quot;&quot;</span>
 
@@ -590,7 +625,7 @@
         <span class="bp">self</span><span class="p">,</span>
         <span class="n">cfg</span><span class="p">:</span> <span class="n">ActuatorBaseCfg</span><span class="p">,</span>
         <span class="n">joint_names</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span>
-        <span class="n">joint_ids</span><span class="p">:</span> <span class="nb">slice</span> <span class="o">|</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">],</span>
+        <span class="n">joint_ids</span><span class="p">:</span> <span class="nb">slice</span> <span class="o">|</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
         <span class="n">num_envs</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
         <span class="n">device</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
         <span class="n">stiffness</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span><span class="p">,</span>
@@ -602,9 +637,12 @@
     <span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Initialize the actuator.</span>
 
-<span class="sd">        Note:</span>
-<span class="sd">            The actuator parameters are parsed from the configuration and stored as buffers. If the parameters</span>
-<span class="sd">            are not specified in the configuration, then the default values provided in the arguments are used.</span>
+<span class="sd">        The actuator parameters are parsed from the configuration and stored as buffers. If the parameters</span>
+<span class="sd">        are not specified in the configuration, then their values provided in the constructor are used.</span>
+
+<span class="sd">        .. note::</span>
+<span class="sd">            The values in the constructor are typically obtained through the USD schemas corresponding</span>
+<span class="sd">            to the joints in the actuator model.</span>
 
 <span class="sd">        Args:</span>
 <span class="sd">            cfg: The configuration of the actuator model.</span>
@@ -633,6 +671,11 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">_joint_names</span> <span class="o">=</span> <span class="n">joint_names</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_joint_indices</span> <span class="o">=</span> <span class="n">joint_ids</span>
 
+        <span class="c1"># For explicit models, we do not want to enforce the effort limit through the solver</span>
+        <span class="c1"># (unless it is explicitly set)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">ActuatorBase</span><span class="o">.</span><span class="n">is_implicit_model</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">effort_limit_sim</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">effort_limit_sim</span> <span class="o">=</span> <span class="mf">1.0e9</span>
+
         <span class="c1"># parse joint stiffness and damping</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">stiffness</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_parse_joint_parameter</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">stiffness</span><span class="p">,</span> <span class="n">stiffness</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">damping</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_parse_joint_parameter</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">damping</span><span class="p">,</span> <span class="n">damping</span><span class="p">)</span>
@@ -640,11 +683,12 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">armature</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_parse_joint_parameter</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">armature</span><span class="p">,</span> <span class="n">armature</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">friction</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_parse_joint_parameter</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">friction</span><span class="p">,</span> <span class="n">friction</span><span class="p">)</span>
         <span class="c1"># parse joint limits</span>
-        <span class="c1"># note: for velocity limits, we don&#39;t have USD parameter, so default is infinity</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">effort_limit</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_parse_joint_parameter</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">effort_limit</span><span class="p">,</span> <span class="n">effort_limit</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">velocity_limit</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_parse_joint_parameter</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">velocity_limit</span><span class="p">,</span> <span class="n">velocity_limit</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">effort_limit_sim</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_parse_joint_parameter</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">effort_limit_sim</span><span class="p">,</span> <span class="n">effort_limit</span><span class="p">)</span>
+        <span class="c1"># -- velocity</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">velocity_limit_sim</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_parse_joint_parameter</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">velocity_limit_sim</span><span class="p">,</span> <span class="n">velocity_limit</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">velocity_limit</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_parse_joint_parameter</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">velocity_limit</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">velocity_limit_sim</span><span class="p">)</span>
+        <span class="c1"># -- effort</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">effort_limit_sim</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_parse_joint_parameter</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">effort_limit_sim</span><span class="p">,</span> <span class="n">effort_limit</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">effort_limit</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_parse_joint_parameter</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">effort_limit</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">effort_limit_sim</span><span class="p">)</span>
 
         <span class="c1"># create commands buffers for allocation</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">computed_effort</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_num_envs</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_joints</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="p">)</span>
@@ -656,8 +700,12 @@
         <span class="n">joint_indices</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">joint_indices</span>
         <span class="k">if</span> <span class="n">joint_indices</span> <span class="o">==</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">):</span>
             <span class="n">joint_indices</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_joints</span><span class="p">))</span>
+        <span class="c1"># resolve model type (implicit or explicit)</span>
+        <span class="n">model_type</span> <span class="o">=</span> <span class="s2">&quot;implicit&quot;</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_implicit_model</span> <span class="k">else</span> <span class="s2">&quot;explicit&quot;</span>
+
         <span class="k">return</span> <span class="p">(</span>
             <span class="sa">f</span><span class="s2">&quot;&lt;class </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">&gt; object:</span><span class="se">\n</span><span class="s2">&quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;</span><span class="se">\t</span><span class="s2">Model type            : </span><span class="si">{</span><span class="n">model_type</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span>
             <span class="sa">f</span><span class="s2">&quot;</span><span class="se">\t</span><span class="s2">Number of joints      : </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">num_joints</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span>
             <span class="sa">f</span><span class="s2">&quot;</span><span class="se">\t</span><span class="s2">Joint names expression: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">joint_names_expr</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span>
             <span class="sa">f</span><span class="s2">&quot;</span><span class="se">\t</span><span class="s2">Joint names           : </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">joint_names</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span>
@@ -679,7 +727,7 @@
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_joint_names</span>
 
     <span class="nd">@property</span>
-    <span class="k">def</span><span class="w"> </span><span class="nf">joint_indices</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">slice</span> <span class="o">|</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">joint_indices</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">slice</span> <span class="o">|</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Articulation&#39;s joint indices that are part of the group.</span>
 
 <span class="sd">        Note:</span>
@@ -841,7 +889,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Mar 01, 2025.
+  Last updated on Mar 02, 2025.
   <br/>
 </p>
   </div>

@@ -81,6 +81,7 @@ Breaking Changes
 * Restructures extension folders and removes old imitation learning scripts by @kellyguo11
 * Renames default conda and venv Python environment from ``isaaclab`` to ``env_isaaclab`` by @Toni-SM
 
+
 Migration Guide
 ---------------
 

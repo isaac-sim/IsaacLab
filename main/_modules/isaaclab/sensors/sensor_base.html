@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.0.1" />
-    <meta name="docbuild:last-update" content="Mar 01, 2025"/>
+    <meta name="docbuild:last-update" content="Mar 02, 2025"/>
   </head>
   
   
@@ -584,7 +584,7 @@
         <span class="c1"># check that the config is valid</span>
         <span class="n">cfg</span><span class="o">.</span><span class="n">validate</span><span class="p">()</span>
         <span class="c1"># store inputs</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span> <span class="o">=</span> <span class="n">cfg</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
         <span class="c1"># flag for whether the sensor is initialized</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_is_initialized</span> <span class="o">=</span> <span class="kc">False</span>
         <span class="c1"># flag for whether the sensor is in visualization mode</span>
@@ -871,7 +871,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Mar 01, 2025.
+  Last updated on Mar 02, 2025.
   <br/>
 </p>
   </div>

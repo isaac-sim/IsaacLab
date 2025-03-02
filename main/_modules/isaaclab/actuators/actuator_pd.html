@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.0.1" />
-    <meta name="docbuild:last-update" content="Mar 01, 2025"/>
+    <meta name="docbuild:last-update" content="Mar 02, 2025"/>
   </head>
   
   
@@ -542,6 +542,8 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Sequence</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TYPE_CHECKING</span>
 
+<span class="kn">import</span><span class="w"> </span><span class="nn">omni.log</span>
+
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">DelayBuffer</span><span class="p">,</span> <span class="n">LinearInterpolation</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils.types</span><span class="w"> </span><span class="kn">import</span> <span class="n">ArticulationActions</span>
 
@@ -570,10 +572,10 @@
 <span class="sd">    generally more accurate than the explicit PD control law used in :class:`IdealPDActuator` when the simulation</span>
 <span class="sd">    time-step is large.</span>
 
-<span class="sd">    .. note::</span>
-
-<span class="sd">        The articulation class sets the stiffness and damping parameters from the configuration into the simulation.</span>
-<span class="sd">        Thus, the parameters are not used in this class.</span>
+<span class="sd">    The articulation class sets the stiffness and damping parameters from the implicit actuator configuration</span>
+<span class="sd">    into the simulation. Thus, the class does not perform its own computations on the joint action that</span>
+<span class="sd">    needs to be applied to the simulation. However, it computes the approximate torques for the actuated joint</span>
+<span class="sd">    since PhysX does not expose this quantity explicitly.</span>
 
 <span class="sd">    .. caution::</span>
 
@@ -583,6 +585,57 @@
 
     <span class="n">cfg</span><span class="p">:</span> <span class="n">ImplicitActuatorCfg</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The configuration for the actuator model.&quot;&quot;&quot;</span>
+
+<div class="viewcode-block" id="ImplicitActuator.__init__"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.actuators.html#isaaclab.actuators.ImplicitActuator.__init__">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">ImplicitActuatorCfg</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="c1"># effort limits</span>
+        <span class="k">if</span> <span class="n">cfg</span><span class="o">.</span><span class="n">effort_limit_sim</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">cfg</span><span class="o">.</span><span class="n">effort_limit</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="c1"># throw a warning that we have a replacement for the deprecated parameter</span>
+            <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
+                <span class="s2">&quot;The &lt;ImplicitActuatorCfg&gt; object has a value for &#39;effort_limit&#39;.&quot;</span>
+                <span class="s2">&quot; This parameter will be removed in the future.&quot;</span>
+                <span class="s2">&quot; To set the effort limit, please use &#39;effort_limit_sim&#39; instead.&quot;</span>
+            <span class="p">)</span>
+            <span class="n">cfg</span><span class="o">.</span><span class="n">effort_limit_sim</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">effort_limit</span>
+        <span class="k">elif</span> <span class="n">cfg</span><span class="o">.</span><span class="n">effort_limit_sim</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">cfg</span><span class="o">.</span><span class="n">effort_limit</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="c1"># TODO: Eventually we want to get rid of &#39;effort_limit&#39; for implicit actuators.</span>
+            <span class="c1">#   We should do this once all parameters have an &quot;_sim&quot; suffix.</span>
+            <span class="n">cfg</span><span class="o">.</span><span class="n">effort_limit</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">effort_limit_sim</span>
+        <span class="k">elif</span> <span class="n">cfg</span><span class="o">.</span><span class="n">effort_limit_sim</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">cfg</span><span class="o">.</span><span class="n">effort_limit</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">cfg</span><span class="o">.</span><span class="n">effort_limit_sim</span> <span class="o">!=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">effort_limit</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="s2">&quot;The &lt;ImplicitActuatorCfg&gt; object has set both &#39;effort_limit_sim&#39; and &#39;effort_limit&#39;&quot;</span>
+                    <span class="sa">f</span><span class="s2">&quot; and they have different values </span><span class="si">{</span><span class="n">cfg</span><span class="o">.</span><span class="n">effort_limit_sim</span><span class="si">}</span><span class="s2"> != </span><span class="si">{</span><span class="n">cfg</span><span class="o">.</span><span class="n">effort_limit</span><span class="si">}</span><span class="s2">.&quot;</span>
+                    <span class="s2">&quot; Please only set &#39;effort_limit_sim&#39; for implicit actuators.&quot;</span>
+                <span class="p">)</span>
+
+        <span class="c1"># velocity limits</span>
+        <span class="k">if</span> <span class="n">cfg</span><span class="o">.</span><span class="n">velocity_limit_sim</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">cfg</span><span class="o">.</span><span class="n">velocity_limit</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="c1"># throw a warning that previously this was not set</span>
+            <span class="c1"># it leads to different simulation behavior so we want to remain backwards compatible</span>
+            <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
+                <span class="s2">&quot;The &lt;ImplicitActuatorCfg&gt; object has a value for &#39;velocity_limit&#39;.&quot;</span>
+                <span class="s2">&quot; Previously, although this value was specified, it was not getting used by implicit&quot;</span>
+                <span class="s2">&quot; actuators. Since this parameter affects the simulation behavior, we continue to not&quot;</span>
+                <span class="s2">&quot; use it. This parameter will be removed in the future.&quot;</span>
+                <span class="s2">&quot; To set the velocity limit, please use &#39;velocity_limit_sim&#39; instead.&quot;</span>
+            <span class="p">)</span>
+            <span class="n">cfg</span><span class="o">.</span><span class="n">velocity_limit</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">elif</span> <span class="n">cfg</span><span class="o">.</span><span class="n">velocity_limit_sim</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">cfg</span><span class="o">.</span><span class="n">velocity_limit</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="c1"># TODO: Eventually we want to get rid of &#39;velocity_limit&#39; for implicit actuators.</span>
+            <span class="c1">#   We should do this once all parameters have an &quot;_sim&quot; suffix.</span>
+            <span class="n">cfg</span><span class="o">.</span><span class="n">velocity_limit</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">velocity_limit_sim</span>
+        <span class="k">elif</span> <span class="n">cfg</span><span class="o">.</span><span class="n">velocity_limit_sim</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">cfg</span><span class="o">.</span><span class="n">velocity_limit</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">cfg</span><span class="o">.</span><span class="n">velocity_limit_sim</span> <span class="o">!=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">velocity_limit</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="s2">&quot;The &lt;ImplicitActuatorCfg&gt; object has set both &#39;velocity_limit_sim&#39; and &#39;velocity_limit&#39;&quot;</span>
+                    <span class="sa">f</span><span class="s2">&quot; and they have different values </span><span class="si">{</span><span class="n">cfg</span><span class="o">.</span><span class="n">velocity_limit_sim</span><span class="si">}</span><span class="s2"> != </span><span class="si">{</span><span class="n">cfg</span><span class="o">.</span><span class="n">velocity_limit</span><span class="si">}</span><span class="s2">.&quot;</span>
+                    <span class="s2">&quot; Please only set &#39;velocity_limit_sim&#39; for implicit actuators.&quot;</span>
+                <span class="p">)</span>
+
+        <span class="c1"># set implicit actuator model flag</span>
+        <span class="n">ImplicitActuator</span><span class="o">.</span><span class="n">is_implicit_model</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="c1"># call the base class</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></div>
 
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Operations.</span>
@@ -941,7 +994,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Mar 01, 2025.
+  Last updated on Mar 02, 2025.
   <br/>
 </p>
   </div>

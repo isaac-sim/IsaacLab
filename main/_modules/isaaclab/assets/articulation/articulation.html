@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.0.1" />
-    <meta name="docbuild:last-update" content="Mar 01, 2025"/>
+    <meta name="docbuild:last-update" content="Mar 02, 2025"/>
   </head>
   
   
@@ -1845,14 +1845,18 @@
                     <span class="sa">f</span><span class="s2">&quot;No joints found for actuator group: </span><span class="si">{</span><span class="n">actuator_name</span><span class="si">}</span><span class="s2"> with joint name expression:&quot;</span>
                     <span class="sa">f</span><span class="s2">&quot; </span><span class="si">{</span><span class="n">actuator_cfg</span><span class="o">.</span><span class="n">joint_names_expr</span><span class="si">}</span><span class="s2">.&quot;</span>
                 <span class="p">)</span>
+            <span class="c1"># resolve joint indices</span>
+            <span class="c1"># we pass a slice if all joints are selected to avoid indexing overhead</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">joint_names</span><span class="p">)</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_joints</span><span class="p">:</span>
+                <span class="n">joint_ids</span> <span class="o">=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">joint_ids</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">joint_ids</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
             <span class="c1"># create actuator collection</span>
             <span class="c1"># note: for efficiency avoid indexing when over all indices</span>
             <span class="n">actuator</span><span class="p">:</span> <span class="n">ActuatorBase</span> <span class="o">=</span> <span class="n">actuator_cfg</span><span class="o">.</span><span class="n">class_type</span><span class="p">(</span>
                 <span class="n">cfg</span><span class="o">=</span><span class="n">actuator_cfg</span><span class="p">,</span>
                 <span class="n">joint_names</span><span class="o">=</span><span class="n">joint_names</span><span class="p">,</span>
-                <span class="n">joint_ids</span><span class="o">=</span><span class="p">(</span>
-                    <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span> <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">joint_names</span><span class="p">)</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_joints</span> <span class="k">else</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">joint_ids</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
-                <span class="p">),</span>
+                <span class="n">joint_ids</span><span class="o">=</span><span class="n">joint_ids</span><span class="p">,</span>
                 <span class="n">num_envs</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">num_instances</span><span class="p">,</span>
                 <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">,</span>
                 <span class="n">stiffness</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">default_joint_stiffness</span><span class="p">[:,</span> <span class="n">joint_ids</span><span class="p">],</span>
@@ -1863,60 +1867,33 @@
                 <span class="n">velocity_limit</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">get_dof_max_velocities</span><span class="p">()</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">)</span><span class="o">.</span><span class="n">clone</span><span class="p">()[:,</span> <span class="n">joint_ids</span><span class="p">],</span>
             <span class="p">)</span>
             <span class="c1"># log information on actuator groups</span>
+            <span class="n">model_type</span> <span class="o">=</span> <span class="s2">&quot;implicit&quot;</span> <span class="k">if</span> <span class="n">actuator</span><span class="o">.</span><span class="n">is_implicit_model</span> <span class="k">else</span> <span class="s2">&quot;explicit&quot;</span>
             <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
-                <span class="sa">f</span><span class="s2">&quot;Actuator collection: </span><span class="si">{</span><span class="n">actuator_name</span><span class="si">}</span><span class="s2"> with model &#39;</span><span class="si">{</span><span class="n">actuator_cfg</span><span class="o">.</span><span class="n">class_type</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">&#39; and&quot;</span>
-                <span class="sa">f</span><span class="s2">&quot; joint names: </span><span class="si">{</span><span class="n">joint_names</span><span class="si">}</span><span class="s2"> [</span><span class="si">{</span><span class="n">joint_ids</span><span class="si">}</span><span class="s2">].&quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;Actuator collection: </span><span class="si">{</span><span class="n">actuator_name</span><span class="si">}</span><span class="s2"> with model &#39;</span><span class="si">{</span><span class="n">actuator_cfg</span><span class="o">.</span><span class="n">class_type</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">&#39;&quot;</span>
+                <span class="sa">f</span><span class="s2">&quot; (type: </span><span class="si">{</span><span class="n">model_type</span><span class="si">}</span><span class="s2">) and joint names: </span><span class="si">{</span><span class="n">joint_names</span><span class="si">}</span><span class="s2"> [</span><span class="si">{</span><span class="n">joint_ids</span><span class="si">}</span><span class="s2">].&quot;</span>
             <span class="p">)</span>
             <span class="c1"># store actuator group</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">actuators</span><span class="p">[</span><span class="n">actuator_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">actuator</span>
             <span class="c1"># set the passed gains and limits into the simulation</span>
             <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">actuator</span><span class="p">,</span> <span class="n">ImplicitActuator</span><span class="p">):</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">_has_implicit_actuators</span> <span class="o">=</span> <span class="kc">True</span>
-                <span class="c1"># resolve actuator limit duplication for ImplicitActuators</span>
-                <span class="c1"># effort limits</span>
-                <span class="k">if</span> <span class="n">actuator</span><span class="o">.</span><span class="n">effort_limit_sim</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">actuator</span><span class="o">.</span><span class="n">effort_limit</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-                    <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
-                        <span class="sa">f</span><span class="s2">&quot;ImplicitActuatorCfg </span><span class="si">{</span><span class="n">actuator_name</span><span class="si">}</span><span class="s2"> has effort_limit_sim=None but is specifying effort_limit.&quot;</span>
-                        <span class="s2">&quot;effort_limit will be applied to effort_limit_sim for ImplicitActuators.&quot;</span>
-                    <span class="p">)</span>
-                    <span class="n">actuator</span><span class="o">.</span><span class="n">effort_limit_sim</span> <span class="o">=</span> <span class="n">actuator</span><span class="o">.</span><span class="n">effort_limit</span>
-                <span class="k">elif</span> <span class="n">actuator</span><span class="o">.</span><span class="n">effort_limit_sim</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">actuator</span><span class="o">.</span><span class="n">effort_limit</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-                    <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
-                        <span class="sa">f</span><span class="s2">&quot;ImplicitActuatorCfg </span><span class="si">{</span><span class="n">actuator_name</span><span class="si">}</span><span class="s2"> has set both effort_limit_sim and effort_limit.&quot;</span>
-                        <span class="s2">&quot;Only effort_limit_sim will be used for ImplicitActuators.&quot;</span>
-                    <span class="p">)</span>
-                <span class="c1"># velocity limits</span>
-                <span class="k">if</span> <span class="n">actuator</span><span class="o">.</span><span class="n">velocity_limit_sim</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">actuator</span><span class="o">.</span><span class="n">velocity_limit</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-                    <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
-                        <span class="sa">f</span><span class="s2">&quot;ImplicitActuatorCfg </span><span class="si">{</span><span class="n">actuator_name</span><span class="si">}</span><span class="s2"> has velocity_limit_sim=None but is specifying&quot;</span>
-                        <span class="s2">&quot; velocity_limit.velocity_limit will be applied to velocity_limit_sim for ImplicitActuators.&quot;</span>
-                    <span class="p">)</span>
-                    <span class="n">actuator</span><span class="o">.</span><span class="n">velocity_limit_sim</span> <span class="o">=</span> <span class="n">actuator</span><span class="o">.</span><span class="n">velocity_limit</span>
-                <span class="k">elif</span> <span class="n">actuator</span><span class="o">.</span><span class="n">velocity_limit_sim</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">actuator</span><span class="o">.</span><span class="n">velocity_limit</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-                    <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
-                        <span class="sa">f</span><span class="s2">&quot;ImplicitActuatorCfg </span><span class="si">{</span><span class="n">actuator_name</span><span class="si">}</span><span class="s2"> has set both velocity_limit_sim and velocity_limit.&quot;</span>
-                        <span class="s2">&quot;Only velocity_limit_sim will be used for ImplicitActuators.&quot;</span>
-                    <span class="p">)</span>
                 <span class="c1"># the gains and limits are set into the simulation since actuator model is implicit</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">write_joint_stiffness_to_sim</span><span class="p">(</span><span class="n">actuator</span><span class="o">.</span><span class="n">stiffness</span><span class="p">,</span> <span class="n">joint_ids</span><span class="o">=</span><span class="n">actuator</span><span class="o">.</span><span class="n">joint_indices</span><span class="p">)</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">write_joint_damping_to_sim</span><span class="p">(</span><span class="n">actuator</span><span class="o">.</span><span class="n">damping</span><span class="p">,</span> <span class="n">joint_ids</span><span class="o">=</span><span class="n">actuator</span><span class="o">.</span><span class="n">joint_indices</span><span class="p">)</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">write_joint_effort_limit_to_sim</span><span class="p">(</span><span class="n">actuator</span><span class="o">.</span><span class="n">effort_limit_sim</span><span class="p">,</span> <span class="n">joint_ids</span><span class="o">=</span><span class="n">actuator</span><span class="o">.</span><span class="n">joint_indices</span><span class="p">)</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">write_joint_velocity_limit_to_sim</span><span class="p">(</span><span class="n">actuator</span><span class="o">.</span><span class="n">velocity_limit_sim</span><span class="p">,</span> <span class="n">joint_ids</span><span class="o">=</span><span class="n">actuator</span><span class="o">.</span><span class="n">joint_indices</span><span class="p">)</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">write_joint_armature_to_sim</span><span class="p">(</span><span class="n">actuator</span><span class="o">.</span><span class="n">armature</span><span class="p">,</span> <span class="n">joint_ids</span><span class="o">=</span><span class="n">actuator</span><span class="o">.</span><span class="n">joint_indices</span><span class="p">)</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">write_joint_friction_to_sim</span><span class="p">(</span><span class="n">actuator</span><span class="o">.</span><span class="n">friction</span><span class="p">,</span> <span class="n">joint_ids</span><span class="o">=</span><span class="n">actuator</span><span class="o">.</span><span class="n">joint_indices</span><span class="p">)</span>
             <span class="k">else</span><span class="p">:</span>
                 <span class="c1"># the gains and limits are processed by the actuator model</span>
                 <span class="c1"># we set gains to zero, and torque limit to a high value in simulation to avoid any interference</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">write_joint_stiffness_to_sim</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="n">joint_ids</span><span class="o">=</span><span class="n">actuator</span><span class="o">.</span><span class="n">joint_indices</span><span class="p">)</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">write_joint_damping_to_sim</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="n">joint_ids</span><span class="o">=</span><span class="n">actuator</span><span class="o">.</span><span class="n">joint_indices</span><span class="p">)</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">write_joint_effort_limit_to_sim</span><span class="p">(</span>
-                    <span class="mf">1.0e9</span> <span class="k">if</span> <span class="n">actuator</span><span class="o">.</span><span class="n">effort_limit_sim</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">actuator</span><span class="o">.</span><span class="n">effort_limit_sim</span><span class="p">,</span>
-                    <span class="n">joint_ids</span><span class="o">=</span><span class="n">actuator</span><span class="o">.</span><span class="n">joint_indices</span><span class="p">,</span>
-                <span class="p">)</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">write_joint_velocity_limit_to_sim</span><span class="p">(</span><span class="n">actuator</span><span class="o">.</span><span class="n">velocity_limit_sim</span><span class="p">,</span> <span class="n">joint_ids</span><span class="o">=</span><span class="n">actuator</span><span class="o">.</span><span class="n">joint_indices</span><span class="p">)</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">write_joint_armature_to_sim</span><span class="p">(</span><span class="n">actuator</span><span class="o">.</span><span class="n">armature</span><span class="p">,</span> <span class="n">joint_ids</span><span class="o">=</span><span class="n">actuator</span><span class="o">.</span><span class="n">joint_indices</span><span class="p">)</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">write_joint_friction_to_sim</span><span class="p">(</span><span class="n">actuator</span><span class="o">.</span><span class="n">friction</span><span class="p">,</span> <span class="n">joint_ids</span><span class="o">=</span><span class="n">actuator</span><span class="o">.</span><span class="n">joint_indices</span><span class="p">)</span>
-            <span class="c1"># Store the actual default stiffness and damping values for explicit and implicit actuators (not written the sim)</span>
+
+            <span class="c1"># Set common properties into the simulation</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">write_joint_effort_limit_to_sim</span><span class="p">(</span><span class="n">actuator</span><span class="o">.</span><span class="n">effort_limit_sim</span><span class="p">,</span> <span class="n">joint_ids</span><span class="o">=</span><span class="n">actuator</span><span class="o">.</span><span class="n">joint_indices</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">write_joint_velocity_limit_to_sim</span><span class="p">(</span><span class="n">actuator</span><span class="o">.</span><span class="n">velocity_limit_sim</span><span class="p">,</span> <span class="n">joint_ids</span><span class="o">=</span><span class="n">actuator</span><span class="o">.</span><span class="n">joint_indices</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">write_joint_armature_to_sim</span><span class="p">(</span><span class="n">actuator</span><span class="o">.</span><span class="n">armature</span><span class="p">,</span> <span class="n">joint_ids</span><span class="o">=</span><span class="n">actuator</span><span class="o">.</span><span class="n">joint_indices</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">write_joint_friction_to_sim</span><span class="p">(</span><span class="n">actuator</span><span class="o">.</span><span class="n">friction</span><span class="p">,</span> <span class="n">joint_ids</span><span class="o">=</span><span class="n">actuator</span><span class="o">.</span><span class="n">joint_indices</span><span class="p">)</span>
+
+            <span class="c1"># Store the actual default stiffness and damping values</span>
+            <span class="c1"># note: this is the value configured in the actuator model (for implicit and explicit actuators)</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">default_joint_stiffness</span><span class="p">[:,</span> <span class="n">actuator</span><span class="o">.</span><span class="n">joint_indices</span><span class="p">]</span> <span class="o">=</span> <span class="n">actuator</span><span class="o">.</span><span class="n">stiffness</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">default_joint_damping</span><span class="p">[:,</span> <span class="n">actuator</span><span class="o">.</span><span class="n">joint_indices</span><span class="p">]</span> <span class="o">=</span> <span class="n">actuator</span><span class="o">.</span><span class="n">damping</span>
 
@@ -2054,9 +2031,9 @@
         <span class="n">velocity_limits</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">get_dof_max_velocities</span><span class="p">()[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span>
         <span class="n">effort_limits</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">get_dof_max_forces</span><span class="p">()[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span>
         <span class="c1"># create table for term information</span>
-        <span class="n">table</span> <span class="o">=</span> <span class="n">PrettyTable</span><span class="p">(</span><span class="n">float_format</span><span class="o">=</span><span class="s2">&quot;.3f&quot;</span><span class="p">)</span>
-        <span class="n">table</span><span class="o">.</span><span class="n">title</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;Simulation Joint Information (Prim path: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">prim_path</span><span class="si">}</span><span class="s2">)&quot;</span>
-        <span class="n">table</span><span class="o">.</span><span class="n">field_names</span> <span class="o">=</span> <span class="p">[</span>
+        <span class="n">joint_table</span> <span class="o">=</span> <span class="n">PrettyTable</span><span class="p">()</span>
+        <span class="n">joint_table</span><span class="o">.</span><span class="n">title</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;Simulation Joint Information (Prim path: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">prim_path</span><span class="si">}</span><span class="s2">)&quot;</span>
+        <span class="n">joint_table</span><span class="o">.</span><span class="n">field_names</span> <span class="o">=</span> <span class="p">[</span>
             <span class="s2">&quot;Index&quot;</span><span class="p">,</span>
             <span class="s2">&quot;Name&quot;</span><span class="p">,</span>
             <span class="s2">&quot;Stiffness&quot;</span><span class="p">,</span>
@@ -2067,11 +2044,13 @@
             <span class="s2">&quot;Velocity Limits&quot;</span><span class="p">,</span>
             <span class="s2">&quot;Effort Limits&quot;</span><span class="p">,</span>
         <span class="p">]</span>
+        <span class="n">joint_table</span><span class="o">.</span><span class="n">float_format</span> <span class="o">=</span> <span class="s2">&quot;.3&quot;</span>
+        <span class="n">joint_table</span><span class="o">.</span><span class="n">custom_format</span><span class="p">[</span><span class="s2">&quot;Position Limits&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">f</span><span class="p">,</span> <span class="n">v</span><span class="p">:</span> <span class="sa">f</span><span class="s2">&quot;[</span><span class="si">{</span><span class="n">v</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="si">:</span><span class="s2">.3f</span><span class="si">}</span><span class="s2">, </span><span class="si">{</span><span class="n">v</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="si">:</span><span class="s2">.3f</span><span class="si">}</span><span class="s2">]&quot;</span>
         <span class="c1"># set alignment of table columns</span>
-        <span class="n">table</span><span class="o">.</span><span class="n">align</span><span class="p">[</span><span class="s2">&quot;Name&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;l&quot;</span>
+        <span class="n">joint_table</span><span class="o">.</span><span class="n">align</span><span class="p">[</span><span class="s2">&quot;Name&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;l&quot;</span>
         <span class="c1"># add info on each term</span>
         <span class="k">for</span> <span class="n">index</span><span class="p">,</span> <span class="n">name</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">joint_names</span><span class="p">):</span>
-            <span class="n">table</span><span class="o">.</span><span class="n">add_row</span><span class="p">([</span>
+            <span class="n">joint_table</span><span class="o">.</span><span class="n">add_row</span><span class="p">([</span>
                 <span class="n">index</span><span class="p">,</span>
                 <span class="n">name</span><span class="p">,</span>
                 <span class="n">stiffnesses</span><span class="p">[</span><span class="n">index</span><span class="p">],</span>
@@ -2083,7 +2062,7 @@
                 <span class="n">effort_limits</span><span class="p">[</span><span class="n">index</span><span class="p">],</span>
             <span class="p">])</span>
         <span class="c1"># convert table to string</span>
-        <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Simulation parameters for joints in </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">prim_path</span><span class="si">}</span><span class="s2">:</span><span class="se">\n</span><span class="s2">&quot;</span> <span class="o">+</span> <span class="n">table</span><span class="o">.</span><span class="n">get_string</span><span class="p">())</span>
+        <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Simulation parameters for joints in </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">prim_path</span><span class="si">}</span><span class="s2">:</span><span class="se">\n</span><span class="s2">&quot;</span> <span class="o">+</span> <span class="n">joint_table</span><span class="o">.</span><span class="n">get_string</span><span class="p">())</span>
 
         <span class="c1"># read out all tendon parameters from simulation</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_fixed_tendons</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
@@ -2096,17 +2075,19 @@
             <span class="n">ft_rest_lengths</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">get_fixed_tendon_rest_lengths</span><span class="p">()[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span>
             <span class="n">ft_offsets</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">get_fixed_tendon_offsets</span><span class="p">()[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span>
             <span class="c1"># create table for term information</span>
-            <span class="n">tendon_table</span> <span class="o">=</span> <span class="n">PrettyTable</span><span class="p">(</span><span class="n">float_format</span><span class="o">=</span><span class="s2">&quot;.3f&quot;</span><span class="p">)</span>
-            <span class="n">tendon_table</span><span class="o">.</span><span class="n">title</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;Simulation Tendon Information (Prim path: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">prim_path</span><span class="si">}</span><span class="s2">)&quot;</span>
+            <span class="n">tendon_table</span> <span class="o">=</span> <span class="n">PrettyTable</span><span class="p">()</span>
+            <span class="n">tendon_table</span><span class="o">.</span><span class="n">title</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;Simulation Fixed Tendon Information (Prim path: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">prim_path</span><span class="si">}</span><span class="s2">)&quot;</span>
             <span class="n">tendon_table</span><span class="o">.</span><span class="n">field_names</span> <span class="o">=</span> <span class="p">[</span>
                 <span class="s2">&quot;Index&quot;</span><span class="p">,</span>
                 <span class="s2">&quot;Stiffness&quot;</span><span class="p">,</span>
                 <span class="s2">&quot;Damping&quot;</span><span class="p">,</span>
                 <span class="s2">&quot;Limit Stiffness&quot;</span><span class="p">,</span>
-                <span class="s2">&quot;Limit&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;Limits&quot;</span><span class="p">,</span>
                 <span class="s2">&quot;Rest Length&quot;</span><span class="p">,</span>
                 <span class="s2">&quot;Offset&quot;</span><span class="p">,</span>
             <span class="p">]</span>
+            <span class="n">tendon_table</span><span class="o">.</span><span class="n">float_format</span> <span class="o">=</span> <span class="s2">&quot;.3&quot;</span>
+            <span class="n">joint_table</span><span class="o">.</span><span class="n">custom_format</span><span class="p">[</span><span class="s2">&quot;Limits&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">f</span><span class="p">,</span> <span class="n">v</span><span class="p">:</span> <span class="sa">f</span><span class="s2">&quot;[</span><span class="si">{</span><span class="n">v</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="si">:</span><span class="s2">.3f</span><span class="si">}</span><span class="s2">, </span><span class="si">{</span><span class="n">v</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="si">:</span><span class="s2">.3f</span><span class="si">}</span><span class="s2">]&quot;</span>
             <span class="c1"># add info on each term</span>
             <span class="k">for</span> <span class="n">index</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_fixed_tendons</span><span class="p">):</span>
                 <span class="n">tendon_table</span><span class="o">.</span><span class="n">add_row</span><span class="p">([</span>
@@ -2167,7 +2148,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Mar 01, 2025.
+  Last updated on Mar 02, 2025.
   <br/>
 </p>
   </div>
