@@ -259,8 +259,6 @@ class ArticulationData:
     This quantity is the raw torque output from the actuator mode, before any clipping is applied.
     It is exposed for users who want to inspect the computations inside the actuator model.
     For instance, to penalize the learning agent for a difference between the computed and applied torques.
-
-    Note: The torques are zero for implicit actuator models.
     """
 
     applied_torque: torch.Tensor = None
@@ -268,8 +266,6 @@ class ArticulationData:
 
     These torques are set into the simulation, after clipping the :attr:`computed_torque` based on the
     actuator model.
-
-    Note: The torques are zero for implicit actuator models.
     """
 
     ##
