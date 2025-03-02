@@ -96,7 +96,7 @@ class ArticulationData:
     """Fixed tendon names in the order parsed by the simulation view."""
 
     ##
-    # Defaults.
+    # Defaults - Initial state.
     ##
 
     default_root_state: torch.Tensor = None
@@ -118,6 +118,25 @@ class ArticulationData:
     """Default joint velocities of all joints. Shape is (num_instances, num_joints).
 
     This quantity is configured through the :attr:`isaaclab.assets.ArticulationCfg.init_state` parameter.
+    """
+
+    ##
+    # Defaults - Physical properties.
+    ##
+
+    default_mass: torch.Tensor = None
+    """Default mass for all the bodies in the articulation. Shape is (num_instances, num_bodies).
+
+    This quantity is parsed from the USD schema at the time of initialization.
+    """
+
+    default_inertia: torch.Tensor = None
+    """Default inertia for all the bodies in the articulation. Shape is (num_instances, num_bodies, 9).
+
+    The inertia is the inertia tensor relative to the center of mass frame. The values are stored in
+    the order :math:`[I_{xx}, I_{xy}, I_{xz}, I_{yx}, I_{yy}, I_{yz}, I_{zx}, I_{zy}, I_{zz}]`.
+
+    This quantity is parsed from the USD schema at the time of initialization.
     """
 
     default_joint_stiffness: torch.Tensor = None
@@ -200,21 +219,6 @@ class ArticulationData:
     """Default tendon limits of all tendons. Shape is (num_instances, num_fixed_tendons, 2).
 
     The limits are in the order :math:`[lower, upper]`. They are parsed from the USD schema at the time of initialization.
-    """
-
-    default_mass: torch.Tensor = None
-    """Default mass for all the bodies in the articulation. Shape is (num_instances, num_bodies).
-
-    This quantity is parsed from the USD schema at the time of initialization.
-    """
-
-    default_inertia: torch.Tensor = None
-    """Default inertia for all the bodies in the articulation. Shape is (num_instances, num_bodies, 9).
-
-    The inertia is the inertia tensor relative to the center of mass frame. The values are stored in
-    the order :math:`[I_{xx}, I_{xy}, I_{xz}, I_{yx}, I_{yy}, I_{yz}, I_{zx}, I_{zy}, I_{zz}]`.
-
-    This quantity is parsed from the USD schema at the time of initialization.
     """
 
     ##

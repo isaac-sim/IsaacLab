@@ -13,6 +13,9 @@ Fixed
   class, while the ``xxx`` attributes are the values from the simulation.
 * Updated the soft joint position limits inside the :meth:`~isaaclab.assets.Articulation.write_joint_pos_limits_to_sim`
   method to use the new limits passed to the function.
+* Added setting of :attr:`~isaaclab.assets.ArticulationData.default_joint_armature` and
+  :attr:`~isaaclab.assets.ArticulationData.default_joint_friction` attributes in the
+  :class:`~isaaclab.assets.Articulation` class based on user configuration.
 
 Changed
 ^^^^^^^
@@ -20,7 +23,8 @@ Changed
 * Removed unnecessary buffer creation operations inside the :class:`~isaaclab.assets.Articulation` class.
   Earlier, the class initialized a variety of buffer data with zeros and in the next function assigned
   them the value from PhysX. This made the code bulkier and more complex for no reason.
-* Renamed parameters for a consistent nomenclature:
+* Renamed parameters for a consistent nomenclature. These changes are backwards compatible with previous releases
+  with a deprecation warning for the old names.
 
   * ``joint_limits`` → ``joint_pos_limits`` (to match attribute ``joint_pos`` and ``soft_joint_pos_limits``)
   * ``joint_velocity_limits`` → ``joint_vel_limits`` (to match attribute ``joint_vel`` and ``joint_vel_limits``)
