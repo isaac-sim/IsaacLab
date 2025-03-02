@@ -18,9 +18,6 @@ expect different input and output data structures, their wrapper classes are not
 Thus, they should always be used in conjunction with the respective learning framework.
 """
 
-from . import sb3
-from . import skrl
-from . import rsl_rl
-from . import rl_games
+from . import rl_games, rsl_rl, sb3, skrl
 
 __all__ = ["sb3", "skrl", "rsl_rl", "rl_games"]
