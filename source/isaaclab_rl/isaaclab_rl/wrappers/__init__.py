@@ -30,10 +30,6 @@ For instance, to wrap an environment in the `Stable-Baselines3`_ wrapper, you ca
 
 """
 
-from . import sb3
-from . import skrl
-from . import rsl_rl
-from . import rl_games
-
+from . import rl_games, rsl_rl, sb3, skrl
 
 __all__ = ["sb3", "skrl", "rsl_rl", "rl_games"]
