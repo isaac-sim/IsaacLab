@@ -448,26 +448,27 @@ class TestMathUtilities(unittest.TestCase):
 
     def test_combine_frame_transform(self):
         """Test combine_frame_transforms function."""
-        # create random poses
-        pose01 = torch.rand(1, 7)
-        pose01[:, 3:7] = torch.nn.functional.normalize(pose01[..., 3:7], dim=-1)
+        for device in ["cpu", "cuda:0"]:
+            # create random poses
+            pose01 = torch.rand(1, 7, device=device)
+            pose01[:, 3:7] = torch.nn.functional.normalize(pose01[..., 3:7], dim=-1)
 
-        pose12 = torch.rand(1, 7)
-        pose12[:, 3:7] = torch.nn.functional.normalize(pose12[..., 3:7], dim=-1)
+            pose12 = torch.rand(1, 7, device=device)
+            pose12[:, 3:7] = torch.nn.functional.normalize(pose12[..., 3:7], dim=-1)
 
-        # apply combination of poses
-        pos02, quat02 = math_utils.combine_frame_transforms(
-            pose01[..., :3], pose01[..., 3:7], pose12[:, :3], pose12[:, 3:7]
-        )
-        # apply combination of poses w.r.t. inverse to get original frame
-        pos01, quat01 = math_utils.combine_frame_transforms(
-            pos02,
-            quat02,
-            math_utils.quat_rotate(math_utils.quat_inv(pose12[:, 3:7]), -pose12[:, :3]),
-            math_utils.quat_inv(pose12[:, 3:7]),
-        )
+            # apply combination of poses
+            pos02, quat02 = math_utils.combine_frame_transforms(
+                pose01[..., :3], pose01[..., 3:7], pose12[:, :3], pose12[:, 3:7]
+            )
+            # apply combination of poses w.r.t. inverse to get original frame
+            pos01, quat01 = math_utils.combine_frame_transforms(
+                pos02,
+                quat02,
+                math_utils.quat_rotate(math_utils.quat_inv(pose12[:, 3:7]), -pose12[:, :3]),
+                math_utils.quat_inv(pose12[:, 3:7]),
+            )
 
-        torch.testing.assert_close(pose01, torch.cat((pos01, quat01), dim=-1))
+            torch.testing.assert_close(pose01, torch.cat((pos01, quat01), dim=-1))
 
     """
     Tests for math_utils.pose_inv function
