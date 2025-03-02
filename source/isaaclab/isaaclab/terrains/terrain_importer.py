@@ -199,7 +199,7 @@ class TerrainImporter:
         # obtain ground plane color from the configured visual material
         material = self.cfg.visual_material.to_dict()
         # defaults to the `GroundPlaneCfg` color if diffuse color attribute is not found
-        color = material["diffuse_color"] if "diffuse_color" in material.keys() else (0.0, 0.0, 0.0)
+        color = material["diffuse_color"] if "diffuse_color" in material else (0.0, 0.0, 0.0)
 
         # get the mesh
         ground_plane_cfg = sim_utils.GroundPlaneCfg(physics_material=self.cfg.physics_material, size=size, color=color)
