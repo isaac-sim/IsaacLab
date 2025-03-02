@@ -34,7 +34,6 @@ except Exception:
 INSTALL_REQUIRES = [
     # generic
     "numpy<2",
-    "torch==2.5.1",
     "onnx==1.16.1",  # 1.16.2 throws access violation on Windows
     "prettytable==3.3.0",
     "toml",
@@ -56,10 +55,14 @@ INSTALL_REQUIRES = [
 ]
 
 # The latest GPU architectures are supported by CUDA 12.8.
+# The torch nightly build is required for the latest GPU architectures.
+# FIXME: This is a workaround till we switch to the latest torch version.
 if any(arch in GPU_ARCH for arch in ["5060", "5070", "5080", "5090"]):
     PYTORCH_INDEX_URL = ["https://download.pytorch.org/whl/nightly/cu128"]
+    INSTALL_REQUIRES.append("torch")
 else:
     PYTORCH_INDEX_URL = ["https://download.pytorch.org/whl/cu118"]
+    INSTALL_REQUIRES.append("torch==2.5.1")
 
 # Installation operation
 setup(
