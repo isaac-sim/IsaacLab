@@ -23,8 +23,9 @@ import omni.usd
 
 from isaaclab.envs import DirectMARLEnv, multi_agent_to_single_agent
 
-import isaaclab_tasks  # noqa: F401
 from isaaclab_rl.rl_games import RlGamesVecEnvWrapper
+
+import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
 
 
