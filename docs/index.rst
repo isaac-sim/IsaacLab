@@ -1,5 +1,5 @@
 Welcome to Isaac Lab!
-==========================
+=====================
 
 .. figure:: source/_static/isaaclab.jpg
    :width: 100%
@@ -88,7 +88,6 @@ Table of Contents
 
    source/overview/developer-guide/index
    source/overview/core-concepts/index
-   source/overview/sensors/index
    source/overview/environments
    source/overview/reinforcement-learning/index
    source/overview/teleop_imitation
@@ -101,7 +100,7 @@ Table of Contents
 
    source/features/hydra
    source/features/multi_gpu
-   Tiled Rendering</source/overview/sensors/camera>
+   Tiled Rendering</source/overview/core-concepts/sensors/camera>
    source/features/ray
    source/features/reproducibility
 
