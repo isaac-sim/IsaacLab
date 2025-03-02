@@ -28,8 +28,6 @@ from scipy.spatial.transform import Slerp
 
 import isaaclab.utils.math as math_utils
 
-# Number of iterations to run the batched tests
-NUM_ITERS = 100
 # This value is set to because "float operations are inexact".
 # Details: https://github.com/pytorch/pytorch/issues/17678
 DECIMAL_PRECISION = 5
@@ -470,42 +468,42 @@ class TestMathUtilities(unittest.TestCase):
 
             torch.testing.assert_close(pose01, torch.cat((pos01, quat01), dim=-1))
 
-    """
-    Tests for math_utils.pose_inv function
-    This class checks the pose_inv function's output against the np.linalg.inv function's output.
-    1. test_single_numpy_comparison: Checks if the inverse of a random transformation matrix
-    matches NumPy's built-in inverse.
-    2. test_multi_numpy_comparison: Verifies the same for a batch of NUM_ITERS random matrices.
-    """
+    def test_pose_inv(self):
+        """Test pose_inv function.
 
-    def test_single_numpy_comparison(self):
-        for _ in range(NUM_ITERS):
-            test_mat = math_utils.generate_random_transformation_matrix(pos_boundary=10, rot_boundary=(2 * np.pi))
+        This test checks the output from the :meth:`~isaaclab.utils.math_utils.pose_inv` function against
+        the output from :func:`np.linalg.inv`. Two test cases are performed:
+
+        1. Checking the inverse of a random transformation matrix matches Numpy's built-in inverse.
+        2. Checking the inverse of a batch of random transformation matrices matches Numpy's built-in inverse.
+        """
+        # Check against a single matrix
+        for _ in range(100):
+            test_mat = math_utils.generate_random_transformation_matrix(
+                pos_boundary=10, rot_boundary=(2 * np.pi)
+            )
             result = np.array(math_utils.pose_inv(test_mat))
             expected = np.linalg.inv(np.array(test_mat))
             np.testing.assert_array_almost_equal(result, expected, decimal=DECIMAL_PRECISION)
 
-    def test_multi_numpy_comparison(self):
-        # Generate NUM_ITERS random transformation matrices
+        # Check against a batch of matrices
         test_mats = torch.stack([
             math_utils.generate_random_transformation_matrix(pos_boundary=10, rot_boundary=(2 * math.pi))
-            for _ in range(NUM_ITERS)
+            for _ in range(100)
         ])
         result = np.array(math_utils.pose_inv(test_mats))
         expected = np.linalg.inv(np.array(test_mats))
         np.testing.assert_array_almost_equal(result, expected, decimal=DECIMAL_PRECISION)
 
-    """
-    Tests for math_utils.quat_slerp function.
-    This class checks the quat_slerp function's output against the output from scipy.spatial.transform.Slerp.
-    1. test_quat_slerp_multi_scipy_comparison: Generates 20x2 random rotation matrices, find the interpolation rotation
-        and compares it to the output of scipy.spatial.transform.Slerp.
-    """
+    def test_quat_slerp(self):
+        """Test quat_slerp function.
 
-    def test_quat_slerp_multi_scipy_comparison(self):
-        # Generate NUM_ITERS random rotation matrices
-        random_rotation_matrices_1 = [math_utils.generate_random_rotation() for _ in range(NUM_ITERS)]
-        random_rotation_matrices_2 = [math_utils.generate_random_rotation() for _ in range(NUM_ITERS)]
+        This test checks the output from the :meth:`~isaaclab.utils.math_utils.quat_slerp` function against
+        the output from :func:`scipy.spatial.transform.Slerp`.
+        """
+        # Generate 100 random rotation matrices
+        random_rotation_matrices_1 = [math_utils.generate_random_rotation() for _ in range(100)]
+        random_rotation_matrices_2 = [math_utils.generate_random_rotation() for _ in range(100)]
 
         tau_values = np.random.rand(10)  # Random values in the range [0, 1]
 
@@ -525,17 +523,15 @@ class TestMathUtilities(unittest.TestCase):
                 # Assert that the result is almost equal to the expected quaternion
                 np.testing.assert_array_almost_equal(result, expected, decimal=DECIMAL_PRECISION)
 
-    """
-    Tests for math_utils.interpolate_rotations function.
-    This class checks the interpolate_rotations function's output against the output from scipy.spatial.transform.Slerp.
-    1. test_interpolate_rotations_multi_scipy_comparison: Generates 20x2 random rotation matrices, finds an array of interpolated rotations
-        and compares it to the output of scipy.spatial.transform.Slerp.
-    """
+    def test_interpolate_rotations(self):
+        """Test interpolate_rotations function.
 
-    def test_interpolate_rotations_multi_scipy_comparison(self):
+        This test checks the output from the :meth:`~isaaclab.utils.math_utils.interpolate_rotations` function against
+        the output from :func:`scipy.spatial.transform.Slerp`.
+        """
         # Generate NUM_ITERS random rotation matrices
-        random_rotation_matrices_1 = [math_utils.generate_random_rotation() for _ in range(NUM_ITERS)]
-        random_rotation_matrices_2 = [math_utils.generate_random_rotation() for _ in range(NUM_ITERS)]
+        random_rotation_matrices_1 = [math_utils.generate_random_rotation() for _ in range(100)]
+        random_rotation_matrices_2 = [math_utils.generate_random_rotation() for _ in range(100)]
 
         for rmat1, rmat2 in zip(random_rotation_matrices_1, random_rotation_matrices_2):
             # Compute expected results using scipy's Slerp
@@ -565,18 +561,15 @@ class TestMathUtilities(unittest.TestCase):
             # Assert that the result is almost equal to the expected quaternion
             np.testing.assert_array_almost_equal(result_axis_angle, expected, decimal=DECIMAL_PRECISION)
 
-    """
-    Tests for math_utils.interpolate_poses function.
-    This class checks the interpolate_poses function's output against the output from scipy.spatial.transform.Slerp.
-    1. test_interpolate_poses_multi_scipy_comparison: Generates 20x2 random transformation matrices,
-        computes an array of interpolated transformations
-        and compares it to the output of scipy.spatial.transform.Slerp and np.linspace
-    """
+    def test_interpolate_poses(self):
+        """Test interpolate_poses function.
 
-    def test_interpolate_poses_multi_scipy_comparison(self):
-        # Generate NUM_ITERS random transformation matrices
-        random_mat_1 = [math_utils.generate_random_transformation_matrix() for _ in range(NUM_ITERS)]
-        random_mat_2 = [math_utils.generate_random_transformation_matrix() for _ in range(NUM_ITERS)]
+        This test checks the output from the :meth:`~isaaclab.utils.math_utils.interpolate_poses` function against
+        the output from :func:`scipy.spatial.transform.Slerp`.
+        """
+        # Generate 100 random transformation matrices
+        random_mat_1 = [math_utils.generate_random_transformation_matrix() for _ in range(100)]
+        random_mat_2 = [math_utils.generate_random_transformation_matrix() for _ in range(100)]
 
         for mat1, mat2 in zip(random_mat_1, random_mat_2):
             pos_1, rmat1 = math_utils.unmake_pose(mat1)
