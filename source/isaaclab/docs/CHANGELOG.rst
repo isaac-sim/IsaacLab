@@ -1,6 +1,33 @@
 Changelog
 ---------
 
+0.34.5 (2025-03-02)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Improved documentation of various attributes in the :class:`~isaaclab.assets.ArticulationData` class to make
+  it clearer which values represent the simulation and internal class values. In the new convention,
+  the ``default_xxx`` attributes are whatever the user configured from their configuration of the articulation
+  class, while the ``xxx`` attributes are the values from the simulation.
+* Updated the soft joint position limits inside the :meth:`~isaaclab.assets.Articulation.write_joint_pos_limits_to_sim`
+  method to use the new limits passed to the function.
+
+Changed
+^^^^^^^
+
+* Removed unnecessary buffer creation operations inside the :class:`~isaaclab.assets.Articulation` class.
+  Earlier, the class initialized a variety of buffer data with zeros and in the next function assigned
+  them the value from PhysX. This made the code bulkier and more complex for no reason.
+* Renamed parameters for a consistent nomenclature:
+
+  * ``joint_limits`` → ``joint_pos_limits`` (to match attribute ``joint_pos`` and ``soft_joint_pos_limits``)
+  * ``joint_velocity_limits`` → ``joint_vel_limits`` (to match attribute ``joint_vel`` and ``joint_vel_limits``)
+  * ``default_joint_limits`` → ``default_joint_pos_limits``
+  * ``write_joint_limits_to_sim`` → ``write_joint_pos_limits_to_sim``
+
+
 0.34.4 (2025-03-01)
 ~~~~~~~~~~~~~~~~~~~
 
