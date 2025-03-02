@@ -1,6 +1,24 @@
 Changelog
 ---------
 
+0.34.5 (2025-03-02)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Enabled the physics flag for disabling contact processing in the :class:`~isaaclab.sim.SimulationContact`
+  class. This means that by default, no contact reporting is done by the physics engine, which should provide
+  a performance boost in simulations with no contact processing requirements.
+* Disabled the physics flag for disabling contact processing in the :class:`~isaaclab.sensors.ContactSensor`
+  class when the sensor is created to allow contact reporting for the sensor.
+
+Removed
+^^^^^^^
+
+* Removed the attribute ``disable_contact_processing`` from :class:`~isaaclab.sim.SimulationContact`.
+
+
 0.34.4 (2025-03-01)
 ~~~~~~~~~~~~~~~~~~~
 
@@ -136,7 +154,8 @@ Added
 Changed
 ^^^^^^^
 
-* Automatic collision filtering now happens as part of the replicate_physics call. When replicate_physics is not enabled, we call the previous ``filter_collisions`` API to mask collisions between environments.
+* Automatic collision filtering now happens as part of the replicate_physics call. When replicate_physics is not enabled, we call the previous
+  ``filter_collisions`` API to mask collisions between environments.
 
 
 0.33.10 (2025-01-22)
@@ -145,7 +164,11 @@ Changed
 Changed
 ^^^^^^^
 
-* In :meth:`isaaclab.assets.Articulation.write_joint_limits_to_sim`, we previously added a check for if default joint positions exceed the new limits being set. When this is True, we log a warning message to indicate that the default joint positions will be clipped to be within the range of the new limits. However, the warning message can become overly verbose in a randomization setting where this API is called on every environment reset. We now default to only writing the message to info level logging if called within randomization, and expose a parameter that can be used to choose the logging level desired.
+* In :meth:`isaaclab.assets.Articulation.write_joint_limits_to_sim`, we previously added a check for if default joint positions exceed the
+  new limits being set. When this is True, we log a warning message to indicate that the default joint positions will be clipped to be within
+  the range of the new limits. However, the warning message can become overly verbose in a randomization setting where this API is called on
+  every environment reset. We now default to only writing the message to info level logging if called within randomization, and expose a
+  parameter that can be used to choose the logging level desired.
 
 
 0.33.9 (2025-01-22)
@@ -193,7 +216,9 @@ Fixed
 Fixed
 ^^^^^
 
-* Fixed the respawn of only wrong object samples in :func:`repeated_objects_terrain` of :mod:`isaaclab.terrains.trimesh` module. Previously, the function was respawning all objects in the scene instead of only the wrong object samples, which in worst case could lead to infinite respawn loop.
+* Fixed the respawn of only wrong object samples in :func:`repeated_objects_terrain` of :mod:`isaaclab.terrains.trimesh` module.
+  Previously, the function was respawning all objects in the scene instead of only the wrong object samples, which in worst case
+  could lead to infinite respawn loop.
 
 
 0.33.6 (2025-01-16)
@@ -314,7 +339,8 @@ Added
 Fixed
 ^^^^^
 
-* Fixed ordering of logging and resamping in the command manager, where we were logging the metrics after resampling the commands. This leads to incorrect logging of metrics when inside the resample call, the metrics tensors get reset.
+* Fixed ordering of logging and resamping in the command manager, where we were logging the metrics after resampling the commands.
+  This leads to incorrect logging of metrics when inside the resample call, the metrics tensors get reset.
 
 
 0.30.2 (2024-12-16)
@@ -340,7 +366,8 @@ Added
 Changed
 ^^^^^^^
 
-* Added call to update articulation kinematics after reset to ensure states are updated for non-rendering sensors. Previously, some changes in reset such as modifying joint states would not be reflected in the rigid body states immediately after reset.
+* Added call to update articulation kinematics after reset to ensure states are updated for non-rendering sensors. Previously, some changes
+  in reset such as modifying joint states would not be reflected in the rigid body states immediately after reset.
 
 
 0.30.0 (2024-12-15)
@@ -351,9 +378,12 @@ Added
 
 * Added UI interface to the Managers in the ManagerBasedEnv and MangerBasedRLEnv classes.
 * Added UI widgets for :class:`LiveLinePlot` and :class:`ImagePlot`.
-* Added ``ManagerLiveVisualizer/Cfg``: Given a ManagerBase (i.e. action_manager, observation_manager, etc) and a config file this class creates the the interface between managers and the UI.
-* Added :class:`EnvLiveVisualizer`: A 'manager' of ManagerLiveVisualizer. This is added to the ManagerBasedEnv but is only called during the initialization of the managers in load_managers
-* Added ``get_active_iterable_terms`` implementation methods to ActionManager, ObservationManager, CommandsManager, CurriculumManager, RewardManager, and TerminationManager. This method exports the active term data and labels for each manager and is called by ManagerLiveVisualizer.
+* Added ``ManagerLiveVisualizer/Cfg``: Given a ManagerBase (i.e. action_manager, observation_manager, etc) and a config file this class creates
+  the the interface between managers and the UI.
+* Added :class:`EnvLiveVisualizer`: A 'manager' of ManagerLiveVisualizer. This is added to the ManagerBasedEnv but is only called during
+  the initialization of the managers in load_managers
+* Added ``get_active_iterable_terms`` implementation methods to ActionManager, ObservationManager, CommandsManager, CurriculumManager,
+  RewardManager, and TerminationManager. This method exports the active term data and labels for each manager and is called by ManagerLiveVisualizer.
 * Additions to :class:`BaseEnvWindow` and :class:`RLEnvWindow` to register ManagerLiveVisualizer UI interfaces for the chosen managers.
 
 
@@ -393,7 +423,9 @@ Changed
 Fixed
 ^^^^^
 
-* Fixed the shape of ``quat_w`` in the ``apply_actions`` method of :attr:`~isaaclab.env.mdp.NonHolonomicAction` (previously (N,B,4), now (N,4) since the number of root bodies B is required to be 1). Previously ``apply_actions`` errored because ``euler_xyz_from_quat`` requires inputs of shape (N,4).
+* Fixed the shape of ``quat_w`` in the ``apply_actions`` method of :attr:`~isaaclab.env.mdp.NonHolonomicAction`
+  (previously (N,B,4), now (N,4) since the number of root bodies B is required to be 1). Previously ``apply_actions`` errored
+  because ``euler_xyz_from_quat`` requires inputs of shape (N,4).
 
 
 0.28.1 (2024-12-13)
@@ -2133,7 +2165,8 @@ Added
 Fixed
 ^^^^^
 
-* Fixes the order of size arguments in :meth:`isaaclab.terrains.height_field.random_uniform_terrain`. Previously, the function would crash if the size along x and y were not the same.
+* Fixes the order of size arguments in :meth:`isaaclab.terrains.height_field.random_uniform_terrain`. Previously, the function
+  would crash if the size along x and y were not the same.
 
 
 0.10.22 (2024-02-14)
