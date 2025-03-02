@@ -770,6 +770,63 @@
         <span class="n">asset</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">set_inertias</span><span class="p">(</span><span class="n">inertias</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">)</span></div>
 
 
+<div class="viewcode-block" id="randomize_rigid_body_collider_offsets"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.events.randomize_rigid_body_collider_offsets">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">randomize_rigid_body_collider_offsets</span><span class="p">(</span>
+    <span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedEnv</span><span class="p">,</span>
+    <span class="n">env_ids</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">asset_cfg</span><span class="p">:</span> <span class="n">SceneEntityCfg</span><span class="p">,</span>
+    <span class="n">rest_offset_distribution_params</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">contact_offset_distribution_params</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">distribution</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;uniform&quot;</span><span class="p">,</span> <span class="s2">&quot;log_uniform&quot;</span><span class="p">,</span> <span class="s2">&quot;gaussian&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;uniform&quot;</span><span class="p">,</span>
+<span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Randomize the collider parameters of rigid bodies in an asset by adding, scaling, or setting random values.</span>
+
+<span class="sd">    This function allows randomizing the collider parameters of the asset, such as rest and contact offsets.</span>
+<span class="sd">    These correspond to the physics engine collider properties that affect the collision checking.</span>
+
+<span class="sd">    The function samples random values from the given distribution parameters and applies the operation to</span>
+<span class="sd">    the collider properties. It then sets the values into the physics simulation. If the distribution parameters</span>
+<span class="sd">    are not provided for a particular property, the function does not modify the property.</span>
+
+<span class="sd">    Currently, the distribution parameters are applied as absolute values.</span>
+
+<span class="sd">    .. tip::</span>
+<span class="sd">        This function uses CPU tensors to assign the collision properties. It is recommended to use this function</span>
+<span class="sd">        only during the initialization of the environment.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># extract the used quantities (to enable type-hinting)</span>
+    <span class="n">asset</span><span class="p">:</span> <span class="n">RigidObject</span> <span class="o">|</span> <span class="n">Articulation</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">scene</span><span class="p">[</span><span class="n">asset_cfg</span><span class="o">.</span><span class="n">name</span><span class="p">]</span>
+
+    <span class="c1"># resolve environment ids</span>
+    <span class="k">if</span> <span class="n">env_ids</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">env_ids</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">env</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">num_envs</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="s2">&quot;cpu&quot;</span><span class="p">)</span>
+
+    <span class="c1"># sample collider properties from the given ranges and set into the physics simulation</span>
+    <span class="c1"># -- rest offsets</span>
+    <span class="k">if</span> <span class="n">rest_offset_distribution_params</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">rest_offset</span> <span class="o">=</span> <span class="n">asset</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">get_rest_offsets</span><span class="p">()</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+        <span class="n">rest_offset</span> <span class="o">=</span> <span class="n">_randomize_prop_by_op</span><span class="p">(</span>
+            <span class="n">rest_offset</span><span class="p">,</span>
+            <span class="n">rest_offset_distribution_params</span><span class="p">,</span>
+            <span class="kc">None</span><span class="p">,</span>
+            <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">),</span>
+            <span class="n">operation</span><span class="o">=</span><span class="s2">&quot;abs&quot;</span><span class="p">,</span>
+            <span class="n">distribution</span><span class="o">=</span><span class="n">distribution</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="n">asset</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">set_rest_offsets</span><span class="p">(</span><span class="n">rest_offset</span><span class="p">,</span> <span class="n">env_ids</span><span class="o">.</span><span class="n">cpu</span><span class="p">())</span>
+    <span class="c1"># -- contact offsets</span>
+    <span class="k">if</span> <span class="n">contact_offset_distribution_params</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">contact_offset</span> <span class="o">=</span> <span class="n">asset</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">get_contact_offsets</span><span class="p">()</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+        <span class="n">contact_offset</span> <span class="o">=</span> <span class="n">_randomize_prop_by_op</span><span class="p">(</span>
+            <span class="n">contact_offset</span><span class="p">,</span>
+            <span class="n">contact_offset_distribution_params</span><span class="p">,</span>
+            <span class="kc">None</span><span class="p">,</span>
+            <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">),</span>
+            <span class="n">operation</span><span class="o">=</span><span class="s2">&quot;abs&quot;</span><span class="p">,</span>
+            <span class="n">distribution</span><span class="o">=</span><span class="n">distribution</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="n">asset</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">set_contact_offsets</span><span class="p">(</span><span class="n">contact_offset</span><span class="p">,</span> <span class="n">env_ids</span><span class="o">.</span><span class="n">cpu</span><span class="p">())</span></div>
+
+
 <div class="viewcode-block" id="randomize_physics_scene_gravity"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.events.randomize_physics_scene_gravity">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">randomize_physics_scene_gravity</span><span class="p">(</span>
     <span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedEnv</span><span class="p">,</span>
     <span class="n">env_ids</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
