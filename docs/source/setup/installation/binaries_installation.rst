@@ -17,7 +17,7 @@ to install the latest Isaac Sim release.
 
 From Isaac Sim 4.5 release, Isaac Sim binaries can be `downloaded <https://docs.isaacsim.omniverse.nvidia.com/latest/installation/download.html#download-isaac-sim-short>`_ directly as a zip file.
 
-To check the minimum system requirements,refer to the documentation
+To check the minimum system requirements, refer to the documentation
 `here <https://docs.isaacsim.omniverse.nvidia.com/latest/installation/requirements.html>`__.
 
 .. tab-set::
@@ -35,7 +35,7 @@ To check the minimum system requirements,refer to the documentation
          The below steps assume the Isaac Sim folder was unzipped to the Downloads directory.
 
       On Linux systems, Isaac Sim directory will be named
-      ``${HOME}/Downloads/isaac-sim-standalone@*``, with ``*`` corresponding to the Isaac Sim version.
+      ``${HOME}/Downloads/isaac-sim-standalone@*``, with "*" corresponding to the Isaac Sim version.
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
@@ -48,7 +48,7 @@ To check the minimum system requirements,refer to the documentation
          The below steps assume the Isaac Sim folder was unzipped to the Downloads directory.
 
       On Windows systems, Isaac Sim directory will be named
-      ``%USERPROFILE%/Downloads/isaac-sim-standalone@*``, with ``*`` corresponding to the Isaac Sim version.
+      ``%USERPROFILE%/Downloads/isaac-sim-standalone@*``, with "*" corresponding to the Isaac Sim version.
 
 Verifying the Isaac Sim installation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
