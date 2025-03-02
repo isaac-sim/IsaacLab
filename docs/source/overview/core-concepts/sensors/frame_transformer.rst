@@ -1,9 +1,11 @@
 .. _overview_sensors_frame_transformer:
 
-Frame Transformer
-====================
+.. currentmodule:: isaaclab
 
-.. figure:: ../../_static/overview/overview_sensors_frame_transformer.jpg
+Frame Transformer
+=================
+
+.. figure:: ../../../_static/overview/sensors/frame_transformer.jpg
     :align: center
     :figwidth: 100%
     :alt: A diagram outlining the basic geometry of frame transformations
@@ -15,7 +17,7 @@ One of the most common operations that needs to be performed within a physics si
 
 The sensory is minimally defined by a source frame and a list of target frames.  These definitions take the form of a prim path (for the source) and list of regex capable prim paths the rigid bodies to be tracked (for the targets).
 
-.. literalinclude:: ../../../../scripts/demos/sensors/frame_transformer_sensor.py
+.. literalinclude:: ../../../../../scripts/demos/sensors/frame_transformer_sensor.py
     :language: python
     :lines: 38-86
 
@@ -45,7 +47,8 @@ We can now run the scene and query the sensor for data
       print(scene["robot_transforms"])
       print("relative transforms:", scene["robot_transforms"].data.target_pos_source)
 
-Let's take a look at the result for tracking specific objects. First, we can take a look at the data coming from the sensors on the feet
+Let's take a look at the result for tracking specific objects. First, we can take a look at the data coming from the
+sensors on the feet
 
 .. code-block:: bash
 
@@ -61,12 +64,15 @@ Let's take a look at the result for tracking specific objects. First, we can tak
   relative orientations: tensor([[[ 0.9623,  0.0072, -0.2717, -0.0020],
           [ 0.9639,  0.0052, -0.2663, -0.0014]]], device='cuda:0')
 
-.. figure:: ../../_static/overview/overview_sensors_ft_visualizer.jpg
+.. figure:: ../../../_static/overview/sensors/frame_transformer_visualizer.jpg
     :align: center
     :figwidth: 100%
     :alt: The frame transformer visualizer
 
-By activating the visualizer, we can see that the frames of the feet are rotated "upward" slightly.  We can also see the explicit relative positions and rotations by querying the sensor for data, which returns these values as a list with the same order as the tracked frames.  This becomes even more apparent if we examine the transforms specified by regex.
+By activating the visualizer, we can see that the frames of the feet are rotated "upward" slightly.
+We can also see the explicit relative positions and rotations by querying the sensor for data, which
+returns these values as a list with the same order as the tracked frames.  This becomes even more
+apparent if we examine the transforms specified by regex.
 
 .. code-block:: bash
 
@@ -100,6 +106,6 @@ Here, the sensor is tracking all rigid body children of ``Robot/base``, but this
 .. dropdown:: Code for frame_transformer_sensor.py
    :icon: code
 
-   .. literalinclude:: ../../../../scripts/demos/sensors/frame_transformer_sensor.py
+   .. literalinclude:: ../../../../../scripts/demos/sensors/frame_transformer_sensor.py
       :language: python
       :linenos:

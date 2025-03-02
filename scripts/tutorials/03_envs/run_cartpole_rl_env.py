@@ -3,7 +3,14 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""This script demonstrates how to run the RL environment for the cartpole balancing task."""
+"""
+This script demonstrates how to run the RL environment for the cartpole balancing task.
+
+.. code-block:: bash
+
+    ./isaaclab.sh -p scripts/tutorials/03_envs/run_cartpole_rl_env.py --num_envs 32
+
+"""
 
 """Launch Isaac Sim Simulator first."""
 

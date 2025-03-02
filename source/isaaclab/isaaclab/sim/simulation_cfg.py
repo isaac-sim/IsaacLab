@@ -266,18 +266,6 @@ class SimulationCfg:
         updates, please set this flag to :obj:`False`.
     """
 
-    disable_contact_processing: bool = False
-    """Enable/disable contact processing. Default is False.
-
-    By default, the physics engine processes all the contacts in the scene. However, reporting this contact
-    information can be expensive due to its combinatorial complexity. This flag allows disabling the contact
-    processing and querying the contacts manually by the user over a limited set of primitives in the scene.
-
-    .. note::
-
-        It is required to set this flag to :obj:`True` when using the TensorAPIs for contact reporting.
-    """
-
     physx: PhysxCfg = PhysxCfg()
     """PhysX solver settings. Default is PhysxCfg()."""
 
