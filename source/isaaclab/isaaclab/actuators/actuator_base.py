@@ -37,40 +37,54 @@ class ActuatorBase(ABC):
     """
 
     is_implicit_model: ClassVar[bool] = False
-    """Flag indicating if the actuator is an implicit or explicit actuator model."""
+    """Flag indicating if the actuator is an implicit or explicit actuator model.
+
+    If a class inherits from :class:`ImplicitActuator`, then this flag should be set to :obj:`True`.
+    """
 
     computed_effort: torch.Tensor
     """The computed effort for the actuator group. Shape is (num_envs, num_joints)."""
+
     applied_effort: torch.Tensor
-    """The applied effort for the actuator group. Shape is (num_envs, num_joints)."""
+    """The applied effort for the actuator group. Shape is (num_envs, num_joints).
+
+    This is the effort obtained after clipping the :attr:`computed_effort` based on the
+    actuator characteristics.
+    """
 
     effort_limit: torch.Tensor
     """The effort limit for the actuator group. Shape is (num_envs, num_joints).
 
     For implicit actuators, the :attr:`effort_limit` and :attr:`effort_limit_sim` are the same.
     """
+
     effort_limit_sim: torch.Tensor
     """The effort limit for the actuator group in the simulation. Shape is (num_envs, num_joints).
 
     For implicit actuators, the :attr:`effort_limit` and :attr:`effort_limit_sim` are the same.
     """
+
     velocity_limit: torch.Tensor
     """The velocity limit for the actuator group. Shape is (num_envs, num_joints).
 
     For implicit actuators, the :attr:`velocity_limit` and :attr:`velocity_limit_sim` are the same.
     """
+
     velocity_limit_sim: torch.Tensor
     """The velocity limit for the actuator group in the simulation. Shape is (num_envs, num_joints).
 
-    For implicit actuators, the :attr:`velocity_limit` and :attr:`velocity_limit_sim` are the same
+    For implicit actuators, the :attr:`velocity_limit` and :attr:`velocity_limit_sim` are the same.
     """
 
     stiffness: torch.Tensor
     """The stiffness (P gain) of the PD controller. Shape is (num_envs, num_joints)."""
+
     damping: torch.Tensor
     """The damping (D gain) of the PD controller. Shape is (num_envs, num_joints)."""
+
     armature: torch.Tensor
     """The armature of the actuator joints. Shape is (num_envs, num_joints)."""
+
     friction: torch.Tensor
     """The joint friction of the actuator joints. Shape is (num_envs, num_joints)."""
 
@@ -137,11 +151,11 @@ class ActuatorBase(ABC):
         self.friction = self._parse_joint_parameter(self.cfg.friction, friction)
         # parse joint limits
         # -- velocity
-        self.velocity_limit = self._parse_joint_parameter(self.cfg.velocity_limit, velocity_limit)
         self.velocity_limit_sim = self._parse_joint_parameter(self.cfg.velocity_limit_sim, velocity_limit)
+        self.velocity_limit = self._parse_joint_parameter(self.cfg.velocity_limit, self.velocity_limit_sim)
         # -- effort
-        self.effort_limit = self._parse_joint_parameter(self.cfg.effort_limit, effort_limit)
         self.effort_limit_sim = self._parse_joint_parameter(self.cfg.effort_limit_sim, effort_limit)
+        self.effort_limit = self._parse_joint_parameter(self.cfg.effort_limit, self.effort_limit_sim)
 
         # create commands buffers for allocation
         self.computed_effort = torch.zeros(self._num_envs, self.num_joints, device=self._device)
@@ -153,8 +167,12 @@ class ActuatorBase(ABC):
         joint_indices = self.joint_indices
         if joint_indices == slice(None):
             joint_indices = list(range(self.num_joints))
+        # resolve model type (implicit or explicit)
+        model_type = "implicit" if self.is_implicit_model else "explicit"
+
         return (
             f"<class {self.__class__.__name__}> object:\n"
+            f"\tModel type            : {model_type}\n"
             f"\tNumber of joints      : {self.num_joints}\n"
             f"\tJoint names expression: {self.cfg.joint_names_expr}\n"
             f"\tJoint names           : {self.joint_names}\n"

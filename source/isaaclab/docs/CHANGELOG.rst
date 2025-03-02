@@ -1,14 +1,74 @@
 Changelog
 ---------
 
-0.34.0 (2025-02-14)
-~~~~~~~~~~~~~~~~~~~~
+0.34.4 (2025-03-01)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added a new attribute :attr:`is_implicit_model` to the :class:`isaaclab.actuators.ActuatorBase` class to
+  indicate if the actuator model is implicit or explicit. This helps checking that the correct model type
+  is being used when initializing the actuator models.
 
 Fixed
 ^^^^^
 
-* Adds attributes velocity_limits_sim and effort_limits_sim to :class:`isaaclab.actuators.AssetBaseCfg` to separate
-  solver limits from actuator limits.
+* Added copy of configurations to :class:`~isaaclab.assets.AssetBase` and :class:`~isaaclab.sensors.SensorBase`
+  to prevent modifications of the configurations from leaking outside of the classes.
+* Fixed the case where setting velocity/effort limits for the simulation in the
+  :class:`~isaaclab.actuators.ActuatorBaseCfg` class was not being used to update the actuator-specific
+  velocity/effort limits.
+
+Changed
+^^^^^^^
+
+* Moved warnings and checks for implicit actuator models to the :class:`~isaaclab.actuators.ImplicitActuator` class.
+* Reverted to IsaacLab v1.3 behavior where :attr:`isaaclab.actuators.ImplicitActuatorCfg.velocity_limit`
+  attribute was not used for setting the velocity limits in the simulation. This makes it possible to deploy
+  policies from previous release without any changes. If users want to set the velocity limits for the simulation,
+  they should use the :attr:`isaaclab.actuators.ImplicitActuatorCfg.velocity_limit_sim` attribute instead.
+
+
+0.34.3 (2025-02-28)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added IP address support for WebRTC livestream to allow specifying IP address to stream across networks.
+  This feature requires an updated livestream extension, which is current only available in the pre-built Isaac Lab 2.0.1 docker image.
+  Support for other Isaac Sim builds will become available in Isaac Sim 5.0.
+
+
+0.34.2 (2025-02-21)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed setting of root velocities inside the event term :meth:`reset_root_state_from_terrain`. Earlier, the indexing
+  based on the environment IDs was missing.
+
+
+0.34.1 (2025-02-17)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Ensured that the loaded torch JIT models inside actuator networks are correctly set to eval mode
+  to prevent any unexpected behavior during inference.
+
+
+0.34.0 (2025-02-14)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Added attributes :attr:`velocity_limits_sim` and :attr:`effort_limits_sim` to the
+  :class:`isaaclab.actuators.ActuatorBaseCfg` class to separate solver limits from actuator limits.
 
 
 0.33.17 (2025-02-13)

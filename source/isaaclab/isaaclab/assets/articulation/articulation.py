@@ -1282,9 +1282,10 @@ class Articulation(AssetBase):
                 velocity_limit=self._data.joint_vel_limits[:, joint_ids],
             )
             # log information on actuator groups
+            model_type = "implicit" if actuator.is_implicit_model else "explicit"
             omni.log.info(
-                f"Actuator collection: {actuator_name} with model '{actuator_cfg.class_type.__name__}' and"
-                f" joint names: {joint_names} [{joint_ids}]."
+                f"Actuator collection: {actuator_name} with model '{actuator_cfg.class_type.__name__}'"
+                f" (type: {model_type}) and joint names: {joint_names} [{joint_ids}]."
             )
             # store actuator group
             self.actuators[actuator_name] = actuator
