@@ -26,10 +26,12 @@ Guidelines for modifications:
 * James Smith
 * James Tigue
 * Kelly (Yunrong) Guo
+* Matthew Trepte
 * Mayank Mittal
 * Nikita Rudin
 * Pascal Roth
 * Sheikh Dawood
+* Ossama Ahmed
 
 ## Contributors
 
@@ -38,8 +40,11 @@ Guidelines for modifications:
 * Andrej Orsula
 * Anton Bjørndahl Mortensen
 * Arjun Bhardwaj
+* Ashwin Varghese Kuruttukulam
 * Brayden Zhang
+* Cameron Upright
 * Calvin Yu
+* Cheng-Rong Lai
 * Chenyu Yang
 * CY (Chien-Ying) Chen
 * David Yang
@@ -51,6 +56,7 @@ Guidelines for modifications:
 * HoJin Jeon
 * Hongwei Xiong
 * Iretiayo Akinola
+* Jack Zeng
 * Jan Kerner
 * Jean Tampon
 * Jia Lin Yuan
@@ -80,6 +86,7 @@ Guidelines for modifications:
 * Rosario Scalise
 * Ryley McCarroll
 * Shafeef Omar
+* Shundo Kishi
 * Stephan Pleines
 * Vladimir Fokow
 * Wei Yang

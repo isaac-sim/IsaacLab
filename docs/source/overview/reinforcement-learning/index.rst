@@ -12,3 +12,4 @@ learning frameworks.
   rl_existing_scripts
   rl_frameworks
   performance_benchmarks
+  training_guide

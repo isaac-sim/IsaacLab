@@ -7,7 +7,7 @@ NVIDIA Isaac Sim is available freely under `individual license
 <https://www.nvidia.com/en-us/omniverse/download/>`_. For more information
 about its license terms, please check `here <https://docs.omniverse.nvidia.com/app_isaacsim/common/NVIDIA_Omniverse_License_Agreement.html#software-support-supplement>`_.
 The license files for all its dependencies and included assets are available in its
-`documentation <https://docs.omniverse.nvidia.com/isaacsim/latest/common/licenses.html>`_.
+`documentation <https://docs.isaacsim.omniverse.nvidia.com/latest/common/licenses.html>`_.
 
 
 The Isaac Lab framework is open-sourced under the

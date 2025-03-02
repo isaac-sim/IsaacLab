@@ -1,9 +1,11 @@
+.. _tutorials:
+
 Tutorials
 =========
 
 Welcome to the Isaac Lab tutorials! These tutorials provide a step-by-step guide to help you understand
 and use various features of the framework. All the tutorials are written as Python scripts. You can
-find the source code for each tutorial in the ``source/standalone/tutorials`` directory of the Isaac Lab
+find the source code for each tutorial in the ``scripts/tutorials`` directory of the Isaac Lab
 repository.
 
 .. note::
@@ -18,8 +20,8 @@ Setting up a Simple Simulation
 -------------------------------
 
 These tutorials show you how to launch the simulation with different settings and spawn objects in the
-simulated scene. They cover the following APIs: :class:`~omni.isaac.lab.app.AppLauncher`,
-:class:`~omni.isaac.lab.sim.SimulationContext`, and :class:`~omni.isaac.lab.sim.spawners`.
+simulated scene. They cover the following APIs: :class:`~isaaclab.app.AppLauncher`,
+:class:`~isaaclab.sim.SimulationContext`, and :class:`~isaaclab.sim.spawners`.
 
 .. toctree::
     :maxdepth: 1
@@ -33,9 +35,9 @@ Interacting with Assets
 -----------------------
 
 Having spawned objects in the scene, these tutorials show you how to create physics handles for these
-objects and interact with them. These revolve around the :class:`~omni.isaac.lab.assets.AssetBase`
-class and its derivatives such as :class:`~omni.isaac.lab.assets.RigidObject`,
-:class:`~omni.isaac.lab.assets.Articulation` and :class:`~omni.isaac.lab.assets.DeformableObject`.
+objects and interact with them. These revolve around the :class:`~isaaclab.assets.AssetBase`
+class and its derivatives such as :class:`~isaaclab.assets.RigidObject`,
+:class:`~isaaclab.assets.Articulation` and :class:`~isaaclab.assets.DeformableObject`.
 
 .. toctree::
     :maxdepth: 1
@@ -49,7 +51,7 @@ Creating a Scene
 ----------------
 
 With the basic concepts of the framework covered, the tutorials move to a more intuitive scene
-interface that uses the :class:`~omni.isaac.lab.scene.InteractiveScene` class. This class
+interface that uses the :class:`~isaaclab.scene.InteractiveScene` class. This class
 provides a higher level abstraction for creating scenes easily.
 
 .. toctree::
@@ -61,9 +63,9 @@ provides a higher level abstraction for creating scenes easily.
 Designing an Environment
 ------------------------
 
-The following tutorials introduce the concept of manager-based environments: :class:`~omni.isaac.lab.envs.ManagerBasedEnv`
-and its derivative :class:`~omni.isaac.lab.envs.ManagerBasedRLEnv`, as well as the direct workflow base class
-:class:`~omni.isaac.lab.envs.DirectRLEnv`. These environments bring-in together
+The following tutorials introduce the concept of manager-based environments: :class:`~isaaclab.envs.ManagerBasedEnv`
+and its derivative :class:`~isaaclab.envs.ManagerBasedRLEnv`, as well as the direct workflow base class
+:class:`~isaaclab.envs.DirectRLEnv`. These environments bring-in together
 different aspects of the framework to create a simulation environment for agent interaction.
 
 .. toctree::
@@ -76,13 +78,14 @@ different aspects of the framework to create a simulation environment for agent 
     03_envs/register_rl_env_gym
     03_envs/run_rl_training
     03_envs/modify_direct_rl_env
+    03_envs/policy_inference_in_usd
 
 Integrating Sensors
 -------------------
 
 The following tutorial shows you how to integrate sensors into the simulation environment. The
-tutorials introduce the :class:`~omni.isaac.lab.sensors.SensorBase` class and its derivatives
-such as :class:`~omni.isaac.lab.sensors.Camera` and :class:`~omni.isaac.lab.sensors.RayCaster`.
+tutorials introduce the :class:`~isaaclab.sensors.SensorBase` class and its derivatives
+such as :class:`~isaaclab.sensors.Camera` and :class:`~isaaclab.sensors.RayCaster`.
 
 .. toctree::
     :maxdepth: 1
