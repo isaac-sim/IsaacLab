@@ -79,7 +79,6 @@ Table of Contents
    source/setup/ecosystem
    source/setup/installation/index
    source/setup/installation/cloud_installation
-   source/setup/faq
 
 .. toctree::
    :maxdepth: 3
