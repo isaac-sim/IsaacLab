@@ -22,6 +22,15 @@ export ISAACLAB_PATH="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && p
 # Helper functions
 #==
 
+# check if running in docker
+is_docker() {
+    [ -f /.dockerenv ] || \
+    grep -q docker /proc/1/cgroup || \
+    [[ $(cat /proc/1/comm) == "containerd-shim" ]] || \
+    grep -q docker /proc/mounts || \
+    [[ "$(hostname)" == *"."* ]]
+}
+
 # extract isaac sim path
 extract_isaacsim_path() {
     # Use the sym-link path to Isaac Sim directory
@@ -31,7 +40,7 @@ extract_isaacsim_path() {
         # Use the python executable to get the path
         local python_exe=$(extract_python_exe)
         # Retrieve the path importing isaac sim and getting the environment path
-        if [ $(${python_exe} -m pip list | grep -c 'isaacsim-rl') ]; then
+        if [ $(${python_exe} -m pip list | grep -c 'isaacsim-rl') -gt 0 ]; then
             local isaac_path=$(${python_exe} -c "import isaacsim; import os; print(os.environ['ISAAC_PATH'])")
         fi
     fi
@@ -64,7 +73,7 @@ extract_python_exe() {
             # note: we need to check system python for cases such as docker
             # inside docker, if user installed into system python, we need to use that
             # otherwise, use the python from the kit
-            if [ $(python -m pip list | grep -c 'isaacsim-rl') ]; then
+            if [ $(python -m pip list | grep -c 'isaacsim-rl') -gt 0 ]; then
                 local python_exe=$(which python)
             fi
         fi
@@ -86,14 +95,16 @@ extract_python_exe() {
 extract_isaacsim_exe() {
     # obtain the isaac sim path
     local isaac_path=$(extract_isaacsim_path)
-    # python executable to use
+    # isaac sim executable to use
     local isaacsim_exe=${isaac_path}/isaac-sim.sh
     # check if there is a python path available
     if [ ! -f "${isaacsim_exe}" ]; then
         # check for installation using Isaac Sim pip
+        # note: pip installed Isaac Sim can only come from a direct
+        # python environment, so we can directly use 'python' here
         if [ $(python -m pip list | grep -c 'isaacsim-rl') -gt 0 ]; then
             # Isaac Sim - Python packages entry point
-            local isaacsim_exe="isaacsim omni.isaac.sim"
+            local isaacsim_exe="isaacsim isaacsim.exp.full"
         else
             echo "[ERROR] No Isaac Sim executable found at path: ${isaac_path}" >&2
             exit 1
@@ -241,7 +252,7 @@ print_help () {
     echo -e "\t-o, --docker         Run the docker container helper script (docker/container.sh)."
     echo -e "\t-v, --vscode         Generate the VSCode settings file from template."
     echo -e "\t-d, --docs           Build the documentation from source using sphinx."
-    echo -e "\t-c, --conda [NAME]   Create the conda environment for Isaac Lab. Default name is 'isaaclab'."
+    echo -e "\t-c, --conda [NAME]   Create the conda environment for Isaac Lab. Default name is 'env_isaaclab'."
     echo -e "\n" >&2
 }
 
@@ -270,7 +281,7 @@ while [[ $# -gt 0 ]]; do
             export -f extract_python_exe
             export -f install_isaaclab_extension
             # source directory
-            find -L "${ISAACLAB_PATH}/source/extensions" -mindepth 1 -maxdepth 1 -type d -exec bash -c 'install_isaaclab_extension "{}"' \;
+            find -L "${ISAACLAB_PATH}/source" -mindepth 1 -maxdepth 1 -type d -exec bash -c 'install_isaaclab_extension "{}"' \;
             # install the python packages for supported reinforcement learning frameworks
             echo "[INFO] Installing extra requirements such as learning frameworks..."
             # check if specified which rl-framework to install
@@ -286,12 +297,13 @@ while [[ $# -gt 0 ]]; do
                 framework_name=$2
                 shift # past argument
             fi
-            # install the rl-frameworks specified
-            ${python_exe} -m pip install -e ${ISAACLAB_PATH}/source/extensions/omni.isaac.lab_tasks["${framework_name}"]
+            # install the learning frameworks specified
+            ${python_exe} -m pip install -e ${ISAACLAB_PATH}/source/isaaclab_rl["${framework_name}"]
+            ${python_exe} -m pip install -e ${ISAACLAB_PATH}/source/isaaclab_mimic["${framework_name}"]
 
             # check if we are inside a docker container or are building a docker image
             # in that case don't setup VSCode since it asks for EULA agreement which triggers user interaction
-            if [ -f /.dockerenv ]; then
+            if is_docker; then
                 echo "[INFO] Running inside a docker container. Skipping VSCode settings setup."
                 echo "[INFO] To setup VSCode settings, run 'isaaclab -v'."
             else
@@ -307,8 +319,8 @@ while [[ $# -gt 0 ]]; do
         -c|--conda)
             # use default name if not provided
             if [ -z "$2" ]; then
-                echo "[INFO] Using default conda environment name: isaaclab"
-                conda_env_name="isaaclab"
+                echo "[INFO] Using default conda environment name: env_isaaclab"
+                conda_env_name="env_isaaclab"
             else
                 echo "[INFO] Using conda environment name: $2"
                 conda_env_name=$2
@@ -359,7 +371,7 @@ while [[ $# -gt 0 ]]; do
             isaacsim_exe=$(extract_isaacsim_exe)
             echo "[INFO] Running isaac-sim from: ${isaacsim_exe}"
             shift # past argument
-            ${isaacsim_exe} --ext-folder ${ISAACLAB_PATH}/source/extensions $@
+            ${isaacsim_exe} --ext-folder ${ISAACLAB_PATH}/source $@
             # exit neatly
             break
             ;;

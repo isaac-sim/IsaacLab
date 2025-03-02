@@ -4,7 +4,7 @@
 Creating a Manager-Based Base Environment
 =========================================
 
-.. currentmodule:: omni.isaac.lab
+.. currentmodule:: isaaclab
 
 Environments bring together different aspects of the simulation such as
 the scene, observations and actions spaces, reset events etc. to create a
@@ -25,13 +25,13 @@ in creating a new :class:`envs.ManagerBasedEnv` environment.
 The Code
 ~~~~~~~~
 
-The tutorial corresponds to the ``create_cartpole_base_env`` script  in the ``source/standalone/tutorials/03_envs``
+The tutorial corresponds to the ``create_cartpole_base_env`` script  in the ``scripts/tutorials/03_envs``
 directory.
 
 .. dropdown:: Code for create_cartpole_base_env.py
    :icon: code
 
-   .. literalinclude:: ../../../../source/standalone/tutorials/03_envs/create_cartpole_base_env.py
+   .. literalinclude:: ../../../../scripts/tutorials/03_envs/create_cartpole_base_env.py
       :language: python
       :emphasize-lines: 47-51, 54-71, 74-108, 111-130, 135-139, 144, 148, 153-154, 160-161
       :linenos:
@@ -77,7 +77,7 @@ different control schemes for different aspects of the environment.
 In the cartpole environment, we want to control the force applied to the cart to balance the pole.
 Thus, we will create an action term that controls the force applied to the cart.
 
-.. literalinclude:: ../../../../source/standalone/tutorials/03_envs/create_cartpole_base_env.py
+.. literalinclude:: ../../../../scripts/tutorials/03_envs/create_cartpole_base_env.py
    :language: python
    :pyobject: ActionsCfg
 
@@ -107,7 +107,7 @@ callable class that computes the observation for that term. It includes other pa
 defining the noise model, clipping, scaling, etc. However, we leave these parameters to their
 default values for this tutorial.
 
-.. literalinclude:: ../../../../source/standalone/tutorials/03_envs/create_cartpole_base_env.py
+.. literalinclude:: ../../../../scripts/tutorials/03_envs/create_cartpole_base_env.py
    :language: python
    :pyobject: ObservationsCfg
 
@@ -137,7 +137,7 @@ For this example, we define events that randomize the pole's mass on startup. Th
 operation is expensive and we don't want to do it on every reset. We also create an event to randomize the initial
 joint state of the cartpole and the pole at every reset.
 
-.. literalinclude:: ../../../../source/standalone/tutorials/03_envs/create_cartpole_base_env.py
+.. literalinclude:: ../../../../scripts/tutorials/03_envs/create_cartpole_base_env.py
    :language: python
    :pyobject: EventCfg
 
@@ -153,7 +153,7 @@ parameters such as the timestep, gravity, etc. This is initialized to the defaul
 be modified as needed. We recommend doing so by defining the :meth:`__post_init__` method in the
 :class:`envs.ManagerBasedEnvCfg` class, which is called after the configuration is initialized.
 
-.. literalinclude:: ../../../../source/standalone/tutorials/03_envs/create_cartpole_base_env.py
+.. literalinclude:: ../../../../scripts/tutorials/03_envs/create_cartpole_base_env.py
    :language: python
    :pyobject: CartpoleEnvCfg
 
@@ -171,7 +171,7 @@ The :class:`envs.ManagerBasedEnv` class does not have any notion of terminations
 specific for episodic tasks. Thus, the user is responsible for defining the termination condition
 for the environment. In this tutorial, we reset the simulation at regular intervals.
 
-.. literalinclude:: ../../../../source/standalone/tutorials/03_envs/create_cartpole_base_env.py
+.. literalinclude:: ../../../../scripts/tutorials/03_envs/create_cartpole_base_env.py
    :language: python
    :pyobject: main
 
@@ -188,7 +188,7 @@ To run the base environment made in this tutorial, you can use the following com
 
 .. code-block:: bash
 
-   ./isaaclab.sh -p source/standalone/tutorials/03_envs/create_cartpole_base_env.py --num_envs 32
+   ./isaaclab.sh -p scripts/tutorials/03_envs/create_cartpole_base_env.py --num_envs 32
 
 This should open a stage with a ground plane, light source, and cartpoles. The simulation should be
 playing with random actions on the cartpole. Additionally, it opens a UI window on the bottom
@@ -205,16 +205,16 @@ To stop the simulation, you can either close the window, or press ``Ctrl+C`` in 
 started the simulation.
 
 In this tutorial, we learned about the different managers that help define a base environment. We
-include more examples of defining the base environment in the ``source/standalone/tutorials/03_envs``
+include more examples of defining the base environment in the ``scripts/tutorials/03_envs``
 directory. For completeness, they can be run using the following commands:
 
 .. code-block:: bash
 
    # Floating cube environment with custom action term for PD control
-   ./isaaclab.sh -p source/standalone/tutorials/03_envs/create_cube_base_env.py --num_envs 32
+   ./isaaclab.sh -p scripts/tutorials/03_envs/create_cube_base_env.py --num_envs 32
 
    # Quadrupedal locomotion environment with a policy that interacts with the environment
-   ./isaaclab.sh -p source/standalone/tutorials/03_envs/create_quadruped_base_env.py --num_envs 32
+   ./isaaclab.sh -p scripts/tutorials/03_envs/create_quadruped_base_env.py --num_envs 32
 
 In the following tutorial, we will look at the :class:`envs.ManagerBasedRLEnv` class and how to use it
 to create a Markovian Decision Process (MDP).

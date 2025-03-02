@@ -11,28 +11,28 @@ Each extension has its own changelog. The changelog for each extension is locate
 ``docs`` directory of the extension. The changelog for each extension is also included in
 this changelog to make it easier to find the changelog for a specific extension.
 
-omni.isaac.lab
+isaaclab
 --------------
 
 Extension containing the core framework of Isaac Lab.
 
-.. include:: ../../../source/extensions/omni.isaac.lab/docs/CHANGELOG.rst
+.. include:: ../../../source/isaaclab/docs/CHANGELOG.rst
    :start-line: 3
 
 
-omni.isaac.lab_assets
+isaaclab_assets
 ---------------------
 
 Extension for configurations of various assets and sensors for Isaac Lab.
 
-.. include:: ../../../source/extensions/omni.isaac.lab_assets/docs/CHANGELOG.rst
+.. include:: ../../../source/isaaclab_assets/docs/CHANGELOG.rst
    :start-line: 3
 
 
-omni.isaac.lab_tasks
+isaaclab_tasks
 --------------------
 
 Extension containing the environments built using Isaac Lab.
 
-.. include:: ../../../source/extensions/omni.isaac.lab_tasks/docs/CHANGELOG.rst
+.. include:: ../../../source/isaaclab_tasks/docs/CHANGELOG.rst
    :start-line: 3

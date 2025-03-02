@@ -3,7 +3,7 @@
 From OmniIsaacGymEnvs
 =====================
 
-.. currentmodule:: omni.isaac.lab
+.. currentmodule:: isaaclab
 
 
 `OmniIsaacGymEnvs`_ was a reinforcement learning framework using the Isaac Sim platform.
@@ -21,8 +21,8 @@ Task Config Setup
 ~~~~~~~~~~~~~~~~~
 
 In OmniIsaacGymEnvs, task config files were defined in ``.yaml`` format. With Isaac Lab, configs are now specified
-using a specialized Python class :class:`~omni.isaac.lab.utils.configclass`. The
-:class:`~omni.isaac.lab.utils.configclass` module provides a wrapper on top of Python's ``dataclasses`` module.
+using a specialized Python class :class:`~isaaclab.utils.configclass`. The
+:class:`~isaaclab.utils.configclass` module provides a wrapper on top of Python's ``dataclasses`` module.
 Each environment should specify its own config class annotated by ``@configclass`` that inherits from the
 :class:`~envs.DirectRLEnvCfg` class, which can include simulation parameters, environment scene parameters,
 robot parameters, and task-specific parameters.
@@ -31,9 +31,9 @@ Below is an example skeleton of a task config class:
 
 .. code-block:: python
 
-   from omni.isaac.lab.envs import DirectRLEnvCfg
-   from omni.isaac.lab.scene import InteractiveSceneCfg
-   from omni.isaac.lab.sim import SimulationCfg
+   from isaaclab.envs import DirectRLEnvCfg
+   from isaaclab.scene import InteractiveSceneCfg
+   from isaaclab.sim import SimulationCfg
 
    @configclass
    class MyEnvCfg(DirectRLEnvCfg):
@@ -55,10 +55,10 @@ Below is an example skeleton of a task config class:
 Simulation Config
 -----------------
 
-Simulation related parameters are defined as part of the :class:`~omni.isaac.lab.sim.SimulationCfg` class,
-which is a :class:`~omni.isaac.lab.utils.configclass` module that holds simulation parameters such as ``dt``,
+Simulation related parameters are defined as part of the :class:`~isaaclab.sim.SimulationCfg` class,
+which is a :class:`~isaaclab.utils.configclass` module that holds simulation parameters such as ``dt``,
 ``device``, and ``gravity``. Each task config must have a variable named ``sim`` defined that holds the type
-:class:`~omni.isaac.lab.sim.SimulationCfg`.
+:class:`~isaaclab.sim.SimulationCfg`.
 
 Simulation parameters for articulations and rigid bodies such as ``num_position_iterations``, ``num_velocity_iterations``,
 ``contact_offset``, ``rest_offset``, ``bounce_threshold_velocity``, ``max_depenetration_velocity`` can all
@@ -67,56 +67,55 @@ be specified on a per-actor basis in the config class for each individual articu
 When running simulation on the GPU, buffers in PhysX require pre-allocation for computing and storing
 information such as contacts, collisions and aggregate pairs. These buffers may need to be adjusted
 depending on the complexity of the environment, the number of expected contacts and collisions,
-and the number of actors in the environment. The :class:`~omni.isaac.lab.sim.PhysxCfg` class provides access
+and the number of actors in the environment. The :class:`~isaaclab.sim.PhysxCfg` class provides access
 for setting the GPU buffer dimensions.
 
-+--------------------------------------------------------------+-------------------------------------------------------------------+
-|                                                              |                                                                   |
-|.. code-block:: yaml                                          |.. code-block:: python                                             |
-|                                                              |                                                                   |
-|  # OmniIsaacGymEnvs                                          | # IsaacLab                                                        |
-|  sim:                                                        | sim: SimulationCfg = SimulationCfg(                               |
-|                                                              |    device = "cuda:0" # can be "cpu", "cuda", "cuda:<device_id>"   |
-|    dt: 0.0083 # 1/120 s                                      |    dt=1 / 120,                                                    |
-|    use_gpu_pipeline: ${eq:${...pipeline},"gpu"}              |    # use_gpu_pipeline is deduced from the device                  |
-|    use_fabric: True                                          |    use_fabric=True,                                               |
-|    enable_scene_query_support: False                         |    enable_scene_query_support=False,                              |
-|    disable_contact_processing: False                         |    disable_contact_processing=False,                              |
-|    gravity: [0.0, 0.0, -9.81]                                |    gravity=(0.0, 0.0, -9.81),                                     |
-|                                                              |                                                                   |
-|    default_physics_material:                                 |    physics_material=RigidBodyMaterialCfg(                         |
-|      static_friction: 1.0                                    |        static_friction=1.0,                                       |
-|      dynamic_friction: 1.0                                   |        dynamic_friction=1.0,                                      |
-|      restitution: 0.0                                        |        restitution=0.0                                            |
-|                                                              |    )                                                              |
-|    physx:                                                    |    physx: PhysxCfg = PhysxCfg(                                    |
-|      worker_thread_count: ${....num_threads}                 |        # worker_thread_count is no longer needed                  |
-|      solver_type: ${....solver_type}                         |        solver_type=1,                                             |
-|      use_gpu: ${contains:"cuda",${....sim_device}}           |        # use_gpu is deduced from the device                       |
-|      solver_position_iteration_count: 4                      |        max_position_iteration_count=4,                            |
-|      solver_velocity_iteration_count: 0                      |        max_velocity_iteration_count=0,                            |
-|      contact_offset: 0.02                                    |        # moved to actor config                                    |
-|      rest_offset: 0.001                                      |        # moved to actor config                                    |
-|      bounce_threshold_velocity: 0.2                          |        bounce_threshold_velocity=0.2,                             |
-|      friction_offset_threshold: 0.04                         |        friction_offset_threshold=0.04,                            |
-|      friction_correlation_distance: 0.025                    |        friction_correlation_distance=0.025,                       |
-|      enable_sleeping: True                                   |        # enable_sleeping is no longer needed                      |
-|      enable_stabilization: True                              |        enable_stabilization=True,                                 |
-|      max_depenetration_velocity: 100.0                       |        # moved to RigidBodyPropertiesCfg                          |
-|                                                              |                                                                   |
-|      gpu_max_rigid_contact_count: 524288                     |        gpu_max_rigid_contact_count=2**23,                         |
-|      gpu_max_rigid_patch_count: 81920                        |        gpu_max_rigid_patch_count=5 * 2**15,                       |
-|      gpu_found_lost_pairs_capacity: 1024                     |        gpu_found_lost_pairs_capacity=2**21,                       |
-|      gpu_found_lost_aggregate_pairs_capacity: 262144         |        gpu_found_lost_aggregate_pairs_capacity=2**25,             |
-|      gpu_total_aggregate_pairs_capacity: 1024                |        gpu_total_aggregate_pairs_capacity=2**21,                  |
-|      gpu_heap_capacity: 67108864                             |        gpu_heap_capacity=2**26,                                   |
-|      gpu_temp_buffer_capacity: 16777216                      |        gpu_temp_buffer_capacity=2**24,                            |
-|      gpu_max_num_partitions: 8                               |        gpu_max_num_partitions=8,                                  |
-|      gpu_max_soft_body_contacts: 1048576                     |        gpu_max_soft_body_contacts=2**20,                          |
-|      gpu_max_particle_contacts: 1048576                      |        gpu_max_particle_contacts=2**20,                           |
-|                                                              |    )                                                              |
-|                                                              | )                                                                 |
-+--------------------------------------------------------------+-------------------------------------------------------------------+
++--------------------------------------------------+---------------------------------------------------------------+
+||                                                 ||                                                              |
+||                                                 ||                                                              |
+|| # OmniIsaacGymEnvs                              || # IsaacLab                                                   |
+|| sim:                                            || sim: SimulationCfg = SimulationCfg(                          |
+||                                                 || device = "cuda:0" # can be "cpu", "cuda", "cuda:<device_id>" |
+|| dt: 0.0083 # 1/120 s                            || dt=1 / 120,                                                  |
+|| use_gpu_pipeline: ${eq:${...pipeline},"gpu"}    || # use_gpu_pipeline is deduced from the device                |
+|| use_fabric: True                                || use_fabric=True,                                             |
+|| enable_scene_query_support: False               || enable_scene_query_support=False,                            |
+|| disable_contact_processing: False               ||                                                              |
+|| gravity: [0.0, 0.0, -9.81]                      || gravity=(0.0, 0.0, -9.81),                                   |
+||                                                 ||                                                              |
+|| default_physics_material:                       || physics_material=RigidBodyMaterialCfg(                       |
+|| static_friction: 1.0                            || static_friction=1.0,                                         |
+|| dynamic_friction: 1.0                           || dynamic_friction=1.0,                                        |
+|| restitution: 0.0                                || restitution=0.0                                              |
+||                                                 || )                                                            |
+|| physx:                                          || physx: PhysxCfg = PhysxCfg(                                  |
+|| worker_thread_count: ${....num_threads}         || # worker_thread_count is no longer needed                    |
+|| solver_type: ${....solver_type}                 || solver_type=1,                                               |
+|| use_gpu: ${contains:"cuda",${....sim_device}}   || # use_gpu is deduced from the device                         |
+|| solver_position_iteration_count: 4              || max_position_iteration_count=4,                              |
+|| solver_velocity_iteration_count: 0              || max_velocity_iteration_count=0,                              |
+|| contact_offset: 0.02                            || # moved to actor config                                      |
+|| rest_offset: 0.001                              || # moved to actor config                                      |
+|| bounce_threshold_velocity: 0.2                  || bounce_threshold_velocity=0.2,                               |
+|| friction_offset_threshold: 0.04                 || friction_offset_threshold=0.04,                              |
+|| friction_correlation_distance: 0.025            || friction_correlation_distance=0.025,                         |
+|| enable_sleeping: True                           || # enable_sleeping is no longer needed                        |
+|| enable_stabilization: True                      || enable_stabilization=True,                                   |
+|| max_depenetration_velocity: 100.0               || # moved to RigidBodyPropertiesCfg                            |
+||                                                 ||                                                              |
+|| gpu_max_rigid_contact_count: 524288             || gpu_max_rigid_contact_count=2**23,                           |
+|| gpu_max_rigid_patch_count: 81920                || gpu_max_rigid_patch_count=5 * 2**15,                         |
+|| gpu_found_lost_pairs_capacity: 1024             || gpu_found_lost_pairs_capacity=2**21,                         |
+|| gpu_found_lost_aggregate_pairs_capacity: 262144 || gpu_found_lost_aggregate_pairs_capacity=2**25,               |
+|| gpu_total_aggregate_pairs_capacity: 1024        || gpu_total_aggregate_pairs_capacity=2**21,                    |
+|| gpu_heap_capacity: 67108864                     || gpu_heap_capacity=2**26,                                     |
+|| gpu_temp_buffer_capacity: 16777216              || gpu_temp_buffer_capacity=2**24,                              |
+|| gpu_max_num_partitions: 8                       || gpu_max_num_partitions=8,                                    |
+|| gpu_max_soft_body_contacts: 1048576             || gpu_max_soft_body_contacts=2**20,                            |
+|| gpu_max_particle_contacts: 1048576              || gpu_max_particle_contacts=2**20,                             |
+||                                                 || )                                                            |
+||                                                 || )                                                            |
++--------------------------------------------------+---------------------------------------------------------------+
 
 Parameters such as ``add_ground_plane`` and ``add_distant_light`` are now part of the task logic when creating the scene.
 ``enable_cameras`` is now a command line argument ``--enable_cameras`` that can be passed directly to the training script.
@@ -125,9 +124,9 @@ Parameters such as ``add_ground_plane`` and ``add_distant_light`` are now part o
 Scene Config
 ------------
 
-The :class:`~omni.isaac.lab.scene.InteractiveSceneCfg` class can be used to specify parameters related to the scene,
+The :class:`~isaaclab.scene.InteractiveSceneCfg` class can be used to specify parameters related to the scene,
 such as the number of environments and the spacing between environments. Each task config must have a variable named
-``scene`` defined that holds the type :class:`~omni.isaac.lab.scene.InteractiveSceneCfg`.
+``scene`` defined that holds the type :class:`~isaaclab.scene.InteractiveSceneCfg`.
 
 +--------------------------------------------------------------+-------------------------------------------------------------------+
 |                                                              |                                                                   |
@@ -234,7 +233,7 @@ In addition to the above example, more sophisticated ground planes can be define
 
 .. code-block:: python
 
-   from omni.isaac.lab.terrains import TerrainImporterCfg
+   from isaaclab.terrains import TerrainImporterCfg
 
    terrain = TerrainImporterCfg(
         prim_path="/World/ground",
@@ -264,13 +263,13 @@ Actors
 ------
 
 In Isaac Lab, each Articulation and Rigid Body actor can have its own config class. The
-:class:`~omni.isaac.lab.assets.ArticulationCfg` class can be used to define parameters for articulation actors,
+:class:`~isaaclab.assets.ArticulationCfg` class can be used to define parameters for articulation actors,
 including file path, simulation parameters, actuator properties, and initial states.
 
 .. code-block::python
 
-   from omni.isaac.lab.actuators import ImplicitActuatorCfg
-   from omni.isaac.lab.assets import ArticulationCfg
+   from isaaclab.actuators import ImplicitActuatorCfg
+   from isaaclab.assets import ArticulationCfg
 
    CARTPOLE_CFG = ArticulationCfg(
        spawn=sim_utils.UsdFileCfg(
@@ -308,9 +307,9 @@ including file path, simulation parameters, actuator properties, and initial sta
    )
 
 Within the :class:`~assets.ArticulationCfg`, the ``spawn`` attribute can be used to add the robot to the scene
-by specifying the path to the robot file. In addition, the :class:`~omni.isaac.lab.sim.schemas.RigidBodyPropertiesCfg`
+by specifying the path to the robot file. In addition, the :class:`~isaaclab.sim.schemas.RigidBodyPropertiesCfg`
 class can be used to specify simulation properties for the rigid bodies in the articulation. Similarly, the
-:class:`~omni.isaac.lab.sim.schemas.ArticulationRootPropertiesCfg` class can be used to specify simulation properties
+:class:`~isaaclab.sim.schemas.ArticulationRootPropertiesCfg` class can be used to specify simulation properties
 for the articulation. The joint properties are now specified as part of the ``actuators`` dictionary using
 :class:`~actuators.ImplicitActuatorCfg`. Joints with the same properties can be grouped into regex expressions or
 provided as a list of names or expressions.
@@ -402,7 +401,7 @@ Each environment in Isaac Lab should be in its own directory following this stru
 
     gym.register(
         id="Isaac-Cartpole-Direct-v0",
-        entry_point="omni.isaac.lab_tasks.direct_workflow.cartpole:CartpoleEnv",
+        entry_point="isaaclab_tasks.direct_workflow.cartpole:CartpoleEnv",
         disable_env_checker=True,
         kwargs={
             "env_cfg_entry_point": CartpoleEnvCfg,
@@ -839,7 +838,7 @@ Domain Randomization
 ~~~~~~~~~~~~~~~~~~~~
 
 In OmniIsaacGymEnvs, domain randomization was specified through the task ``.yaml`` config file.
-In Isaac Lab, the domain randomization configuration uses the :class:`~omni.isaac.lab.utils.configclass` module
+In Isaac Lab, the domain randomization configuration uses the :class:`~isaaclab.utils.configclass` module
 to specify a configuration class consisting of :class:`~managers.EventTermCfg` variables.
 
 Below is an example of a configuration class for domain randomization:
@@ -984,7 +983,7 @@ To launch a training in Isaac Lab, use the command:
 
 .. code-block:: bash
 
-   python source/standalone/workflows/rl_games/train.py --task=Isaac-Cartpole-Direct-v0 --headless
+   python scripts/reinforcement_learning/rl_games/train.py --task=Isaac-Cartpole-Direct-v0 --headless
 
 Launching Inferencing
 ~~~~~~~~~~~~~~~~~~~~~
@@ -993,7 +992,7 @@ To launch inferencing in Isaac Lab, use the command:
 
 .. code-block:: bash
 
-   python source/standalone/workflows/rl_games/play.py --task=Isaac-Cartpole-Direct-v0 --num_envs=25 --checkpoint=<path/to/checkpoint>
+   python scripts/reinforcement_learning/rl_games/play.py --task=Isaac-Cartpole-Direct-v0 --num_envs=25 --checkpoint=<path/to/checkpoint>
 
 
 .. _`OmniIsaacGymEnvs`: https://github.com/isaac-sim/OmniIsaacGymEnvs

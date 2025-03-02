@@ -16,50 +16,51 @@
 
 # App experience files
 # These are the files that are used to launch the app with the correct settings and configurations
-/source/apps/ @kellyguo11 @hhansen-bdai @Mayankm96 @Dhoeller19
+/apps/ @kellyguo11 @hhansen-bdai @Mayankm96 @Dhoeller19
 
 # Core Framework
-/source/extensions/omni.isaac.lab/ @Dhoeller19 @Mayankm96 @jsmith-bdai @kellyguo11
-/source/extensions/omni.isaac.lab/omni/isaac/lab/actuators @Dhoeller19 @Mayankm96 @nikitardn @jtigue-bdai
-/source/extensions/omni.isaac.lab/omni/isaac/lab/app @hhansen-bdai @kellyguo11
-/source/extensions/omni.isaac.lab/omni/isaac/lab/assets @jsmith-bdai @Dhoeller19 @kellyguo11 @Mayankm96 @jtigue-bdai
-/source/extensions/omni.isaac.lab/omni/isaac/lab/assets/deformable_object @kellyguo11 @Mayankm96 @masoudmoghani
-/source/extensions/omni.isaac.lab/omni/isaac/lab/controllers @Mayankm96
-/source/extensions/omni.isaac.lab/omni/isaac/lab/envs @jsmith-bdai @Dhoeller19 @kellyguo11 @Mayankm96
-/source/extensions/omni.isaac.lab/omni/isaac/lab/envs/manager_based_* @jsmith-bdai @Dhoeller19 @Mayankm96
-/source/extensions/omni.isaac.lab/omni/isaac/lab/envs/direct_* @kellyguo11
-/source/extensions/omni.isaac.lab/omni/isaac/lab/managers @jsmith-bdai @Dhoeller19 @Mayankm96
-/source/extensions/omni.isaac.lab/omni/isaac/lab/sensors @jsmith-bdai @Dhoeller19 @pascal-roth @Mayankm96 @jtigue-bdai
-/source/extensions/omni.isaac.lab/omni/isaac/lab/sensors/camera @kellyguo11 @pascal-roth
-/source/extensions/omni.isaac.lab/omni/isaac/lab/sensors/contact_sensor @jtigue-bdai
-/source/extensions/omni.isaac.lab/omni/isaac/lab/sensors/frame_transformer @jsmith-bdai
-/source/extensions/omni.isaac.lab/omni/isaac/lab/sensors/ray_caster @pascal-roth @Dhoeller19
-/source/extensions/omni.isaac.lab/omni/isaac/lab/sim @Mayankm96 @jsmith-bdai
-/source/extensions/omni.isaac.lab/omni/isaac/lab/sim/simulation_context.py @Dhoeller19 @kellyguo11
-/source/extensions/omni.isaac.lab/omni/isaac/lab/terrains @Dhoeller19 @Mayankm96 @nikitardn
-/source/extensions/omni.isaac.lab/omni/isaac/lab/utils @Mayankm96 @jsmith-bdai
-/source/extensions/omni.isaac.lab/omni/isaac/lab/utils/modifiers @jtigue-bdai
-/source/extensions/omni.isaac.lab/omni/isaac/lab/utils/interpolation @jtigue-bdai
-/source/extensions/omni.isaac.lab/omni/isaac/lab/utils/noise @jtigue-bdai @kellyguo11
-/source/extensions/omni.isaac.lab/omni/isaac/lab/utils/warp @Dhoeller19 @pascal-roth
-/source/extensions/omni.isaac.lab/omni/isaac/lab/utils/assets.py @Dhoeller19 @kellyguo11 @Mayankm96
-/source/extensions/omni.isaac.lab/omni/isaac/lab/utils/math.py @jsmith-bdai @Dhoeller19 @Mayankm96
-/source/extensions/omni.isaac.lab/omni/isaac/lab/utils/configclass.py @Mayankm96 @Dhoeller19
+/source/isaaclab/ @Dhoeller19 @Mayankm96 @jsmith-bdai @kellyguo11
+/source/isaaclab/isaaclab/actuators @Dhoeller19 @Mayankm96 @nikitardn @jtigue-bdai
+/source/isaaclab/isaaclab/app @hhansen-bdai @kellyguo11
+/source/isaaclab/isaaclab/assets @jsmith-bdai @Dhoeller19 @kellyguo11 @Mayankm96 @jtigue-bdai
+/source/isaaclab/isaaclab/assets/deformable_object @kellyguo11 @Mayankm96 @masoudmoghani
+/source/isaaclab/isaaclab/controllers @Mayankm96
+/source/isaaclab/isaaclab/envs @jsmith-bdai @Dhoeller19 @kellyguo11 @Mayankm96
+/source/isaaclab/isaaclab/envs/manager_based_* @jsmith-bdai @Dhoeller19 @Mayankm96
+/source/isaaclab/isaaclab/envs/direct_* @kellyguo11
+/source/isaaclab/isaaclab/managers @jsmith-bdai @Dhoeller19 @Mayankm96
+/source/isaaclab/isaaclab/sensors @jsmith-bdai @Dhoeller19 @pascal-roth @Mayankm96 @jtigue-bdai
+/source/isaaclab/isaaclab/sensors/camera @kellyguo11 @pascal-roth
+/source/isaaclab/isaaclab/sensors/contact_sensor @jtigue-bdai
+/source/isaaclab/isaaclab/sensors/frame_transformer @jsmith-bdai
+/source/isaaclab/isaaclab/sensors/ray_caster @pascal-roth @Dhoeller19
+/source/isaaclab/isaaclab/sim @Mayankm96 @jsmith-bdai
+/source/isaaclab/isaaclab/sim/simulation_context.py @Dhoeller19 @kellyguo11
+/source/isaaclab/isaaclab/terrains @Dhoeller19 @Mayankm96 @nikitardn
+/source/isaaclab/isaaclab/utils @Mayankm96 @jsmith-bdai
+/source/isaaclab/isaaclab/utils/modifiers @jtigue-bdai
+/source/isaaclab/isaaclab/utils/interpolation @jtigue-bdai
+/source/isaaclab/isaaclab/utils/noise @jtigue-bdai @kellyguo11
+/source/isaaclab/isaaclab/utils/warp @Dhoeller19 @pascal-roth
+/source/isaaclab/isaaclab/utils/assets.py @Dhoeller19 @kellyguo11 @Mayankm96
+/source/isaaclab/isaaclab/utils/math.py @jsmith-bdai @Dhoeller19 @Mayankm96
+/source/isaaclab/isaaclab/utils/configclass.py @Mayankm96 @Dhoeller19
 
 # RL Environment
-/source/extensions/omni.isaac.lab_tasks/ @Dhoeller19 @Mayankm96 @jsmith-bdai @kellyguo11
-/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/direct @Dhoeller19 @kellyguo11
-/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/manager_based @Dhoeller19 @Mayankm96 @jsmith-bdai @jtigue-bdai
+/source/isaaclab_tasks/ @Dhoeller19 @Mayankm96 @jsmith-bdai @kellyguo11
+/source/isaaclab_tasks/isaaclab_tasks/direct @Dhoeller19 @kellyguo11
+/source/isaaclab_tasks/isaaclab_tasks/manager_based @Dhoeller19 @Mayankm96 @jsmith-bdai @jtigue-bdai
 
 # Assets
-/source/extensions/omni.isaac.lab_assets/omni/isaac/lab_assets/ @Dhoeller19 @pascal-roth @jsmith-bdai
+/source/isaaclab_assets/isaaclab_assets/ @Dhoeller19 @pascal-roth @jsmith-bdai
 
 # Standalone Scripts
-/source/standalone/demos/ @jsmith-bdai @jtigue-bdai @Dhoeller19 @kellyguo11 @Mayankm96
-/source/standalone/environments/ @Mayankm96
-/source/standalone/tools/ @jsmith-bdai @Mayankm96
-/source/standalone/tutorials/ @jsmith-bdai @pascal-roth @kellyguo11 @Dhoeller19 @Mayankm96
-/source/standalone/workflows/ @jsmith-bdai @Dhoeller19 @kellyguo11 @Mayankm96
+/scripts/demos/ @jsmith-bdai @jtigue-bdai @Dhoeller19 @kellyguo11 @Mayankm96
+/scripts/environments/ @Mayankm96
+/scripts/tools/ @jsmith-bdai @Mayankm96
+/scripts/tutorials/ @jsmith-bdai @pascal-roth @kellyguo11 @Dhoeller19 @Mayankm96
+/scripts/reinforcement_learning/ @jsmith-bdai @Dhoeller19 @kellyguo11 @Mayankm96
+/scripts/imitation_learning/ @jsmith-bdai @Dhoeller19 @kellyguo11 @Mayankm96
 
 # Github Actions
 # This list is for people wanting to be notified every time there's a change

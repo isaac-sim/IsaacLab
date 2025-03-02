@@ -14,7 +14,7 @@ To keep the sensor performant when there are many cloned environments, the line 
 
 Using a ray caster sensor requires a **pattern** and a parent xform to be attached to.  The pattern defines how the rays are cast, while the prim properties defines the orientation and position of the sensor (additional offsets can be specified for more exact placement).  Isaac Lab supports a number of ray casting pattern configurations, including a generic LIDAR and grid pattern.
 
-.. literalinclude:: ../../../../source/standalone/demos/sensors/raycaster_sensor.py
+.. literalinclude:: ../../../../scripts/demos/sensors/raycaster_sensor.py
     :language: python
     :lines: 40-71
 
@@ -48,7 +48,7 @@ Querying the sensor for data can be done at simulation run time like any other s
 
     -------------------------------
     Ray-caster @ '/World/envs/env_.*/Robot/base/lidar_cage':
-            view type            : <class 'omni.isaac.core.prims.xform_prim_view.XFormPrimView'>
+            view type            : <class 'isaacsim.core.prims.xform_prim.XFormPrim'>
             update period (s)    : 0.016666666666666666
             number of meshes     : 1
             number of sensors    : 1
@@ -70,6 +70,6 @@ You can use this script to experiment with pattern configurations and build an i
 .. dropdown:: Code for raycaster_sensor.py
    :icon: code
 
-   .. literalinclude:: ../../../../source/standalone/demos/sensors/raycaster_sensor.py
+   .. literalinclude:: ../../../../scripts/demos/sensors/raycaster_sensor.py
       :language: python
       :linenos:
