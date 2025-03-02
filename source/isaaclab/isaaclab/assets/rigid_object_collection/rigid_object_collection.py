@@ -31,21 +31,21 @@ if TYPE_CHECKING:
 class RigidObjectCollection(AssetBase):
     """A rigid object collection class.
 
-    This class represents a collection of rigid objects in the simulation, where the state of the rigid objects can be
-    accessed and modified using a batched ``(env_ids, object_ids)`` API.
+    This class represents a collection of rigid objects in the simulation, where the state of the
+    rigid objects can be accessed and modified using a batched ``(env_ids, object_ids)`` API.
 
     For each rigid body in the collection, the root prim of the asset must have the `USD RigidBodyAPI`_
     applied to it. This API is used to define the simulation properties of the rigid bodies. On playing the
     simulation, the physics engine will automatically register the rigid bodies and create a corresponding
     rigid body handle. This handle can be accessed using the :attr:`root_physx_view` attribute.
 
-    .. note::
-        Rigid objects in the collection are uniquely identified via the key of the dictionary
-        :attr:`~isaaclab.assets.RigidObjectCollectionCfg.rigid_objects` in :class:`~isaaclab.assets.RigidObjectCollectionCfg`.
-        This differs from the class :class:`~isaaclab.assets.RigidObject`, where a rigid object is identified by
-        the name of the Xform where the `USD RigidBodyAPI`_ is applied. This would not be possible for the rigid object
-        collection since the :attr:`~isaaclab.assets.RigidObjectCollectionCfg.rigid_objects` dictionary could
-        contain the same rigid object multiple times, leading to ambiguity.
+    Rigid objects in the collection are uniquely identified via the key of the dictionary
+    :attr:`~isaaclab.assets.RigidObjectCollectionCfg.rigid_objects` in the
+    :class:`~isaaclab.assets.RigidObjectCollectionCfg` configuration class.
+    This differs from the :class:`~isaaclab.assets.RigidObject` class, where a rigid object is identified by
+    the name of the Xform where the `USD RigidBodyAPI`_ is applied. This would not be possible for the rigid
+    object collection since the :attr:`~isaaclab.assets.RigidObjectCollectionCfg.rigid_objects` dictionary
+    could contain the same rigid object multiple times, leading to ambiguity.
 
     .. _`USD RigidBodyAPI`: https://openusd.org/dev/api/class_usd_physics_rigid_body_a_p_i.html
     """
@@ -59,12 +59,15 @@ class RigidObjectCollection(AssetBase):
         Args:
             cfg: A configuration instance.
         """
+        # Note: We never call the parent constructor as it tries to call its own spawning which we don't want.
         # check that the config is valid
         cfg.validate()
         # store inputs
-        self.cfg = cfg
+        self.cfg = cfg.copy()
         # flag for whether the asset is initialized
         self._is_initialized = False
+
+        # spawn the rigid objects
         for rigid_object_cfg in self.cfg.rigid_objects.values():
             # check if the rigid object path is valid
             # note: currently the spawner does not work if there is a regex pattern in the leaf
@@ -138,7 +141,7 @@ class RigidObjectCollection(AssetBase):
         Note:
             Use this view with caution. It requires handling of tensors in a specific way.
         """
-        return self._root_physx_view
+        return self._root_physx_view  # type: ignore
 
     """
     Operations.
