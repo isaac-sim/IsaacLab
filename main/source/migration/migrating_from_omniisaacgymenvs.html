@@ -695,92 +695,98 @@ and the number of actors in the environment. The <a class="reference internal" h
 for setting the GPU buffer dimensions.</p>
 <div class="pst-scrollable-table-container"><table class="table">
 <tbody>
-<tr class="row-odd"><td><div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="c1"># OmniIsaacGymEnvs</span>
-<span class="nt">sim</span><span class="p">:</span>
-
-<span class="w">  </span><span class="nt">dt</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.0083</span><span class="w"> </span><span class="c1"># 1/120 s</span>
-<span class="w">  </span><span class="nt">use_gpu_pipeline</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">${eq:${...pipeline},&quot;gpu&quot;}</span>
-<span class="w">  </span><span class="nt">use_fabric</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">True</span>
-<span class="w">  </span><span class="nt">enable_scene_query_support</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">False</span>
-<span class="w">  </span><span class="nt">disable_contact_processing</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">False</span>
-<span class="w">  </span><span class="nt">gravity</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">0.0</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">0.0</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">-9.81</span><span class="p p-Indicator">]</span>
-
-<span class="w">  </span><span class="nt">default_physics_material</span><span class="p">:</span>
-<span class="w">    </span><span class="nt">static_friction</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1.0</span>
-<span class="w">    </span><span class="nt">dynamic_friction</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1.0</span>
-<span class="w">    </span><span class="nt">restitution</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.0</span>
-
-<span class="w">  </span><span class="nt">physx</span><span class="p">:</span>
-<span class="w">    </span><span class="nt">worker_thread_count</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">${....num_threads}</span>
-<span class="w">    </span><span class="nt">solver_type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">${....solver_type}</span>
-<span class="w">    </span><span class="nt">use_gpu</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">${contains:&quot;cuda&quot;,${....sim_device}}</span>
-<span class="w">    </span><span class="nt">solver_position_iteration_count</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">4</span>
-<span class="w">    </span><span class="nt">solver_velocity_iteration_count</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0</span>
-<span class="w">    </span><span class="nt">contact_offset</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.02</span>
-<span class="w">    </span><span class="nt">rest_offset</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.001</span>
-<span class="w">    </span><span class="nt">bounce_threshold_velocity</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.2</span>
-<span class="w">    </span><span class="nt">friction_offset_threshold</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.04</span>
-<span class="w">    </span><span class="nt">friction_correlation_distance</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.025</span>
-<span class="w">    </span><span class="nt">enable_sleeping</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">True</span>
-<span class="w">    </span><span class="nt">enable_stabilization</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">True</span>
-<span class="w">    </span><span class="nt">max_depenetration_velocity</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">100.0</span>
-
-<span class="w">    </span><span class="nt">gpu_max_rigid_contact_count</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">524288</span>
-<span class="w">    </span><span class="nt">gpu_max_rigid_patch_count</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">81920</span>
-<span class="w">    </span><span class="nt">gpu_found_lost_pairs_capacity</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1024</span>
-<span class="w">    </span><span class="nt">gpu_found_lost_aggregate_pairs_capacity</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">262144</span>
-<span class="w">    </span><span class="nt">gpu_total_aggregate_pairs_capacity</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1024</span>
-<span class="w">    </span><span class="nt">gpu_heap_capacity</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">67108864</span>
-<span class="w">    </span><span class="nt">gpu_temp_buffer_capacity</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">16777216</span>
-<span class="w">    </span><span class="nt">gpu_max_num_partitions</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">8</span>
-<span class="w">    </span><span class="nt">gpu_max_soft_body_contacts</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1048576</span>
-<span class="w">    </span><span class="nt">gpu_max_particle_contacts</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1048576</span>
-</pre></div>
+<tr class="row-odd"><td><div class="line-block">
+<div class="line"><br /></div>
+<div class="line"><br /></div>
+<div class="line"># OmniIsaacGymEnvs</div>
+<div class="line">sim:</div>
+<div class="line"><br /></div>
+<div class="line">dt: 0.0083 # 1/120 s</div>
+<div class="line">use_gpu_pipeline: ${eq:${…pipeline},”gpu”}</div>
+<div class="line">use_fabric: True</div>
+<div class="line">enable_scene_query_support: False</div>
+<div class="line">disable_contact_processing: False</div>
+<div class="line">gravity: [0.0, 0.0, -9.81]</div>
+<div class="line"><br /></div>
+<div class="line">default_physics_material:</div>
+<div class="line">static_friction: 1.0</div>
+<div class="line">dynamic_friction: 1.0</div>
+<div class="line">restitution: 0.0</div>
+<div class="line"><br /></div>
+<div class="line">physx:</div>
+<div class="line">worker_thread_count: ${….num_threads}</div>
+<div class="line">solver_type: ${….solver_type}</div>
+<div class="line">use_gpu: ${contains:”cuda”,${….sim_device}}</div>
+<div class="line">solver_position_iteration_count: 4</div>
+<div class="line">solver_velocity_iteration_count: 0</div>
+<div class="line">contact_offset: 0.02</div>
+<div class="line">rest_offset: 0.001</div>
+<div class="line">bounce_threshold_velocity: 0.2</div>
+<div class="line">friction_offset_threshold: 0.04</div>
+<div class="line">friction_correlation_distance: 0.025</div>
+<div class="line">enable_sleeping: True</div>
+<div class="line">enable_stabilization: True</div>
+<div class="line">max_depenetration_velocity: 100.0</div>
+<div class="line"><br /></div>
+<div class="line">gpu_max_rigid_contact_count: 524288</div>
+<div class="line">gpu_max_rigid_patch_count: 81920</div>
+<div class="line">gpu_found_lost_pairs_capacity: 1024</div>
+<div class="line">gpu_found_lost_aggregate_pairs_capacity: 262144</div>
+<div class="line">gpu_total_aggregate_pairs_capacity: 1024</div>
+<div class="line">gpu_heap_capacity: 67108864</div>
+<div class="line">gpu_temp_buffer_capacity: 16777216</div>
+<div class="line">gpu_max_num_partitions: 8</div>
+<div class="line">gpu_max_soft_body_contacts: 1048576</div>
+<div class="line">gpu_max_particle_contacts: 1048576</div>
+<div class="line"><br /></div>
+<div class="line"><br /></div>
 </div>
 </td>
-<td><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># IsaacLab</span>
-<span class="n">sim</span><span class="p">:</span> <span class="n">SimulationCfg</span> <span class="o">=</span> <span class="n">SimulationCfg</span><span class="p">(</span>
-   <span class="n">device</span> <span class="o">=</span> <span class="s2">&quot;cuda:0&quot;</span> <span class="c1"># can be &quot;cpu&quot;, &quot;cuda&quot;, &quot;cuda:&lt;device_id&gt;&quot;</span>
-   <span class="n">dt</span><span class="o">=</span><span class="mi">1</span> <span class="o">/</span> <span class="mi">120</span><span class="p">,</span>
-   <span class="c1"># use_gpu_pipeline is deduced from the device</span>
-   <span class="n">use_fabric</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
-   <span class="n">enable_scene_query_support</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
-   <span class="n">disable_contact_processing</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
-   <span class="n">gravity</span><span class="o">=</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="o">-</span><span class="mf">9.81</span><span class="p">),</span>
-
-   <span class="n">physics_material</span><span class="o">=</span><span class="n">RigidBodyMaterialCfg</span><span class="p">(</span>
-       <span class="n">static_friction</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span>
-       <span class="n">dynamic_friction</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span>
-       <span class="n">restitution</span><span class="o">=</span><span class="mf">0.0</span>
-   <span class="p">)</span>
-   <span class="n">physx</span><span class="p">:</span> <span class="n">PhysxCfg</span> <span class="o">=</span> <span class="n">PhysxCfg</span><span class="p">(</span>
-       <span class="c1"># worker_thread_count is no longer needed</span>
-       <span class="n">solver_type</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
-       <span class="c1"># use_gpu is deduced from the device</span>
-       <span class="n">max_position_iteration_count</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span>
-       <span class="n">max_velocity_iteration_count</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
-       <span class="c1"># moved to actor config</span>
-       <span class="c1"># moved to actor config</span>
-       <span class="n">bounce_threshold_velocity</span><span class="o">=</span><span class="mf">0.2</span><span class="p">,</span>
-       <span class="n">friction_offset_threshold</span><span class="o">=</span><span class="mf">0.04</span><span class="p">,</span>
-       <span class="n">friction_correlation_distance</span><span class="o">=</span><span class="mf">0.025</span><span class="p">,</span>
-       <span class="c1"># enable_sleeping is no longer needed</span>
-       <span class="n">enable_stabilization</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
-       <span class="c1"># moved to RigidBodyPropertiesCfg</span>
-
-       <span class="n">gpu_max_rigid_contact_count</span><span class="o">=</span><span class="mi">2</span><span class="o">**</span><span class="mi">23</span><span class="p">,</span>
-       <span class="n">gpu_max_rigid_patch_count</span><span class="o">=</span><span class="mi">5</span> <span class="o">*</span> <span class="mi">2</span><span class="o">**</span><span class="mi">15</span><span class="p">,</span>
-       <span class="n">gpu_found_lost_pairs_capacity</span><span class="o">=</span><span class="mi">2</span><span class="o">**</span><span class="mi">21</span><span class="p">,</span>
-       <span class="n">gpu_found_lost_aggregate_pairs_capacity</span><span class="o">=</span><span class="mi">2</span><span class="o">**</span><span class="mi">25</span><span class="p">,</span>
-       <span class="n">gpu_total_aggregate_pairs_capacity</span><span class="o">=</span><span class="mi">2</span><span class="o">**</span><span class="mi">21</span><span class="p">,</span>
-       <span class="n">gpu_heap_capacity</span><span class="o">=</span><span class="mi">2</span><span class="o">**</span><span class="mi">26</span><span class="p">,</span>
-       <span class="n">gpu_temp_buffer_capacity</span><span class="o">=</span><span class="mi">2</span><span class="o">**</span><span class="mi">24</span><span class="p">,</span>
-       <span class="n">gpu_max_num_partitions</span><span class="o">=</span><span class="mi">8</span><span class="p">,</span>
-       <span class="n">gpu_max_soft_body_contacts</span><span class="o">=</span><span class="mi">2</span><span class="o">**</span><span class="mi">20</span><span class="p">,</span>
-       <span class="n">gpu_max_particle_contacts</span><span class="o">=</span><span class="mi">2</span><span class="o">**</span><span class="mi">20</span><span class="p">,</span>
-   <span class="p">)</span>
-<span class="p">)</span>
-</pre></div>
+<td><div class="line-block">
+<div class="line"><br /></div>
+<div class="line"><br /></div>
+<div class="line"># IsaacLab</div>
+<div class="line">sim: SimulationCfg = SimulationCfg(</div>
+<div class="line">device = “cuda:0” # can be “cpu”, “cuda”, “cuda:&lt;device_id&gt;”</div>
+<div class="line">dt=1 / 120,</div>
+<div class="line"># use_gpu_pipeline is deduced from the device</div>
+<div class="line">use_fabric=True,</div>
+<div class="line">enable_scene_query_support=False,</div>
+<div class="line"><br /></div>
+<div class="line">gravity=(0.0, 0.0, -9.81),</div>
+<div class="line"><br /></div>
+<div class="line">physics_material=RigidBodyMaterialCfg(</div>
+<div class="line">static_friction=1.0,</div>
+<div class="line">dynamic_friction=1.0,</div>
+<div class="line">restitution=0.0</div>
+<div class="line">)</div>
+<div class="line">physx: PhysxCfg = PhysxCfg(</div>
+<div class="line"># worker_thread_count is no longer needed</div>
+<div class="line">solver_type=1,</div>
+<div class="line"># use_gpu is deduced from the device</div>
+<div class="line">max_position_iteration_count=4,</div>
+<div class="line">max_velocity_iteration_count=0,</div>
+<div class="line"># moved to actor config</div>
+<div class="line"># moved to actor config</div>
+<div class="line">bounce_threshold_velocity=0.2,</div>
+<div class="line">friction_offset_threshold=0.04,</div>
+<div class="line">friction_correlation_distance=0.025,</div>
+<div class="line"># enable_sleeping is no longer needed</div>
+<div class="line">enable_stabilization=True,</div>
+<div class="line"># moved to RigidBodyPropertiesCfg</div>
+<div class="line"><br /></div>
+<div class="line">gpu_max_rigid_contact_count=2**23,</div>
+<div class="line">gpu_max_rigid_patch_count=5 * 2**15,</div>
+<div class="line">gpu_found_lost_pairs_capacity=2**21,</div>
+<div class="line">gpu_found_lost_aggregate_pairs_capacity=2**25,</div>
+<div class="line">gpu_total_aggregate_pairs_capacity=2**21,</div>
+<div class="line">gpu_heap_capacity=2**26,</div>
+<div class="line">gpu_temp_buffer_capacity=2**24,</div>
+<div class="line">gpu_max_num_partitions=8,</div>
+<div class="line">gpu_max_soft_body_contacts=2**20,</div>
+<div class="line">gpu_max_particle_contacts=2**20,</div>
+<div class="line">)</div>
+<div class="line">)</div>
 </div>
 </td>
 </tr>

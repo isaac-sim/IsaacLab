@@ -663,11 +663,19 @@
         <span class="c1"># change dispatcher to use the default dispatcher in PhysX SDK instead of carb tasking</span>
         <span class="c1"># note: dispatcher handles how threads are launched for multi-threaded physics</span>
         <span class="n">carb_settings_iface</span><span class="o">.</span><span class="n">set_bool</span><span class="p">(</span><span class="s2">&quot;/physics/physxDispatcher&quot;</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span>
-        <span class="c1"># disable contact processing in omni.physx if requested</span>
-        <span class="c1"># note: helpful when creating contact reporting over limited number of objects in the scene</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">disable_contact_processing</span><span class="p">:</span>
-            <span class="n">carb_settings_iface</span><span class="o">.</span><span class="n">set_bool</span><span class="p">(</span><span class="s2">&quot;/physics/disableContactProcessing&quot;</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span>
-        <span class="c1"># enable custom geometry for cylinder and cone collision shapes to allow contact reporting for them</span>
+        <span class="c1"># disable contact processing in omni.physx</span>
+        <span class="c1"># note: we disable it by default to avoid the overhead of contact processing when it isn&#39;t needed.</span>
+        <span class="c1">#   The physics flag gets enabled when a contact sensor is created.</span>
+        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="p">,</span> <span class="s2">&quot;disable_contact_processing&quot;</span><span class="p">):</span>
+            <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
+                <span class="s2">&quot;The `disable_contact_processing` attribute is deprecated and always set to True&quot;</span>
+                <span class="s2">&quot; to avoid unnecessary overhead. Contact processing is automatically enabled when&quot;</span>
+                <span class="s2">&quot; a contact sensor is created, so manual configuration is no longer required.&quot;</span>
+            <span class="p">)</span>
+        <span class="c1"># FIXME: From investigation, it seems this flag only affects CPU physics. For GPU physics, contacts</span>
+        <span class="c1">#  are always processed. The issue is reported to the PhysX team by @mmittal.</span>
+        <span class="n">carb_settings_iface</span><span class="o">.</span><span class="n">set_bool</span><span class="p">(</span><span class="s2">&quot;/physics/disableContactProcessing&quot;</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span>
+        <span class="c1"># disable custom geometry for cylinder and cone collision shapes to allow contact reporting for them</span>
         <span class="c1"># reason: cylinders and cones aren&#39;t natively supported by PhysX so we need to use custom geometry flags</span>
         <span class="c1"># reference: https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/docs/Geometry.html?highlight=capsule#geometry</span>
         <span class="n">carb_settings_iface</span><span class="o">.</span><span class="n">set_bool</span><span class="p">(</span><span class="s2">&quot;/physics/collisionConeCustomGeometry&quot;</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>

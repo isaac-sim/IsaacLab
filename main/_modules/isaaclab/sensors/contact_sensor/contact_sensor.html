@@ -545,6 +545,7 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Sequence</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TYPE_CHECKING</span>
 
+<span class="kn">import</span><span class="w"> </span><span class="nn">carb</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">omni.physics.tensors.impl.api</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">physx</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">pxr</span><span class="w"> </span><span class="kn">import</span> <span class="n">PhysxSchema</span>
 
@@ -603,6 +604,11 @@
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="c1"># initialize base class</span>
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">cfg</span><span class="p">)</span>
+
+        <span class="c1"># Enable contact processing</span>
+        <span class="n">carb_settings_iface</span> <span class="o">=</span> <span class="n">carb</span><span class="o">.</span><span class="n">settings</span><span class="o">.</span><span class="n">get_settings</span><span class="p">()</span>
+        <span class="n">carb_settings_iface</span><span class="o">.</span><span class="n">set_bool</span><span class="p">(</span><span class="s2">&quot;/physics/disableContactProcessing&quot;</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
+
         <span class="c1"># Create empty variables for storing output data</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="p">:</span> <span class="n">ContactSensorData</span> <span class="o">=</span> <span class="n">ContactSensorData</span><span class="p">()</span>
         <span class="c1"># initialize self._body_physx_view for running in extension mode</span>

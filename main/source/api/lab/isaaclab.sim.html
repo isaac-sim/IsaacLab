@@ -630,7 +630,6 @@
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.SimulationCfg.gravity"><code class="docutils literal notranslate"><span class="pre">SimulationCfg.gravity</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.SimulationCfg.enable_scene_query_support"><code class="docutils literal notranslate"><span class="pre">SimulationCfg.enable_scene_query_support</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.SimulationCfg.use_fabric"><code class="docutils literal notranslate"><span class="pre">SimulationCfg.use_fabric</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.SimulationCfg.disable_contact_processing"><code class="docutils literal notranslate"><span class="pre">SimulationCfg.disable_contact_processing</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.SimulationCfg.physx"><code class="docutils literal notranslate"><span class="pre">SimulationCfg.physx</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.SimulationCfg.physics_material"><code class="docutils literal notranslate"><span class="pre">SimulationCfg.physics_material</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.SimulationCfg.render"><code class="docutils literal notranslate"><span class="pre">SimulationCfg.render</span></code></a></li>
@@ -1143,16 +1142,13 @@ background. The rendering components are refreshed based on the render mode.</p>
 <tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sim.SimulationCfg.use_fabric" title="isaaclab.sim.SimulationCfg.use_fabric"><code class="xref py py-obj docutils literal notranslate"><span class="pre">use_fabric</span></code></a></p></td>
 <td><p>Enable/disable reading of physics buffers directly.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sim.SimulationCfg.disable_contact_processing" title="isaaclab.sim.SimulationCfg.disable_contact_processing"><code class="xref py py-obj docutils literal notranslate"><span class="pre">disable_contact_processing</span></code></a></p></td>
-<td><p>Enable/disable contact processing.</p></td>
-</tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sim.SimulationCfg.physx" title="isaaclab.sim.SimulationCfg.physx"><code class="xref py py-obj docutils literal notranslate"><span class="pre">physx</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sim.SimulationCfg.physx" title="isaaclab.sim.SimulationCfg.physx"><code class="xref py py-obj docutils literal notranslate"><span class="pre">physx</span></code></a></p></td>
 <td><p>PhysX solver settings.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sim.SimulationCfg.physics_material" title="isaaclab.sim.SimulationCfg.physics_material"><code class="xref py py-obj docutils literal notranslate"><span class="pre">physics_material</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sim.SimulationCfg.physics_material" title="isaaclab.sim.SimulationCfg.physics_material"><code class="xref py py-obj docutils literal notranslate"><span class="pre">physics_material</span></code></a></p></td>
 <td><p>Default physics material settings for rigid bodies.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sim.SimulationCfg.render" title="isaaclab.sim.SimulationCfg.render"><code class="xref py py-obj docutils literal notranslate"><span class="pre">render</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sim.SimulationCfg.render" title="isaaclab.sim.SimulationCfg.render"><code class="xref py py-obj docutils literal notranslate"><span class="pre">render</span></code></a></p></td>
 <td><p>Render settings.</p></td>
 </tr>
 </tbody>
@@ -1224,19 +1220,6 @@ of primitives in the scene.</p>
 <p class="admonition-title">Note</p>
 <p>When enabled, the GUI will not update the physics parameters in real-time. To enable real-time
 updates, please set this flag to <a class="reference external" href="https://docs.python.org/3/library/constants.html#False" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">False</span></code></a>.</p>
-</div>
-</dd></dl>
-
-<dl class="py attribute">
-<dt class="sig sig-object py" id="isaaclab.sim.SimulationCfg.disable_contact_processing">
-<span class="sig-name descname"><span class="pre">disable_contact_processing</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a></em><a class="headerlink" href="#isaaclab.sim.SimulationCfg.disable_contact_processing" title="Permalink to this definition">#</a></dt>
-<dd><p>Enable/disable contact processing. Default is False.</p>
-<p>By default, the physics engine processes all the contacts in the scene. However, reporting this contact
-information can be expensive due to its combinatorial complexity. This flag allows disabling the contact
-processing and querying the contacts manually by the user over a limited set of primitives in the scene.</p>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>It is required to set this flag to <a class="reference external" href="https://docs.python.org/3/library/constants.html#True" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">True</span></code></a> when using the TensorAPIs for contact reporting.</p>
 </div>
 </dd></dl>
 
@@ -2197,7 +2180,6 @@ selections as follows:</p>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.SimulationCfg.gravity"><code class="docutils literal notranslate"><span class="pre">SimulationCfg.gravity</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.SimulationCfg.enable_scene_query_support"><code class="docutils literal notranslate"><span class="pre">SimulationCfg.enable_scene_query_support</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.SimulationCfg.use_fabric"><code class="docutils literal notranslate"><span class="pre">SimulationCfg.use_fabric</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.SimulationCfg.disable_contact_processing"><code class="docutils literal notranslate"><span class="pre">SimulationCfg.disable_contact_processing</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.SimulationCfg.physx"><code class="docutils literal notranslate"><span class="pre">SimulationCfg.physx</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.SimulationCfg.physics_material"><code class="docutils literal notranslate"><span class="pre">SimulationCfg.physics_material</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.SimulationCfg.render"><code class="docutils literal notranslate"><span class="pre">SimulationCfg.render</span></code></a></li>

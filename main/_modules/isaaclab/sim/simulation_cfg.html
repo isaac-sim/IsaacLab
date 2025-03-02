@@ -799,18 +799,6 @@
 <span class="sd">        updates, please set this flag to :obj:`False`.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="n">disable_contact_processing</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Enable/disable contact processing. Default is False.</span>
-
-<span class="sd">    By default, the physics engine processes all the contacts in the scene. However, reporting this contact</span>
-<span class="sd">    information can be expensive due to its combinatorial complexity. This flag allows disabling the contact</span>
-<span class="sd">    processing and querying the contacts manually by the user over a limited set of primitives in the scene.</span>
-
-<span class="sd">    .. note::</span>
-
-<span class="sd">        It is required to set this flag to :obj:`True` when using the TensorAPIs for contact reporting.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-
     <span class="n">physx</span><span class="p">:</span> <span class="n">PhysxCfg</span> <span class="o">=</span> <span class="n">PhysxCfg</span><span class="p">()</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;PhysX solver settings. Default is PhysxCfg().&quot;&quot;&quot;</span>
 
