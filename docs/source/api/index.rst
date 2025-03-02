@@ -49,7 +49,6 @@ The following wrappers are available in the ``isaaclab_rl`` extension:
    :toctree: lab_rl
 
    wrappers
-   utils
 
 
 isaaclab_mimic extension
@@ -69,5 +68,14 @@ The following modules are available in the ``isaaclab_mimic`` extension:
 isaaclab_tasks extension
 ------------------------
 
-This module contains the tasks that are available in the Isaac Lab.
+This package ``isaaclab_tasks`` contains the tasks that are available in the Isaac Lab.
 For more information, please refer to the :ref:`environments`.
+
+It includes the following modules:
+
+.. currentmodule:: isaaclab_tasks
+
+.. autosummary::
+   :toctree: lab_tasks
+
+   utils
