@@ -289,9 +289,9 @@ class RayCaster(SensorBase):
                     return_distance=True,
                 )
                 # use a mask to determine which rays hit this mesh closer than previous hits.
-                mask = distance < final_distances
-                final_distances[mask] = distance[mask]
-                final_hits[mask] = hit[mask]
+                mask = distance < final_distances[env_ids]
+                final_distances[env_ids][mask] = distance[env_ids][mask]
+                final_hits[env_ids][mask] = hit[env_ids][mask]
 
         # update the ray hit data for the specified environments
         self._data.ray_hits_w[env_ids] = final_hits[env_ids]
