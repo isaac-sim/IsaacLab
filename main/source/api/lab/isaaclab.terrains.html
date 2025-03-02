@@ -1398,7 +1398,7 @@ be defined in the USD file.</p>
 <dd><p>The spacing between environment origins when defined in a grid. Defaults to None.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>This parameter is used only when the <code class="docutils literal notranslate"><span class="pre">terrain_type</span></code> is <code class="docutils literal notranslate"><span class="pre">&quot;plane&quot;</span></code> or <code class="docutils literal notranslate"><span class="pre">&quot;usd&quot;</span></code>.</p>
+<p>This parameter is used only when the <code class="docutils literal notranslate"><span class="pre">terrain_type</span></code> is “plane” or “usd”.</p>
 </div>
 </dd></dl>
 
@@ -1406,11 +1406,13 @@ be defined in the USD file.</p>
 <dt class="sig sig-object py" id="isaaclab.terrains.TerrainImporterCfg.visual_material">
 <span class="sig-name descname"><span class="pre">visual_material</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">sim_utils.VisualMaterialCfg</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></em><a class="headerlink" href="#isaaclab.terrains.TerrainImporterCfg.visual_material" title="Permalink to this definition">#</a></dt>
 <dd><p>The visual material of the terrain. Defaults to a dark gray color material.</p>
-<p>The material is created at the path: <code class="docutils literal notranslate"><span class="pre">{prim_path}/visualMaterial</span></code>. If <cite>None</cite>, then no material is created.</p>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>This parameter is used only when the <code class="docutils literal notranslate"><span class="pre">terrain_type</span></code> is <code class="docutils literal notranslate"><span class="pre">&quot;generator&quot;</span></code>.</p>
-</div>
+<p>This parameter is used for both the “generator” and “plane” terrains.</p>
+<ul class="simple">
+<li><p>If the <code class="docutils literal notranslate"><span class="pre">terrain_type</span></code> is “generator”, then the material is created at the path
+<code class="docutils literal notranslate"><span class="pre">{prim_path}/visualMaterial</span></code> and applied to all the sub-terrains.</p></li>
+<li><p>If the <code class="docutils literal notranslate"><span class="pre">terrain_type</span></code> is “plane”, then the diffuse color of the material is set to
+to the grid color of the imported ground plane.</p></li>
+</ul>
 </dd></dl>
 
 <dl class="py attribute">
@@ -1420,7 +1422,7 @@ be defined in the USD file.</p>
 <p>The material is created at the path: <code class="docutils literal notranslate"><span class="pre">{prim_path}/physicsMaterial</span></code>.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>This parameter is used only when the <code class="docutils literal notranslate"><span class="pre">terrain_type</span></code> is <code class="docutils literal notranslate"><span class="pre">&quot;generator&quot;</span></code> or <code class="docutils literal notranslate"><span class="pre">&quot;plane&quot;</span></code>.</p>
+<p>This parameter is used only when the <code class="docutils literal notranslate"><span class="pre">terrain_type</span></code> is “generator” or “plane”.</p>
 </div>
 </dd></dl>
 

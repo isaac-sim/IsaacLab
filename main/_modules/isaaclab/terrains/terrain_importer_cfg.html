@@ -598,7 +598,7 @@
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The spacing between environment origins when defined in a grid. Defaults to None.</span>
 
 <span class="sd">    Note:</span>
-<span class="sd">      This parameter is used only when the ``terrain_type`` is ``&quot;plane&quot;`` or ``&quot;usd&quot;``.</span>
+<span class="sd">      This parameter is used only when the ``terrain_type`` is &quot;plane&quot; or &quot;usd&quot;.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">visual_material</span><span class="p">:</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">VisualMaterialCfg</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">PreviewSurfaceCfg</span><span class="p">(</span>
@@ -606,10 +606,12 @@
     <span class="p">)</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The visual material of the terrain. Defaults to a dark gray color material.</span>
 
-<span class="sd">    The material is created at the path: ``{prim_path}/visualMaterial``. If `None`, then no material is created.</span>
+<span class="sd">    This parameter is used for both the &quot;generator&quot; and &quot;plane&quot; terrains.</span>
 
-<span class="sd">    .. note::</span>
-<span class="sd">        This parameter is used only when the ``terrain_type`` is ``&quot;generator&quot;``.</span>
+<span class="sd">    - If the ``terrain_type`` is &quot;generator&quot;, then the material is created at the path</span>
+<span class="sd">      ``{prim_path}/visualMaterial`` and applied to all the sub-terrains.</span>
+<span class="sd">    - If the ``terrain_type`` is &quot;plane&quot;, then the diffuse color of the material is set to</span>
+<span class="sd">      to the grid color of the imported ground plane.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">physics_material</span><span class="p">:</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">RigidBodyMaterialCfg</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">RigidBodyMaterialCfg</span><span class="p">()</span>
@@ -618,7 +620,7 @@
 <span class="sd">    The material is created at the path: ``{prim_path}/physicsMaterial``.</span>
 
 <span class="sd">    .. note::</span>
-<span class="sd">        This parameter is used only when the ``terrain_type`` is ``&quot;generator&quot;`` or ``&quot;plane&quot;``.</span>
+<span class="sd">        This parameter is used only when the ``terrain_type`` is &quot;generator&quot; or &quot;plane&quot;.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">max_init_terrain_level</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>

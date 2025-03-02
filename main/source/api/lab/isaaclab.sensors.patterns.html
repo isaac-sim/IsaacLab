@@ -786,16 +786,16 @@ by the <code class="docutils literal notranslate"><span class="pre">size</span> 
 <span class="sig-name descname"><span class="pre">ordering</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Literal" title="(in Python v3.13)"><span class="pre">Literal</span></a><span class="p"><span class="pre">[</span></span><span class="s"><span class="pre">'xy'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'yx'</span></span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#isaaclab.sensors.patterns.GridPatternCfg.ordering" title="Permalink to this definition">#</a></dt>
 <dd><p>Specifies the ordering of points in the generated grid. Defaults to <code class="docutils literal notranslate"><span class="pre">&quot;xy&quot;</span></code>.</p>
 <p>Consider a grid pattern with points at <span class="math notranslate nohighlight">\((x, y)\)</span> where <span class="math notranslate nohighlight">\(x\)</span> and <span class="math notranslate nohighlight">\(y\)</span> are the grid indices.
-The ordering of the points can be specified as “xy” or “yx”. This determines the outer and inner loop order
+The ordering of the points can be specified as “xy” or “yx”. This determines the inner and outer loop order
 when iterating over the grid points.</p>
 <ul class="simple">
-<li><p>If <em>“xy”</em> is selected, the points are ordered with outer loop over “x” and inner loop over “y”.</p></li>
-<li><p>If <em>“yx”</em> is selected, the points are ordered with outer loop over “y” and inner loop over “x”.</p></li>
+<li><p>If “xy” is selected, the points are ordered with inner loop over “x” and outer loop over “y”.</p></li>
+<li><p>If “yx” is selected, the points are ordered with inner loop over “y” and outer loop over “x”.</p></li>
 </ul>
 <p>For example, the grid pattern points with <span class="math notranslate nohighlight">\(X = (0, 1, 2)\)</span> and <span class="math notranslate nohighlight">\(Y = (3, 4)\)</span>:</p>
 <ul class="simple">
-<li><p><em>“xy”</em> ordering: <span class="math notranslate nohighlight">\([(0, 3), (0, 4), (1, 3), (1, 4), (2, 3), (2, 4)]\)</span></p></li>
-<li><p><em>“yx”</em> ordering: <span class="math notranslate nohighlight">\([(0, 3), (1, 3), (2, 3), (1, 4), (2, 4), (2, 4)]\)</span></p></li>
+<li><p>“xy” ordering: <span class="math notranslate nohighlight">\([(0, 3), (1, 3), (2, 3), (1, 4), (2, 4), (2, 4)]\)</span></p></li>
+<li><p>“yx” ordering: <span class="math notranslate nohighlight">\([(0, 3), (0, 4), (1, 3), (1, 4), (2, 3), (2, 4)]\)</span></p></li>
 </ul>
 </dd></dl>
 
