@@ -36,10 +36,19 @@ class ActuatorBaseCfg:
     This limit is used to clip the computed torque sent to the simulation. If None, the limit is set to the value
     specified in the USD joint prim.
 
+    .. attention::
+
+        The :attr:`effort_limit_sim` attribute should be used to set the effort limit for the simulation physics
+        solver.
+
+        The :attr:`effort_limit` attribute is used for clipping the effort output of the actuator model *only*
+        in the case of explicit actuators, such as the :class:`~isaaclab.actuators.IdealPDActuator`.
+
     .. note::
 
-        For ImplicitActuators this value will be collapsed with effort_limit_sim due to duplicating functionality. If
-        both are set the effort_limit_sim will be used priority.
+        For implicit actuators, the attributes :attr:`effort_limit` and :attr:`effort_limit_sim` are equivalent.
+        However, we suggest using the :attr:`effort_limit_sim` attribute because it is more intuitive.
+
     """
 
     velocity_limit: dict[str, float] | float | None = None
@@ -47,31 +56,53 @@ class ActuatorBaseCfg:
 
     This limit is used by the actuator model. If None, the limit is set to the value specified in the USD joint prim.
 
+    .. attention::
+
+        The :attr:`velocity_limit_sim` attribute should be used to set the velocity limit for the simulation physics
+        solver.
+
+        The :attr:`velocity_limit` attribute is used for clipping the effort output of the actuator model *only*
+        in the case of explicit actuators, such as the :class:`~isaaclab.actuators.IdealPDActuator`.
+
     .. note::
 
-        velocity_limit is not used in ActuatorBaseCfg but is provided for inherited version like
-        :class:`isaaclab.actuators.DCMotor`.
-
-    .. note::
-
-        For ImplicitActuators this value will be collapsed with velocity_limit_sim due to duplicating functionality. If
-        both are set the effort_limit_sim will be used priority.
+        For implicit actuators, the attribute :attr:`velocity_limit` is not used. This is to stay backwards compatible
+        with previous versions of the Isaac Lab, where this parameter was unused since PhysX did not support setting
+        the velocity limit for the joints using the Tensor API.
     """
 
     effort_limit_sim: dict[str, float] | float | None = None
-    """Force/Torque limit of the joints in the group that will be propagated to the simulation physics solver. Defaults to None.
+    """Effort limit of the joints in the group applied to the simulation physics solver. Defaults to None.
 
-    If None, the limit is set to the value specified in the USD joint prim for ImplicitActuators or 1.0e9 for explicit
-    actuators (e.g. IdealPDActuator). The simulation effort limits prevent computed torques from exceeding the specified
-    limit. If effort limits are too tight issues with solver convergence may occur. It is suggested to keep these value large.
+    The effort limit is used to constrain the computed joint efforts in the physics engine. If the computed effort
+    exceeds this limit, the physics engine will clip the effort to this value.
+
+    Since explicit actuators (e.g. DC motor), compute and clip the effort in the actuator model, this limit is by
+    default set to a large value to prevent the physics engine from any additional clipping. However, at times,
+    it may be necessary to set this limit to a smaller value as a safety measure.
+
+    If None, the limit is resolved based on the type of actuator model:
+
+    * For implicit actuators, the limit is set to the value specified in the USD joint prim.
+    * For explicit actuators, the limit is set to 1.0e9.
+
     """
 
     velocity_limit_sim: dict[str, float] | float | None = None
-    """Velocity limit of the joints in the group that will be propagated to the simulation physics solver. Defaults to None.
+    """Velocity limit of the joints in the group applied to the simulation physics solver. Defaults to None.
 
-    If None, the limit is set to the value specified in the USD joint prim. Resulting solver solutions will constrain
-    velocities by these limits. If velocity_limit_sim is too tight issues with solver convergence may occur. It is
-    suggested to keep these value large.
+    The velocity limit is used to constrain the joint velocities in the physics engine.
+    The joint will only be able to reach this velocity if the :attr:`effort_limit_sim` is sufficiently large.
+    If the joint is moving faster than this velocity, the physics engine will actually try to brake the joint
+    to reach this velocity.
+
+    If None, the limit is set to the value specified in the USD joint prim for both implicit and explicit actuators.
+
+    .. tip::
+        If the velocity limit is too tight, the physics engine may have trouble converging to a solution.
+        In such cases, we recommend either keeping this value sufficiently large or tuning the stiffness and damping
+        parameters of the joint to ensure the limits are not violated.
+
     """
 
     stiffness: dict[str, float] | float | None = MISSING

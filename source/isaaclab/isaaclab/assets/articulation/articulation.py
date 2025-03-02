@@ -1312,14 +1312,18 @@ class Articulation(AssetBase):
                     f"No joints found for actuator group: {actuator_name} with joint name expression:"
                     f" {actuator_cfg.joint_names_expr}."
                 )
+            # resolve joint indices
+            # we pass a slice if all joints are selected to avoid indexing overhead
+            if len(joint_names) == self.num_joints:
+                joint_ids = slice(None)
+            else:
+                joint_ids = torch.tensor(joint_ids, device=self.device)
             # create actuator collection
             # note: for efficiency avoid indexing when over all indices
             actuator: ActuatorBase = actuator_cfg.class_type(
                 cfg=actuator_cfg,
                 joint_names=joint_names,
-                joint_ids=(
-                    slice(None) if len(joint_names) == self.num_joints else torch.tensor(joint_ids, device=self.device)
-                ),
+                joint_ids=joint_ids,
                 num_envs=self.num_instances,
                 device=self.device,
                 stiffness=self._data.default_joint_stiffness[:, joint_ids],
@@ -1330,60 +1334,33 @@ class Articulation(AssetBase):
                 velocity_limit=self.root_physx_view.get_dof_max_velocities().to(self.device).clone()[:, joint_ids],
             )
             # log information on actuator groups
+            model_type = "implicit" if actuator.is_implicit_model else "explicit"
             omni.log.info(
-                f"Actuator collection: {actuator_name} with model '{actuator_cfg.class_type.__name__}' and"
-                f" joint names: {joint_names} [{joint_ids}]."
+                f"Actuator collection: {actuator_name} with model '{actuator_cfg.class_type.__name__}'"
+                f" (type: {model_type}) and joint names: {joint_names} [{joint_ids}]."
             )
             # store actuator group
             self.actuators[actuator_name] = actuator
             # set the passed gains and limits into the simulation
             if isinstance(actuator, ImplicitActuator):
                 self._has_implicit_actuators = True
-                # resolve actuator limit duplication for ImplicitActuators
-                # effort limits
-                if actuator.effort_limit_sim is None and actuator.effort_limit is not None:
-                    omni.log.warn(
-                        f"ImplicitActuatorCfg {actuator_name} has effort_limit_sim=None but is specifying effort_limit."
-                        "effort_limit will be applied to effort_limit_sim for ImplicitActuators."
-                    )
-                    actuator.effort_limit_sim = actuator.effort_limit
-                elif actuator.effort_limit_sim is not None and actuator.effort_limit is not None:
-                    omni.log.warn(
-                        f"ImplicitActuatorCfg {actuator_name} has set both effort_limit_sim and effort_limit."
-                        "Only effort_limit_sim will be used for ImplicitActuators."
-                    )
-                # velocity limits
-                if actuator.velocity_limit_sim is None and actuator.velocity_limit is not None:
-                    omni.log.warn(
-                        f"ImplicitActuatorCfg {actuator_name} has velocity_limit_sim=None but is specifying"
-                        " velocity_limit.velocity_limit will be applied to velocity_limit_sim for ImplicitActuators."
-                    )
-                    actuator.velocity_limit_sim = actuator.velocity_limit
-                elif actuator.velocity_limit_sim is not None and actuator.velocity_limit is not None:
-                    omni.log.warn(
-                        f"ImplicitActuatorCfg {actuator_name} has set both velocity_limit_sim and velocity_limit."
-                        "Only velocity_limit_sim will be used for ImplicitActuators."
-                    )
                 # the gains and limits are set into the simulation since actuator model is implicit
                 self.write_joint_stiffness_to_sim(actuator.stiffness, joint_ids=actuator.joint_indices)
                 self.write_joint_damping_to_sim(actuator.damping, joint_ids=actuator.joint_indices)
-                self.write_joint_effort_limit_to_sim(actuator.effort_limit_sim, joint_ids=actuator.joint_indices)
-                self.write_joint_velocity_limit_to_sim(actuator.velocity_limit_sim, joint_ids=actuator.joint_indices)
-                self.write_joint_armature_to_sim(actuator.armature, joint_ids=actuator.joint_indices)
-                self.write_joint_friction_to_sim(actuator.friction, joint_ids=actuator.joint_indices)
             else:
                 # the gains and limits are processed by the actuator model
                 # we set gains to zero, and torque limit to a high value in simulation to avoid any interference
                 self.write_joint_stiffness_to_sim(0.0, joint_ids=actuator.joint_indices)
                 self.write_joint_damping_to_sim(0.0, joint_ids=actuator.joint_indices)
-                self.write_joint_effort_limit_to_sim(
-                    1.0e9 if actuator.effort_limit_sim is None else actuator.effort_limit_sim,
-                    joint_ids=actuator.joint_indices,
-                )
-                self.write_joint_velocity_limit_to_sim(actuator.velocity_limit_sim, joint_ids=actuator.joint_indices)
-                self.write_joint_armature_to_sim(actuator.armature, joint_ids=actuator.joint_indices)
-                self.write_joint_friction_to_sim(actuator.friction, joint_ids=actuator.joint_indices)
-            # Store the actual default stiffness and damping values for explicit and implicit actuators (not written the sim)
+
+            # Set common properties into the simulation
+            self.write_joint_effort_limit_to_sim(actuator.effort_limit_sim, joint_ids=actuator.joint_indices)
+            self.write_joint_velocity_limit_to_sim(actuator.velocity_limit_sim, joint_ids=actuator.joint_indices)
+            self.write_joint_armature_to_sim(actuator.armature, joint_ids=actuator.joint_indices)
+            self.write_joint_friction_to_sim(actuator.friction, joint_ids=actuator.joint_indices)
+
+            # Store the actual default stiffness and damping values
+            # note: this is the value configured in the actuator model (for implicit and explicit actuators)
             self._data.default_joint_stiffness[:, actuator.joint_indices] = actuator.stiffness
             self._data.default_joint_damping[:, actuator.joint_indices] = actuator.damping
 
@@ -1521,9 +1498,9 @@ class Articulation(AssetBase):
         velocity_limits = self.root_physx_view.get_dof_max_velocities()[0].tolist()
         effort_limits = self.root_physx_view.get_dof_max_forces()[0].tolist()
         # create table for term information
-        table = PrettyTable(float_format=".3f")
-        table.title = f"Simulation Joint Information (Prim path: {self.cfg.prim_path})"
-        table.field_names = [
+        joint_table = PrettyTable()
+        joint_table.title = f"Simulation Joint Information (Prim path: {self.cfg.prim_path})"
+        joint_table.field_names = [
             "Index",
             "Name",
             "Stiffness",
@@ -1534,11 +1511,13 @@ class Articulation(AssetBase):
             "Velocity Limits",
             "Effort Limits",
         ]
+        joint_table.float_format = ".3"
+        joint_table.custom_format["Position Limits"] = lambda f, v: f"[{v[0]:.3f}, {v[1]:.3f}]"
         # set alignment of table columns
-        table.align["Name"] = "l"
+        joint_table.align["Name"] = "l"
         # add info on each term
         for index, name in enumerate(self.joint_names):
-            table.add_row([
+            joint_table.add_row([
                 index,
                 name,
                 stiffnesses[index],
@@ -1550,7 +1529,7 @@ class Articulation(AssetBase):
                 effort_limits[index],
             ])
         # convert table to string
-        omni.log.info(f"Simulation parameters for joints in {self.cfg.prim_path}:\n" + table.get_string())
+        omni.log.info(f"Simulation parameters for joints in {self.cfg.prim_path}:\n" + joint_table.get_string())
 
         # read out all tendon parameters from simulation
         if self.num_fixed_tendons > 0:
@@ -1563,17 +1542,19 @@ class Articulation(AssetBase):
             ft_rest_lengths = self.root_physx_view.get_fixed_tendon_rest_lengths()[0].tolist()
             ft_offsets = self.root_physx_view.get_fixed_tendon_offsets()[0].tolist()
             # create table for term information
-            tendon_table = PrettyTable(float_format=".3f")
-            tendon_table.title = f"Simulation Tendon Information (Prim path: {self.cfg.prim_path})"
+            tendon_table = PrettyTable()
+            tendon_table.title = f"Simulation Fixed Tendon Information (Prim path: {self.cfg.prim_path})"
             tendon_table.field_names = [
                 "Index",
                 "Stiffness",
                 "Damping",
                 "Limit Stiffness",
-                "Limit",
+                "Limits",
                 "Rest Length",
                 "Offset",
             ]
+            tendon_table.float_format = ".3"
+            joint_table.custom_format["Limits"] = lambda f, v: f"[{v[0]:.3f}, {v[1]:.3f}]"
             # add info on each term
             for index in range(self.num_fixed_tendons):
                 tendon_table.add_row([
