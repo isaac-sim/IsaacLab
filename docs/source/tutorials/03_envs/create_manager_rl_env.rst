@@ -4,7 +4,7 @@
 Creating a Manager-Based RL Environment
 =======================================
 
-.. currentmodule:: omni.isaac.lab
+.. currentmodule:: isaaclab
 
 Having learnt how to create a base environment in :ref:`tutorial-create-manager-base-env`, we will now look at how to create a manager-based
 task environment for reinforcement learning.
@@ -29,25 +29,25 @@ curriculum and commands.
 The Code
 ~~~~~~~~
 
-For this tutorial, we use the cartpole environment defined in ``omni.isaac.lab_tasks.manager_based.classic.cartpole`` module.
+For this tutorial, we use the cartpole environment defined in ``isaaclab_tasks.manager_based.classic.cartpole`` module.
 
 .. dropdown:: Code for cartpole_env_cfg.py
    :icon: code
 
-   .. literalinclude:: ../../../../source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/manager_based/classic/cartpole/cartpole_env_cfg.py
+   .. literalinclude:: ../../../../source/isaaclab_tasks/isaaclab_tasks/manager_based/classic/cartpole/cartpole_env_cfg.py
       :language: python
-      :emphasize-lines: 63-68, 124-149, 152-162, 165-169, 187-192
+      :emphasize-lines: 117-141, 144-154, 172-174
       :linenos:
 
 The script for running the environment ``run_cartpole_rl_env.py`` is present in the
-``isaaclab/source/standalone/tutorials/03_envs`` directory. The script is similar to the
+``isaaclab/scripts/tutorials/03_envs`` directory. The script is similar to the
 ``cartpole_base_env.py`` script in the previous tutorial, except that it uses the
 :class:`envs.ManagerBasedRLEnv` instead of the :class:`envs.ManagerBasedEnv`.
 
 .. dropdown:: Code for run_cartpole_rl_env.py
    :icon: code
 
-   .. literalinclude:: ../../../../source/standalone/tutorials/03_envs/run_cartpole_rl_env.py
+   .. literalinclude:: ../../../../scripts/tutorials/03_envs/run_cartpole_rl_env.py
       :language: python
       :emphasize-lines: 38-42, 56-57
       :linenos:
@@ -63,7 +63,7 @@ will focus only on the RL components of the environment.
 In Isaac Lab, we provide various implementations of different terms in the :mod:`envs.mdp` module. We will use
 some of these terms in this tutorial, but users are free to define their own terms as well. These
 are usually placed in their task-specific sub-package
-(for instance, in :mod:`omni.isaac.lab_tasks.manager_based.classic.cartpole.mdp`).
+(for instance, in :mod:`isaaclab_tasks.manager_based.classic.cartpole.mdp`).
 
 
 Defining rewards
@@ -83,7 +83,7 @@ For the cartpole task, we will use the following reward terms:
 * **Cart Velocity Reward**: Encourage the agent to keep the cart velocity as small as possible.
 * **Pole Velocity Reward**: Encourage the agent to keep the pole velocity as small as possible.
 
-.. literalinclude:: ../../../../source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/manager_based/classic/cartpole/cartpole_env_cfg.py
+.. literalinclude:: ../../../../source/isaaclab_tasks/isaaclab_tasks/manager_based/classic/cartpole/cartpole_env_cfg.py
    :language: python
    :pyobject: RewardsCfg
 
@@ -106,7 +106,7 @@ The flag :attr:`managers.TerminationsCfg.time_out` specifies whether the term is
 or terminated term. These are used to indicate the two types of terminations as described in `Gymnasium's documentation
 <https://gymnasium.farama.org/tutorials/gymnasium_basics/handling_time_limits/>`_.
 
-.. literalinclude:: ../../../../source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/manager_based/classic/cartpole/cartpole_env_cfg.py
+.. literalinclude:: ../../../../source/isaaclab_tasks/isaaclab_tasks/manager_based/classic/cartpole/cartpole_env_cfg.py
    :language: python
    :pyobject: TerminationsCfg
 
@@ -117,13 +117,8 @@ For various goal-conditioned tasks, it is useful to specify the goals or command
 handled through the :class:`managers.CommandManager`. The command manager handles resampling and updating the
 commands at each step. It can also be used to provide the commands as an observation to the agent.
 
-For this simple task, we do not use any commands. This is specified by using a command term with the
-:class:`envs.mdp.NullCommandCfg` configuration. However, you can see an example of command definitions in the
-locomotion or manipulation tasks.
-
-.. literalinclude:: ../../../../source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/manager_based/classic/cartpole/cartpole_env_cfg.py
-   :language: python
-   :pyobject: CommandsCfg
+For this simple task, we do not use any commands. Hence, we leave this attribute as its default value, which is None.
+You can see an example of how to define a command manager in the other locomotion or manipulation tasks.
 
 Defining curriculum
 -------------------
@@ -134,11 +129,6 @@ we provide a :class:`managers.CurriculumManager` class that can be used to defin
 
 In this tutorial we don't implement a curriculum for simplicity, but you can see an example of a
 curriculum definition in the other locomotion or manipulation tasks.
-We use a simple pass-through curriculum to define a curriculum manager that does not modify the environment.
-
-.. literalinclude:: ../../../../source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/manager_based/classic/cartpole/cartpole_env_cfg.py
-   :language: python
-   :pyobject: CurriculumCfg
 
 Tying it all together
 ---------------------
@@ -147,7 +137,7 @@ With all the above components defined, we can now create the :class:`ManagerBase
 cartpole environment. This is similar to the :class:`ManagerBasedEnvCfg` defined in :ref:`tutorial-create-manager-base-env`,
 only with the added RL components explained in the above sections.
 
-.. literalinclude:: ../../../../source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/manager_based/classic/cartpole/cartpole_env_cfg.py
+.. literalinclude:: ../../../../source/isaaclab_tasks/isaaclab_tasks/manager_based/classic/cartpole/cartpole_env_cfg.py
    :language: python
    :pyobject: CartpoleEnvCfg
 
@@ -160,7 +150,7 @@ The only difference is that we create an instance of :class:`envs.ManagerBasedRL
 such as the reward and termination status. The information dictionary also maintains logging of quantities
 such as the reward contribution from individual terms, the termination status of each term, the episode length etc.
 
-.. literalinclude:: ../../../../source/standalone/tutorials/03_envs/run_cartpole_rl_env.py
+.. literalinclude:: ../../../../scripts/tutorials/03_envs/run_cartpole_rl_env.py
    :language: python
    :pyobject: main
 
@@ -173,7 +163,7 @@ Similar to the previous tutorial, we can run the environment by executing the ``
 
 .. code-block:: bash
 
-   ./isaaclab.sh -p source/standalone/tutorials/03_envs/run_cartpole_rl_env.py --num_envs 32
+   ./isaaclab.sh -p scripts/tutorials/03_envs/run_cartpole_rl_env.py --num_envs 32
 
 
 This should open a similar simulation as in the previous tutorial. However, this time, the environment

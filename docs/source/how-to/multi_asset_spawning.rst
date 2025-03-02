@@ -1,47 +1,75 @@
+
 Spawning Multiple Assets
 ========================
 
-.. currentmodule:: omni.isaac.lab
+.. currentmodule:: isaaclab
 
-Typical, spawning configurations (introduced in the :ref:`tutorial-spawn-prims` tutorial) copy the same
+Typical spawning configurations (introduced in the :ref:`tutorial-spawn-prims` tutorial) copy the same
 asset (or USD primitive) across the different resolved prim paths from the expressions.
 For instance, if the user specifies to spawn the asset at "/World/Table\_.*/Object", the same
 asset is created at the paths "/World/Table_0/Object", "/World/Table_1/Object" and so on.
 
-However, at times, it might be desirable to spawn different assets under the prim paths to
-ensure a diversity in the simulation. This guide describes how to create different assets under
-each prim path using the spawning functionality.
+However, we also support multi-asset spawning with two mechanisms:
+
+1. Rigid object collections. This allows the user to spawn multiple rigid objects in each environment and access/modify
+   them with a unified API, improving performance.
+
+2. Spawning different assets under the same prim path. This allows the user to create diverse simulations, where each
+   environment has a different asset.
+
+This guide describes how to use these two mechanisms.
 
 The sample script ``multi_asset.py`` is used as a reference, located in the
-``IsaacLab/source/standalone/demos`` directory.
+``IsaacLab/scripts/demos`` directory.
 
 .. dropdown:: Code for multi_asset.py
    :icon: code
 
-   .. literalinclude:: ../../../source/standalone/demos/multi_asset.py
+   .. literalinclude:: ../../../scripts/demos/multi_asset.py
       :language: python
-      :emphasize-lines: 101-123, 130-149
+      :emphasize-lines: 109-131, 135-179, 184-203
       :linenos:
 
-This script creates multiple environments, where each environment has a rigid object that is either a cone,
-a cube, or a sphere, and an articulation that is either the ANYmal-C or ANYmal-D robot.
+This script creates multiple environments, where each environment has:
+
+* a rigid object collection containing a cone, a cube, and a sphere
+* a rigid object that is either a cone, a cube, or a sphere, chosen at random
+* an articulation that is either the ANYmal-C or ANYmal-D robot, chosen at random
 
 .. image:: ../_static/demos/multi_asset.jpg
   :width: 100%
   :alt: result of multi_asset.py
 
-Using Multi-Asset Spawning Functions
-------------------------------------
 
-It is possible to spawn different assets and USDs in each environment using the spawners
+Rigid Object Collections
+------------------------
+
+Multiple rigid objects can be spawned in each environment and accessed/modified with a unified ``(env_ids, obj_ids)`` API.
+While the user could also create multiple rigid objects by spawning them individually, the API is more user-friendly and
+more efficient since it uses a single physics view under the hood to handle all the objects.
+
+.. literalinclude:: ../../../scripts/demos/multi_asset.py
+   :language: python
+   :lines: 135-179
+   :dedent:
+
+The configuration :class:`~assets.RigidObjectCollectionCfg` is used to create the collection. It's attribute :attr:`~assets.RigidObjectCollectionCfg.rigid_objects`
+is a dictionary containing :class:`~assets.RigidObjectCfg` objects. The keys serve as unique identifiers for each
+rigid object in the collection.
+
+
+Spawning different assets under the same prim path
+--------------------------------------------------
+
+It is possible to spawn different assets and USDs under the same prim path in each environment using the spawners
 :class:`~sim.spawners.wrappers.MultiAssetSpawnerCfg` and :class:`~sim.spawners.wrappers.MultiUsdFileCfg`:
 
 * We set the spawn configuration in :class:`~assets.RigidObjectCfg` to be
   :class:`~sim.spawners.wrappers.MultiAssetSpawnerCfg`:
 
-  .. literalinclude:: ../../../source/standalone/demos/multi_asset.py
+  .. literalinclude:: ../../../scripts/demos/multi_asset.py
      :language: python
-     :lines: 99-125
+     :lines: 107-133
      :dedent:
 
   This function allows you to define a list of different assets that can be spawned as rigid objects.
@@ -51,16 +79,16 @@ It is possible to spawn different assets and USDs in each environment using the 
 * Similarly, we set the spawn configuration in :class:`~assets.ArticulationCfg` to be
   :class:`~sim.spawners.wrappers.MultiUsdFileCfg`:
 
-  .. literalinclude:: ../../../source/standalone/demos/multi_asset.py
+  .. literalinclude:: ../../../scripts/demos/multi_asset.py
      :language: python
-     :lines: 128-161
+     :lines: 182-215
      :dedent:
 
   Similar to before, this configuration allows the selection of different USD files representing articulated assets.
 
 
 Things to Note
---------------
+~~~~~~~~~~~~~~
 
 Similar asset structuring
 ~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -83,9 +111,9 @@ to understand the entire simulation scene. This helps speed up the simulation sc
 However, in the case of spawning different assets in different environments, this assumption does not hold
 anymore. Hence the flag :attr:`scene.InteractiveScene.replicate_physics` must be disabled.
 
-.. literalinclude:: ../../../source/standalone/demos/multi_asset.py
+.. literalinclude:: ../../../scripts/demos/multi_asset.py
    :language: python
-   :lines: 221-224
+   :lines: 280-283
    :dedent:
 
 The Code Execution
@@ -95,7 +123,7 @@ To execute the script with multiple environments and randomized assets, use the 
 
 .. code-block:: bash
 
-  ./isaaclab.sh -p source/standalone/demos/multi_asset.py --num_envs 2048
+  ./isaaclab.sh -p scripts/demos/multi_asset.py --num_envs 2048
 
 This command runs the simulation with 2048 environments, each with randomly selected assets.
 To stop the simulation, you can close the window, or press ``Ctrl+C`` in the terminal.

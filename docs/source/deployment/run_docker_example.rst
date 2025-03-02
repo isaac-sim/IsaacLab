@@ -22,7 +22,7 @@ To build the Isaac Lab container from the root of the Isaac Lab repository, we w
 
 
 The terminal will first pull the base IsaacSim image, build the Isaac Lab image's additional layers on top of it, and run the Isaac Lab container.
-This should take several minutes upon the first build but will be shorter in subsequent runs as Docker's caching prevents repeated work.
+This should take several minutes for the first build but will be shorter in subsequent runs as Docker's caching prevents repeated work.
 If we run the command ``docker container ls`` on the terminal, the output will list the containers that are running on the system. If
 everything has been set up correctly, a container with the ``NAME`` **isaac-lab-base** should appear, similar to below:
 
@@ -55,12 +55,12 @@ from the Isaac Lab Docker container.
 The Code
 ~~~~~~~~
 
-The tutorial corresponds to the ``log_time.py`` script in the ``IsaacLab/source/standalone/tutorials/00_sim`` directory.
+The tutorial corresponds to the ``log_time.py`` script in the ``IsaacLab/scripts/tutorials/00_sim`` directory.
 
 .. dropdown:: Code for log_time.py
    :icon: code
 
-   .. literalinclude:: ../../../source/standalone/tutorials/00_sim/log_time.py
+   .. literalinclude:: ../../../scripts/tutorials/00_sim/log_time.py
       :language: python
       :emphasize-lines: 46-55, 72-79
       :linenos:
@@ -73,7 +73,7 @@ The Isaac Lab Docker container has several `volumes`_ to facilitate persistent s
 container. One such volume is the ``/workspace/isaaclab/logs`` directory.
 The ``log_time.py`` script designates this directory as the location to which a ``log.txt`` should be written:
 
-.. literalinclude:: ../../../source/standalone/tutorials/00_sim/log_time.py
+.. literalinclude:: ../../../scripts/tutorials/00_sim/log_time.py
    :language: python
    :start-at: # Specify that the logs must be in logs/docker_tutorial
    :end-at: print(f"[INFO] Logging experiment to directory: {log_dir_path}")
@@ -83,7 +83,7 @@ As the comments note, :func:`os.path.abspath()` will prepend ``/workspace/isaacl
 the Docker container all python execution is done through ``/workspace/isaaclab/isaaclab.sh``.
 The output will be a file, ``log.txt``, with the ``sim_time`` written on a newline at every simulation step:
 
-.. literalinclude:: ../../../source/standalone/tutorials/00_sim/log_time.py
+.. literalinclude:: ../../../scripts/tutorials/00_sim/log_time.py
    :language: python
    :start-at: # Prepare to count sim_time
    :end-at: sim_time += sim_dt
@@ -96,7 +96,7 @@ We will execute the script to produce a log, adding a ``--headless`` flag to our
 
 .. code-block:: bash
 
-  isaaclab -p source/standalone/tutorials/00_sim/log_time.py --headless
+  isaaclab -p scripts/tutorials/00_sim/log_time.py --headless
 
 
 Now ``log.txt`` will have been produced at ``/workspace/isaaclab/logs/docker_tutorial``. If we exit the container
