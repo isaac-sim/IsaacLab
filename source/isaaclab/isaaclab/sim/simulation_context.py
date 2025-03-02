@@ -134,10 +134,13 @@ class SimulationContext(_SimulationContext):
         # note: we disable it by default to avoid the overhead of contact processing when it isn't needed.
         #   The physics flag gets enabled when a contact sensor is created.
         if hasattr(self.cfg, "disable_contact_processing"):
-            omni.log.error(
-                "The `disable_contact_processing` attribute is deprecated. This flag is always set to True, "
-                " unless the contact sensor is enabled."
+            omni.log.warn(
+                "The `disable_contact_processing` attribute is deprecated and always set to True"
+                " to avoid unnecessary overhead. Contact processing is automatically enabled when"
+                " a contact sensor is created, so manual configuration is no longer required."
             )
+        # FIXME: From investigation, it seems this flag only affects CPU physics. For GPU physics, contacts
+        #  are always processed. The issue is reported to the PhysX team by @mmittal.
         carb_settings_iface.set_bool("/physics/disableContactProcessing", True)
         # disable custom geometry for cylinder and cone collision shapes to allow contact reporting for them
         # reason: cylinders and cones aren't natively supported by PhysX so we need to use custom geometry flags
