@@ -447,7 +447,7 @@ class TestMathUtilities(unittest.TestCase):
             torch.testing.assert_close(orthogonal_depth, expected_orthogonal_depth)
 
     def test_combine_frame_transform(self):
-        """Test if math utilities are true inverses of each other."""
+        """Test combine_frame_transforms function."""
         # create random poses
         pose01 = torch.rand(1, 7)
         pose01[:, 3:7] = torch.nn.functional.normalize(pose01[..., 3:7], dim=-1)
