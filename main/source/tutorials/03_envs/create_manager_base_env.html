@@ -252,20 +252,21 @@
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../overview/core-concepts/index.html">Core Concepts</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2"><a class="reference internal" href="../../overview/core-concepts/task_workflows.html">Task Design Workflows</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../overview/core-concepts/actuators.html">Actuators</a></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../../overview/core-concepts/sensors/index.html">Sensors</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../overview/core-concepts/sensors/camera.html">Camera</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../overview/core-concepts/sensors/contact_sensor.html">Contact Sensor</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../overview/core-concepts/sensors/frame_transformer.html">Frame Transformer</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../overview/core-concepts/sensors/imu.html">Inertial Measurement Unit (IMU)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../overview/core-concepts/sensors/ray_caster.html">Ray Caster</a></li>
 </ul>
 </details></li>
-<li class="toctree-l1 has-children"><a class="reference internal" href="../../overview/sensors/index.html">Sensors</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
-<li class="toctree-l2"><a class="reference internal" href="../../overview/sensors/camera.html">Camera</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../overview/sensors/contact_sensor.html">Contact Sensor</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../overview/sensors/frame_transformer.html">Frame Transformer</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../overview/sensors/imu.html">Inertial Measurement Unit (IMU)</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../overview/sensors/ray_caster.html">Ray Caster</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/core-concepts/motion_generators.html">Motion Generators</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1"><a class="reference internal" href="../../overview/environments.html">Available Environments</a></li>
 
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../overview/reinforcement-learning/index.html">Reinforcement Learning</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
-<li class="toctree-l2"><a class="reference internal" href="../../overview/reinforcement-learning/rl_existing_scripts.html">Reinforcement Learning Wrappers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/reinforcement-learning/rl_existing_scripts.html">Reinforcement Learning Scripts</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../overview/reinforcement-learning/rl_frameworks.html">Reinforcement Learning Library Comparison</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../overview/reinforcement-learning/performance_benchmarks.html">Performance Benchmarks</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../overview/reinforcement-learning/training_guide.html">Debugging and Training Guide</a></li>
@@ -279,7 +280,7 @@
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="../../features/hydra.html">Hydra Configuration System</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../features/multi_gpu.html">Multi-GPU and Multi-Node Training</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../../overview/sensors/camera.html">Tiled Rendering</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../overview/core-concepts/sensors/camera.html">Tiled Rendering</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../features/ray.html">Ray Job Dispatch and Tuning</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../features/reproducibility.html">Reproducibility and Determinism</a></li>
 </ul>
@@ -355,8 +356,9 @@
 <li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.sim.converters.html">isaaclab.sim.converters</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.sim.schemas.html">isaaclab.sim.schemas</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.sim.spawners.html">isaaclab.sim.spawners</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../api/lab_tasks/isaaclab_tasks.utils.html">isaaclab_tasks.utils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab_rl/isaaclab_rl.html">isaaclab_rl</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../api/lab_mimic/isaaclab_mimic.datagen.html">isaaclab_mimic.datagen</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab_tasks/isaaclab_tasks.utils.html">isaaclab_tasks.utils</a></li>
 </ul>
 </details></li>
 </ul>
@@ -646,166 +648,171 @@ directory.</p>
 <span class="linenos">  6</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="linenos">  7</span><span class="sd">This script demonstrates how to create a simple environment with a cartpole. It combines the concepts of</span>
 <span class="linenos">  8</span><span class="sd">scene, action, observation and event managers to create an environment.</span>
-<span class="linenos">  9</span><span class="sd">&quot;&quot;&quot;</span>
-<span class="linenos"> 10</span>
-<span class="linenos"> 11</span><span class="sd">&quot;&quot;&quot;Launch Isaac Sim Simulator first.&quot;&quot;&quot;</span>
-<span class="linenos"> 12</span>
+<span class="linenos">  9</span>
+<span class="linenos"> 10</span><span class="sd">.. code-block:: bash</span>
+<span class="linenos"> 11</span>
+<span class="linenos"> 12</span><span class="sd">    ./isaaclab.sh -p scripts/tutorials/03_envs/create_cartpole_base_env.py --num_envs 32</span>
 <span class="linenos"> 13</span>
-<span class="linenos"> 14</span><span class="kn">import</span><span class="w"> </span><span class="nn">argparse</span>
+<span class="linenos"> 14</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="linenos"> 15</span>
-<span class="linenos"> 16</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.app</span><span class="w"> </span><span class="kn">import</span> <span class="n">AppLauncher</span>
+<span class="linenos"> 16</span><span class="sd">&quot;&quot;&quot;Launch Isaac Sim Simulator first.&quot;&quot;&quot;</span>
 <span class="linenos"> 17</span>
-<span class="linenos"> 18</span><span class="c1"># add argparse arguments</span>
-<span class="linenos"> 19</span><span class="n">parser</span> <span class="o">=</span> <span class="n">argparse</span><span class="o">.</span><span class="n">ArgumentParser</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="s2">&quot;Tutorial on creating a cartpole base environment.&quot;</span><span class="p">)</span>
-<span class="linenos"> 20</span><span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">&quot;--num_envs&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">int</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="mi">16</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Number of environments to spawn.&quot;</span><span class="p">)</span>
-<span class="linenos"> 21</span>
-<span class="linenos"> 22</span><span class="c1"># append AppLauncher cli args</span>
-<span class="linenos"> 23</span><span class="n">AppLauncher</span><span class="o">.</span><span class="n">add_app_launcher_args</span><span class="p">(</span><span class="n">parser</span><span class="p">)</span>
-<span class="linenos"> 24</span><span class="c1"># parse the arguments</span>
-<span class="linenos"> 25</span><span class="n">args_cli</span> <span class="o">=</span> <span class="n">parser</span><span class="o">.</span><span class="n">parse_args</span><span class="p">()</span>
+<span class="linenos"> 18</span>
+<span class="linenos"> 19</span><span class="kn">import</span><span class="w"> </span><span class="nn">argparse</span>
+<span class="linenos"> 20</span>
+<span class="linenos"> 21</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.app</span><span class="w"> </span><span class="kn">import</span> <span class="n">AppLauncher</span>
+<span class="linenos"> 22</span>
+<span class="linenos"> 23</span><span class="c1"># add argparse arguments</span>
+<span class="linenos"> 24</span><span class="n">parser</span> <span class="o">=</span> <span class="n">argparse</span><span class="o">.</span><span class="n">ArgumentParser</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="s2">&quot;Tutorial on creating a cartpole base environment.&quot;</span><span class="p">)</span>
+<span class="linenos"> 25</span><span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">&quot;--num_envs&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">int</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="mi">16</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Number of environments to spawn.&quot;</span><span class="p">)</span>
 <span class="linenos"> 26</span>
-<span class="linenos"> 27</span><span class="c1"># launch omniverse app</span>
-<span class="linenos"> 28</span><span class="n">app_launcher</span> <span class="o">=</span> <span class="n">AppLauncher</span><span class="p">(</span><span class="n">args_cli</span><span class="p">)</span>
-<span class="linenos"> 29</span><span class="n">simulation_app</span> <span class="o">=</span> <span class="n">app_launcher</span><span class="o">.</span><span class="n">app</span>
-<span class="linenos"> 30</span>
-<span class="linenos"> 31</span><span class="sd">&quot;&quot;&quot;Rest everything follows.&quot;&quot;&quot;</span>
-<span class="linenos"> 32</span>
-<span class="linenos"> 33</span><span class="kn">import</span><span class="w"> </span><span class="nn">math</span>
-<span class="linenos"> 34</span><span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
+<span class="linenos"> 27</span><span class="c1"># append AppLauncher cli args</span>
+<span class="linenos"> 28</span><span class="n">AppLauncher</span><span class="o">.</span><span class="n">add_app_launcher_args</span><span class="p">(</span><span class="n">parser</span><span class="p">)</span>
+<span class="linenos"> 29</span><span class="c1"># parse the arguments</span>
+<span class="linenos"> 30</span><span class="n">args_cli</span> <span class="o">=</span> <span class="n">parser</span><span class="o">.</span><span class="n">parse_args</span><span class="p">()</span>
+<span class="linenos"> 31</span>
+<span class="linenos"> 32</span><span class="c1"># launch omniverse app</span>
+<span class="linenos"> 33</span><span class="n">app_launcher</span> <span class="o">=</span> <span class="n">AppLauncher</span><span class="p">(</span><span class="n">args_cli</span><span class="p">)</span>
+<span class="linenos"> 34</span><span class="n">simulation_app</span> <span class="o">=</span> <span class="n">app_launcher</span><span class="o">.</span><span class="n">app</span>
 <span class="linenos"> 35</span>
-<span class="linenos"> 36</span><span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab.envs.mdp</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">mdp</span>
-<span class="linenos"> 37</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.envs</span><span class="w"> </span><span class="kn">import</span> <span class="n">ManagerBasedEnv</span><span class="p">,</span> <span class="n">ManagerBasedEnvCfg</span>
-<span class="linenos"> 38</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.managers</span><span class="w"> </span><span class="kn">import</span> <span class="n">EventTermCfg</span> <span class="k">as</span> <span class="n">EventTerm</span>
-<span class="linenos"> 39</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.managers</span><span class="w"> </span><span class="kn">import</span> <span class="n">ObservationGroupCfg</span> <span class="k">as</span> <span class="n">ObsGroup</span>
-<span class="linenos"> 40</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.managers</span><span class="w"> </span><span class="kn">import</span> <span class="n">ObservationTermCfg</span> <span class="k">as</span> <span class="n">ObsTerm</span>
-<span class="linenos"> 41</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.managers</span><span class="w"> </span><span class="kn">import</span> <span class="n">SceneEntityCfg</span>
-<span class="linenos"> 42</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">configclass</span>
-<span class="linenos"> 43</span>
-<span class="linenos"> 44</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab_tasks.manager_based.classic.cartpole.cartpole_env_cfg</span><span class="w"> </span><span class="kn">import</span> <span class="n">CartpoleSceneCfg</span>
-<span class="linenos"> 45</span>
-<span class="linenos"> 46</span>
-<span class="hll"><span class="linenos"> 47</span><span class="nd">@configclass</span>
-</span><span class="hll"><span class="linenos"> 48</span><span class="k">class</span><span class="w"> </span><span class="nc">ActionsCfg</span><span class="p">:</span>
-</span><span class="hll"><span class="linenos"> 49</span><span class="w">    </span><span class="sd">&quot;&quot;&quot;Action specifications for the environment.&quot;&quot;&quot;</span>
+<span class="linenos"> 36</span><span class="sd">&quot;&quot;&quot;Rest everything follows.&quot;&quot;&quot;</span>
+<span class="linenos"> 37</span>
+<span class="linenos"> 38</span><span class="kn">import</span><span class="w"> </span><span class="nn">math</span>
+<span class="linenos"> 39</span><span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
+<span class="linenos"> 40</span>
+<span class="linenos"> 41</span><span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab.envs.mdp</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">mdp</span>
+<span class="linenos"> 42</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.envs</span><span class="w"> </span><span class="kn">import</span> <span class="n">ManagerBasedEnv</span><span class="p">,</span> <span class="n">ManagerBasedEnvCfg</span>
+<span class="linenos"> 43</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.managers</span><span class="w"> </span><span class="kn">import</span> <span class="n">EventTermCfg</span> <span class="k">as</span> <span class="n">EventTerm</span>
+<span class="linenos"> 44</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.managers</span><span class="w"> </span><span class="kn">import</span> <span class="n">ObservationGroupCfg</span> <span class="k">as</span> <span class="n">ObsGroup</span>
+<span class="linenos"> 45</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.managers</span><span class="w"> </span><span class="kn">import</span> <span class="n">ObservationTermCfg</span> <span class="k">as</span> <span class="n">ObsTerm</span>
+<span class="linenos"> 46</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.managers</span><span class="w"> </span><span class="kn">import</span> <span class="n">SceneEntityCfg</span>
+<span class="hll"><span class="linenos"> 47</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">configclass</span>
+</span><span class="hll"><span class="linenos"> 48</span>
+</span><span class="hll"><span class="linenos"> 49</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab_tasks.manager_based.classic.cartpole.cartpole_env_cfg</span><span class="w"> </span><span class="kn">import</span> <span class="n">CartpoleSceneCfg</span>
 </span><span class="hll"><span class="linenos"> 50</span>
-</span><span class="hll"><span class="linenos"> 51</span>    <span class="n">joint_efforts</span> <span class="o">=</span> <span class="n">mdp</span><span class="o">.</span><span class="n">JointEffortActionCfg</span><span class="p">(</span><span class="n">asset_name</span><span class="o">=</span><span class="s2">&quot;robot&quot;</span><span class="p">,</span> <span class="n">joint_names</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;slider_to_cart&quot;</span><span class="p">],</span> <span class="n">scale</span><span class="o">=</span><span class="mf">5.0</span><span class="p">)</span>
-</span><span class="linenos"> 52</span>
-<span class="linenos"> 53</span>
-<span class="hll"><span class="linenos"> 54</span><span class="nd">@configclass</span>
-</span><span class="hll"><span class="linenos"> 55</span><span class="k">class</span><span class="w"> </span><span class="nc">ObservationsCfg</span><span class="p">:</span>
-</span><span class="hll"><span class="linenos"> 56</span><span class="w">    </span><span class="sd">&quot;&quot;&quot;Observation specifications for the environment.&quot;&quot;&quot;</span>
+</span><span class="hll"><span class="linenos"> 51</span>
+</span><span class="linenos"> 52</span><span class="nd">@configclass</span>
+<span class="linenos"> 53</span><span class="k">class</span><span class="w"> </span><span class="nc">ActionsCfg</span><span class="p">:</span>
+<span class="hll"><span class="linenos"> 54</span><span class="w">    </span><span class="sd">&quot;&quot;&quot;Action specifications for the environment.&quot;&quot;&quot;</span>
+</span><span class="hll"><span class="linenos"> 55</span>
+</span><span class="hll"><span class="linenos"> 56</span>    <span class="n">joint_efforts</span> <span class="o">=</span> <span class="n">mdp</span><span class="o">.</span><span class="n">JointEffortActionCfg</span><span class="p">(</span><span class="n">asset_name</span><span class="o">=</span><span class="s2">&quot;robot&quot;</span><span class="p">,</span> <span class="n">joint_names</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;slider_to_cart&quot;</span><span class="p">],</span> <span class="n">scale</span><span class="o">=</span><span class="mf">5.0</span><span class="p">)</span>
 </span><span class="hll"><span class="linenos"> 57</span>
-</span><span class="hll"><span class="linenos"> 58</span>    <span class="nd">@configclass</span>
-</span><span class="hll"><span class="linenos"> 59</span>    <span class="k">class</span><span class="w"> </span><span class="nc">PolicyCfg</span><span class="p">(</span><span class="n">ObsGroup</span><span class="p">):</span>
-</span><span class="hll"><span class="linenos"> 60</span><span class="w">        </span><span class="sd">&quot;&quot;&quot;Observations for policy group.&quot;&quot;&quot;</span>
-</span><span class="hll"><span class="linenos"> 61</span>
-</span><span class="hll"><span class="linenos"> 62</span>        <span class="c1"># observation terms (order preserved)</span>
-</span><span class="hll"><span class="linenos"> 63</span>        <span class="n">joint_pos_rel</span> <span class="o">=</span> <span class="n">ObsTerm</span><span class="p">(</span><span class="n">func</span><span class="o">=</span><span class="n">mdp</span><span class="o">.</span><span class="n">joint_pos_rel</span><span class="p">)</span>
-</span><span class="hll"><span class="linenos"> 64</span>        <span class="n">joint_vel_rel</span> <span class="o">=</span> <span class="n">ObsTerm</span><span class="p">(</span><span class="n">func</span><span class="o">=</span><span class="n">mdp</span><span class="o">.</span><span class="n">joint_vel_rel</span><span class="p">)</span>
-</span><span class="hll"><span class="linenos"> 65</span>
-</span><span class="hll"><span class="linenos"> 66</span>        <span class="k">def</span><span class="w"> </span><span class="nf">__post_init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-</span><span class="hll"><span class="linenos"> 67</span>            <span class="bp">self</span><span class="o">.</span><span class="n">enable_corruption</span> <span class="o">=</span> <span class="kc">False</span>
-</span><span class="hll"><span class="linenos"> 68</span>            <span class="bp">self</span><span class="o">.</span><span class="n">concatenate_terms</span> <span class="o">=</span> <span class="kc">True</span>
-</span><span class="hll"><span class="linenos"> 69</span>
-</span><span class="hll"><span class="linenos"> 70</span>    <span class="c1"># observation groups</span>
-</span><span class="hll"><span class="linenos"> 71</span>    <span class="n">policy</span><span class="p">:</span> <span class="n">PolicyCfg</span> <span class="o">=</span> <span class="n">PolicyCfg</span><span class="p">()</span>
-</span><span class="linenos"> 72</span>
-<span class="linenos"> 73</span>
-<span class="hll"><span class="linenos"> 74</span><span class="nd">@configclass</span>
-</span><span class="hll"><span class="linenos"> 75</span><span class="k">class</span><span class="w"> </span><span class="nc">EventCfg</span><span class="p">:</span>
-</span><span class="hll"><span class="linenos"> 76</span><span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for events.&quot;&quot;&quot;</span>
+</span><span class="hll"><span class="linenos"> 58</span>
+</span><span class="hll"><span class="linenos"> 59</span><span class="nd">@configclass</span>
+</span><span class="hll"><span class="linenos"> 60</span><span class="k">class</span><span class="w"> </span><span class="nc">ObservationsCfg</span><span class="p">:</span>
+</span><span class="hll"><span class="linenos"> 61</span><span class="w">    </span><span class="sd">&quot;&quot;&quot;Observation specifications for the environment.&quot;&quot;&quot;</span>
+</span><span class="hll"><span class="linenos"> 62</span>
+</span><span class="hll"><span class="linenos"> 63</span>    <span class="nd">@configclass</span>
+</span><span class="hll"><span class="linenos"> 64</span>    <span class="k">class</span><span class="w"> </span><span class="nc">PolicyCfg</span><span class="p">(</span><span class="n">ObsGroup</span><span class="p">):</span>
+</span><span class="hll"><span class="linenos"> 65</span><span class="w">        </span><span class="sd">&quot;&quot;&quot;Observations for policy group.&quot;&quot;&quot;</span>
+</span><span class="hll"><span class="linenos"> 66</span>
+</span><span class="hll"><span class="linenos"> 67</span>        <span class="c1"># observation terms (order preserved)</span>
+</span><span class="hll"><span class="linenos"> 68</span>        <span class="n">joint_pos_rel</span> <span class="o">=</span> <span class="n">ObsTerm</span><span class="p">(</span><span class="n">func</span><span class="o">=</span><span class="n">mdp</span><span class="o">.</span><span class="n">joint_pos_rel</span><span class="p">)</span>
+</span><span class="hll"><span class="linenos"> 69</span>        <span class="n">joint_vel_rel</span> <span class="o">=</span> <span class="n">ObsTerm</span><span class="p">(</span><span class="n">func</span><span class="o">=</span><span class="n">mdp</span><span class="o">.</span><span class="n">joint_vel_rel</span><span class="p">)</span>
+</span><span class="hll"><span class="linenos"> 70</span>
+</span><span class="hll"><span class="linenos"> 71</span>        <span class="k">def</span><span class="w"> </span><span class="nf">__post_init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+</span><span class="linenos"> 72</span>            <span class="bp">self</span><span class="o">.</span><span class="n">enable_corruption</span> <span class="o">=</span> <span class="kc">False</span>
+<span class="linenos"> 73</span>            <span class="bp">self</span><span class="o">.</span><span class="n">concatenate_terms</span> <span class="o">=</span> <span class="kc">True</span>
+<span class="hll"><span class="linenos"> 74</span>
+</span><span class="hll"><span class="linenos"> 75</span>    <span class="c1"># observation groups</span>
+</span><span class="hll"><span class="linenos"> 76</span>    <span class="n">policy</span><span class="p">:</span> <span class="n">PolicyCfg</span> <span class="o">=</span> <span class="n">PolicyCfg</span><span class="p">()</span>
 </span><span class="hll"><span class="linenos"> 77</span>
-</span><span class="hll"><span class="linenos"> 78</span>    <span class="c1"># on startup</span>
-</span><span class="hll"><span class="linenos"> 79</span>    <span class="n">add_pole_mass</span> <span class="o">=</span> <span class="n">EventTerm</span><span class="p">(</span>
-</span><span class="hll"><span class="linenos"> 80</span>        <span class="n">func</span><span class="o">=</span><span class="n">mdp</span><span class="o">.</span><span class="n">randomize_rigid_body_mass</span><span class="p">,</span>
-</span><span class="hll"><span class="linenos"> 81</span>        <span class="n">mode</span><span class="o">=</span><span class="s2">&quot;startup&quot;</span><span class="p">,</span>
-</span><span class="hll"><span class="linenos"> 82</span>        <span class="n">params</span><span class="o">=</span><span class="p">{</span>
-</span><span class="hll"><span class="linenos"> 83</span>            <span class="s2">&quot;asset_cfg&quot;</span><span class="p">:</span> <span class="n">SceneEntityCfg</span><span class="p">(</span><span class="s2">&quot;robot&quot;</span><span class="p">,</span> <span class="n">body_names</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;pole&quot;</span><span class="p">]),</span>
-</span><span class="hll"><span class="linenos"> 84</span>            <span class="s2">&quot;mass_distribution_params&quot;</span><span class="p">:</span> <span class="p">(</span><span class="mf">0.1</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">),</span>
-</span><span class="hll"><span class="linenos"> 85</span>            <span class="s2">&quot;operation&quot;</span><span class="p">:</span> <span class="s2">&quot;add&quot;</span><span class="p">,</span>
-</span><span class="hll"><span class="linenos"> 86</span>        <span class="p">},</span>
-</span><span class="hll"><span class="linenos"> 87</span>    <span class="p">)</span>
-</span><span class="hll"><span class="linenos"> 88</span>
-</span><span class="hll"><span class="linenos"> 89</span>    <span class="c1"># on reset</span>
-</span><span class="hll"><span class="linenos"> 90</span>    <span class="n">reset_cart_position</span> <span class="o">=</span> <span class="n">EventTerm</span><span class="p">(</span>
-</span><span class="hll"><span class="linenos"> 91</span>        <span class="n">func</span><span class="o">=</span><span class="n">mdp</span><span class="o">.</span><span class="n">reset_joints_by_offset</span><span class="p">,</span>
-</span><span class="hll"><span class="linenos"> 92</span>        <span class="n">mode</span><span class="o">=</span><span class="s2">&quot;reset&quot;</span><span class="p">,</span>
-</span><span class="hll"><span class="linenos"> 93</span>        <span class="n">params</span><span class="o">=</span><span class="p">{</span>
-</span><span class="hll"><span class="linenos"> 94</span>            <span class="s2">&quot;asset_cfg&quot;</span><span class="p">:</span> <span class="n">SceneEntityCfg</span><span class="p">(</span><span class="s2">&quot;robot&quot;</span><span class="p">,</span> <span class="n">joint_names</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;slider_to_cart&quot;</span><span class="p">]),</span>
-</span><span class="hll"><span class="linenos"> 95</span>            <span class="s2">&quot;position_range&quot;</span><span class="p">:</span> <span class="p">(</span><span class="o">-</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">),</span>
-</span><span class="hll"><span class="linenos"> 96</span>            <span class="s2">&quot;velocity_range&quot;</span><span class="p">:</span> <span class="p">(</span><span class="o">-</span><span class="mf">0.1</span><span class="p">,</span> <span class="mf">0.1</span><span class="p">),</span>
-</span><span class="hll"><span class="linenos"> 97</span>        <span class="p">},</span>
-</span><span class="hll"><span class="linenos"> 98</span>    <span class="p">)</span>
-</span><span class="hll"><span class="linenos"> 99</span>
-</span><span class="hll"><span class="linenos">100</span>    <span class="n">reset_pole_position</span> <span class="o">=</span> <span class="n">EventTerm</span><span class="p">(</span>
-</span><span class="hll"><span class="linenos">101</span>        <span class="n">func</span><span class="o">=</span><span class="n">mdp</span><span class="o">.</span><span class="n">reset_joints_by_offset</span><span class="p">,</span>
-</span><span class="hll"><span class="linenos">102</span>        <span class="n">mode</span><span class="o">=</span><span class="s2">&quot;reset&quot;</span><span class="p">,</span>
-</span><span class="hll"><span class="linenos">103</span>        <span class="n">params</span><span class="o">=</span><span class="p">{</span>
-</span><span class="hll"><span class="linenos">104</span>            <span class="s2">&quot;asset_cfg&quot;</span><span class="p">:</span> <span class="n">SceneEntityCfg</span><span class="p">(</span><span class="s2">&quot;robot&quot;</span><span class="p">,</span> <span class="n">joint_names</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;cart_to_pole&quot;</span><span class="p">]),</span>
-</span><span class="hll"><span class="linenos">105</span>            <span class="s2">&quot;position_range&quot;</span><span class="p">:</span> <span class="p">(</span><span class="o">-</span><span class="mf">0.125</span> <span class="o">*</span> <span class="n">math</span><span class="o">.</span><span class="n">pi</span><span class="p">,</span> <span class="mf">0.125</span> <span class="o">*</span> <span class="n">math</span><span class="o">.</span><span class="n">pi</span><span class="p">),</span>
-</span><span class="hll"><span class="linenos">106</span>            <span class="s2">&quot;velocity_range&quot;</span><span class="p">:</span> <span class="p">(</span><span class="o">-</span><span class="mf">0.01</span> <span class="o">*</span> <span class="n">math</span><span class="o">.</span><span class="n">pi</span><span class="p">,</span> <span class="mf">0.01</span> <span class="o">*</span> <span class="n">math</span><span class="o">.</span><span class="n">pi</span><span class="p">),</span>
-</span><span class="hll"><span class="linenos">107</span>        <span class="p">},</span>
-</span><span class="hll"><span class="linenos">108</span>    <span class="p">)</span>
-</span><span class="linenos">109</span>
-<span class="linenos">110</span>
-<span class="hll"><span class="linenos">111</span><span class="nd">@configclass</span>
-</span><span class="hll"><span class="linenos">112</span><span class="k">class</span><span class="w"> </span><span class="nc">CartpoleEnvCfg</span><span class="p">(</span><span class="n">ManagerBasedEnvCfg</span><span class="p">):</span>
-</span><span class="hll"><span class="linenos">113</span><span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for the cartpole environment.&quot;&quot;&quot;</span>
+</span><span class="hll"><span class="linenos"> 78</span>
+</span><span class="hll"><span class="linenos"> 79</span><span class="nd">@configclass</span>
+</span><span class="hll"><span class="linenos"> 80</span><span class="k">class</span><span class="w"> </span><span class="nc">EventCfg</span><span class="p">:</span>
+</span><span class="hll"><span class="linenos"> 81</span><span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for events.&quot;&quot;&quot;</span>
+</span><span class="hll"><span class="linenos"> 82</span>
+</span><span class="hll"><span class="linenos"> 83</span>    <span class="c1"># on startup</span>
+</span><span class="hll"><span class="linenos"> 84</span>    <span class="n">add_pole_mass</span> <span class="o">=</span> <span class="n">EventTerm</span><span class="p">(</span>
+</span><span class="hll"><span class="linenos"> 85</span>        <span class="n">func</span><span class="o">=</span><span class="n">mdp</span><span class="o">.</span><span class="n">randomize_rigid_body_mass</span><span class="p">,</span>
+</span><span class="hll"><span class="linenos"> 86</span>        <span class="n">mode</span><span class="o">=</span><span class="s2">&quot;startup&quot;</span><span class="p">,</span>
+</span><span class="hll"><span class="linenos"> 87</span>        <span class="n">params</span><span class="o">=</span><span class="p">{</span>
+</span><span class="hll"><span class="linenos"> 88</span>            <span class="s2">&quot;asset_cfg&quot;</span><span class="p">:</span> <span class="n">SceneEntityCfg</span><span class="p">(</span><span class="s2">&quot;robot&quot;</span><span class="p">,</span> <span class="n">body_names</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;pole&quot;</span><span class="p">]),</span>
+</span><span class="hll"><span class="linenos"> 89</span>            <span class="s2">&quot;mass_distribution_params&quot;</span><span class="p">:</span> <span class="p">(</span><span class="mf">0.1</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">),</span>
+</span><span class="hll"><span class="linenos"> 90</span>            <span class="s2">&quot;operation&quot;</span><span class="p">:</span> <span class="s2">&quot;add&quot;</span><span class="p">,</span>
+</span><span class="hll"><span class="linenos"> 91</span>        <span class="p">},</span>
+</span><span class="hll"><span class="linenos"> 92</span>    <span class="p">)</span>
+</span><span class="hll"><span class="linenos"> 93</span>
+</span><span class="hll"><span class="linenos"> 94</span>    <span class="c1"># on reset</span>
+</span><span class="hll"><span class="linenos"> 95</span>    <span class="n">reset_cart_position</span> <span class="o">=</span> <span class="n">EventTerm</span><span class="p">(</span>
+</span><span class="hll"><span class="linenos"> 96</span>        <span class="n">func</span><span class="o">=</span><span class="n">mdp</span><span class="o">.</span><span class="n">reset_joints_by_offset</span><span class="p">,</span>
+</span><span class="hll"><span class="linenos"> 97</span>        <span class="n">mode</span><span class="o">=</span><span class="s2">&quot;reset&quot;</span><span class="p">,</span>
+</span><span class="hll"><span class="linenos"> 98</span>        <span class="n">params</span><span class="o">=</span><span class="p">{</span>
+</span><span class="hll"><span class="linenos"> 99</span>            <span class="s2">&quot;asset_cfg&quot;</span><span class="p">:</span> <span class="n">SceneEntityCfg</span><span class="p">(</span><span class="s2">&quot;robot&quot;</span><span class="p">,</span> <span class="n">joint_names</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;slider_to_cart&quot;</span><span class="p">]),</span>
+</span><span class="hll"><span class="linenos">100</span>            <span class="s2">&quot;position_range&quot;</span><span class="p">:</span> <span class="p">(</span><span class="o">-</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">),</span>
+</span><span class="hll"><span class="linenos">101</span>            <span class="s2">&quot;velocity_range&quot;</span><span class="p">:</span> <span class="p">(</span><span class="o">-</span><span class="mf">0.1</span><span class="p">,</span> <span class="mf">0.1</span><span class="p">),</span>
+</span><span class="hll"><span class="linenos">102</span>        <span class="p">},</span>
+</span><span class="hll"><span class="linenos">103</span>    <span class="p">)</span>
+</span><span class="hll"><span class="linenos">104</span>
+</span><span class="hll"><span class="linenos">105</span>    <span class="n">reset_pole_position</span> <span class="o">=</span> <span class="n">EventTerm</span><span class="p">(</span>
+</span><span class="hll"><span class="linenos">106</span>        <span class="n">func</span><span class="o">=</span><span class="n">mdp</span><span class="o">.</span><span class="n">reset_joints_by_offset</span><span class="p">,</span>
+</span><span class="hll"><span class="linenos">107</span>        <span class="n">mode</span><span class="o">=</span><span class="s2">&quot;reset&quot;</span><span class="p">,</span>
+</span><span class="hll"><span class="linenos">108</span>        <span class="n">params</span><span class="o">=</span><span class="p">{</span>
+</span><span class="linenos">109</span>            <span class="s2">&quot;asset_cfg&quot;</span><span class="p">:</span> <span class="n">SceneEntityCfg</span><span class="p">(</span><span class="s2">&quot;robot&quot;</span><span class="p">,</span> <span class="n">joint_names</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;cart_to_pole&quot;</span><span class="p">]),</span>
+<span class="linenos">110</span>            <span class="s2">&quot;position_range&quot;</span><span class="p">:</span> <span class="p">(</span><span class="o">-</span><span class="mf">0.125</span> <span class="o">*</span> <span class="n">math</span><span class="o">.</span><span class="n">pi</span><span class="p">,</span> <span class="mf">0.125</span> <span class="o">*</span> <span class="n">math</span><span class="o">.</span><span class="n">pi</span><span class="p">),</span>
+<span class="hll"><span class="linenos">111</span>            <span class="s2">&quot;velocity_range&quot;</span><span class="p">:</span> <span class="p">(</span><span class="o">-</span><span class="mf">0.01</span> <span class="o">*</span> <span class="n">math</span><span class="o">.</span><span class="n">pi</span><span class="p">,</span> <span class="mf">0.01</span> <span class="o">*</span> <span class="n">math</span><span class="o">.</span><span class="n">pi</span><span class="p">),</span>
+</span><span class="hll"><span class="linenos">112</span>        <span class="p">},</span>
+</span><span class="hll"><span class="linenos">113</span>    <span class="p">)</span>
 </span><span class="hll"><span class="linenos">114</span>
-</span><span class="hll"><span class="linenos">115</span>    <span class="c1"># Scene settings</span>
-</span><span class="hll"><span class="linenos">116</span>    <span class="n">scene</span> <span class="o">=</span> <span class="n">CartpoleSceneCfg</span><span class="p">(</span><span class="n">num_envs</span><span class="o">=</span><span class="mi">1024</span><span class="p">,</span> <span class="n">env_spacing</span><span class="o">=</span><span class="mf">2.5</span><span class="p">)</span>
-</span><span class="hll"><span class="linenos">117</span>    <span class="c1"># Basic settings</span>
-</span><span class="hll"><span class="linenos">118</span>    <span class="n">observations</span> <span class="o">=</span> <span class="n">ObservationsCfg</span><span class="p">()</span>
-</span><span class="hll"><span class="linenos">119</span>    <span class="n">actions</span> <span class="o">=</span> <span class="n">ActionsCfg</span><span class="p">()</span>
-</span><span class="hll"><span class="linenos">120</span>    <span class="n">events</span> <span class="o">=</span> <span class="n">EventCfg</span><span class="p">()</span>
-</span><span class="hll"><span class="linenos">121</span>
-</span><span class="hll"><span class="linenos">122</span>    <span class="k">def</span><span class="w"> </span><span class="nf">__post_init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-</span><span class="hll"><span class="linenos">123</span><span class="w">        </span><span class="sd">&quot;&quot;&quot;Post initialization.&quot;&quot;&quot;</span>
-</span><span class="hll"><span class="linenos">124</span>        <span class="c1"># viewer settings</span>
-</span><span class="hll"><span class="linenos">125</span>        <span class="bp">self</span><span class="o">.</span><span class="n">viewer</span><span class="o">.</span><span class="n">eye</span> <span class="o">=</span> <span class="p">[</span><span class="mf">4.5</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">6.0</span><span class="p">]</span>
-</span><span class="hll"><span class="linenos">126</span>        <span class="bp">self</span><span class="o">.</span><span class="n">viewer</span><span class="o">.</span><span class="n">lookat</span> <span class="o">=</span> <span class="p">[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">2.0</span><span class="p">]</span>
-</span><span class="hll"><span class="linenos">127</span>        <span class="c1"># step settings</span>
-</span><span class="hll"><span class="linenos">128</span>        <span class="bp">self</span><span class="o">.</span><span class="n">decimation</span> <span class="o">=</span> <span class="mi">4</span>  <span class="c1"># env step every 4 sim steps: 200Hz / 4 = 50Hz</span>
-</span><span class="hll"><span class="linenos">129</span>        <span class="c1"># simulation settings</span>
-</span><span class="hll"><span class="linenos">130</span>        <span class="bp">self</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">dt</span> <span class="o">=</span> <span class="mf">0.005</span>  <span class="c1"># sim step every 5ms: 200Hz</span>
-</span><span class="linenos">131</span>
-<span class="linenos">132</span>
-<span class="linenos">133</span><span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">():</span>
-<span class="linenos">134</span><span class="w">    </span><span class="sd">&quot;&quot;&quot;Main function.&quot;&quot;&quot;</span>
-<span class="hll"><span class="linenos">135</span>    <span class="c1"># parse the arguments</span>
-</span><span class="hll"><span class="linenos">136</span>    <span class="n">env_cfg</span> <span class="o">=</span> <span class="n">CartpoleEnvCfg</span><span class="p">()</span>
-</span><span class="hll"><span class="linenos">137</span>    <span class="n">env_cfg</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">num_envs</span> <span class="o">=</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">num_envs</span>
-</span><span class="hll"><span class="linenos">138</span>    <span class="c1"># setup base environment</span>
-</span><span class="hll"><span class="linenos">139</span>    <span class="n">env</span> <span class="o">=</span> <span class="n">ManagerBasedEnv</span><span class="p">(</span><span class="n">cfg</span><span class="o">=</span><span class="n">env_cfg</span><span class="p">)</span>
-</span><span class="linenos">140</span>
-<span class="linenos">141</span>    <span class="c1"># simulate physics</span>
-<span class="linenos">142</span>    <span class="n">count</span> <span class="o">=</span> <span class="mi">0</span>
-<span class="linenos">143</span>    <span class="k">while</span> <span class="n">simulation_app</span><span class="o">.</span><span class="n">is_running</span><span class="p">():</span>
-<span class="hll"><span class="linenos">144</span>        <span class="k">with</span> <span class="n">torch</span><span class="o">.</span><span class="n">inference_mode</span><span class="p">():</span>
-</span><span class="linenos">145</span>            <span class="c1"># reset</span>
-<span class="linenos">146</span>            <span class="k">if</span> <span class="n">count</span> <span class="o">%</span> <span class="mi">300</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
-<span class="linenos">147</span>                <span class="n">count</span> <span class="o">=</span> <span class="mi">0</span>
-<span class="hll"><span class="linenos">148</span>                <span class="n">env</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
-</span><span class="linenos">149</span>                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;-&quot;</span> <span class="o">*</span> <span class="mi">80</span><span class="p">)</span>
-<span class="linenos">150</span>                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[INFO]: Resetting environment...&quot;</span><span class="p">)</span>
-<span class="linenos">151</span>            <span class="c1"># sample random actions</span>
-<span class="linenos">152</span>            <span class="n">joint_efforts</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">randn_like</span><span class="p">(</span><span class="n">env</span><span class="o">.</span><span class="n">action_manager</span><span class="o">.</span><span class="n">action</span><span class="p">)</span>
-<span class="hll"><span class="linenos">153</span>            <span class="c1"># step the environment</span>
-</span><span class="hll"><span class="linenos">154</span>            <span class="n">obs</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">step</span><span class="p">(</span><span class="n">joint_efforts</span><span class="p">)</span>
-</span><span class="linenos">155</span>            <span class="c1"># print current orientation of pole</span>
-<span class="linenos">156</span>            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[Env 0]: Pole joint: &quot;</span><span class="p">,</span> <span class="n">obs</span><span class="p">[</span><span class="s2">&quot;policy&quot;</span><span class="p">][</span><span class="mi">0</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">item</span><span class="p">())</span>
-<span class="linenos">157</span>            <span class="c1"># update counter</span>
-<span class="linenos">158</span>            <span class="n">count</span> <span class="o">+=</span> <span class="mi">1</span>
-<span class="linenos">159</span>
-<span class="hll"><span class="linenos">160</span>    <span class="c1"># close the environment</span>
-</span><span class="hll"><span class="linenos">161</span>    <span class="n">env</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
-</span><span class="linenos">162</span>
-<span class="linenos">163</span>
-<span class="linenos">164</span><span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
-<span class="linenos">165</span>    <span class="c1"># run the main function</span>
-<span class="linenos">166</span>    <span class="n">main</span><span class="p">()</span>
-<span class="linenos">167</span>    <span class="c1"># close sim app</span>
-<span class="linenos">168</span>    <span class="n">simulation_app</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+</span><span class="hll"><span class="linenos">115</span>
+</span><span class="hll"><span class="linenos">116</span><span class="nd">@configclass</span>
+</span><span class="hll"><span class="linenos">117</span><span class="k">class</span><span class="w"> </span><span class="nc">CartpoleEnvCfg</span><span class="p">(</span><span class="n">ManagerBasedEnvCfg</span><span class="p">):</span>
+</span><span class="hll"><span class="linenos">118</span><span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for the cartpole environment.&quot;&quot;&quot;</span>
+</span><span class="hll"><span class="linenos">119</span>
+</span><span class="hll"><span class="linenos">120</span>    <span class="c1"># Scene settings</span>
+</span><span class="hll"><span class="linenos">121</span>    <span class="n">scene</span> <span class="o">=</span> <span class="n">CartpoleSceneCfg</span><span class="p">(</span><span class="n">num_envs</span><span class="o">=</span><span class="mi">1024</span><span class="p">,</span> <span class="n">env_spacing</span><span class="o">=</span><span class="mf">2.5</span><span class="p">)</span>
+</span><span class="hll"><span class="linenos">122</span>    <span class="c1"># Basic settings</span>
+</span><span class="hll"><span class="linenos">123</span>    <span class="n">observations</span> <span class="o">=</span> <span class="n">ObservationsCfg</span><span class="p">()</span>
+</span><span class="hll"><span class="linenos">124</span>    <span class="n">actions</span> <span class="o">=</span> <span class="n">ActionsCfg</span><span class="p">()</span>
+</span><span class="hll"><span class="linenos">125</span>    <span class="n">events</span> <span class="o">=</span> <span class="n">EventCfg</span><span class="p">()</span>
+</span><span class="hll"><span class="linenos">126</span>
+</span><span class="hll"><span class="linenos">127</span>    <span class="k">def</span><span class="w"> </span><span class="nf">__post_init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+</span><span class="hll"><span class="linenos">128</span><span class="w">        </span><span class="sd">&quot;&quot;&quot;Post initialization.&quot;&quot;&quot;</span>
+</span><span class="hll"><span class="linenos">129</span>        <span class="c1"># viewer settings</span>
+</span><span class="hll"><span class="linenos">130</span>        <span class="bp">self</span><span class="o">.</span><span class="n">viewer</span><span class="o">.</span><span class="n">eye</span> <span class="o">=</span> <span class="p">[</span><span class="mf">4.5</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">6.0</span><span class="p">]</span>
+</span><span class="linenos">131</span>        <span class="bp">self</span><span class="o">.</span><span class="n">viewer</span><span class="o">.</span><span class="n">lookat</span> <span class="o">=</span> <span class="p">[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">2.0</span><span class="p">]</span>
+<span class="linenos">132</span>        <span class="c1"># step settings</span>
+<span class="linenos">133</span>        <span class="bp">self</span><span class="o">.</span><span class="n">decimation</span> <span class="o">=</span> <span class="mi">4</span>  <span class="c1"># env step every 4 sim steps: 200Hz / 4 = 50Hz</span>
+<span class="linenos">134</span>        <span class="c1"># simulation settings</span>
+<span class="hll"><span class="linenos">135</span>        <span class="bp">self</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">dt</span> <span class="o">=</span> <span class="mf">0.005</span>  <span class="c1"># sim step every 5ms: 200Hz</span>
+</span><span class="hll"><span class="linenos">136</span>
+</span><span class="hll"><span class="linenos">137</span>
+</span><span class="hll"><span class="linenos">138</span><span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">():</span>
+</span><span class="hll"><span class="linenos">139</span><span class="w">    </span><span class="sd">&quot;&quot;&quot;Main function.&quot;&quot;&quot;</span>
+</span><span class="linenos">140</span>    <span class="c1"># parse the arguments</span>
+<span class="linenos">141</span>    <span class="n">env_cfg</span> <span class="o">=</span> <span class="n">CartpoleEnvCfg</span><span class="p">()</span>
+<span class="linenos">142</span>    <span class="n">env_cfg</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">num_envs</span> <span class="o">=</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">num_envs</span>
+<span class="linenos">143</span>    <span class="c1"># setup base environment</span>
+<span class="hll"><span class="linenos">144</span>    <span class="n">env</span> <span class="o">=</span> <span class="n">ManagerBasedEnv</span><span class="p">(</span><span class="n">cfg</span><span class="o">=</span><span class="n">env_cfg</span><span class="p">)</span>
+</span><span class="linenos">145</span>
+<span class="linenos">146</span>    <span class="c1"># simulate physics</span>
+<span class="linenos">147</span>    <span class="n">count</span> <span class="o">=</span> <span class="mi">0</span>
+<span class="hll"><span class="linenos">148</span>    <span class="k">while</span> <span class="n">simulation_app</span><span class="o">.</span><span class="n">is_running</span><span class="p">():</span>
+</span><span class="linenos">149</span>        <span class="k">with</span> <span class="n">torch</span><span class="o">.</span><span class="n">inference_mode</span><span class="p">():</span>
+<span class="linenos">150</span>            <span class="c1"># reset</span>
+<span class="linenos">151</span>            <span class="k">if</span> <span class="n">count</span> <span class="o">%</span> <span class="mi">300</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+<span class="linenos">152</span>                <span class="n">count</span> <span class="o">=</span> <span class="mi">0</span>
+<span class="hll"><span class="linenos">153</span>                <span class="n">env</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
+</span><span class="hll"><span class="linenos">154</span>                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;-&quot;</span> <span class="o">*</span> <span class="mi">80</span><span class="p">)</span>
+</span><span class="linenos">155</span>                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[INFO]: Resetting environment...&quot;</span><span class="p">)</span>
+<span class="linenos">156</span>            <span class="c1"># sample random actions</span>
+<span class="linenos">157</span>            <span class="n">joint_efforts</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">randn_like</span><span class="p">(</span><span class="n">env</span><span class="o">.</span><span class="n">action_manager</span><span class="o">.</span><span class="n">action</span><span class="p">)</span>
+<span class="linenos">158</span>            <span class="c1"># step the environment</span>
+<span class="linenos">159</span>            <span class="n">obs</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">step</span><span class="p">(</span><span class="n">joint_efforts</span><span class="p">)</span>
+<span class="hll"><span class="linenos">160</span>            <span class="c1"># print current orientation of pole</span>
+</span><span class="hll"><span class="linenos">161</span>            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[Env 0]: Pole joint: &quot;</span><span class="p">,</span> <span class="n">obs</span><span class="p">[</span><span class="s2">&quot;policy&quot;</span><span class="p">][</span><span class="mi">0</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">item</span><span class="p">())</span>
+</span><span class="linenos">162</span>            <span class="c1"># update counter</span>
+<span class="linenos">163</span>            <span class="n">count</span> <span class="o">+=</span> <span class="mi">1</span>
+<span class="linenos">164</span>
+<span class="linenos">165</span>    <span class="c1"># close the environment</span>
+<span class="linenos">166</span>    <span class="n">env</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+<span class="linenos">167</span>
+<span class="linenos">168</span>
+<span class="linenos">169</span><span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
+<span class="linenos">170</span>    <span class="c1"># run the main function</span>
+<span class="linenos">171</span>    <span class="n">main</span><span class="p">()</span>
+<span class="linenos">172</span>    <span class="c1"># close sim app</span>
+<span class="linenos">173</span>    <span class="n">simulation_app</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
 </pre></div>
 </div>
 </div>

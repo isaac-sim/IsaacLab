@@ -252,20 +252,21 @@
 <li class="toctree-l1 has-children"><a class="reference internal" href="../overview/core-concepts/index.html">Core Concepts</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2"><a class="reference internal" href="../overview/core-concepts/task_workflows.html">Task Design Workflows</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../overview/core-concepts/actuators.html">Actuators</a></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../overview/core-concepts/sensors/index.html">Sensors</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l3"><a class="reference internal" href="../overview/core-concepts/sensors/camera.html">Camera</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../overview/core-concepts/sensors/contact_sensor.html">Contact Sensor</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../overview/core-concepts/sensors/frame_transformer.html">Frame Transformer</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../overview/core-concepts/sensors/imu.html">Inertial Measurement Unit (IMU)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../overview/core-concepts/sensors/ray_caster.html">Ray Caster</a></li>
 </ul>
 </details></li>
-<li class="toctree-l1 has-children"><a class="reference internal" href="../overview/sensors/index.html">Sensors</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
-<li class="toctree-l2"><a class="reference internal" href="../overview/sensors/camera.html">Camera</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../overview/sensors/contact_sensor.html">Contact Sensor</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../overview/sensors/frame_transformer.html">Frame Transformer</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../overview/sensors/imu.html">Inertial Measurement Unit (IMU)</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../overview/sensors/ray_caster.html">Ray Caster</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/core-concepts/motion_generators.html">Motion Generators</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1"><a class="reference internal" href="../overview/environments.html">Available Environments</a></li>
 
 <li class="toctree-l1 has-children"><a class="reference internal" href="../overview/reinforcement-learning/index.html">Reinforcement Learning</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
-<li class="toctree-l2"><a class="reference internal" href="../overview/reinforcement-learning/rl_existing_scripts.html">Reinforcement Learning Wrappers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/reinforcement-learning/rl_existing_scripts.html">Reinforcement Learning Scripts</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../overview/reinforcement-learning/rl_frameworks.html">Reinforcement Learning Library Comparison</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../overview/reinforcement-learning/performance_benchmarks.html">Performance Benchmarks</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../overview/reinforcement-learning/training_guide.html">Debugging and Training Guide</a></li>
@@ -279,7 +280,7 @@
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="../features/hydra.html">Hydra Configuration System</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../features/multi_gpu.html">Multi-GPU and Multi-Node Training</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../overview/sensors/camera.html">Tiled Rendering</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../overview/core-concepts/sensors/camera.html">Tiled Rendering</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../features/ray.html">Ray Job Dispatch and Tuning</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../features/reproducibility.html">Reproducibility and Determinism</a></li>
 </ul>
@@ -355,8 +356,9 @@
 <li class="toctree-l2"><a class="reference internal" href="lab/isaaclab.sim.converters.html">isaaclab.sim.converters</a></li>
 <li class="toctree-l2"><a class="reference internal" href="lab/isaaclab.sim.schemas.html">isaaclab.sim.schemas</a></li>
 <li class="toctree-l2"><a class="reference internal" href="lab/isaaclab.sim.spawners.html">isaaclab.sim.spawners</a></li>
-<li class="toctree-l2"><a class="reference internal" href="lab_tasks/isaaclab_tasks.utils.html">isaaclab_tasks.utils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lab_rl/isaaclab_rl.html">isaaclab_rl</a></li>
 <li class="toctree-l2"><a class="reference internal" href="lab_mimic/isaaclab_mimic.datagen.html">isaaclab_mimic.datagen</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lab_tasks/isaaclab_tasks.utils.html">isaaclab_tasks.utils</a></li>
 </ul>
 </details></li>
 </ul>
@@ -597,9 +599,9 @@
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab-extension">isaaclab extension</a><ul class="nav section-nav flex-column">
 </ul>
 </li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab-tasks-extension">isaaclab_tasks extension</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab-rl-extension">isaaclab_rl extension</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab-mimic-extension">isaaclab_mimic extension</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab-tasks-extension">isaaclab_tasks extension</a></li>
 </ul>
             </nav>
         </div>
@@ -664,25 +666,19 @@
 <div class="toctree-wrapper compound">
 </div>
 </section>
-<section id="isaaclab-tasks-extension">
-<h2>isaaclab_tasks extension<a class="headerlink" href="#isaaclab-tasks-extension" title="Permalink to this heading">#</a></h2>
-<p>The following modules are available in the <code class="docutils literal notranslate"><span class="pre">isaaclab_tasks</span></code> extension:</p>
-<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
-<tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="lab_tasks/isaaclab_tasks.utils.html#module-isaaclab_tasks.utils" title="isaaclab_tasks.utils"><code class="xref py py-obj docutils literal notranslate"><span class="pre">utils</span></code></a></p></td>
-<td><p>Sub-package with utilities, data collectors and environment wrappers.</p></td>
-</tr>
-</tbody>
-</table>
-</div>
-</section>
 <section id="isaaclab-rl-extension">
 <h2>isaaclab_rl extension<a class="headerlink" href="#isaaclab-rl-extension" title="Permalink to this heading">#</a></h2>
 <p>The following wrappers are available in the <code class="docutils literal notranslate"><span class="pre">isaaclab_rl</span></code> extension:</p>
-<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
-<tbody>
-</tbody>
-</table>
+<div class="toctree-wrapper compound">
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="lab_rl/isaaclab_rl.html">isaaclab_rl</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="lab_rl/isaaclab_rl.html#module-isaaclab_rl.rl_games">RL-Games Wrapper</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lab_rl/isaaclab_rl.html#module-isaaclab_rl.rsl_rl">RSL-RL Wrapper</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lab_rl/isaaclab_rl.html#module-isaaclab_rl.skrl">SKRL Wrapper</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lab_rl/isaaclab_rl.html#module-isaaclab_rl.sb3">Stable-Baselines3 Wrapper</a></li>
+</ul>
+</li>
+</ul>
 </div>
 </section>
 <section id="isaaclab-mimic-extension">
@@ -692,6 +688,20 @@
 <tbody>
 <tr class="row-odd"><td><p><a class="reference internal" href="lab_mimic/isaaclab_mimic.datagen.html#module-isaaclab_mimic.datagen" title="isaaclab_mimic.datagen"><code class="xref py py-obj docutils literal notranslate"><span class="pre">datagen</span></code></a></p></td>
 <td><p>Sub-package with core implementation logic for Isaac Lab Mimic.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="isaaclab-tasks-extension">
+<h2>isaaclab_tasks extension<a class="headerlink" href="#isaaclab-tasks-extension" title="Permalink to this heading">#</a></h2>
+<p>This package <code class="docutils literal notranslate"><span class="pre">isaaclab_tasks</span></code> contains the tasks that are available in the Isaac Lab.
+For more information, please refer to the <a class="reference internal" href="../overview/environments.html#environments"><span class="std std-ref">Available Environments</span></a>.</p>
+<p>It includes the following modules:</p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="lab_tasks/isaaclab_tasks.utils.html#module-isaaclab_tasks.utils" title="isaaclab_tasks.utils"><code class="xref py py-obj docutils literal notranslate"><span class="pre">utils</span></code></a></p></td>
+<td><p>Sub-package with utilities, data collectors and environment wrappers.</p></td>
 </tr>
 </tbody>
 </table>
@@ -748,9 +758,9 @@
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab-extension">isaaclab extension</a><ul class="nav section-nav flex-column">
 </ul>
 </li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab-tasks-extension">isaaclab_tasks extension</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab-rl-extension">isaaclab_rl extension</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab-mimic-extension">isaaclab_mimic extension</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab-tasks-extension">isaaclab_tasks extension</a></li>
 </ul>
   </nav></div>
 

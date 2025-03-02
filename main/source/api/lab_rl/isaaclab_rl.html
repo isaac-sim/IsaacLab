@@ -56,6 +56,8 @@
     <link rel="icon" href="../../../_static/favicon.ico"/>
     <link rel="index" title="Index" href="../../../genindex.html" />
     <link rel="search" title="Search" href="../../../search.html" />
+    <link rel="next" title="isaaclab_mimic.datagen" href="../lab_mimic/isaaclab_mimic.datagen.html" />
+    <link rel="prev" title="isaaclab.sim.spawners" href="../lab/isaaclab.sim.spawners.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.0.1" />
@@ -107,8 +109,6 @@
     <div class="bd-container__inner bd-page-width">
       
       
-      
-        
       
       <dialog id="pst-primary-sidebar-modal"></dialog>
       <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
@@ -252,20 +252,21 @@
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../overview/core-concepts/index.html">Core Concepts</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2"><a class="reference internal" href="../../overview/core-concepts/task_workflows.html">Task Design Workflows</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../overview/core-concepts/actuators.html">Actuators</a></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../../overview/core-concepts/sensors/index.html">Sensors</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../overview/core-concepts/sensors/camera.html">Camera</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../overview/core-concepts/sensors/contact_sensor.html">Contact Sensor</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../overview/core-concepts/sensors/frame_transformer.html">Frame Transformer</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../overview/core-concepts/sensors/imu.html">Inertial Measurement Unit (IMU)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../overview/core-concepts/sensors/ray_caster.html">Ray Caster</a></li>
 </ul>
 </details></li>
-<li class="toctree-l1 has-children"><a class="reference internal" href="../../overview/sensors/index.html">Sensors</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
-<li class="toctree-l2"><a class="reference internal" href="../../overview/sensors/camera.html">Camera</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../overview/sensors/contact_sensor.html">Contact Sensor</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../overview/sensors/frame_transformer.html">Frame Transformer</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../overview/sensors/imu.html">Inertial Measurement Unit (IMU)</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../overview/sensors/ray_caster.html">Ray Caster</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/core-concepts/motion_generators.html">Motion Generators</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1"><a class="reference internal" href="../../overview/environments.html">Available Environments</a></li>
 
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../overview/reinforcement-learning/index.html">Reinforcement Learning</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
-<li class="toctree-l2"><a class="reference internal" href="../../overview/reinforcement-learning/rl_existing_scripts.html">Reinforcement Learning Wrappers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/reinforcement-learning/rl_existing_scripts.html">Reinforcement Learning Scripts</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../overview/reinforcement-learning/rl_frameworks.html">Reinforcement Learning Library Comparison</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../overview/reinforcement-learning/performance_benchmarks.html">Performance Benchmarks</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../overview/reinforcement-learning/training_guide.html">Debugging and Training Guide</a></li>
@@ -279,7 +280,7 @@
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="../../features/hydra.html">Hydra Configuration System</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../features/multi_gpu.html">Multi-GPU and Multi-Node Training</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../../overview/sensors/camera.html">Tiled Rendering</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../overview/core-concepts/sensors/camera.html">Tiled Rendering</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../features/ray.html">Ray Job Dispatch and Tuning</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../features/reproducibility.html">Reproducibility and Determinism</a></li>
 </ul>
@@ -334,8 +335,8 @@
 <li class="toctree-l1"><a class="reference internal" href="../../migration/migrating_from_orbit.html">From Orbit</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Source API</span></p>
-<ul class="nav bd-sidenav">
-<li class="toctree-l1 has-children"><a class="reference internal" href="../index.html">API Reference</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1 current active has-children"><a class="reference internal" href="../index.html">API Reference</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="current">
 <li class="toctree-l2"><a class="reference internal" href="../lab/isaaclab.app.html">isaaclab.app</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../lab/isaaclab.actuators.html">isaaclab.actuators</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../lab/isaaclab.assets.html">isaaclab.assets</a></li>
@@ -355,8 +356,9 @@
 <li class="toctree-l2"><a class="reference internal" href="../lab/isaaclab.sim.converters.html">isaaclab.sim.converters</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../lab/isaaclab.sim.schemas.html">isaaclab.sim.schemas</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../lab/isaaclab.sim.spawners.html">isaaclab.sim.spawners</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../lab_tasks/isaaclab_tasks.utils.html">isaaclab_tasks.utils</a></li>
+<li class="toctree-l2 current active"><a class="current reference internal" href="#">isaaclab_rl</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../lab_mimic/isaaclab_mimic.datagen.html">isaaclab_mimic.datagen</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../lab_tasks/isaaclab_tasks.utils.html">isaaclab_tasks.utils</a></li>
 </ul>
 </details></li>
 </ul>
@@ -709,7 +711,7 @@
                   
   <section id="module-isaaclab_rl">
 <span id="isaaclab-rl"></span><h1>isaaclab_rl<a class="headerlink" href="#module-isaaclab_rl" title="Permalink to this heading">#</a></h1>
-<p>Module for environment wrappers to different learning frameworks.</p>
+<p>Package for environment wrappers to different learning frameworks.</p>
 <p>Wrappers allow you to modify the behavior of an environment without modifying the environment itself.
 This is useful for modifying the observation space, action space, or reward function. Additionally,
 they can be used to cast a given environment into the respective environment class definition used by
@@ -720,15 +722,9 @@ into the expected data structure by the learning framework.</p>
 the initialized environment instance to the wrapper constructor. However, since learning frameworks
 expect different input and output data structures, their wrapper classes are not compatible with each other.
 Thus, they should always be used in conjunction with the respective learning framework.</p>
-<p>For instance, to wrap an environment in the <a class="reference external" href="https://github.com/DLR-RM/stable-baselines3">Stable-Baselines3</a> wrapper, you can do the following:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab_rl.sb3</span><span class="w"> </span><span class="kn">import</span> <span class="n">Sb3VecEnvWrapper</span>
-
-<span class="n">env</span> <span class="o">=</span> <span class="n">Sb3VecEnvWrapper</span><span class="p">(</span><span class="n">env</span><span class="p">)</span>
-</pre></div>
-</div>
 <section id="module-isaaclab_rl.rl_games">
 <span id="rl-games-wrapper"></span><h2>RL-Games Wrapper<a class="headerlink" href="#module-isaaclab_rl.rl_games" title="Permalink to this heading">#</a></h2>
-<p>Wrapper to configure a <code class="xref py py-class docutils literal notranslate"><span class="pre">ManagerBasedRLEnv</span></code> or <code class="xref py py-class docutils literal notranslate"><span class="pre">DirectRlEnv</span></code> instance to RL-Games vectorized environment.</p>
+<p>Wrapper to configure an environment instance to RL-Games vectorized environment.</p>
 <p>The following example shows how to wrap an environment for RL-Games and register the environment construction
 for RL-Games <code class="xref py py-class docutils literal notranslate"><span class="pre">Runner</span></code> class:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">rl_games.common</span><span class="w"> </span><span class="kn">import</span> <span class="n">env_configurations</span><span class="p">,</span> <span class="n">vecenv</span>
@@ -983,7 +979,13 @@ wrapper.</p>
 </section>
 <section id="module-isaaclab_rl.rsl_rl">
 <span id="rsl-rl-wrapper"></span><h2>RSL-RL Wrapper<a class="headerlink" href="#module-isaaclab_rl.rsl_rl" title="Permalink to this heading">#</a></h2>
-<p>Wrappers and utilities to configure an <code class="xref py py-class docutils literal notranslate"><span class="pre">ManagerBasedRLEnv</span></code> for RSL-RL library.</p>
+<p>Wrappers and utilities to configure an environment for RSL-RL library.</p>
+<p>The following example shows how to wrap an environment for RSL-RL:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab_rl.rsl_rl</span><span class="w"> </span><span class="kn">import</span> <span class="n">RslRlVecEnvWrapper</span>
+
+<span class="n">env</span> <span class="o">=</span> <span class="n">RslRlVecEnvWrapper</span><span class="p">(</span><span class="n">env</span><span class="p">)</span>
+</pre></div>
+</div>
 <p><strong>Functions:</strong></p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
 <tbody>
@@ -1580,7 +1582,7 @@ wrapper.</p>
 </section>
 <section id="module-isaaclab_rl.skrl">
 <span id="skrl-wrapper"></span><h2>SKRL Wrapper<a class="headerlink" href="#module-isaaclab_rl.skrl" title="Permalink to this heading">#</a></h2>
-<p>Wrapper to configure an Isaac Lab environment instance to skrl environment.</p>
+<p>Wrapper to configure an environment instance to skrl environment.</p>
 <p>The following example shows how to wrap an environment for skrl:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab_rl.skrl</span><span class="w"> </span><span class="kn">import</span> <span class="n">SkrlVecEnvWrapper</span>
 
@@ -1636,7 +1638,7 @@ will be wrapped as single-agent or multi-agent.</p></li>
 </section>
 <section id="module-isaaclab_rl.sb3">
 <span id="stable-baselines3-wrapper"></span><h2>Stable-Baselines3 Wrapper<a class="headerlink" href="#module-isaaclab_rl.sb3" title="Permalink to this heading">#</a></h2>
-<p>Wrapper to configure a <code class="xref py py-class docutils literal notranslate"><span class="pre">ManagerBasedRLEnv</span></code> or <code class="xref py py-class docutils literal notranslate"><span class="pre">DirectRLEnv</span></code> instance to Stable-Baselines3 vectorized environment.</p>
+<p>Wrapper to configure an environment instance to Stable-Baselines3 vectorized environment.</p>
 <p>The following example shows how to wrap an environment for Stable-Baselines3:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab_rl.sb3</span><span class="w"> </span><span class="kn">import</span> <span class="n">Sb3VecEnvWrapper</span>
 
@@ -1805,6 +1807,24 @@ wrapper.</p>
                 <footer class="prev-next-footer d-print-none">
                   
 <div class="prev-next-area">
+    <a class="left-prev"
+       href="../lab/isaaclab.sim.spawners.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">isaaclab.sim.spawners</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="../lab_mimic/isaaclab_mimic.datagen.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">isaaclab_mimic.datagen</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
 </div>
                 </footer>
               
