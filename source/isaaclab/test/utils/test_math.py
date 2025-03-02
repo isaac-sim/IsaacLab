@@ -23,16 +23,17 @@ import numpy as np
 import torch
 import torch.utils.benchmark as benchmark
 from math import pi as PI
-from scipy.spatial.transform import Rotation as R
-from scipy.spatial.transform import Slerp
+import scipy.spatial.transform as scipy_tf
 
 import isaaclab.utils.math as math_utils
 
-# This value is set to because "float operations are inexact".
-# Details: https://github.com/pytorch/pytorch/issues/17678
+
 DECIMAL_PRECISION = 5
-ATOL = 10 ** (-DECIMAL_PRECISION)
-RTOL = 10 ** (-DECIMAL_PRECISION)
+"""Precision of the test.
+
+This value is used since float operations are inexact. For reference:
+https://github.com/pytorch/pytorch/issues/17678
+"""
 
 
 class TestMathUtilities(unittest.TestCase):
@@ -479,9 +480,7 @@ class TestMathUtilities(unittest.TestCase):
         """
         # Check against a single matrix
         for _ in range(100):
-            test_mat = math_utils.generate_random_transformation_matrix(
-                pos_boundary=10, rot_boundary=(2 * np.pi)
-            )
+            test_mat = math_utils.generate_random_transformation_matrix(pos_boundary=10, rot_boundary=(2 * np.pi))
             result = np.array(math_utils.pose_inv(test_mat))
             expected = np.linalg.inv(np.array(test_mat))
             np.testing.assert_array_almost_equal(result, expected, decimal=DECIMAL_PRECISION)
@@ -509,13 +508,13 @@ class TestMathUtilities(unittest.TestCase):
 
         for rmat1, rmat2 in zip(random_rotation_matrices_1, random_rotation_matrices_2):
             # Convert the rotation matrices to quaternions
-            q1 = R.from_matrix(rmat1).as_quat()  # (x, y, z, w)
-            q2 = R.from_matrix(rmat2).as_quat()  # (x, y, z, w)
+            q1 = scipy_tf.Rotation.from_matrix(rmat1).as_quat()  # (x, y, z, w)
+            q2 = scipy_tf.Rotation.from_matrix(rmat2).as_quat()  # (x, y, z, w)
 
             # Compute expected results using scipy's Slerp
-            key_rots = R.from_quat(np.array([q1, q2]))
+            key_rots = scipy_tf.Rotation.from_quat(np.array([q1, q2]))
             key_times = [0, 1]
-            slerp = Slerp(key_times, key_rots)
+            slerp = scipy_tf.Slerp(key_times, key_rots)
 
             for tau in tau_values:
                 expected = slerp(tau).as_quat()  # (x, y, z, w)
@@ -535,13 +534,13 @@ class TestMathUtilities(unittest.TestCase):
 
         for rmat1, rmat2 in zip(random_rotation_matrices_1, random_rotation_matrices_2):
             # Compute expected results using scipy's Slerp
-            key_rots = R.from_matrix(np.array([rmat1, rmat2]))
+            key_rots = scipy_tf.Rotation.from_matrix(np.array([rmat1, rmat2]))
 
             # Create a Slerp object and interpolate create the interpolated matrices
             # Minimum 2 required because Interpolate_rotations returns one extra rotation matrix
             num_steps = np.random.randint(2, 51)
             key_times = [0, 1]
-            slerp = Slerp(key_times, key_rots)
+            slerp = scipy_tf.Slerp(key_times, key_rots)
             interp_times = np.linspace(0, 1, num_steps)
             expected = slerp(interp_times).as_matrix()
 
@@ -565,7 +564,7 @@ class TestMathUtilities(unittest.TestCase):
         """Test interpolate_poses function.
 
         This test checks the output from the :meth:`~isaaclab.utils.math_utils.interpolate_poses` function against
-        the output from :func:`scipy.spatial.transform.Slerp`.
+        the output from :func:`scipy.spatial.transform.Slerp` and :func:`np.linspace`.
         """
         # Generate 100 random transformation matrices
         random_mat_1 = [math_utils.generate_random_transformation_matrix() for _ in range(100)]
@@ -576,13 +575,13 @@ class TestMathUtilities(unittest.TestCase):
             pos_2, rmat2 = math_utils.unmake_pose(mat2)
 
             # Compute expected results using scipy's Slerp
-            key_rots = R.from_matrix(np.array([rmat1, rmat2]))
+            key_rots = scipy_tf.Rotation.from_matrix(np.array([rmat1, rmat2]))
 
             # Create a Slerp object and interpolate create the interpolated rotation matrices
             # Minimum 3 required because interpolate_poses returns extra staring and ending pose matrices
             num_steps = np.random.randint(3, 51)
             key_times = [0, 1]
-            slerp = Slerp(key_times, key_rots)
+            slerp = scipy_tf.Slerp(key_times, key_rots)
             interp_times = np.linspace(0, 1, num_steps)
             expected_quat = slerp(interp_times).as_matrix()
 
