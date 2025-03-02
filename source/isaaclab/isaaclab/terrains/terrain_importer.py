@@ -250,13 +250,12 @@ class TerrainImporter:
     def import_usd(self, key: str, usd_path: str):
         """Import a mesh from a USD file.
 
-        We assume that the USD file contains a single mesh. If the USD file contains multiple meshes, then
-        the first mesh is used. The function mainly helps in registering the mesh into the warp meshes
-        and the meshes dictionary.
+        This function imports a USD file into the simulator as a terrain. It parses the USD file and
+        stores the mesh under the prim path ``cfg.prim_path/{key}``. If multiple meshes are present in
+        the USD file, only the first mesh is imported.
 
-        Note:
-            We do not apply any material properties to the mesh. The material properties should
-            be defined in the USD file.
+        The function doe not apply any material properties to the mesh. The material properties should
+        be defined in the USD file.
 
         Args:
             key: The key to store the mesh.
@@ -279,16 +278,22 @@ class TerrainImporter:
         )
         # check if the mesh is valid
         if mesh_prim is None:
-            raise ValueError(f"Could not find any collision mesh in {usd_path}. Please check asset.")
-        # cast into UsdGeomMesh
-        mesh_prim = UsdGeom.Mesh(mesh_prim)
-        # store the mesh
-        vertices = np.asarray(mesh_prim.GetPointsAttr().Get())
-        faces = np.asarray(mesh_prim.GetFaceVertexIndicesAttr().Get()).reshape(-1, 3)
-        self.meshes[key] = trimesh.Trimesh(vertices=vertices, faces=faces)
-        # create a warp mesh
-        device = "cuda" if "cuda" in self.device else "cpu"
-        self.warp_meshes[key] = convert_to_warp_mesh(vertices, faces, device=device)
+            omni.log.warn(
+                f"No mesh found in '{usd_path}'. This mesh will not be stored inside the terrain importer."
+                " Please ignore this warning if the USD is intended only for visualization."
+            )
+            self.meshes[key] = None  # type: ignore
+            self.warp_meshes[key] = None  # type: ignore
+        else:
+            # cast into UsdGeomMesh
+            mesh_prim = UsdGeom.Mesh(mesh_prim)
+            # store the mesh
+            vertices = np.asarray(mesh_prim.GetPointsAttr().Get())
+            faces = np.asarray(mesh_prim.GetFaceVertexIndicesAttr().Get()).reshape(-1, 3)
+            self.meshes[key] = trimesh.Trimesh(vertices=vertices, faces=faces)
+            # create a warp mesh
+            device = "cuda" if "cuda" in self.device else "cpu"
+            self.warp_meshes[key] = convert_to_warp_mesh(vertices, faces, device=device)
 
     """
     Operations - Origins.
