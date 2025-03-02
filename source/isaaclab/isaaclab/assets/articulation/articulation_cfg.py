@@ -44,8 +44,11 @@ class ArticulationCfg(AssetBaseCfg):
     soft_joint_pos_limit_factor: float = 1.0
     """Fraction specifying the range of joint position limits (parsed from the asset) to use. Defaults to 1.0.
 
-    The joint position limits are scaled by this factor to allow for a limited range of motion.
-    This is accessible in the articulation data through :attr:`ArticulationData.soft_joint_pos_limits` attribute.
+    The soft joint position limits are scaled by this factor to specify a safety region within the simulated
+    joint position limits. This isn't used by the simulation, but is useful for learning agents to prevent the joint
+    positions from violating the limits, such as for termination conditions.
+
+    The soft joint position limits are accessible through the :attr:`ArticulationData.soft_joint_pos_limits` attribute.
     """
 
     actuators: dict[str, ActuatorBaseCfg] = MISSING
