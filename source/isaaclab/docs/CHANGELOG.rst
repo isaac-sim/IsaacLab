@@ -1,6 +1,35 @@
 Changelog
 ---------
 
+0.34.4 (2025-03-01)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added a new attribute :attr:`is_implicit_model` to the :class:`isaaclab.actuators.ActuatorBase` class to
+  indicate if the actuator model is implicit or explicit. This helps checking that the correct model type
+  is being used when initializing the actuator models.
+
+Fixed
+^^^^^
+
+* Added copy of configurations to :class:`~isaaclab.assets.AssetBase` and :class:`~isaaclab.sensors.SensorBase`
+  to prevent modifications of the configurations from leaking outside of the classes.
+* Fixed the case where setting velocity/effort limits for the simulation in the
+  :class:`~isaaclab.actuators.ActuatorBaseCfg` class was not being used to update the actuator-specific
+  velocity/effort limits.
+
+Changed
+^^^^^^^
+
+* Moved warnings and checks for implicit actuator models to the :class:`~isaaclab.actuators.ImplicitActuator` class.
+* Reverted to IsaacLab v1.3 behavior where :attr:`isaaclab.actuators.ImplicitActuatorCfg.velocity_limit`
+  attribute was not used for setting the velocity limits in the simulation. This makes it possible to deploy
+  policies from previous release without any changes. If users want to set the velocity limits for the simulation,
+  they should use the :attr:`isaaclab.actuators.ImplicitActuatorCfg.velocity_limit_sim` attribute instead.
+
+
 0.34.3 (2025-02-28)
 ~~~~~~~~~~~~~~~~~~~
 
@@ -13,7 +42,7 @@ Added
 
 
 0.34.2 (2025-02-21)
-~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~
 
 Fixed
 ^^^^^
@@ -38,8 +67,8 @@ Fixed
 Fixed
 ^^^^^
 
-* Adds attributes velocity_limits_sim and effort_limits_sim to :class:`isaaclab.actuators.AssetBaseCfg` to separate
-  solver limits from actuator limits.
+* Added attributes :attr:`velocity_limits_sim` and :attr:`effort_limits_sim` to the
+  :class:`isaaclab.actuators.ActuatorBaseCfg` class to separate solver limits from actuator limits.
 
 
 0.33.17 (2025-02-13)
