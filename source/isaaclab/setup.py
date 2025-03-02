@@ -7,6 +7,7 @@
 
 import os
 import toml
+import subprocess
 
 from setuptools import setup
 
@@ -14,6 +15,20 @@ from setuptools import setup
 EXTENSION_PATH = os.path.dirname(os.path.realpath(__file__))
 # Read the extension.toml file
 EXTENSION_TOML_DATA = toml.load(os.path.join(EXTENSION_PATH, "config", "extension.toml"))
+
+# Get the GPU architecture
+try:
+    result = subprocess.run(
+        ["nvidia-smi", "--query-gpu=name", "--format=csv,noheader"],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    GPU_ARCH = result.stdout.strip()
+except Exception:
+    raise RuntimeError(
+        "Failed to get GPU architecture. Please ensure you have an NVIDIA GPU and the NVIDIA driver is installed."
+    )
 
 # Minimum dependencies required prior to installation
 INSTALL_REQUIRES = [
@@ -40,7 +55,11 @@ INSTALL_REQUIRES = [
     "starlette==0.46.0",
 ]
 
-PYTORCH_INDEX_URL = ["https://download.pytorch.org/whl/cu118"]
+# The latest GPU architectures are supported by CUDA 12.8.
+if any(arch in GPU_ARCH for arch in ["5060", "5070", "5080", "5090"]):
+    PYTORCH_INDEX_URL = ["https://download.pytorch.org/whl/nightly/cu128"]
+else:
+    PYTORCH_INDEX_URL = ["https://download.pytorch.org/whl/cu118"]
 
 # Installation operation
 setup(
