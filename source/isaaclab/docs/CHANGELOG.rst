@@ -78,7 +78,7 @@ Fixed
 * Ensured that the loaded torch JIT models inside actuator networks are correctly set to eval mode
   to prevent any unexpected behavior during inference.
 
- 
+
 0.34.0 (2025-02-14)
 ~~~~~~~~~~~~~~~~~~~
 
