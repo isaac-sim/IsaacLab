@@ -18,7 +18,6 @@ from typing import TYPE_CHECKING
 from isaaclab.assets import Articulation
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.terrains import TerrainImporter
-import numpy as np
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
@@ -69,14 +68,15 @@ def command_levels_vel(
     """
     episode_sums = env.reward_manager._episode_sums[reward_term_name]
     reward_term_cfg = env.reward_manager.get_term_cfg(reward_term_name)
-    base_velocity = env.command_manager.get_term("base_velocity")
+    base_velocity_ranges = env.command_manager.get_term("base_velocity").cfg.ranges
+    delta_range = torch.tensor([-0.1, 0.1], device=env.device)
     if not hasattr(env, "delta_lin_vel"):
         env.delta_lin_vel = torch.tensor(0.0, device=env.device)
     # If the tracking reward is above 80% of the maximum, increase the range of commands
-    if torch.mean(episode_sums[env_ids]) / env.max_episode_length > 0.0001 * reward_term_cfg.weight:
-        lin_vel_x = torch.tensor(base_velocity.cfg.ranges.lin_vel_x, device=env.device)
-        lin_vel_y = torch.tensor(base_velocity.cfg.ranges.lin_vel_y, device=env.device)
-        base_velocity.cfg.ranges.lin_vel_x = torch.clamp(lin_vel_x + torch.tensor([-0.1, 0.1], device=env.device), -max_curriculum, max_curriculum).tolist()
-        base_velocity.cfg.ranges.lin_vel_y = torch.clamp(lin_vel_y + torch.tensor([-0.1, 0.1], device=env.device), -max_curriculum, max_curriculum).tolist()
-        env.delta_lin_vel = torch.clamp(env.delta_lin_vel + 0.1, 0.0, max_curriculum)
+    if torch.mean(episode_sums[env_ids]) / env.max_episode_length > 0.8 * reward_term_cfg.weight:
+        lin_vel_x = torch.tensor(base_velocity_ranges.lin_vel_x, device=env.device)
+        lin_vel_y = torch.tensor(base_velocity_ranges.lin_vel_y, device=env.device)
+        base_velocity_ranges.lin_vel_x = torch.clamp(lin_vel_x + delta_range, -max_curriculum, max_curriculum).tolist()
+        base_velocity_ranges.lin_vel_y = torch.clamp(lin_vel_y + delta_range, -max_curriculum, max_curriculum).tolist()
+        env.delta_lin_vel = torch.clamp(env.delta_lin_vel + delta_range[1], 0.0, max_curriculum)
     return env.delta_lin_vel
