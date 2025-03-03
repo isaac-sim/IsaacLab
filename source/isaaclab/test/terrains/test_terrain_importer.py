@@ -14,9 +14,7 @@ simulation_app = AppLauncher(headless=True).app
 
 import numpy as np
 import torch
-import trimesh
 import unittest
-from typing import Literal
 
 import isaacsim.core.utils.prims as prim_utils
 import omni.kit
@@ -26,12 +24,12 @@ from isaacsim.core.api.objects import DynamicSphere
 from isaacsim.core.cloner import GridCloner
 from isaacsim.core.prims import RigidPrim, SingleGeometryPrim, SingleRigidPrim
 from isaacsim.core.utils.extensions import enable_extension
-from pxr import UsdGeom
 
 import isaaclab.terrains as terrain_gen
-from isaaclab.sim import PreviewSurfaceCfg, SimulationContext, build_simulation_context, get_first_matching_child_prim
+from isaaclab.sim import PreviewSurfaceCfg, SimulationContext, build_simulation_context
 from isaaclab.terrains import TerrainImporter, TerrainImporterCfg
 from isaaclab.terrains.config.rough import ROUGH_TERRAINS_CFG
+from isaaclab.terrains.utils import create_mesh_from_prim
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 
@@ -89,7 +87,7 @@ class TestTerrainImporter(unittest.TestCase):
 
                 # obtain mesh prim path
                 mesh_prim_path = terrain_importer.cfg.prim_path + "/terrain"
-                mesh = self._obtain_collision_mesh(mesh_prim_path, mesh_type="Mesh")
+                mesh = create_mesh_from_prim(mesh_prim_path)
                 self.assertIsNotNone(mesh)
 
                 # calculate expected size from config
@@ -124,13 +122,24 @@ class TestTerrainImporter(unittest.TestCase):
                     )
                     terrain_importer = TerrainImporter(terrain_importer_cfg)
 
+                    # expected size of an infinite plane
+                    expectedSizeX = 2.0e6
+                    expectedSizeY = 2.0e6
+
                     # check default terrain exists
                     self.assertIn("terrain", terrain_importer.mesh_names)
 
                     # obtain mesh prim path
                     mesh_prim_path = terrain_importer.cfg.prim_path + "/terrain"
-                    mesh = self._obtain_collision_mesh(mesh_prim_path, mesh_type="Plane")
-                    self.assertIsNone(mesh)
+                    mesh = create_mesh_from_prim(mesh_prim_path)
+                    self.assertIsNotNone(mesh)
+
+                    # get size from mesh bounds
+                    bounds = mesh.bounds
+                    actualSize = abs(bounds[1] - bounds[0])
+
+                    self.assertAlmostEqual(actualSize[0], expectedSizeX)
+                    self.assertAlmostEqual(actualSize[1], expectedSizeY)
 
     def test_usd(self) -> None:
         """Imports terrain from a usd and tests that the resulting mesh has the correct size."""
@@ -152,7 +161,7 @@ class TestTerrainImporter(unittest.TestCase):
 
                 # obtain mesh prim path
                 mesh_prim_path = terrain_importer.cfg.prim_path + "/terrain"
-                mesh = self._obtain_collision_mesh(mesh_prim_path, mesh_type="Mesh")
+                mesh = create_mesh_from_prim(mesh_prim_path)
                 self.assertIsNotNone(mesh)
 
                 # expect values from USD file
@@ -230,25 +239,6 @@ class TestTerrainImporter(unittest.TestCase):
     """
     Helper functions.
     """
-
-    def _obtain_collision_mesh(
-        self, mesh_prim_path: str, mesh_type: Literal["Mesh", "Plane"]
-    ) -> trimesh.Trimesh | None:
-        """Get the collision mesh from the terrain."""
-        # traverse the prim and get the collision mesh
-        mesh_prim = get_first_matching_child_prim(mesh_prim_path, lambda prim: prim.GetTypeName() == mesh_type)
-        # check it is valid
-        self.assertTrue(mesh_prim.IsValid())
-
-        if mesh_prim.GetTypeName() == "Mesh":
-            # cast into UsdGeomMesh
-            mesh_prim = UsdGeom.Mesh(mesh_prim)
-            # store the mesh
-            vertices = np.asarray(mesh_prim.GetPointsAttr().Get())
-            faces = np.asarray(mesh_prim.GetFaceVertexIndicesAttr().Get()).reshape(-1, 3)
-            return trimesh.Trimesh(vertices=vertices, faces=faces)
-        else:
-            return None
 
     @staticmethod
     def _obtain_grid_cloner_env_origins(num_envs: int, env_spacing: float, device: str) -> torch.Tensor:
