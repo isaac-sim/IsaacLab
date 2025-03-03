@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.10.25 (2025-03-03)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``command_levels_vel`` function for curriculum-based velocity command adjustment,
+  increasing the command range when the robot's tracking reward exceeds 80% of the maximum.
+
+
 0.10.24 (2025-02-13)
 ~~~~~~~~~~~~~~~~~~~~
 
