@@ -21,7 +21,7 @@ with contextlib.suppress(ModuleNotFoundError):
 
     from . import teleop_command
 
-import isaacsim.core.utils.prims as prim_utils
+from isaacsim.core.prims import SingleXFormPrim
 
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.markers.config import FRAME_MARKER_CFG
@@ -94,11 +94,9 @@ class Se3HandTracking(DeviceBase):
         self._goal_marker = VisualizationMarkers(self._frame_marker_cfg.replace(prim_path="/Visuals/ee_goal"))
 
         # Specify the placement of the simulation when viewed in an XR device using a prim.
-        prim_utils.create_prim(
-            "/XRAnchor", "Xform", position=self._xr_cfg.anchor_pos, orientation=self._xr_cfg.anchor_rot
-        )
+        xr_anchor = SingleXFormPrim("/XRAnchor", position=self._xr_cfg.anchor_pos, orientation=self._xr_cfg.anchor_rot)
         carb.settings.get_settings().set_string("/persistent/xr/profile/ar/anchorMode", "custom anchor")
-        carb.settings.get_settings().set_string("/xrstage/profile/ar/customAnchor", "/XRAnchor")
+        carb.settings.get_settings().set_string("/xrstage/profile/ar/customAnchor", xr_anchor.prim_path)
 
     def __del__(self):
         return

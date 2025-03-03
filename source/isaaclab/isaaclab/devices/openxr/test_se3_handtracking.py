@@ -114,6 +114,32 @@ class TestSe3HandTracking(unittest.TestCase):
         device.reset()
         env.close()
 
+    def test_xr_anchor_multiple_devices(self):
+        env_cfg = EmptyEnvCfg()
+
+        # Create a new stage.
+        omni.usd.get_context().new_stage()
+        # Create environment.
+        env = ManagerBasedEnv(cfg=env_cfg)
+
+        device_1 = Se3HandTracking(None, OpenXRSpec.XrHandEXT.XR_HAND_LEFT_EXT)
+        device_2 = Se3HandTracking(None, OpenXRSpec.XrHandEXT.XR_HAND_RIGHT_EXT)
+
+        # Check that the xr anchor prim is created with the correct default pose.
+        xr_anchor_prim = XFormPrim("/XRAnchor")
+        self.assertTrue(xr_anchor_prim.is_valid())
+        position, orientation = xr_anchor_prim.get_world_poses()
+        np.testing.assert_almost_equal(position.tolist(), [[0, 0, 0]])
+        np.testing.assert_almost_equal(orientation.tolist(), [[1, 0, 0, 0]])
+
+        # Check that xr anchor mode and custom anchor are set correctly.
+        self.assertEqual(carb.settings.get_settings().get("/persistent/xr/profile/ar/anchorMode"), "custom anchor")
+        self.assertEqual(carb.settings.get_settings().get("/xrstage/profile/ar/customAnchor"), "/XRAnchor")
+
+        device_1.reset()
+        device_2.reset()
+        env.close()
+
 
 if __name__ == "__main__":
     run_tests()
