@@ -14,18 +14,19 @@ simulation_app = AppLauncher(headless=True).app
 
 import numpy as np
 import torch
-import unittest
 import trimesh
+import unittest
+from typing import Literal
 
 import isaacsim.core.utils.prims as prim_utils
 import omni.kit
 import omni.kit.commands
-from pxr import UsdGeom
 from isaacsim.core.api.materials import PhysicsMaterial, PreviewSurface
 from isaacsim.core.api.objects import DynamicSphere
 from isaacsim.core.cloner import GridCloner
 from isaacsim.core.prims import RigidPrim, SingleGeometryPrim, SingleRigidPrim
 from isaacsim.core.utils.extensions import enable_extension
+from pxr import UsdGeom
 
 import isaaclab.terrains as terrain_gen
 from isaaclab.sim import PreviewSurfaceCfg, SimulationContext, build_simulation_context, get_first_matching_child_prim
@@ -230,12 +231,12 @@ class TestTerrainImporter(unittest.TestCase):
     Helper functions.
     """
 
-    def _obtain_collision_mesh(self, mesh_prim_path: str, mesh_type: Literal["Mesh", "Plane"]) -> trimesh.Trimesh | None:
+    def _obtain_collision_mesh(
+        self, mesh_prim_path: str, mesh_type: Literal["Mesh", "Plane"]
+    ) -> trimesh.Trimesh | None:
         """Get the collision mesh from the terrain."""
         # traverse the prim and get the collision mesh
-        mesh_prim = get_first_matching_child_prim(
-            mesh_prim_path, lambda prim: prim.GetTypeName() == mesh_type
-        )
+        mesh_prim = get_first_matching_child_prim(mesh_prim_path, lambda prim: prim.GetTypeName() == mesh_type)
         # check it is valid
         self.assertTrue(mesh_prim.IsValid())
 
