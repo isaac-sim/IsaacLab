@@ -7,6 +7,7 @@ import math
 
 from isaaclab_assets.robots.agility import ARM_JOINT_NAMES, LEG_JOINT_NAMES
 
+from isaaclab.managers import EventTermCfg
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import RewardTermCfg as RewTerm
@@ -17,6 +18,7 @@ from isaaclab.utils.noise import AdditiveUniformNoiseCfg as Unoise
 import isaaclab_tasks.manager_based.locomotion.velocity.mdp as mdp
 import isaaclab_tasks.manager_based.manipulation.reach.mdp as manipulation_mdp
 from isaaclab_tasks.manager_based.locomotion.velocity.config.digit.rough_env_cfg import DigitRewards, DigitRoughEnvCfg
+from isaaclab_tasks.manager_based.locomotion.velocity.velocity_env_cfg import EventCfg
 
 
 @configclass
@@ -40,12 +42,12 @@ class DigitLocoManipRewards(DigitRewards):
 
     left_ee_pos_tracking_fine_grained = RewTerm(
         func=manipulation_mdp.position_command_error_tanh,
+        weight=2.0,
         params={
             "asset_cfg": SceneEntityCfg("robot", body_names="left_arm_wrist_yaw"),
             "std": 0.05,
             "command_name": "left_ee_pose",
         },
-        weight=2.0,
     )
 
     left_end_effector_orientation_tracking = RewTerm(
@@ -68,12 +70,12 @@ class DigitLocoManipRewards(DigitRewards):
 
     right_ee_pos_tracking_fine_grained = RewTerm(
         func=manipulation_mdp.position_command_error_tanh,
+        weight=2.0,
         params={
             "asset_cfg": SceneEntityCfg("robot", body_names="right_arm_wrist_yaw"),
             "std": 0.05,
             "command_name": "right_ee_pose",
         },
-        weight=2.0,
     )
 
     right_end_effector_orientation_tracking = RewTerm(
@@ -157,9 +159,9 @@ class DigitLocoManipCommands:
         resampling_time_range=(1.0, 3.0),
         debug_vis=True,
         ranges=mdp.UniformPoseCommandCfg.Ranges(
-            pos_x=(0.25, 0.45),
-            pos_y=(0.15, 0.3),
-            pos_z=(-0.05, 0.15),
+            pos_x=(0.10, 0.50),
+            pos_y=(0.05, 0.50),
+            pos_z=(-0.20, 0.20),
             roll=(-0.1, 0.1),
             pitch=(-0.1, 0.1),
             yaw=(math.pi / 2.0 - 0.1, math.pi / 2.0 + 0.1),
@@ -172,13 +174,39 @@ class DigitLocoManipCommands:
         resampling_time_range=(1.0, 3.0),
         debug_vis=True,
         ranges=mdp.UniformPoseCommandCfg.Ranges(
-            pos_x=(0.25, 0.45),
-            pos_y=(-0.3, -0.15),
-            pos_z=(-0.05, 0.15),
+            pos_x=(0.10, 0.50),
+            pos_y=(-0.50, -0.05),
+            pos_z=(-0.20, 0.20),
             roll=(-0.1, 0.1),
             pitch=(-0.1, 0.1),
             yaw=(-math.pi / 2.0 - 0.1, -math.pi / 2.0 + 0.1),
         ),
+    )
+
+
+@configclass
+class DigitEvents(EventCfg):
+    # Add an external force to simulate a payload being carried.
+    left_hand_force = EventTermCfg(
+        func=mdp.apply_external_force_torque,
+        mode="interval",
+        interval_range_s=(10.0, 15.0),
+        params={
+            "asset_cfg": SceneEntityCfg("robot", body_names="left_arm_wrist_yaw"),
+            "force_range": (-10.0, 10.0),
+            "torque_range": (-1.0, 1.0),
+        },
+    )
+
+    right_hand_force = EventTermCfg(
+        func=mdp.apply_external_force_torque,
+        mode="interval",
+        interval_range_s=(10.0, 15.0),
+        params={
+            "asset_cfg": SceneEntityCfg("robot", body_names="right_arm_wrist_yaw"),
+            "force_range": (-10.0, 10.0),
+            "torque_range": (-1.0, 1.0),
+        },
     )
 
 
@@ -196,11 +224,6 @@ class DigitLocoManipEnvCfg(DigitRoughEnvCfg):
         # Rewards:
         self.rewards.flat_orientation_l2.weight = -10.5
         self.rewards.termination_penalty.weight = -100.0
-
-        # Commands
-        self.commands.base_velocity.ranges.lin_vel_x = (0.0, 0.8)
-        self.commands.base_velocity.ranges.lin_vel_y = (0.0, 0.0)
-        self.commands.base_velocity.ranges.ang_vel_z = (-1.0, 1.0)
 
         # Change terrain to flat.
         self.scene.terrain.terrain_type = "plane"

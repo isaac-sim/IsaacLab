@@ -114,13 +114,3 @@ def stand_still_joint_deviation_l1(
     command = env.command_manager.get_command(command_name)
     # Penalize motion when command is nearly zero.
     return mdp.joint_deviation_l1(env, asset_cfg) * (torch.norm(command[:, :2], dim=1) < command_threshold)
-
-
-def no_jumps(env, sensor_cfg: SceneEntityCfg, threshold: float = 1.0) -> torch.Tensor:
-    """Penalize if both feet are in the air."""
-    contact_sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
-    contacts = (
-        contact_sensor.data.net_forces_w_history[:, :, sensor_cfg.body_ids, :].norm(dim=-1).max(dim=1)[0] > threshold
-    )
-    zero_contact = (~contacts).all(dim=1)
-    return 1.0 * zero_contact

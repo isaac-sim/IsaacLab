@@ -85,7 +85,7 @@ class DigitRewards:
         weight=-0.1,
     )
     no_jumps = RewardTermCfg(
-        func=mdp.no_jumps,
+        func=mdp.desired_contacts_all,
         weight=-0.5,
         params={"sensor_cfg": SceneEntityCfg("contact_forces", body_names=[".*_leg_toe_roll"])},
     )
@@ -186,9 +186,13 @@ class TerminationsCfg:
     base_contact = TerminationTermCfg(
         func=mdp.illegal_contact,
         params={
-            "sensor_cfg": SceneEntityCfg("contact_forces", body_names="torso_base"),
+            "sensor_cfg": SceneEntityCfg("contact_forces", body_names=["torso_base"]),
             "threshold": 1.0,
         },
+    )
+    base_orientation = TerminationTermCfg(
+        func=mdp.bad_orientation,
+        params={"limit_angle": 0.7},
     )
 
 
