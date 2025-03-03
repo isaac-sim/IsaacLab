@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.0.1" />
-    <meta name="docbuild:last-update" content="Mar 02, 2025"/>
+    <meta name="docbuild:last-update" content="Mar 03, 2025"/>
   </head>
   
   
@@ -641,12 +641,11 @@ to install the latest Isaac Sim release.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>We have tested Isaac Lab with Isaac Sim 4.5 release on Ubuntu
-22.04LTS with NVIDIA driver 535.129.</p>
+22.04 LTS with NVIDIA driver 535.129.</p>
 <p>From Isaac Sim 4.5 release, Isaac Sim binaries can be downloaded directly as a zip file.
-The below steps assume the Isaac Sim folder was unzipped to the Downloads directory.</p>
+The below steps assume the Isaac Sim folder was unzipped to the <code class="docutils literal notranslate"><span class="pre">${HOME}/isaacsim</span></code> directory.</p>
 </div>
-<p>On Linux systems, Isaac Sim directory will be named
-<code class="docutils literal notranslate"><span class="pre">${HOME}/Downloads/isaac-sim-standalone&#64;*</span></code>, with <code class="docutils literal notranslate"><span class="pre">*</span></code> corresponding to the Isaac Sim version.</p>
+<p>On Linux systems, Isaac Sim directory will be named <code class="docutils literal notranslate"><span class="pre">${HOME}/isaacsim</span></code>.</p>
 </div>
 <input id="sd-tab-item-1" name="sd-tab-set-0" type="radio">
 <label class="sd-tab-label" data-sync-group="os" data-sync-id="windows" for="sd-tab-item-1">
@@ -655,10 +654,9 @@ The below steps assume the Isaac Sim folder was unzipped to the Downloads direct
 <p class="admonition-title">Note</p>
 <p>We have tested Isaac Lab with Isaac Sim 4.5 release on Windows11 with NVIDIA driver 552.86.</p>
 <p>From Isaac Sim 4.5 release, Isaac Sim binaries can be downloaded directly as a zip file.
-The below steps assume the Isaac Sim folder was unzipped to the Downloads directory.</p>
+The below steps assume the Isaac Sim folder was unzipped to the <code class="docutils literal notranslate"><span class="pre">C:/isaacsim</span></code> directory.</p>
 </div>
-<p>On Windows systems, Isaac Sim directory will be named
-<code class="docutils literal notranslate"><span class="pre">%USERPROFILE%/Downloads/isaac-sim-standalone&#64;*</span></code>, with <code class="docutils literal notranslate"><span class="pre">*</span></code> corresponding to the Isaac Sim version.</p>
+<p>On Windows systems, Isaac Sim directory will be named <code class="docutils literal notranslate"><span class="pre">C:/isaacsim</span></code>.</p>
 </div>
 </div>
 </section>
@@ -672,7 +670,7 @@ variables to your terminal for the remaining of the installation instructions:</
 <label class="sd-tab-label" data-sync-group="os" data-sync-id="linux" for="sd-tab-item-2">
 <i class="fa-brands fa-linux"></i> Linux</label><div class="sd-tab-content docutils">
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Isaac Sim root directory</span>
-<span class="nb">export</span><span class="w"> </span><span class="nv">ISAACSIM_PATH</span><span class="o">=</span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">HOME</span><span class="si">}</span><span class="s2">/Downloads/isaac-sim-standalone@4.5.0&quot;</span>
+<span class="nb">export</span><span class="w"> </span><span class="nv">ISAACSIM_PATH</span><span class="o">=</span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">HOME</span><span class="si">}</span><span class="s2">/isaacsim&quot;</span>
 <span class="c1"># Isaac Sim python executable</span>
 <span class="nb">export</span><span class="w"> </span><span class="nv">ISAACSIM_PYTHON_EXE</span><span class="o">=</span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">ISAACSIM_PATH</span><span class="si">}</span><span class="s2">/python.sh&quot;</span>
 </pre></div>
@@ -682,7 +680,7 @@ variables to your terminal for the remaining of the installation instructions:</
 <label class="sd-tab-label" data-sync-group="os" data-sync-id="windows" for="sd-tab-item-3">
 <i class="fa-brands fa-windows"></i> Windows</label><div class="sd-tab-content docutils">
 <div class="highlight-batch notranslate"><div class="highlight"><pre><span></span><span class="p">:</span><span class="c1">: Isaac Sim root directory</span>
-<span class="k">set</span> <span class="nv">ISAACSIM_PATH</span><span class="p">=</span><span class="s2">&quot;</span><span class="nv">%USERPROFILE%</span><span class="s2">/Downloads/isaac-sim-standalone@4.5.0&quot;</span>
+<span class="k">set</span> <span class="nv">ISAACSIM_PATH</span><span class="p">=</span><span class="s2">&quot;C:/isaacsim&quot;</span>
 <span class="p">:</span><span class="c1">: Isaac Sim python executable</span>
 <span class="k">set</span> <span class="nv">ISAACSIM_PYTHON_EXE</span><span class="p">=</span><span class="s2">&quot;</span><span class="nv">%ISAACSIM_PATH:&quot;=%</span><span class="s2">\python.bat&quot;</span>
 </pre></div>
@@ -856,7 +854,7 @@ to index the python modules and look for extensions shipped with Isaac Sim.</p>
 <span class="nb">cd</span><span class="w"> </span>IsaacLab
 <span class="c1"># create a symbolic link</span>
 ln<span class="w"> </span>-s<span class="w"> </span>path_to_isaac_sim<span class="w"> </span>_isaac_sim
-<span class="c1"># For example: ln -s ${HOME}/Downloads/isaac-sim-standalone@4.5.0 _isaac_sim</span>
+<span class="c1"># For example: ln -s ${HOME}/isaacsim _isaac_sim</span>
 </pre></div>
 </div>
 </div>
@@ -867,7 +865,7 @@ ln<span class="w"> </span>-s<span class="w"> </span>path_to_isaac_sim<span class
 <span class="k">cd</span> IsaacLab
 <span class="p">:</span><span class="c1">: create a symbolic link - requires launching Command Prompt with Administrator access</span>
 <span class="k">mklink</span> /D _isaac_sim path_to_isaac_sim
-<span class="p">:</span><span class="c1">: For example: mklink /D _isaac_sim C:/Users/nvidia/Downloads/isaac-sim-standalone@4.5.0</span>
+<span class="p">:</span><span class="c1">: For example: mklink /D _isaac_sim C:/isaacsim</span>
 </pre></div>
 </div>
 </div>
@@ -1150,7 +1148,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Mar 02, 2025.
+  Last updated on Mar 03, 2025.
   <br/>
 </p>
   </div>
