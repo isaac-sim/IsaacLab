@@ -15,6 +15,7 @@ sections = [
     "ASSETS_FIRSTPARTY",
     "FIRSTPARTY",
     "EXTRA_FIRSTPARTY",
+    "TASK_FIRSTPARTY",
     "LOCALFOLDER",
 ]
 
@@ -55,8 +56,10 @@ known_third_party = [
 known_first_party = "isaaclab"
 known_assets_firstparty = "isaaclab_assets"
 known_extra_firstparty = [
-    "isaaclab_tasks"
+    "isaaclab_rl",
+    "isaaclab_mimic",
 ]
+known_task_firstparty = "isaaclab_tasks"
 # Imports from the local folder
 known_local_folder = "config"
 

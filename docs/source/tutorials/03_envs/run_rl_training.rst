@@ -48,7 +48,7 @@ For this tutorial, we use the training script from `Stable-Baselines3`_ workflow
 The Code Explained
 ------------------
 
-.. currentmodule:: isaaclab_tasks.utils
+.. currentmodule:: isaaclab_rl.utils
 
 Most of the code above is boilerplate code to create logging directories, saving the parsed configurations,
 and setting up different Stable-Baselines3 components. For this tutorial, the important part is creating

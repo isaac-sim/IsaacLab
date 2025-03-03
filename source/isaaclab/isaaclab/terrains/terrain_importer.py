@@ -10,6 +10,7 @@ import torch
 import trimesh
 from typing import TYPE_CHECKING
 
+import omni.log
 import warp
 from pxr import UsdGeom
 
@@ -196,9 +197,21 @@ class TerrainImporter:
         # create a warp mesh
         device = "cuda" if "cuda" in self.device else "cpu"
         self.warp_meshes[key] = convert_to_warp_mesh(mesh.vertices, mesh.faces, device=device)
+        # obtain ground plane color from the configured visual material
+        color = (0.0, 0.0, 0.0)
+        if self.cfg.visual_material is not None:
+            material = self.cfg.visual_material.to_dict()
+            # defaults to the `GroundPlaneCfg` color if diffuse color attribute is not found
+            if "diffuse_color" in material:
+                color = material["diffuse_color"]
+            else:
+                omni.log.warn(
+                    "Visual material specified for ground plane but no diffuse color found."
+                    " Using default color: (0.0, 0.0, 0.0)"
+                )
 
         # get the mesh
-        ground_plane_cfg = sim_utils.GroundPlaneCfg(physics_material=self.cfg.physics_material, size=size)
+        ground_plane_cfg = sim_utils.GroundPlaneCfg(physics_material=self.cfg.physics_material, size=size, color=color)
         ground_plane_cfg.func(self.cfg.prim_path, ground_plane_cfg)
 
     def import_mesh(self, key: str, mesh: trimesh.Trimesh):

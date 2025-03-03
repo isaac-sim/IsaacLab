@@ -43,6 +43,19 @@ We wholeheartedly welcome contributions from the community to make this framewor
 These may happen as bug reports, feature requests, or code contributions. For details, please check our
 [contribution guidelines](https://isaac-sim.github.io/IsaacLab/main/source/refs/contributing.html).
 
+## Show & Tell: Share Your Inspiration
+
+We encourage you to utilize our [Show & Tell](https://github.com/isaac-sim/IsaacLab/discussions/categories/show-and-tell) area in the
+`Discussions` section of this repository. This space is designed for you to:
+
+* Share the tutorials you've created
+* Showcase your learning content
+* Present exciting projects you've developed
+
+By sharing your work, you'll inspire others and contribute to the collective knowledge
+of our community. Your contributions can spark new ideas and collaborations, fostering
+innovation in robotics and simulation.
+
 ## Troubleshooting
 
 Please see the [troubleshooting](https://isaac-sim.github.io/IsaacLab/main/source/refs/troubleshooting.html) section for
@@ -55,6 +68,15 @@ or opening a question on its [forums](https://forums.developer.nvidia.com/c/agx-
 
 * Please use GitHub [Discussions](https://github.com/isaac-sim/IsaacLab/discussions) for discussing ideas, asking questions, and requests for new features.
 * Github [Issues](https://github.com/isaac-sim/IsaacLab/issues) should only be used to track executable pieces of work with a definite scope and a clear deliverable. These can be fixing bugs, documentation issues, new features, or general updates.
+
+## Connect with the NVIDIA Omniverse Community
+
+Have a project or resource you'd like to share more widely? We'd love to hear from you! Reach out to the
+NVIDIA Omniverse Community team at OmniverseCommunity@nvidia.com to discuss potential opportunities
+for broader dissemination of your work.
+
+Join us in building a vibrant, collaborative ecosystem where creativity and technology intersect. Your
+contributions can make a significant impact on the Isaac Lab community and beyond!
 
 ## License
 

@@ -26,7 +26,7 @@ from isaacsim.core.prims import RigidPrim, SingleGeometryPrim, SingleRigidPrim
 from isaacsim.core.utils.extensions import enable_extension
 
 import isaaclab.terrains as terrain_gen
-from isaaclab.sim import SimulationContext, build_simulation_context
+from isaaclab.sim import PreviewSurfaceCfg, SimulationContext, build_simulation_context
 from isaaclab.terrains import TerrainImporter, TerrainImporterCfg
 from isaaclab.terrains.config.rough import ROUGH_TERRAINS_CFG
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
@@ -101,31 +101,35 @@ class TestTerrainImporter(unittest.TestCase):
     def test_plane(self) -> None:
         """Generates a plane and tests that the resulting mesh has the correct size."""
         for device in ("cuda:0", "cpu"):
-            with build_simulation_context(device=device, auto_add_lighting=True) as sim:
-                sim._app_control_on_stop_handle = None
+            for use_custom_material in [True, False]:
+                with build_simulation_context(device=device, auto_add_lighting=True) as sim:
+                    sim._app_control_on_stop_handle = None
 
-                expectedSizeX = 2.0e6
-                expectedSizeY = 2.0e6
+                    expectedSizeX = 2.0e6
+                    expectedSizeY = 2.0e6
 
-                # Handler for terrains importing
-                terrain_importer_cfg = terrain_gen.TerrainImporterCfg(
-                    prim_path="/World/ground",
-                    terrain_type="plane",
-                    num_envs=1,
-                    env_spacing=1.0,
-                )
-                terrain_importer = TerrainImporter(terrain_importer_cfg)
+                    # create custom material
+                    visual_material = PreviewSurfaceCfg(diffuse_color=(1.0, 0.0, 0.0)) if use_custom_material else None
+                    # Handler for terrains importing
+                    terrain_importer_cfg = terrain_gen.TerrainImporterCfg(
+                        prim_path="/World/ground",
+                        terrain_type="plane",
+                        num_envs=1,
+                        env_spacing=1.0,
+                        visual_material=visual_material,
+                    )
+                    terrain_importer = TerrainImporter(terrain_importer_cfg)
 
-                # check mesh exists
-                mesh = terrain_importer.meshes["terrain"]
-                self.assertIsNotNone(mesh)
+                    # check mesh exists
+                    mesh = terrain_importer.meshes["terrain"]
+                    self.assertIsNotNone(mesh)
 
-                # get size from mesh bounds
-                bounds = mesh.bounds
-                actualSize = abs(bounds[1] - bounds[0])
+                    # get size from mesh bounds
+                    bounds = mesh.bounds
+                    actualSize = abs(bounds[1] - bounds[0])
 
-                self.assertAlmostEqual(actualSize[0], expectedSizeX)
-                self.assertAlmostEqual(actualSize[1], expectedSizeY)
+                    self.assertAlmostEqual(actualSize[0], expectedSizeX)
+                    self.assertAlmostEqual(actualSize[1], expectedSizeY)
 
     def test_usd(self) -> None:
         """Imports terrain from a usd and tests that the resulting mesh has the correct size."""

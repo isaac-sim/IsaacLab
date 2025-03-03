@@ -12,7 +12,7 @@ a robot. For more information, see: http://wiki.ros.org/urdf
 This script uses the URDF importer extension from Isaac Sim (``isaacsim.asset.importer.urdf``) to convert a
 URDF asset into USD format. It is designed as a convenience script for command-line use. For more
 information on the URDF importer, see the documentation for the extension:
-https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/ext_omni_isaac_urdf.html
+https://docs.isaacsim.omniverse.nvidia.com/latest/robot_setup/ext_isaacsim_asset_importer_urdf.html
 
 
 positional arguments:
@@ -23,6 +23,9 @@ optional arguments:
   -h, --help                Show this help message and exit
   --merge-joints            Consolidate links that are connected by fixed joints. (default: False)
   --fix-base                Fix the base to where it is imported. (default: False)
+  --joint-stiffness         The stiffness of the joint drive. (default: 100.0)
+  --joint-damping           The damping of the joint drive. (default: 1.0)
+  --joint-target-type       The type of control to use for the joint drive. (default: "position")
 
 """
 
@@ -43,6 +46,26 @@ parser.add_argument(
     help="Consolidate links that are connected by fixed joints.",
 )
 parser.add_argument("--fix-base", action="store_true", default=False, help="Fix the base to where it is imported.")
+parser.add_argument(
+    "--joint-stiffness",
+    type=float,
+    default=100.0,
+    help="The stiffness of the joint drive.",
+)
+parser.add_argument(
+    "--joint-damping",
+    type=float,
+    default=1.0,
+    help="The damping of the joint drive.",
+)
+parser.add_argument(
+    "--joint-target-type",
+    type=str,
+    default="position",
+    choices=["position", "velocity", "none"],
+    help="The type of control to use for the joint drive.",
+)
+
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
@@ -87,7 +110,11 @@ def main():
         merge_fixed_joints=args_cli.merge_joints,
         force_usd_conversion=True,
         joint_drive=UrdfConverterCfg.JointDriveCfg(
-            gains=UrdfConverterCfg.JointDriveCfg.PDGainsCfg(stiffness=100.0, damping=1.0)
+            gains=UrdfConverterCfg.JointDriveCfg.PDGainsCfg(
+                stiffness=args_cli.joint_stiffness,
+                damping=args_cli.joint_damping,
+            ),
+            target_type=args_cli.joint_target_type,
         ),
     )
 
