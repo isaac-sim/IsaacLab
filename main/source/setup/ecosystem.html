@@ -237,7 +237,6 @@
 </ul>
 </details></li>
 <li class="toctree-l1"><a class="reference internal" href="installation/cloud_installation.html">Running Isaac Lab in the Cloud</a></li>
-<li class="toctree-l1"><a class="reference internal" href="faq.html">Frequently Asked Questions</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Overview</span></p>
 <ul class="nav bd-sidenav">
@@ -371,13 +370,6 @@
 <li class="toctree-l1"><a class="reference internal" href="../refs/migration.html">Migration Guide (Isaac Sim)</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../refs/issues.html">Known Issues</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../refs/release_notes.html">Release Notes</a></li>
-
-
-
-
-
-
-
 <li class="toctree-l1"><a class="reference internal" href="../refs/changelog.html">Extensions Changelog</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../refs/license.html">License</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../refs/bibliography.html">Bibliography</a></li>
@@ -573,7 +565,9 @@
 <button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
     <i class="fa-solid fa-magnifying-glass fa-lg"></i>
 </button>
-
+<label class="sidebar-toggle secondary-toggle btn btn-sm" for="__secondary"title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <span class="fa-solid fa-list"></span>
+</label>
 </div></div>
       
     </div>
@@ -589,6 +583,15 @@
     <div id="print-main-content">
         <div id="jb-print-toc">
             
+            <div>
+                <h2> Contents </h2>
+            </div>
+            <nav aria-label="Page">
+                <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#where-does-isaac-lab-fit-in-the-isaac-ecosystem">Where does Isaac Lab fit in the Isaac ecosystem?</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#why-should-i-use-isaac-lab">Why should I use Isaac Lab?</a></li>
+</ul>
+            </nav>
         </div>
     </div>
 </div>
@@ -599,7 +602,7 @@
                 <article class="bd-article">
                   
   <section id="isaac-lab-ecosystem">
-<h1>Isaac Lab Ecosystem<a class="headerlink" href="#isaac-lab-ecosystem" title="Permalink to this heading">#</a></h1>
+<span id="id1"></span><h1>Isaac Lab Ecosystem<a class="headerlink" href="#isaac-lab-ecosystem" title="Permalink to this heading">#</a></h1>
 <p>Isaac Lab is built on top of Isaac Sim to provide a unified and flexible framework
 for robot learning that exploits latest simulation technologies. It is designed to be modular and extensible,
 and aims to simplify common workflows in robotics research (such as RL, learning from demonstrations, and
@@ -615,8 +618,70 @@ of new features that pertain to robot learning research. For example, including 
 simulation, procedural terrain generation, and support to collect data from human demonstrations.</p>
 <img alt="The Isaac Lab, Isaac Sim, and NVIDIA Omniverse ecosystem" class="only-light align-center" src="../../_images/ecosystem-light.jpg" />
 <img alt="The Isaac Lab, Isaac Sim, and NVIDIA Omniverse ecosystem" class="only-dark align-center" src="../../_images/ecosystem-dark.jpg" />
-<p>For a detailed explanation of NVIDIA’s development journey of robot learning frameworks, please visit
-the <a class="reference external" href="faq.html">FAQ page</a>.</p>
+<section id="where-does-isaac-lab-fit-in-the-isaac-ecosystem">
+<h2>Where does Isaac Lab fit in the Isaac ecosystem?<a class="headerlink" href="#where-does-isaac-lab-fit-in-the-isaac-ecosystem" title="Permalink to this heading">#</a></h2>
+<p>Over the years, NVIDIA has developed a number of tools for robotics and AI. These tools leverage
+the power of GPUs to accelerate the simulation both in terms of speed and realism. They show great
+promise in the field of simulation technology and are being used by many researchers and companies
+worldwide.</p>
+<p><a class="reference external" href="https://developer.nvidia.com/isaac-gym">Isaac Gym</a> <span id="id2">[<a class="reference internal" href="../refs/bibliography.html#id12" title="Viktor Makoviychuk, Lukasz Wawrzyniak, Yunrong Guo, Michelle Lu, Kier Storey, Miles Macklin, David Hoeller, Nikita Rudin, Arthur Allshire, Ankur Handa, and others. Isaac gym: high performance gpu-based physics simulation for robot learning. arXiv preprint arXiv:2108.10470, 2021.">MWG+21</a>]</span> provides a high performance GPU-based physics simulation
+for robot learning. It is built on top of <a class="reference external" href="https://developer.nvidia.com/physx-sdk">PhysX</a> which supports GPU-accelerated simulation of rigid bodies
+and a Python API to directly access physics simulation data. Through an end-to-end GPU pipeline, it is possible
+to achieve high frame rates compared to CPU-based physics engines. The tool has been used successfully in a
+number of research projects, including legged locomotion <span id="id3">[<a class="reference internal" href="../refs/bibliography.html#id2" title="Nikita Rudin, David Hoeller, Philipp Reist, and Marco Hutter. Learning to walk in minutes using massively parallel deep reinforcement learning. In Conference on Robot Learning, 91–100. PMLR, 2022.">RHRH22</a>]</span> <span id="id4">[<a class="reference internal" href="../refs/bibliography.html#id10" title="Nikita Rudin, David Hoeller, Marko Bjelonic, and Marco Hutter. Advanced skills by learning locomotion and local navigation end-to-end. In 2022 IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS), volume, 2497-2503. 2022. doi:10.1109/IROS47612.2022.9981198.">RHBH22</a>]</span>,
+in-hand manipulation <span id="id5">[<a class="reference internal" href="../refs/bibliography.html#id13" title="Ankur Handa, Arthur Allshire, Viktor Makoviychuk, Aleksei Petrenko, Ritvik Singh, Jingzhou Liu, Denys Makoviichuk, Karl Van Wyk, Alexander Zhurkevich, Balakumar Sundaralingam, and others. Dextreme: transfer of agile in-hand manipulation from simulation to reality. arXiv preprint arXiv:2210.13702, 2022.">HAM+22</a>]</span> <span id="id6">[<a class="reference internal" href="../refs/bibliography.html#id15" title="Arthur Allshire, Mayank MittaI, Varun Lodaya, Viktor Makoviychuk, Denys Makoviichuk, Felix Widmaier, Manuel Wüthrich, Stefan Bauer, Ankur Handa, and Animesh Garg. Transferring dexterous manipulation from gpu simulation to a remote real-world trifinger. In 2022 IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS), 11802–11809. IEEE, 2022.">AML+22</a>]</span>, and industrial assembly
+<span id="id7">[<a class="reference internal" href="../refs/bibliography.html#id14" title="Yashraj Narang, Kier Storey, Iretiayo Akinola, Miles Macklin, Philipp Reist, Lukasz Wawrzyniak, Yunrong Guo, Adam Moravanszky, Gavriel State, Michelle Lu, and others. Factory: fast contact for robotic assembly. arXiv preprint arXiv:2205.03532, 2022.">NSA+22</a>]</span>.</p>
+<p>Despite the success of Isaac Gym, it is not designed to be a general purpose simulator for
+robotics. For example, it does not include interaction between deformable and rigid objects, high-fidelity
+rendering, and support for ROS. The tool has been primarily designed as a preview release to showcase the
+capabilities of the underlying physics engine. With the release of <a class="reference external" href="https://developer.nvidia.com/isaac-sim">Isaac Sim</a>, NVIDIA is building
+a general purpose simulator for robotics and has integrated the functionalities of Isaac Gym into
+Isaac Sim.</p>
+<p><a class="reference external" href="https://developer.nvidia.com/isaac-sim">Isaac Sim</a> is a robot simulation toolkit built on top of Omniverse, which is a general purpose platform
+that aims to unite complex 3D workflows. Isaac Sim leverages the latest advances in graphics and
+physics simulation to provide a high-fidelity simulation environment for robotics. It supports
+ROS/ROS2, various sensor simulation, tools for domain randomization and synthetic data creation.
+Tiled rendering support in Isaac Sim allows for vectorized rendering across environments, along with
+support for running in the cloud using <a class="reference external" href="https://github.com/isaac-sim/IsaacAutomator">Isaac Automator</a>.
+Overall, it is a powerful tool for roboticists and is a huge step forward in the field of robotics
+simulation.</p>
+<p>With the release of above two tools, NVIDIA also released an open-sourced set of environments called
+<a class="reference external" href="https://github.com/isaac-sim/IsaacGymEnvs">IsaacGymEnvs</a> and <a class="reference external" href="https://github.com/isaac-sim/OmniIsaacGymEnvs">OmniIsaacGymEnvs</a>, that have been built on top of Isaac Gym and Isaac Sim respectively.
+These environments have been designed to display the capabilities of the underlying simulators and provide
+a starting point to understand what is possible with the simulators for robot learning. These environments
+can be used for benchmarking but are not designed for developing and testing custom environments and algorithms.
+This is where Isaac Lab comes in.</p>
+<p>Isaac Lab is built on top of Isaac Sim to provide a unified and flexible framework
+for robot learning that exploits latest simulation technologies. It is designed to be modular and extensible,
+and aims to simplify common workflows in robotics research (such as RL, learning from demonstrations, and
+motion planning). While it includes some pre-built environments, sensors, and tasks, its main goal is to
+provide an open-sourced, unified, and easy-to-use interface for developing and testing custom environments
+and robot learning algorithms. It not only inherits the capabilities of Isaac Sim, but also adds a number
+of new features that pertain to robot learning research. For example, including actuator dynamics in the
+simulation, procedural terrain generation, and support to collect data from human demonstrations.</p>
+<p>Isaac Lab replaces the previous <a class="reference external" href="https://github.com/isaac-sim/IsaacGymEnvs">IsaacGymEnvs</a>, <a class="reference external" href="https://github.com/isaac-sim/OmniIsaacGymEnvs">OmniIsaacGymEnvs</a> and <a class="reference external" href="https://isaac-orbit.github.io/">Orbit</a> frameworks and will
+be the single robot learning framework for Isaac Sim. Previously released frameworks are deprecated
+and we encourage users to follow our migration guides to transition over to Isaac Lab.</p>
+</section>
+<section id="why-should-i-use-isaac-lab">
+<h2>Why should I use Isaac Lab?<a class="headerlink" href="#why-should-i-use-isaac-lab" title="Permalink to this heading">#</a></h2>
+<p>Since Isaac Sim remains closed-sourced, it is difficult for users to contribute to the simulator and build a
+common framework for research. On its current path, we see the community using the simulator will simply
+develop their own frameworks that will result in scattered efforts with a lot of duplication of work.
+This has happened in the past with other simulators, and we believe that it is not the best way to move
+forward as a community.</p>
+<p>Isaac Lab provides an open-sourced platform for the community to drive progress with consolidated efforts
+toward designing benchmarks and robot learning systems as a joint initiative. This allows us to reuse
+existing components and algorithms, and to build on top of each other’s work. Doing so not only saves
+time and effort, but also allows us to focus on the more important aspects of research. Our hope with
+Isaac Lab is that it becomes the de-facto platform for robot learning research and an environment <em>zoo</em>
+that leverages Isaac Sim. As the framework matures, we foresee it benefitting hugely from the latest
+simulation developments (as part of internal developments at NVIDIA and collaborating partners)
+and research in robotics.</p>
+<p>We are already working with labs in universities and research institutions to integrate their work into Isaac Lab
+and hope that others in the community will join us too in this effort. If you are interested in contributing
+to Isaac Lab, please reach out to us.</p>
+</section>
 </section>
 
 
@@ -654,6 +719,23 @@ the <a class="reference external" href="faq.html">FAQ page</a>.</p>
             </div>
             
             
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+  <div class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> Contents
+  </div>
+  <nav class="bd-toc-nav page-toc">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#where-does-isaac-lab-fit-in-the-isaac-ecosystem">Where does Isaac Lab fit in the Isaac ecosystem?</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#why-should-i-use-isaac-lab">Why should I use Isaac Lab?</a></li>
+</ul>
+  </nav></div>
+
+</div></div>
               
             
           </div>
