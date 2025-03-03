@@ -11,16 +11,12 @@ import trimesh
 from typing import TYPE_CHECKING
 
 import omni.log
-import warp
-from pxr import UsdGeom
 
 import isaaclab.sim as sim_utils
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.markers.config import FRAME_MARKER_CFG
-from isaaclab.utils.warp import convert_to_warp_mesh
 
 from .terrain_generator import TerrainGenerator
-from .trimesh.utils import make_plane
 from .utils import create_prim_from_mesh
 
 if TYPE_CHECKING:
@@ -44,15 +40,15 @@ class TerrainImporter:
     curriculum. For example, in a game, the player starts with easy levels and progresses to harder levels.
     """
 
-    meshes: dict[str, trimesh.Trimesh]
-    """A dictionary containing the names of the meshes and their keys."""
-    warp_meshes: dict[str, warp.Mesh]
-    """A dictionary containing the names of the warp meshes and their keys."""
+    mesh_names: list[str]
+    """A list containing the names of the imported terrains."""
+
     terrain_origins: torch.Tensor | None
     """The origins of the sub-terrains in the added terrain mesh. Shape is (num_rows, num_cols, 3).
 
-    If None, then it is assumed no sub-terrains exist. The environment origins are computed in a grid.
+    If terrain origins is not None, the environment origins are computed based on the terrain origins.
     """
+
     env_origins: torch.Tensor
     """The origins of the environments. Shape is (num_envs, 3)."""
 
@@ -74,9 +70,8 @@ class TerrainImporter:
         self.cfg = cfg
         self.device = sim_utils.SimulationContext.instance().device  # type: ignore
 
-        # create a dict of meshes
-        self.meshes = dict()
-        self.warp_meshes = dict()
+        # create buffers for the terrains
+        self.mesh_names = list()
         self.env_origins = None
         self.terrain_origins = None
         # private variables
@@ -188,15 +183,11 @@ class TerrainImporter:
             ValueError: If a terrain with the same key already exists.
         """
         # check if key exists
-        if key in self.meshes:
-            raise ValueError(f"Mesh with key {key} already exists. Existing keys: {self.meshes.keys()}.")
-        # create a plane
-        mesh = make_plane(size, height=0.0, center_zero=True)
+        if key in self.mesh_names:
+            raise ValueError(f"Mesh with key {key} already exists. Existing keys: {self.mesh_names}.")
         # store the mesh
-        self.meshes[key] = mesh
-        # create a warp mesh
-        device = "cuda" if "cuda" in self.device else "cpu"
-        self.warp_meshes[key] = convert_to_warp_mesh(mesh.vertices, mesh.faces, device=device)
+        self.mesh_names.append(key)
+
         # obtain ground plane color from the configured visual material
         color = (0.0, 0.0, 0.0)
         if self.cfg.visual_material is not None:
@@ -228,16 +219,12 @@ class TerrainImporter:
             ValueError: If a terrain with the same key already exists.
         """
         # check if key exists
-        if key in self.meshes:
-            raise ValueError(f"Mesh with key {key} already exists. Existing keys: {self.meshes.keys()}.")
+        if key in self.mesh_names:
+            raise ValueError(f"Mesh with key {key} already exists. Existing keys: {self.mesh_names}.")
         # store the mesh
-        self.meshes[key] = mesh
-        # create a warp mesh
-        device = "cuda" if "cuda" in self.device else "cpu"
-        self.warp_meshes[key] = convert_to_warp_mesh(mesh.vertices, mesh.faces, device=device)
+        self.mesh_names.append(key)
 
         # get the mesh
-        mesh = self.meshes[key]
         mesh_prim_path = self.cfg.prim_path + f"/{key}"
         # import the mesh
         create_prim_from_mesh(
@@ -264,36 +251,12 @@ class TerrainImporter:
         Raises:
             ValueError: If a terrain with the same key already exists.
         """
-        # add mesh to the dict
-        if key in self.meshes:
-            raise ValueError(f"Mesh with key {key} already exists. Existing keys: {self.meshes.keys()}.")
+        # check if key exists
+        if key in self.mesh_names:
+            raise ValueError(f"Mesh with key {key} already exists. Existing keys: {self.mesh_names}.")
         # add the prim path
         cfg = sim_utils.UsdFileCfg(usd_path=usd_path)
         cfg.func(self.cfg.prim_path + f"/{key}", cfg)
-
-        # traverse the prim and get the collision mesh
-        # THINK: Should the user specify the collision mesh?
-        mesh_prim = sim_utils.get_first_matching_child_prim(
-            self.cfg.prim_path + f"/{key}", lambda prim: prim.GetTypeName() == "Mesh"
-        )
-        # check if the mesh is valid
-        if mesh_prim is None:
-            omni.log.warn(
-                f"No mesh found in '{usd_path}'. This mesh will not be stored inside the terrain importer."
-                " Please ignore this warning if the USD is intended only for visualization."
-            )
-            self.meshes[key] = None  # type: ignore
-            self.warp_meshes[key] = None  # type: ignore
-        else:
-            # cast into UsdGeomMesh
-            mesh_prim = UsdGeom.Mesh(mesh_prim)
-            # store the mesh
-            vertices = np.asarray(mesh_prim.GetPointsAttr().Get())
-            faces = np.asarray(mesh_prim.GetFaceVertexIndicesAttr().Get()).reshape(-1, 3)
-            self.meshes[key] = trimesh.Trimesh(vertices=vertices, faces=faces)
-            # create a warp mesh
-            device = "cuda" if "cuda" in self.device else "cpu"
-            self.warp_meshes[key] = convert_to_warp_mesh(vertices, faces, device=device)
 
     """
     Operations - Origins.
