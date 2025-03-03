@@ -17,7 +17,7 @@ to install the latest Isaac Sim release.
 
 From Isaac Sim 4.5 release, Isaac Sim binaries can be `downloaded <https://docs.isaacsim.omniverse.nvidia.com/latest/installation/download.html#download-isaac-sim-short>`_ directly as a zip file.
 
-To check the minimum system requirements,refer to the documentation
+To check the minimum system requirements, refer to the documentation
 `here <https://docs.isaacsim.omniverse.nvidia.com/latest/installation/requirements.html>`__.
 
 .. tab-set::
