@@ -1,7 +1,7 @@
 Changelog
 ---------
 
-0.34.6 (2025-03-02)
+0.34.6 (2025-03-04)
 ~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -11,6 +11,17 @@ Added
   position and velocity for the articulation. Previously, the joint position and velocity could
   only be set using the :meth:`omni.isaac.lab.assets.Articulation.write_joint_state_to_sim` method,
   which didn't allow setting the joint position and velocity separately.
+
+
+0.34.6 (2025-03-02)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the propagation of the :attr:`activate_contact_sensors` attribute to the
+  :class:`~isaaclab.sim.spawners.wrappers.wrappers_cfg.MultiAssetSpawnerCfg` class. Previously, this value
+  was always set to False, which led to incorrect contact sensor settings for the spawned assets.
 
 
 0.34.5 (2025-03-02)
