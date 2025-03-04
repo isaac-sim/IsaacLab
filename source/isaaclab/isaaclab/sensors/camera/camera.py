@@ -118,7 +118,7 @@ class Camera(SensorBase):
         # spawn the asset
         if self.cfg.spawn is not None:
             # compute the rotation offset
-            rot = torch.tensor(self.cfg.offset.rot, dtype=torch.float32).unsqueeze(0)
+            rot = torch.tensor(self.cfg.offset.rot, dtype=torch.float32, device="cpu").unsqueeze(0)
             rot_offset = convert_camera_frame_orientation_convention(
                 rot, origin=self.cfg.offset.convention, target="opengl"
             )
