@@ -992,7 +992,7 @@ class ArticulationData:
     @property
     def default_joint_friction(self) -> torch.Tensor:
         omni.log.warn(
-            "The `default_joint_friction` property is deprecated. Please use `default_joint_friction_coefficient` instead."
-            " Returning default joint friction coefficient.",
+            "The `default_joint_friction` property is deprecated. Please use `default_joint_friction_coefficient`"
+            " instead. Returning default joint friction coefficient.",
         )
         return self.default_joint_friction_coefficient

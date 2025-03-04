@@ -1174,7 +1174,9 @@ class Articulation(AssetBase):
         self._data.default_joint_stiffness = self.root_physx_view.get_dof_stiffnesses().to(self.device).clone()
         self._data.default_joint_damping = self.root_physx_view.get_dof_dampings().to(self.device).clone()
         self._data.default_joint_armature = self.root_physx_view.get_dof_armatures().to(self.device).clone()
-        self._data.default_joint_friction_coefficient = self.root_physx_view.get_dof_friction_coefficients().to(self.device).clone()
+        self._data.default_joint_friction_coefficient = (
+            self.root_physx_view.get_dof_friction_coefficients().to(self.device).clone()
+        )
 
         self._data.joint_pos_limits = self._data.default_joint_pos_limits.clone()
         self._data.joint_vel_limits = self.root_physx_view.get_dof_max_velocities().to(self.device).clone()
@@ -1567,7 +1569,8 @@ class Articulation(AssetBase):
             Use :meth:`write_joint_friction_coefficient_to_sim` instead.
         """
         omni.log.warn(
-            "The function 'write_joint_friction_to_sim' is deprecated. Use 'write_joint_friction_coefficient_to_sim' instead."
+            "The function 'write_joint_friction_to_sim' is deprecated. Use 'write_joint_friction_coefficient_to_sim'"
+            " instead."
         )
         self.write_joint_friction_coefficient_to_sim(
             joint_friction=joint_friction, joint_ids=joint_ids, env_ids=env_ids
