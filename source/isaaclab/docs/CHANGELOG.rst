@@ -33,6 +33,9 @@ Changed
   * ``joint_friction`` → ``joint_friction_coeff``
   * ``default_joint_friction`` → ``default_joint_friction_coeff``
   * ``write_joint_friction_to_sim`` → ``write_joint_friction_coefficient_to_sim``
+  * ``fixed_tendon_limit`` → ``fixed_tendon_pos_limits``
+  * ``default_fixed_tendon_limit`` → ``default_fixed_tendon_pos_limits``
+  * ``write_fixed_tendon_limit_to_sim`` → ``write_fixed_tendon_position_limit_to_sim``
 
 
 0.34.7 (2025-03-04)
