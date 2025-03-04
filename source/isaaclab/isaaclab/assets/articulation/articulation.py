@@ -1615,7 +1615,7 @@ class Articulation(AssetBase):
         """Write joint friction coefficients into the simulation.
 
         .. deprecated:: 2.1.0
-            Use :meth:`write_joint_friction_coefficient_to_sim` instead.
+            Please use :meth:`write_joint_friction_coefficient_to_sim` instead.
         """
         omni.log.warn(
             "The function 'write_joint_friction_to_sim' will be deprecated in a future release. Please"
@@ -1633,7 +1633,7 @@ class Articulation(AssetBase):
         """Write joint limits into the simulation.
 
         .. deprecated:: 2.1.0
-            Use :meth:`write_joint_position_limit_to_sim` instead.
+            Please use :meth:`write_joint_position_limit_to_sim` instead.
         """
         omni.log.warn(
             "The function 'write_joint_limits_to_sim' will be deprecated in a future release. Please"
@@ -1652,7 +1652,7 @@ class Articulation(AssetBase):
         """Set fixed tendon position limits into internal buffers.
 
         .. deprecated:: 2.1.0
-            Use :meth:`set_fixed_tendon_position_limit` instead.
+            Please use :meth:`set_fixed_tendon_position_limit` instead.
         """
         omni.log.warn(
             "The function 'set_fixed_tendon_limit' will be deprecated in a future release. Please"
