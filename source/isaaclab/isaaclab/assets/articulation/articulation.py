@@ -1032,7 +1032,7 @@ class Articulation(AssetBase):
         # set limit_stiffness
         self._data.fixed_tendon_limit_stiffness[env_ids, fixed_tendon_ids] = limit_stiffness
 
-    def set_fixed_tendon_limit(
+    def set_fixed_tendon_position_limit(
         self,
         limit: torch.Tensor,
         fixed_tendon_ids: Sequence[int] | slice | None = None,
@@ -1056,7 +1056,7 @@ class Articulation(AssetBase):
         if env_ids != slice(None) and fixed_tendon_ids != slice(None):
             env_ids = env_ids[:, None]
         # set limit
-        self._data.fixed_tendon_limit[env_ids, fixed_tendon_ids] = limit
+        self._data.fixed_tendon_pos_limits[env_ids, fixed_tendon_ids] = limit
 
     def set_fixed_tendon_rest_length(
         self,
@@ -1133,7 +1133,7 @@ class Articulation(AssetBase):
             self._data.fixed_tendon_stiffness,
             self._data.fixed_tendon_damping,
             self._data.fixed_tendon_limit_stiffness,
-            self._data.fixed_tendon_limit,
+            self._data.fixed_tendon_pos_limits,
             self._data.fixed_tendon_rest_length,
             self._data.fixed_tendon_offset,
             indices=physx_env_ids,
@@ -1419,7 +1419,7 @@ class Articulation(AssetBase):
             self._data.default_fixed_tendon_limit_stiffness = (
                 self.root_physx_view.get_fixed_tendon_limit_stiffnesses().clone()
             )
-            self._data.default_fixed_tendon_limit = self.root_physx_view.get_fixed_tendon_limits().clone()
+            self._data.default_fixed_tendon_pos_limits = self.root_physx_view.get_fixed_tendon_limits().clone()
             self._data.default_fixed_tendon_rest_length = self.root_physx_view.get_fixed_tendon_rest_lengths().clone()
             self._data.default_fixed_tendon_offset = self.root_physx_view.get_fixed_tendon_offsets().clone()
 
@@ -1427,7 +1427,7 @@ class Articulation(AssetBase):
             self._data.fixed_tendon_stiffness = self._data.default_fixed_tendon_stiffness.clone()
             self._data.fixed_tendon_damping = self._data.default_fixed_tendon_damping.clone()
             self._data.fixed_tendon_limit_stiffness = self._data.default_fixed_tendon_limit_stiffness.clone()
-            self._data.fixed_tendon_limit = self._data.default_fixed_tendon_limit.clone()
+            self._data.fixed_tendon_pos_limits = self._data.default_fixed_tendon_pos_limits.clone()
             self._data.fixed_tendon_rest_length = self._data.default_fixed_tendon_rest_length.clone()
             self._data.fixed_tendon_offset = self._data.default_fixed_tendon_offset.clone()
 
@@ -1641,4 +1641,23 @@ class Articulation(AssetBase):
         )
         self.write_joint_position_limit_to_sim(
             limits, joint_ids=joint_ids, env_ids=env_ids, warn_limit_violation=warn_limit_violation
+        )
+
+    def set_fixed_tendon_limit(
+        self,
+        limit: torch.Tensor,
+        fixed_tendon_ids: Sequence[int] | slice | None = None,
+        env_ids: Sequence[int] | None = None,
+    ):
+        """Set fixed tendon position limits into internal buffers.
+
+        .. deprecated:: 2.1.0
+            Use :meth:`set_fixed_tendon_position_limit` instead.
+        """
+        omni.log.warn(
+            "The function 'set_fixed_tendon_limit' will be deprecated in a future release. Please"
+            " use 'set_fixed_tendon_position_limit' instead."
+        )
+        self.set_fixed_tendon_position_limit(
+            limit, tendon_ids=fixed_tendon_ids, env_ids=env_ids
         )

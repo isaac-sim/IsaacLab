@@ -215,10 +215,11 @@ class ArticulationData:
     This quantity is parsed from the USD schema at the time of initialization.
     """
 
-    default_fixed_tendon_limit: torch.Tensor = None
-    """Default tendon limits of all tendons. Shape is (num_instances, num_fixed_tendons, 2).
+    default_fixed_tendon_pos_limits: torch.Tensor = None
+    """Default tendon position limits of all tendons. Shape is (num_instances, num_fixed_tendons, 2).
 
-    The limits are in the order :math:`[lower, upper]`. They are parsed from the USD schema at the time of initialization.
+    The position limits are in the order :math:`[lower, upper]`. They are parsed from the USD schema at the time of
+    initialization.
     """
 
     ##
@@ -354,8 +355,8 @@ class ArticulationData:
     fixed_tendon_offset: torch.Tensor = None
     """Fixed tendon offset provided to the simulation. Shape is (num_instances, num_fixed_tendons)."""
 
-    fixed_tendon_limit: torch.Tensor = None
-    """Fixed tendon limits provided to the simulation. Shape is (num_instances, num_fixed_tendons, 2)."""
+    fixed_tendon_pos_limits: torch.Tensor = None
+    """Fixed tendon position limits provided to the simulation. Shape is (num_instances, num_fixed_tendons, 2)."""
 
     ##
     # Properties.
@@ -959,13 +960,15 @@ class ArticulationData:
 
     @property
     def joint_limits(self) -> torch.Tensor:
+        """Deprecated property. Please use :attr:`joint_pos_limits` instead."""
         omni.log.warn(
             "The `joint_limits` property will be deprecated in a future release. Please use `joint_pos_limits` instead."
         )
-        return self.soft_joint_pos_limits
+        return self.joint_pos_limits
 
     @property
     def default_joint_limits(self) -> torch.Tensor:
+        """Deprecated property. Please use :attr:`default_joint_pos_limits` instead."""
         omni.log.warn(
             "The `default_joint_limits` property will be deprecated in a future release. Please use"
             " `default_joint_pos_limits` instead."
@@ -974,6 +977,7 @@ class ArticulationData:
 
     @property
     def joint_velocity_limits(self) -> torch.Tensor:
+        """Deprecated property. Please use :attr:`joint_vel_limits` instead."""
         omni.log.warn(
             "The `joint_velocity_limits` property will be deprecated in a future release. Please use"
             " `joint_vel_limits` instead."
@@ -982,6 +986,7 @@ class ArticulationData:
 
     @property
     def joint_friction(self) -> torch.Tensor:
+        """Deprecated property. Please use :attr:`joint_friction_coeff` instead."""
         omni.log.warn(
             "The `joint_friction` property will be deprecated in a future release. Please use"
             " `joint_friction_coeff` instead."
@@ -990,8 +995,27 @@ class ArticulationData:
 
     @property
     def default_joint_friction(self) -> torch.Tensor:
+        """Deprecated property. Please use :attr:`default_joint_friction_coeff` instead."""
         omni.log.warn(
             "The `default_joint_friction` property will be deprecated in a future release. Please use"
             " `default_joint_friction_coeff` instead."
         )
         return self.default_joint_friction_coeff
+
+    @property
+    def fixed_tendon_limit(self) -> torch.Tensor:
+        """Deprecated property. Please use :attr:`fixed_tendon_pos_limits` instead."""
+        omni.log.warn(
+            "The `fixed_tendon_limit` property will be deprecated in a future release. Please use"
+            " `fixed_tendon_pos_limits` instead."
+        )
+        return self.fixed_tendon_pos_limits
+
+    @property
+    def default_fixed_tendon_limit(self) -> torch.Tensor:
+        """Deprecated property. Please use :attr:`default_fixed_tendon_pos_limits` instead."""
+        omni.log.warn(
+            "The `default_fixed_tendon_limit` property will be deprecated in a future release. Please use"
+            " `default_fixed_tendon_pos_limits` instead."
+        )
+        return self.default_fixed_tendon_pos_limits
