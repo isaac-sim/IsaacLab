@@ -1,6 +1,14 @@
 Changelog
 ---------
 
+0.34.7 (2025-03-04)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the issue of `motion_vectors` not being aligned with other modalities of `TiledCamera` such as `rgba`.
+
 0.34.6 (2025-03-02)
 ~~~~~~~~~~~~~~~~~~~
 

@@ -259,6 +259,10 @@ class TiledCamera(Camera):
                     ptr=tiled_data_buffer.ptr, shape=(*tiled_data_buffer.shape, 4), dtype=wp.uint8, device=self.device
                 )
 
+            # HACK: fix motion_vectors reshape issue by only feeding the first 2 channels
+            if data_type == "motion_vectors":
+                tiled_data_buffer = tiled_data_buffer[:, :, :2].contiguous()
+
             wp.launch(
                 kernel=reshape_tiled_image,
                 dim=(self._view.count, self.cfg.height, self.cfg.width),
