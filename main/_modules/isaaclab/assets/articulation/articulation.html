@@ -1011,6 +1011,23 @@
 <span class="sd">            joint_ids: The joint indices to set the targets for. Defaults to None (all joints).</span>
 <span class="sd">            env_ids: The environment indices to set the targets for. Defaults to None (all environments).</span>
 <span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># set into simulation</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">write_joint_position_to_sim</span><span class="p">(</span><span class="n">position</span><span class="p">,</span> <span class="n">joint_ids</span><span class="o">=</span><span class="n">joint_ids</span><span class="p">,</span> <span class="n">env_ids</span><span class="o">=</span><span class="n">env_ids</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">write_joint_velocity_to_sim</span><span class="p">(</span><span class="n">velocity</span><span class="p">,</span> <span class="n">joint_ids</span><span class="o">=</span><span class="n">joint_ids</span><span class="p">,</span> <span class="n">env_ids</span><span class="o">=</span><span class="n">env_ids</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="Articulation.write_joint_position_to_sim"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.assets.html#isaaclab.assets.Articulation.write_joint_position_to_sim">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">write_joint_position_to_sim</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">position</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+        <span class="n">joint_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="nb">slice</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">env_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="nb">slice</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Write joint positions to the simulation.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            position: Joint positions. Shape is (len(env_ids), len(joint_ids)).</span>
+<span class="sd">            joint_ids: The joint indices to set the targets for. Defaults to None (all joints).</span>
+<span class="sd">            env_ids: The environment indices to set the targets for. Defaults to None (all environments).</span>
+<span class="sd">        &quot;&quot;&quot;</span>
         <span class="c1"># resolve indices</span>
         <span class="n">physx_env_ids</span> <span class="o">=</span> <span class="n">env_ids</span>
         <span class="k">if</span> <span class="n">env_ids</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
@@ -1023,15 +1040,41 @@
             <span class="n">env_ids</span> <span class="o">=</span> <span class="n">env_ids</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span>
         <span class="c1"># set into internal buffers</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">joint_pos</span><span class="p">[</span><span class="n">env_ids</span><span class="p">,</span> <span class="n">joint_ids</span><span class="p">]</span> <span class="o">=</span> <span class="n">position</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">joint_vel</span><span class="p">[</span><span class="n">env_ids</span><span class="p">,</span> <span class="n">joint_ids</span><span class="p">]</span> <span class="o">=</span> <span class="n">velocity</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">_previous_joint_vel</span><span class="p">[</span><span class="n">env_ids</span><span class="p">,</span> <span class="n">joint_ids</span><span class="p">]</span> <span class="o">=</span> <span class="n">velocity</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">joint_acc</span><span class="p">[</span><span class="n">env_ids</span><span class="p">,</span> <span class="n">joint_ids</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.0</span>
         <span class="c1"># Need to invalidate the buffer to trigger the update with the new root pose.</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">_body_state_w</span><span class="o">.</span><span class="n">timestamp</span> <span class="o">=</span> <span class="o">-</span><span class="mf">1.0</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">_body_link_state_w</span><span class="o">.</span><span class="n">timestamp</span> <span class="o">=</span> <span class="o">-</span><span class="mf">1.0</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">_body_com_state_w</span><span class="o">.</span><span class="n">timestamp</span> <span class="o">=</span> <span class="o">-</span><span class="mf">1.0</span>
         <span class="c1"># set into simulation</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">set_dof_positions</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">joint_pos</span><span class="p">,</span> <span class="n">indices</span><span class="o">=</span><span class="n">physx_env_ids</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">set_dof_positions</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">joint_pos</span><span class="p">,</span> <span class="n">indices</span><span class="o">=</span><span class="n">physx_env_ids</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="Articulation.write_joint_velocity_to_sim"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.assets.html#isaaclab.assets.Articulation.write_joint_velocity_to_sim">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">write_joint_velocity_to_sim</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">velocity</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+        <span class="n">joint_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="nb">slice</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">env_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="nb">slice</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Write joint velocities to the simulation.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            velocity: Joint velocities. Shape is (len(env_ids), len(joint_ids)).</span>
+<span class="sd">            joint_ids: The joint indices to set the targets for. Defaults to None (all joints).</span>
+<span class="sd">            env_ids: The environment indices to set the targets for. Defaults to None (all environments).</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># resolve indices</span>
+        <span class="n">physx_env_ids</span> <span class="o">=</span> <span class="n">env_ids</span>
+        <span class="k">if</span> <span class="n">env_ids</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">env_ids</span> <span class="o">=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
+            <span class="n">physx_env_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ALL_INDICES</span>
+        <span class="k">if</span> <span class="n">joint_ids</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">joint_ids</span> <span class="o">=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
+        <span class="c1"># broadcast env_ids if needed to allow double indexing</span>
+        <span class="k">if</span> <span class="n">env_ids</span> <span class="o">!=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span> <span class="ow">and</span> <span class="n">joint_ids</span> <span class="o">!=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">):</span>
+            <span class="n">env_ids</span> <span class="o">=</span> <span class="n">env_ids</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span>
+        <span class="c1"># set into internal buffers</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">joint_vel</span><span class="p">[</span><span class="n">env_ids</span><span class="p">,</span> <span class="n">joint_ids</span><span class="p">]</span> <span class="o">=</span> <span class="n">velocity</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">_previous_joint_vel</span><span class="p">[</span><span class="n">env_ids</span><span class="p">,</span> <span class="n">joint_ids</span><span class="p">]</span> <span class="o">=</span> <span class="n">velocity</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">joint_acc</span><span class="p">[</span><span class="n">env_ids</span><span class="p">,</span> <span class="n">joint_ids</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.0</span>
+        <span class="c1"># set into simulation</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">set_dof_velocities</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">joint_vel</span><span class="p">,</span> <span class="n">indices</span><span class="o">=</span><span class="n">physx_env_ids</span><span class="p">)</span></div>
 
 <div class="viewcode-block" id="Articulation.write_joint_stiffness_to_sim"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.assets.html#isaaclab.assets.Articulation.write_joint_stiffness_to_sim">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">write_joint_stiffness_to_sim</span><span class="p">(</span>
