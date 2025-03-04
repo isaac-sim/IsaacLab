@@ -5,8 +5,8 @@
 
 from __future__ import annotations
 
-import math
 import json
+import math
 import numpy as np
 import torch
 from collections.abc import Sequence
@@ -210,7 +210,10 @@ class TiledCamera(Camera):
             else:
                 init_params = None
                 if annotator_type == "semantic_segmentation":
-                    init_params = {"colorize": self.cfg.colorize_semantic_segmentation, "mapping": json.dumps(self.cfg.semantic_segmentation_mapping)}
+                    init_params = {
+                        "colorize": self.cfg.colorize_semantic_segmentation,
+                        "mapping": json.dumps(self.cfg.semantic_segmentation_mapping),
+                    }
                 elif annotator_type == "instance_segmentation_fast":
                     init_params = {"colorize": self.cfg.colorize_instance_segmentation}
                 elif annotator_type == "instance_id_segmentation_fast":

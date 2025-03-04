@@ -118,7 +118,8 @@ class CameraCfg(SensorBaseCfg):
     semantic_segmentation_mapping: dict = {}
     """Dictionary mapping semantics to specific colours
 
-    Eg. 
+    Eg.
+    ```
     {
         "class:cube_1": (255, 36, 66, 255),
         "class:cube_2": (255, 184, 48, 255),
@@ -127,4 +128,5 @@ class CameraCfg(SensorBaseCfg):
         "class:ground": (100, 100, 100, 255),
         "class:robot": (61, 178, 255, 255),
     }
+    ```
     """

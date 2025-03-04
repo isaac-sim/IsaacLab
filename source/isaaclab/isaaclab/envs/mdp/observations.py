@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import os
 import torch
+from torchvision.utils import save_image
 from typing import TYPE_CHECKING
 
 import isaaclab.utils.math as math_utils
@@ -21,7 +22,6 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers.manager_base import ManagerTermBase
 from isaaclab.managers.manager_term_cfg import ObservationTermCfg
 from isaaclab.sensors import Camera, Imu, RayCaster, RayCasterCamera, TiledCamera
-from torchvision.utils import make_grid, save_image
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv, ManagerBasedRLEnv
@@ -240,7 +240,7 @@ def image(
     convert_perspective_to_orthogonal: bool = False,
     normalize: bool = True,
     save_image_to_file: bool = False,
-    image_path: str = "image"
+    image_path: str = "image",
 ) -> torch.Tensor:
     """Images of a specific datatype from the camera sensor.
 
@@ -290,10 +290,11 @@ def image(
         if images.dtype == torch.uint8:
             images = images.float() / 255.0
         for tile in range(images.shape[0]):
-            tile_chw = torch.swapaxes(images[tile:tile+1].unsqueeze(1), 1, -1).squeeze(-1)
+            tile_chw = torch.swapaxes(images[tile : tile + 1].unsqueeze(1), 1, -1).squeeze(-1)
             save_image(tile_chw, f"{image_path}_{data_type}_{tile}_{env.common_step_counter}.png")
 
     return images.clone()
+
 
 class image_features(ManagerTermBase):
     """Extracted image features from a pre-trained frozen encoder.

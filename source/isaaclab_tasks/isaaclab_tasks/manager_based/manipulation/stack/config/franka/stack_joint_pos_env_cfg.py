@@ -120,7 +120,7 @@ class FrankaCubeStackEnvCfg(StackEnvCfg):
                 usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/blue_block.usd",
                 scale=(1.0, 1.0, 1.0),
                 rigid_props=cube_properties,
-                semantic_tags=[("class", "cube_1")]
+                semantic_tags=[("class", "cube_1")],
             ),
         )
         self.scene.cube_2 = RigidObjectCfg(
@@ -130,7 +130,7 @@ class FrankaCubeStackEnvCfg(StackEnvCfg):
                 usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/red_block.usd",
                 scale=(1.0, 1.0, 1.0),
                 rigid_props=cube_properties,
-                semantic_tags=[("class", "cube_2")]
+                semantic_tags=[("class", "cube_2")],
             ),
         )
         self.scene.cube_3 = RigidObjectCfg(
@@ -140,7 +140,7 @@ class FrankaCubeStackEnvCfg(StackEnvCfg):
                 usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/green_block.usd",
                 scale=(1.0, 1.0, 1.0),
                 rigid_props=cube_properties,
-                semantic_tags=[("class", "cube_3")]
+                semantic_tags=[("class", "cube_3")],
             ),
         )
 
@@ -167,7 +167,6 @@ class FrankaCubeStackEnvCfg(StackEnvCfg):
             spawn=sim_utils.PinholeCameraCfg(
                 focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 1.0e5)
             ),
-            
             offset=CameraCfg.OffsetCfg(pos=(1.0, 0.0, 0.33), rot=(-0.3799, 0.5963, 0.5963, -0.3799), convention="ros"),
         )
 
@@ -183,10 +182,8 @@ class FrankaCubeStackEnvCfg(StackEnvCfg):
             spawn=sim_utils.PinholeCameraCfg(
                 focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(1.5, 1.0e5)
             ),
-            
             offset=CameraCfg.OffsetCfg(pos=(1.4, 1.8, 1.2), rot=(-0.1393, 0.2025, 0.8185, -0.5192), convention="ros"),
         )
-
 
         # Listens to the required transforms
         marker_cfg = FRAME_MARKER_CFG.copy()
