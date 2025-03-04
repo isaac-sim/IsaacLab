@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.0.1" />
-    <meta name="docbuild:last-update" content="Mar 03, 2025"/>
+    <meta name="docbuild:last-update" content="Mar 04, 2025"/>
   </head>
   
   
@@ -692,6 +692,14 @@
     <span class="c1"># set random choice</span>
     <span class="n">multi_asset_cfg</span><span class="o">.</span><span class="n">random_choice</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">random_choice</span>
 
+    <span class="c1"># propagate the contact sensor settings</span>
+    <span class="c1"># note: the default value for activate_contact_sensors in MultiAssetSpawnerCfg is False.</span>
+    <span class="c1">#  This ends up overwriting the usd-template-cfg&#39;s value when the `spawn_multi_asset`</span>
+    <span class="c1">#  function is called. We hard-code the value to the usd-template-cfg&#39;s value to ensure</span>
+    <span class="c1">#  that the contact sensor settings are propagated correctly.</span>
+    <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="s2">&quot;activate_contact_sensors&quot;</span><span class="p">):</span>
+        <span class="n">multi_asset_cfg</span><span class="o">.</span><span class="n">activate_contact_sensors</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">activate_contact_sensors</span>
+
     <span class="c1"># call the original function</span>
     <span class="k">return</span> <span class="n">spawn_multi_asset</span><span class="p">(</span><span class="n">prim_path</span><span class="p">,</span> <span class="n">multi_asset_cfg</span><span class="p">,</span> <span class="n">translation</span><span class="p">,</span> <span class="n">orientation</span><span class="p">)</span></div>
 </pre></div>
@@ -741,7 +749,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Mar 03, 2025.
+  Last updated on Mar 04, 2025.
   <br/>
 </p>
   </div>
