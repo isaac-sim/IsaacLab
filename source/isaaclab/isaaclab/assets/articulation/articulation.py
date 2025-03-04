@@ -1570,8 +1570,8 @@ class Articulation(AssetBase):
             Use :meth:`write_joint_friction_coefficient_to_sim` instead.
         """
         omni.log.warn(
-            "The function 'write_joint_friction_to_sim' is deprecated. Use 'write_joint_friction_coefficient_to_sim'"
-            " instead."
+            "The function 'write_joint_friction_to_sim' will be deprecated in a future release. Please"
+            " use 'write_joint_friction_coefficient_to_sim' instead."
         )
         self.write_joint_friction_coefficient_to_sim(
             joint_friction=joint_friction, joint_ids=joint_ids, env_ids=env_ids
@@ -1590,7 +1590,8 @@ class Articulation(AssetBase):
             Use :meth:`write_joint_pos_limits_to_sim` instead.
         """
         omni.log.warn(
-            "The function 'write_joint_limits_to_sim' is deprecated. Use 'write_joint_pos_limits_to_sim' instead."
+            "The function 'write_joint_limits_to_sim' will be deprecated in a future release. Please"
+            " use 'write_joint_pos_limits_to_sim' instead."
         )
         self.write_joint_pos_limits_to_sim(
             limits=limits, joint_ids=joint_ids, env_ids=env_ids, warn_limit_violation=warn_limit_violation

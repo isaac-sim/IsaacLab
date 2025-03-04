@@ -960,39 +960,38 @@ class ArticulationData:
     @property
     def joint_limits(self) -> torch.Tensor:
         omni.log.warn(
-            "The `joint_limits` property is deprecated. Please use `joint_pos_limits` instead."
-            " Returning joint position limits.",
+            "The `joint_limits` property will be deprecated in a future release. Please use `joint_pos_limits` instead."
         )
         return self.soft_joint_pos_limits
 
     @property
     def default_joint_limits(self) -> torch.Tensor:
         omni.log.warn(
-            "The `default_joint_limits` property is deprecated. Please use `default_joint_pos_limits` instead."
-            " Returning default joint position limits.",
+            "The `default_joint_limits` property will be deprecated in a future release. Please use"
+            " `default_joint_pos_limits` instead."
         )
         return self.default_joint_pos_limits
 
     @property
     def joint_velocity_limits(self) -> torch.Tensor:
         omni.log.warn(
-            "The `joint_velocity_limits` property is deprecated. Please use `joint_vel_limits` instead."
-            " Returning joint velocity limits.",
+            "The `joint_velocity_limits` property will be deprecated in a future release. Please use"
+            " `joint_vel_limits` instead."
         )
         return self.joint_vel_limits
 
     @property
     def joint_friction(self) -> torch.Tensor:
         omni.log.warn(
-            "The `joint_friction` property is deprecated. Please use `joint_friction_coefficient` instead."
-            " Returning joint friction coefficient.",
+            "The `joint_friction` property will be deprecated in a future release. Please use"
+            " `joint_friction_coefficient` instead."
         )
         return self.joint_friction_coefficient
 
     @property
     def default_joint_friction(self) -> torch.Tensor:
         omni.log.warn(
-            "The `default_joint_friction` property is deprecated. Please use `default_joint_friction_coefficient`"
-            " instead. Returning default joint friction coefficient.",
+            "The `default_joint_friction` property will be deprecated in a future release. Please use"
+            " `default_joint_friction_coefficient` instead."
         )
         return self.default_joint_friction_coefficient
