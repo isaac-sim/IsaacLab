@@ -173,6 +173,26 @@ class EventCfg:
         },
     )
 
+    body_inertia = EventTerm(
+        func=mdp.randomize_rigid_body_inertia,
+        mode="startup",
+        params={
+            "asset_cfg": SceneEntityCfg("robot", body_names=".*"),
+            "inertia_distribution_params": (0.5, 1.5),
+            "operation": "scale",
+        },
+    )
+
+    base_com = EventTerm(
+        func=mdp.randomize_com_positions,
+        mode="startup",
+        params={
+            "asset_cfg": SceneEntityCfg("robot", body_names="base"),
+            "com_distribution_params": (-0.1, 0.1),
+            "operation": "add",
+        },
+    )
+
     # reset
     base_external_force_torque = EventTerm(
         func=mdp.apply_external_force_torque,
