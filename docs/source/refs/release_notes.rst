@@ -1,5 +1,5 @@
 Release Notes
-=============
+#############
 
 The release notes are now available in the `Isaac Lab GitHub repository <https://github.com/isaac-sim/IsaacLab/releases>`_.
 We summarize the release notes here for convenience.
