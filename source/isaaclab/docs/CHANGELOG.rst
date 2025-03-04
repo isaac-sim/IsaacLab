@@ -1,7 +1,7 @@
 Changelog
 ---------
 
-0.34.6 (2025-03-02)
+0.35.0 (2025-03-04)
 ~~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -33,6 +33,17 @@ Changed
   * ``joint_friction`` → ``joint_friction_coefficient``
   * ``default_joint_friction`` → ``default_joint_friction_coefficient``
   * ``write_joint_friction_to_sim`` → ``write_joint_friction_coefficient_to_sim``
+
+
+0.34.6 (2025-03-02)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the propagation of the :attr:`activate_contact_sensors` attribute to the
+  :class:`~isaaclab.sim.spawners.wrappers.wrappers_cfg.MultiAssetSpawnerCfg` class. Previously, this value
+  was always set to False, which led to incorrect contact sensor settings for the spawned assets.
 
 
 0.34.5 (2025-03-02)

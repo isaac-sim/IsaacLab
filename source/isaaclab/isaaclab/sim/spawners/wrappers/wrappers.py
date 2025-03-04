@@ -165,5 +165,13 @@ def spawn_multi_usd_file(
     # set random choice
     multi_asset_cfg.random_choice = cfg.random_choice
 
+    # propagate the contact sensor settings
+    # note: the default value for activate_contact_sensors in MultiAssetSpawnerCfg is False.
+    #  This ends up overwriting the usd-template-cfg's value when the `spawn_multi_asset`
+    #  function is called. We hard-code the value to the usd-template-cfg's value to ensure
+    #  that the contact sensor settings are propagated correctly.
+    if hasattr(cfg, "activate_contact_sensors"):
+        multi_asset_cfg.activate_contact_sensors = cfg.activate_contact_sensors
+
     # call the original function
     return spawn_multi_asset(prim_path, multi_asset_cfg, translation, orientation)
