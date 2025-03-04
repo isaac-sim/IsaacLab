@@ -171,7 +171,7 @@ class ArticulationData:
     is used.
     """
 
-    default_joint_friction_coefficient: torch.Tensor = None
+    default_joint_friction_coeff: torch.Tensor = None
     """Default joint friction coefficient of all joints. Shape is (num_instances, num_joints).
 
     This quantity is configured through the actuator model's :attr:`isaaclab.actuators.ActuatorBaseCfg.friction`
@@ -287,7 +287,7 @@ class ArticulationData:
     joint_armature: torch.Tensor = None
     """Joint armature provided to the simulation. Shape is (num_instances, num_joints)."""
 
-    joint_friction_coefficient: torch.Tensor = None
+    joint_friction_coeff: torch.Tensor = None
     """Joint friction coefficient provided to the simulation. Shape is (num_instances, num_joints)."""
 
     joint_pos_limits: torch.Tensor = None
@@ -984,14 +984,14 @@ class ArticulationData:
     def joint_friction(self) -> torch.Tensor:
         omni.log.warn(
             "The `joint_friction` property will be deprecated in a future release. Please use"
-            " `joint_friction_coefficient` instead."
+            " `joint_friction_coeff` instead."
         )
-        return self.joint_friction_coefficient
+        return self.joint_friction_coeff
 
     @property
     def default_joint_friction(self) -> torch.Tensor:
         omni.log.warn(
             "The `default_joint_friction` property will be deprecated in a future release. Please use"
-            " `default_joint_friction_coefficient` instead."
+            " `default_joint_friction_coeff` instead."
         )
-        return self.default_joint_friction_coefficient
+        return self.default_joint_friction_coeff

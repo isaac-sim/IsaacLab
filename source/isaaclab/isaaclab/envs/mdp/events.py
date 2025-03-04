@@ -424,8 +424,8 @@ def randomize_joint_parameters(
     """Randomize the joint parameters of an articulation by adding, scaling, or setting random values.
 
     This function allows randomizing the joint parameters of the asset. These correspond to the physics engine
-    joint properties that affect the joint behavior. The properties include the joint friction, armature, and
-    joint position limits.
+    joint properties that affect the joint behavior. The properties include the joint friction coefficient, armature,
+    and joint position limits.
 
     The function samples random values from the given distribution parameters and applies the operation to the
     joint properties. It then sets the values into the physics simulation. If the distribution parameters are
@@ -449,53 +449,61 @@ def randomize_joint_parameters(
         joint_ids = torch.tensor(asset_cfg.joint_ids, dtype=torch.int, device=asset.device)
 
     # sample joint properties from the given ranges and set into the physics simulation
-    # -- friction
+    # joint friction coefficient
     if friction_distribution_params is not None:
-        friction = asset.data.default_joint_friction_coefficient.to(asset.device).clone()
-        friction = _randomize_prop_by_op(
-            friction, friction_distribution_params, env_ids, joint_ids, operation=operation, distribution=distribution
-        )[env_ids][:, joint_ids]
-        asset.write_joint_friction_coefficient_to_sim(friction, joint_ids=joint_ids, env_ids=env_ids)
-    # -- armature
+        friction_coefficient = asset.data.default_joint_friction_coeff.clone()
+        friction_coefficient = _randomize_prop_by_op(
+            friction_coefficient,
+            friction_distribution_params,
+            env_ids,
+            joint_ids,
+            operation=operation,
+            distribution=distribution,
+        )
+        asset.write_joint_friction_coefficient_to_sim(friction_coefficient[env_ids][:, joint_ids], joint_ids=joint_ids, env_ids=env_ids)
+
+    # joint armature
     if armature_distribution_params is not None:
-        armature = asset.data.default_joint_armature.to(asset.device).clone()
+        armature = asset.data.default_joint_armature.clone()
         armature = _randomize_prop_by_op(
             armature, armature_distribution_params, env_ids, joint_ids, operation=operation, distribution=distribution
-        )[env_ids][:, joint_ids]
-        asset.write_joint_armature_to_sim(armature, joint_ids=joint_ids, env_ids=env_ids)
-    # -- dof limits
+        )
+        asset.write_joint_armature_to_sim(armature[env_ids][:, joint_ids], joint_ids=joint_ids, env_ids=env_ids)
+
+    # joint position limits
     if lower_limit_distribution_params is not None or upper_limit_distribution_params is not None:
-        dof_limits = asset.data.default_joint_pos_limits.to(asset.device).clone()
+        joint_pos_limits = asset.data.default_joint_pos_limits.clone()
+        # -- randomize the lower limits
         if lower_limit_distribution_params is not None:
-            lower_limits = dof_limits[..., 0]
-            lower_limits = _randomize_prop_by_op(
-                lower_limits,
+            joint_pos_limits[..., 0] = _randomize_prop_by_op(
+                joint_pos_limits[..., 0],
                 lower_limit_distribution_params,
                 env_ids,
                 joint_ids,
                 operation=operation,
                 distribution=distribution,
-            )[env_ids][:, joint_ids]
-            dof_limits[env_ids[:, None], joint_ids, 0] = lower_limits
+            )
+        # -- randomize the upper limits
         if upper_limit_distribution_params is not None:
-            upper_limits = dof_limits[..., 1]
-            upper_limits = _randomize_prop_by_op(
-                upper_limits,
+            joint_pos_limits[..., 1] = _randomize_prop_by_op(
+                joint_pos_limits[..., 1],
                 upper_limit_distribution_params,
                 env_ids,
                 joint_ids,
                 operation=operation,
                 distribution=distribution,
-            )[env_ids][:, joint_ids]
-            dof_limits[env_ids[:, None], joint_ids, 1] = upper_limits
-        if (dof_limits[env_ids[:, None], joint_ids, 0] > dof_limits[env_ids[:, None], joint_ids, 1]).any():
-            raise ValueError(
-                "Randomization term 'randomize_joint_parameters' is setting lower joint limits that are greater than"
-                " upper joint limits."
             )
 
-        asset.write_joint_pos_limits_to_sim(
-            dof_limits[env_ids][:, joint_ids], joint_ids=joint_ids, env_ids=env_ids, warn_limit_violation=False
+        # extract the position limits for the concerned joints
+        joint_pos_limits = joint_pos_limits[env_ids[:, None], joint_ids]
+        if (joint_pos_limits[..., 0] > joint_pos_limits[..., 1]).any():
+            raise ValueError(
+                "Randomization term 'randomize_joint_parameters' is setting lower joint limits that are greater than"
+                " upper joint limits. Please check the distribution parameters for the joint position limits."
+            )
+        # set the position limits into the physics simulation
+        asset.write_joint_position_limit_to_sim(
+            joint_pos_limits, joint_ids=joint_ids, env_ids=env_ids, warn_limit_violation=False
         )
 
 

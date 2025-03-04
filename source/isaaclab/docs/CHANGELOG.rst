@@ -29,9 +29,9 @@ Changed
   * ``joint_velocity_limits`` → ``joint_vel_limits`` (to match attribute ``joint_vel`` and ``joint_vel_limits``)
   * ``joint_limits`` → ``joint_pos_limits`` (to match attribute ``joint_pos`` and ``soft_joint_pos_limits``)
   * ``default_joint_limits`` → ``default_joint_pos_limits``
-  * ``write_joint_limits_to_sim`` → ``write_joint_pos_limits_to_sim``
-  * ``joint_friction`` → ``joint_friction_coefficient``
-  * ``default_joint_friction`` → ``default_joint_friction_coefficient``
+  * ``write_joint_limits_to_sim`` → ``write_joint_position_limit_to_sim``
+  * ``joint_friction`` → ``joint_friction_coeff``
+  * ``default_joint_friction`` → ``default_joint_friction_coeff``
   * ``write_joint_friction_to_sim`` → ``write_joint_friction_coefficient_to_sim``
 
 

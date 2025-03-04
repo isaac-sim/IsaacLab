@@ -775,7 +775,7 @@ class Articulation(AssetBase):
 
     def write_joint_friction_coefficient_to_sim(
         self,
-        joint_friction_coefficient: torch.Tensor | float,
+        joint_friction_coeff: torch.Tensor | float,
         joint_ids: Sequence[int] | slice | None = None,
         env_ids: Sequence[int] | None = None,
     ):
@@ -806,8 +806,10 @@ class Articulation(AssetBase):
         if env_ids != slice(None) and joint_ids != slice(None):
             env_ids = env_ids[:, None]
         # set into internal buffers
-        self._data.joint_friction_coefficient[env_ids, joint_ids] = joint_friction_coefficient
+        self._data.joint_friction_coeff[env_ids, joint_ids] = joint_friction_coeff
         # set into simulation
+        self.root_physx_view.set_dof_friction_coefficients(
+            self._data.joint_friction_coeff.cpu(), indices=physx_env_ids.cpu()
         )
 
     """
@@ -1221,7 +1223,7 @@ class Articulation(AssetBase):
         self._data.default_joint_stiffness = self.root_physx_view.get_dof_stiffnesses().to(self.device).clone()
         self._data.default_joint_damping = self.root_physx_view.get_dof_dampings().to(self.device).clone()
         self._data.default_joint_armature = self.root_physx_view.get_dof_armatures().to(self.device).clone()
-        self._data.default_joint_friction_coefficient = (
+        self._data.default_joint_friction_coeff = (
             self.root_physx_view.get_dof_friction_coefficients().to(self.device).clone()
         )
 
@@ -1231,7 +1233,7 @@ class Articulation(AssetBase):
         self._data.joint_stiffness = self._data.default_joint_stiffness.clone()
         self._data.joint_damping = self._data.default_joint_damping.clone()
         self._data.joint_armature = self._data.default_joint_armature.clone()
-        self._data.joint_friction_coefficient = self._data.default_joint_friction_coefficient.clone()
+        self._data.joint_friction_coeff = self._data.default_joint_friction_coeff.clone()
 
         # -- body properties
         self._data.default_mass = self.root_physx_view.get_masses().clone()
@@ -1344,7 +1346,7 @@ class Articulation(AssetBase):
                 stiffness=self._data.default_joint_stiffness[:, joint_ids],
                 damping=self._data.default_joint_damping[:, joint_ids],
                 armature=self._data.default_joint_armature[:, joint_ids],
-                friction=self._data.default_joint_friction_coefficient[:, joint_ids],
+                friction=self._data.default_joint_friction_coeff[:, joint_ids],
                 effort_limit=self._data.joint_effort_limits[:, joint_ids],
                 velocity_limit=self._data.joint_vel_limits[:, joint_ids],
             )
@@ -1379,7 +1381,7 @@ class Articulation(AssetBase):
             self._data.default_joint_stiffness[:, actuator.joint_indices] = actuator.stiffness
             self._data.default_joint_damping[:, actuator.joint_indices] = actuator.damping
             self._data.default_joint_armature[:, actuator.joint_indices] = actuator.armature
-            self._data.default_joint_friction_coefficient[:, actuator.joint_indices] = actuator.friction
+            self._data.default_joint_friction_coeff[:, actuator.joint_indices] = actuator.friction
 
         # perform some sanity checks to ensure actuators are prepared correctly
         total_act_joints = sum(actuator.num_joints for actuator in self.actuators.values())
@@ -1619,9 +1621,7 @@ class Articulation(AssetBase):
             "The function 'write_joint_friction_to_sim' will be deprecated in a future release. Please"
             " use 'write_joint_friction_coefficient_to_sim' instead."
         )
-        self.write_joint_friction_coefficient_to_sim(
-            joint_friction, joint_ids=joint_ids, env_ids=env_ids
-        )
+        self.write_joint_friction_coefficient_to_sim(joint_friction, joint_ids=joint_ids, env_ids=env_ids)
 
     def write_joint_limits_to_sim(
         self,
