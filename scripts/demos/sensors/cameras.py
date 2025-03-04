@@ -9,10 +9,10 @@ This script demonstrates the different camera sensors that can be attached to a 
 .. code-block:: bash
 
     # Usage
-    ./isaaclab.sh -p scripts/demos/cameras.py --enable_cameras
+    ./isaaclab.sh -p scripts/demos/sensors/cameras.py --enable_cameras
 
     # Usage in headless mode
-    ./isaaclab.sh -p scripts/demos/cameras.py --headless --enable_cameras
+    ./isaaclab.sh -p scripts/demos/sensors/cameras.py --headless --enable_cameras
 
 """
 
@@ -23,7 +23,7 @@ import argparse
 from isaaclab.app import AppLauncher
 
 # add argparse arguments
-parser = argparse.ArgumentParser(description="This script demonstrates the different camera sensor implementations.")
+parser = argparse.ArgumentParser(description="Example on using the different camera sensor implementations.")
 parser.add_argument("--num_envs", type=int, default=4, help="Number of environments to spawn.")
 parser.add_argument("--disable_fabric", action="store_true", help="Disable Fabric API and use USD instead.")
 # append AppLauncher cli args

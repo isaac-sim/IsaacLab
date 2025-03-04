@@ -237,6 +237,63 @@ def randomize_rigid_body_mass(
         asset.root_physx_view.set_inertias(inertias, env_ids)
 
 
+def randomize_rigid_body_collider_offsets(
+    env: ManagerBasedEnv,
+    env_ids: torch.Tensor | None,
+    asset_cfg: SceneEntityCfg,
+    rest_offset_distribution_params: tuple[float, float] | None = None,
+    contact_offset_distribution_params: tuple[float, float] | None = None,
+    distribution: Literal["uniform", "log_uniform", "gaussian"] = "uniform",
+):
+    """Randomize the collider parameters of rigid bodies in an asset by adding, scaling, or setting random values.
+
+    This function allows randomizing the collider parameters of the asset, such as rest and contact offsets.
+    These correspond to the physics engine collider properties that affect the collision checking.
+
+    The function samples random values from the given distribution parameters and applies the operation to
+    the collider properties. It then sets the values into the physics simulation. If the distribution parameters
+    are not provided for a particular property, the function does not modify the property.
+
+    Currently, the distribution parameters are applied as absolute values.
+
+    .. tip::
+        This function uses CPU tensors to assign the collision properties. It is recommended to use this function
+        only during the initialization of the environment.
+    """
+    # extract the used quantities (to enable type-hinting)
+    asset: RigidObject | Articulation = env.scene[asset_cfg.name]
+
+    # resolve environment ids
+    if env_ids is None:
+        env_ids = torch.arange(env.scene.num_envs, device="cpu")
+
+    # sample collider properties from the given ranges and set into the physics simulation
+    # -- rest offsets
+    if rest_offset_distribution_params is not None:
+        rest_offset = asset.root_physx_view.get_rest_offsets().clone()
+        rest_offset = _randomize_prop_by_op(
+            rest_offset,
+            rest_offset_distribution_params,
+            None,
+            slice(None),
+            operation="abs",
+            distribution=distribution,
+        )
+        asset.root_physx_view.set_rest_offsets(rest_offset, env_ids.cpu())
+    # -- contact offsets
+    if contact_offset_distribution_params is not None:
+        contact_offset = asset.root_physx_view.get_contact_offsets().clone()
+        contact_offset = _randomize_prop_by_op(
+            contact_offset,
+            contact_offset_distribution_params,
+            None,
+            slice(None),
+            operation="abs",
+            distribution=distribution,
+        )
+        asset.root_physx_view.set_contact_offsets(contact_offset, env_ids.cpu())
+
+
 def randomize_physics_scene_gravity(
     env: ManagerBasedEnv,
     env_ids: torch.Tensor | None,

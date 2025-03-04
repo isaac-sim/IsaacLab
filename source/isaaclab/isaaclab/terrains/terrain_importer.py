@@ -40,13 +40,14 @@ class TerrainImporter:
     curriculum. For example, in a game, the player starts with easy levels and progresses to harder levels.
     """
 
-    mesh_names: list[str]
-    """A list containing the names of the imported terrains."""
+    terrain_prim_paths: list[str]
+    """A list containing the USD prim paths to the imported terrains."""
 
     terrain_origins: torch.Tensor | None
     """The origins of the sub-terrains in the added terrain mesh. Shape is (num_rows, num_cols, 3).
 
     If terrain origins is not None, the environment origins are computed based on the terrain origins.
+    Otherwise, the environment origins are computed based on the grid spacing.
     """
 
     env_origins: torch.Tensor
@@ -71,9 +72,9 @@ class TerrainImporter:
         self.device = sim_utils.SimulationContext.instance().device  # type: ignore
 
         # create buffers for the terrains
-        self.mesh_names = list()
-        self.env_origins = None
+        self.terrain_prim_paths = list()
         self.terrain_origins = None
+        self.env_origins = None  # assigned later when `configure_env_origins` is called
         # private variables
         self._terrain_flat_patches = dict()
 
@@ -172,21 +173,27 @@ class TerrainImporter:
     Operations - Import.
     """
 
-    def import_ground_plane(self, key: str, size: tuple[float, float] = (2.0e6, 2.0e6)):
+    def import_ground_plane(self, name: str, size: tuple[float, float] = (2.0e6, 2.0e6)):
         """Add a plane to the terrain importer.
 
         Args:
-            key: The key to store the mesh.
+            name: The name of the imported terrain. This name is used to create the USD prim
+                corresponding to the terrain.
             size: The size of the plane. Defaults to (2.0e6, 2.0e6).
 
         Raises:
-            ValueError: If a terrain with the same key already exists.
+            ValueError: If a terrain with the same name already exists.
         """
+        # create prim path for the terrain
+        prim_path = self.cfg.prim_path + f"/{name}"
         # check if key exists
-        if key in self.mesh_names:
-            raise ValueError(f"Mesh with key {key} already exists. Existing keys: {self.mesh_names}.")
-        # store the mesh
-        self.mesh_names.append(key)
+        if prim_path in self.terrain_prim_paths:
+            names = [f"'{path.split('/')[-1]}'" for path in self.terrain_prim_paths]
+            raise ValueError(
+                f"A terrain with the name '{name}' already exists. Existing terrain names: {', '.join(names)}."
+            )
+        # store the mesh name
+        self.terrain_prim_paths.append(prim_path)
 
         # obtain ground plane color from the configured visual material
         color = (0.0, 0.0, 0.0)
@@ -203,38 +210,42 @@ class TerrainImporter:
 
         # get the mesh
         ground_plane_cfg = sim_utils.GroundPlaneCfg(physics_material=self.cfg.physics_material, size=size, color=color)
-        ground_plane_cfg.func(self.cfg.prim_path, ground_plane_cfg)
+        ground_plane_cfg.func(prim_path, ground_plane_cfg)
 
-    def import_mesh(self, key: str, mesh: trimesh.Trimesh):
+    def import_mesh(self, name: str, mesh: trimesh.Trimesh):
         """Import a mesh into the simulator.
 
         The mesh is imported into the simulator under the prim path ``cfg.prim_path/{key}``. The created path
         contains the mesh as a :class:`pxr.UsdGeom` instance along with visual or physics material prims.
 
         Args:
-            key: The key to store the mesh.
+            name: The name of the imported terrain. This name is used to create the USD prim
+                corresponding to the terrain.
             mesh: The mesh to import.
 
         Raises:
-            ValueError: If a terrain with the same key already exists.
+            ValueError: If a terrain with the same name already exists.
         """
+        # create prim path for the terrain
+        prim_path = self.cfg.prim_path + f"/{name}"
         # check if key exists
-        if key in self.mesh_names:
-            raise ValueError(f"Mesh with key {key} already exists. Existing keys: {self.mesh_names}.")
-        # store the mesh
-        self.mesh_names.append(key)
+        if prim_path in self.terrain_prim_paths:
+            names = [f"'{path.split('/')[-1]}'" for path in self.terrain_prim_paths]
+            raise ValueError(
+                f"A terrain with the name '{name}' already exists. Existing terrain names: {', '.join(names)}."
+            )
+        # store the mesh name
+        self.terrain_prim_paths.append(prim_path)
 
-        # get the mesh
-        mesh_prim_path = self.cfg.prim_path + f"/{key}"
         # import the mesh
         create_prim_from_mesh(
-            mesh_prim_path,
+            prim_path,
             mesh,
             visual_material=self.cfg.visual_material,
             physics_material=self.cfg.physics_material,
         )
 
-    def import_usd(self, key: str, usd_path: str):
+    def import_usd(self, name: str, usd_path: str):
         """Import a mesh from a USD file.
 
         This function imports a USD file into the simulator as a terrain. It parses the USD file and
@@ -245,24 +256,33 @@ class TerrainImporter:
         be defined in the USD file.
 
         Args:
-            key: The key to store the mesh.
+            name: The name of the imported terrain. This name is used to create the USD prim
+                corresponding to the terrain.
             usd_path: The path to the USD file.
 
         Raises:
-            ValueError: If a terrain with the same key already exists.
+            ValueError: If a terrain with the same name already exists.
         """
+        # create prim path for the terrain
+        prim_path = self.cfg.prim_path + f"/{name}"
         # check if key exists
-        if key in self.mesh_names:
-            raise ValueError(f"Mesh with key {key} already exists. Existing keys: {self.mesh_names}.")
+        if prim_path in self.terrain_prim_paths:
+            names = [f"'{path.split('/')[-1]}'" for path in self.terrain_prim_paths]
+            raise ValueError(
+                f"A terrain with the name '{name}' already exists. Existing terrain names: {', '.join(names)}."
+            )
+        # store the mesh name
+        self.terrain_prim_paths.append(prim_path)
+
         # add the prim path
         cfg = sim_utils.UsdFileCfg(usd_path=usd_path)
-        cfg.func(self.cfg.prim_path + f"/{key}", cfg)
+        cfg.func(prim_path, cfg)
 
     """
     Operations - Origins.
     """
 
-    def configure_env_origins(self, origins: np.ndarray | None = None):
+    def configure_env_origins(self, origins: np.ndarray | torch.Tensor | None = None):
         """Configure the origins of the environments based on the added terrain.
 
         Args:
@@ -320,9 +340,7 @@ class TerrainImporter:
         # define all terrain levels and types available
         self.terrain_levels = torch.randint(0, max_init_level + 1, (num_envs,), device=self.device)
         self.terrain_types = torch.div(
-            torch.arange(num_envs, device=self.device),
-            (num_envs / num_cols),
-            rounding_mode="floor",
+            torch.arange(num_envs, device=self.device), (num_envs / num_cols), rounding_mode="floor"
         ).to(torch.long)
         # create tensor based on number of environments
         env_origins = torch.zeros(num_envs, 3, device=self.device)
@@ -343,3 +361,33 @@ class TerrainImporter:
         env_origins[:, 1] = (jj.flatten()[:num_envs] - (num_cols - 1) / 2) * env_spacing
         env_origins[:, 2] = 0.0
         return env_origins
+
+    """
+    Deprecated.
+    """
+
+    @property
+    def warp_meshes(self):
+        """A dictionary containing the terrain's names and their warp meshes.
+
+        .. deprecated:: v2.1.0
+            The `warp_meshes` attribute is deprecated. It is no longer stored inside the class.
+        """
+        omni.log.warn(
+            "The `warp_meshes` attribute is deprecated. It is no longer stored inside the `TerrainImporter` class."
+            " Returning an empty dictionary."
+        )
+        return {}
+
+    @property
+    def meshes(self) -> dict[str, trimesh.Trimesh]:
+        """A dictionary containing the terrain's names and their tri-meshes.
+
+        .. deprecated:: v2.1.0
+            The `meshes` attribute is deprecated. It is no longer stored inside the class.
+        """
+        omni.log.warn(
+            "The `meshes` attribute is deprecated. It is no longer stored inside the `TerrainImporter` class."
+            " Returning an empty dictionary."
+        )
+        return {}

@@ -82,11 +82,11 @@ class TestTerrainImporter(unittest.TestCase):
                 )
                 terrain_importer = TerrainImporter(terrain_importer_cfg)
 
-                # check default terrain exists
-                self.assertIn("terrain", terrain_importer.mesh_names)
-
-                # obtain mesh prim path
+                # check if mesh prim path exists
                 mesh_prim_path = terrain_importer.cfg.prim_path + "/terrain"
+                self.assertIn(mesh_prim_path, terrain_importer.terrain_prim_paths)
+
+                # obtain underling mesh
                 mesh = create_mesh_from_prim(mesh_prim_path)
                 self.assertIsNotNone(mesh)
 
@@ -126,11 +126,11 @@ class TestTerrainImporter(unittest.TestCase):
                     expectedSizeX = 2.0e6
                     expectedSizeY = 2.0e6
 
-                    # check default terrain exists
-                    self.assertIn("terrain", terrain_importer.mesh_names)
+                    # check if mesh prim path exists
+                    mesh_prim_path = terrain_importer.cfg.prim_path + "/terrain"
+                    self.assertIn(mesh_prim_path, terrain_importer.terrain_prim_paths)
 
                     # obtain mesh prim path
-                    mesh_prim_path = terrain_importer.cfg.prim_path + "/terrain"
                     mesh = create_mesh_from_prim(mesh_prim_path)
                     self.assertIsNotNone(mesh)
 
@@ -140,6 +140,7 @@ class TestTerrainImporter(unittest.TestCase):
 
                     self.assertAlmostEqual(actualSize[0], expectedSizeX)
                     self.assertAlmostEqual(actualSize[1], expectedSizeY)
+
 
     def test_usd(self) -> None:
         """Imports terrain from a usd and tests that the resulting mesh has the correct size."""
@@ -156,11 +157,11 @@ class TestTerrainImporter(unittest.TestCase):
                 )
                 terrain_importer = TerrainImporter(terrain_importer_cfg)
 
-                # check default terrain exists
-                self.assertIn("terrain", terrain_importer.mesh_names)
-
-                # obtain mesh prim path
+                # check if mesh prim path exists
                 mesh_prim_path = terrain_importer.cfg.prim_path + "/terrain"
+                self.assertIn(mesh_prim_path, terrain_importer.terrain_prim_paths)
+
+                # obtain underling mesh
                 mesh = create_mesh_from_prim(mesh_prim_path)
                 self.assertIsNotNone(mesh)
 
