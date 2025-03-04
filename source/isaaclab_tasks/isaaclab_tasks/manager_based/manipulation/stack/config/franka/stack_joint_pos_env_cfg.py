@@ -7,7 +7,7 @@ import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObjectCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import SceneEntityCfg
-from isaaclab.sensors import CameraCfg, FrameTransformerCfg
+from isaaclab.sensors import FrameTransformerCfg
 from isaaclab.sensors.frame_transformer.frame_transformer_cfg import OffsetCfg
 from isaaclab.sim.schemas.schemas_cfg import RigidBodyPropertiesCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
@@ -142,47 +142,6 @@ class FrankaCubeStackEnvCfg(StackEnvCfg):
                 rigid_props=cube_properties,
                 semantic_tags=[("class", "cube_3")],
             ),
-        )
-
-        MAPPING = {
-            "class:cube_1": (255, 36, 66, 255),
-            "class:cube_2": (255, 184, 48, 255),
-            "class:cube_3": (55, 255, 139, 255),
-            "class:table": (255, 237, 218, 255),
-            "class:ground": (100, 100, 100, 255),
-            "class:robot": (125, 125, 125, 255),
-            "class:UNLABELLED": (125, 125, 125, 255),
-            "class:BACKGROUND": (10, 10, 10, 255),
-        }
-
-        # Set table view camera
-        self.scene.table_cam = CameraCfg(
-            prim_path="{ENV_REGEX_NS}/table_cam",
-            update_period=0.0333,
-            height=704,
-            width=1280,
-            data_types=["rgb", "semantic_segmentation", "normals"],
-            colorize_semantic_segmentation=True,
-            semantic_segmentation_mapping=MAPPING,
-            spawn=sim_utils.PinholeCameraCfg(
-                focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 1.0e5)
-            ),
-            offset=CameraCfg.OffsetCfg(pos=(1.0, 0.0, 0.33), rot=(-0.3799, 0.5963, 0.5963, -0.3799), convention="ros"),
-        )
-
-        # Set table view camera
-        self.scene.table_high_cam = CameraCfg(
-            prim_path="{ENV_REGEX_NS}/table_high_cam",
-            update_period=0.0333,
-            height=704,
-            width=1280,
-            data_types=["rgb", "semantic_segmentation", "normals"],
-            colorize_semantic_segmentation=True,
-            semantic_segmentation_mapping=MAPPING,
-            spawn=sim_utils.PinholeCameraCfg(
-                focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(1.5, 1.0e5)
-            ),
-            offset=CameraCfg.OffsetCfg(pos=(1.4, 1.8, 1.2), rot=(-0.1393, 0.2025, 0.8185, -0.5192), convention="ros"),
         )
 
         # Listens to the required transforms

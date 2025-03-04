@@ -95,54 +95,9 @@ class ObservationsCfg:
     class RGBCameraPolicyCfg(ObsGroup):
         """Observations for policy group with RGB images."""
 
-        table_cam_normals = ObsTerm(
-            func=mdp.image,
-            params={
-                "sensor_cfg": SceneEntityCfg("table_cam"),
-                "data_type": "normals",
-                "normalize": True,
-                "save_image_to_file": True,
-                "image_path": "_cosmos_inputs/table_cam",
-            },
-        )
-        table_cam_segmentation = ObsTerm(
-            func=mdp.image,
-            params={
-                "sensor_cfg": SceneEntityCfg("table_cam"),
-                "data_type": "semantic_segmentation",
-                "normalize": False,
-                "save_image_to_file": True,
-                "image_path": "_cosmos_inputs/table_cam",
-            },
-        )
-        table_high_cam_normals = ObsTerm(
-            func=mdp.image,
-            params={
-                "sensor_cfg": SceneEntityCfg("table_high_cam"),
-                "data_type": "normals",
-                "normalize": True,
-                "save_image_to_file": True,
-                "image_path": "_cosmos_inputs/table_high_cam",
-            },
-        )
-        table_high_cam_segmentation = ObsTerm(
-            func=mdp.image,
-            params={
-                "sensor_cfg": SceneEntityCfg("table_high_cam"),
-                "data_type": "semantic_segmentation",
-                "normalize": False,
-                "save_image_to_file": True,
-                "image_path": "_cosmos_inputs/table_high_cam",
-            },
-        )
-
         def __post_init__(self):
             self.enable_corruption = False
             self.concatenate_terms = False
-
-    # observation groups
-    policy: PolicyCfg = PolicyCfg()
-    rgb_camera: RGBCameraPolicyCfg = RGBCameraPolicyCfg()
 
     @configclass
     class SubtaskCfg(ObsGroup):
