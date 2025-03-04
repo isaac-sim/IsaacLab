@@ -95,7 +95,7 @@ class TiledCamera(Camera):
         # HACK: we need to disable instancing for semantic_segmentation and instance_segmentation_fast to work
         if int(get_version()[2]) == 4 and int(get_version()[3]) == 5:  # checks for Isaac Sim v4.5:
             if "semantic_segmentation" in self.cfg.data_types or "instance_segmentation_fast" in self.cfg.data_types:
-                carb.log_warn(
+                omni.log.warn(
                     "Isaac Sim 4.5 introduced a bug in TiledCamera when outputting instance and semantic segmentation"
                     " outputs for instanceable assets. As a workaround, the instanceable flag on assets will be"
                     " disabled in the current workflow and may lead to longer load times and increased memory usage."
