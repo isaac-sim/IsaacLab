@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+0.34.6 (2025-03-02)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the propagation of the :attr:`activate_contact_sensors` attribute to the
+  :class:`~isaaclab.sim.spawners.wrappers.wrappers_cfg.MultiAssetSpawnerCfg` class. Previously, this value
+  was always set to False, which led to incorrect contact sensor settings for the spawned assets.
+
+
 0.34.5 (2025-03-02)
 ~~~~~~~~~~~~~~~~~~~
 
