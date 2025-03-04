@@ -451,9 +451,9 @@ def randomize_joint_parameters(
     # sample joint properties from the given ranges and set into the physics simulation
     # joint friction coefficient
     if friction_distribution_params is not None:
-        friction_coefficient = asset.data.default_joint_friction_coeff.clone()
-        friction_coefficient = _randomize_prop_by_op(
-            friction_coefficient,
+        friction_coeff = asset.data.default_joint_friction_coeff.clone()
+        friction_coeff = _randomize_prop_by_op(
+            friction_coeff,
             friction_distribution_params,
             env_ids,
             joint_ids,
@@ -461,7 +461,7 @@ def randomize_joint_parameters(
             distribution=distribution,
         )
         asset.write_joint_friction_coefficient_to_sim(
-            friction_coefficient[env_ids][:, joint_ids], joint_ids=joint_ids, env_ids=env_ids
+            friction_coeff[env_ids][:, joint_ids], joint_ids=joint_ids, env_ids=env_ids
         )
 
     # joint armature
