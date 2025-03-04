@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.10.25 (2025-03-04)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``body_inertia`` and ``base_com`` to EventCfg in velocity_env_cfg.py.
+
+
 0.10.24 (2025-02-13)
 ~~~~~~~~~~~~~~~~~~~~
 
