@@ -10,9 +10,9 @@ Removed
 * Removed the storage of tri-meshes and warp meshes inside the :class:`~isaaclab.terrains.TerrainImporter` class.
   Initially these meshes were added for ray-casting purposes. However, since the ray-caster reads the terrains
   directly from the USD files, these meshes are no longer needed.
-* Deprecated the following attributes from the :class:`~isaaclab.terrains.TerrainImporter` class:
-  :attr:`warp_meshes`, and :attr:`meshes`. These atttributes return an empty dictionary with a deprecation
-  warning.
+* Deprecated the :attr:`warp_meshes` and :attr:`meshes` attributes from the
+  :class:`~isaaclab.terrains.TerrainImporter` class. These attributes now return an empty dictionary
+  with a deprecation warning.
 
 Changed
 ^^^^^^^
