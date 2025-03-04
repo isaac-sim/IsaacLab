@@ -72,14 +72,15 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
             render_mode: The render mode for the environment. Defaults to None, which
                 is similar to ``"human"``.
         """
+        # -- counter for curriculum
+        self.common_step_counter = 0
+
         # initialize the base class to setup the scene.
         super().__init__(cfg=cfg)
         # store the render mode
         self.render_mode = render_mode
 
         # initialize data and constants
-        # -- counter for curriculum
-        self.common_step_counter = 0
         # -- init buffers
         self.episode_length_buf = torch.zeros(self.num_envs, device=self.device, dtype=torch.long)
         # -- set the framerate of the gym video recorder wrapper so that the playback speed of the produced video matches the simulation

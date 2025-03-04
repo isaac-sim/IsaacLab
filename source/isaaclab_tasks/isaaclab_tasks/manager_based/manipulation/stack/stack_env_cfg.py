@@ -80,9 +80,9 @@ class ObservationsCfg:
         actions = ObsTerm(func=mdp.last_action)
         joint_pos = ObsTerm(func=mdp.joint_pos_rel)
         joint_vel = ObsTerm(func=mdp.joint_vel_rel)
-        object = ObsTerm(func=mdp.object_obs)
-        cube_positions = ObsTerm(func=mdp.cube_positions_in_world_frame)
-        cube_orientations = ObsTerm(func=mdp.cube_orientations_in_world_frame)
+        object = ObsTerm(func=mdp.instance_randomize_object_obs)
+        cube_positions = ObsTerm(func=mdp.instance_randomize_cube_positions_in_world_frame)
+        cube_orientations = ObsTerm(func=mdp.instance_randomize_cube_orientations_in_world_frame)
         eef_pos = ObsTerm(func=mdp.ee_frame_pos)
         eef_quat = ObsTerm(func=mdp.ee_frame_quat)
         gripper_pos = ObsTerm(func=mdp.gripper_pos)
@@ -95,9 +95,26 @@ class ObservationsCfg:
     class RGBCameraPolicyCfg(ObsGroup):
         """Observations for policy group with RGB images."""
 
+        table_cam_normals = ObsTerm(
+            func=mdp.image, params={"sensor_cfg": SceneEntityCfg("table_cam"), "data_type": "normals", "normalize": True, "save_image_to_file": True, "image_path": "_cosmos_inputs/table_cam"}
+        )
+        table_cam_segmentation = ObsTerm(
+            func=mdp.image, params={"sensor_cfg": SceneEntityCfg("table_cam"),"data_type": "semantic_segmentation", "normalize": False, "save_image_to_file": True, "image_path": "_cosmos_inputs/table_cam"}
+        )
+        table_high_cam_normals = ObsTerm(
+            func=mdp.image, params={"sensor_cfg": SceneEntityCfg("table_high_cam"), "data_type": "normals", "normalize": True, "save_image_to_file": True, "image_path": "_cosmos_inputs/table_high_cam"}
+        )
+        table_high_cam_segmentation = ObsTerm(
+            func=mdp.image, params={"sensor_cfg": SceneEntityCfg("table_high_cam"),"data_type": "semantic_segmentation", "normalize": False, "save_image_to_file": True, "image_path": "_cosmos_inputs/table_high_cam"}
+        )
+
         def __post_init__(self):
             self.enable_corruption = False
             self.concatenate_terms = False
+
+    # observation groups
+    policy: PolicyCfg = PolicyCfg()
+    rgb_camera: RGBCameraPolicyCfg = RGBCameraPolicyCfg()
 
     @configclass
     class SubtaskCfg(ObsGroup):
