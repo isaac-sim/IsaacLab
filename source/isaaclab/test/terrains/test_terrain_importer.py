@@ -84,11 +84,11 @@ class TestTerrainImporter(unittest.TestCase):
                 )
                 terrain_importer = TerrainImporter(terrain_importer_cfg)
 
-                # check default terrain exists
-                self.assertIn("terrain", terrain_importer.mesh_names)
-
-                # obtain mesh prim path
+                # check if mesh prim path exists
                 mesh_prim_path = terrain_importer.cfg.prim_path + "/terrain"
+                self.assertIn(mesh_prim_path, terrain_importer.terrain_prim_paths)
+
+                # obtain underling mesh
                 mesh = self._obtain_collision_mesh(mesh_prim_path, mesh_type="Mesh")
                 self.assertIsNotNone(mesh)
 
@@ -124,11 +124,11 @@ class TestTerrainImporter(unittest.TestCase):
                     )
                     terrain_importer = TerrainImporter(terrain_importer_cfg)
 
-                    # check default terrain exists
-                    self.assertIn("terrain", terrain_importer.mesh_names)
-
-                    # obtain mesh prim path
+                    # check if mesh prim path exists
                     mesh_prim_path = terrain_importer.cfg.prim_path + "/terrain"
+                    self.assertIn(mesh_prim_path, terrain_importer.terrain_prim_paths)
+
+                    # obtain underling mesh
                     mesh = self._obtain_collision_mesh(mesh_prim_path, mesh_type="Plane")
                     self.assertIsNone(mesh)
 
@@ -147,11 +147,11 @@ class TestTerrainImporter(unittest.TestCase):
                 )
                 terrain_importer = TerrainImporter(terrain_importer_cfg)
 
-                # check default terrain exists
-                self.assertIn("terrain", terrain_importer.mesh_names)
-
-                # obtain mesh prim path
+                # check if mesh prim path exists
                 mesh_prim_path = terrain_importer.cfg.prim_path + "/terrain"
+                self.assertIn(mesh_prim_path, terrain_importer.terrain_prim_paths)
+
+                # obtain underling mesh
                 mesh = self._obtain_collision_mesh(mesh_prim_path, mesh_type="Mesh")
                 self.assertIsNotNone(mesh)
 
