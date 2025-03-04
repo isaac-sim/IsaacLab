@@ -421,7 +421,7 @@ def randomize_joint_parameters(
     operation: Literal["add", "scale", "abs"] = "abs",
     distribution: Literal["uniform", "log_uniform", "gaussian"] = "uniform",
 ):
-    """Randomize the joint parameters of an articulation by adding, scaling, or setting random values.
+    """Randomize the simulated joint parameters of an articulation by adding, scaling, or setting random values.
 
     This function allows randomizing the joint parameters of the asset. These correspond to the physics engine
     joint properties that affect the joint behavior. The properties include the joint friction coefficient, armature,
@@ -523,7 +523,7 @@ def randomize_fixed_tendon_parameters(
     operation: Literal["add", "scale", "abs"] = "abs",
     distribution: Literal["uniform", "log_uniform", "gaussian"] = "uniform",
 ):
-    """Randomize the fixed tendon parameters of an articulation by adding, scaling, or setting random values.
+    """Randomize the simulated fixed tendon parameters of an articulation by adding, scaling, or setting random values.
 
     This function allows randomizing the fixed tendon parameters of the asset.
     These correspond to the physics engine tendon properties that affect the joint behavior.
