@@ -1658,6 +1658,4 @@ class Articulation(AssetBase):
             "The function 'set_fixed_tendon_limit' will be deprecated in a future release. Please"
             " use 'set_fixed_tendon_position_limit' instead."
         )
-        self.set_fixed_tendon_position_limit(
-            limit, tendon_ids=fixed_tendon_ids, env_ids=env_ids
-        )
+        self.set_fixed_tendon_position_limit(limit, fixed_tendon_ids=fixed_tendon_ids, env_ids=env_ids)
