@@ -1,0 +1,32 @@
+from __future__ import annotations
+
+
+from isaaclab_assets.robots.cart_double_pendulum import ROBOT_CFG
+
+from isaaclab.assets import ArticulationCfg
+from isaaclab.envs import DirectMARLEnvCfg
+from isaaclab.scene import InteractiveSceneCfg
+from isaaclab.sim import SimulationCfg
+from isaaclab.utils import configclass
+
+
+@configclass
+class EnvCfg(DirectMARLEnvCfg):
+    # env
+    decimation = 1
+    episode_length_s = 10.0
+    possible_agents = ["agent_0", "agent_1"]
+
+    # spaces
+    action_spaces = {"agent_0": 1, "agent_0": 1}
+    observation_spaces = {"agent_0": 4, "agent_1": 3}
+    state_space = -1
+
+    # simulation
+    sim: SimulationCfg = SimulationCfg(dt=1 / 120, render_interval=decimation)
+
+    # robot
+    robot_cfg: ArticulationCfg = ROBOT_CFG.replace(prim_path="/World/envs/env_.*/Robot")
+
+    # scene
+    scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=2048, env_spacing=2.0, replicate_physics=True)
