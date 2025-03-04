@@ -575,6 +575,10 @@ class Articulation(AssetBase):
     ):
         """Write joint max velocity to the simulation.
 
+        The velocity limit is used to constrain the joint velocities in the physics engine. The joint will only
+        be able to reach this velocity if the joint's effort limit is sufficiently large. If the joint is moving
+        faster than this velocity, the physics engine will actually try to brake the joint to reach this velocity.
+
         Args:
             limits: Joint max velocity. Shape is (len(env_ids), len(joint_ids)).
             joint_ids: The joint indices to set the max velocity for. Defaults to None (all joints).
@@ -605,6 +609,9 @@ class Articulation(AssetBase):
         env_ids: Sequence[int] | None = None,
     ):
         """Write joint effort limits into the simulation.
+
+        The effort limit is used to constrain the computed joint efforts in the physics engine. If the
+        computed effort exceeds this limit, the physics engine will clip the effort to this value.
 
         Args:
             limits: Joint torque limits. Shape is (len(env_ids), len(joint_ids)).
@@ -638,6 +645,9 @@ class Articulation(AssetBase):
     ):
         """Write joint armature into the simulation.
 
+        The armature is directly added to the corresponding joint-space inertia. It helps improve the
+        simulation stability by reducing the joint velocities.
+
         Args:
             armature: Joint armature. Shape is (len(env_ids), len(joint_ids)).
             joint_ids: The joint indices to set the joint torque limits for. Defaults to None (all joints).
@@ -664,7 +674,15 @@ class Articulation(AssetBase):
         joint_ids: Sequence[int] | slice | None = None,
         env_ids: Sequence[int] | None = None,
     ):
-        """Write joint friction into the simulation.
+        r"""Write joint friction coefficients into the simulation.
+
+        The joint friction is a unitless quantity. It relates the magnitude of the spatial force transmitted
+        from the parent body to the child body to the maximal friction force that may be applied by the solver
+        to resist the joint motion.
+
+        Mathematically, this means that: :math:`F_{resist} \leq \mu F_{spatial}`, where :math:`F_{resist}`
+        is the resisting force applied by the solver and :math:`F_{spatial}` is the spatial force
+        transmitted from the parent body to the child body.
 
         Args:
             joint_friction: Joint friction. Shape is (len(env_ids), len(joint_ids)).
