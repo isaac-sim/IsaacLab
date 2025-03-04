@@ -713,7 +713,7 @@ class Articulation(AssetBase):
 
     def write_joint_friction_coefficient_to_sim(
         self,
-        joint_friction: torch.Tensor | float,
+        joint_friction_coefficient: torch.Tensor | float,
         joint_ids: Sequence[int] | slice | None = None,
         env_ids: Sequence[int] | None = None,
     ):
@@ -744,9 +744,9 @@ class Articulation(AssetBase):
         if env_ids != slice(None) and joint_ids != slice(None):
             env_ids = env_ids[:, None]
         # set into internal buffers
-        self._data.joint_friction[env_ids, joint_ids] = joint_friction
+        self._data.joint_friction_coefficient[env_ids, joint_ids] = joint_friction_coefficient
         # set into simulation
-        self.root_physx_view.set_dof_friction_coefficients(self._data.joint_friction.cpu(), indices=physx_env_ids.cpu())
+        self.root_physx_view.set_dof_friction_coefficients(self._data.joint_friction_coefficient.cpu(), indices=physx_env_ids.cpu())
 
     def write_joint_pos_limits_to_sim(
         self,
@@ -1369,7 +1369,7 @@ class Articulation(AssetBase):
             self.write_joint_effort_limit_to_sim(actuator.effort_limit_sim, joint_ids=actuator.joint_indices)
             self.write_joint_velocity_limit_to_sim(actuator.velocity_limit_sim, joint_ids=actuator.joint_indices)
             self.write_joint_armature_to_sim(actuator.armature, joint_ids=actuator.joint_indices)
-            self.write_joint_friction_to_sim(actuator.friction, joint_ids=actuator.joint_indices)
+            self.write_joint_friction_coefficient_to_sim(actuator.friction, joint_ids=actuator.joint_indices)
 
             # Store the configured values from the actuator model
             # note: this is the value configured in the actuator model (for implicit and explicit actuators)
@@ -1617,7 +1617,7 @@ class Articulation(AssetBase):
             " use 'write_joint_friction_coefficient_to_sim' instead."
         )
         self.write_joint_friction_coefficient_to_sim(
-            joint_friction=joint_friction, joint_ids=joint_ids, env_ids=env_ids
+            joint_friction, joint_ids=joint_ids, env_ids=env_ids
         )
 
     def write_joint_limits_to_sim(
@@ -1637,5 +1637,5 @@ class Articulation(AssetBase):
             " use 'write_joint_pos_limits_to_sim' instead."
         )
         self.write_joint_pos_limits_to_sim(
-            limits=limits, joint_ids=joint_ids, env_ids=env_ids, warn_limit_violation=warn_limit_violation
+            limits, joint_ids=joint_ids, env_ids=env_ids, warn_limit_violation=warn_limit_violation
         )
