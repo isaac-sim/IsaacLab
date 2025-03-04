@@ -12,7 +12,7 @@ from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.utils import configclass
 
-import mdp
+from . import mdp
 
 ##
 # Pre-defined configs

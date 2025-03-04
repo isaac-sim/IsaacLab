@@ -16,6 +16,7 @@ from InquirerPy import inquirer, separator
 
 class CLIHandler:
     """CLI handler for the Isaac Lab template."""
+
     def __init__(self):
         self.console = rich.console.Console()
 

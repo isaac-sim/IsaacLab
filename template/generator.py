@@ -70,13 +70,14 @@ def _generate_task(task_dir: str, specification: dict):
 
 
 def _internal(specification: dict):
-    task_name = "-".join([item.capitalize() for item in specification["name"].split("_")])
+    general_task_name = "-".join([item.capitalize() for item in specification["name"].split("_")])
     for workflow in specification["workflows"]:
-        filename = specification["name"] + ("_marl" if workflow["type"] == "multi-agent" else "")
+        task_name = general_task_name + ("-Marl" if workflow["type"] == "multi-agent" else "")
+        filename = task_name.replace("-", "_").lower()
         task = {
             "workflow": workflow,
             "filename": filename,
-            "classname": task_name.replace("-", "") + ("MARL" if workflow["type"] == "multi-agent" else ""),
+            "classname": task_name.replace("-", ""),
             "dir": os.path.join(TASKS_DIR, workflow["name"].replace("-", "_"), filename),
         }
         if task["workflow"]["name"] == "direct":
