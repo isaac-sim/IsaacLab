@@ -92,10 +92,6 @@ class ObservationsCfg:
             self.enable_corruption = False
             self.concatenate_terms = False
 
-    # observation groups
-    policy: PolicyCfg = PolicyCfg()
-    rgb_camera: RGBCameraPolicyCfg = RGBCameraPolicyCfg()
-
     @configclass
     class SubtaskCfg(ObsGroup):
         """Observations for subtask group."""
