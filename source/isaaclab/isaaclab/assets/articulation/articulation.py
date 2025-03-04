@@ -484,6 +484,23 @@ class Articulation(AssetBase):
             joint_ids: The joint indices to set the targets for. Defaults to None (all joints).
             env_ids: The environment indices to set the targets for. Defaults to None (all environments).
         """
+        # set into simulation
+        self.write_joint_position_to_sim(position, joint_ids=joint_ids, env_ids=env_ids)
+        self.write_joint_velocity_to_sim(velocity, joint_ids=joint_ids, env_ids=env_ids)
+
+    def write_joint_position_to_sim(
+        self,
+        position: torch.Tensor,
+        joint_ids: Sequence[int] | slice | None = None,
+        env_ids: Sequence[int] | slice | None = None,
+    ):
+        """Write joint positions to the simulation.
+
+        Args:
+            position: Joint positions. Shape is (len(env_ids), len(joint_ids)).
+            joint_ids: The joint indices to set the targets for. Defaults to None (all joints).
+            env_ids: The environment indices to set the targets for. Defaults to None (all environments).
+        """
         # resolve indices
         physx_env_ids = env_ids
         if env_ids is None:
@@ -496,15 +513,41 @@ class Articulation(AssetBase):
             env_ids = env_ids[:, None]
         # set into internal buffers
         self._data.joint_pos[env_ids, joint_ids] = position
-        self._data.joint_vel[env_ids, joint_ids] = velocity
-        self._data._previous_joint_vel[env_ids, joint_ids] = velocity
-        self._data.joint_acc[env_ids, joint_ids] = 0.0
         # Need to invalidate the buffer to trigger the update with the new root pose.
         self._data._body_state_w.timestamp = -1.0
         self._data._body_link_state_w.timestamp = -1.0
         self._data._body_com_state_w.timestamp = -1.0
         # set into simulation
         self.root_physx_view.set_dof_positions(self._data.joint_pos, indices=physx_env_ids)
+
+    def write_joint_velocity_to_sim(
+        self,
+        velocity: torch.Tensor,
+        joint_ids: Sequence[int] | slice | None = None,
+        env_ids: Sequence[int] | slice | None = None,
+    ):
+        """Write joint velocities to the simulation.
+
+        Args:
+            velocity: Joint velocities. Shape is (len(env_ids), len(joint_ids)).
+            joint_ids: The joint indices to set the targets for. Defaults to None (all joints).
+            env_ids: The environment indices to set the targets for. Defaults to None (all environments).
+        """
+        # resolve indices
+        physx_env_ids = env_ids
+        if env_ids is None:
+            env_ids = slice(None)
+            physx_env_ids = self._ALL_INDICES
+        if joint_ids is None:
+            joint_ids = slice(None)
+        # broadcast env_ids if needed to allow double indexing
+        if env_ids != slice(None) and joint_ids != slice(None):
+            env_ids = env_ids[:, None]
+        # set into internal buffers
+        self._data.joint_vel[env_ids, joint_ids] = velocity
+        self._data._previous_joint_vel[env_ids, joint_ids] = velocity
+        self._data.joint_acc[env_ids, joint_ids] = 0.0
+        # set into simulation
         self.root_physx_view.set_dof_velocities(self._data.joint_vel, indices=physx_env_ids)
 
     def write_joint_stiffness_to_sim(
