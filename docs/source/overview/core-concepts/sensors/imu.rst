@@ -1,9 +1,11 @@
 .. _overview_sensors_imu:
 
+.. currentmodule:: isaaclab
+
 Inertial Measurement Unit (IMU)
 ===================================
 
-.. figure:: ../../_static/overview/overview_sensors_imu_diagram.jpg
+.. figure:: ../../../_static/overview/sensors/imu_diagram.jpg
     :align: center
     :figwidth: 100%
     :alt: A diagram outlining the basic force relationships for the IMU sensor
@@ -14,13 +16,13 @@ A naive implementation of an IMU would report a negative acceleration due to gra
 
 Consider a simple environment with an Anymal Quadruped equipped with an IMU on each of its two front feet.
 
-.. literalinclude:: ../../../../scripts/demos/sensors/imu_sensor.py
+.. literalinclude:: ../../../../../scripts/demos/sensors/imu_sensor.py
   :language: python
   :lines: 39-63
 
 Here we have explicitly removed the bias from one of the sensors, and we can see how this affects the reported values by visualizing the sensor when we run the sample script
 
-.. figure:: ../../_static/overview/overview_sensors_imu_visualizer.jpg
+.. figure:: ../../../_static/overview/sensors/imu_visualizer.jpg
     :align: center
     :figwidth: 100%
     :alt: IMU visualized
@@ -82,6 +84,6 @@ The oscillations in the values reported by the sensor are a direct result of of 
 .. dropdown:: Code for imu_sensor.py
    :icon: code
 
-   .. literalinclude:: ../../../../scripts/demos/sensors/imu_sensor.py
+   .. literalinclude:: ../../../../../scripts/demos/sensors/imu_sensor.py
       :language: python
       :linenos:
