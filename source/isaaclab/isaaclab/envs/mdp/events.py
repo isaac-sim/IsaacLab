@@ -461,7 +461,7 @@ def randomize_joint_parameters(
             distribution=distribution,
         )
         asset.write_joint_friction_coefficient_to_sim(
-            friction_coeff[env_ids][:, joint_ids], joint_ids=joint_ids, env_ids=env_ids
+            friction_coeff[env_ids[:, None], joint_ids], joint_ids=joint_ids, env_ids=env_ids
         )
 
     # joint armature
@@ -470,7 +470,7 @@ def randomize_joint_parameters(
         armature = _randomize_prop_by_op(
             armature, armature_distribution_params, env_ids, joint_ids, operation=operation, distribution=distribution
         )
-        asset.write_joint_armature_to_sim(armature[env_ids][:, joint_ids], joint_ids=joint_ids, env_ids=env_ids)
+        asset.write_joint_armature_to_sim(armature[env_ids[:, None], joint_ids], joint_ids=joint_ids, env_ids=env_ids)
 
     # joint position limits
     if lower_limit_distribution_params is not None or upper_limit_distribution_params is not None:
