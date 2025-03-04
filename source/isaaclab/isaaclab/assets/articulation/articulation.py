@@ -682,7 +682,8 @@ class Articulation(AssetBase):
 
         Mathematically, this means that: :math:`F_{resist} \leq \mu F_{spatial}`, where :math:`F_{resist}`
         is the resisting force applied by the solver and :math:`F_{spatial}` is the spatial force
-        transmitted from the parent body to the child body.
+        transmitted from the parent body to the child body. The simulated friction effect is therefore
+        similar to static and Coulomb friction.
 
         Args:
             joint_friction: Joint friction. Shape is (len(env_ids), len(joint_ids)).

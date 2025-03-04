@@ -42,7 +42,7 @@ class ActuatorBaseCfg:
         the simulation physics solver.
 
         The :attr:`effort_limit` attribute is used for clipping the effort output of the
-        actuator model *only* in the case of explicit actuators, such as the
+        actuator model **only** in the case of explicit actuators, such as the
         :class:`~isaaclab.actuators.IdealPDActuator`.
 
     .. note::
@@ -65,7 +65,7 @@ class ActuatorBaseCfg:
         the simulation physics solver.
 
         The :attr:`velocity_limit` attribute is used for clipping the effort output of the
-        actuator model *only* in the case of explicit actuators, such as the
+        actuator model **only** in the case of explicit actuators, such as the
         :class:`~isaaclab.actuators.IdealPDActuator`.
 
     .. note::
@@ -79,8 +79,8 @@ class ActuatorBaseCfg:
     effort_limit_sim: dict[str, float] | float | None = None
     """Effort limit of the joints in the group applied to the simulation physics solver. Defaults to None.
 
-    The effort limit is used to constrain the computed joint efforts in the physics engine. Please refer to the
-    :attr:`~isaaclab.assets.articulation.Articulation.write_joint_effort_limit_to_sim` method for more details.
+    The effort limit is used to constrain the computed joint efforts in the physics engine. If the
+    computed effort exceeds this limit, the physics engine will clip the effort to this value.
 
     Since explicit actuators (e.g. DC motor), compute and clip the effort in the actuator model, this
     limit is by default set to a large value to prevent the physics engine from any additional clipping.
@@ -96,8 +96,9 @@ class ActuatorBaseCfg:
     velocity_limit_sim: dict[str, float] | float | None = None
     """Velocity limit of the joints in the group applied to the simulation physics solver. Defaults to None.
 
-    The velocity limit is used to constrain the joint velocities in the physics engine. Please refer to the
-    :attr:`~isaaclab.assets.articulation.Articulation.write_joint_velocity_limit_to_sim` method for more details.
+    The velocity limit is used to constrain the joint velocities in the physics engine. The joint will only
+    be able to reach this velocity if the joint's effort limit is sufficiently large. If the joint is moving
+    faster than this velocity, the physics engine will actually try to brake the joint to reach this velocity.
 
     If None, the limit is set to the value specified in the USD joint prim for both implicit and explicit actuators.
 
@@ -131,18 +132,25 @@ class ActuatorBaseCfg:
     armature: dict[str, float] | float | None = None
     """Armature of the joints in the group. Defaults to None.
 
-    This is a physics eingine solver parameter that gets set into the simulation. For more details,
-    see the :attr:`~isaaclab.assets.articulation.Articulation.write_joint_armature_to_sim` method.
+    The armature is directly added to the corresponding joint-space inertia. It helps improve the
+    simulation stability by reducing the joint velocities.
+
+    It is a physics engine solver parameter that gets set into the simulation.
 
     If None, the armature is set to the value from the USD joint prim.
     """
 
     friction: dict[str, float] | float | None = None
-    """The friction coefficient of the joints in the group. Defaults to None.
+    r"""The friction coefficient of the joints in the group. Defaults to None.
 
-    This is a physics engine solver parameter that gets set into the simulation. For more details,
-    see the :attr:`~isaaclab.assets.articulation.Articulation.write_joint_friction_coefficient_to_sim`
-    method.
+    The joint friction is a unitless quantity. It relates the magnitude of the spatial force transmitted
+    from the parent body to the child body to the maximal friction force that may be applied by the solver
+    to resist the joint motion.
+
+    Mathematically, this means that: :math:`F_{resist} \leq \mu F_{spatial}`, where :math:`F_{resist}`
+    is the resisting force applied by the solver and :math:`F_{spatial}` is the spatial force
+    transmitted from the parent body to the child body. The simulated friction effect is therefore
+    similar to static and Coulomb friction.
 
     If None, the joint friction is set to the value from the USD joint prim.
     """
