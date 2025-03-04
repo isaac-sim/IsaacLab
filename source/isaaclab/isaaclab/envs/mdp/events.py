@@ -460,7 +460,9 @@ def randomize_joint_parameters(
             operation=operation,
             distribution=distribution,
         )
-        asset.write_joint_friction_coefficient_to_sim(friction_coefficient[env_ids][:, joint_ids], joint_ids=joint_ids, env_ids=env_ids)
+        asset.write_joint_friction_coefficient_to_sim(
+            friction_coefficient[env_ids][:, joint_ids], joint_ids=joint_ids, env_ids=env_ids
+        )
 
     # joint armature
     if armature_distribution_params is not None:
