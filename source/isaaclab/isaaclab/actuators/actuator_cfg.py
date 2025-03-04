@@ -141,7 +141,8 @@ class ActuatorBaseCfg:
     """The friction coefficient of the joints in the group. Defaults to None.
 
     This is a physics engine solver parameter that gets set into the simulation. For more details,
-    see the :attr:`~isaaclab.assets.articulation.Articulation.write_joint_friction_to_sim` method.
+    see the :attr:`~isaaclab.assets.articulation.Articulation.write_joint_friction_coefficient_to_sim`
+    method.
 
     If None, the joint friction is set to the value from the USD joint prim.
     """

@@ -668,7 +668,7 @@ class Articulation(AssetBase):
         # set into simulation
         self.root_physx_view.set_dof_armatures(self._data.joint_armature.cpu(), indices=physx_env_ids.cpu())
 
-    def write_joint_friction_to_sim(
+    def write_joint_friction_coefficient_to_sim(
         self,
         joint_friction: torch.Tensor | float,
         joint_ids: Sequence[int] | slice | None = None,
@@ -703,31 +703,6 @@ class Articulation(AssetBase):
         self._data.joint_friction[env_ids, joint_ids] = joint_friction
         # set into simulation
         self.root_physx_view.set_dof_friction_coefficients(self._data.joint_friction.cpu(), indices=physx_env_ids.cpu())
-
-    def write_joint_limits_to_sim(
-        self,
-        limits: torch.Tensor | float,
-        joint_ids: Sequence[int] | slice | None = None,
-        env_ids: Sequence[int] | None = None,
-        warn_limit_violation: bool = True,
-    ):
-        """Write joint limits into the simulation.
-
-        .. deprecated:: 2.1.0
-            Use :meth:`write_joint_pos_limits_to_sim` instead.
-
-        Args:
-            limits: Joint limits. Shape is (len(env_ids), len(joint_ids), 2).
-            joint_ids: The joint indices to set the limits for. Defaults to None (all joints).
-            env_ids: The environment indices to set the limits for. Defaults to None (all environments).
-            warn_limit_violation: Whether to use warning or info level logging when default joint positions exceed the new limits. Defaults to True.
-        """
-        omni.log.warn(
-            "The function 'write_joint_limits_to_sim' is deprecated. Use 'write_joint_pos_limits_to_sim' instead."
-        )
-        self.write_joint_pos_limits_to_sim(
-            limits=limits, joint_ids=joint_ids, env_ids=env_ids, warn_limit_violation=warn_limit_violation
-        )
 
     def write_joint_pos_limits_to_sim(
         self,
@@ -1199,7 +1174,7 @@ class Articulation(AssetBase):
         self._data.default_joint_stiffness = self.root_physx_view.get_dof_stiffnesses().to(self.device).clone()
         self._data.default_joint_damping = self.root_physx_view.get_dof_dampings().to(self.device).clone()
         self._data.default_joint_armature = self.root_physx_view.get_dof_armatures().to(self.device).clone()
-        self._data.default_joint_friction = self.root_physx_view.get_dof_friction_coefficients().to(self.device).clone()
+        self._data.default_joint_friction_coefficient = self.root_physx_view.get_dof_friction_coefficients().to(self.device).clone()
 
         self._data.joint_pos_limits = self._data.default_joint_pos_limits.clone()
         self._data.joint_vel_limits = self.root_physx_view.get_dof_max_velocities().to(self.device).clone()
@@ -1207,7 +1182,7 @@ class Articulation(AssetBase):
         self._data.joint_stiffness = self._data.default_joint_stiffness.clone()
         self._data.joint_damping = self._data.default_joint_damping.clone()
         self._data.joint_armature = self._data.default_joint_armature.clone()
-        self._data.joint_friction = self._data.default_joint_friction.clone()
+        self._data.joint_friction_coefficient = self._data.default_joint_friction_coefficient.clone()
 
         # -- body properties
         self._data.default_mass = self.root_physx_view.get_masses().clone()
@@ -1320,7 +1295,7 @@ class Articulation(AssetBase):
                 stiffness=self._data.default_joint_stiffness[:, joint_ids],
                 damping=self._data.default_joint_damping[:, joint_ids],
                 armature=self._data.default_joint_armature[:, joint_ids],
-                friction=self._data.default_joint_friction[:, joint_ids],
+                friction=self._data.default_joint_friction_coefficient[:, joint_ids],
                 effort_limit=self._data.joint_effort_limits[:, joint_ids],
                 velocity_limit=self._data.joint_vel_limits[:, joint_ids],
             )
@@ -1355,7 +1330,7 @@ class Articulation(AssetBase):
             self._data.default_joint_stiffness[:, actuator.joint_indices] = actuator.stiffness
             self._data.default_joint_damping[:, actuator.joint_indices] = actuator.damping
             self._data.default_joint_armature[:, actuator.joint_indices] = actuator.armature
-            self._data.default_joint_friction[:, actuator.joint_indices] = actuator.friction
+            self._data.default_joint_friction_coefficient[:, actuator.joint_indices] = actuator.friction
 
         # perform some sanity checks to ensure actuators are prepared correctly
         total_act_joints = sum(actuator.num_joints for actuator in self.actuators.values())
@@ -1575,3 +1550,44 @@ class Articulation(AssetBase):
                 ])
             # convert table to string
             omni.log.info(f"Simulation parameters for tendons in {self.cfg.prim_path}:\n" + tendon_table.get_string())
+
+    """
+    Deprecated methods.
+    """
+
+    def write_joint_friction_to_sim(
+        self,
+        joint_friction: torch.Tensor | float,
+        joint_ids: Sequence[int] | slice | None = None,
+        env_ids: Sequence[int] | None = None,
+    ):
+        """Write joint friction coefficients into the simulation.
+
+        .. deprecated:: 2.1.0
+            Use :meth:`write_joint_friction_coefficient_to_sim` instead.
+        """
+        omni.log.warn(
+            "The function 'write_joint_friction_to_sim' is deprecated. Use 'write_joint_friction_coefficient_to_sim' instead."
+        )
+        self.write_joint_friction_coefficient_to_sim(
+            joint_friction=joint_friction, joint_ids=joint_ids, env_ids=env_ids
+        )
+
+    def write_joint_limits_to_sim(
+        self,
+        limits: torch.Tensor | float,
+        joint_ids: Sequence[int] | slice | None = None,
+        env_ids: Sequence[int] | None = None,
+        warn_limit_violation: bool = True,
+    ):
+        """Write joint limits into the simulation.
+
+        .. deprecated:: 2.1.0
+            Use :meth:`write_joint_pos_limits_to_sim` instead.
+        """
+        omni.log.warn(
+            "The function 'write_joint_limits_to_sim' is deprecated. Use 'write_joint_pos_limits_to_sim' instead."
+        )
+        self.write_joint_pos_limits_to_sim(
+            limits=limits, joint_ids=joint_ids, env_ids=env_ids, warn_limit_violation=warn_limit_violation
+        )
