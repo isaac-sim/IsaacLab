@@ -361,3 +361,33 @@ class TerrainImporter:
         env_origins[:, 1] = (jj.flatten()[:num_envs] - (num_cols - 1) / 2) * env_spacing
         env_origins[:, 2] = 0.0
         return env_origins
+
+    """
+    Deprecated.
+    """
+
+    @property
+    def warp_meshes(self):
+        """A dictionary containing the terrain's names and their warp meshes.
+
+        .. deprecated:: v2.1.0
+            The `warp_meshes` attribute is deprecated. It is no longer stored inside the class.
+        """
+        omni.log.warn(
+            "The `warp_meshes` attribute is deprecated. It is no longer stored inside the `TerrainImporter` class."
+            " Returning an empty dictionary."
+        )
+        return {}
+
+    @property
+    def meshes(self) -> dict[str, trimesh.Trimesh]:
+        """A dictionary containing the terrain's names and their tri-meshes.
+
+        .. deprecated:: v2.1.0
+            The `meshes` attribute is deprecated. It is no longer stored inside the class.
+        """
+        omni.log.warn(
+            "The `meshes` attribute is deprecated. It is no longer stored inside the `TerrainImporter` class."
+            " Returning an empty dictionary."
+        )
+        return {}
