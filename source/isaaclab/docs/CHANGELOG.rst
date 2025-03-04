@@ -37,6 +37,7 @@ Changed
   * ``default_fixed_tendon_limit`` → ``default_fixed_tendon_pos_limits``
   * ``set_fixed_tendon_limit`` → ``set_fixed_tendon_position_limit``
 
+
 0.34.7 (2025-03-04)
 ~~~~~~~~~~~~~~~~~~~
 
