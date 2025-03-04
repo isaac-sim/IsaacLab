@@ -7,7 +7,7 @@ Changelog
 Added
 ^^^^^
 
-* Added ``randomize_rigid_body_inertia`` and ``randomize_com_positions`` to EventCfg in velocity_env_cfg.py.
+* Added ``randomize_rigid_body_inertia`` and ``randomize_com_positions`` to events.py.
 
 
 0.34.6 (2025-03-02)
