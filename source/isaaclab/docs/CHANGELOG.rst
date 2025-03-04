@@ -1,6 +1,18 @@
 Changelog
 ---------
 
+0.34.7 (2025-03-04)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added methods inside the :class:`omni.isaac.lab.assets.Articulation` class to set the joint
+  position and velocity for the articulation. Previously, the joint position and velocity could
+  only be set using the :meth:`omni.isaac.lab.assets.Articulation.write_joint_state_to_sim` method,
+  which didn't allow setting the joint position and velocity separately.
+
+
 0.34.6 (2025-03-02)
 ~~~~~~~~~~~~~~~~~~~
 
