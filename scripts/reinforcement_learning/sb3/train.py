@@ -189,7 +189,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     # save the final model
     agent.save(os.path.join(log_dir, "model"))
     print("Saving to:")
-    print(os.path.join(log_dir, "model"))
+    print(os.path.join(log_dir, "model.zip"))
 
     if isinstance(env, VecNormalize):
         print("Saving normalization")
