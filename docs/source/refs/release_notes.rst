@@ -19,12 +19,14 @@ from a pre-2.0 release of Isaac Lab.
 * **Actuator Limit Handling**: Introduced :attr:`~isaaclab.actuators.ActuatorBaseCfg.velocity_limit_sim`
   and :attr:`~isaaclab.actuators.ActuatorBaseCfg.effort_limit_sim` to clearly distinguish
   simulation solver limits from actuator model constraints. Reverted implicit actuator velocity limits
-  to pre-v2.0 behavior.
+  to pre-v2.0 behavior
 * **Simulation configuration update**: Removed :attr:`~isaaclab.sim.SimulationCfg.disable_contact_processing`
-  flag to simplify behavior.
+  flag to simplify behavior
 * **Rendering configuration update**: Reverted to pre-2.0 configuration to improve the quality of the
-  render product.
-* **WebRTC Support**: Added IP specification for live-streaming.
+  render product
+* **Tiled camera fixes**: Fixed motion vector processing and added a hotfix for retrieving semantic
+  images from the :class:`~isaaclab.sensors.TiledCamera`
+* **WebRTC Support**: Added IP specification for live-streaming
 
 **Full Changelog**: https://github.com/isaac-sim/IsaacLab/compare/v2.0.1...v2.0.2
 
@@ -45,6 +47,8 @@ Improvements
 * Updates docs on Isaac Sim binary installation path and VSCode integration.
 * Removes remaining deprecation warning in RigidObject deprecation.
 * Adds security and show&tell notes to documentation.
+* Updates docs for segmentation and 50 series GPUs.
+* Adds workaround for semantic segmentation issue with tiled camera.
 
 Bug Fixes
 ---------
