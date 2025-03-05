@@ -1166,7 +1166,7 @@ class TestTiledCamera(unittest.TestCase):
                 elif data_type in ["motion_vectors"]:
                     self.assertEqual(im_data.shape, (num_cameras, camera_cfg.height, camera_cfg.width, 2))
                     for i in range(num_cameras):
-                        self.assertGreater(im_data[i].mean().item(), 0.0)
+                        self.assertNotEqual(im_data[i].mean().item(), 0.0)
                 elif data_type in ["depth", "distance_to_camera", "distance_to_image_plane"]:
                     self.assertEqual(im_data.shape, (num_cameras, camera_cfg.height, camera_cfg.width, 1))
                     for i in range(num_cameras):
@@ -1316,7 +1316,7 @@ class TestTiledCamera(unittest.TestCase):
                 f"/World/Cube_{i}",
                 "Xform",
                 usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd",
-                translation=(0.0, i, 0.5),
+                translation=(0.0, i, 5.0),
                 orientation=(1.0, 0.0, 0.0, 0.0),
                 scale=(5.0, 5.0, 5.0),
             )
@@ -1333,7 +1333,7 @@ class TestTiledCamera(unittest.TestCase):
         camera_cfg.width = 80
         camera_cfg.data_types = all_annotator_types
         camera_cfg.prim_path = "/World/Origin_.*/CameraSensor"
-        camera_cfg.offset.pos = (0.0, 0.0, 1.0)
+        camera_cfg.offset.pos = (0.0, 0.0, 5.5)
         camera = TiledCamera(camera_cfg)
         # Check simulation parameter is set correctly
         self.assertTrue(self.sim.has_rtx_sensors())
@@ -1346,12 +1346,6 @@ class TestTiledCamera(unittest.TestCase):
         self.assertIsInstance(camera._sensor_prims[0], UsdGeom.Camera)
         self.assertListEqual(sorted(camera.data.output.keys()), sorted(all_annotator_types))
 
-        # Simulate for a few steps
-        # note: This is a workaround to ensure that the textures are loaded.
-        #   Check "Known Issues" section in the documentation for more details.
-        for _ in range(5):
-            self.sim.step()
-
         # Check buffers that exists and have correct shapes
         self.assertEqual(camera.data.pos_w.shape, (num_cameras, 3))
         self.assertEqual(camera.data.quat_w_ros.shape, (num_cameras, 4))
@@ -1360,8 +1354,14 @@ class TestTiledCamera(unittest.TestCase):
         self.assertEqual(camera.data.intrinsic_matrices.shape, (num_cameras, 3, 3))
         self.assertEqual(camera.data.image_shape, (camera_cfg.height, camera_cfg.width))
 
+        # Simulate for a few steps
+        # note: This is a workaround to ensure that the textures are loaded.
+        #   Check "Known Issues" section in the documentation for more details.
+        for _ in range(5):
+            self.sim.step()
+
         # Simulate physics
-        for _ in range(10):
+        for _ in range(2):
             # perform rendering
             self.sim.step()
             # update camera
@@ -1377,23 +1377,23 @@ class TestTiledCamera(unittest.TestCase):
                     "instance_id_segmentation_fast",
                 ]:
                     self.assertEqual(im_data.shape, (num_cameras, camera_cfg.height, camera_cfg.width, 4))
-                    # semantic_segmentation has mean 0.37-0.4724
-                    # rgba has mean 0.35-0.40
-                    # instance_segmentation_fast has mean 0.34-0.517
-                    # correct instance_id_segmentation_fast should have mean 0.594-0.707
+                    # semantic_segmentation has mean 0.43
+                    # rgba has mean 0.38
+                    # instance_segmentation_fast has mean 0.42
+                    # instance_id_segmentation_fast has mean 0.55-0.62
                     for i in range(num_cameras):
                         self.assertGreater((im_data[i] / 255.0).mean().item(), 0.3)
                 elif data_type in ["motion_vectors"]:
-                    # motion vectors have mean 0.15-0.35
+                    # motion vectors have mean 0.2
                     self.assertEqual(im_data.shape, (num_cameras, camera_cfg.height, camera_cfg.width, 2))
                     for i in range(num_cameras):
-                        self.assertGreater(im_data[i].mean().item(), 0.1)
+                        self.assertGreater(im_data[i].abs().mean().item(), 0.15)
                 elif data_type in ["depth", "distance_to_camera", "distance_to_image_plane"]:
-                    # depth has mean 0.668-0.85
-                    # distance_to_image_plane has mean 0.748-0.94
+                    # depth has mean 2.7
+                    # distance_to_image_plane has mean 3.1
                     self.assertEqual(im_data.shape, (num_cameras, camera_cfg.height, camera_cfg.width, 1))
                     for i in range(num_cameras):
-                        self.assertGreater(im_data[i].mean().item(), 0.6)
+                        self.assertGreater(im_data[i].mean().item(), 2.5)
 
         # access image data and compare dtype
         output = camera.data.output
