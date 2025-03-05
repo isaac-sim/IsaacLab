@@ -117,7 +117,8 @@ changing solver's configuration. The new behavior is as follows:
 
 Users are advised to use the ``xxx_sim`` flag if they want to directly modify the solver limits.
 
-### Removal of ``disable_contact_processing`` flag in ``SimulationCfg``
+Removal of ``disable_contact_processing`` flag in ``SimulationCfg``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 We have now removed the ``disable_contact_processing`` flag from the :class:`isaaclab.sim.SimulationCfg`
 to not have the user worry about these intricacies of the simulator. The flag is always True by
