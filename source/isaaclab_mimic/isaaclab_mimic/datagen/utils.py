@@ -4,28 +4,32 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import os
+from collections.abc import Callable
+from typing import Any
 
 from IPython.display import display
 from ipywidgets import widgets
 
+from isaaclab.envs import ManagerBasedEnv
+from isaaclab.managers import EventTermCfg
 from isaaclab.utils.datasets import HDF5DatasetFileHandler
 
 
-def get_nested_value(d, keys):
+def get_nested_value(d: dict[str, Any], keys: list[str]) -> Any:
     """Retrieve a nested value from dictionary d using list of keys."""
     for k in keys:
         d = d[k]
     return d
 
 
-def update_nested_value(d, keys, value):
+def update_nested_value(d: dict[str, Any], keys: list[str], value: Any) -> None:
     """Update a nested value in dictionary d using list of keys."""
     for k in keys[:-1]:
         d = d.setdefault(k, {})
     d[keys[-1]] = value
 
 
-def reset_env(env, steps=1):
+def reset_env(env: ManagerBasedEnv, steps: int = 1) -> None:
     """Reset environment and step simulation to stabilize state."""
     # Get sim and scene from unwrapped environment
     sim = env.unwrapped.sim
@@ -44,7 +48,14 @@ def reset_env(env, steps=1):
         scene.update(dt=env.physics_dt)
 
 
-def get_parameter_input(param_name, current_val, allowed_range, update_fn, env=None, event_term_name=None):
+def get_parameter_input(
+    param_name: str,
+    current_val: float | tuple[float, float] | list[float],
+    allowed_range: tuple[float, float, float | None],
+    update_fn: Callable[[float | tuple[float, float]], None],
+    env: ManagerBasedEnv | None = None,
+    event_term_name: str | None = None,
+) -> widgets.FloatSlider | widgets.FloatRangeSlider:
     """Get parameter input using ipywidgets with immediate value updates."""
 
     if isinstance(current_val, (tuple, list)):
@@ -114,7 +125,12 @@ def get_parameter_input(param_name, current_val, allowed_range, update_fn, env=N
         return container.children[1]
 
 
-def interactive_update_randomizable_params(event_term, param_config, param_path="", env=None):
+def interactive_update_randomizable_params(
+    event_term: EventTermCfg,
+    param_config: dict[str, dict | tuple[float, float, float | None]],
+    param_path: str = "",
+    env: ManagerBasedEnv | None = None,
+) -> list[tuple[list[str], widgets.FloatSlider | widgets.FloatRangeSlider]]:
     """Interactive parameter updates using ipywidgets."""
     inputs = []
 

@@ -11,6 +11,7 @@ from typing import Any
 from isaaclab_mimic.datagen.data_generator import DataGenerator
 from isaaclab_mimic.datagen.datagen_info_pool import DataGenInfoPool
 
+from isaaclab.envs import ManagerBasedEnv
 from isaaclab.envs.mdp.recorders.recorders_cfg import ActionStateRecorderManagerCfg
 from isaaclab.managers import DatasetExportMode
 
@@ -22,7 +23,14 @@ num_failures = 0
 num_attempts = 0
 
 
-async def run_data_generator(env, env_id, env_action_queue, data_generator, success_term, pause_subtask=False):
+async def run_data_generator(
+    env: ManagerBasedEnv,
+    env_id: int,
+    env_action_queue: asyncio.Queue,
+    data_generator: DataGenerator,
+    success_term: Any,
+    pause_subtask: bool = False,
+):
     """Run data generator."""
     global num_success, num_failures, num_attempts
     while True:
@@ -42,7 +50,12 @@ async def run_data_generator(env, env_id, env_action_queue, data_generator, succ
         num_attempts += 1
 
 
-def env_loop(env, env_action_queue, shared_datagen_info_pool, asyncio_event_loop):
+def env_loop(
+    env: ManagerBasedEnv,
+    env_action_queue: asyncio.Queue,
+    shared_datagen_info_pool: DataGenInfoPool,
+    asyncio_event_loop: asyncio.AbstractEventLoop,
+) -> None:
     """Main loop for the environment."""
     global num_success, num_failures, num_attempts
     prev_num_attempts = 0
