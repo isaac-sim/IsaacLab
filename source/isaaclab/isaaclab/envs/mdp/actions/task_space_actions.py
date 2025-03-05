@@ -807,7 +807,7 @@ class OperationalSpaceControllerAction(ActionTerm):
         Validates and formats the input for parameter modification functions.
 
         The param can be:
-        - A scalar (0D tensor): expanded to shape (self.num_envs, 1)
+        - A scalar (0D tensor or a 1D tensor with a single element): expanded to shape (self.num_envs, 1)
         - A 1D tensor with shape (self.num_envs,): unsqueezed to shape (self.num_envs, 1)
         - A 2D tensor with shape (self.num_envs, 1): used as is
 
@@ -828,9 +828,13 @@ class OperationalSpaceControllerAction(ActionTerm):
         if param.ndim == 0:
             return param.expand(self.num_envs, 1)
         elif param.ndim == 1:
-            if param.shape[0] != self.num_envs:
-                raise ValueError(f"{name} must have {self.num_envs} elements, got {param.shape[0]}")
-            return param.unsqueeze(1)
+            if param.shape[0] == 1:
+                # 1D tensor with a single element, treat it as a scalar.
+                return param.squeeze(0).expand(self.num_envs, 1)
+            elif param.shape[0] == self.num_envs:
+                return param.unsqueeze(1)
+            else:
+                raise ValueError(f"{name} must have 1 or {self.num_envs} elements, got {param.shape[0]}")
         elif param.ndim == 2:
             if param.shape != (self.num_envs, 1):
                 raise ValueError(f"{name} must have shape ({self.num_envs}, 1), got {param.shape}")
