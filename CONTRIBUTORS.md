@@ -55,6 +55,7 @@ Guidelines for modifications:
 * Haoran Zhou
 * HoJin Jeon
 * Hongwei Xiong
+* Hongyu Li
 * Iretiayo Akinola
 * Jack Zeng
 * Jan Kerner
@@ -86,6 +87,7 @@ Guidelines for modifications:
 * Rosario Scalise
 * Ryley McCarroll
 * Shafeef Omar
+* Shundo Kishi
 * Stephan Pleines
 * Vladimir Fokow
 * Wei Yang

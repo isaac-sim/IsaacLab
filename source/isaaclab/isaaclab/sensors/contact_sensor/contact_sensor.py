@@ -12,6 +12,7 @@ import torch
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
+import carb
 import omni.physics.tensors.impl.api as physx
 from pxr import PhysxSchema
 
@@ -70,6 +71,11 @@ class ContactSensor(SensorBase):
         """
         # initialize base class
         super().__init__(cfg)
+
+        # Enable contact processing
+        carb_settings_iface = carb.settings.get_settings()
+        carb_settings_iface.set_bool("/physics/disableContactProcessing", False)
+
         # Create empty variables for storing output data
         self._data: ContactSensorData = ContactSensorData()
         # initialize self._body_physx_view for running in extension mode

@@ -13,19 +13,22 @@ and useful for everyone. These may happen in forms of:
   * Documentation improvements
   * Tutorials and tutorial improvements
 
+We prefer GitHub `discussions <https://github.com/isaac-sim/IsaacLab/discussions>`_ for discussing ideas,
+asking questions, conversations and requests for new features.
 
-.. attention::
-
-   We prefer GitHub `discussions <https://github.com/isaac-sim/IsaacLab/discussions>`_ for discussing ideas,
-   asking questions, conversations and requests for new features.
-
-   Please use the
-   `issue tracker <https://github.com/isaac-sim/IsaacLab/issues>`_ only to track executable pieces of work
-   with a definite scope and a clear deliverable. These can be fixing bugs, new features, or general updates.
+Please use the
+`issue tracker <https://github.com/isaac-sim/IsaacLab/issues>`_ only to track executable pieces of work
+with a definite scope and a clear deliverable. These can be fixing bugs, new features, or general updates.
 
 
 Contributing Code
 -----------------
+
+.. attention::
+
+   Please refer to the `Google Style Guide <https://google.github.io/styleguide/pyguide.html>`__
+   for the coding style before contributing to the codebase. In the coding style section,
+   we outline the specific deviations from the style guide that we follow in the codebase.
 
 We use `GitHub <https://github.com/isaac-sim/IsaacLab>`__ for code hosting. Please
 follow the following steps to contribute code:
@@ -50,73 +53,6 @@ Please ensure that your code is well-formatted, documented and passes all the te
    maintainers to review your code. If you are making multiple changes, please send multiple pull requests.
    Large pull requests are difficult to review and may take a long time to merge.
 
-
-Coding Style
-------------
-
-We follow the `Google Style
-Guides <https://google.github.io/styleguide/pyguide.html>`__ for the
-codebase. For Python code, the PEP guidelines are followed. Most
-important ones are `PEP-8 <https://www.python.org/dev/peps/pep-0008/>`__
-for code comments and layout,
-`PEP-484 <http://www.python.org/dev/peps/pep-0484>`__ and
-`PEP-585 <https://www.python.org/dev/peps/pep-0585/>`__ for
-type-hinting.
-
-For documentation, we adopt the `Google Style Guide <https://sphinxcontrib-napoleon.readthedocs.io/en/latest/example_google.html>`__
-for docstrings. We use `Sphinx <https://www.sphinx-doc.org/en/master/>`__ for generating the documentation.
-Please make sure that your code is well-documented and follows the guidelines.
-
-Circular Imports
-^^^^^^^^^^^^^^^^
-
-Circular imports happen when two modules import each other, which is a common issue in Python.
-You can prevent circular imports by adhering to the best practices outlined in this
-`StackOverflow post <https://stackoverflow.com/questions/744373/circular-or-cyclic-imports-in-python>`__.
-
-In general, it is essential to avoid circular imports as they can lead to unpredictable behavior.
-
-However, in our codebase, we encounter circular imports at a sub-package level. This situation arises
-due to our specific code structure. We organize classes or functions and their corresponding configuration
-objects into separate files. This separation enhances code readability and maintainability. Nevertheless,
-it can result in circular imports because, in many configuration objects, we specify classes or functions
-as default values using the attributes ``class_type`` and ``func`` respectively.
-
-To address circular imports, we leverage the `typing.TYPE_CHECKING
-<https://docs.python.org/3/library/typing.html#typing.TYPE_CHECKING>`_ variable. This special variable is
-evaluated only during type-checking, allowing us to import classes or functions in the configuration objects
-without triggering circular imports.
-
-It is important to note that this is the sole instance within our codebase where circular imports are used
-and are acceptable. In all other scenarios, we adhere to best practices and recommend that you do the same.
-
-Type-hinting
-^^^^^^^^^^^^
-
-To make the code more readable, we use `type hints <https://docs.python.org/3/library/typing.html>`__ for
-all the functions and classes. This helps in understanding the code and makes it easier to maintain. Following
-this practice also helps in catching bugs early with static type checkers like `mypy <https://mypy.readthedocs.io/en/stable/>`__.
-
-To avoid duplication of efforts, we do not specify type hints for the arguments and return values in the docstrings.
-However, if your function or class is not self-explanatory, please add a docstring with the type hints.
-
-Tools
-^^^^^
-
-We use the following tools for maintaining code quality:
-
-* `pre-commit <https://pre-commit.com/>`__: Runs a list of formatters and linters over the codebase.
-* `black <https://black.readthedocs.io/en/stable/>`__: The uncompromising code formatter.
-* `flake8 <https://flake8.pycqa.org/en/latest/>`__: A wrapper around PyFlakes, pycodestyle and
-  McCabe complexity checker.
-
-Please check `here <https://pre-commit.com/#install>`__ for instructions
-to set these up. To run over the entire repository, please execute the
-following command in the terminal:
-
-.. code:: bash
-
-   ./isaaclab.sh --format  # or "./isaaclab.sh -f"
 
 Contributing Documentation
 --------------------------
@@ -199,13 +135,25 @@ In case you have any questions, please feel free to reach out to us through e-ma
 in the repository.
 
 
-Maintaining a changelog
------------------------
+Maintaining a changelog and extension.toml
+------------------------------------------
 
-Each extension maintains a changelog in the ``CHANGELOG.rst`` file in the ``docs`` directory. The
-file is written in `reStructuredText <https://docutils.sourceforge.io/rst.html>`__ format. It
-contains a curated, chronologically ordered list of notable changes for each version of the extension.
+Each extension maintains a changelog in the ``CHANGELOG.rst`` file in the ``docs`` directory,
+as well as a ``extension.toml`` file in the ``config`` directory.
 
+The ``extension.toml`` file contains the metadata for the extension. It is used to describe the
+name, version, description, and other metadata of the extension.
+
+The ``CHANGELOG.rst`` is a file that contains the curated, chronologically ordered list of notable changes
+for each version of the extension.
+
+.. note::
+
+   The version number on the ``extension.toml`` file should be updated according to
+   `Semantic Versioning <https://semver.org/>`__ and should match the version number in the
+   ``CHANGELOG.rst`` file.
+
+The changelog file is written in `reStructuredText <https://docutils.sourceforge.io/rst.html>`__ format.
 The goal of this changelog is to help users and contributors see precisely what notable changes have
 been made between each release (or version) of the extension. This is a *MUST* for every extension.
 
@@ -223,7 +171,16 @@ For updating the changelog, please follow the following guidelines:
   * ``Fixed``: For any bug fixes.
 
 * Each change is described in its corresponding sub-section with a bullet point.
-* The bullet points are written in the past tense and in imperative mode.
+* The bullet points are written in the **past tense**.
+
+  * This means that the change is described as if it has already happened.
+  * The bullet points should be concise and to the point. They should not be verbose.
+  * The bullet point should also include the reason for the change, if applicable.
+
+
+.. tip::
+
+   When in doubt, please check the style in the existing changelog files and follow the same style.
 
 For example, the following is a sample changelog:
 
@@ -238,32 +195,246 @@ For example, the following is a sample changelog:
     Added
     ^^^^^
 
-    * Added a new feature.
+    * Added a new feature that helps in a 10x speedup.
 
     Changed
     ^^^^^^^
 
-    * Changed an existing feature.
+    * Changed an existing feature. Earlier, we were using :meth:`torch.bmm` to perform the matrix multiplication.
+      However, this was slow for large matrices. We have now switched to using :meth:`torch.einsum` which is
+      significantly faster.
 
     Deprecated
     ^^^^^^^^^^
 
-    * Deprecated an existing feature.
+    * Deprecated an existing feature in favor of a new feature.
 
     Removed
     ^^^^^^^
 
-    * Removed an existing feature.
+    * Removed an existing feature. This was done to simplify the codebase and reduce the complexity.
 
     Fixed
     ^^^^^
 
-    * Fixed a bug.
+    * Fixed crashing of the :meth:`my_function` when the input was too large.
+      We now use :meth:`torch.einsum` that is able to handle larger inputs.
 
-    0.0.1 (2021-01-01)
-    ~~~~~~~~~~~~~~~~~~
 
-    Added
-    ^^^^^
+Coding Style
+------------
 
-    * Added a new feature.
+We follow the `Google Style
+Guides <https://google.github.io/styleguide/pyguide.html>`__ for the
+codebase. For Python code, the PEP guidelines are followed. Most
+important ones are `PEP-8 <https://www.python.org/dev/peps/pep-0008/>`__
+for code comments and layout,
+`PEP-484 <http://www.python.org/dev/peps/pep-0484>`__ and
+`PEP-585 <https://www.python.org/dev/peps/pep-0585/>`__ for
+type-hinting.
+
+For documentation, we adopt the `Google Style Guide <https://sphinxcontrib-napoleon.readthedocs.io/en/latest/example_google.html>`__
+for docstrings. We use `Sphinx <https://www.sphinx-doc.org/en/master/>`__ for generating the documentation.
+Please make sure that your code is well-documented and follows the guidelines.
+
+Circular Imports
+^^^^^^^^^^^^^^^^
+
+Circular imports happen when two modules import each other, which is a common issue in Python.
+You can prevent circular imports by adhering to the best practices outlined in this
+`StackOverflow post <https://stackoverflow.com/questions/744373/circular-or-cyclic-imports-in-python>`__.
+
+In general, it is essential to avoid circular imports as they can lead to unpredictable behavior.
+
+However, in our codebase, we encounter circular imports at a sub-package level. This situation arises
+due to our specific code structure. We organize classes or functions and their corresponding configuration
+objects into separate files. This separation enhances code readability and maintainability. Nevertheless,
+it can result in circular imports because, in many configuration objects, we specify classes or functions
+as default values using the attributes ``class_type`` and ``func`` respectively.
+
+To address circular imports, we leverage the `typing.TYPE_CHECKING
+<https://docs.python.org/3/library/typing.html#typing.TYPE_CHECKING>`_ variable. This special variable is
+evaluated only during type-checking, allowing us to import classes or functions in the configuration objects
+without triggering circular imports.
+
+It is important to note that this is the sole instance within our codebase where circular imports are used
+and are acceptable. In all other scenarios, we adhere to best practices and recommend that you do the same.
+
+Type-hinting
+^^^^^^^^^^^^
+
+To make the code more readable, we use `type hints <https://docs.python.org/3/library/typing.html>`__ for
+all the functions and classes. This helps in understanding the code and makes it easier to maintain. Following
+this practice also helps in catching bugs early with static type checkers like `mypy <https://mypy.readthedocs.io/en/stable/>`__.
+
+**Type-hinting only in the function signature**
+
+To avoid duplication of efforts, we do not specify type hints for the arguments and return values in the docstrings.
+
+For instance, the following are bad examples for various reasons:
+
+.. code:: python
+
+   def my_function(a, b):
+      """Adds two numbers.
+
+      This function is a bad example. Reason: No type hints anywhere.
+
+      Args:
+         a: The first argument.
+         b: The second argument.
+
+      Returns:
+         The sum of the two arguments.
+      """
+      return a + b
+
+.. code:: python
+
+   def my_function(a, b):
+      """Adds two numbers.
+
+      This function is a bad example. Reason: Type hints in the docstring and not in the
+      function signature.
+
+      Args:
+         a (int): The first argument.
+         b (int): The second argument.
+
+      Returns:
+         int: The sum of the two arguments.
+      """
+      return a + b
+
+.. code:: python
+
+   def my_function(a: int, b: int) -> int:
+      """Adds two numbers.
+
+      This function is a bad example. Reason: Type hints in the docstring and in the function
+      signature. Redundancy.
+
+      Args:
+         a (int): The first argument.
+         b (int): The second argument.
+
+      Returns:
+         int: The sum of the two arguments.
+      """
+      return a + b
+
+The following is how we expect you to write the docstrings and type hints:
+
+.. code:: python
+
+   def my_function(a: int, b: int) -> int:
+      """Adds two numbers.
+
+      This function is a good example. Reason: Type hints in the function signature and not in the
+      docstring.
+
+      Args:
+         a: The first argument.
+         b: The second argument.
+
+      Returns:
+         The sum of the two arguments.
+      """
+      return a + b
+
+**No type-hinting for None**
+
+We do not specify the return type of :obj:`None` in the docstrings. This is because
+it is not necessary and can be inferred from the function signature.
+
+For instance, the following is a bad example:
+
+.. code:: python
+
+   def my_function(x: int | None) -> None:
+      pass
+
+Instead, we recommend the following:
+
+.. code:: python
+
+   def my_function(x: int | None):
+      pass
+
+Documenting the code
+^^^^^^^^^^^^^^^^^^^^
+
+The code documentation is as important as the code itself. It helps in understanding the code and makes
+it easier to maintain. However, more often than not, the documentation is an afterthought or gets rushed
+to keep up with the development pace.
+
+**What is considered as a bad documentation?**
+
+* If someone else wants to use the code, they cannot understand the code just by reading the documentation.
+
+  What this means is that the documentation is not complete or is not written in a way that is easy to understand.
+  The next time someone wants to use the code, they will have to spend time understanding the code (in the best
+  case scenario), or scrap the code and start from scratch (in the worst case scenario).
+
+* Certain design subtleties are not documented and are only apparent from the code.
+
+  Often certain design decisions are made to address specific use cases. These use cases are not
+  obvious to someone who wants to use the code. They may change the code in a way that is not intuitive
+  and unintentionally break the code.
+
+* The documentation is not updated when the code is updated.
+
+  This means that the documentation is not kept up to date with the code. It is important to update the
+  documentation when the code is updated. This helps in keeping the documentation up to date and in sync
+  with the code.
+
+**What is considered good documentation?**
+
+We recommend thinking of the code documentation as a living document that helps the reader understand
+the *what, why and how* of the code. Often we see documentation that only explains the
+what but not the how or why. This is not helpful in the long run.
+
+We suggest always thinking of the documentation from a new user's perspective. They should be able to directly
+check the documentation and have a good understanding of the code.
+
+For information on how to write good documentation, please check the notes on
+`Dart's effective documentation <https://dart.dev/effective-dart/documentation>`__
+and `technical writing <https://en.wikiversity.org/wiki/Technical_writing/Style>`__.
+We summarize the key points below:
+
+* Inform (educate the reader) and persuade (convince the reader).
+  * Have a clear aim in mind, and make sure everything you write is towards that aim alone.
+  * Use examples and analogies before introducing abstract concepts.
+* Use the right tone for the audience.
+* Compose simple sentences in active voice.
+* Avoid unnecessary jargon and repetition. Use plain English.
+* Avoid ambiguous phrases such as 'kind of', 'sort of', 'a bit', etc.
+* State important information at the beginning of the sentence.
+* Say exactly what you mean. Don't avoid writing the uncomfortable truth.
+
+
+Unit Testing
+^^^^^^^^^^^^
+
+We use `unittest <https://docs.python.org/3/library/unittest.html>`__ for unit testing.
+Good tests not only cover the basic functionality of the code but also the edge cases.
+They should be able to catch regressions and ensure that the code is working as expected.
+Please make sure that you add tests for your changes.
+
+Tools
+^^^^^
+
+We use the following tools for maintaining code quality:
+
+* `pre-commit <https://pre-commit.com/>`__: Runs a list of formatters and linters over the codebase.
+* `black <https://black.readthedocs.io/en/stable/>`__: The uncompromising code formatter.
+* `flake8 <https://flake8.pycqa.org/en/latest/>`__: A wrapper around PyFlakes, pycodestyle and
+  McCabe complexity checker.
+
+Please check `here <https://pre-commit.com/#install>`__ for instructions
+to set these up. To run over the entire repository, please execute the
+following command in the terminal:
+
+.. code:: bash
+
+   ./isaaclab.sh --format  # or "./isaaclab.sh -f"

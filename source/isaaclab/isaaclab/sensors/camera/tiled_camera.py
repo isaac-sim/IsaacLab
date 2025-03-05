@@ -259,6 +259,11 @@ class TiledCamera(Camera):
                     ptr=tiled_data_buffer.ptr, shape=(*tiled_data_buffer.shape, 4), dtype=wp.uint8, device=self.device
                 )
 
+            # For motion vectors, we only require the first two channels of the tiled buffer
+            # Note: Not doing this breaks the alignment of the data (check: https://github.com/isaac-sim/IsaacLab/issues/2003)
+            if data_type == "motion_vectors":
+                tiled_data_buffer = tiled_data_buffer[:, :, :2].contiguous()
+
             wp.launch(
                 kernel=reshape_tiled_image,
                 dim=(self._view.count, self.cfg.height, self.cfg.width),
