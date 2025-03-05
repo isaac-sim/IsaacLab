@@ -300,9 +300,14 @@ class TestScaleRandomization(unittest.TestCase):
 
         stage = omni.usd.get_context().get_stage()
 
+        # test to make sure all assets in the scene are created
+        all_prim_paths = sim_utils.find_matching_prim_paths("/World/envs/env_.*/cube.*/.*")
+        self.assertEqual(len(all_prim_paths), (env.num_envs * 2))
+
         # test to make sure randomized values are truly random
         applied_scaling_randomization = set()
         prim_paths = sim_utils.find_matching_prim_paths("/World/envs/env_.*/cube1")
+
         for i in range(3):
             prim_spec = Sdf.CreatePrimInLayer(stage.GetRootLayer(), prim_paths[i])
             scale_spec = prim_spec.GetAttributeAtPath(prim_paths[i] + ".xformOp:scale")
@@ -327,6 +332,16 @@ class TestScaleRandomization(unittest.TestCase):
                     env.reset()
                 # step the environment
                 env.step(target_position)
+
+        env.close()
+
+    def test_scale_randomization_failure_replicate_physics(self):
+        with self.assertRaises(ValueError):
+            cfg_failure = CubeEnvCfg()
+            cfg_failure.scene.replicate_physics = True
+            env = ManagerBasedEnv(cfg_failure)
+
+        env.close()
 
 
 if __name__ == "__main__":
