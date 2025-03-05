@@ -7,8 +7,8 @@ import os
 
 from . import (
     agents,
-    stack_ik_rel_env_cfg,
     stack_ik_rel_blueprint_env_cfg,
+    stack_ik_rel_env_cfg,
     stack_ik_rel_instance_randomize_env_cfg,
     stack_joint_pos_env_cfg,
     stack_joint_pos_instance_randomize_env_cfg,
