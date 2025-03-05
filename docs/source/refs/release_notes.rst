@@ -4,6 +4,40 @@ Release Notes
 The release notes are now available in the `Isaac Lab GitHub repository <https://github.com/isaac-sim/IsaacLab/releases>`_.
 We summarize the release notes here for convenience.
 
+v2.0.1
+======
+
+Overview
+--------
+
+This release contains a small set of fixes and improvements.
+
+The main change was to maintain combability with the updated library name for RSL RL, which breaks the previous installation methods for Isaac Lab. This release provides the necessary fixes and updates in Isaac Lab to accommodate for the name change and maintain combability with installation for RSL RL.
+
+**Full Changelog**: https://github.com/isaac-sim/IsaacLab/compare/v2.0.0...v2.0.1
+
+Improvements
+------------
+
+* Switches to RSL-RL install from PyPI by @Mayankm96 in https://github.com/isaac-sim/IsaacLab/pull/1811
+* Updates the script path in the document by @fan-ziqi in https://github.com/isaac-sim/IsaacLab/pull/1766
+* Disables extension auto-reload when saving files by @kellyguo11 in https://github.com/isaac-sim/IsaacLab/pull/1788
+* Updates documentation for v2.0.1 installation by @kellyguo11 in https://github.com/isaac-sim/IsaacLab/pull/1818
+
+Bug Fixes
+---------
+
+* Fixes timestamp of com and link buffers when writing articulation pose to sim by @Jackkert in https://github.com/isaac-sim/IsaacLab/pull/1765
+* Fixes incorrect local documentation preview path in xdg-open command by @louislelay in https://github.com/isaac-sim/IsaacLab/pull/1776
+* Fixes no matching distribution found for rsl-rl (unavailable) by @samibouziri in https://github.com/isaac-sim/IsaacLab/pull/1808
+* Fixes reset of sensor drift inside the RayCaster sensor by @zoctipus in https://github.com/isaac-sim/IsaacLab/pull/1821
+
+New Contributors
+----------------
+
+* @Jackkert made their first contribution in https://github.com/isaac-sim/IsaacLab/pull/1765
+
+
 v2.0.0
 ======
 
@@ -81,6 +115,13 @@ Breaking Changes
 * Restructures extension folders and removes old imitation learning scripts by @kellyguo11
 * Renames default conda and venv Python environment from ``isaaclab`` to ``env_isaaclab`` by @Toni-SM
 
+.. attention::
+
+	We have identified a breaking feature for semantic segmentation and instance segmentation when using
+	``TiledCamera`` with instanceable assets. Since the Isaac Sim 4.5 / Isaac Lab 2.0 release, semantic and instance
+	segmentation outputs only render the first tile correctly and produces blank outputs for the remaining tiles.
+	We will be introducing a workaround for this fix to remove scene instancing if semantic segmentation or instance
+	segmentation is required for ``TiledCamera`` until we receive a proper fix from Omniverse as part of the next Isaac Sim release.
 
 Migration Guide
 ---------------
