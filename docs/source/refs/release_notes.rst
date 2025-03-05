@@ -84,7 +84,7 @@ and effort limits through the actuator configuration class.
 
 Previously, we were overusing the attributes :attr:`~isaaclab.actuators.ActuatorBaseCfg.velocity_limit`
 and :attr:`~isaaclab.actuators.ActuatorBaseCfg.effort_limit` inside the actuator configuration. A series
-of changes inbetween led to a regression from v1.4.0 to v2.0.1 release of IsaacLab. To make this
+of changes in-between led to a regression from v1.4.0 to v2.0.1 release of IsaacLab. To make this
 clearer to understand, we note the change in their behavior in a tabular form:
 
 +---------------+-------------------------+--------------------------------------------------------------------+----------------------------------------------------------------+
@@ -115,7 +115,7 @@ changing solver's configuration. The new behavior is as follows:
 | :attr:`effort_limit_sim`   | Set into simulation (same as :attr:`effort_limit`) | Set into simulation   |
 +--------------------+-------------------+----------------------+
 
-Users are advised to use the `xxx_sim` flag if they want to directly modify the solver limits.
+Users are advised to use the ``xxx_sim`` flag if they want to directly modify the solver limits.
 
 ### Removal of ``disable_contact_processing`` flag in ``SimulationCfg``
 
