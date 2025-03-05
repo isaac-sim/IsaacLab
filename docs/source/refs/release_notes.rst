@@ -1,5 +1,5 @@
 Release Notes
-=============
+#############
 
 The release notes are now available in the `Isaac Lab GitHub repository <https://github.com/isaac-sim/IsaacLab/releases>`_.
 We summarize the release notes here for convenience.
@@ -80,6 +80,7 @@ Breaking Changes
 * Renames Isaac Lab extensions and folders by @kellyguo11
 * Restructures extension folders and removes old imitation learning scripts by @kellyguo11
 * Renames default conda and venv Python environment from ``isaaclab`` to ``env_isaaclab`` by @Toni-SM
+
 
 Migration Guide
 ---------------

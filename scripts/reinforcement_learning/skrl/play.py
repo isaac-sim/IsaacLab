@@ -82,11 +82,11 @@ if args_cli.ml_framework.startswith("torch"):
 elif args_cli.ml_framework.startswith("jax"):
     from skrl.utils.runner.jax import Runner
 
-from isaaclab_rl.skrl import SkrlVecEnvWrapper
-
 from isaaclab.envs import DirectMARLEnv, multi_agent_to_single_agent
 from isaaclab.utils.dict import print_dict
 from isaaclab.utils.pretrained_checkpoint import get_published_pretrained_checkpoint
+
+from isaaclab_rl.skrl import SkrlVecEnvWrapper
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import get_checkpoint_path, load_cfg_from_registry, parse_env_cfg
@@ -179,7 +179,12 @@ def main():
         with torch.inference_mode():
             # agent stepping
             outputs = runner.agent.act(obs, timestep=0, timesteps=0)
-            actions = outputs[-1].get("mean_actions", outputs[0])
+            # - multi-agent (deterministic) actions
+            if hasattr(env, "possible_agents"):
+                actions = {a: outputs[-1][a].get("mean_actions", outputs[0][a]) for a in env.possible_agents}
+            # - single-agent (deterministic) actions
+            else:
+                actions = outputs[-1].get("mean_actions", outputs[0])
             # env stepping
             obs, _, _, _, _ = env.step(actions)
         if args_cli.video:

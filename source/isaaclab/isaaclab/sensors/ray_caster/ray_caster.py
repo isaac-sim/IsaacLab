@@ -272,8 +272,11 @@ class RayCaster(SensorBase):
                 self.ray_visualizer.set_visibility(False)
 
     def _debug_vis_callback(self, event):
+        # remove possible inf values
+        viz_points = self._data.ray_hits_w.reshape(-1, 3)
+        viz_points = viz_points[~torch.any(torch.isinf(viz_points), dim=1)]
         # show ray hit positions
-        self.ray_visualizer.visualize(self._data.ray_hits_w.view(-1, 3))
+        self.ray_visualizer.visualize(viz_points)
 
     """
     Internal simulation callbacks.
