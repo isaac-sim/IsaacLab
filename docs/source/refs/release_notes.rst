@@ -106,14 +106,14 @@ Consequently, we have reverted back to the prior behavior and added :attr:`veloc
 :attr:`effort_limit_sim` attributes to make it clear that setting those parameters means
 changing solver's configuration. The new behavior is as follows:
 
-+----------------------+--------------------------------------------------+-------------------------------------------------------------+
-| Attribute            | Implicit Actuator                                | Explicit Actuator                                           |
-+======================+==================================================+=============================================================+
-| `velocity_limit`     | Ignored, not set into simulation                 | Used by the model (e.g., DC Motor), not set into simulation |
-| `effort_limit`       | Set into simulation (same as `effort_limit_sim`) | Used by the models, not set into simulation                 |
-| `velocity_limit_sim` | Set into simulation                              | Set into simulation                                         |
-| `effort_limit_sim`   | Set into simulation (same as `effort_limit`)     | Set into simulation                                         |
-+----------------------+--------------------------------------------------+-------------------------------------------------------------+
++----------------------------+--------------------------------------------------------+-------------------------------------------------------------+
+| Attribute                  | Implicit Actuator                                      | Explicit Actuator                                           |
++============================+========================================================+=============================================================+
+| :attr:`velocity_limit`     | Ignored, not set into simulation                       | Used by the model (e.g., DC Motor), not set into simulation |
+| :attr:`effort_limit`       | Set into simulation (same as :attr:`effort_limit_sim`) | Used by the models, not set into simulation                 |
+| :attr:`velocity_limit_sim` | Set into simulation                                    | Set into simulation                                         |
+| :attr:`effort_limit_sim`   | Set into simulation (same as :attr:`effort_limit`)     | Set into simulation                                         |
++----------------------------+--------------------------------------------------------+-------------------------------------------------------------+
 
 Users are advised to use the ``xxx_sim`` flag if they want to directly modify the solver limits.
 
