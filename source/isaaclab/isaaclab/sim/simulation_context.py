@@ -130,11 +130,19 @@ class SimulationContext(_SimulationContext):
         # change dispatcher to use the default dispatcher in PhysX SDK instead of carb tasking
         # note: dispatcher handles how threads are launched for multi-threaded physics
         carb_settings_iface.set_bool("/physics/physxDispatcher", True)
-        # disable contact processing in omni.physx if requested
-        # note: helpful when creating contact reporting over limited number of objects in the scene
-        if self.cfg.disable_contact_processing:
-            carb_settings_iface.set_bool("/physics/disableContactProcessing", True)
-        # enable custom geometry for cylinder and cone collision shapes to allow contact reporting for them
+        # disable contact processing in omni.physx
+        # note: we disable it by default to avoid the overhead of contact processing when it isn't needed.
+        #   The physics flag gets enabled when a contact sensor is created.
+        if hasattr(self.cfg, "disable_contact_processing"):
+            omni.log.warn(
+                "The `disable_contact_processing` attribute is deprecated and always set to True"
+                " to avoid unnecessary overhead. Contact processing is automatically enabled when"
+                " a contact sensor is created, so manual configuration is no longer required."
+            )
+        # FIXME: From investigation, it seems this flag only affects CPU physics. For GPU physics, contacts
+        #  are always processed. The issue is reported to the PhysX team by @mmittal.
+        carb_settings_iface.set_bool("/physics/disableContactProcessing", True)
+        # disable custom geometry for cylinder and cone collision shapes to allow contact reporting for them
         # reason: cylinders and cones aren't natively supported by PhysX so we need to use custom geometry flags
         # reference: https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/docs/Geometry.html?highlight=capsule#geometry
         carb_settings_iface.set_bool("/physics/collisionConeCustomGeometry", False)

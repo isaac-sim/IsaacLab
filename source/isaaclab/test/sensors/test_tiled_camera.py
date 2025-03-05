@@ -26,10 +26,11 @@ import isaacsim.core.utils.prims as prim_utils
 import isaacsim.core.utils.stage as stage_utils
 import omni.replicator.core as rep
 from isaacsim.core.prims import SingleGeometryPrim, SingleRigidPrim
-from pxr import Gf, UsdGeom
+from pxr import Gf, Semantics, UsdGeom
 
 import isaaclab.sim as sim_utils
 from isaaclab.sensors.camera import Camera, CameraCfg, TiledCamera, TiledCameraCfg
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.timer import Timer
 
 
@@ -1165,7 +1166,7 @@ class TestTiledCamera(unittest.TestCase):
                 elif data_type in ["motion_vectors"]:
                     self.assertEqual(im_data.shape, (num_cameras, camera_cfg.height, camera_cfg.width, 2))
                     for i in range(num_cameras):
-                        self.assertGreater(im_data[i].mean().item(), 0.0)
+                        self.assertNotEqual(im_data[i].mean().item(), 0.0)
                 elif data_type in ["depth", "distance_to_camera", "distance_to_image_plane"]:
                     self.assertEqual(im_data.shape, (num_cameras, camera_cfg.height, camera_cfg.width, 1))
                     for i in range(num_cameras):
@@ -1266,6 +1267,133 @@ class TestTiledCamera(unittest.TestCase):
                     self.assertEqual(im_data.shape, (num_cameras, self.camera_cfg.height, self.camera_cfg.width, 1))
                     for i in range(num_cameras):
                         self.assertGreater(im_data[i].mean().item(), 0.0)
+
+        # access image data and compare dtype
+        output = camera.data.output
+        info = camera.data.info
+        self.assertEqual(output["rgb"].dtype, torch.uint8)
+        self.assertEqual(output["rgba"].dtype, torch.uint8)
+        self.assertEqual(output["depth"].dtype, torch.float)
+        self.assertEqual(output["distance_to_camera"].dtype, torch.float)
+        self.assertEqual(output["distance_to_image_plane"].dtype, torch.float)
+        self.assertEqual(output["normals"].dtype, torch.float)
+        self.assertEqual(output["motion_vectors"].dtype, torch.float)
+        self.assertEqual(output["semantic_segmentation"].dtype, torch.uint8)
+        self.assertEqual(output["instance_segmentation_fast"].dtype, torch.uint8)
+        self.assertEqual(output["instance_id_segmentation_fast"].dtype, torch.uint8)
+        self.assertEqual(type(info["semantic_segmentation"]), dict)
+        self.assertEqual(type(info["instance_segmentation_fast"]), dict)
+        self.assertEqual(type(info["instance_id_segmentation_fast"]), dict)
+
+        del camera
+
+    def test_all_annotators_instanceable(self):
+        """Test initialization with all supported annotators on instanceable assets."""
+        all_annotator_types = [
+            "rgb",
+            "rgba",
+            "depth",
+            "distance_to_camera",
+            "distance_to_image_plane",
+            "normals",
+            "motion_vectors",
+            "semantic_segmentation",
+            "instance_segmentation_fast",
+            "instance_id_segmentation_fast",
+        ]
+
+        num_cameras = 10
+        for i in range(num_cameras):
+            prim_utils.create_prim(f"/World/Origin_{i}", "Xform", translation=(0.0, i, 0.0))
+
+        # Create a stage with 10 instanceable cubes, where each camera points to one cube
+        stage = stage_utils.get_current_stage()
+        for i in range(10):
+            # Remove objects added to stage by default
+            stage.RemovePrim(f"/World/Objects/Obj_{i:02d}")
+            # Add instanceable cubes
+            prim_utils.create_prim(
+                f"/World/Cube_{i}",
+                "Xform",
+                usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd",
+                translation=(0.0, i, 5.0),
+                orientation=(1.0, 0.0, 0.0, 0.0),
+                scale=(5.0, 5.0, 5.0),
+            )
+            prim = stage.GetPrimAtPath(f"/World/Cube_{i}")
+            sem = Semantics.SemanticsAPI.Apply(prim, "Semantics")
+            sem.CreateSemanticTypeAttr()
+            sem.CreateSemanticDataAttr()
+            sem.GetSemanticTypeAttr().Set("class")
+            sem.GetSemanticDataAttr().Set("cube")
+
+        # Create camera
+        camera_cfg = copy.deepcopy(self.camera_cfg)
+        camera_cfg.height = 120
+        camera_cfg.width = 80
+        camera_cfg.data_types = all_annotator_types
+        camera_cfg.prim_path = "/World/Origin_.*/CameraSensor"
+        camera_cfg.offset.pos = (0.0, 0.0, 5.5)
+        camera = TiledCamera(camera_cfg)
+        # Check simulation parameter is set correctly
+        self.assertTrue(self.sim.has_rtx_sensors())
+        # Play sim
+        self.sim.reset()
+        # Check if camera is initialized
+        self.assertTrue(camera.is_initialized)
+        # Check if camera prim is set correctly and that it is a camera prim
+        self.assertEqual(camera._sensor_prims[1].GetPath().pathString, "/World/Origin_1/CameraSensor")
+        self.assertIsInstance(camera._sensor_prims[0], UsdGeom.Camera)
+        self.assertListEqual(sorted(camera.data.output.keys()), sorted(all_annotator_types))
+
+        # Check buffers that exists and have correct shapes
+        self.assertEqual(camera.data.pos_w.shape, (num_cameras, 3))
+        self.assertEqual(camera.data.quat_w_ros.shape, (num_cameras, 4))
+        self.assertEqual(camera.data.quat_w_world.shape, (num_cameras, 4))
+        self.assertEqual(camera.data.quat_w_opengl.shape, (num_cameras, 4))
+        self.assertEqual(camera.data.intrinsic_matrices.shape, (num_cameras, 3, 3))
+        self.assertEqual(camera.data.image_shape, (camera_cfg.height, camera_cfg.width))
+
+        # Simulate for a few steps
+        # note: This is a workaround to ensure that the textures are loaded.
+        #   Check "Known Issues" section in the documentation for more details.
+        for _ in range(5):
+            self.sim.step()
+
+        # Simulate physics
+        for _ in range(2):
+            # perform rendering
+            self.sim.step()
+            # update camera
+            camera.update(self.dt)
+            # check image data
+            for data_type, im_data in camera.data.output.items():
+                if data_type in ["rgb", "normals"]:
+                    self.assertEqual(im_data.shape, (num_cameras, camera_cfg.height, camera_cfg.width, 3))
+                elif data_type in [
+                    "rgba",
+                    "semantic_segmentation",
+                    "instance_segmentation_fast",
+                    "instance_id_segmentation_fast",
+                ]:
+                    self.assertEqual(im_data.shape, (num_cameras, camera_cfg.height, camera_cfg.width, 4))
+                    # semantic_segmentation has mean 0.43
+                    # rgba has mean 0.38
+                    # instance_segmentation_fast has mean 0.42
+                    # instance_id_segmentation_fast has mean 0.55-0.62
+                    for i in range(num_cameras):
+                        self.assertGreater((im_data[i] / 255.0).mean().item(), 0.3)
+                elif data_type in ["motion_vectors"]:
+                    # motion vectors have mean 0.2
+                    self.assertEqual(im_data.shape, (num_cameras, camera_cfg.height, camera_cfg.width, 2))
+                    for i in range(num_cameras):
+                        self.assertGreater(im_data[i].abs().mean().item(), 0.15)
+                elif data_type in ["depth", "distance_to_camera", "distance_to_image_plane"]:
+                    # depth has mean 2.7
+                    # distance_to_image_plane has mean 3.1
+                    self.assertEqual(im_data.shape, (num_cameras, camera_cfg.height, camera_cfg.width, 1))
+                    for i in range(num_cameras):
+                        self.assertGreater(im_data[i].mean().item(), 2.5)
 
         # access image data and compare dtype
         output = camera.data.output

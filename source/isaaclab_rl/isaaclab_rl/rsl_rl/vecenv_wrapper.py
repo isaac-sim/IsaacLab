@@ -3,19 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Wrapper to configure a :class:`ManagerBasedRLEnv` or :class:`DirectRlEnv` instance to RSL-RL vectorized environment.
-
-The following example shows how to wrap an environment for RSL-RL:
-
-.. code-block:: python
-
-    from isaaclab_rl.rsl_rl import RslRlVecEnvWrapper
-
-    env = RslRlVecEnvWrapper(env)
-
-"""
-
-
 import gymnasium as gym
 import torch
 

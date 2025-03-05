@@ -29,6 +29,11 @@ If you encounter any issues, please report them to the
    Also, on Windows, it may be necessary to `enable long path <https://pip.pypa.io/warnings/enable-long-paths>`_
    support to avoid installation errors due to OS limitations.
 
+.. attention::
+
+   If you plan to :ref:`Set up Visual Studio Code <setup-vs-code>` later, we recommend following the
+   :ref:`Isaac Sim Binaries Installation <isaaclab-binaries-installation>` approach.
+
 .. note::
 
    If you use Conda, we recommend using `Miniconda <https://docs.anaconda.com/miniconda/miniconda-other-installer-links/>`_.
@@ -292,6 +297,14 @@ Installation
             isaaclab.bat --install rl_games :: or "isaaclab.bat -i rl_games"
 
    The valid options are ``rl_games``, ``rsl_rl``, ``sb3``, ``skrl``, ``robomimic``, ``none``.
+
+.. attention::
+
+   For 50 series GPUs, please use the latest PyTorch nightly build instead of PyTorch 2.5.1, which comes with Isaac Sim:
+
+   .. code:: bash
+
+      pip install --upgrade --pre torch --index-url https://download.pytorch.org/whl/nightly/cu128
 
 Verifying the Isaac Lab installation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

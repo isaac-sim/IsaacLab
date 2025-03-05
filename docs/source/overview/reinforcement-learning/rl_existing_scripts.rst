@@ -1,5 +1,5 @@
-Reinforcement Learning Wrappers
-===============================
+Reinforcement Learning Scripts
+==============================
 
 We provide wrappers to different reinforcement libraries. These wrappers convert the data
 from the environments into the respective libraries function argument and return types.
