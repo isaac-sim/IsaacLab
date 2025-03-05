@@ -40,33 +40,34 @@ New Features
 Improvements
 ------------
 
-* Adds guidelines and examples for code contribution.
-* Separates joint state setters inside Articulation class.
-* Implements deterministic evaluation for skrl's multi-agent algorithms.
-* Adds new extensions to ``pyproject.toml``.
-* Updates docs on Isaac Sim binary installation path and VSCode integration.
-* Removes remaining deprecation warning in RigidObject deprecation.
-* Adds security and show&tell notes to documentation.
-* Updates docs for segmentation and 50 series GPUs.
-* Adds workaround for semantic segmentation issue with tiled camera.
+* Adds guidelines and examples for code contribution
+* Separates joint state setters inside Articulation class
+* Implements deterministic evaluation for skrl's multi-agent algorithms
+* Adds new extensions to ``pyproject.toml``
+* Updates docs on Isaac Sim binary installation path and VSCode integration
+* Removes remaining deprecation warning in RigidObject deprecation
+* Adds security and show&tell notes to documentation
+* Updates docs for segmentation and 50 series GPUs
+* Adds workaround for semantic segmentation issue with tiled camera
 
 Bug Fixes
 ---------
-* Fixes offset from object obs for Franka stacking env when using parallel envs.
-* Adds scene update to ManagerBasedEnv, DirectRLEnv, and MARL envs initialization.
-* Loads actuator networks in eval() mode to prevent gradients.
-* Fixes instructions on importing ANYmal URDF in docs.
-* Fixes setting of root velocities in the event term :func:`~isaaclab.mdp.reset_root_state_from_terrain`.
-* Fixes ``activate_contact_sensors`` when using :class:`~isaaclab.sim.MultiUsdFileCfg`.
-* Fixes misalignment in motion vectors from :class:`~isaaclab.sim.TiledCamera`.
-* Sets default tensor device to CPU for Camera rot buffer.
+
+* Fixes offset from object obs for Franka stacking env when using parallel envs
+* Adds scene update to ManagerBasedEnv, DirectRLEnv, and MARL envs initialization
+* Loads actuator networks in eval() mode to prevent gradients
+* Fixes instructions on importing ANYmal URDF in docs
+* Fixes setting of root velocities in the event term :func:`~isaaclab.mdp.reset_root_state_from_terrain`
+* Fixes ``activate_contact_sensors`` when using :class:`~isaaclab.sim.MultiUsdFileCfg`
+* Fixes misalignment in motion vectors from :class:`~isaaclab.sim.TiledCamera`
+* Sets default tensor device to CPU for Camera rot buffer
 
 Breaking Changes
 ----------------
 
-* Reverts the setting of joint velocity limits for implicit actuators.
-* Removes ``disable_contact_processing`` flag from SimulationContext.
-* Reverts to old render settings in kit experience files.
+* Reverts the setting of joint velocity limits for implicit actuators
+* Removes ``disable_contact_processing`` flag from SimulationContext
+* Reverts to old render settings in kit experience files
 
 Migration Guide
 ---------------
