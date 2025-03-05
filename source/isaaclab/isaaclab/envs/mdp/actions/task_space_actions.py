@@ -403,10 +403,12 @@ class OperationalSpaceControllerAction(ActionTerm):
 
     @property
     def jacobian_w(self) -> torch.Tensor:
+        """Geometric Jacobian of the ee body in world frame."""
         return self._asset.root_physx_view.get_jacobians()[:, self._jacobi_ee_body_idx, :, self._jacobi_joint_idx]
 
     @property
     def jacobian_b(self) -> torch.Tensor:
+        """Geometric Jacobian of the ee body in root frame."""
         jacobian = self.jacobian_w
         base_rot = self._asset.data.root_quat_w
         base_rot_matrix = math_utils.matrix_from_quat(math_utils.quat_inv(base_rot))
@@ -422,7 +424,7 @@ class OperationalSpaceControllerAction(ActionTerm):
         """Pre-processes the raw actions and sets them as commands for for operational space control.
 
         Args:
-            actions (torch.Tensor): The raw actions for operational space control. It is a tensor of
+            actions: The raw actions for operational space control. It is a tensor of
                 shape (``num_envs``, ``action_dim``).
         """
 
@@ -466,11 +468,11 @@ class OperationalSpaceControllerAction(ActionTerm):
         )
         self._asset.set_joint_effort_target(self._joint_efforts, joint_ids=self._joint_ids)
 
-    def reset(self, env_ids: Sequence[int] | None = None) -> None:
+    def reset(self, env_ids: Sequence[int] | None = None):
         """Resets the raw actions and the sensors if available.
 
         Args:
-            env_ids (Sequence[int] | None): The environment indices to reset. If ``None``, all environments are reset.
+            env_ids: The environment indices to reset. If ``None``, all environments are reset.
         """
         self._raw_actions[env_ids] = 0.0
         if self._contact_sensor is not None:
@@ -492,9 +494,9 @@ class OperationalSpaceControllerAction(ActionTerm):
         """Modify the clipping values for the pose and wrench commands.
 
         Args:
-            pos_clip: The new clipping value for the position command. If None, the current value is kept.
-            ori_clip: The new clipping value for the orientation command. If None, the current value is kept.
-            wrench_clip: The new clipping value for the wrench command. If None, the current value is kept.
+            pos_clip: The new clipping value for the position command. If ``None``, the current value is kept.
+            ori_clip: The new clipping value for the orientation command. If ``None``, the current value is kept.
+            wrench_clip: The new clipping value for the wrench command. If ``None``, the current value is kept.
         """
 
         if pos_clip is not None:
@@ -518,11 +520,12 @@ class OperationalSpaceControllerAction(ActionTerm):
         """Modify the scaling factors for the commands.
 
         Args:
-            pos_scale: New scaling factor for the position command.
-            ori_scale: New scaling factor for the orientation command.
-            wrench_scale: New scaling factor for the wrench command.
-            stiffness_scale: New scaling factor for the stiffness command.
-            damping_ratio_scale: New scaling factor for the damping ratio command.
+            pos_scale: New scaling factor for the position command. If ``None``, the current value is kept.
+            ori_scale: New scaling factor for the orientation command. If ``None``, the current value is kept.
+            wrench_scale: New scaling factor for the wrench command. If ``None``, the current value is kept.
+            stiffness_scale: New scaling factor for the stiffness command. If ``None``, the current value is kept.
+            damping_ratio_scale: New scaling factor for the damping ratio command. If ``None``, the current value is
+                kept.
         """
 
         if pos_scale is not None:
@@ -546,14 +549,14 @@ class OperationalSpaceControllerAction(ActionTerm):
 
     """
 
-    def _first_RigidObject_child_path(self):
+    def _first_RigidObject_child_path(self) -> str:
         """Finds the first ``RigidObject`` child under the articulation asset.
 
         Raises:
             ValueError: If no child ``RigidObject`` is found under the articulation asset.
 
         Returns:
-            str: The path to the first ``RigidObject`` child under the articulation asset.
+            The path to the first ``RigidObject`` child under the articulation asset.
         """
         child_prims = find_matching_prims(self._asset.cfg.prim_path + "/.*")
         rigid_child_prim = None
@@ -733,7 +736,7 @@ class OperationalSpaceControllerAction(ActionTerm):
         """Pre-processes the raw actions for operational space control.
 
         Args:
-            actions (torch.Tensor): The raw actions for operational space control. It is a tensor of
+            actions: The raw actions for operational space control. It is a tensor of
                 shape (``num_envs``, ``action_dim``).
         """
         # Store the raw actions. Please note that the actions contain task space targets
@@ -807,16 +810,16 @@ class OperationalSpaceControllerAction(ActionTerm):
         Validates and formats the input for parameter modification functions.
 
         The param can be:
-        - A scalar (0D tensor or a 1D tensor with a single element): expanded to shape (self.num_envs, 1)
-        - A 1D tensor with shape (self.num_envs,): unsqueezed to shape (self.num_envs, 1)
-        - A 2D tensor with shape (self.num_envs, 1): used as is
+        - A scalar (0D tensor or a 1D tensor with a single element): expanded to shape (``self.num_envs``, 1)
+        - A 1D tensor with shape (``self.num_envs``,): unsqueezed to shape (``self.num_envs``, 1)
+        - A 2D tensor with shape (``self.num_envs``, 1): used as is
 
         Args:
             param: The input param value (scalar or tensor) to validate.
             name: A descriptive name for error messages.
 
         Returns:
-            The output param, a tensor of shape (self.num_envs, 1).
+            The output param, a tensor of shape (``self.num_envs``, 1).
 
         Raises:
             ValueError: If `param` is not a scalar or a 1D/2D tensor with the expected size.
