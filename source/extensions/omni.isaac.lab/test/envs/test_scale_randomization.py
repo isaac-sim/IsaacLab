@@ -235,7 +235,7 @@ class EventCfg:
     )
 
     # Scale randomization as intended
-    randomize_scale1 = EventTerm(
+    randomize_cube1__scale = EventTerm(
         func=mdp.randomize_scale,
         mode="scene",
         params={
@@ -245,7 +245,7 @@ class EventCfg:
     )
 
     # Static scale values
-    randomize_scale2 = EventTerm(
+    randomize_cube2__scale = EventTerm(
         func=mdp.randomize_scale,
         mode="scene",
         params={
@@ -308,7 +308,7 @@ class TestScaleRandomization(unittest.TestCase):
             scale_spec = prim_spec.GetAttributeAtPath(prim_paths[i] + ".xformOp:scale")
             if scale_spec.default in applied_scaling_randomization:
                 raise ValueError(
-                    "Detected repeat in applied scale values - indication scaling randomizatio is not working."
+                    "Detected repeat in applied scale values - indication scaling randomization is not working."
                 )
             applied_scaling_randomization.add(scale_spec.default)
 
@@ -320,23 +320,13 @@ class TestScaleRandomization(unittest.TestCase):
             self.assertEqual(tuple(scale_spec.default), (1.0, 1.0, 1.0))
 
         # simulate physics
-        count = 0
-        while simulation_app.is_running():
-            with torch.inference_mode():
-                # reset
+        with torch.inference_mode():
+            for count in range(200):
+                # reset every few steps to check nothing breaks
                 if count % 100 == 0:
                     env.reset()
-
                 # step the environment
                 env.step(target_position)
-
-                # update counter
-                count += 1
-
-                # after 2 iterations finish the test and close env
-                if count >= 200:
-                    env.close()
-                    break
 
 
 if __name__ == "__main__":

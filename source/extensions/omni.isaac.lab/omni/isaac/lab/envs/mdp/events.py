@@ -100,6 +100,10 @@ def randomize_scale(
         :attr:`omni.isaac.lab.scene.InteractiveSceneCfg.replicate_physics` to False. This ensures that physics
         parser will parse the individual asset properties separately.
 
+    Raise:
+        ValueError: sim.is_playing() = True
+        ValueError: replicate_physics = True
+
     """
     # extract the used quantities (to enable type-hinting)
     asset: RigidObject | Articulation = env.scene[asset_cfg.name]

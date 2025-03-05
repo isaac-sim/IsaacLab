@@ -577,8 +577,8 @@ class DirectMARLEnv:
 
         It must be called only before the simulation/physics is started.
 
-        Note: A duplicate function exists in manager_based_env.py please make sure to carry over
-        any changes made to this function.
+        Note: A duplicate function exists in manager_based_env.py and direct_rl_env.py
+        please make sure to carry over any changes made to this function.
         """
         # check if scene randomization is enabled
         applied_scene_randomization = False
