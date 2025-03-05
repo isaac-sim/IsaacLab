@@ -7,13 +7,20 @@ import os
 import shutil
 
 import jinja2
-from common import TASKS_DIR, TEMPLATE_DIR
+from common import ROOT_DIR, TASKS_DIR, TEMPLATE_DIR
 
 jinja_env = jinja2.Environment(
     loader=jinja2.FileSystemLoader(TEMPLATE_DIR),
     trim_blocks=True,
     lstrip_blocks=True,
 )
+
+
+def _replace_in_file(path: str, old: str, new: str):
+    with open(path) as file:
+        file_content = file.read()
+    with open(path, "w") as file:
+        file.write(file_content.replace(old, new))
 
 
 def _write_file(dst: str, content: str):
@@ -25,7 +32,6 @@ def _generate_task(task_dir: str, specification: dict):
     task_spec = specification["task"]
     agents_dir = os.path.join(task_dir, "agents")
     os.makedirs(agents_dir, exist_ok=True)
-
     # common content
     # - task/__init__.py
     template = jinja_env.get_template("task__init__")
@@ -88,7 +94,33 @@ def _internal(specification: dict):
 
 
 def _external(specification: dict):
-    return False
+    project_dir = os.path.join(specification["path"], specification["name"])
+    os.makedirs(project_dir, exist_ok=True)
+    # project files
+    # - scripts
+    os.makedirs(os.path.join(project_dir, "scripts"), exist_ok=True)
+    for rl_library in specification["rl_libraries"]:
+        shutil.copytree(
+            os.path.join(ROOT_DIR, "scripts", "reinforcement_learning", rl_library["name"]),
+            os.path.join(project_dir, "scripts", rl_library["name"]),
+            dirs_exist_ok=True,
+        )
+
+    # general_task_name = "-".join([item.capitalize() for item in specification["name"].split("_")])
+    # for workflow in specification["workflows"]:
+    #     task_name = general_task_name + ("-Marl" if workflow["type"] == "multi-agent" else "")
+    #     filename = task_name.replace("-", "_").lower()
+    #     task = {
+    #         "workflow": workflow,
+    #         "filename": filename,
+    #         "classname": task_name.replace("-", ""),
+    #         "dir": os.path.join(TASKS_DIR, workflow["name"].replace("-", "_"), filename),
+    #     }
+    #     if task["workflow"]["name"] == "direct":
+    #         task["id"] = f"Isaac-{task_name}-Direct-v0"
+    #     elif task["workflow"]["name"] == "manager-based":
+    #         task["id"] = f"Isaac-{task_name}-v0"
+    #     _generate_task(task["dir"], {**specification, "task": task})
 
 
 def generate(specification: dict):
@@ -102,8 +134,8 @@ def generate(specification: dict):
 
 if __name__ == "__main__":
     spec = {
-        "external": False,
-        "path": None,
+        "external": True,
+        "path": "/home/toni/Documents/RL",
         "name": "lorem_ipsum",
         "workflows": [
             {"name": "direct", "type": "single-agent"},
