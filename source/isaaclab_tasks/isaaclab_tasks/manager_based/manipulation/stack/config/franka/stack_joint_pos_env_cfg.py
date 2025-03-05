@@ -82,6 +82,13 @@ class FrankaCubeStackEnvCfg(StackEnvCfg):
 
         # Set Franka as robot
         self.scene.robot = FRANKA_PANDA_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        self.scene.robot.spawn.semantic_tags = [("class", "robot")]
+
+        # Add semantics to table
+        self.scene.table.spawn.semantic_tags = [("class", "table")]
+
+        # Add semantics to ground
+        self.scene.plane.semantic_tags = [("class", "ground")]
 
         # Set actions for the specific robot type (franka)
         self.actions.arm_action = mdp.JointPositionActionCfg(
@@ -112,6 +119,7 @@ class FrankaCubeStackEnvCfg(StackEnvCfg):
                 usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/blue_block.usd",
                 scale=(1.0, 1.0, 1.0),
                 rigid_props=cube_properties,
+                semantic_tags=[("class", "cube_1")],
             ),
         )
         self.scene.cube_2 = RigidObjectCfg(
@@ -121,6 +129,7 @@ class FrankaCubeStackEnvCfg(StackEnvCfg):
                 usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/red_block.usd",
                 scale=(1.0, 1.0, 1.0),
                 rigid_props=cube_properties,
+                semantic_tags=[("class", "cube_2")],
             ),
         )
         self.scene.cube_3 = RigidObjectCfg(
@@ -130,6 +139,7 @@ class FrankaCubeStackEnvCfg(StackEnvCfg):
                 usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/green_block.usd",
                 scale=(1.0, 1.0, 1.0),
                 rigid_props=cube_properties,
+                semantic_tags=[("class", "cube_3")],
             ),
         )
 
