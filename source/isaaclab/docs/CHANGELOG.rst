@@ -10,6 +10,7 @@ Fixed
 * Fixed the issue of misalignment in the motion vectors from the :class:`TiledCamera`
   with other modalities such as RGBA and depth.
 
+
 0.34.7 (2025-03-04)
 ~~~~~~~~~~~~~~~~~~~
 
