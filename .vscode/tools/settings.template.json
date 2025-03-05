@@ -56,7 +56,7 @@
         "discretization",
         "trimesh",
         "uninstanceable",
-        "coeff",
+        "coeff"
     ],
     // This enables python language server. Seems to work slightly better than jedi:
     "python.languageServer": "Pylance",
