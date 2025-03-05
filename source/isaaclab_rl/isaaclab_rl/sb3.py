@@ -266,7 +266,6 @@ class Sb3VecEnvWrapper(VecEnv):
         reset_ids = dones.nonzero()[0]
 
         # update episode un-discounted return and length
-        # self._ep_rew_buf += torch.as_tensor(rewards)
         self._ep_rew_buf += rewards
         self._ep_len_buf += 1
         # convert extra information to list of dicts
