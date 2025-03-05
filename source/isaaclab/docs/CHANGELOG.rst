@@ -1,6 +1,39 @@
 Changelog
 ---------
 
+0.34.9 (2025-03-04)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed issue in :class:`~isaaclab.sensors.TiledCamera` where segmentation outputs only display the first tile
+  when scene instancing is enabled. A workaround is added for now to disable instancing when segmentation
+  outputs are requested.
+
+
+0.34.8 (2025-03-04)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the issue of misalignment in the motion vectors from the :class:`TiledCamera`
+  with other modalities such as RGBA and depth.
+
+
+0.34.7 (2025-03-04)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added methods inside the :class:`omni.isaac.lab.assets.Articulation` class to set the joint
+  position and velocity for the articulation. Previously, the joint position and velocity could
+  only be set using the :meth:`omni.isaac.lab.assets.Articulation.write_joint_state_to_sim` method,
+  which didn't allow setting the joint position and velocity separately.
+
+
 0.34.6 (2025-03-02)
 ~~~~~~~~~~~~~~~~~~~
 
