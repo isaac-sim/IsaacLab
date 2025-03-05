@@ -23,7 +23,7 @@
             "type": "python",
             "request": "launch",
             "args" : ["--task", "Isaac-Reach-Franka-v0", "--headless"],
-            "program": "${workspaceFolder}/source/standalone/workflows/rsl_rl/train.py",
+            "program": "${workspaceFolder}/scripts/reinforcement_learning/rsl_rl/train.py",
             "console": "integratedTerminal"
         },
         {
@@ -31,7 +31,7 @@
             "type": "python",
             "request": "launch",
             "args" : ["--task", "Isaac-Reach-Franka-v0", "--num_envs", "32"],
-            "program": "${workspaceFolder}/source/standalone/workflows/rsl_rl/play.py",
+            "program": "${workspaceFolder}/scripts/reinforcement_learning/rsl_rl/play.py",
             "console": "integratedTerminal"
         }
     ]
