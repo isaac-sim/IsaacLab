@@ -1,9 +1,11 @@
 .. _overview_sensors_contact:
 
-Contact Sensor
-================
+.. currentmodule:: isaaclab
 
-.. figure:: ../../_static/overview/overview_sensors_contact_diagram.jpg
+Contact Sensor
+==============
+
+.. figure:: ../../../_static/overview/sensors/contact_diagram.jpg
     :align: center
     :figwidth: 100%
     :alt: A contact sensor with filtering
@@ -14,7 +16,7 @@ By default, the reported force is the total contact force, but your application 
 
 Consider a simple environment with an Anymal Quadruped and a block
 
-.. literalinclude:: ../../../../scripts/demos/sensors/contact_sensor.py
+.. literalinclude:: ../../../../../scripts/demos/sensors/contact_sensor.py
     :language: python
     :lines: 40-90
 
@@ -90,6 +92,6 @@ In this case, the contact sensor has two bodies: the left and right hind feet.  
 .. dropdown:: Code for contact_sensor.py
    :icon: code
 
-   .. literalinclude:: ../../../../scripts/demos/sensors/contact_sensor.py
+   .. literalinclude:: ../../../../../scripts/demos/sensors/contact_sensor.py
       :language: python
       :linenos:

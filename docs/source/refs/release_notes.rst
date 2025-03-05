@@ -1,5 +1,5 @@
 Release Notes
-=============
+#############
 
 The release notes are now available in the `Isaac Lab GitHub repository <https://github.com/isaac-sim/IsaacLab/releases>`_.
 We summarize the release notes here for convenience.
@@ -122,7 +122,6 @@ Breaking Changes
 	segmentation outputs only render the first tile correctly and produces blank outputs for the remaining tiles.
 	We will be introducing a workaround for this fix to remove scene instancing if semantic segmentation or instance
 	segmentation is required for ``TiledCamera`` until we receive a proper fix from Omniverse as part of the next Isaac Sim release.
-
 
 Migration Guide
 ---------------
