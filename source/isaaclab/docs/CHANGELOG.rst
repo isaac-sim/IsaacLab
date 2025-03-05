@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+0.34.9 (2025-03-04)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed issue in :class:`~isaaclab.sensors.TiledCamera` where segmentation outputs only display the first tile
+  when scene instancing is enabled. A workaround is added for now to disable instancing when segmentation
+  outputs are requested.
+
+
 0.34.8 (2025-03-04)
 ~~~~~~~~~~~~~~~~~~~
 
