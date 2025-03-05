@@ -892,6 +892,13 @@ pass the name of the framework as an argument. For example, to install only the 
 </div>
 <p>The valid options are <code class="docutils literal notranslate"><span class="pre">rl_games</span></code>, <code class="docutils literal notranslate"><span class="pre">rsl_rl</span></code>, <code class="docutils literal notranslate"><span class="pre">sb3</span></code>, <code class="docutils literal notranslate"><span class="pre">skrl</span></code>, <code class="docutils literal notranslate"><span class="pre">robomimic</span></code>, <code class="docutils literal notranslate"><span class="pre">none</span></code>.</p>
 </div>
+<div class="admonition attention">
+<p class="admonition-title">Attention</p>
+<p>For 50 series GPUs, please use the latest PyTorch nightly build instead of PyTorch 2.5.1, which comes with Isaac Sim:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span>--upgrade<span class="w"> </span>--pre<span class="w"> </span>torch<span class="w"> </span>--index-url<span class="w"> </span>https://download.pytorch.org/whl/nightly/cu128
+</pre></div>
+</div>
+</div>
 </section>
 <section id="verifying-the-isaac-lab-installation">
 <h3>Verifying the Isaac Lab installation<a class="headerlink" href="#verifying-the-isaac-lab-installation" title="Permalink to this heading">#</a></h3>
