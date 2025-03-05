@@ -22,6 +22,7 @@ import gymnasium as gym
 import numpy as np
 import torch
 import torch.nn as nn  # noqa: F401
+import warnings
 from typing import Any
 
 from stable_baselines3.common.utils import constant_fn
@@ -50,6 +51,9 @@ except ImportError:
             self.model._dump_logs()
             return True
 
+
+# Remove SB3 warnings because PPO with bigger net actually benefits from GPU
+warnings.filterwarnings("ignore", message="You are trying to run PPO on the GPU")
 
 """
 Configuration Parser.
