@@ -259,7 +259,8 @@ class TiledCamera(Camera):
                     ptr=tiled_data_buffer.ptr, shape=(*tiled_data_buffer.shape, 4), dtype=wp.uint8, device=self.device
                 )
 
-            # HACK: fix motion_vectors reshape issue by only feeding the first 2 channels
+            # For motion vectors, we only require the first two channels of the tiled buffer
+            # Note: Not doing this breaks the alignment of the data (check: https://github.com/isaac-sim/IsaacLab/issues/2003)
             if data_type == "motion_vectors":
                 tiled_data_buffer = tiled_data_buffer[:, :, :2].contiguous()
 
