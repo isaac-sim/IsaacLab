@@ -54,7 +54,7 @@ class ObservationsCfg:
                 "data_type": "normals",
                 "normalize": True,
                 "save_image_to_file": True,
-                "image_path": "_cosmos_inputs/table_cam",
+                "image_path": "table_cam",
             },
         )
         table_cam_segmentation = ObsTerm(
@@ -64,7 +64,7 @@ class ObservationsCfg:
                 "data_type": "semantic_segmentation",
                 "normalize": False,
                 "save_image_to_file": True,
-                "image_path": "_cosmos_inputs/table_cam",
+                "image_path": "table_cam",
             },
         )
         table_high_cam_normals = ObsTerm(
@@ -74,7 +74,7 @@ class ObservationsCfg:
                 "data_type": "normals",
                 "normalize": True,
                 "save_image_to_file": True,
-                "image_path": "_cosmos_inputs/table_high_cam",
+                "image_path": "table_high_cam",
             },
         )
         table_high_cam_segmentation = ObsTerm(
@@ -84,7 +84,7 @@ class ObservationsCfg:
                 "data_type": "semantic_segmentation",
                 "normalize": False,
                 "save_image_to_file": True,
-                "image_path": "_cosmos_inputs/table_high_cam",
+                "image_path": "table_high_cam",
             },
         )
 
@@ -129,6 +129,7 @@ class ObservationsCfg:
     policy: PolicyCfg = PolicyCfg()
     rgb_camera: RGBCameraPolicyCfg = RGBCameraPolicyCfg()
     subtask_terms: SubtaskCfg = SubtaskCfg()
+
 
 @configclass
 class FrankaCubeStackBlueprintEnvCfg(stack_joint_pos_env_cfg.FrankaCubeStackEnvCfg):

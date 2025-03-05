@@ -7,9 +7,10 @@
 
 import gymnasium as gym
 
+from .franka_stack_ik_rel_blueprint_mimic_env_cfg import FrankaCubeStackIKRelBlueprintMimicEnvCfg
 from .franka_stack_ik_rel_mimic_env import FrankaCubeStackIKRelMimicEnv
 from .franka_stack_ik_rel_mimic_env_cfg import FrankaCubeStackIKRelMimicEnvCfg
-from .franka_stack_ik_rel_blueprint_mimic_env_cfg import FrankaCubeStackIKRelBlueprintMimicEnvCfg
+
 ##
 # Inverse Kinematics - Relative Pose Control
 ##
