@@ -357,6 +357,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.sim.spawners.html">isaaclab.sim.spawners</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../api/lab_tasks/isaaclab_tasks.utils.html">isaaclab_tasks.utils</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../api/lab_mimic/isaaclab_mimic.datagen.html">isaaclab_mimic.datagen</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab_mimic/isaaclab_mimic.envs.html">isaaclab_mimic.envs</a></li>
 </ul>
 </details></li>
 </ul>
@@ -819,7 +820,7 @@ sudo<span class="w"> </span>apt<span class="w"> </span>install<span class="w"> <
 <h3>Configuration and subtask definition<a class="headerlink" href="#configuration-and-subtask-definition" title="Permalink to this heading">#</a></h3>
 <p>Subtasks, among other configuration settings for Isaac Lab Mimic, are defined in a Mimic compatible environment configuration class that is created by extending the existing environment config with additional Mimic required parameters.</p>
 <p>All Mimic required config parameters are specified in the <a class="reference internal" href="../api/lab/isaaclab.envs.html#isaaclab.envs.MimicEnvCfg" title="isaaclab.envs.MimicEnvCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">MimicEnvCfg</span></code></a> class.</p>
-<p>The config class <code class="xref py py-class docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnvCfg</span></code> serves as an example of creating a Mimic compatible environment config class for the Franka stacking task that was used in the examples above.</p>
+<p>The config class <a class="reference internal" href="../api/lab_mimic/isaaclab_mimic.envs.html#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg" title="isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnvCfg</span></code></a> serves as an example of creating a Mimic compatible environment config class for the Franka stacking task that was used in the examples above.</p>
 <p>The <code class="docutils literal notranslate"><span class="pre">DataGenConfig</span></code> member contains various parameters that influence how data is generated. It is initially sufficient to just set the <code class="docutils literal notranslate"><span class="pre">name</span></code> parameter, and revise the rest later.</p>
 <p>Subtasks are a list of <code class="docutils literal notranslate"><span class="pre">SubTaskConfig</span></code> objects, of which the most important members are:</p>
 <ul class="simple">
@@ -844,7 +845,7 @@ sudo<span class="w"> </span>apt<span class="w"> </span>install<span class="w"> <
 <li><p><code class="docutils literal notranslate"><span class="pre">get_object_poses</span></code>: Returns the pose of each object in the scene that is used for data generation.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">get_subtask_term_signals</span></code>: Returns a dictionary of binary flags for each subtask in a task. The flag of true is set when the subtask has been completed and false otherwise.</p></li>
 </ul>
-<p>The class <code class="xref py py-class docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnv</span></code> shows an example of creating a Mimic compatible environment from an existing Isaac Lab environment.</p>
+<p>The class <a class="reference internal" href="../api/lab_mimic/isaaclab_mimic.envs.html#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv" title="isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv"><code class="xref py py-class docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnv</span></code></a> shows an example of creating a Mimic compatible environment from an existing Isaac Lab environment.</p>
 </section>
 <section id="registering-the-environment">
 <h3>Registering the environment<a class="headerlink" href="#registering-the-environment" title="Permalink to this heading">#</a></h3>
