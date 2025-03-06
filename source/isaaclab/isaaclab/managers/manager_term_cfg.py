@@ -240,8 +240,6 @@ class ObservationGroupCfg:
 class EventTermCfg(ManagerTermBaseCfg):
     """Configuration for a event term."""
 
-    name: str = ""
-
     func: Callable[..., None] = MISSING
     """The name of the function to be called.
 
@@ -291,9 +289,6 @@ class EventTermCfg(ManagerTermBaseCfg):
     Note:
         This is only used if the mode is ``"reset"``.
     """
-
-    randomizable_params: dict | None = None
-    """Optional dictionary specifying which parameters can be randomized and their allowed ranges."""
 
 
 ##

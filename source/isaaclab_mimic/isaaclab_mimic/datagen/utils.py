@@ -127,6 +127,7 @@ def get_parameter_input(
 
 def interactive_update_randomizable_params(
     event_term: EventTermCfg,
+    event_term_name: str,
     param_config: dict[str, dict | tuple[float, float, float | None]],
     param_path: str = "",
     env: ManagerBasedEnv | None = None,
@@ -134,15 +135,12 @@ def interactive_update_randomizable_params(
     """Interactive parameter updates using ipywidgets."""
     inputs = []
 
-    # Get event term name from the event term object
-    event_term_name = event_term.name if hasattr(event_term, "name") else None
-
     for key, allowed_range in param_config.items():
         current_path = f"{param_path}.{key}" if param_path else key
         keys = current_path.split(".")
 
         if isinstance(allowed_range, dict):
-            interactive_update_randomizable_params(event_term, allowed_range, current_path, env)
+            interactive_update_randomizable_params(event_term, event_term_name, allowed_range, current_path, env)
         else:
             try:
                 current_val = get_nested_value(event_term.params, keys)
