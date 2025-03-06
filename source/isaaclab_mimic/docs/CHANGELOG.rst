@@ -1,7 +1,7 @@
 Changelog
 ---------
 
-1.0.3 (2025-03-10)
+1.0.4 (2025-03-10)
 ~~~~~~~~~~~~~~~~~~
 
 Changed
@@ -13,6 +13,15 @@ Added
 ^^^^^
 
 * Added ``Isaac-Stack-Cube-Franka-IK-Rel-Blueprint-Mimic-v0`` environment for blueprint vision stacking.
+
+
+1.0.3 (2025-03-06)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^^
+
+* Added absolute pose mimic environment for Franka cube stacking task (:class:`FrankaCubeStackIKAbsMimicEnv`)
 
 
 1.0.2 (2025-01-10)
