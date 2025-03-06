@@ -118,6 +118,18 @@ Changed
   * ``set_fixed_tendon_limit`` → ``set_fixed_tendon_position_limit``
 
 
+0.34.12 (2025-03-06)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Updated the mimic API :meth:`target_eef_pose_to_action` in :class:`isaaclab.envs.ManagerBasedRLMimicEnv` to take a dictionary of
+  eef noise values instead of a single noise value.
+* Added support for optional subtask constraints based on DexMimicGen to the mimic configuration class :class:`isaaclab.envs.MimicEnvCfg`.
+* Enabled data compression in HDF5 dataset file handler :class:`isaaclab.utils.datasets.hdf5_dataset_file_handler.HDF5DatasetFileHandler`.
+
+
 0.34.11 (2025-03-04)
 ~~~~~~~~~~~~~~~~~~~~
 

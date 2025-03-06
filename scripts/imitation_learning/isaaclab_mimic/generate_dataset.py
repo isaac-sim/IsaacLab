@@ -7,7 +7,7 @@
 Main data generation script.
 """
 
-# Launching Isaac Sim Simulator first.
+"""Launch Isaac Sim Simulator first."""
 
 import argparse
 
@@ -45,9 +45,14 @@ simulation_app = app_launcher.app
 
 import asyncio
 import gymnasium as gym
+import inspect
 import numpy as np
 import random
 import torch
+
+import omni
+
+from isaaclab.envs import ManagerBasedRLMimicEnv
 
 import isaaclab_mimic.envs  # noqa: F401
 from isaaclab_mimic.datagen.generation import env_loop, setup_async_generation, setup_env_config
@@ -74,12 +79,22 @@ def main():
     )
 
     # create environment
-    env = gym.make(env_name, cfg=env_cfg)
+    env = gym.make(env_name, cfg=env_cfg).unwrapped
+
+    if not isinstance(env, ManagerBasedRLMimicEnv):
+        raise ValueError("The environment should be derived from ManagerBasedRLMimicEnv")
+
+    # check if the mimic API from this environment contains decprecated signatures
+    if "action_noise_dict" not in inspect.signature(env.target_eef_pose_to_action).parameters:
+        omni.log.warn(
+            f'The "noise" parameter in the "{env_name}" environment\'s mimic API "target_eef_pose_to_action", '
+            "is deprecated. Please update the API to take action_noise_dict instead."
+        )
 
     # set seed for generation
-    random.seed(env.unwrapped.cfg.datagen_config.seed)
-    np.random.seed(env.unwrapped.cfg.datagen_config.seed)
-    torch.manual_seed(env.unwrapped.cfg.datagen_config.seed)
+    random.seed(env.cfg.datagen_config.seed)
+    np.random.seed(env.cfg.datagen_config.seed)
+    torch.manual_seed(env.cfg.datagen_config.seed)
 
     # reset before starting
     env.reset()
@@ -95,7 +110,13 @@ def main():
 
     try:
         asyncio.ensure_future(asyncio.gather(*async_components["tasks"]))
-        env_loop(env, async_components["action_queue"], async_components["info_pool"], async_components["event_loop"])
+        env_loop(
+            env,
+            async_components["reset_queue"],
+            async_components["action_queue"],
+            async_components["info_pool"],
+            async_components["event_loop"],
+        )
     except asyncio.CancelledError:
         print("Tasks were cancelled.")
 
