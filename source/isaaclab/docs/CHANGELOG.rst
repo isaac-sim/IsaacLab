@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+## [Unreleased]
+~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added arguments and functions to set position/orientation/wrench clip thresholds for
+  :class:`isaaclab.envs.mdp.actions.OperationalSpaceControllerAction` class.
+
+
 0.34.9 (2025-03-04)
 ~~~~~~~~~~~~~~~~~~~
 
