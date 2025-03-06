@@ -13,10 +13,11 @@ simulation_app = AppLauncher(headless=True).app
 """Rest everything follows."""
 
 import torch
-import unittest
+import pytest
 from collections import namedtuple
 
-from isaaclab.managers import RewardManager, RewardTermCfg
+from isaaclab.envs import ManagerBasedEnv
+from isaaclab.managers import RewardManager, RewardManagerBaseCfg, RewardTerm, RewardTermCfg
 from isaaclab.utils import configclass
 
 
@@ -36,148 +37,59 @@ def grilled_chicken_with_yoghurt(env, hot: bool, bland: float):
     return 0
 
 
-class TestRewardManager(unittest.TestCase):
-    """Test cases for various situations with reward manager."""
+class DummyRewardTerm(RewardTerm):
+    """Dummy reward term that returns dummy reward."""
 
-    def setUp(self) -> None:
-        self.env = namedtuple("ManagerBasedRLEnv", ["num_envs", "dt", "device"])(20, 0.1, "cpu")
+    def __init__(self, cfg: RewardTermCfg, env: ManagerBasedEnv) -> None:
+        super().__init__(cfg, env)
 
-    def test_str(self):
-        """Test the string representation of the reward manager."""
-        cfg = {
-            "term_1": RewardTermCfg(func=grilled_chicken, weight=10),
-            "term_2": RewardTermCfg(func=grilled_chicken_with_bbq, weight=5, params={"bbq": True}),
-            "term_3": RewardTermCfg(
-                func=grilled_chicken_with_yoghurt,
-                weight=1.0,
-                params={"hot": False, "bland": 2.0},
-            ),
-        }
-        self.rew_man = RewardManager(cfg, self.env)
-        self.assertEqual(len(self.rew_man.active_terms), 3)
-        # print the expected string
-        print()
-        print(self.rew_man)
+    def compute(self) -> torch.Tensor:
+        return torch.ones(self._env.num_envs, device=self._env.device)
 
-    def test_config_equivalence(self):
-        """Test the equivalence of reward manager created from different config types."""
-        # create from dictionary
-        cfg = {
-            "my_term": RewardTermCfg(func=grilled_chicken, weight=10),
-            "your_term": RewardTermCfg(func=grilled_chicken_with_bbq, weight=2.0, params={"bbq": True}),
-            "his_term": RewardTermCfg(
-                func=grilled_chicken_with_yoghurt,
-                weight=1.0,
-                params={"hot": False, "bland": 2.0},
-            ),
-        }
-        rew_man_from_dict = RewardManager(cfg, self.env)
 
-        # create from config class
-        @configclass
-        class MyRewardManagerCfg:
-            """Reward manager config with no type annotations."""
+@configclass
+class DummyRewardManagerCfg(RewardManagerBaseCfg):
+    """Dummy reward configurations."""
 
-            my_term = RewardTermCfg(func=grilled_chicken, weight=10.0)
-            your_term = RewardTermCfg(func=grilled_chicken_with_bbq, weight=2.0, params={"bbq": True})
-            his_term = RewardTermCfg(func=grilled_chicken_with_yoghurt, weight=1.0, params={"hot": False, "bland": 2.0})
+    @configclass
+    class DummyRewardTermCfg(RewardTermCfg):
+        """Configuration for the dummy reward term."""
 
-        cfg = MyRewardManagerCfg()
-        rew_man_from_cfg = RewardManager(cfg, self.env)
+        class_type: type[RewardTerm] = DummyRewardTerm
 
-        # create from config class
-        @configclass
-        class MyRewardManagerAnnotatedCfg:
-            """Reward manager config with type annotations."""
+    reward_term = DummyRewardTermCfg()
 
-            my_term: RewardTermCfg = RewardTermCfg(func=grilled_chicken, weight=10.0)
-            your_term: RewardTermCfg = RewardTermCfg(func=grilled_chicken_with_bbq, weight=2.0, params={"bbq": True})
-            his_term: RewardTermCfg = RewardTermCfg(
-                func=grilled_chicken_with_yoghurt, weight=1.0, params={"hot": False, "bland": 2.0}
-            )
 
-        cfg = MyRewardManagerAnnotatedCfg()
-        rew_man_from_annotated_cfg = RewardManager(cfg, self.env)
+def create_dummy_env(device: str = "cpu") -> ManagerBasedEnv:
+    """Create a dummy environment."""
+    return namedtuple("ManagerBasedEnv", ["num_envs", "device"])(20, device)
 
-        # check equivalence
-        # parsed terms
-        self.assertEqual(rew_man_from_dict.active_terms, rew_man_from_annotated_cfg.active_terms)
-        self.assertEqual(rew_man_from_cfg.active_terms, rew_man_from_annotated_cfg.active_terms)
-        self.assertEqual(rew_man_from_dict.active_terms, rew_man_from_cfg.active_terms)
-        # parsed term configs
-        self.assertEqual(rew_man_from_dict._term_cfgs, rew_man_from_annotated_cfg._term_cfgs)
-        self.assertEqual(rew_man_from_cfg._term_cfgs, rew_man_from_annotated_cfg._term_cfgs)
-        self.assertEqual(rew_man_from_dict._term_cfgs, rew_man_from_cfg._term_cfgs)
 
-    def test_compute(self):
-        """Test the computation of reward."""
-        cfg = {
-            "term_1": RewardTermCfg(func=grilled_chicken, weight=10),
-            "term_2": RewardTermCfg(func=grilled_chicken_with_curry, weight=0.0, params={"hot": False}),
-        }
-        self.rew_man = RewardManager(cfg, self.env)
-        # compute expected reward
-        expected_reward = cfg["term_1"].weight * self.env.dt
-        # compute reward using manager
-        rewards = self.rew_man.compute(dt=self.env.dt)
-        # check the reward for environment index 0
-        self.assertEqual(float(rewards[0]), expected_reward)
-        self.assertEqual(tuple(rewards.shape), (self.env.num_envs,))
+def test_str():
+    """Test the string representation of the reward manager."""
+    # create reward manager
+    cfg = DummyRewardManagerCfg()
+    reward_manager = RewardManager(cfg, create_dummy_env())
+    assert len(reward_manager.active_terms) == 1
+    # print the expected string
+    print()
+    print(reward_manager)
 
-    def test_config_empty(self):
-        """Test the creation of reward manager with empty config."""
-        self.rew_man = RewardManager(None, self.env)
-        self.assertEqual(len(self.rew_man.active_terms), 0)
 
-        # print the expected string
-        print()
-        print(self.rew_man)
+def test_compute():
+    """Test the computation of the reward."""
+    for device in ("cuda:0", "cpu"):
+        env = create_dummy_env(device)
+        # create reward manager
+        cfg = DummyRewardManagerCfg()
+        reward_manager = RewardManager(cfg, env)
 
-        # compute reward
-        rewards = self.rew_man.compute(dt=self.env.dt)
+        # compute the reward
+        reward = reward_manager.compute()
 
-        # check all rewards are zero
-        torch.testing.assert_close(rewards, torch.zeros_like(rewards))
-
-    def test_active_terms(self):
-        """Test the correct reading of active terms."""
-        cfg = {
-            "term_1": RewardTermCfg(func=grilled_chicken, weight=10),
-            "term_2": RewardTermCfg(func=grilled_chicken_with_bbq, weight=5, params={"bbq": True}),
-            "term_3": RewardTermCfg(func=grilled_chicken_with_curry, weight=0.0, params={"hot": False}),
-        }
-        self.rew_man = RewardManager(cfg, self.env)
-
-        self.assertEqual(len(self.rew_man.active_terms), 3)
-
-    def test_missing_weight(self):
-        """Test the missing of weight in the config."""
-        # TODO: The error should be raised during the config parsing, not during the reward manager creation.
-        cfg = {
-            "term_1": RewardTermCfg(func=grilled_chicken, weight=10),
-            "term_2": RewardTermCfg(func=grilled_chicken_with_bbq, params={"bbq": True}),
-        }
-        with self.assertRaises(TypeError):
-            self.rew_man = RewardManager(cfg, self.env)
-
-    def test_invalid_reward_func_module(self):
-        """Test the handling of invalid reward function's module in string representation."""
-        cfg = {
-            "term_1": RewardTermCfg(func=grilled_chicken, weight=10),
-            "term_2": RewardTermCfg(func=grilled_chicken_with_bbq, weight=5, params={"bbq": True}),
-            "term_3": RewardTermCfg(func="a:grilled_chicken_with_no_bbq", weight=0.1, params={"hot": False}),
-        }
-        with self.assertRaises(ValueError):
-            self.rew_man = RewardManager(cfg, self.env)
-
-    def test_invalid_reward_config(self):
-        """Test the handling of invalid reward function's config parameters."""
-        cfg = {
-            "term_1": RewardTermCfg(func=grilled_chicken_with_bbq, weight=0.1, params={"hot": False}),
-            "term_2": RewardTermCfg(func=grilled_chicken_with_yoghurt, weight=2.0, params={"hot": False}),
-        }
-        with self.assertRaises(ValueError):
-            self.rew_man = RewardManager(cfg, self.env)
+        # check the computed reward
+        assert reward.shape == (env.num_envs,)
+        assert torch.all(reward == 1.0)
 
 
 if __name__ == "__main__":

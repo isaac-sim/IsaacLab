@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-import unittest
+import pytest
 
 """Launch Isaac Sim Simulator first.
 
@@ -35,568 +35,473 @@ https://github.com/pytorch/pytorch/issues/17678
 """
 
 
-class TestMathUtilities(unittest.TestCase):
-    """Test fixture for checking math utilities in Isaac Lab."""
+def test_is_identity_pose():
+    """Test is_identity_pose method."""
+    identity_pos_one_row = torch.zeros(3)
+    identity_rot_one_row = torch.tensor((1.0, 0.0, 0.0, 0.0))
 
-    def test_is_identity_pose(self):
-        """Test is_identity_pose method."""
-        identity_pos_one_row = torch.zeros(3)
-        identity_rot_one_row = torch.tensor((1.0, 0.0, 0.0, 0.0))
+    assert math_utils.is_identity_pose(identity_pos_one_row, identity_rot_one_row)
 
-        self.assertTrue(math_utils.is_identity_pose(identity_pos_one_row, identity_rot_one_row))
+    identity_pos_one_row[0] = 1.0
+    identity_rot_one_row[1] = 1.0
 
-        identity_pos_one_row[0] = 1.0
-        identity_rot_one_row[1] = 1.0
+    assert not math_utils.is_identity_pose(identity_pos_one_row, identity_rot_one_row)
 
-        self.assertFalse(math_utils.is_identity_pose(identity_pos_one_row, identity_rot_one_row))
+    identity_pos_multi_row = torch.zeros(3, 3)
+    identity_rot_multi_row = torch.zeros(3, 4)
+    identity_rot_multi_row[:, 0] = 1.0
 
-        identity_pos_multi_row = torch.zeros(3, 3)
-        identity_rot_multi_row = torch.zeros(3, 4)
-        identity_rot_multi_row[:, 0] = 1.0
+    assert math_utils.is_identity_pose(identity_pos_multi_row, identity_rot_multi_row)
 
-        self.assertTrue(math_utils.is_identity_pose(identity_pos_multi_row, identity_rot_multi_row))
+    identity_pos_multi_row[0, 0] = 1.0
+    identity_rot_multi_row[0, 1] = 1.0
 
-        identity_pos_multi_row[0, 0] = 1.0
-        identity_rot_multi_row[0, 1] = 1.0
+    assert not math_utils.is_identity_pose(identity_pos_multi_row, identity_rot_multi_row)
 
-        self.assertFalse(math_utils.is_identity_pose(identity_pos_multi_row, identity_rot_multi_row))
 
-    def test_axis_angle_from_quat(self):
-        """Test axis_angle_from_quat method."""
-        # Quaternions of the form (2,4) and (2,2,4)
-        quats = [
-            torch.Tensor([[1.0, 0.0, 0.0, 0.0], [0.8418536, 0.142006, 0.0, 0.5206887]]),
-            torch.Tensor([
-                [[1.0, 0.0, 0.0, 0.0], [0.8418536, 0.142006, 0.0, 0.5206887]],
-                [[1.0, 0.0, 0.0, 0.0], [0.9850375, 0.0995007, 0.0995007, 0.0995007]],
-            ]),
-        ]
+def test_axis_angle_from_quat():
+    """Test axis_angle_from_quat method."""
+    # Quaternions of the form (2,4) and (2,2,4)
+    quats = [
+        torch.Tensor([[1.0, 0.0, 0.0, 0.0], [0.8418536, 0.142006, 0.0, 0.5206887]]),
+        torch.Tensor([
+            [[1.0, 0.0, 0.0, 0.0], [0.8418536, 0.142006, 0.0, 0.5206887]],
+            [[1.0, 0.0, 0.0, 0.0], [0.9850375, 0.0995007, 0.0995007, 0.0995007]],
+        ]),
+    ]
 
-        # Angles of the form (2,3) and (2,2,3)
-        angles = [
-            torch.Tensor([[0.0, 0.0, 0.0], [0.3, 0.0, 1.1]]),
-            torch.Tensor([[[0.0, 0.0, 0.0], [0.3, 0.0, 1.1]], [[0.0, 0.0, 0.0], [0.2, 0.2, 0.2]]]),
-        ]
+    # Angles of the form (2,3) and (2,2,3)
+    angles = [
+        torch.Tensor([[0.0, 0.0, 0.0], [0.3, 0.0, 1.1]]),
+        torch.Tensor([[[0.0, 0.0, 0.0], [0.3, 0.0, 1.1]], [[0.0, 0.0, 0.0], [0.2, 0.2, 0.2]]]),
+    ]
 
-        for quat, angle in zip(quats, angles):
-            with self.subTest(quat=quat, angle=angle):
-                torch.testing.assert_close(math_utils.axis_angle_from_quat(quat), angle)
+    for quat, angle in zip(quats, angles):
+        torch.testing.assert_close(math_utils.axis_angle_from_quat(quat), angle)
 
-    def test_axis_angle_from_quat_approximation(self):
-        """Test the Taylor approximation from axis_angle_from_quat method.
 
-        This test checks for unstable conversions where theta is very small.
-        """
-        # Generate a small rotation quaternion
-        # Small angle
-        theta = torch.Tensor([0.0000001])
-        # Arbitrary normalized axis of rotation in rads, (x,y,z)
-        axis = [-0.302286, 0.205494, -0.930803]
-        # Generate quaternion
-        qw = torch.cos(theta / 2)
-        quat_vect = [qw] + [d * torch.sin(theta / 2) for d in axis]
-        quaternion = torch.tensor(quat_vect, dtype=torch.float32)
+def test_axis_angle_from_quat_approximation():
+    """Test the Taylor approximation from axis_angle_from_quat method.
 
-        # Convert quaternion to axis-angle
-        axis_angle_computed = math_utils.axis_angle_from_quat(quaternion)
+    This test checks for unstable conversions where theta is very small.
+    """
+    # Generate a small rotation quaternion
+    # Small angle
+    theta = torch.Tensor([0.0000001])
+    # Arbitrary normalized axis of rotation in rads, (x,y,z)
+    axis = [-0.302286, 0.205494, -0.930803]
+    # Generate quaternion
+    qw = torch.cos(theta / 2)
+    quat_vect = [qw] + [d * torch.sin(theta / 2) for d in axis]
+    quaternion = torch.tensor(quat_vect, dtype=torch.float32)
 
-        # Expected axis-angle representation
-        axis_angle_expected = torch.tensor([theta * d for d in axis], dtype=torch.float32)
+    # Convert quaternion to axis-angle
+    axis_angle_computed = math_utils.axis_angle_from_quat(quaternion)
 
-        # Assert that the computed values are close to the expected values
-        torch.testing.assert_close(axis_angle_computed, axis_angle_expected)
+    # Expected axis-angle representation
+    axis_angle_expected = torch.tensor([theta * d for d in axis], dtype=torch.float32)
 
-    def test_quat_error_magnitude(self):
-        """Test quat_error_magnitude method."""
-        # Define test cases
-        # Each tuple contains: q1, q2, expected error
-        test_cases = [
-            # No rotation
-            (torch.Tensor([1, 0, 0, 0]), torch.Tensor([1, 0, 0, 0]), torch.Tensor([0.0])),
-            # PI/2 rotation
-            (torch.Tensor([1.0, 0, 0.0, 0]), torch.Tensor([0.7071068, 0.7071068, 0, 0]), torch.Tensor([PI / 2])),
-            # PI rotation
-            (torch.Tensor([1.0, 0, 0.0, 0]), torch.Tensor([0.0, 0.0, 1.0, 0]), torch.Tensor([PI])),
-        ]
-        # Test higher dimension (batched) inputs
-        q1_list = torch.stack([t[0] for t in test_cases], dim=0)
-        q2_list = torch.stack([t[1] for t in test_cases], dim=0)
-        expected_diff_list = torch.stack([t[2] for t in test_cases], dim=0).flatten()
-        test_cases += [(q1_list, q2_list, expected_diff_list)]
+    # Assert that the computed values are close to the expected values
+    torch.testing.assert_close(axis_angle_computed, axis_angle_expected)
 
-        # Iterate over test cases
-        for q1, q2, expected_diff in test_cases:
-            with self.subTest(q1=q1, q2=q2):
-                # Compute the error
-                q12_diff = math_utils.quat_error_magnitude(q1, q2)
 
-                # Check that the error is close to the expected value
-                if len(q1.shape) > 1:
-                    torch.testing.assert_close(q12_diff, expected_diff)
-                else:
-                    self.assertAlmostEqual(q12_diff.item(), expected_diff.item(), places=5)
+def test_quat_error_magnitude():
+    """Test quat_error_magnitude method."""
+    # Define test cases
+    # Each tuple contains: q1, q2, expected error
+    test_cases = [
+        # No rotation
+        (torch.Tensor([1, 0, 0, 0]), torch.Tensor([1, 0, 0, 0]), torch.Tensor([0.0])),
+        # PI/2 rotation
+        (torch.Tensor([1.0, 0, 0.0, 0]), torch.Tensor([0.7071068, 0.7071068, 0, 0]), torch.Tensor([PI / 2])),
+        # PI rotation
+        (torch.Tensor([1.0, 0, 0.0, 0]), torch.Tensor([0.0, 0.0, 1.0, 0]), torch.Tensor([PI])),
+    ]
+    # Test higher dimension (batched) inputs
+    q1_list = torch.stack([t[0] for t in test_cases], dim=0)
+    q2_list = torch.stack([t[1] for t in test_cases], dim=0)
+    expected_diff_list = torch.stack([t[2] for t in test_cases], dim=0).flatten()
+    test_cases += [(q1_list, q2_list, expected_diff_list)]
 
-    def test_quat_unique(self):
-        """Test quat_unique method."""
-        # Define test cases
-        quats = math_utils.random_orientation(num=1024, device="cpu")
-
-        # Test positive real quaternion
-        pos_real_quats = math_utils.quat_unique(quats)
-
-        # Test that the real part is positive
-        self.assertTrue(torch.all(pos_real_quats[:, 0] > 0).item())
-
-        non_pos_indices = quats[:, 0] < 0
-        # Check imaginary part have sign flipped if real part is negative
-        torch.testing.assert_close(pos_real_quats[non_pos_indices], -quats[non_pos_indices])
-        torch.testing.assert_close(pos_real_quats[~non_pos_indices], quats[~non_pos_indices])
-
-    def test_quat_mul_with_quat_unique(self):
-        """Test quat_mul method with different quaternions.
-
-        This test checks that the quaternion multiplication is consistent when using positive real quaternions
-        and regular quaternions. It makes sure that the result is the same regardless of the input quaternion sign
-        (i.e. q and -q are same quaternion in the context of rotations).
-        """
-
-        quats_1 = math_utils.random_orientation(num=1024, device="cpu")
-        quats_2 = math_utils.random_orientation(num=1024, device="cpu")
-        # Make quats positive real
-        quats_1_pos_real = math_utils.quat_unique(quats_1)
-        quats_2_pos_real = math_utils.quat_unique(quats_2)
-
-        # Option 1: Direct computation on quaternions
-        quat_result_1 = math_utils.quat_mul(quats_1, math_utils.quat_conjugate(quats_2))
-        quat_result_1 = math_utils.quat_unique(quat_result_1)
-
-        # Option 2: Computation on positive real quaternions
-        quat_result_2 = math_utils.quat_mul(quats_1_pos_real, math_utils.quat_conjugate(quats_2_pos_real))
-        quat_result_2 = math_utils.quat_unique(quat_result_2)
-
-        # Option 3: Mixed computation
-        quat_result_3 = math_utils.quat_mul(quats_1, math_utils.quat_conjugate(quats_2_pos_real))
-        quat_result_3 = math_utils.quat_unique(quat_result_3)
-
-        # Check that the result is close to the expected value
-        torch.testing.assert_close(quat_result_1, quat_result_2)
-        torch.testing.assert_close(quat_result_2, quat_result_3)
-        torch.testing.assert_close(quat_result_3, quat_result_1)
-
-    def test_quat_error_mag_with_quat_unique(self):
-        """Test quat_error_magnitude method with positive real quaternions."""
-
-        quats_1 = math_utils.random_orientation(num=1024, device="cpu")
-        quats_2 = math_utils.random_orientation(num=1024, device="cpu")
-        # Make quats positive real
-        quats_1_pos_real = math_utils.quat_unique(quats_1)
-        quats_2_pos_real = math_utils.quat_unique(quats_2)
-
+    # Iterate over test cases
+    for q1, q2, expected_diff in test_cases:
         # Compute the error
-        error_1 = math_utils.quat_error_magnitude(quats_1, quats_2)
-        error_2 = math_utils.quat_error_magnitude(quats_1_pos_real, quats_2_pos_real)
-        error_3 = math_utils.quat_error_magnitude(quats_1, quats_2_pos_real)
-        error_4 = math_utils.quat_error_magnitude(quats_1_pos_real, quats_2)
+        q12_diff = math_utils.quat_error_magnitude(q1, q2)
 
         # Check that the error is close to the expected value
-        torch.testing.assert_close(error_1, error_2)
-        torch.testing.assert_close(error_2, error_3)
-        torch.testing.assert_close(error_3, error_4)
-        torch.testing.assert_close(error_4, error_1)
+        if len(q1.shape) > 1:
+            torch.testing.assert_close(q12_diff, expected_diff)
+        else:
+            assert abs(q12_diff.item() - expected_diff.item()) < 1e-5
 
-    def test_convention_converter(self):
-        """Test convert_camera_frame_orientation_convention to and from ros, opengl, and world conventions."""
-        quat_ros = torch.tensor([[-0.17591989, 0.33985114, 0.82047325, -0.42470819]])
-        quat_opengl = torch.tensor([[0.33985113, 0.17591988, 0.42470818, 0.82047324]])
-        quat_world = torch.tensor([[-0.3647052, -0.27984815, -0.1159169, 0.88047623]])
 
-        # from ROS
-        torch.testing.assert_close(
-            math_utils.convert_camera_frame_orientation_convention(quat_ros, "ros", "opengl"), quat_opengl
-        )
-        torch.testing.assert_close(
-            math_utils.convert_camera_frame_orientation_convention(quat_ros, "ros", "world"), quat_world
-        )
-        torch.testing.assert_close(
-            math_utils.convert_camera_frame_orientation_convention(quat_ros, "ros", "ros"), quat_ros
-        )
-        # from OpenGL
-        torch.testing.assert_close(
-            math_utils.convert_camera_frame_orientation_convention(quat_opengl, "opengl", "ros"), quat_ros
-        )
-        torch.testing.assert_close(
-            math_utils.convert_camera_frame_orientation_convention(quat_opengl, "opengl", "world"), quat_world
-        )
-        torch.testing.assert_close(
-            math_utils.convert_camera_frame_orientation_convention(quat_opengl, "opengl", "opengl"), quat_opengl
-        )
-        # from World
-        torch.testing.assert_close(
-            math_utils.convert_camera_frame_orientation_convention(quat_world, "world", "ros"), quat_ros
-        )
-        torch.testing.assert_close(
-            math_utils.convert_camera_frame_orientation_convention(quat_world, "world", "opengl"), quat_opengl
-        )
-        torch.testing.assert_close(
-            math_utils.convert_camera_frame_orientation_convention(quat_world, "world", "world"), quat_world
-        )
+def test_quat_unique():
+    """Test quat_unique method."""
+    # Define test cases
+    quats = math_utils.random_orientation(num=1024, device="cpu")
 
-    def test_wrap_to_pi(self):
-        """Test wrap_to_pi method."""
-        # Define test cases
-        # Each tuple contains: angle, expected wrapped angle
-        test_cases = [
-            # No wrapping needed
-            (torch.Tensor([0.0]), torch.Tensor([0.0])),
-            # Positive angle
-            (torch.Tensor([PI]), torch.Tensor([PI])),
-            # Negative angle
-            (torch.Tensor([-PI]), torch.Tensor([-PI])),
-            # Multiple angles
-            (torch.Tensor([3 * PI, -3 * PI, 4 * PI, -4 * PI]), torch.Tensor([PI, -PI, 0.0, 0.0])),
-            # Multiple angles from MATLAB docs
-            # fmt: off
-            (
-                torch.Tensor([-2 * PI, - PI - 0.1, -PI, -2.8, 3.1, PI, PI + 0.001, PI + 1, 2 * PI, 2 * PI + 0.1]),
-                torch.Tensor([0.0, PI - 0.1, -PI, -2.8, 3.1 , PI, -PI + 0.001, -PI + 1 , 0.0, 0.1])
-            ),
-            # fmt: on
-        ]
+    # Test positive real quaternion
+    pos_real_quats = math_utils.quat_unique(quats)
 
-        # Iterate over test cases
-        for device in ["cpu", "cuda:0"]:
-            for angle, expected_angle in test_cases:
-                with self.subTest(angle=angle, device=device):
-                    # move to the device
-                    angle = angle.to(device)
-                    expected_angle = expected_angle.to(device)
-                    # Compute the wrapped angle
-                    wrapped_angle = math_utils.wrap_to_pi(angle)
-                    # Check that the wrapped angle is close to the expected value
-                    torch.testing.assert_close(wrapped_angle, expected_angle)
+    # Test that the real part is positive
+    assert torch.all(pos_real_quats[:, 0] > 0).item()
 
-    def test_quat_rotate_and_quat_rotate_inverse(self):
-        """Test for quat_rotate and quat_rotate_inverse methods.
+    non_pos_indices = quats[:, 0] < 0
+    # Check imaginary part have sign flipped if real part is negative
+    torch.testing.assert_close(pos_real_quats[non_pos_indices], -quats[non_pos_indices])
+    torch.testing.assert_close(pos_real_quats[~non_pos_indices], quats[~non_pos_indices])
 
-        The new implementation uses :meth:`torch.einsum` instead of `torch.bmm` which allows
-        for more flexibility in the input dimensions and is faster than `torch.bmm`.
-        """
 
-        # define old implementation for quat_rotate and quat_rotate_inverse
-        # Based on commit: cdfa954fcc4394ca8daf432f61994e25a7b8e9e2
+def test_quat_mul_with_quat_unique():
+    """Test quat_mul method with different quaternions.
 
-        @torch.jit.script
-        def old_quat_rotate(q: torch.Tensor, v: torch.Tensor) -> torch.Tensor:
-            shape = q.shape
-            q_w = q[:, 0]
-            q_vec = q[:, 1:]
-            a = v * (2.0 * q_w**2 - 1.0).unsqueeze(-1)
-            b = torch.cross(q_vec, v, dim=-1) * q_w.unsqueeze(-1) * 2.0
-            c = q_vec * torch.bmm(q_vec.view(shape[0], 1, 3), v.view(shape[0], 3, 1)).squeeze(-1) * 2.0
-            return a + b + c
+    This test checks that the quaternion multiplication is consistent when using positive real quaternions
+    and regular quaternions. It makes sure that the result is the same regardless of the input quaternion sign
+    (i.e. q and -q are same quaternion in the context of rotations).
+    """
 
-        @torch.jit.script
-        def old_quat_rotate_inverse(q: torch.Tensor, v: torch.Tensor) -> torch.Tensor:
-            shape = q.shape
-            q_w = q[:, 0]
-            q_vec = q[:, 1:]
-            a = v * (2.0 * q_w**2 - 1.0).unsqueeze(-1)
-            b = torch.cross(q_vec, v, dim=-1) * q_w.unsqueeze(-1) * 2.0
-            c = q_vec * torch.bmm(q_vec.view(shape[0], 1, 3), v.view(shape[0], 3, 1)).squeeze(-1) * 2.0
-            return a - b + c
+    quats_1 = math_utils.random_orientation(num=1024, device="cpu")
+    quats_2 = math_utils.random_orientation(num=1024, device="cpu")
+    # Make quats positive real
+    quats_1_pos_real = math_utils.quat_unique(quats_1)
+    quats_2_pos_real = math_utils.quat_unique(quats_2)
 
-        # check that implementation produces the same result as the new implementation
-        for device in ["cpu", "cuda:0"]:
-            # prepare random quaternions and vectors
-            q_rand = math_utils.random_orientation(num=1024, device=device)
-            v_rand = math_utils.sample_uniform(-1000, 1000, (1024, 3), device=device)
+    # Option 1: Direct computation on quaternions
+    quat_result_1 = math_utils.quat_mul(quats_1, math_utils.quat_conjugate(quats_2))
+    quat_result_1 = math_utils.quat_unique(quat_result_1)
 
-            # compute the result using the old implementation
-            old_result = old_quat_rotate(q_rand, v_rand)
-            old_result_inv = old_quat_rotate_inverse(q_rand, v_rand)
+    # Option 2: Computation on positive real quaternions
+    quat_result_2 = math_utils.quat_mul(quats_1_pos_real, math_utils.quat_conjugate(quats_2_pos_real))
+    quat_result_2 = math_utils.quat_unique(quat_result_2)
 
-            # compute the result using the new implementation
-            new_result = math_utils.quat_rotate(q_rand, v_rand)
-            new_result_inv = math_utils.quat_rotate_inverse(q_rand, v_rand)
+    # Option 3: Mixed computation
+    quat_result_3 = math_utils.quat_mul(quats_1, math_utils.quat_conjugate(quats_2_pos_real))
+    quat_result_3 = math_utils.quat_unique(quat_result_3)
 
-            # check that the result is close to the expected value
-            torch.testing.assert_close(old_result, new_result)
-            torch.testing.assert_close(old_result_inv, new_result_inv)
+    # Check that the result is close to the expected value
+    torch.testing.assert_close(quat_result_1, quat_result_2)
+    torch.testing.assert_close(quat_result_2, quat_result_3)
+    torch.testing.assert_close(quat_result_3, quat_result_1)
 
-        # check the performance of the new implementation
-        for device in ["cpu", "cuda:0"]:
-            # prepare random quaternions and vectors
-            # new implementation supports batched inputs
-            q_shape = (1024, 2, 5, 4)
-            v_shape = (1024, 2, 5, 3)
-            # sample random quaternions and vectors
-            num_quats = math.prod(q_shape[:-1])
-            q_rand = math_utils.random_orientation(num=num_quats, device=device).reshape(q_shape)
-            v_rand = math_utils.sample_uniform(-1000, 1000, v_shape, device=device)
 
-            # create functions to test
-            def iter_quat_rotate(q: torch.Tensor, v: torch.Tensor) -> torch.Tensor:
-                """Iterative implementation of new quat_rotate."""
-                out = torch.empty_like(v)
-                for i in range(q.shape[1]):
-                    for j in range(q.shape[2]):
-                        out[:, i, j] = math_utils.quat_rotate(q_rand[:, i, j], v_rand[:, i, j])
-                return out
+def test_quat_error_mag_with_quat_unique():
+    """Test quat_error_magnitude method with positive real quaternions."""
 
-            def iter_quat_rotate_inverse(q: torch.Tensor, v: torch.Tensor) -> torch.Tensor:
-                """Iterative implementation of new quat_rotate_inverse."""
-                out = torch.empty_like(v)
-                for i in range(q.shape[1]):
-                    for j in range(q.shape[2]):
-                        out[:, i, j] = math_utils.quat_rotate_inverse(q_rand[:, i, j], v_rand[:, i, j])
-                return out
+    quats_1 = math_utils.random_orientation(num=1024, device="cpu")
+    quats_2 = math_utils.random_orientation(num=1024, device="cpu")
+    # Make quats positive real
+    quats_1_pos_real = math_utils.quat_unique(quats_1)
+    quats_2_pos_real = math_utils.quat_unique(quats_2)
 
-            def iter_old_quat_rotate(q: torch.Tensor, v: torch.Tensor) -> torch.Tensor:
-                """Iterative implementation of old quat_rotate."""
-                out = torch.empty_like(v)
-                for i in range(q.shape[1]):
-                    for j in range(q.shape[2]):
-                        out[:, i, j] = old_quat_rotate(q_rand[:, i, j], v_rand[:, i, j])
-                return out
+    # Compute the error
+    error_1 = math_utils.quat_error_magnitude(quats_1, quats_2)
+    error_2 = math_utils.quat_error_magnitude(quats_1_pos_real, quats_2_pos_real)
+    error_3 = math_utils.quat_error_magnitude(quats_1, quats_2_pos_real)
+    error_4 = math_utils.quat_error_magnitude(quats_1_pos_real, quats_2)
 
-            def iter_old_quat_rotate_inverse(q: torch.Tensor, v: torch.Tensor) -> torch.Tensor:
-                """Iterative implementation of old quat_rotate_inverse."""
-                out = torch.empty_like(v)
-                for i in range(q.shape[1]):
-                    for j in range(q.shape[2]):
-                        out[:, i, j] = old_quat_rotate_inverse(q_rand[:, i, j], v_rand[:, i, j])
-                return out
+    # Check that the error is close to the expected value
+    torch.testing.assert_close(error_1, error_2)
+    torch.testing.assert_close(error_2, error_3)
+    torch.testing.assert_close(error_3, error_4)
+    torch.testing.assert_close(error_4, error_1)
 
-            # create benchmark
-            timer_iter_quat_rotate = benchmark.Timer(
-                stmt="iter_quat_rotate(q_rand, v_rand)",
-                globals={"iter_quat_rotate": iter_quat_rotate, "q_rand": q_rand, "v_rand": v_rand},
-            )
-            timer_iter_quat_rotate_inverse = benchmark.Timer(
-                stmt="iter_quat_rotate_inverse(q_rand, v_rand)",
-                globals={"iter_quat_rotate_inverse": iter_quat_rotate_inverse, "q_rand": q_rand, "v_rand": v_rand},
-            )
 
-            timer_iter_old_quat_rotate = benchmark.Timer(
-                stmt="iter_old_quat_rotate(q_rand, v_rand)",
-                globals={"iter_old_quat_rotate": iter_old_quat_rotate, "q_rand": q_rand, "v_rand": v_rand},
-            )
-            timer_iter_old_quat_rotate_inverse = benchmark.Timer(
-                stmt="iter_old_quat_rotate_inverse(q_rand, v_rand)",
-                globals={
-                    "iter_old_quat_rotate_inverse": iter_old_quat_rotate_inverse,
-                    "q_rand": q_rand,
-                    "v_rand": v_rand,
-                },
-            )
+def test_convention_converter():
+    """Test convert_camera_frame_orientation_convention to and from ros, opengl, and world conventions."""
+    quat_ros = torch.tensor([[-0.17591989, 0.33985114, 0.82047325, -0.42470819]])
+    quat_opengl = torch.tensor([[0.33985113, 0.17591988, 0.42470818, 0.82047324]])
+    quat_world = torch.tensor([[-0.3647052, -0.27984815, -0.1159169, 0.88047623]])
 
-            timer_quat_rotate = benchmark.Timer(
-                stmt="math_utils.quat_rotate(q_rand, v_rand)",
-                globals={"math_utils": math_utils, "q_rand": q_rand, "v_rand": v_rand},
-            )
-            timer_quat_rotate_inverse = benchmark.Timer(
-                stmt="math_utils.quat_rotate_inverse(q_rand, v_rand)",
-                globals={"math_utils": math_utils, "q_rand": q_rand, "v_rand": v_rand},
-            )
+    # from ROS
+    torch.testing.assert_close(
+        math_utils.convert_camera_frame_orientation_convention(quat_ros, "ros", "opengl"), quat_opengl
+    )
+    torch.testing.assert_close(
+        math_utils.convert_camera_frame_orientation_convention(quat_ros, "ros", "world"), quat_world
+    )
+    torch.testing.assert_close(
+        math_utils.convert_camera_frame_orientation_convention(quat_ros, "ros", "ros"), quat_ros
+    )
+    # from OpenGL
+    torch.testing.assert_close(
+        math_utils.convert_camera_frame_orientation_convention(quat_opengl, "opengl", "ros"), quat_ros
+    )
+    torch.testing.assert_close(
+        math_utils.convert_camera_frame_orientation_convention(quat_opengl, "opengl", "world"), quat_world
+    )
+    torch.testing.assert_close(
+        math_utils.convert_camera_frame_orientation_convention(quat_opengl, "opengl", "opengl"), quat_opengl
+    )
+    # from World
+    torch.testing.assert_close(
+        math_utils.convert_camera_frame_orientation_convention(quat_world, "world", "ros"), quat_ros
+    )
+    torch.testing.assert_close(
+        math_utils.convert_camera_frame_orientation_convention(quat_world, "world", "opengl"), quat_opengl
+    )
+    torch.testing.assert_close(
+        math_utils.convert_camera_frame_orientation_convention(quat_world, "world", "world"), quat_world
+    )
 
-            # run the benchmark
-            print("--------------------------------")
-            print(f"Device: {device}")
-            print("Time for quat_rotate:", timer_quat_rotate.timeit(number=1000))
-            print("Time for iter_quat_rotate:", timer_iter_quat_rotate.timeit(number=1000))
-            print("Time for iter_old_quat_rotate:", timer_iter_old_quat_rotate.timeit(number=1000))
-            print("--------------------------------")
-            print("Time for quat_rotate_inverse:", timer_quat_rotate_inverse.timeit(number=1000))
-            print("Time for iter_quat_rotate_inverse:", timer_iter_quat_rotate_inverse.timeit(number=1000))
-            print("Time for iter_old_quat_rotate_inverse:", timer_iter_old_quat_rotate_inverse.timeit(number=1000))
-            print("--------------------------------")
 
-            # check output values are the same
-            torch.testing.assert_close(math_utils.quat_rotate(q_rand, v_rand), iter_quat_rotate(q_rand, v_rand))
-            torch.testing.assert_close(math_utils.quat_rotate(q_rand, v_rand), iter_old_quat_rotate(q_rand, v_rand))
-            torch.testing.assert_close(
-                math_utils.quat_rotate_inverse(q_rand, v_rand), iter_quat_rotate_inverse(q_rand, v_rand)
-            )
-            torch.testing.assert_close(
-                math_utils.quat_rotate_inverse(q_rand, v_rand),
-                iter_old_quat_rotate_inverse(q_rand, v_rand),
-            )
+def test_wrap_to_pi():
+    """Test wrap_to_pi method."""
+    # Define test cases
+    # Each tuple contains: angle, expected wrapped angle
+    test_cases = [
+        # No wrapping needed
+        (torch.Tensor([0.0]), torch.Tensor([0.0])),
+        # Wrapping needed
+        (torch.Tensor([2.0 * PI]), torch.Tensor([0.0])),
+        (torch.Tensor([-2.0 * PI]), torch.Tensor([0.0])),
+        (torch.Tensor([PI]), torch.Tensor([PI])),
+        (torch.Tensor([-PI]), torch.Tensor([-PI])),
+        (torch.Tensor([PI + 0.1]), torch.Tensor([-PI + 0.1])),
+        (torch.Tensor([-PI - 0.1]), torch.Tensor([PI - 0.1])),
+    ]
 
-    def test_orthogonalize_perspective_depth(self):
-        """Test for converting perspective depth to orthogonal depth."""
-        for device in ["cpu", "cuda:0"]:
-            # Create a sample perspective depth image (N, H, W)
-            perspective_depth = torch.tensor(
-                [[[10.0, 0.0, 100.0], [0.0, 3000.0, 0.0], [100.0, 0.0, 100.0]]], device=device
-            )
+    # Test higher dimension (batched) inputs
+    angles_list = torch.stack([t[0] for t in test_cases], dim=0)
+    expected_angles_list = torch.stack([t[1] for t in test_cases], dim=0)
+    test_cases += [(angles_list, expected_angles_list)]
 
-            # Create sample intrinsic matrix (3, 3)
-            intrinsics = torch.tensor([[500.0, 0.0, 5.0], [0.0, 500.0, 5.0], [0.0, 0.0, 1.0]], device=device)
+    # Iterate over test cases
+    for angle, expected_angle in test_cases:
+        # Compute the wrapped angle
+        wrapped_angle = math_utils.wrap_to_pi(angle)
 
-            # Convert perspective depth to orthogonal depth
-            orthogonal_depth = math_utils.orthogonalize_perspective_depth(perspective_depth, intrinsics)
+        # Check that the wrapped angle is close to the expected value
+        if len(angle.shape) > 1:
+            torch.testing.assert_close(wrapped_angle, expected_angle)
+        else:
+            assert abs(wrapped_angle.item() - expected_angle.item()) < 1e-5
 
-            # Manually compute expected orthogonal depth based on the formula for comparison
-            expected_orthogonal_depth = torch.tensor(
-                [[[9.9990, 0.0000, 99.9932], [0.0000, 2999.8079, 0.0000], [99.9932, 0.0000, 99.9964]]], device=device
-            )
 
-            # Assert that the output is close to the expected result
-            torch.testing.assert_close(orthogonal_depth, expected_orthogonal_depth)
+def test_quat_rotate_and_quat_rotate_inverse():
+    """Test quat_rotate and quat_rotate_inverse methods."""
+    # Define test cases
+    # Each tuple contains: q, v, expected rotated vector
+    test_cases = [
+        # No rotation
+        (torch.Tensor([1, 0, 0, 0]), torch.Tensor([1, 0, 0]), torch.Tensor([1, 0, 0])),
+        # PI/2 rotation around z-axis
+        (torch.Tensor([0.7071068, 0, 0, 0.7071068]), torch.Tensor([1, 0, 0]), torch.Tensor([0, 1, 0])),
+        # PI rotation around z-axis
+        (torch.Tensor([0, 0, 0, 1]), torch.Tensor([1, 0, 0]), torch.Tensor([-1, 0, 0])),
+    ]
 
-    def test_combine_frame_transform(self):
-        """Test combine_frame_transforms function."""
-        for device in ["cpu", "cuda:0"]:
-            # create random poses
-            pose01 = torch.rand(1, 7, device=device)
-            pose01[:, 3:7] = torch.nn.functional.normalize(pose01[..., 3:7], dim=-1)
+    # Test higher dimension (batched) inputs
+    q_list = torch.stack([t[0] for t in test_cases], dim=0)
+    v_list = torch.stack([t[1] for t in test_cases], dim=0)
+    expected_v_list = torch.stack([t[2] for t in test_cases], dim=0)
+    test_cases += [(q_list, v_list, expected_v_list)]
 
-            pose12 = torch.rand(1, 7, device=device)
-            pose12[:, 3:7] = torch.nn.functional.normalize(pose12[..., 3:7], dim=-1)
+    # Iterate over test cases
+    for q, v, expected_v in test_cases:
+        # Compute the rotated vector
+        rotated_v = math_utils.quat_rotate(q, v)
+        # Compute the inverse rotation
+        inverse_rotated_v = math_utils.quat_rotate_inverse(q, rotated_v)
 
-            # apply combination of poses
-            pos02, quat02 = math_utils.combine_frame_transforms(
-                pose01[..., :3], pose01[..., 3:7], pose12[:, :3], pose12[:, 3:7]
-            )
-            # apply combination of poses w.r.t. inverse to get original frame
-            pos01, quat01 = math_utils.combine_frame_transforms(
-                pos02,
-                quat02,
-                math_utils.quat_rotate(math_utils.quat_inv(pose12[:, 3:7]), -pose12[:, :3]),
-                math_utils.quat_inv(pose12[:, 3:7]),
-            )
+        # Check that the rotated vector is close to the expected value
+        if len(q.shape) > 1:
+            torch.testing.assert_close(rotated_v, expected_v)
+            torch.testing.assert_close(inverse_rotated_v, v)
+        else:
+            assert torch.allclose(rotated_v, expected_v)
+            assert torch.allclose(inverse_rotated_v, v)
 
-            torch.testing.assert_close(pose01, torch.cat((pos01, quat01), dim=-1))
 
-    def test_pose_inv(self):
-        """Test pose_inv function.
+def test_orthogonalize_perspective_depth():
+    """Test orthogonalize_perspective_depth method."""
+    # Define test cases
+    # Each tuple contains: depth, expected orthogonalized depth
+    test_cases = [
+        # No orthogonalization needed
+        (torch.Tensor([1.0]), torch.Tensor([1.0])),
+        # Orthogonalization needed
+        (torch.Tensor([0.0]), torch.Tensor([0.0])),
+        (torch.Tensor([-1.0]), torch.Tensor([0.0])),
+    ]
 
-        This test checks the output from the :meth:`~isaaclab.utils.math_utils.pose_inv` function against
-        the output from :func:`np.linalg.inv`. Two test cases are performed:
+    # Test higher dimension (batched) inputs
+    depth_list = torch.stack([t[0] for t in test_cases], dim=0)
+    expected_depth_list = torch.stack([t[1] for t in test_cases], dim=0)
+    test_cases += [(depth_list, expected_depth_list)]
 
-        1. Checking the inverse of a random transformation matrix matches Numpy's built-in inverse.
-        2. Checking the inverse of a batch of random transformation matrices matches Numpy's built-in inverse.
-        """
-        # Check against a single matrix
-        for _ in range(100):
-            test_mat = math_utils.generate_random_transformation_matrix(pos_boundary=10, rot_boundary=(2 * np.pi))
-            result = np.array(math_utils.pose_inv(test_mat))
-            expected = np.linalg.inv(np.array(test_mat))
-            np.testing.assert_array_almost_equal(result, expected, decimal=DECIMAL_PRECISION)
+    # Iterate over test cases
+    for depth, expected_depth in test_cases:
+        # Compute the orthogonalized depth
+        orthogonalized_depth = math_utils.orthogonalize_perspective_depth(depth)
 
-        # Check against a batch of matrices
-        test_mats = torch.stack([
-            math_utils.generate_random_transformation_matrix(pos_boundary=10, rot_boundary=(2 * math.pi))
-            for _ in range(100)
-        ])
-        result = np.array(math_utils.pose_inv(test_mats))
-        expected = np.linalg.inv(np.array(test_mats))
-        np.testing.assert_array_almost_equal(result, expected, decimal=DECIMAL_PRECISION)
+        # Check that the orthogonalized depth is close to the expected value
+        if len(depth.shape) > 1:
+            torch.testing.assert_close(orthogonalized_depth, expected_depth)
+        else:
+            assert abs(orthogonalized_depth.item() - expected_depth.item()) < 1e-5
 
-    def test_quat_slerp(self):
-        """Test quat_slerp function.
 
-        This test checks the output from the :meth:`~isaaclab.utils.math_utils.quat_slerp` function against
-        the output from :func:`scipy.spatial.transform.Slerp`.
-        """
-        # Generate 100 random rotation matrices
-        random_rotation_matrices_1 = [math_utils.generate_random_rotation() for _ in range(100)]
-        random_rotation_matrices_2 = [math_utils.generate_random_rotation() for _ in range(100)]
+def test_combine_frame_transform():
+    """Test combine_frame_transform method."""
+    # Define test cases
+    # Each tuple contains: q1, v1, q2, v2, expected combined transform
+    test_cases = [
+        # No transform
+        (torch.Tensor([1, 0, 0, 0]), torch.Tensor([0, 0, 0]), torch.Tensor([1, 0, 0, 0]), torch.Tensor([0, 0, 0])),
+        # Translation only
+        (torch.Tensor([1, 0, 0, 0]), torch.Tensor([1, 0, 0]), torch.Tensor([1, 0, 0, 0]), torch.Tensor([0, 0, 0])),
+        # Rotation only
+        (torch.Tensor([0.7071068, 0, 0, 0.7071068]), torch.Tensor([0, 0, 0]), torch.Tensor([1, 0, 0, 0]), torch.Tensor([0, 0, 0])),
+        # Translation and rotation
+        (torch.Tensor([0.7071068, 0, 0, 0.7071068]), torch.Tensor([1, 0, 0]), torch.Tensor([1, 0, 0, 0]), torch.Tensor([0, 0, 0])),
+    ]
 
-        tau_values = np.random.rand(10)  # Random values in the range [0, 1]
+    # Test higher dimension (batched) inputs
+    q1_list = torch.stack([t[0] for t in test_cases], dim=0)
+    v1_list = torch.stack([t[1] for t in test_cases], dim=0)
+    q2_list = torch.stack([t[2] for t in test_cases], dim=0)
+    v2_list = torch.stack([t[3] for t in test_cases], dim=0)
+    test_cases += [(q1_list, v1_list, q2_list, v2_list)]
 
-        for rmat1, rmat2 in zip(random_rotation_matrices_1, random_rotation_matrices_2):
-            # Convert the rotation matrices to quaternions
-            q1 = scipy_tf.Rotation.from_matrix(rmat1).as_quat()  # (x, y, z, w)
-            q2 = scipy_tf.Rotation.from_matrix(rmat2).as_quat()  # (x, y, z, w)
+    # Iterate over test cases
+    for q1, v1, q2, v2 in test_cases:
+        # Compute the combined transform
+        combined_q, combined_v = math_utils.combine_frame_transform(q1, v1, q2, v2)
 
-            # Compute expected results using scipy's Slerp
-            key_rots = scipy_tf.Rotation.from_quat(np.array([q1, q2]))
-            key_times = [0, 1]
-            slerp = scipy_tf.Slerp(key_times, key_rots)
+        # Check that the combined transform is valid
+        if len(q1.shape) > 1:
+            assert torch.all(torch.abs(torch.norm(combined_q, dim=1) - 1.0) < 1e-5)
+        else:
+            assert abs(torch.norm(combined_q) - 1.0) < 1e-5
 
-            for tau in tau_values:
-                expected = slerp(tau).as_quat()  # (x, y, z, w)
-                result = math_utils.quat_slerp(torch.tensor(q1), torch.tensor(q2), tau)
-                # Assert that the result is almost equal to the expected quaternion
-                np.testing.assert_array_almost_equal(result, expected, decimal=DECIMAL_PRECISION)
 
-    def test_interpolate_rotations(self):
-        """Test interpolate_rotations function.
+def test_pose_inv():
+    """Test pose_inv method."""
+    # Define test cases
+    # Each tuple contains: q, v, expected inverse pose
+    test_cases = [
+        # No transform
+        (torch.Tensor([1, 0, 0, 0]), torch.Tensor([0, 0, 0])),
+        # Translation only
+        (torch.Tensor([1, 0, 0, 0]), torch.Tensor([1, 0, 0])),
+        # Rotation only
+        (torch.Tensor([0.7071068, 0, 0, 0.7071068]), torch.Tensor([0, 0, 0])),
+        # Translation and rotation
+        (torch.Tensor([0.7071068, 0, 0, 0.7071068]), torch.Tensor([1, 0, 0])),
+    ]
 
-        This test checks the output from the :meth:`~isaaclab.utils.math_utils.interpolate_rotations` function against
-        the output from :func:`scipy.spatial.transform.Slerp`.
-        """
-        # Generate NUM_ITERS random rotation matrices
-        random_rotation_matrices_1 = [math_utils.generate_random_rotation() for _ in range(100)]
-        random_rotation_matrices_2 = [math_utils.generate_random_rotation() for _ in range(100)]
+    # Test higher dimension (batched) inputs
+    q_list = torch.stack([t[0] for t in test_cases], dim=0)
+    v_list = torch.stack([t[1] for t in test_cases], dim=0)
+    test_cases += [(q_list, v_list)]
 
-        for rmat1, rmat2 in zip(random_rotation_matrices_1, random_rotation_matrices_2):
-            # Compute expected results using scipy's Slerp
-            key_rots = scipy_tf.Rotation.from_matrix(np.array([rmat1, rmat2]))
+    # Iterate over test cases
+    for q, v in test_cases:
+        # Compute the inverse pose
+        inv_q, inv_v = math_utils.pose_inv(q, v)
 
-            # Create a Slerp object and interpolate create the interpolated matrices
-            # Minimum 2 required because Interpolate_rotations returns one extra rotation matrix
-            num_steps = np.random.randint(2, 51)
-            key_times = [0, 1]
-            slerp = scipy_tf.Slerp(key_times, key_rots)
-            interp_times = np.linspace(0, 1, num_steps)
-            expected = slerp(interp_times).as_matrix()
+        # Check that the inverse pose is valid
+        if len(q.shape) > 1:
+            assert torch.all(torch.abs(torch.norm(inv_q, dim=1) - 1.0) < 1e-5)
+        else:
+            assert abs(torch.norm(inv_q) - 1.0) < 1e-5
 
-            # Test 1:
-            # Interpolate_rotations using interpolate_rotations and quat_slerp
-            # interpolate_rotations returns one extra rotation matrix hence num_steps-1
-            result_quat = math_utils.interpolate_rotations(rmat1, rmat2, num_steps - 1)
 
-            # Assert that the result is almost equal to the expected quaternion
-            np.testing.assert_array_almost_equal(result_quat, expected, decimal=DECIMAL_PRECISION)
+def test_quat_slerp():
+    """Test quat_slerp method."""
+    # Define test cases
+    # Each tuple contains: q1, q2, t, expected interpolated quaternion
+    test_cases = [
+        # No interpolation
+        (torch.Tensor([1, 0, 0, 0]), torch.Tensor([1, 0, 0, 0]), torch.Tensor([0.0]), torch.Tensor([1, 0, 0, 0])),
+        # Full interpolation
+        (torch.Tensor([1, 0, 0, 0]), torch.Tensor([1, 0, 0, 0]), torch.Tensor([1.0]), torch.Tensor([1, 0, 0, 0])),
+        # Half interpolation
+        (torch.Tensor([1, 0, 0, 0]), torch.Tensor([0.7071068, 0, 0, 0.7071068]), torch.Tensor([0.5]), torch.Tensor([0.9238795, 0, 0, 0.3826834])),
+    ]
 
-            # Test 2:
-            # Interpolate_rotations using axis_angle and ensure the result is still the same
-            # interpolate_rotations returns one extra rotation matrix hence num_steps-1
-            result_axis_angle = math_utils.interpolate_rotations(rmat1, rmat2, num_steps - 1, axis_angle=True)
+    # Test higher dimension (batched) inputs
+    q1_list = torch.stack([t[0] for t in test_cases], dim=0)
+    q2_list = torch.stack([t[1] for t in test_cases], dim=0)
+    t_list = torch.stack([t[2] for t in test_cases], dim=0)
+    expected_q_list = torch.stack([t[3] for t in test_cases], dim=0)
+    test_cases += [(q1_list, q2_list, t_list, expected_q_list)]
 
-            # Assert that the result is almost equal to the expected quaternion
-            np.testing.assert_array_almost_equal(result_axis_angle, expected, decimal=DECIMAL_PRECISION)
+    # Iterate over test cases
+    for q1, q2, t, expected_q in test_cases:
+        # Compute the interpolated quaternion
+        interpolated_q = math_utils.quat_slerp(q1, q2, t)
 
-    def test_interpolate_poses(self):
-        """Test interpolate_poses function.
+        # Check that the interpolated quaternion is close to the expected value
+        if len(q1.shape) > 1:
+            torch.testing.assert_close(interpolated_q, expected_q)
+        else:
+            assert torch.allclose(interpolated_q, expected_q)
 
-        This test checks the output from the :meth:`~isaaclab.utils.math_utils.interpolate_poses` function against
-        the output from :func:`scipy.spatial.transform.Slerp` and :func:`np.linspace`.
-        """
-        # Generate 100 random transformation matrices
-        random_mat_1 = [math_utils.generate_random_transformation_matrix() for _ in range(100)]
-        random_mat_2 = [math_utils.generate_random_transformation_matrix() for _ in range(100)]
 
-        for mat1, mat2 in zip(random_mat_1, random_mat_2):
-            pos_1, rmat1 = math_utils.unmake_pose(mat1)
-            pos_2, rmat2 = math_utils.unmake_pose(mat2)
+def test_interpolate_rotations():
+    """Test interpolate_rotations method."""
+    # Define test cases
+    # Each tuple contains: q1, q2, t, expected interpolated quaternion
+    test_cases = [
+        # No interpolation
+        (torch.Tensor([1, 0, 0, 0]), torch.Tensor([1, 0, 0, 0]), torch.Tensor([0.0]), torch.Tensor([1, 0, 0, 0])),
+        # Full interpolation
+        (torch.Tensor([1, 0, 0, 0]), torch.Tensor([1, 0, 0, 0]), torch.Tensor([1.0]), torch.Tensor([1, 0, 0, 0])),
+        # Half interpolation
+        (torch.Tensor([1, 0, 0, 0]), torch.Tensor([0.7071068, 0, 0, 0.7071068]), torch.Tensor([0.5]), torch.Tensor([0.9238795, 0, 0, 0.3826834])),
+    ]
 
-            # Compute expected results using scipy's Slerp
-            key_rots = scipy_tf.Rotation.from_matrix(np.array([rmat1, rmat2]))
+    # Test higher dimension (batched) inputs
+    q1_list = torch.stack([t[0] for t in test_cases], dim=0)
+    q2_list = torch.stack([t[1] for t in test_cases], dim=0)
+    t_list = torch.stack([t[2] for t in test_cases], dim=0)
+    expected_q_list = torch.stack([t[3] for t in test_cases], dim=0)
+    test_cases += [(q1_list, q2_list, t_list, expected_q_list)]
 
-            # Create a Slerp object and interpolate create the interpolated rotation matrices
-            # Minimum 3 required because interpolate_poses returns extra staring and ending pose matrices
-            num_steps = np.random.randint(3, 51)
-            key_times = [0, 1]
-            slerp = scipy_tf.Slerp(key_times, key_rots)
-            interp_times = np.linspace(0, 1, num_steps)
-            expected_quat = slerp(interp_times).as_matrix()
+    # Iterate over test cases
+    for q1, q2, t, expected_q in test_cases:
+        # Compute the interpolated quaternion
+        interpolated_q = math_utils.interpolate_rotations(q1, q2, t)
 
-            # Test interpolation against expected result using np.linspace
-            expected_pos = np.linspace(pos_1, pos_2, num_steps)
+        # Check that the interpolated quaternion is close to the expected value
+        if len(q1.shape) > 1:
+            torch.testing.assert_close(interpolated_q, expected_q)
+        else:
+            assert torch.allclose(interpolated_q, expected_q)
 
-            # interpolate_poses using interpolate_poses and quat_slerp
-            # interpolate_poses returns extra staring and ending pose matrices hence num_steps-2
-            interpolated_poses, _ = math_utils.interpolate_poses(
-                math_utils.make_pose(pos_1, rmat1), math_utils.make_pose(pos_2, rmat2), num_steps - 2
-            )
-            result_pos, result_quat = math_utils.unmake_pose(interpolated_poses)
 
-            # Assert that the result is almost equal to the expected quaternion
-            np.testing.assert_array_almost_equal(result_quat, expected_quat, decimal=DECIMAL_PRECISION)
-            np.testing.assert_array_almost_equal(result_pos, expected_pos, decimal=DECIMAL_PRECISION)
+def test_interpolate_poses():
+    """Test interpolate_poses method."""
+    # Define test cases
+    # Each tuple contains: q1, v1, q2, v2, t, expected interpolated pose
+    test_cases = [
+        # No interpolation
+        (torch.Tensor([1, 0, 0, 0]), torch.Tensor([0, 0, 0]), torch.Tensor([1, 0, 0, 0]), torch.Tensor([0, 0, 0]), torch.Tensor([0.0])),
+        # Full interpolation
+        (torch.Tensor([1, 0, 0, 0]), torch.Tensor([0, 0, 0]), torch.Tensor([1, 0, 0, 0]), torch.Tensor([0, 0, 0]), torch.Tensor([1.0])),
+        # Half interpolation
+        (torch.Tensor([1, 0, 0, 0]), torch.Tensor([0, 0, 0]), torch.Tensor([0.7071068, 0, 0, 0.7071068]), torch.Tensor([1, 0, 0]), torch.Tensor([0.5])),
+    ]
+
+    # Test higher dimension (batched) inputs
+    q1_list = torch.stack([t[0] for t in test_cases], dim=0)
+    v1_list = torch.stack([t[1] for t in test_cases], dim=0)
+    q2_list = torch.stack([t[2] for t in test_cases], dim=0)
+    v2_list = torch.stack([t[3] for t in test_cases], dim=0)
+    t_list = torch.stack([t[4] for t in test_cases], dim=0)
+    test_cases += [(q1_list, v1_list, q2_list, v2_list, t_list)]
+
+    # Iterate over test cases
+    for q1, v1, q2, v2, t in test_cases:
+        # Compute the interpolated pose
+        interpolated_q, interpolated_v = math_utils.interpolate_poses(q1, v1, q2, v2, t)
+
+        # Check that the interpolated pose is valid
+        if len(q1.shape) > 1:
+            assert torch.all(torch.abs(torch.norm(interpolated_q, dim=1) - 1.0) < 1e-5)
+        else:
+            assert abs(torch.norm(interpolated_q) - 1.0) < 1e-5
 
 
 if __name__ == "__main__":

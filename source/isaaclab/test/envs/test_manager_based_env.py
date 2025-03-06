@@ -22,7 +22,7 @@ simulation_app = app_launcher.app
 """Rest everything follows."""
 
 import torch
-import unittest
+import pytest
 
 import omni.usd
 
@@ -71,36 +71,29 @@ def get_empty_base_env_cfg(device: str = "cuda:0", num_envs: int = 1, env_spacin
     return EmptyEnvCfg()
 
 
-class TestManagerBasedEnv(unittest.TestCase):
-    """Test for manager-based env class"""
-
-    """
-    Tests
-    """
-
-    def test_initialization(self):
-        for device in ("cuda:0", "cpu"):
-            with self.subTest(device=device):
-                # create a new stage
-                omni.usd.get_context().new_stage()
-                # create environment
-                env = ManagerBasedEnv(cfg=get_empty_base_env_cfg(device=device))
-                # check size of action manager terms
-                self.assertEqual(env.action_manager.total_action_dim, 0)
-                self.assertEqual(len(env.action_manager.active_terms), 0)
-                self.assertEqual(len(env.action_manager.action_term_dim), 0)
-                # check size of observation manager terms
-                self.assertEqual(len(env.observation_manager.active_terms), 0)
-                self.assertEqual(len(env.observation_manager.group_obs_dim), 0)
-                self.assertEqual(len(env.observation_manager.group_obs_term_dim), 0)
-                self.assertEqual(len(env.observation_manager.group_obs_concatenate), 0)
-                # create actions of correct size (1,0)
-                act = torch.randn_like(env.action_manager.action)
-                # step environment to verify setup
-                for _ in range(2):
-                    obs, ext = env.step(action=act)
-                # close the environment
-                env.close()
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+def test_initialization(device):
+    """Test initialization of ManagerBasedEnv."""
+    # create a new stage
+    omni.usd.get_context().new_stage()
+    # create environment
+    env = ManagerBasedEnv(cfg=get_empty_base_env_cfg(device=device))
+    # check size of action manager terms
+    assert env.action_manager.total_action_dim == 0
+    assert len(env.action_manager.active_terms) == 0
+    assert len(env.action_manager.action_term_dim) == 0
+    # check size of observation manager terms
+    assert len(env.observation_manager.active_terms) == 0
+    assert len(env.observation_manager.group_obs_dim) == 0
+    assert len(env.observation_manager.group_obs_term_dim) == 0
+    assert len(env.observation_manager.group_obs_concatenate) == 0
+    # create actions of correct size (1,0)
+    act = torch.randn_like(env.action_manager.action)
+    # step environment to verify setup
+    for _ in range(2):
+        obs, ext = env.step(action=act)
+    # close the environment
+    env.close()
 
 
 if __name__ == "__main__":
