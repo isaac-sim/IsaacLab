@@ -18,7 +18,6 @@ services:
       start_period: 5s
     environment:
       - ACCEPT_EULA=${ACCEPT_EULA}
-      - NV_PACER_FIXED_TIME_STEP_MS=32
     volumes:
       - openxr-volume:/openxr:rw
 
