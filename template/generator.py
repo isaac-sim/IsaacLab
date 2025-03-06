@@ -100,13 +100,23 @@ def _external(specification: dict):
     os.makedirs(project_dir, exist_ok=True)
     # project files
     # - scripts
-    os.makedirs(os.path.join(project_dir, "scripts"), exist_ok=True)
+    dir = os.path.join(project_dir, "scripts")
+    os.makedirs(dir, exist_ok=True)
     for rl_library in specification["rl_libraries"]:
         shutil.copytree(
             os.path.join(ROOT_DIR, "scripts", "reinforcement_learning", rl_library["name"]),
-            os.path.join(project_dir, "scripts", rl_library["name"]),
+            os.path.join(dir, rl_library["name"]),
             dirs_exist_ok=True,
         )
+    # docker files
+    dir = os.path.join(project_dir, "docker")
+    os.makedirs(dir, exist_ok=True)
+    template = jinja_env.get_template("external/docker/.env.base")
+    _write_file(os.path.join(dir, ".env.base"), content=template.render(**specification))
+    template = jinja_env.get_template("external/docker/docker-compose.yaml")
+    _write_file(os.path.join(dir, "docker-compose.yaml"), content=template.render(**specification))
+    template = jinja_env.get_template("external/docker/Dockerfile")
+    _write_file(os.path.join(dir, "Dockerfile"), content=template.render(**specification))
     # extension files
     # - config/extension.toml
     dir = os.path.join(project_dir, "source", name, "config")
