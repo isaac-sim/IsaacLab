@@ -8,12 +8,12 @@ import contextlib
 import torch
 from typing import Any
 
-from isaaclab_mimic.datagen.data_generator import DataGenerator
-from isaaclab_mimic.datagen.datagen_info_pool import DataGenInfoPool
-
 from isaaclab.envs import ManagerBasedEnv
 from isaaclab.envs.mdp.recorders.recorders_cfg import ActionStateRecorderManagerCfg
 from isaaclab.managers import DatasetExportMode
+
+from isaaclab_mimic.datagen.data_generator import DataGenerator
+from isaaclab_mimic.datagen.datagen_info_pool import DataGenInfoPool
 
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
 
