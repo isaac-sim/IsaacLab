@@ -98,8 +98,18 @@ def _external(specification: dict):
     name = specification["name"]
     project_dir = os.path.join(specification["path"], name)
     os.makedirs(project_dir, exist_ok=True)
-    # project files
-    # - scripts
+    # repo files
+    shutil.copyfile(os.path.join(ROOT_DIR, ".dockerignore"), os.path.join(project_dir, ".dockerignore"))
+    shutil.copyfile(os.path.join(ROOT_DIR, ".flake8"), os.path.join(project_dir, ".flake8"))
+    shutil.copyfile(os.path.join(ROOT_DIR, ".gitattributes"), os.path.join(project_dir, ".gitattributes"))
+    shutil.copyfile(os.path.join(ROOT_DIR, ".gitignore"), os.path.join(project_dir, ".gitignore"))
+    shutil.copyfile(
+        os.path.join(ROOT_DIR, ".pre-commit-config.yaml"), os.path.join(project_dir, ".pre-commit-config.yaml")
+    )
+    shutil.copytree(
+        os.path.join(TEMPLATE_DIR, "external", ".vscode"), os.path.join(project_dir, ".vscode"), dirs_exist_ok=True
+    )
+    # scripts
     dir = os.path.join(project_dir, "scripts")
     os.makedirs(dir, exist_ok=True)
     for rl_library in specification["rl_libraries"]:

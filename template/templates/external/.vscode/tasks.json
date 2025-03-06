@@ -1,0 +1,23 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "setup_python_env",
+            "type": "shell",
+            "linux": {
+                "command": "${input:isaac_path}/python.sh ${workspaceFolder}/.vscode/tools/setup_vscode.py --isaac_path ${input:isaac_path}"
+            },
+            "windows": {
+                "command": "${input:isaac_path}/python.bat ${workspaceFolder}/.vscode/tools/setup_vscode.py --isaac_path ${input:isaac_path}"
+            }
+        }
+    ],
+    "inputs": [
+        {
+            "id": "isaac_path",
+            "description": "Absolute path to the current Isaac Sim installation. Can be skipped if Isaac Sim installed from pip.",
+            "default": "${HOME}/.local/share/ov/pkg/isaac_sim-4.2.0",
+            "type": "promptString"
+        },
+    ]
+}
