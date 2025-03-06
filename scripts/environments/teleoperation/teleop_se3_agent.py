@@ -23,7 +23,7 @@ AppLauncher.add_app_launcher_args(parser)
 args_cli = parser.parse_args()
 
 app_launcher_args = vars(args_cli)
-if args_cli.teleop_device.lower() == "handtracking":
+if "handtracking" in args_cli.teleop_device.lower():
     app_launcher_args["xr"] = True
 # launch omniverse app
 app_launcher = AppLauncher(app_launcher_args)
@@ -37,7 +37,8 @@ import torch
 
 import omni.log
 
-from isaaclab.devices import Se3Gamepad, Se3HandTracking, Se3Keyboard, Se3SpaceMouse
+from isaaclab.devices import OpenXRDevice, Se3Gamepad, Se3Keyboard, Se3SpaceMouse
+from isaaclab.devices.openxr.retargeters.manipulator import GripperRetargeter, Se3AbsRetargeter, Se3RelRetargeter
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 
 import isaaclab_tasks  # noqa: F401
@@ -79,6 +80,53 @@ def main():
             f"The environment '{args_cli.task}' does not support gripper control. The device command will be ignored."
         )
 
+    # Flags for controlling teleoperation flow
+    should_reset_recording_instance = False
+    teleoperation_active = True
+
+    # Callback handlers
+    def reset_recording_instance():
+        """Reset the environment to its initial state.
+
+        This callback is triggered when the user presses the reset key (typically 'R').
+        It's useful when:
+        - The robot gets into an undesirable configuration
+        - The user wants to start over with the task
+        - Objects in the scene need to be reset to their initial positions
+
+        The environment will be reset on the next simulation step.
+        """
+        nonlocal should_reset_recording_instance
+        should_reset_recording_instance = True
+
+    def start_teleoperation():
+        """Activate teleoperation control of the robot.
+
+        This callback enables active control of the robot through the input device.
+        It's typically triggered by a specific gesture or button press and is used when:
+        - Beginning a new teleoperation session
+        - Resuming control after temporarily pausing
+        - Switching from observation mode to control mode
+
+        While active, all commands from the device will be applied to the robot.
+        """
+        nonlocal teleoperation_active
+        teleoperation_active = True
+
+    def stop_teleoperation():
+        """Deactivate teleoperation control of the robot.
+
+        This callback temporarily suspends control of the robot through the input device.
+        It's typically triggered by a specific gesture or button press and is used when:
+        - Taking a break from controlling the robot
+        - Repositioning the input device without moving the robot
+        - Pausing to observe the scene without interference
+
+        While inactive, the simulation continues to render but device commands are ignored.
+        """
+        nonlocal teleoperation_active
+        teleoperation_active = False
+
     # create controller
     if args_cli.teleop_device.lower() == "keyboard":
         teleop_interface = Se3Keyboard(
@@ -92,24 +140,34 @@ def main():
         teleop_interface = Se3Gamepad(
             pos_sensitivity=0.1 * args_cli.sensitivity, rot_sensitivity=0.1 * args_cli.sensitivity
         )
-    elif args_cli.teleop_device.lower() == "handtracking":
-        from isaacsim.xr.openxr import OpenXRSpec
+    elif "handtracking" in args_cli.teleop_device.lower():
+        # Create EE retargeter with desired configuration
+        if "_abs" in args_cli.teleop_device.lower():
+            retargeter_device = Se3AbsRetargeter(zero_out_xy_rotation=True)
+        else:
+            retargeter_device = Se3RelRetargeter(zero_out_xy_rotation=True)
 
-        teleop_interface = Se3HandTracking(env_cfg.xr, OpenXRSpec.XrHandEXT.XR_HAND_RIGHT_EXT, False, True)
-        teleop_interface.add_callback("RESET", env.reset)
+        grip_retargeter = GripperRetargeter()
+
+        # Create hand tracking device with retargeter (in a list)
+        teleop_interface = OpenXRDevice(
+            env_cfg.xr,
+            hand=OpenXRDevice.Hand.RIGHT,
+            retargeters=[retargeter_device, grip_retargeter],
+        )
+        teleop_interface.add_callback("RESET", reset_recording_instance)
+        teleop_interface.add_callback("START", start_teleoperation)
+        teleop_interface.add_callback("STOP", stop_teleoperation)
+
+        # Hand tracking needs explicit start gesture to activate
+        teleoperation_active = False
     else:
         raise ValueError(
             f"Invalid device interface '{args_cli.teleop_device}'. Supported: 'keyboard', 'spacemouse', 'gamepad',"
-            " 'handtracking'."
+            " 'handtracking', 'handtracking_abs'."
         )
 
-    # add teleoperation key for env reset
-    should_reset_recording_instance = False
-
-    def reset_recording_instance():
-        nonlocal should_reset_recording_instance
-        should_reset_recording_instance = True
-
+    # add teleoperation key for env reset (for all devices)
     teleop_interface.add_callback("R", reset_recording_instance)
     print(teleop_interface)
 
@@ -121,15 +179,20 @@ def main():
     while simulation_app.is_running():
         # run everything in inference mode
         with torch.inference_mode():
-            # get keyboard command
+            # get device command
             delta_pose, gripper_command = teleop_interface.advance()
-            delta_pose = delta_pose.astype("float32")
-            # convert to torch
-            delta_pose = torch.tensor(delta_pose, device=env.device).repeat(env.num_envs, 1)
-            # pre-process actions
-            actions = pre_process_actions(delta_pose, gripper_command)
-            # apply actions
-            env.step(actions)
+
+            # Only apply teleop commands when active
+            if teleoperation_active:
+                delta_pose = delta_pose.astype("float32")
+                # convert to torch
+                delta_pose = torch.tensor(delta_pose, device=env.device).repeat(env.num_envs, 1)
+                # pre-process actions
+                actions = pre_process_actions(delta_pose, gripper_command)
+                # apply actions
+                env.step(actions)
+            else:
+                env.sim.render()
 
             if should_reset_recording_instance:
                 env.reset()

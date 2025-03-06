@@ -23,9 +23,8 @@ import unittest
 import carb
 import omni.usd
 from isaacsim.core.prims import XFormPrim
-from isaacsim.xr.openxr import OpenXRSpec
 
-from isaaclab.devices import Se3HandTracking
+from isaaclab.devices import OpenXRDevice
 from isaaclab.devices.openxr import XrCfg
 from isaaclab.envs import ManagerBasedEnv, ManagerBasedEnvCfg
 from isaaclab.scene import InteractiveSceneCfg
@@ -62,8 +61,8 @@ class EmptyEnvCfg(ManagerBasedEnvCfg):
         self.sim.render_interval = 2
 
 
-class TestSe3HandTracking(unittest.TestCase):
-    """Test for Se3HandTracking"""
+class TestOpenXRDevice(unittest.TestCase):
+    """Test for OpenXRDevice"""
 
     def test_xr_anchor(self):
         env_cfg = EmptyEnvCfg()
@@ -74,7 +73,7 @@ class TestSe3HandTracking(unittest.TestCase):
         # Create environment.
         env = ManagerBasedEnv(cfg=env_cfg)
 
-        device = Se3HandTracking(env_cfg.xr, OpenXRSpec.XrHandEXT.XR_HAND_RIGHT_EXT)
+        device = OpenXRDevice(env_cfg.xr, OpenXRDevice.Hand.RIGHT)
 
         # Check that the xr anchor prim is created with the correct pose.
         xr_anchor_prim = XFormPrim("/XRAnchor")
@@ -98,7 +97,7 @@ class TestSe3HandTracking(unittest.TestCase):
         # Create environment.
         env = ManagerBasedEnv(cfg=env_cfg)
 
-        device = Se3HandTracking(None, OpenXRSpec.XrHandEXT.XR_HAND_RIGHT_EXT)
+        device = OpenXRDevice(None, OpenXRDevice.Hand.RIGHT)
 
         # Check that the xr anchor prim is created with the correct default pose.
         xr_anchor_prim = XFormPrim("/XRAnchor")
@@ -122,8 +121,8 @@ class TestSe3HandTracking(unittest.TestCase):
         # Create environment.
         env = ManagerBasedEnv(cfg=env_cfg)
 
-        device_1 = Se3HandTracking(None, OpenXRSpec.XrHandEXT.XR_HAND_LEFT_EXT)
-        device_2 = Se3HandTracking(None, OpenXRSpec.XrHandEXT.XR_HAND_RIGHT_EXT)
+        device_1 = OpenXRDevice(None, OpenXRDevice.Hand.LEFT)
+        device_2 = OpenXRDevice(None, OpenXRDevice.Hand.RIGHT)
 
         # Check that the xr anchor prim is created with the correct default pose.
         xr_anchor_prim = XFormPrim("/XRAnchor")

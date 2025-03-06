@@ -46,13 +46,14 @@ parser.add_argument(
     default=10,
     help="Number of continuous steps with task success for concluding a demo as successful. Default is 10.",
 )
+
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
 args_cli = parser.parse_args()
 
 app_launcher_args = vars(args_cli)
-if args_cli.teleop_device.lower() == "handtracking":
+if "handtracking" in args_cli.teleop_device.lower():
     app_launcher_args["xr"] = True
 
 # launch the simulator
@@ -68,7 +69,8 @@ import torch
 
 import omni.log
 
-from isaaclab.devices import Se3HandTracking, Se3Keyboard, Se3SpaceMouse
+from isaaclab.devices import OpenXRDevice, Se3Keyboard, Se3SpaceMouse
+from isaaclab.devices.openxr.retargeters.manipulator import GripperRetargeter, Se3AbsRetargeter, Se3RelRetargeter
 from isaaclab.envs.mdp.recorders.recorders_cfg import ActionStateRecorderManagerCfg
 
 import isaaclab_tasks  # noqa: F401
@@ -122,7 +124,7 @@ def main():
     """Collect demonstrations from the environment using teleop interfaces."""
 
     # if handtracking is selected, rate limiting is achieved via OpenXR
-    if args_cli.teleop_device.lower() == "handtracking":
+    if "handtracking" in args_cli.teleop_device.lower():
         rate_limiter = None
     else:
         rate_limiter = RateLimiter(args_cli.step_hz)
@@ -163,28 +165,98 @@ def main():
     # create environment
     env = gym.make(args_cli.task, cfg=env_cfg).unwrapped
 
-    # add teleoperation key for reset current recording instance
+    # Flags for controlling the demonstration recording process
     should_reset_recording_instance = False
+    running_recording_instance = True
 
     def reset_recording_instance():
+        """Reset the current recording instance.
+
+        This function is triggered when the user indicates the current demo attempt
+        has failed and should be discarded. When called, it marks the environment
+        for reset, which will start a fresh recording instance. This is useful when:
+        - The robot gets into an unrecoverable state
+        - The user makes a mistake during demonstration
+        - The objects in the scene need to be reset to their initial positions
+        """
         nonlocal should_reset_recording_instance
         should_reset_recording_instance = True
 
-    # create controller
-    if args_cli.teleop_device.lower() == "keyboard":
-        teleop_interface = Se3Keyboard(pos_sensitivity=0.2, rot_sensitivity=0.5)
-    elif args_cli.teleop_device.lower() == "spacemouse":
-        teleop_interface = Se3SpaceMouse(pos_sensitivity=0.2, rot_sensitivity=0.5)
-    elif args_cli.teleop_device.lower() == "handtracking":
-        from isaacsim.xr.openxr import OpenXRSpec
+    def start_recording_instance():
+        """Start or resume recording the current demonstration.
 
-        teleop_interface = Se3HandTracking(env_cfg.xr, OpenXRSpec.XrHandEXT.XR_HAND_RIGHT_EXT, False, True)
-        teleop_interface.add_callback("RESET", reset_recording_instance)
-    else:
-        raise ValueError(
-            f"Invalid device interface '{args_cli.teleop_device}'. Supported: 'keyboard', 'spacemouse', 'handtracking'."
-        )
+        This function enables active recording of robot actions. It's used when:
+        - Beginning a new demonstration after positioning the robot
+        - Resuming recording after temporarily stopping to reposition
+        - Continuing demonstration after pausing to adjust approach or strategy
 
+        The user can toggle between stop/start to reposition the robot without
+        recording those transitional movements in the final demonstration.
+        """
+        nonlocal running_recording_instance
+        running_recording_instance = True
+
+    def stop_recording_instance():
+        """Temporarily stop recording the current demonstration.
+
+        This function pauses the active recording of robot actions, allowing the user to:
+        - Reposition the robot or hand tracking device without recording those movements
+        - Take a break without terminating the entire demonstration
+        - Adjust their approach before continuing with the task
+
+        The environment will continue rendering but won't record actions or advance
+        the simulation until recording is resumed with start_recording_instance().
+        """
+        nonlocal running_recording_instance
+        running_recording_instance = False
+
+    def create_teleop_device(device_name: str):
+        """Create and configure teleoperation device for robot control.
+
+        Args:
+            device_name: Control device to use. Options include:
+                - "keyboard": Use keyboard keys for simple discrete movements
+                - "spacemouse": Use 3D mouse for precise 6-DOF control
+                - "handtracking": Use VR hand tracking for intuitive manipulation
+                - "handtracking_abs": Use VR hand tracking for intuitive manipulation with absolute EE pose
+
+        Returns:
+            DeviceBase: Configured teleoperation device ready for robot control
+        """
+        device_name = device_name.lower()
+        if device_name == "keyboard":
+            return Se3Keyboard(pos_sensitivity=0.2, rot_sensitivity=0.5)
+        elif device_name == "spacemouse":
+            return Se3SpaceMouse(pos_sensitivity=0.2, rot_sensitivity=0.5)
+        elif "handtracking" in device_name:
+            # Create Franka retargeter with desired configuration
+            if "_abs" in device_name:
+                retargeter_device = Se3AbsRetargeter(zero_out_xy_rotation=True)
+            else:
+                retargeter_device = Se3RelRetargeter(zero_out_xy_rotation=True)
+
+            grip_retargeter = GripperRetargeter()
+
+            # Create hand tracking device with retargeter (in a list)
+            device = OpenXRDevice(
+                env_cfg.xr,
+                hand=OpenXRDevice.Hand.RIGHT,
+                retargeters=[retargeter_device, grip_retargeter],
+            )
+            device.add_callback("RESET", reset_recording_instance)
+            device.add_callback("START", start_recording_instance)
+            device.add_callback("STOP", stop_recording_instance)
+
+            nonlocal running_recording_instance
+            running_recording_instance = False
+            return device
+        else:
+            raise ValueError(
+                f"Invalid device interface '{device_name}'. Supported: 'keyboard', 'spacemouse', 'handtracking',"
+                " 'handtracking_abs'."
+            )
+
+    teleop_interface = create_teleop_device(args_cli.teleop_device)
     teleop_interface.add_callback("R", reset_recording_instance)
     print(teleop_interface)
 
@@ -205,7 +277,10 @@ def main():
             actions = pre_process_actions(delta_pose, gripper_command)
 
             # perform action on environment
-            env.step(actions)
+            if running_recording_instance:
+                env.step(actions)
+            else:
+                env.sim.render()
 
             if success_term is not None:
                 if bool(success_term.func(env, **success_term.params)[0]):

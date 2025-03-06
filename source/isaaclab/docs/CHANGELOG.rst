@@ -118,7 +118,7 @@ Changed
   * ``set_fixed_tendon_limit`` → ``set_fixed_tendon_position_limit``
 
 
-0.34.10 (2025-03-04)
+0.34.11 (2025-03-04)
 ~~~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -129,8 +129,8 @@ Fixed
   outputs are requested.
 
 
-0.34.9 (2025-03-04)
-~~~~~~~~~~~~~~~~~~~
+0.34.10 (2025-03-04)
+~~~~~~~~~~~~~~~~~~~~
 
 Fixed
 ^^^^^
@@ -139,7 +139,7 @@ Fixed
   with other modalities such as RGBA and depth.
 
 
-0.34.8 (2025-03-04)
+0.34.9 (2025-03-04)
 ~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -151,7 +151,7 @@ Added
   which didn't allow setting the joint position and velocity separately.
 
 
-0.34.7 (2025-03-02)
+0.34.8 (2025-03-02)
 ~~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -162,7 +162,7 @@ Fixed
   was always set to False, which led to incorrect contact sensor settings for the spawned assets.
 
 
-0.34.6 (2025-03-02)
+0.34.7 (2025-03-02)
 ~~~~~~~~~~~~~~~~~~~
 
 Changed
@@ -180,7 +180,7 @@ Removed
 * Removed the attribute ``disable_contact_processing`` from :class:`~isaaclab.sim.SimulationContact`.
 
 
-0.34.5 (2025-03-01)
+0.34.6 (2025-03-01)
 ~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -209,7 +209,7 @@ Changed
   they should use the :attr:`isaaclab.actuators.ImplicitActuatorCfg.velocity_limit_sim` attribute instead.
 
 
-0.34.4 (2025-02-28)
+0.34.5 (2025-02-28)
 ~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -218,6 +218,16 @@ Added
 * Added IP address support for WebRTC livestream to allow specifying IP address to stream across networks.
   This feature requires an updated livestream extension, which is current only available in the pre-built Isaac Lab 2.0.1 docker image.
   Support for other Isaac Sim builds will become available in Isaac Sim 5.0.
+
+
+0.34.4 (2025-02-27)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+
+^^^^^
+* Refactored retargeting code from Se3Handtracking class into separate modules for better modularity
+* Added scaffolding for developing additional retargeters (e.g. dex)
 
 
 0.34.3 (2025-02-26)
