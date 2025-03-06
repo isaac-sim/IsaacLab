@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+0.34.10 (2025-03-06)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added the pose2d command that generates the target position based on the position of the obstacle object.
+* Added the reset event that samples a position in a sector of a ring area defined by the radius and angle ranges.
+* Added the observation function for getting flattned normalized rgb data.
+
+
 0.34.9 (2025-03-04)
 ~~~~~~~~~~~~~~~~~~~
 

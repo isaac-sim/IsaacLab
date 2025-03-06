@@ -231,6 +231,22 @@ def imu_lin_acc(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg
     return asset.data.lin_acc_b
 
 
+def image_flatten(env: ManagerBasedEnv, sensor_cfg: SceneEntityCfg) -> torch.Tensor:
+    """RGB-D data from the given sensor w.r.t. the sensor's frame."""
+    # extract the used quantities (to enable type-hinting)
+    sensor: TiledCamera = env.scene.sensors[sensor_cfg.name]
+    # tiled camera data already normalized
+    rgb_image = sensor.data.output["rgb"][..., 0:3]
+    rgb_image = rgb_image.permute(0, 3, 1, 2)
+    rgb_image = rgb_image.float()
+    rgb_image /= 255.0
+
+    mean_tensor = torch.mean(rgb_image, dim=(2, 3), keepdim=True)
+    rgb_image -= mean_tensor
+    rgb_image = rgb_image.contiguous().view(rgb_image.size(0), -1)
+    return rgb_image
+
+
 def image(
     env: ManagerBasedEnv,
     sensor_cfg: SceneEntityCfg = SceneEntityCfg("tiled_camera"),
