@@ -5,6 +5,7 @@
 
 import os
 import shutil
+from datetime import datetime
 
 import jinja2
 from common import ROOT_DIR, TASKS_DIR, TEMPLATE_DIR
@@ -28,7 +29,7 @@ def _write_file(dst: str, content: str):
         file.write(content)
 
 
-def _generate_task(task_dir: str, specification: dict):
+def _generate_task_per_workflow(task_dir: str, specification: dict):
     task_spec = specification["task"]
     agents_dir = os.path.join(task_dir, "agents")
     os.makedirs(agents_dir, exist_ok=True)
@@ -75,7 +76,7 @@ def _generate_task(task_dir: str, specification: dict):
         )
 
 
-def _internal(specification: dict):
+def _generate_tasks(specification: dict, task_dir: str):
     general_task_name = "-".join([item.capitalize() for item in specification["name"].split("_")])
     for workflow in specification["workflows"]:
         task_name = general_task_name + ("-Marl" if workflow["type"] == "multi-agent" else "")
@@ -84,17 +85,18 @@ def _internal(specification: dict):
             "workflow": workflow,
             "filename": filename,
             "classname": task_name.replace("-", ""),
-            "dir": os.path.join(TASKS_DIR, workflow["name"].replace("-", "_"), filename),
+            "dir": os.path.join(task_dir, workflow["name"].replace("-", "_"), filename),
         }
         if task["workflow"]["name"] == "direct":
             task["id"] = f"Isaac-{task_name}-Direct-v0"
         elif task["workflow"]["name"] == "manager-based":
             task["id"] = f"Isaac-{task_name}-v0"
-        _generate_task(task["dir"], {**specification, "task": task})
+        _generate_task_per_workflow(task["dir"], {**specification, "task": task})
 
 
 def _external(specification: dict):
-    project_dir = os.path.join(specification["path"], specification["name"])
+    name = specification["name"]
+    project_dir = os.path.join(specification["path"], name)
     os.makedirs(project_dir, exist_ok=True)
     # project files
     # - scripts
@@ -105,22 +107,23 @@ def _external(specification: dict):
             os.path.join(project_dir, "scripts", rl_library["name"]),
             dirs_exist_ok=True,
         )
-
-    # general_task_name = "-".join([item.capitalize() for item in specification["name"].split("_")])
-    # for workflow in specification["workflows"]:
-    #     task_name = general_task_name + ("-Marl" if workflow["type"] == "multi-agent" else "")
-    #     filename = task_name.replace("-", "_").lower()
-    #     task = {
-    #         "workflow": workflow,
-    #         "filename": filename,
-    #         "classname": task_name.replace("-", ""),
-    #         "dir": os.path.join(TASKS_DIR, workflow["name"].replace("-", "_"), filename),
-    #     }
-    #     if task["workflow"]["name"] == "direct":
-    #         task["id"] = f"Isaac-{task_name}-Direct-v0"
-    #     elif task["workflow"]["name"] == "manager-based":
-    #         task["id"] = f"Isaac-{task_name}-v0"
-    #     _generate_task(task["dir"], {**specification, "task": task})
+    # extension files
+    # - config/extension.toml
+    dir = os.path.join(project_dir, "source", name, "config")
+    os.makedirs(dir, exist_ok=True)
+    template = jinja_env.get_template("extension/config/extension.toml")
+    _write_file(os.path.join(dir, "extension.toml"), content=template.render(**specification))
+    # - docs/CHANGELOG.rst
+    dir = os.path.join(project_dir, "source", name, "docs")
+    os.makedirs(dir, exist_ok=True)
+    template = jinja_env.get_template("extension/docs/CHANGELOG.rst")
+    _write_file(
+        os.path.join(dir, "CHANGELOG.rst"), content=template.render({"date": datetime.now().strftime("%Y-%m-%d")})
+    )
+    # - tasks
+    dir = os.path.join(project_dir, "source", name, name, "tasks")
+    os.makedirs(dir, exist_ok=True)
+    _generate_tasks(specification, dir)
 
 
 def generate(specification: dict):
@@ -129,7 +132,10 @@ def generate(specification: dict):
     # if workflow["name"] not in ["direct", "manager-based"]:
     #     raise ValueError(f"Invalid workflow: {workflow}")
     # generate project/task
-    (_external if specification.get("external", False) else _internal)(specification)
+    if specification.get("external", False):
+        _external(specification)
+    else:
+        _generate_tasks(specification, TASKS_DIR)
 
 
 if __name__ == "__main__":
