@@ -77,6 +77,7 @@ def _generate_task_per_workflow(task_dir: str, specification: dict):
 
 
 def _generate_tasks(specification: dict, task_dir: str):
+    task_name_prefix = "Template" if specification["external"] else "Isaac"
     general_task_name = "-".join([item.capitalize() for item in specification["name"].split("_")])
     for workflow in specification["workflows"]:
         task_name = general_task_name + ("-Marl" if workflow["type"] == "multi-agent" else "")
@@ -88,9 +89,9 @@ def _generate_tasks(specification: dict, task_dir: str):
             "dir": os.path.join(task_dir, workflow["name"].replace("-", "_"), filename),
         }
         if task["workflow"]["name"] == "direct":
-            task["id"] = f"Isaac-{task_name}-Direct-v0"
+            task["id"] = f"{task_name_prefix}-{task_name}-Direct-v0"
         elif task["workflow"]["name"] == "manager-based":
-            task["id"] = f"Isaac-{task_name}-v0"
+            task["id"] = f"{task_name_prefix}-{task_name}-v0"
         _generate_task_per_workflow(task["dir"], {**specification, "task": task})
 
 
@@ -152,11 +153,15 @@ def _external(specification: dict):
 
 def generate(specification: dict):
     # validate specification
-    assert len(specification.get("name", "")), "Name is required"
-    # if workflow["name"] not in ["direct", "manager-based"]:
-    #     raise ValueError(f"Invalid workflow: {workflow}")
+    assert "external" in specification, "External flag is required"
+    assert specification.get("name", "").isidentifier(), "Name must be a valid identifier"
+    for workflow in specification["workflows"]:
+        assert workflow["name"] in ["direct", "manager-based"], f"Invalid workflow: {workflow}"
+        assert workflow["type"] in ["single-agent", "multi-agent"], f"Invalid workflow type: {workflow}"
+    if specification["external"]:
+        assert "path" in specification, "Path is required for external projects"
     # generate project/task
-    if specification.get("external", False):
+    if specification["external"]:
         _external(specification)
     else:
         _generate_tasks(specification, TASKS_DIR)
