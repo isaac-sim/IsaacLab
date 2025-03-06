@@ -140,6 +140,10 @@ def _external(specification: dict):
     _write_file(
         os.path.join(dir, "CHANGELOG.rst"), content=template.render({"date": datetime.now().strftime("%Y-%m-%d")})
     )
+    # - setup.py
+    dir = os.path.join(project_dir, "source", name)
+    template = jinja_env.get_template("extension/setup.py")
+    _write_file(os.path.join(dir, "setup.py"), content=template.render(**specification))
     # - tasks
     dir = os.path.join(project_dir, "source", name, name, "tasks")
     os.makedirs(dir, exist_ok=True)
