@@ -49,6 +49,7 @@ import os
 import torch
 from datetime import datetime
 
+from on_policy_runner_conv2d import OnPolicyRunnerConv2d
 from rsl_rl.runners import OnPolicyRunner
 
 from isaaclab.envs import (
@@ -127,7 +128,19 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     env = RslRlVecEnvWrapper(env)
 
     # create runner from rsl-rl
-    runner = OnPolicyRunner(env, agent_cfg.to_dict(), log_dir=log_dir, device=agent_cfg.device)
+    if agent_cfg.policy.class_name == "ActorCriticConv2d":
+        if (
+            env_cfg.scene.tiled_camera.height != agent_cfg.policy.image_input_shape[1]
+            or env_cfg.scene.tiled_camera.width != agent_cfg.policy.image_input_shape[2]
+        ):
+            raise ValueError(
+                f"Mismatch in camera dimensions: tiled_camera.height={env_cfg.scene.tiled_camera.height},"
+                f" tiled_camera.width={env_cfg.scene.tiled_camera.width} must match"
+                f" image_input_shape={agent_cfg.policy.image_input_shape[1]}x{agent_cfg.policy.image_input_shape[2]}"
+            )
+        runner = OnPolicyRunnerConv2d(env, agent_cfg.to_dict(), log_dir=log_dir, device=agent_cfg.device)
+    else:
+        runner = OnPolicyRunner(env, agent_cfg.to_dict(), log_dir=log_dir, device=agent_cfg.device)
     # write git state to logs
     runner.add_git_repo_to_log(__file__)
     # load the checkpoint

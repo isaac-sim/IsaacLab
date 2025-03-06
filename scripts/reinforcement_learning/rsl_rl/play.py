@@ -49,6 +49,7 @@ import os
 import time
 import torch
 
+from on_policy_runner_conv2d import OnPolicyRunnerConv2d
 from rsl_rl.runners import OnPolicyRunner
 
 from isaaclab.envs import DirectMARLEnv, multi_agent_to_single_agent
@@ -110,7 +111,19 @@ def main():
 
     print(f"[INFO]: Loading model checkpoint from: {resume_path}")
     # load previously trained model
-    ppo_runner = OnPolicyRunner(env, agent_cfg.to_dict(), log_dir=None, device=agent_cfg.device)
+    if agent_cfg.policy.class_name == "ActorCriticConv2d":
+        if (
+            env_cfg.scene.tiled_camera.height != agent_cfg.policy.image_input_shape[1]
+            or env_cfg.scene.tiled_camera.width != agent_cfg.policy.image_input_shape[2]
+        ):
+            raise ValueError(
+                f"Mismatch in camera dimensions: tiled_camera.height={env_cfg.scene.tiled_camera.height},"
+                f" tiled_camera.width={env_cfg.scene.tiled_camera.width} must match"
+                f" image_input_shape={agent_cfg.policy.image_input_shape[1]}x{agent_cfg.policy.image_input_shape[2]}"
+            )
+        ppo_runner = OnPolicyRunnerConv2d(env, agent_cfg.to_dict(), log_dir=None, device=agent_cfg.device)
+    else:
+        ppo_runner = OnPolicyRunner(env, agent_cfg.to_dict(), log_dir=None, device=agent_cfg.device)
     ppo_runner.load(resume_path)
 
     # obtain the trained policy for inference
