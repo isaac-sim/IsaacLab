@@ -157,6 +157,7 @@
           </div>
           <select id="version-select" class="version-dropdown" style="margin: 0 auto; display: block;" onchange="location = this.value;">
             <option value="release_notes.html" selected>main</option>
+            <option value="../../../v2.0.2/source/refs/release_notes.html" >v2.0.2</option>
             <option value="../../../v2.0.1/source/refs/release_notes.html" >v2.0.1</option>
             <option value="../../../v2.0.0/source/refs/release_notes.html" >v2.0.0</option>
             <option value="../../../v1.4.1/index.html" >v1.4.1</option>
@@ -721,12 +722,14 @@ from a pre-2.0 release of Isaac Lab.</p>
 <li><p><strong>Actuator Limit Handling</strong>: Introduced <a class="reference internal" href="../api/lab/isaaclab.actuators.html#isaaclab.actuators.ActuatorBaseCfg.velocity_limit_sim" title="isaaclab.actuators.ActuatorBaseCfg.velocity_limit_sim"><code class="xref py py-attr docutils literal notranslate"><span class="pre">velocity_limit_sim</span></code></a>
 and <a class="reference internal" href="../api/lab/isaaclab.actuators.html#isaaclab.actuators.ActuatorBaseCfg.effort_limit_sim" title="isaaclab.actuators.ActuatorBaseCfg.effort_limit_sim"><code class="xref py py-attr docutils literal notranslate"><span class="pre">effort_limit_sim</span></code></a> to clearly distinguish
 simulation solver limits from actuator model constraints. Reverted implicit actuator velocity limits
-to pre-v2.0 behavior.</p></li>
+to pre-v2.0 behavior</p></li>
 <li><p><strong>Simulation configuration update</strong>: Removed <code class="xref py py-attr docutils literal notranslate"><span class="pre">disable_contact_processing</span></code>
-flag to simplify behavior.</p></li>
+flag to simplify behavior</p></li>
 <li><p><strong>Rendering configuration update</strong>: Reverted to pre-2.0 configuration to improve the quality of the
-render product.</p></li>
-<li><p><strong>WebRTC Support</strong>: Added IP specification for live-streaming.</p></li>
+render product</p></li>
+<li><p><strong>Tiled camera fixes</strong>: Fixed motion vector processing and added a hotfix for retrieving semantic
+images from the <a class="reference internal" href="../api/lab/isaaclab.sensors.html#isaaclab.sensors.TiledCamera" title="isaaclab.sensors.TiledCamera"><code class="xref py py-class docutils literal notranslate"><span class="pre">TiledCamera</span></code></a></p></li>
+<li><p><strong>WebRTC Support</strong>: Added IP specification for live-streaming</p></li>
 </ul>
 <p><strong>Full Changelog</strong>: <a class="reference external" href="https://github.com/isaac-sim/IsaacLab/compare/v2.0.1...v2.0.2">https://github.com/isaac-sim/IsaacLab/compare/v2.0.1…v2.0.2</a></p>
 </section>
@@ -741,34 +744,36 @@ render product.</p></li>
 <section id="improvements">
 <h3>Improvements<a class="headerlink" href="#improvements" title="Permalink to this heading">#</a></h3>
 <ul class="simple">
-<li><p>Adds guidelines and examples for code contribution.</p></li>
-<li><p>Separates joint state setters inside Articulation class.</p></li>
-<li><p>Implements deterministic evaluation for skrl’s multi-agent algorithms.</p></li>
-<li><p>Adds new extensions to <code class="docutils literal notranslate"><span class="pre">pyproject.toml</span></code>.</p></li>
-<li><p>Updates docs on Isaac Sim binary installation path and VSCode integration.</p></li>
-<li><p>Removes remaining deprecation warning in RigidObject deprecation.</p></li>
-<li><p>Adds security and show&amp;tell notes to documentation.</p></li>
+<li><p>Adds guidelines and examples for code contribution</p></li>
+<li><p>Separates joint state setters inside Articulation class</p></li>
+<li><p>Implements deterministic evaluation for skrl’s multi-agent algorithms</p></li>
+<li><p>Adds new extensions to <code class="docutils literal notranslate"><span class="pre">pyproject.toml</span></code></p></li>
+<li><p>Updates docs on Isaac Sim binary installation path and VSCode integration</p></li>
+<li><p>Removes remaining deprecation warning in RigidObject deprecation</p></li>
+<li><p>Adds security and show&amp;tell notes to documentation</p></li>
+<li><p>Updates docs for segmentation and 50 series GPUs</p></li>
+<li><p>Adds workaround for semantic segmentation issue with tiled camera</p></li>
 </ul>
 </section>
 <section id="bug-fixes">
 <h3>Bug Fixes<a class="headerlink" href="#bug-fixes" title="Permalink to this heading">#</a></h3>
 <ul class="simple">
-<li><p>Fixes offset from object obs for Franka stacking env when using parallel envs.</p></li>
-<li><p>Adds scene update to ManagerBasedEnv, DirectRLEnv, and MARL envs initialization.</p></li>
-<li><p>Loads actuator networks in eval() mode to prevent gradients.</p></li>
-<li><p>Fixes instructions on importing ANYmal URDF in docs.</p></li>
-<li><p>Fixes setting of root velocities in the event term <code class="xref py py-func docutils literal notranslate"><span class="pre">reset_root_state_from_terrain()</span></code>.</p></li>
-<li><p>Fixes <code class="docutils literal notranslate"><span class="pre">activate_contact_sensors</span></code> when using <code class="xref py py-class docutils literal notranslate"><span class="pre">MultiUsdFileCfg</span></code>.</p></li>
-<li><p>Fixes misalignment in motion vectors from <code class="xref py py-class docutils literal notranslate"><span class="pre">TiledCamera</span></code>.</p></li>
-<li><p>Sets default tensor device to CPU for Camera rot buffer.</p></li>
+<li><p>Fixes offset from object obs for Franka stacking env when using parallel envs</p></li>
+<li><p>Adds scene update to ManagerBasedEnv, DirectRLEnv, and MARL envs initialization</p></li>
+<li><p>Loads actuator networks in eval() mode to prevent gradients</p></li>
+<li><p>Fixes instructions on importing ANYmal URDF in docs</p></li>
+<li><p>Fixes setting of root velocities in the event term <code class="xref py py-func docutils literal notranslate"><span class="pre">reset_root_state_from_terrain()</span></code></p></li>
+<li><p>Fixes <code class="docutils literal notranslate"><span class="pre">activate_contact_sensors</span></code> when using <code class="xref py py-class docutils literal notranslate"><span class="pre">MultiUsdFileCfg</span></code></p></li>
+<li><p>Fixes misalignment in motion vectors from <code class="xref py py-class docutils literal notranslate"><span class="pre">TiledCamera</span></code></p></li>
+<li><p>Sets default tensor device to CPU for Camera rot buffer</p></li>
 </ul>
 </section>
 <section id="breaking-changes">
 <h3>Breaking Changes<a class="headerlink" href="#breaking-changes" title="Permalink to this heading">#</a></h3>
 <ul class="simple">
-<li><p>Reverts the setting of joint velocity limits for implicit actuators.</p></li>
-<li><p>Removes <code class="docutils literal notranslate"><span class="pre">disable_contact_processing</span></code> flag from SimulationContext.</p></li>
-<li><p>Reverts to old render settings in kit experience files.</p></li>
+<li><p>Reverts the setting of joint velocity limits for implicit actuators</p></li>
+<li><p>Removes <code class="docutils literal notranslate"><span class="pre">disable_contact_processing</span></code> flag from SimulationContext</p></li>
+<li><p>Reverts to old render settings in kit experience files</p></li>
 </ul>
 </section>
 <section id="migration-guide">

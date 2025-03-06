@@ -157,6 +157,7 @@
           </div>
           <select id="version-select" class="version-dropdown" style="margin: 0 auto; display: block;" onchange="location = this.value;">
             <option value="docker.html" selected>main</option>
+            <option value="../../../v2.0.2/source/deployment/docker.html" >v2.0.2</option>
             <option value="../../../v2.0.1/source/deployment/docker.html" >v2.0.1</option>
             <option value="../../../v2.0.0/source/deployment/docker.html" >v2.0.0</option>
             <option value="../../../v1.4.1/source/deployment/docker.html" >v1.4.1</option>
@@ -875,7 +876,7 @@ the docker image. The Isaac Lab 2.0 source code will be available in this contai
 with the GUI. Please only use this container for headless training. For other use cases, we recommend
 following the above steps to build your own Isaac Lab docker image.</p>
 <p>To pull the minimal Isaac Lab container, run:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>docker<span class="w"> </span>pull<span class="w"> </span>nvcr.io/nvidia/isaac-lab:2.0.1
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>docker<span class="w"> </span>pull<span class="w"> </span>nvcr.io/nvidia/isaac-lab:2.0.2
 </pre></div>
 </div>
 <p>To run the Isaac Lab container with an interactive bash session, run:</p>
@@ -889,7 +890,7 @@ following the above steps to build your own Isaac Lab docker image.</p>
 <span class="w">   </span>-v<span class="w"> </span>~/docker/isaac-sim/logs:/root/.nvidia-omniverse/logs:rw<span class="w"> </span><span class="se">\</span>
 <span class="w">   </span>-v<span class="w"> </span>~/docker/isaac-sim/data:/root/.local/share/ov/data:rw<span class="w"> </span><span class="se">\</span>
 <span class="w">   </span>-v<span class="w"> </span>~/docker/isaac-sim/documents:/root/Documents:rw<span class="w"> </span><span class="se">\</span>
-<span class="w">   </span>nvcr.io/nvidia/isaac-lab:2.0.1
+<span class="w">   </span>nvcr.io/nvidia/isaac-lab:2.0.2
 </pre></div>
 </div>
 <p>To run an example within the container, run:</p>
