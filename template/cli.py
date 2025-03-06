@@ -11,6 +11,7 @@ from collections.abc import Callable
 import rich.console
 import rich.table
 from common import ROOT_DIR, TEMPLATE_DIR
+from generator import generate
 from InquirerPy import inquirer, separator
 
 
@@ -58,6 +59,17 @@ class CLIHandler:
         ).execute()
 
     def input_checkbox(self, message: str, choices: list[str], default: str | None = None) -> list[str]:
+        """Prompt the user to select one or more options from a list of choices.
+
+        Args:
+            message: The message to display to the user.
+            choices: The list of choices to display to the user.
+            default: The default choice.
+
+        Returns:
+            The selected choices.
+        """
+
         def transformer(result: list[str]) -> str:
             if "all" in result or "both" in result:
                 token = "all" if "all" in result else "both"
@@ -81,8 +93,19 @@ class CLIHandler:
         message: str,
         default: str | None = None,
         validate: Callable[[str], bool] | None = None,
-        invalid_message: str | None = None,
+        invalid_message: str = "",
     ) -> str:
+        """Prompt the user to input a path.
+
+        Args:
+            message: The message to display to the user.
+            default: The default path.
+            validate: A callable to validate the path.
+            invalid_message: The message to display to the user if the path is invalid.
+
+        Returns:
+            The input path.
+        """
         return inquirer.filepath(
             message=message,
             default=default if default is not None else "",
@@ -90,9 +113,29 @@ class CLIHandler:
             invalid_message=invalid_message,
         ).execute()
 
-    def input_text(self, message: str, default: str | None = None) -> str:
-        return inquirer.filepath(
+    def input_text(
+        self,
+        message: str,
+        default: str | None = None,
+        validate: Callable[[str], bool] | None = None,
+        invalid_message: str = "",
+    ) -> str:
+        """Prompt the user to input a text.
+
+        Args:
+            message: The message to display to the user.
+            default: The default text.
+            validate: A callable to validate the text.
+            invalid_message: The message to display to the user if the text is invalid.
+
+        Returns:
+            The input text.
+        """
+        return inquirer.text(
             message=message,
+            default=default if default is not None else "",
+            validate=validate,
+            invalid_message=invalid_message,
         ).execute()
 
 
@@ -111,7 +154,8 @@ def _get_algorithms_per_rl_library():
     return data
 
 
-def main():
+def main() -> None:
+    """Main function to run template generation from CLI."""
     cli_handler = CLIHandler()
 
     # project type
@@ -136,6 +180,15 @@ def main():
             validate=lambda path: not os.path.abspath(path).startswith(os.path.abspath(ROOT_DIR)),
             invalid_message="External project path cannot be within the Isaac Lab project",
         )
+
+    # project/task name
+    project_name = cli_handler.input_text(
+        "Project name:" if is_external_project else "Task name:",
+        validate=lambda name: name.isidentifier(),
+        invalid_message=(
+            "Project/task name must be a valid identifier (Letters, numbers and underscores only. No spaces, etc.)"
+        ),
+    )
 
     # Isaac Lab workflow
     # - show supported workflows and features
@@ -194,22 +247,14 @@ def main():
             )
         rl_library_algorithms.append({"name": rl_library, "algorithms": [item.lower() for item in algorithms]})
 
-    # - get project path
-    # # path
-
-    # if external_project == "External":
-    #     path = cli_handler.input_path("Project path:", default=os.path.abspath(os.path.join(os.getcwd(), "..")) + os.sep)
-    # else:
-    #     path = cli_handler.input_path("Project path:", default=os.path.abspath(os.path.join(os.getcwd(), "..")) + os.sep)
-    # name = cli_handler.input_text("Project name:")
-
     specification = {
         "external": is_external_project,
         "path": project_path,
+        "name": project_name,
         "workflows": workflow,
         "rl_libraries": rl_library_algorithms,
     }
-    print(specification)
+    generate(specification)
 
 
 if __name__ == "__main__":
