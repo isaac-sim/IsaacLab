@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.1.1 (2025-03-06)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added configuration for RSL RL actor-critic networks with convolutional layers.
+
+
 0.1.0 (2024-12-27)
 ~~~~~~~~~~~~~~~~~~
 

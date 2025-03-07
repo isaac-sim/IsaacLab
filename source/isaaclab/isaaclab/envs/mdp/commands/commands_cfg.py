@@ -12,7 +12,7 @@ from isaaclab.markers.config import BLUE_ARROW_X_MARKER_CFG, FRAME_MARKER_CFG, G
 from isaaclab.utils import configclass
 
 from .null_command import NullCommand
-from .pose_2d_command import TerrainBasedPose2dCommand, UniformPose2dCommand
+from .pose_2d_command import ObstaclePose2dCommand, TerrainBasedPose2dCommand, UniformPose2dCommand
 from .pose_command import UniformPoseCommand
 from .velocity_command import NormalVelocityCommand, UniformVelocityCommand
 
@@ -226,6 +226,29 @@ class UniformPose2dCommandCfg(CommandTermCfg):
 
     # Set the scale of the visualization markers to (0.2, 0.2, 0.8)
     goal_pose_visualizer_cfg.markers["arrow"].scale = (0.2, 0.2, 0.8)
+
+
+@configclass
+class ObstaclePose2dCommandCfg(UniformPose2dCommandCfg):
+    """Configuration for the obstacle-based 2D-pose command generator."""
+
+    class_type: type = ObstaclePose2dCommand
+
+    object_name: str = MISSING
+    """Name of the obstacle object in the environment."""
+
+    @configclass
+    class Ranges:
+        """Uniform distribution ranges for the position commands."""
+
+        heading: tuple[float, float] = MISSING
+        """Heading range for the position commands (in rad).
+
+        Used only if :attr:`simple_heading` is False.
+        """
+
+    ranges: Ranges = MISSING
+    """Distribution ranges for the sampled commands."""
 
 
 @configclass

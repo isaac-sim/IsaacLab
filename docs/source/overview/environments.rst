@@ -289,15 +289,19 @@ Navigation
 .. table::
     :widths: 33 37 30
 
-    +----------------+---------------------+-----------------------------------------------------------------------------+
-    | World          | Environment ID      | Description                                                                 |
-    +================+=====================+=============================================================================+
-    | |anymal_c_nav| | |anymal_c_nav-link| | Navigate towards a target x-y position and heading with the ANYmal C robot. |
-    +----------------+---------------------+-----------------------------------------------------------------------------+
+    +-------------------------+------------------------------+---------------------------------------------------------------------------------------------------------+
+    | World                   | Environment ID               | Description                                                                                             |
+    +=========================+==============================+=========================================================================================================+
+    | |anymal_c_nav|          | |anymal_c_nav-link|          | Navigate towards a target x-y position and heading with the ANYmal C robot.                             |
+    +-------------------------+------------------------------+---------------------------------------------------------------------------------------------------------+
+    | |anymal_c_nav_obstacle| | |anymal_c_nav_obstacle-link| | Navigate towards a target x-y position and heading with the ANYmal C robot in a scene with an obstacle. |
+    +-------------------------+------------------------------+---------------------------------------------------------------------------------------------------------+
 
 .. |anymal_c_nav-link| replace:: `Isaac-Navigation-Flat-Anymal-C-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/navigation/config/anymal_c/navigation_env_cfg.py>`__
+.. |anymal_c_nav_obstacle-link| replace:: `Isaac-Navigation-Flat-Obstacle-Anymal-C-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/navigation/config/anymal_c/navigation_obstacle_env_cfg.py>`__
 
 .. |anymal_c_nav| image:: ../_static/tasks/navigation/anymal_c_nav.jpg
+.. |anymal_c_nav_obstacle| image:: ../_static/tasks/navigation/anymal_c_nav_obstacle.jpg
 
 
 Others
@@ -492,6 +496,10 @@ Comprehensive List of Environments
       - Isaac-Navigation-Flat-Anymal-C-Play-v0
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO)
+    * - Isaac-Navigation-Flat-Obstacle-Anymal-C-v0
+      - Isaac-Navigation-Flat-Obstacle-Anymal-C-Play-v0
+      - Manager Based
+      - **rsl_rl** (PPO)
     * - Isaac-Open-Drawer-Franka-IK-Abs-v0
       -
       - Manager Based
