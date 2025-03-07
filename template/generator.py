@@ -18,11 +18,13 @@ jinja_env = jinja2.Environment(
 )
 
 
-def _replace_in_file(path: str, old: str, new: str):
-    with open(path) as file:
-        file_content = file.read()
-    with open(path, "w") as file:
-        file.write(file_content.replace(old, new))
+def _replace_in_file(replacements: list[tuple[str, str]], src: str, dst: str | None = None):
+    with open(src) as file:
+        content = file.read()
+    for old, new in replacements:
+        content = content.replace(old, new)
+    with open(src if dst is None else dst, "w") as file:
+        file.write(content)
 
 
 def _write_file(dst: str, content: str):
@@ -112,6 +114,7 @@ def _external(specification: dict):
         os.path.join(TEMPLATE_DIR, "external", ".vscode"), os.path.join(project_dir, ".vscode"), dirs_exist_ok=True
     )
     # scripts
+    # reinforcement learning libraries
     dir = os.path.join(project_dir, "scripts")
     os.makedirs(dir, exist_ok=True)
     for rl_library in specification["rl_libraries"]:
@@ -123,11 +126,18 @@ def _external(specification: dict):
         # replace placeholder in scripts
         for file in glob.glob(os.path.join(dir, rl_library["name"], "*.py")):
             _replace_in_file(
-                file,
-                "# PLACEHOLDER: Extension template (do not remove this comment)",
-                f"import {name}.tasks  # noqa: F401",
+                [(
+                    "# PLACEHOLDER: Extension template (do not remove this comment)",
+                    f"import {name}.tasks  # noqa: F401",
+                )],
+                src=file,
             )
-
+    # - other scripts
+    _replace_in_file(
+        [("import isaaclab_tasks", f"import {name}.tasks"), ("isaaclab_tasks", name)],
+        src=os.path.join(ROOT_DIR, "scripts", "environments", "list_envs.py"),
+        dst=os.path.join(dir, "list_envs.py"),
+    )
     # docker files
     dir = os.path.join(project_dir, "docker")
     os.makedirs(dir, exist_ok=True)
@@ -150,10 +160,11 @@ def _external(specification: dict):
     _write_file(
         os.path.join(dir, "CHANGELOG.rst"), content=template.render({"date": datetime.now().strftime("%Y-%m-%d")})
     )
-    # - setup.py
+    # - setup.py and pyproject.toml
     dir = os.path.join(project_dir, "source", name)
     template = jinja_env.get_template("extension/setup.py")
     _write_file(os.path.join(dir, "setup.py"), content=template.render(**specification))
+    shutil.copyfile(os.path.join(TEMPLATE_DIR, "extension", "pyproject.toml"), os.path.join(dir, "pyproject.toml"))
     # - tasks
     dir = os.path.join(project_dir, "source", name, name, "tasks")
     os.makedirs(dir, exist_ok=True)
