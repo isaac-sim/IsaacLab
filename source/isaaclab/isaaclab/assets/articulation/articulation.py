@@ -267,7 +267,7 @@ class Articulation(AssetBase):
         return string_utils.resolve_matching_names(name_keys, tendon_subsets, preserve_order)
 
     """
-    Operations - Writers.
+    Operations - State Writers.
     """
 
     def write_root_state_to_sim(self, root_state: torch.Tensor, env_ids: Sequence[int] | None = None):
@@ -550,6 +550,10 @@ class Articulation(AssetBase):
         # set into simulation
         self.root_physx_view.set_dof_velocities(self._data.joint_vel, indices=physx_env_ids)
 
+    """
+    Operations - Simulation Parameters Writers.
+    """
+
     def write_joint_stiffness_to_sim(
         self,
         stiffness: torch.Tensor | float,
@@ -589,10 +593,8 @@ class Articulation(AssetBase):
 
         Args:
             damping: Joint damping. Shape is (len(env_ids), len(joint_ids)).
-            joint_ids: The joint indices to set the damping for.
-                Defaults to None (all joints).
-            env_ids: The environment indices to set the damping for.
-                Defaults to None (all environments).
+            joint_ids: The joint indices to set the damping for. Defaults to None (all joints).
+            env_ids: The environment indices to set the damping for. Defaults to None (all environments).
         """
         # note: This function isn't setting the values for actuator models. (#128)
         # resolve indices
@@ -610,6 +612,66 @@ class Articulation(AssetBase):
         # set into simulation
         self.root_physx_view.set_dof_dampings(self._data.joint_damping.cpu(), indices=physx_env_ids.cpu())
 
+    def write_joint_position_limit_to_sim(
+        self,
+        limits: torch.Tensor | float,
+        joint_ids: Sequence[int] | slice | None = None,
+        env_ids: Sequence[int] | None = None,
+        warn_limit_violation: bool = True,
+    ):
+        """Write joint position limits into the simulation.
+
+        Args:
+            limits: Joint limits. Shape is (len(env_ids), len(joint_ids), 2).
+            joint_ids: The joint indices to set the limits for. Defaults to None (all joints).
+            env_ids: The environment indices to set the limits for. Defaults to None (all environments).
+            warn_limit_violation: Whether to use warning or info level logging when default joint positions
+                exceed the new limits. Defaults to True.
+        """
+        # note: This function isn't setting the values for actuator models. (#128)
+        # resolve indices
+        physx_env_ids = env_ids
+        if env_ids is None:
+            env_ids = slice(None)
+            physx_env_ids = self._ALL_INDICES
+        if joint_ids is None:
+            joint_ids = slice(None)
+        # broadcast env_ids if needed to allow double indexing
+        if env_ids != slice(None) and joint_ids != slice(None):
+            env_ids = env_ids[:, None]
+        # set into internal buffers
+        self._data.joint_pos_limits[env_ids, joint_ids] = limits
+        # update default joint pos to stay within the new limits
+        if torch.any(
+            (self._data.default_joint_pos[env_ids, joint_ids] < limits[..., 0])
+            | (self._data.default_joint_pos[env_ids, joint_ids] > limits[..., 1])
+        ):
+            self._data.default_joint_pos[env_ids, joint_ids] = torch.clamp(
+                self._data.default_joint_pos[env_ids, joint_ids], limits[..., 0], limits[..., 1]
+            )
+            violation_message = (
+                "Some default joint positions are outside of the range of the new joint limits. Default joint positions"
+                " will be clamped to be within the new joint limits."
+            )
+            if warn_limit_violation:
+                # warn level will show in console
+                omni.log.warn(violation_message)
+            else:
+                # info level is only written to log file
+                omni.log.info(violation_message)
+        # set into simulation
+        self.root_physx_view.set_dof_limits(self._data.joint_pos_limits.cpu(), indices=physx_env_ids.cpu())
+
+        # compute the soft limits based on the joint limits
+        # TODO: Optimize this computation for only selected joints
+        # soft joint position limits (recommended not to be too close to limits).
+        joint_pos_mean = (self._data.joint_pos_limits[..., 0] + self._data.joint_pos_limits[..., 1]) / 2
+        joint_pos_range = self._data.joint_pos_limits[..., 1] - self._data.joint_pos_limits[..., 0]
+        soft_limit_factor = self.cfg.soft_joint_pos_limit_factor
+        # add to data
+        self._data.soft_joint_pos_limits[..., 0] = joint_pos_mean - 0.5 * joint_pos_range * soft_limit_factor
+        self._data.soft_joint_pos_limits[..., 1] = joint_pos_mean + 0.5 * joint_pos_range * soft_limit_factor
+
     def write_joint_velocity_limit_to_sim(
         self,
         limits: torch.Tensor | float,
@@ -617,6 +679,10 @@ class Articulation(AssetBase):
         env_ids: Sequence[int] | None = None,
     ):
         """Write joint max velocity to the simulation.
+
+        The velocity limit is used to constrain the joint velocities in the physics engine. The joint will only
+        be able to reach this velocity if the joint's effort limit is sufficiently large. If the joint is moving
+        faster than this velocity, the physics engine will actually try to brake the joint to reach this velocity.
 
         Args:
             limits: Joint max velocity. Shape is (len(env_ids), len(joint_ids)).
@@ -636,12 +702,10 @@ class Articulation(AssetBase):
         # move tensor to cpu if needed
         if isinstance(limits, torch.Tensor):
             limits = limits.to(self.device)
-
         # set into internal buffers
-        self._data.joint_velocity_limits = self.root_physx_view.get_dof_max_velocities().to(self.device)
-        self._data.joint_velocity_limits[env_ids, joint_ids] = limits
+        self._data.joint_vel_limits[env_ids, joint_ids] = limits
         # set into simulation
-        self.root_physx_view.set_dof_max_velocities(self._data.joint_velocity_limits.cpu(), indices=physx_env_ids.cpu())
+        self.root_physx_view.set_dof_max_velocities(self._data.joint_vel_limits.cpu(), indices=physx_env_ids.cpu())
 
     def write_joint_effort_limit_to_sim(
         self,
@@ -650,6 +714,9 @@ class Articulation(AssetBase):
         env_ids: Sequence[int] | None = None,
     ):
         """Write joint effort limits into the simulation.
+
+        The effort limit is used to constrain the computed joint efforts in the physics engine. If the
+        computed effort exceeds this limit, the physics engine will clip the effort to this value.
 
         Args:
             limits: Joint torque limits. Shape is (len(env_ids), len(joint_ids)).
@@ -669,12 +736,11 @@ class Articulation(AssetBase):
             env_ids = env_ids[:, None]
         # move tensor to cpu if needed
         if isinstance(limits, torch.Tensor):
-            limits = limits.cpu()
+            limits = limits.to(self.device)
         # set into internal buffers
-        torque_limit_all = self.root_physx_view.get_dof_max_forces()
-        torque_limit_all[env_ids, joint_ids] = limits
+        self._data.joint_effort_limits[env_ids, joint_ids] = limits
         # set into simulation
-        self.root_physx_view.set_dof_max_forces(torque_limit_all.cpu(), indices=physx_env_ids.cpu())
+        self.root_physx_view.set_dof_max_forces(self._data.joint_effort_limits.cpu(), indices=physx_env_ids.cpu())
 
     def write_joint_armature_to_sim(
         self,
@@ -683,6 +749,9 @@ class Articulation(AssetBase):
         env_ids: Sequence[int] | None = None,
     ):
         """Write joint armature into the simulation.
+
+        The armature is directly added to the corresponding joint-space inertia. It helps improve the
+        simulation stability by reducing the joint velocities.
 
         Args:
             armature: Joint armature. Shape is (len(env_ids), len(joint_ids)).
@@ -704,13 +773,22 @@ class Articulation(AssetBase):
         # set into simulation
         self.root_physx_view.set_dof_armatures(self._data.joint_armature.cpu(), indices=physx_env_ids.cpu())
 
-    def write_joint_friction_to_sim(
+    def write_joint_friction_coefficient_to_sim(
         self,
-        joint_friction: torch.Tensor | float,
+        joint_friction_coeff: torch.Tensor | float,
         joint_ids: Sequence[int] | slice | None = None,
         env_ids: Sequence[int] | None = None,
     ):
-        """Write joint friction into the simulation.
+        r"""Write joint friction coefficients into the simulation.
+
+        The joint friction is a unitless quantity. It relates the magnitude of the spatial force transmitted
+        from the parent body to the child body to the maximal friction force that may be applied by the solver
+        to resist the joint motion.
+
+        Mathematically, this means that: :math:`F_{resist} \leq \mu F_{spatial}`, where :math:`F_{resist}`
+        is the resisting force applied by the solver and :math:`F_{spatial}` is the spatial force
+        transmitted from the parent body to the child body. The simulated friction effect is therefore
+        similar to static and Coulomb friction.
 
         Args:
             joint_friction: Joint friction. Shape is (len(env_ids), len(joint_ids)).
@@ -728,58 +806,11 @@ class Articulation(AssetBase):
         if env_ids != slice(None) and joint_ids != slice(None):
             env_ids = env_ids[:, None]
         # set into internal buffers
-        self._data.joint_friction[env_ids, joint_ids] = joint_friction
+        self._data.joint_friction_coeff[env_ids, joint_ids] = joint_friction_coeff
         # set into simulation
-        self.root_physx_view.set_dof_friction_coefficients(self._data.joint_friction.cpu(), indices=physx_env_ids.cpu())
-
-    def write_joint_limits_to_sim(
-        self,
-        limits: torch.Tensor | float,
-        joint_ids: Sequence[int] | slice | None = None,
-        env_ids: Sequence[int] | None = None,
-        warn_limit_violation: bool = True,
-    ):
-        """Write joint limits into the simulation.
-
-        Args:
-            limits: Joint limits. Shape is (len(env_ids), len(joint_ids), 2).
-            joint_ids: The joint indices to set the limits for. Defaults to None (all joints).
-            env_ids: The environment indices to set the limits for. Defaults to None (all environments).
-            warn_limit_violation: Whether to use warning or info level logging when default joint positions exceed the new limits. Defaults to True.
-        """
-        # note: This function isn't setting the values for actuator models. (#128)
-        # resolve indices
-        physx_env_ids = env_ids
-        if env_ids is None:
-            env_ids = slice(None)
-            physx_env_ids = self._ALL_INDICES
-        if joint_ids is None:
-            joint_ids = slice(None)
-        # broadcast env_ids if needed to allow double indexing
-        if env_ids != slice(None) and joint_ids != slice(None):
-            env_ids = env_ids[:, None]
-        # set into internal buffers
-        self._data.joint_limits[env_ids, joint_ids] = limits
-        # update default joint pos to stay within the new limits
-        if torch.any(
-            (self._data.default_joint_pos[env_ids, joint_ids] < limits[..., 0])
-            | (self._data.default_joint_pos[env_ids, joint_ids] > limits[..., 1])
-        ):
-            self._data.default_joint_pos[env_ids, joint_ids] = torch.clamp(
-                self._data.default_joint_pos[env_ids, joint_ids], limits[..., 0], limits[..., 1]
-            )
-            violation_message = (
-                "Some default joint positions are outside of the range of the new joint limits. Default joint positions"
-                " will be clamped to be within the new joint limits."
-            )
-            if warn_limit_violation:
-                # warn level will show in console
-                omni.log.warn(violation_message)
-            else:
-                # info level is only written to log file
-                omni.log.info(violation_message)
-        # set into simulation
-        self.root_physx_view.set_dof_limits(self._data.joint_limits.cpu(), indices=physx_env_ids.cpu())
+        self.root_physx_view.set_dof_friction_coefficients(
+            self._data.joint_friction_coeff.cpu(), indices=physx_env_ids.cpu()
+        )
 
     """
     Operations - Setters.
@@ -852,9 +883,8 @@ class Articulation(AssetBase):
     ):
         """Set joint position targets into internal buffers.
 
-        .. note::
-            This function does not apply the joint targets to the simulation. It only fills the buffers with
-            the desired values. To apply the joint targets, call the :meth:`write_data_to_sim` function.
+        This function does not apply the joint targets to the simulation. It only fills the buffers with
+        the desired values. To apply the joint targets, call the :meth:`write_data_to_sim` function.
 
         Args:
             target: Joint position targets. Shape is (len(env_ids), len(joint_ids)).
@@ -877,9 +907,8 @@ class Articulation(AssetBase):
     ):
         """Set joint velocity targets into internal buffers.
 
-        .. note::
-            This function does not apply the joint targets to the simulation. It only fills the buffers with
-            the desired values. To apply the joint targets, call the :meth:`write_data_to_sim` function.
+        This function does not apply the joint targets to the simulation. It only fills the buffers with
+        the desired values. To apply the joint targets, call the :meth:`write_data_to_sim` function.
 
         Args:
             target: Joint velocity targets. Shape is (len(env_ids), len(joint_ids)).
@@ -902,9 +931,8 @@ class Articulation(AssetBase):
     ):
         """Set joint efforts into internal buffers.
 
-        .. note::
-            This function does not apply the joint targets to the simulation. It only fills the buffers with
-            the desired values. To apply the joint targets, call the :meth:`write_data_to_sim` function.
+        This function does not apply the joint targets to the simulation. It only fills the buffers with
+        the desired values. To apply the joint targets, call the :meth:`write_data_to_sim` function.
 
         Args:
             target: Joint effort targets. Shape is (len(env_ids), len(joint_ids)).
@@ -934,9 +962,8 @@ class Articulation(AssetBase):
     ):
         """Set fixed tendon stiffness into internal buffers.
 
-        .. note::
-            This function does not apply the tendon stiffness to the simulation. It only fills the buffers with
-            the desired values. To apply the tendon stiffness, call the :meth:`write_fixed_tendon_properties_to_sim` function.
+        This function does not apply the tendon stiffness to the simulation. It only fills the buffers with
+        the desired values. To apply the tendon stiffness, call the :meth:`write_fixed_tendon_properties_to_sim` function.
 
         Args:
             stiffness: Fixed tendon stiffness. Shape is (len(env_ids), len(fixed_tendon_ids)).
@@ -961,9 +988,8 @@ class Articulation(AssetBase):
     ):
         """Set fixed tendon damping into internal buffers.
 
-        .. note::
-            This function does not apply the tendon damping to the simulation. It only fills the buffers with
-            the desired values. To apply the tendon damping, call the :meth:`write_fixed_tendon_properties_to_sim` function.
+        This function does not apply the tendon damping to the simulation. It only fills the buffers with
+        the desired values. To apply the tendon damping, call the :meth:`write_fixed_tendon_properties_to_sim` function.
 
         Args:
             damping: Fixed tendon damping. Shape is (len(env_ids), len(fixed_tendon_ids)).
@@ -988,9 +1014,8 @@ class Articulation(AssetBase):
     ):
         """Set fixed tendon limit stiffness efforts into internal buffers.
 
-        .. note::
-            This function does not apply the tendon limit stiffness to the simulation. It only fills the buffers with
-            the desired values. To apply the tendon limit stiffness, call the :meth:`write_fixed_tendon_properties_to_sim` function.
+        This function does not apply the tendon limit stiffness to the simulation. It only fills the buffers with
+        the desired values. To apply the tendon limit stiffness, call the :meth:`write_fixed_tendon_properties_to_sim` function.
 
         Args:
             limit_stiffness: Fixed tendon limit stiffness. Shape is (len(env_ids), len(fixed_tendon_ids)).
@@ -1007,7 +1032,7 @@ class Articulation(AssetBase):
         # set limit_stiffness
         self._data.fixed_tendon_limit_stiffness[env_ids, fixed_tendon_ids] = limit_stiffness
 
-    def set_fixed_tendon_limit(
+    def set_fixed_tendon_position_limit(
         self,
         limit: torch.Tensor,
         fixed_tendon_ids: Sequence[int] | slice | None = None,
@@ -1015,9 +1040,8 @@ class Articulation(AssetBase):
     ):
         """Set fixed tendon limit efforts into internal buffers.
 
-        .. note::
-             This function does not apply the tendon limit to the simulation. It only fills the buffers with
-             the desired values. To apply the tendon limit, call the :meth:`write_fixed_tendon_properties_to_sim` function.
+        This function does not apply the tendon limit to the simulation. It only fills the buffers with
+        the desired values. To apply the tendon limit, call the :meth:`write_fixed_tendon_properties_to_sim` function.
 
          Args:
              limit: Fixed tendon limit. Shape is (len(env_ids), len(fixed_tendon_ids)).
@@ -1032,7 +1056,7 @@ class Articulation(AssetBase):
         if env_ids != slice(None) and fixed_tendon_ids != slice(None):
             env_ids = env_ids[:, None]
         # set limit
-        self._data.fixed_tendon_limit[env_ids, fixed_tendon_ids] = limit
+        self._data.fixed_tendon_pos_limits[env_ids, fixed_tendon_ids] = limit
 
     def set_fixed_tendon_rest_length(
         self,
@@ -1042,9 +1066,8 @@ class Articulation(AssetBase):
     ):
         """Set fixed tendon rest length efforts into internal buffers.
 
-        .. note::
-            This function does not apply the tendon rest length to the simulation. It only fills the buffers with
-            the desired values. To apply the tendon rest length, call the :meth:`write_fixed_tendon_properties_to_sim` function.
+        This function does not apply the tendon rest length to the simulation. It only fills the buffers with
+        the desired values. To apply the tendon rest length, call the :meth:`write_fixed_tendon_properties_to_sim` function.
 
         Args:
             rest_length: Fixed tendon rest length. Shape is (len(env_ids), len(fixed_tendon_ids)).
@@ -1069,9 +1092,8 @@ class Articulation(AssetBase):
     ):
         """Set fixed tendon offset efforts into internal buffers.
 
-        .. note::
-            This function does not apply the tendon offset to the simulation. It only fills the buffers with
-            the desired values. To apply the tendon offset, call the :meth:`write_fixed_tendon_properties_to_sim` function.
+        This function does not apply the tendon offset to the simulation. It only fills the buffers with
+        the desired values. To apply the tendon offset, call the :meth:`write_fixed_tendon_properties_to_sim` function.
 
         Args:
             offset: Fixed tendon offset. Shape is (len(env_ids), len(fixed_tendon_ids)).
@@ -1111,7 +1133,7 @@ class Articulation(AssetBase):
             self._data.fixed_tendon_stiffness,
             self._data.fixed_tendon_damping,
             self._data.fixed_tendon_limit_stiffness,
-            self._data.fixed_tendon_limit,
+            self._data.fixed_tendon_pos_limits,
             self._data.fixed_tendon_rest_length,
             self._data.fixed_tendon_offset,
             indices=physx_env_ids,
@@ -1180,7 +1202,7 @@ class Articulation(AssetBase):
         # update the robot data
         self.update(0.0)
         # log joint information
-        self._log_articulation_joint_info()
+        self._log_articulation_info()
 
     def _create_buffers(self):
         # constants
@@ -1191,98 +1213,57 @@ class Articulation(AssetBase):
         self._external_force_b = torch.zeros((self.num_instances, self.num_bodies, 3), device=self.device)
         self._external_torque_b = torch.zeros_like(self._external_force_b)
 
-        # asset data
-        # -- properties
+        # asset named data
         self._data.joint_names = self.joint_names
         self._data.body_names = self.body_names
+        # tendon names are set in _process_fixed_tendons function
 
-        # -- bodies
+        # -- joint properties
+        self._data.default_joint_pos_limits = self.root_physx_view.get_dof_limits().to(self.device).clone()
+        self._data.default_joint_stiffness = self.root_physx_view.get_dof_stiffnesses().to(self.device).clone()
+        self._data.default_joint_damping = self.root_physx_view.get_dof_dampings().to(self.device).clone()
+        self._data.default_joint_armature = self.root_physx_view.get_dof_armatures().to(self.device).clone()
+        self._data.default_joint_friction_coeff = (
+            self.root_physx_view.get_dof_friction_coefficients().to(self.device).clone()
+        )
+
+        self._data.joint_pos_limits = self._data.default_joint_pos_limits.clone()
+        self._data.joint_vel_limits = self.root_physx_view.get_dof_max_velocities().to(self.device).clone()
+        self._data.joint_effort_limits = self.root_physx_view.get_dof_max_forces().to(self.device).clone()
+        self._data.joint_stiffness = self._data.default_joint_stiffness.clone()
+        self._data.joint_damping = self._data.default_joint_damping.clone()
+        self._data.joint_armature = self._data.default_joint_armature.clone()
+        self._data.joint_friction_coeff = self._data.default_joint_friction_coeff.clone()
+
+        # -- body properties
         self._data.default_mass = self.root_physx_view.get_masses().clone()
         self._data.default_inertia = self.root_physx_view.get_inertias().clone()
 
-        # -- default joint state
-        self._data.default_joint_pos = torch.zeros(self.num_instances, self.num_joints, device=self.device)
-        self._data.default_joint_vel = torch.zeros_like(self._data.default_joint_pos)
-
-        # -- joint commands
-        self._data.joint_pos_target = torch.zeros_like(self._data.default_joint_pos)
-        self._data.joint_vel_target = torch.zeros_like(self._data.default_joint_pos)
-        self._data.joint_effort_target = torch.zeros_like(self._data.default_joint_pos)
-        self._data.joint_stiffness = torch.zeros_like(self._data.default_joint_pos)
-        self._data.joint_damping = torch.zeros_like(self._data.default_joint_pos)
-        self._data.joint_armature = torch.zeros_like(self._data.default_joint_pos)
-        self._data.joint_friction = torch.zeros_like(self._data.default_joint_pos)
-        self._data.joint_limits = torch.zeros(self.num_instances, self.num_joints, 2, device=self.device)
-
-        # -- joint commands (explicit)
-        self._data.computed_torque = torch.zeros_like(self._data.default_joint_pos)
-        self._data.applied_torque = torch.zeros_like(self._data.default_joint_pos)
-
-        # -- tendons
-        if self.num_fixed_tendons > 0:
-            self._data.fixed_tendon_stiffness = torch.zeros(
-                self.num_instances, self.num_fixed_tendons, device=self.device
-            )
-            self._data.fixed_tendon_damping = torch.zeros(
-                self.num_instances, self.num_fixed_tendons, device=self.device
-            )
-            self._data.fixed_tendon_limit_stiffness = torch.zeros(
-                self.num_instances, self.num_fixed_tendons, device=self.device
-            )
-            self._data.fixed_tendon_limit = torch.zeros(
-                self.num_instances, self.num_fixed_tendons, 2, device=self.device
-            )
-            self._data.fixed_tendon_rest_length = torch.zeros(
-                self.num_instances, self.num_fixed_tendons, device=self.device
-            )
-            self._data.fixed_tendon_offset = torch.zeros(self.num_instances, self.num_fixed_tendons, device=self.device)
-
-        # -- other data
-        self._data.soft_joint_pos_limits = torch.zeros(self.num_instances, self.num_joints, 2, device=self.device)
-        self._data.soft_joint_vel_limits = torch.zeros(self.num_instances, self.num_joints, device=self.device)
-        self._data.gear_ratio = torch.ones(self.num_instances, self.num_joints, device=self.device)
-
-        # -- initialize default buffers related to joint properties
-        self._data.default_joint_stiffness = torch.zeros(self.num_instances, self.num_joints, device=self.device)
-        self._data.default_joint_damping = torch.zeros(self.num_instances, self.num_joints, device=self.device)
-        self._data.default_joint_armature = torch.zeros(self.num_instances, self.num_joints, device=self.device)
-        self._data.default_joint_friction = torch.zeros(self.num_instances, self.num_joints, device=self.device)
-        self._data.default_joint_limits = torch.zeros(self.num_instances, self.num_joints, 2, device=self.device)
-
-        # -- initialize default buffers related to fixed tendon properties
-        if self.num_fixed_tendons > 0:
-            self._data.default_fixed_tendon_stiffness = torch.zeros(
-                self.num_instances, self.num_fixed_tendons, device=self.device
-            )
-            self._data.default_fixed_tendon_damping = torch.zeros(
-                self.num_instances, self.num_fixed_tendons, device=self.device
-            )
-            self._data.default_fixed_tendon_limit_stiffness = torch.zeros(
-                self.num_instances, self.num_fixed_tendons, device=self.device
-            )
-            self._data.default_fixed_tendon_limit = torch.zeros(
-                self.num_instances, self.num_fixed_tendons, 2, device=self.device
-            )
-            self._data.default_fixed_tendon_rest_length = torch.zeros(
-                self.num_instances, self.num_fixed_tendons, device=self.device
-            )
-            self._data.default_fixed_tendon_offset = torch.zeros(
-                self.num_instances, self.num_fixed_tendons, device=self.device
-            )
-
-        # soft joint position limits (recommended not to be too close to limits).
-        joint_pos_limits = self.root_physx_view.get_dof_limits()
-        joint_pos_mean = (joint_pos_limits[..., 0] + joint_pos_limits[..., 1]) / 2
-        joint_pos_range = joint_pos_limits[..., 1] - joint_pos_limits[..., 0]
-        soft_limit_factor = self.cfg.soft_joint_pos_limit_factor
-        # add to data
-        self._data.soft_joint_pos_limits[..., 0] = joint_pos_mean - 0.5 * joint_pos_range * soft_limit_factor
-        self._data.soft_joint_pos_limits[..., 1] = joint_pos_mean + 0.5 * joint_pos_range * soft_limit_factor
-
-        # create buffers to store processed actions from actuator models
+        # -- joint commands (sent to the actuator from the user)
+        self._data.joint_pos_target = torch.zeros(self.num_instances, self.num_joints, device=self.device)
+        self._data.joint_vel_target = torch.zeros_like(self._data.joint_pos_target)
+        self._data.joint_effort_target = torch.zeros_like(self._data.joint_pos_target)
+        # -- joint commands (sent to the simulation after actuator processing)
         self._joint_pos_target_sim = torch.zeros_like(self._data.joint_pos_target)
         self._joint_vel_target_sim = torch.zeros_like(self._data.joint_pos_target)
         self._joint_effort_target_sim = torch.zeros_like(self._data.joint_pos_target)
+
+        # -- computed joint efforts from the actuator models
+        self._data.computed_torque = torch.zeros_like(self._data.joint_pos_target)
+        self._data.applied_torque = torch.zeros_like(self._data.joint_pos_target)
+
+        # -- other data that are filled based on explicit actuator models
+        self._data.soft_joint_vel_limits = torch.zeros(self.num_instances, self.num_joints, device=self.device)
+        self._data.gear_ratio = torch.ones(self.num_instances, self.num_joints, device=self.device)
+
+        # soft joint position limits (recommended not to be too close to limits).
+        joint_pos_mean = (self._data.joint_pos_limits[..., 0] + self._data.joint_pos_limits[..., 1]) / 2
+        joint_pos_range = self._data.joint_pos_limits[..., 1] - self._data.joint_pos_limits[..., 0]
+        soft_limit_factor = self.cfg.soft_joint_pos_limit_factor
+        # add to data
+        self._data.soft_joint_pos_limits = torch.zeros(self.num_instances, self.num_joints, 2, device=self.device)
+        self._data.soft_joint_pos_limits[..., 0] = joint_pos_mean - 0.5 * joint_pos_range * soft_limit_factor
+        self._data.soft_joint_pos_limits[..., 1] = joint_pos_mean + 0.5 * joint_pos_range * soft_limit_factor
 
     def _process_cfg(self):
         """Post processing of configuration parameters."""
@@ -1297,7 +1278,10 @@ class Articulation(AssetBase):
         )
         default_root_state = torch.tensor(default_root_state, dtype=torch.float, device=self.device)
         self._data.default_root_state = default_root_state.repeat(self.num_instances, 1)
+
         # -- joint state
+        self._data.default_joint_pos = torch.zeros(self.num_instances, self.num_joints, device=self.device)
+        self._data.default_joint_vel = torch.zeros_like(self._data.default_joint_pos)
         # joint pos
         indices_list, _, values_list = string_utils.resolve_matching_names_values(
             self.cfg.init_state.joint_pos, self.joint_names
@@ -1308,10 +1292,6 @@ class Articulation(AssetBase):
             self.cfg.init_state.joint_vel, self.joint_names
         )
         self._data.default_joint_vel[:, indices_list] = torch.tensor(values_list, device=self.device)
-
-        # -- joint limits
-        self._data.default_joint_limits = self.root_physx_view.get_dof_limits().to(device=self.device).clone()
-        self._data.joint_limits = self._data.default_joint_limits.clone()
 
     """
     Internal simulation callbacks.
@@ -1336,12 +1316,6 @@ class Articulation(AssetBase):
         # flag for implicit actuators
         # if this is false, we by-pass certain checks when doing actuator-related operations
         self._has_implicit_actuators = False
-
-        # cache the values coming from the usd
-        self._data.default_joint_stiffness = self.root_physx_view.get_dof_stiffnesses().to(self.device).clone()
-        self._data.default_joint_damping = self.root_physx_view.get_dof_dampings().to(self.device).clone()
-        self._data.default_joint_armature = self.root_physx_view.get_dof_armatures().to(self.device).clone()
-        self._data.default_joint_friction = self.root_physx_view.get_dof_friction_coefficients().to(self.device).clone()
 
         # iterate over all actuator configurations
         for actuator_name, actuator_cfg in self.cfg.actuators.items():
@@ -1372,9 +1346,9 @@ class Articulation(AssetBase):
                 stiffness=self._data.default_joint_stiffness[:, joint_ids],
                 damping=self._data.default_joint_damping[:, joint_ids],
                 armature=self._data.default_joint_armature[:, joint_ids],
-                friction=self._data.default_joint_friction[:, joint_ids],
-                effort_limit=self.root_physx_view.get_dof_max_forces().to(self.device).clone()[:, joint_ids],
-                velocity_limit=self.root_physx_view.get_dof_max_velocities().to(self.device).clone()[:, joint_ids],
+                friction=self._data.default_joint_friction_coeff[:, joint_ids],
+                effort_limit=self._data.joint_effort_limits[:, joint_ids],
+                velocity_limit=self._data.joint_vel_limits[:, joint_ids],
             )
             # log information on actuator groups
             model_type = "implicit" if actuator.is_implicit_model else "explicit"
@@ -1400,12 +1374,14 @@ class Articulation(AssetBase):
             self.write_joint_effort_limit_to_sim(actuator.effort_limit_sim, joint_ids=actuator.joint_indices)
             self.write_joint_velocity_limit_to_sim(actuator.velocity_limit_sim, joint_ids=actuator.joint_indices)
             self.write_joint_armature_to_sim(actuator.armature, joint_ids=actuator.joint_indices)
-            self.write_joint_friction_to_sim(actuator.friction, joint_ids=actuator.joint_indices)
+            self.write_joint_friction_coefficient_to_sim(actuator.friction, joint_ids=actuator.joint_indices)
 
-            # Store the actual default stiffness and damping values
+            # Store the configured values from the actuator model
             # note: this is the value configured in the actuator model (for implicit and explicit actuators)
             self._data.default_joint_stiffness[:, actuator.joint_indices] = actuator.stiffness
             self._data.default_joint_damping[:, actuator.joint_indices] = actuator.damping
+            self._data.default_joint_armature[:, actuator.joint_indices] = actuator.armature
+            self._data.default_joint_friction_coeff[:, actuator.joint_indices] = actuator.friction
 
         # perform some sanity checks to ensure actuators are prepared correctly
         total_act_joints = sum(actuator.num_joints for actuator in self.actuators.values())
@@ -1434,15 +1410,26 @@ class Articulation(AssetBase):
                     joint_name = usd_joint_path.split("/")[-1]
                     self._fixed_tendon_names.append(joint_name)
 
+            # store the fixed tendon names
             self._data.fixed_tendon_names = self._fixed_tendon_names
+
+            # store the current USD fixed tendon properties
             self._data.default_fixed_tendon_stiffness = self.root_physx_view.get_fixed_tendon_stiffnesses().clone()
             self._data.default_fixed_tendon_damping = self.root_physx_view.get_fixed_tendon_dampings().clone()
             self._data.default_fixed_tendon_limit_stiffness = (
                 self.root_physx_view.get_fixed_tendon_limit_stiffnesses().clone()
             )
-            self._data.default_fixed_tendon_limit = self.root_physx_view.get_fixed_tendon_limits().clone()
+            self._data.default_fixed_tendon_pos_limits = self.root_physx_view.get_fixed_tendon_limits().clone()
             self._data.default_fixed_tendon_rest_length = self.root_physx_view.get_fixed_tendon_rest_lengths().clone()
             self._data.default_fixed_tendon_offset = self.root_physx_view.get_fixed_tendon_offsets().clone()
+
+            # store a copy of the default values for the fixed tendons
+            self._data.fixed_tendon_stiffness = self._data.default_fixed_tendon_stiffness.clone()
+            self._data.fixed_tendon_damping = self._data.default_fixed_tendon_damping.clone()
+            self._data.fixed_tendon_limit_stiffness = self._data.default_fixed_tendon_limit_stiffness.clone()
+            self._data.fixed_tendon_pos_limits = self._data.default_fixed_tendon_pos_limits.clone()
+            self._data.fixed_tendon_rest_length = self._data.default_fixed_tendon_rest_length.clone()
+            self._data.fixed_tendon_offset = self._data.default_fixed_tendon_offset.clone()
 
     def _apply_actuator_model(self):
         """Processes joint commands for the articulation by forwarding them to the actuators.
@@ -1506,10 +1493,10 @@ class Articulation(AssetBase):
             msg = "The following joints have default positions out of the limits: \n"
             for idx in violated_indices:
                 joint_name = self.data.joint_names[idx]
-                joint_limits = joint_pos_limits[idx]
+                joint_limit = joint_pos_limits[idx]
                 joint_pos = self.data.default_joint_pos[0, idx]
                 # add to message
-                msg += f"\t- '{joint_name}': {joint_pos:.3f} not in [{joint_limits[0]:.3f}, {joint_limits[1]:.3f}]\n"
+                msg += f"\t- '{joint_name}': {joint_pos:.3f} not in [{joint_limit[0]:.3f}, {joint_limit[1]:.3f}]\n"
             raise ValueError(msg)
 
         # check that the default joint velocities are within the limits
@@ -1521,14 +1508,17 @@ class Articulation(AssetBase):
             msg = "The following joints have default velocities out of the limits: \n"
             for idx in violated_indices:
                 joint_name = self.data.joint_names[idx]
-                joint_limits = [-joint_max_vel[idx], joint_max_vel[idx]]
+                joint_limit = [-joint_max_vel[idx], joint_max_vel[idx]]
                 joint_vel = self.data.default_joint_vel[0, idx]
                 # add to message
-                msg += f"\t- '{joint_name}': {joint_vel:.3f} not in [{joint_limits[0]:.3f}, {joint_limits[1]:.3f}]\n"
+                msg += f"\t- '{joint_name}': {joint_vel:.3f} not in [{joint_limit[0]:.3f}, {joint_limit[1]:.3f}]\n"
             raise ValueError(msg)
 
-    def _log_articulation_joint_info(self):
-        """Log information about the articulation's simulated joints."""
+    def _log_articulation_info(self):
+        """Log information about the articulation.
+
+        Note: We purposefully read the values from the simulator to ensure that the values are configured as expected.
+        """
         # read out all joint parameters from simulation
         # -- gains
         stiffnesses = self.root_physx_view.get_dof_stiffnesses()[0].tolist()
@@ -1611,3 +1601,61 @@ class Articulation(AssetBase):
                 ])
             # convert table to string
             omni.log.info(f"Simulation parameters for tendons in {self.cfg.prim_path}:\n" + tendon_table.get_string())
+
+    """
+    Deprecated methods.
+    """
+
+    def write_joint_friction_to_sim(
+        self,
+        joint_friction: torch.Tensor | float,
+        joint_ids: Sequence[int] | slice | None = None,
+        env_ids: Sequence[int] | None = None,
+    ):
+        """Write joint friction coefficients into the simulation.
+
+        .. deprecated:: 2.1.0
+            Please use :meth:`write_joint_friction_coefficient_to_sim` instead.
+        """
+        omni.log.warn(
+            "The function 'write_joint_friction_to_sim' will be deprecated in a future release. Please"
+            " use 'write_joint_friction_coefficient_to_sim' instead."
+        )
+        self.write_joint_friction_coefficient_to_sim(joint_friction, joint_ids=joint_ids, env_ids=env_ids)
+
+    def write_joint_limits_to_sim(
+        self,
+        limits: torch.Tensor | float,
+        joint_ids: Sequence[int] | slice | None = None,
+        env_ids: Sequence[int] | None = None,
+        warn_limit_violation: bool = True,
+    ):
+        """Write joint limits into the simulation.
+
+        .. deprecated:: 2.1.0
+            Please use :meth:`write_joint_position_limit_to_sim` instead.
+        """
+        omni.log.warn(
+            "The function 'write_joint_limits_to_sim' will be deprecated in a future release. Please"
+            " use 'write_joint_position_limit_to_sim' instead."
+        )
+        self.write_joint_position_limit_to_sim(
+            limits, joint_ids=joint_ids, env_ids=env_ids, warn_limit_violation=warn_limit_violation
+        )
+
+    def set_fixed_tendon_limit(
+        self,
+        limit: torch.Tensor,
+        fixed_tendon_ids: Sequence[int] | slice | None = None,
+        env_ids: Sequence[int] | None = None,
+    ):
+        """Set fixed tendon position limits into internal buffers.
+
+        .. deprecated:: 2.1.0
+            Please use :meth:`set_fixed_tendon_position_limit` instead.
+        """
+        omni.log.warn(
+            "The function 'set_fixed_tendon_limit' will be deprecated in a future release. Please"
+            " use 'set_fixed_tendon_position_limit' instead."
+        )
+        self.set_fixed_tendon_position_limit(limit, fixed_tendon_ids=fixed_tendon_ids, env_ids=env_ids)
