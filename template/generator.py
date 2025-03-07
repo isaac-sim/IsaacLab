@@ -18,7 +18,14 @@ jinja_env = jinja2.Environment(
 )
 
 
-def _replace_in_file(replacements: list[tuple[str, str]], src: str, dst: str | None = None):
+def _replace_in_file(replacements: list[tuple[str, str]], src: str, dst: str | None = None) -> None:
+    """Replace the placeholders in the file.
+
+    Args:
+        replacements: The replacements to make.
+        src: The source file.
+        dst: The destination file. If not provided, the source file will be overwritten.
+    """
     with open(src) as file:
         content = file.read()
     for old, new in replacements:
@@ -27,12 +34,24 @@ def _replace_in_file(replacements: list[tuple[str, str]], src: str, dst: str | N
         file.write(content)
 
 
-def _write_file(dst: str, content: str):
+def _write_file(dst: str, content: str) -> None:
+    """Write the content to a file.
+
+    Args:
+        dst: The path to the file.
+        content: The content to write to the file.
+    """
     with open(dst, "w") as file:
         file.write(content)
 
 
-def _generate_task_per_workflow(task_dir: str, specification: dict):
+def _generate_task_per_workflow(task_dir: str, specification: dict) -> None:
+    """Generate the task files for a single workflow.
+
+    Args:
+        task_dir: The directory where the task files will be generated.
+        specification: The specification of the project/task.
+    """
     task_spec = specification["task"]
     agents_dir = os.path.join(task_dir, "agents")
     os.makedirs(agents_dir, exist_ok=True)
@@ -79,7 +98,13 @@ def _generate_task_per_workflow(task_dir: str, specification: dict):
         )
 
 
-def _generate_tasks(specification: dict, task_dir: str):
+def _generate_tasks(specification: dict, task_dir: str) -> None:
+    """Generate the task files for an external project or an internal task.
+
+    Args:
+        specification: The specification of the project/task.
+        task_dir: The directory where the tasks will be generated.
+    """
     task_name_prefix = "Template" if specification["external"] else "Isaac"
     general_task_name = "-".join([item.capitalize() for item in specification["name"].split("_")])
     for workflow in specification["workflows"]:
@@ -98,7 +123,12 @@ def _generate_tasks(specification: dict, task_dir: str):
         _generate_task_per_workflow(task["dir"], {**specification, "task": task})
 
 
-def _external(specification: dict):
+def _external(specification: dict) -> None:
+    """Generate an external project.
+
+    Args:
+        specification: The specification of the project/task.
+    """
     name = specification["name"]
     project_dir = os.path.join(specification["path"], name)
     os.makedirs(project_dir, exist_ok=True)
@@ -179,7 +209,12 @@ def _external(specification: dict):
         )
 
 
-def generate(specification: dict):
+def generate(specification: dict) -> None:
+    """Generate the project/task.
+
+    Args:
+        specification: The specification of the project/task.
+    """
     # validate specification
     assert "external" in specification, "External flag is required"
     assert specification.get("name", "").isidentifier(), "Name must be a valid identifier"
