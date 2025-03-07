@@ -7,7 +7,7 @@ import torch
 import torch.nn as nn
 from torch.distributions import Normal
 
-from rsl_rl.modules.actor_critic import get_activation
+from rsl_rl.utils import resolve_nn_activation
 
 
 class ResidualBlock(nn.Module):
@@ -159,7 +159,7 @@ class ActorCriticConv2d(nn.Module):
         super().__init__()
 
         self.image_input_shape = image_input_shape  # (C, H, W)
-        self.activation_fn = get_activation(activation)
+        self.activation_fn = resolve_nn_activation(activation)
 
         self.actor = ConvolutionalNetwork(
             input_dim=num_actor_obs,
