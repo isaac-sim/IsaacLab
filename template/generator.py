@@ -171,6 +171,12 @@ def _external(specification: dict):
     dir = os.path.join(project_dir, "source", name, name, "tasks")
     os.makedirs(dir, exist_ok=True)
     _generate_tasks(specification, dir)
+    shutil.copyfile(os.path.join(TEMPLATE_DIR, "extension", "tasks__init__"), os.path.join(dir, "__init__.py"))
+    for workflow in specification["workflows"]:
+        shutil.copyfile(
+            os.path.join(TEMPLATE_DIR, "extension", "workflow__init__"),
+            os.path.join(dir, workflow["name"].replace("-", "_"), "__init__.py"),
+        )
 
 
 def generate(specification: dict):
