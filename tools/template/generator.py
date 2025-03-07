@@ -240,7 +240,7 @@ def _external(specification: dict) -> None:
     print(f"Setting up git repo in {project_dir} path...")
     _setup_git_repo(project_dir)
     # show end message
-    print("-" * 80)
+    print("\n" + "-" * 80)
     print(f"Project '{name}' generated successfully in {project_dir} path.")
     print(f"See {project_dir}/README.md to get started!")
     print("-" * 80)
