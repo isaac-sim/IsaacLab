@@ -1,11 +1,8 @@
 Changelog
 ---------
 
-0.35.0 (2025-03-04)
+0.35.0 (2025-03-07)
 ~~~~~~~~~~~~~~~~~~~
-
-Fixed
-^^^^^
 
 * Improved documentation of various attributes in the :class:`~isaaclab.assets.ArticulationData` class to make
   it clearer which values represent the simulation and internal class values. In the new convention,
@@ -36,6 +33,27 @@ Changed
   * ``fixed_tendon_limit`` → ``fixed_tendon_pos_limits``
   * ``default_fixed_tendon_limit`` → ``default_fixed_tendon_pos_limits``
   * ``set_fixed_tendon_limit`` → ``set_fixed_tendon_position_limit``
+
+
+0.34.9 (2025-03-04)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed issue in :class:`~isaaclab.sensors.TiledCamera` where segmentation outputs only display the first tile
+  when scene instancing is enabled. A workaround is added for now to disable instancing when segmentation
+  outputs are requested.
+
+
+0.34.8 (2025-03-04)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the issue of misalignment in the motion vectors from the :class:`TiledCamera`
+  with other modalities such as RGBA and depth.
 
 
 0.34.7 (2025-03-04)
