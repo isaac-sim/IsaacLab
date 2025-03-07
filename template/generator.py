@@ -113,6 +113,8 @@ def _external(specification: dict):
     shutil.copytree(
         os.path.join(TEMPLATE_DIR, "external", ".vscode"), os.path.join(project_dir, ".vscode"), dirs_exist_ok=True
     )
+    template = jinja_env.get_template("external/README.md")
+    _write_file(os.path.join(project_dir, "README.md"), content=template.render(**specification))
     # scripts
     # reinforcement learning libraries
     dir = os.path.join(project_dir, "scripts")
