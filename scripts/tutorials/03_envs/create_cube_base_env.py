@@ -9,7 +9,13 @@ controller to track an arbitrary target position.
 
 While going through this tutorial, we recommend you to pay attention to how a custom action term
 is defined. The action term is responsible for processing the raw actions and applying them to the
-scene entities. The rest of the environment is similar to the previous tutorials.
+scene entities.
+
+Additionally, we also define an event term called 'randomize_scale' that randomizes the scale of
+the cube. This event term has the mode 'usd', which means that it is applied on the USD stage
+before the simulation starts.
+
+The rest of the environment is similar to the previous tutorials.
 
 .. code-block:: bash
 
@@ -237,6 +243,15 @@ class EventCfg:
         },
     )
 
+    randomize_scale = EventTerm(
+        func=mdp.randomize_rigid_body_scale,
+        mode="usd",
+        params={
+            "scale_range": {"x": (0.5, 1.5), "y": (0.5, 1.5), "z": (0.5, 1.5)},
+            "asset_cfg": SceneEntityCfg("cube"),
+        },
+    )
+
 
 ##
 # Environment configuration
@@ -248,7 +263,7 @@ class CubeEnvCfg(ManagerBasedEnvCfg):
     """Configuration for the locomotion velocity-tracking environment."""
 
     # Scene settings
-    scene: MySceneCfg = MySceneCfg(num_envs=args_cli.num_envs, env_spacing=2.5)
+    scene: MySceneCfg = MySceneCfg(num_envs=args_cli.num_envs, env_spacing=2.5, replicate_physics=False)
     # Basic settings
     observations: ObservationsCfg = ObservationsCfg()
     actions: ActionsCfg = ActionsCfg()
