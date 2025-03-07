@@ -132,6 +132,11 @@ class TerrainImporter:
         """
         return self._terrain_flat_patches
 
+    @property
+    def terrain_names(self) -> list[str]:
+        """A list of names of the imported terrains."""
+        return [f"'{path.split('/')[-1]}'" for path in self.terrain_prim_paths]
+
     """
     Operations - Visibility.
     """
@@ -188,9 +193,8 @@ class TerrainImporter:
         prim_path = self.cfg.prim_path + f"/{name}"
         # check if key exists
         if prim_path in self.terrain_prim_paths:
-            names = [f"'{path.split('/')[-1]}'" for path in self.terrain_prim_paths]
             raise ValueError(
-                f"A terrain with the name '{name}' already exists. Existing terrain names: {', '.join(names)}."
+                f"A terrain with the name '{name}' already exists. Existing terrains: {', '.join(self.terrain_names)}."
             )
         # store the mesh name
         self.terrain_prim_paths.append(prim_path)
@@ -230,19 +234,15 @@ class TerrainImporter:
         prim_path = self.cfg.prim_path + f"/{name}"
         # check if key exists
         if prim_path in self.terrain_prim_paths:
-            names = [f"'{path.split('/')[-1]}'" for path in self.terrain_prim_paths]
             raise ValueError(
-                f"A terrain with the name '{name}' already exists. Existing terrain names: {', '.join(names)}."
+                f"A terrain with the name '{name}' already exists. Existing terrains: {', '.join(self.terrain_names)}."
             )
         # store the mesh name
         self.terrain_prim_paths.append(prim_path)
 
         # import the mesh
         create_prim_from_mesh(
-            prim_path,
-            mesh,
-            visual_material=self.cfg.visual_material,
-            physics_material=self.cfg.physics_material,
+            prim_path, mesh, visual_material=self.cfg.visual_material, physics_material=self.cfg.physics_material
         )
 
     def import_usd(self, name: str, usd_path: str):
@@ -267,9 +267,8 @@ class TerrainImporter:
         prim_path = self.cfg.prim_path + f"/{name}"
         # check if key exists
         if prim_path in self.terrain_prim_paths:
-            names = [f"'{path.split('/')[-1]}'" for path in self.terrain_prim_paths]
             raise ValueError(
-                f"A terrain with the name '{name}' already exists. Existing terrain names: {', '.join(names)}."
+                f"A terrain with the name '{name}' already exists. Existing terrains: {', '.join(self.terrain_names)}."
             )
         # store the mesh name
         self.terrain_prim_paths.append(prim_path)
