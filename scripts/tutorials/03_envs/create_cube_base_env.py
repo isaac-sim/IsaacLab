@@ -11,9 +11,11 @@ While going through this tutorial, we recommend you to pay attention to how a cu
 is defined. The action term is responsible for processing the raw actions and applying them to the
 scene entities.
 
-Additionally, we also define an event term called 'randomize_scale' that randomizes the scale of
+We also define an event term called 'randomize_scale' that randomizes the scale of
 the cube. This event term has the mode 'usd', which means that it is applied on the USD stage
-before the simulation starts.
+before the simulation starts. Additionally, the flag 'replicate_physics' is set to False,
+which means that the cube is not replicated across multiple environments but rather each
+environment gets its own cube instance.
 
 The rest of the environment is similar to the previous tutorials.
 
@@ -229,6 +231,9 @@ class ObservationsCfg:
 class EventCfg:
     """Configuration for events."""
 
+    # This event term resets the base position of the cube.
+    # The mode is set to 'reset', which means that the base position is reset whenever
+    # the environment instance is reset (because of terminations defined in 'TerminationCfg').
     reset_base = EventTerm(
         func=mdp.reset_root_state_uniform,
         mode="reset",
@@ -243,6 +248,10 @@ class EventCfg:
         },
     )
 
+    # This event term randomizes the scale of the cube.
+    # The mode is set to 'usd', which means that the scale is randomize on the USD stage before the
+    # simulation starts.
+    # Note: USD-level randomizations require the flag 'replicate_physics' to be set to False.
     randomize_scale = EventTerm(
         func=mdp.randomize_rigid_body_scale,
         mode="usd",
@@ -263,7 +272,11 @@ class CubeEnvCfg(ManagerBasedEnvCfg):
     """Configuration for the locomotion velocity-tracking environment."""
 
     # Scene settings
+    # The flag 'replicate_physics' is set to False, which means that the cube is not replicated
+    # across multiple environments but rather each environment gets its own cube instance.
+    # This allows modifying the cube's properties independently for each environment.
     scene: MySceneCfg = MySceneCfg(num_envs=args_cli.num_envs, env_spacing=2.5, replicate_physics=False)
+
     # Basic settings
     observations: ObservationsCfg = ObservationsCfg()
     actions: ActionsCfg = ActionsCfg()
