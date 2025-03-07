@@ -476,6 +476,11 @@ if "%arg%"=="-i" (
             set "skip=1"
         )
     )
+    echo [INFO] Installing template dependencies...
+    !python_exe! -m pip install -q -r template\requirements.txt
+    echo.
+    echo [INFO] Running template generator...
+    echo.
     !python_exe! template\cli.py !allArgs!
     goto :end
 ) else if "%arg%"=="--new" (
