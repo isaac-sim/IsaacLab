@@ -75,10 +75,10 @@ def _generate_task_per_workflow(task_dir: str, specification: dict) -> None:
     os.makedirs(agents_dir, exist_ok=True)
     # common content
     # - task/__init__.py
-    template = jinja_env.get_template("task__init__")
+    template = jinja_env.get_template("tasks/__init__task")
     _write_file(os.path.join(task_dir, "__init__.py"), content=template.render(**specification))
     # - task/agents/__init__.py
-    template = jinja_env.get_template("agents__init__")
+    template = jinja_env.get_template("tasks/__init__agents")
     _write_file(os.path.join(agents_dir, "__init__.py"), content=template.render(**specification))
     # - task/agents/*cfg*
     for rl_library in specification["rl_libraries"]:
@@ -225,17 +225,17 @@ def _external(specification: dict) -> None:
     dir = os.path.join(project_dir, "source", name, name, "tasks")
     os.makedirs(dir, exist_ok=True)
     _generate_tasks(specification, dir)
-    shutil.copyfile(os.path.join(TEMPLATE_DIR, "extension", "tasks__init__"), os.path.join(dir, "__init__.py"))
+    shutil.copyfile(os.path.join(TEMPLATE_DIR, "extension", "__init__tasks"), os.path.join(dir, "__init__.py"))
     for workflow in specification["workflows"]:
         shutil.copyfile(
-            os.path.join(TEMPLATE_DIR, "extension", "workflow__init__"),
+            os.path.join(TEMPLATE_DIR, "extension", "__init__workflow"),
             os.path.join(dir, workflow["name"].replace("-", "_"), "__init__.py"),
         )
     # - other files
     dir = os.path.join(project_dir, "source", name, name)
     template = jinja_env.get_template("extension/ui_extension_example.py")
     _write_file(os.path.join(dir, "ui_extension_example.py"), content=template.render(**specification))
-    shutil.copyfile(os.path.join(TEMPLATE_DIR, "extension", "ext__init__"), os.path.join(dir, "__init__.py"))
+    shutil.copyfile(os.path.join(TEMPLATE_DIR, "extension", "__init__ext"), os.path.join(dir, "__init__.py"))
     # setup git repo
     print(f"Setting up git repo in {project_dir} path...")
     _setup_git_repo(project_dir)
