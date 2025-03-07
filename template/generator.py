@@ -231,6 +231,11 @@ def _external(specification: dict) -> None:
             os.path.join(TEMPLATE_DIR, "extension", "workflow__init__"),
             os.path.join(dir, workflow["name"].replace("-", "_"), "__init__.py"),
         )
+    # - other files
+    dir = os.path.join(project_dir, "source", name, name)
+    template = jinja_env.get_template("extension/ui_extension_example.py")
+    _write_file(os.path.join(dir, "ui_extension_example.py"), content=template.render(**specification))
+    shutil.copyfile(os.path.join(TEMPLATE_DIR, "extension", "ext__init__"), os.path.join(dir, "__init__.py"))
     # setup git repo
     print(f"Setting up git repo in {project_dir} path...")
     _setup_git_repo(project_dir)
