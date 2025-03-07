@@ -289,6 +289,7 @@ class CubeEnvCfg(ManagerBasedEnvCfg):
         # simulation settings
         self.sim.dt = 0.01
         self.sim.physics_material = self.scene.terrain.physics_material
+        self.sim.render_interval = 2  # render steps should be a multiple of decimation
 
 
 def main():
