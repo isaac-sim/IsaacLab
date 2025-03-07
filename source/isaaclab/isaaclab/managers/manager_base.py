@@ -140,20 +140,28 @@ class ManagerBase(ABC):
         if self.cfg:
             self._prepare_terms()
 
-        # if the simulation is not playing, we use callbacks to trigger
-        # the resolution of the scene entities configuration.
-        # this is needed for cases where the manager is created after the
+        # if the simulation is not playing, we use callbacks to trigger the resolution of the scene
+        # entities configuration. this is needed for cases where the manager is created after the
         # simulation before the simulation is playing.
         if not self._env.sim.is_playing():
-            # note: Use weakref on all callbacks to ensure that this object can be deleted when its destructor is called.
-            # add callbacks for stage play/stop
-            # The order is set to 10 which is arbitrary but should be lower priority than the default order of 0
+            # note: Use weakref on all callbacks to ensure that this object can be deleted when its destructor
+            # is called
+            # The order is set to 20 to allow asset/sensor initialization to complete before the scene entities
+            # are resolved. Those have the order 10.
             timeline_event_stream = omni.timeline.get_timeline_interface().get_timeline_event_stream()
             self._resolve_scene_entities_handle = timeline_event_stream.create_subscription_to_pop_by_type(
                 int(omni.timeline.TimelineEventType.PLAY),
                 lambda event, obj=weakref.proxy(self): obj._resolve_scene_entities_callback(event),
                 order=20,
             )
+        else:
+            self._resolve_scene_entities_handle = None
+
+    def __del__(self):
+        """Delete the manager."""
+        if self._resolve_scene_entities_handle:
+            self._resolve_scene_entities_handle.unsubscribe()
+            self._resolve_scene_entities_handle = None
 
     """
     Properties.
