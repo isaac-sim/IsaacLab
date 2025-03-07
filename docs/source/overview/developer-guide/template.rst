@@ -10,6 +10,11 @@ It enables you to create an:
   works outside the core Isaac Lab repository, ensuring that your development efforts remain self-contained. Also,
   it allows your code to be run as an extension in Omniverse.
 
+  .. hint::
+
+    For the external project, the template generator will initialize a new Git repository in the specified directory.
+    So, you can push the generated content to your own remote repository (e.g. GitHub) and share it with others.
+
 * **Internal task**: A task that is part of the Isaac Lab repository. This approach should only be used to create
   new tasks within the Isaac Lab repository in order to contribute to it.
 
@@ -22,20 +27,21 @@ We recommend using the conda installation as it simplifies calling Python script
 Then, run the following command to generate a new external project or internal task:
 
 .. tab-set::
+  :sync-group: os
 
-	.. tab-item:: Linux
-			:sync: linux
+  .. tab-item:: :icon:`fa-brands fa-linux` Linux
+      :sync: linux
 
-			.. code-block:: bash
+      .. code-block:: bash
 
-				./isaaclab.sh --new  # or "./isaaclab.sh -n"
+        ./isaaclab.sh --new  # or "./isaaclab.sh -n"
 
-	.. tab-item:: Windows
-			:sync: windows
+  .. tab-item:: :icon:`fa-brands fa-windows` Windows
+      :sync: windows
 
-			.. code-block:: batch
+      .. code-block:: batch
 
-				isaaclab.bat --new  :: or "isaaclab.bat -n"
+        isaaclab.bat --new  :: or "isaaclab.bat -n"
 
 The generator will guide you in setting up the project/task for your needs by asking you the following questions:
 
@@ -60,7 +66,7 @@ Anyway, here are some general commands to get started with it:
 
   .. code:: bash
 
-	  python -m pip install -e source/<given-project-name>
+    python -m pip install -e source/<given-project-name>
 
 * List the tasks available in the project.
 
@@ -71,12 +77,12 @@ Anyway, here are some general commands to get started with it:
 
   .. code:: bash
 
-	  python scripts/list_envs.py
+    python scripts/list_envs.py
 
 * Run a task.
 
   .. code:: bash
 
-	  python scripts/<specific-rl-library>/train.py --task=<Task-Name>
+    python scripts/<specific-rl-library>/train.py --task=<Task-Name>
 
 For more details, please follow the instructions in the generated project's ``README.md`` file.
