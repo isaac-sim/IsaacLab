@@ -7,7 +7,7 @@ Changelog
 Added
 ^^^^^
 
-* Added ``Isaac-Navigation-Flat-Anymal-C-Conv2d-v0`` environment as a manager-based RL env that implements the Anymal-C navigation task
+* Added ``Isaac-Navigation-Flat-Obstacle-Anymal-C-v0`` environment as a manager-based RL env that implements the Anymal-C navigation task
   with obstacle and camera sensor in the scene.
 
 

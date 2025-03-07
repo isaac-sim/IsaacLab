@@ -34,7 +34,7 @@ gym.register(
 )
 
 gym.register(
-    id="Isaac-Navigation-Flat-Anymal-C-Conv2d-v0",
+    id="Isaac-Navigation-Flat-Obstacle-Anymal-C-v0",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
@@ -44,7 +44,7 @@ gym.register(
 )
 
 gym.register(
-    id="Isaac-Navigation-Flat-Anymal-C-Conv2d-Play-v0",
+    id="Isaac-Navigation-Flat-Obstacle-Anymal-C-Play-v0",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
