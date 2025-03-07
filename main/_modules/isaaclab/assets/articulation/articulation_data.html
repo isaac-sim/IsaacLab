@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.0.2" />
-    <meta name="docbuild:last-update" content="Mar 05, 2025"/>
+    <meta name="docbuild:last-update" content="Mar 07, 2025"/>
   </head>
   
   
@@ -535,6 +535,7 @@
 <span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">weakref</span>
 
+<span class="kn">import</span><span class="w"> </span><span class="nn">omni.log</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">omni.physics.tensors.impl.api</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">physx</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab.utils.math</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">math_utils</span>
@@ -624,64 +625,131 @@
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Fixed tendon names in the order parsed by the simulation view.&quot;&quot;&quot;</span>
 
     <span class="c1">##</span>
-    <span class="c1"># Defaults.</span>
+    <span class="c1"># Defaults - Initial state.</span>
     <span class="c1">##</span>
 
     <span class="n">default_root_state</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Default root state ``[pos, quat, lin_vel, ang_vel]`` in local environment frame. Shape is (num_instances, 13).</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Default root state ``[pos, quat, lin_vel, ang_vel]`` in the local environment frame. Shape is (num_instances, 13).</span>
 
 <span class="sd">    The position and quaternion are of the articulation root&#39;s actor frame. Meanwhile, the linear and angular</span>
 <span class="sd">    velocities are of its center of mass frame.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="n">default_mass</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Default mass read from the simulation. Shape is (num_instances, num_bodies).&quot;&quot;&quot;</span>
-
-    <span class="n">default_inertia</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Default inertia read from the simulation. Shape is (num_instances, num_bodies, 9).</span>
-
-<span class="sd">    The inertia is the inertia tensor relative to the center of mass frame. The values are stored in</span>
-<span class="sd">    the order :math:`[I_{xx}, I_{xy}, I_{xz}, I_{yx}, I_{yy}, I_{yz}, I_{zx}, I_{zy}, I_{zz}]`.</span>
+<span class="sd">    This quantity is configured through the :attr:`isaaclab.assets.ArticulationCfg.init_state` parameter.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">default_joint_pos</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Default joint positions of all joints. Shape is (num_instances, num_joints).&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Default joint positions of all joints. Shape is (num_instances, num_joints).</span>
+
+<span class="sd">    This quantity is configured through the :attr:`isaaclab.assets.ArticulationCfg.init_state` parameter.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">default_joint_vel</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Default joint velocities of all joints. Shape is (num_instances, num_joints).&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Default joint velocities of all joints. Shape is (num_instances, num_joints).</span>
+
+<span class="sd">    This quantity is configured through the :attr:`isaaclab.assets.ArticulationCfg.init_state` parameter.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c1">##</span>
+    <span class="c1"># Defaults - Physical properties.</span>
+    <span class="c1">##</span>
+
+    <span class="n">default_mass</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Default mass for all the bodies in the articulation. Shape is (num_instances, num_bodies).</span>
+
+<span class="sd">    This quantity is parsed from the USD schema at the time of initialization.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">default_inertia</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Default inertia for all the bodies in the articulation. Shape is (num_instances, num_bodies, 9).</span>
+
+<span class="sd">    The inertia is the inertia tensor relative to the center of mass frame. The values are stored in</span>
+<span class="sd">    the order :math:`[I_{xx}, I_{xy}, I_{xz}, I_{yx}, I_{yy}, I_{yz}, I_{zx}, I_{zy}, I_{zz}]`.</span>
+
+<span class="sd">    This quantity is parsed from the USD schema at the time of initialization.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">default_joint_stiffness</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Default joint stiffness of all joints. Shape is (num_instances, num_joints).&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Default joint stiffness of all joints. Shape is (num_instances, num_joints).</span>
+
+<span class="sd">    This quantity is configured through the actuator model&#39;s :attr:`isaaclab.actuators.ActuatorBaseCfg.stiffness`</span>
+<span class="sd">    parameter. If the parameter&#39;s value is None, the value parsed from the USD schema, at the time of initialization,</span>
+<span class="sd">    is used.</span>
+
+<span class="sd">    .. attention::</span>
+<span class="sd">        The default stiffness is the value configured by the user or the value parsed from the USD schema.</span>
+<span class="sd">        It should not be confused with :attr:`joint_stiffness`, which is the value set into the simulation.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">default_joint_damping</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Default joint damping of all joints. Shape is (num_instances, num_joints).&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Default joint damping of all joints. Shape is (num_instances, num_joints).</span>
+
+<span class="sd">    This quantity is configured through the actuator model&#39;s :attr:`isaaclab.actuators.ActuatorBaseCfg.damping`</span>
+<span class="sd">    parameter. If the parameter&#39;s value is None, the value parsed from the USD schema, at the time of initialization,</span>
+<span class="sd">    is used.</span>
+
+<span class="sd">    .. attention::</span>
+<span class="sd">        The default stiffness is the value configured by the user or the value parsed from the USD schema.</span>
+<span class="sd">        It should not be confused with :attr:`joint_damping`, which is the value set into the simulation.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">default_joint_armature</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Default joint armature of all joints. Shape is (num_instances, num_joints).&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Default joint armature of all joints. Shape is (num_instances, num_joints).</span>
 
-    <span class="n">default_joint_friction</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Default joint friction of all joints. Shape is (num_instances, num_joints).&quot;&quot;&quot;</span>
+<span class="sd">    This quantity is configured through the actuator model&#39;s :attr:`isaaclab.actuators.ActuatorBaseCfg.armature`</span>
+<span class="sd">    parameter. If the parameter&#39;s value is None, the value parsed from the USD schema, at the time of initialization,</span>
+<span class="sd">    is used.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="n">default_joint_limits</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Default joint limits of all joints. Shape is (num_instances, num_joints, 2).&quot;&quot;&quot;</span>
+    <span class="n">default_joint_friction_coeff</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Default joint friction coefficient of all joints. Shape is (num_instances, num_joints).</span>
+
+<span class="sd">    This quantity is configured through the actuator model&#39;s :attr:`isaaclab.actuators.ActuatorBaseCfg.friction`</span>
+<span class="sd">    parameter. If the parameter&#39;s value is None, the value parsed from the USD schema, at the time of initialization,</span>
+<span class="sd">    is used.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">default_joint_pos_limits</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Default joint position limits of all joints. Shape is (num_instances, num_joints, 2).</span>
+
+<span class="sd">    The limits are in the order :math:`[lower, upper]`. They are parsed from the USD schema at the time of initialization.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">default_fixed_tendon_stiffness</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Default tendon stiffness of all tendons. Shape is (num_instances, num_fixed_tendons).&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Default tendon stiffness of all tendons. Shape is (num_instances, num_fixed_tendons).</span>
+
+<span class="sd">    This quantity is parsed from the USD schema at the time of initialization.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">default_fixed_tendon_damping</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Default tendon damping of all tendons. Shape is (num_instances, num_fixed_tendons).&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Default tendon damping of all tendons. Shape is (num_instances, num_fixed_tendons).</span>
+
+<span class="sd">    This quantity is parsed from the USD schema at the time of initialization.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">default_fixed_tendon_limit_stiffness</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Default tendon limit stiffness of all tendons. Shape is (num_instances, num_fixed_tendons).&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Default tendon limit stiffness of all tendons. Shape is (num_instances, num_fixed_tendons).</span>
+
+<span class="sd">    This quantity is parsed from the USD schema at the time of initialization.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">default_fixed_tendon_rest_length</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Default tendon rest length of all tendons. Shape is (num_instances, num_fixed_tendons).&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Default tendon rest length of all tendons. Shape is (num_instances, num_fixed_tendons).</span>
+
+<span class="sd">    This quantity is parsed from the USD schema at the time of initialization.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">default_fixed_tendon_offset</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Default tendon offset of all tendons. Shape is (num_instances, num_fixed_tendons).&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Default tendon offset of all tendons. Shape is (num_instances, num_fixed_tendons).</span>
 
-    <span class="n">default_fixed_tendon_limit</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Default tendon limits of all tendons. Shape is (num_instances, num_fixed_tendons, 2).&quot;&quot;&quot;</span>
+<span class="sd">    This quantity is parsed from the USD schema at the time of initialization.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">default_fixed_tendon_pos_limits</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Default tendon position limits of all tendons. Shape is (num_instances, num_fixed_tendons, 2).</span>
+
+<span class="sd">    The position limits are in the order :math:`[lower, upper]`. They are parsed from the USD schema at the time of</span>
+<span class="sd">    initialization.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="c1">##</span>
     <span class="c1"># Joint commands -- Set into simulation.</span>
@@ -721,8 +789,6 @@
 <span class="sd">    This quantity is the raw torque output from the actuator mode, before any clipping is applied.</span>
 <span class="sd">    It is exposed for users who want to inspect the computations inside the actuator model.</span>
 <span class="sd">    For instance, to penalize the learning agent for a difference between the computed and applied torques.</span>
-
-<span class="sd">    Note: The torques are zero for implicit actuator models.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">applied_torque</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
@@ -730,8 +796,6 @@
 
 <span class="sd">    These torques are set into the simulation, after clipping the :attr:`computed_torque` based on the</span>
 <span class="sd">    actuator model.</span>
-
-<span class="sd">    Note: The torques are zero for implicit actuator models.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="c1">##</span>
@@ -739,51 +803,89 @@
     <span class="c1">##</span>
 
     <span class="n">joint_stiffness</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Joint stiffness provided to simulation. Shape is (num_instances, num_joints).&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Joint stiffness provided to the simulation. Shape is (num_instances, num_joints).</span>
+
+<span class="sd">    In the case of explicit actuators, the value for the corresponding joints is zero.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">joint_damping</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Joint damping provided to simulation. Shape is (num_instances, num_joints).&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Joint damping provided to the simulation. Shape is (num_instances, num_joints)</span>
 
-    <span class="n">joint_limits</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Joint limits provided to simulation. Shape is (num_instances, num_joints, 2).&quot;&quot;&quot;</span>
+<span class="sd">    In the case of explicit actuators, the value for the corresponding joints is zero.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="n">joint_velocity_limits</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Joint maximum velocity provided to simulation. Shape is (num_instances, num_joints).&quot;&quot;&quot;</span>
+    <span class="n">joint_armature</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Joint armature provided to the simulation. Shape is (num_instances, num_joints).&quot;&quot;&quot;</span>
+
+    <span class="n">joint_friction_coeff</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Joint friction coefficient provided to the simulation. Shape is (num_instances, num_joints).&quot;&quot;&quot;</span>
+
+    <span class="n">joint_pos_limits</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Joint position limits provided to the simulation. Shape is (num_instances, num_joints, 2).</span>
+
+<span class="sd">    The limits are in the order :math:`[lower, upper]`.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">joint_vel_limits</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Joint maximum velocity provided to the simulation. Shape is (num_instances, num_joints).&quot;&quot;&quot;</span>
+
+    <span class="n">joint_effort_limits</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Joint maximum effort provided to the simulation. Shape is (num_instances, num_joints).&quot;&quot;&quot;</span>
+
+    <span class="c1">##</span>
+    <span class="c1"># Joint properties - Custom.</span>
+    <span class="c1">##</span>
+
+    <span class="n">soft_joint_pos_limits</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Soft joint positions limits for all joints. Shape is (num_instances, num_joints, 2).</span>
+
+<span class="sd">    The limits are in the order :math:`[lower, upper]`.The soft joint position limits are computed as</span>
+<span class="sd">    a sub-region of the :attr:`joint_pos_limits` based on the</span>
+<span class="sd">    :attr:`~isaaclab.assets.ArticulationCfg.soft_joint_pos_limit_factor` parameter.</span>
+
+<span class="sd">    Consider the joint position limits :math:`[lower, upper]` and the soft joint position limits</span>
+<span class="sd">    :math:`[soft_lower, soft_upper]`. The soft joint position limits are computed as:</span>
+
+<span class="sd">    .. math::</span>
+
+<span class="sd">        soft\_lower = (lower + upper) / 2 - factor * (upper - lower) / 2</span>
+<span class="sd">        soft\_upper = (lower + upper) / 2 + factor * (upper - lower) / 2</span>
+
+<span class="sd">    The soft joint position limits help specify a safety region around the joint limits. It isn&#39;t used by the</span>
+<span class="sd">    simulation, but is useful for learning agents to prevent the joint positions from violating the limits.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">soft_joint_vel_limits</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Soft joint velocity limits for all joints. Shape is (num_instances, num_joints).</span>
+
+<span class="sd">    These are obtained from the actuator model. It may differ from :attr:`joint_vel_limits` if the actuator model</span>
+<span class="sd">    has a variable velocity limit model. For instance, in a variable gear ratio actuator model.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">gear_ratio</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Gear ratio for relating motor torques to applied Joint torques. Shape is (num_instances, num_joints).&quot;&quot;&quot;</span>
 
     <span class="c1">##</span>
     <span class="c1"># Fixed tendon properties.</span>
     <span class="c1">##</span>
 
     <span class="n">fixed_tendon_stiffness</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Fixed tendon stiffness provided to simulation. Shape is (num_instances, num_fixed_tendons).&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Fixed tendon stiffness provided to the simulation. Shape is (num_instances, num_fixed_tendons).&quot;&quot;&quot;</span>
 
     <span class="n">fixed_tendon_damping</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Fixed tendon damping provided to simulation. Shape is (num_instances, num_fixed_tendons).&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Fixed tendon damping provided to the simulation. Shape is (num_instances, num_fixed_tendons).&quot;&quot;&quot;</span>
 
     <span class="n">fixed_tendon_limit_stiffness</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Fixed tendon limit stiffness provided to simulation. Shape is (num_instances, num_fixed_tendons).&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Fixed tendon limit stiffness provided to the simulation. Shape is (num_instances, num_fixed_tendons).&quot;&quot;&quot;</span>
 
     <span class="n">fixed_tendon_rest_length</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Fixed tendon rest length provided to simulation. Shape is (num_instances, num_fixed_tendons).&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Fixed tendon rest length provided to the simulation. Shape is (num_instances, num_fixed_tendons).&quot;&quot;&quot;</span>
 
     <span class="n">fixed_tendon_offset</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Fixed tendon offset provided to simulation. Shape is (num_instances, num_fixed_tendons).&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Fixed tendon offset provided to the simulation. Shape is (num_instances, num_fixed_tendons).&quot;&quot;&quot;</span>
 
-    <span class="n">fixed_tendon_limit</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Fixed tendon limits provided to simulation. Shape is (num_instances, num_fixed_tendons, 2).&quot;&quot;&quot;</span>
-
-    <span class="c1">##</span>
-    <span class="c1"># Other Data.</span>
-    <span class="c1">##</span>
-
-    <span class="n">soft_joint_pos_limits</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Joint positions limits for all joints. Shape is (num_instances, num_joints, 2).&quot;&quot;&quot;</span>
-
-    <span class="n">soft_joint_vel_limits</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Joint velocity limits for all joints. Shape is (num_instances, num_joints).&quot;&quot;&quot;</span>
-
-    <span class="n">gear_ratio</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Gear ratio for relating motor torques to applied Joint torques. Shape is (num_instances, num_joints).&quot;&quot;&quot;</span>
+    <span class="n">fixed_tendon_pos_limits</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Fixed tendon position limits provided to the simulation. Shape is (num_instances, num_fixed_tendons, 2).&quot;&quot;&quot;</span>
 
     <span class="c1">##</span>
     <span class="c1"># Properties.</span>
@@ -796,7 +898,6 @@
 <span class="sd">        The position and quaternion are of the articulation root&#39;s actor frame relative to the world. Meanwhile,</span>
 <span class="sd">        the linear and angular velocities are of the articulation root&#39;s center of mass frame.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_root_state_w</span><span class="o">.</span><span class="n">timestamp</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sim_timestamp</span><span class="p">:</span>
             <span class="c1"># read data from simulation</span>
             <span class="n">pose</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_root_physx_view</span><span class="o">.</span><span class="n">get_root_transforms</span><span class="p">()</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
@@ -1046,9 +1147,9 @@
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="n">math_utils</span><span class="o">.</span><span class="n">quat_rotate_inverse</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">root_quat_w</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">root_ang_vel_w</span><span class="p">)</span>
 
-    <span class="c1">#</span>
+    <span class="c1">##</span>
     <span class="c1"># Derived Root Link Frame Properties</span>
-    <span class="c1">#</span>
+    <span class="c1">##</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">root_link_pos_w</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
@@ -1118,9 +1219,9 @@
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="n">math_utils</span><span class="o">.</span><span class="n">quat_rotate_inverse</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">root_link_quat_w</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">root_link_ang_vel_w</span><span class="p">)</span>
 
-    <span class="c1">#</span>
+    <span class="c1">##</span>
     <span class="c1"># Root Center of Mass state properties</span>
-    <span class="c1">#</span>
+    <span class="c1">##</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">root_com_pos_w</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
@@ -1250,9 +1351,9 @@
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">body_acc_w</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">3</span><span class="p">:</span><span class="mi">6</span><span class="p">]</span>
 
-    <span class="c1">#</span>
+    <span class="c1">##</span>
     <span class="c1"># Link body properties</span>
-    <span class="c1">#</span>
+    <span class="c1">##</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">body_link_pos_w</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
@@ -1306,9 +1407,9 @@
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">body_link_state_w</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">10</span><span class="p">:</span><span class="mi">13</span><span class="p">]</span>
 
-    <span class="c1">#</span>
+    <span class="c1">##</span>
     <span class="c1"># Center of mass body properties</span>
-    <span class="c1">#</span>
+    <span class="c1">##</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">body_com_pos_w</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
@@ -1375,12 +1476,78 @@
 
     <span class="nd">@property</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">com_quat_b</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Orientation (w,x,y,z) of the prinicple axies of inertia of all of the bodies in simulation world frame. Shape is (num_instances, num_bodies, 4).</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Orientation (w,x,y,z) of the principle axies of inertia of all of the bodies in simulation world frame. Shape is (num_instances, num_bodies, 4).</span>
 
 <span class="sd">        This quantity is the orientation of the principles axes of inertia relative to its body frame.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">quat</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_root_physx_view</span><span class="o">.</span><span class="n">get_coms</span><span class="p">()</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">)[</span><span class="o">...</span><span class="p">,</span> <span class="mi">3</span><span class="p">:</span><span class="mi">7</span><span class="p">]</span>
-        <span class="k">return</span> <span class="n">math_utils</span><span class="o">.</span><span class="n">convert_quat</span><span class="p">(</span><span class="n">quat</span><span class="p">,</span> <span class="n">to</span><span class="o">=</span><span class="s2">&quot;wxyz&quot;</span><span class="p">)</span></div>
+        <span class="k">return</span> <span class="n">math_utils</span><span class="o">.</span><span class="n">convert_quat</span><span class="p">(</span><span class="n">quat</span><span class="p">,</span> <span class="n">to</span><span class="o">=</span><span class="s2">&quot;wxyz&quot;</span><span class="p">)</span>
+
+    <span class="c1">##</span>
+    <span class="c1"># Backward compatibility.</span>
+    <span class="c1">##</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">joint_limits</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Deprecated property. Please use :attr:`joint_pos_limits` instead.&quot;&quot;&quot;</span>
+        <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
+            <span class="s2">&quot;The `joint_limits` property will be deprecated in a future release. Please use `joint_pos_limits` instead.&quot;</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">joint_pos_limits</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">default_joint_limits</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Deprecated property. Please use :attr:`default_joint_pos_limits` instead.&quot;&quot;&quot;</span>
+        <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
+            <span class="s2">&quot;The `default_joint_limits` property will be deprecated in a future release. Please use&quot;</span>
+            <span class="s2">&quot; `default_joint_pos_limits` instead.&quot;</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">default_joint_pos_limits</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">joint_velocity_limits</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Deprecated property. Please use :attr:`joint_vel_limits` instead.&quot;&quot;&quot;</span>
+        <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
+            <span class="s2">&quot;The `joint_velocity_limits` property will be deprecated in a future release. Please use&quot;</span>
+            <span class="s2">&quot; `joint_vel_limits` instead.&quot;</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">joint_vel_limits</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">joint_friction</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Deprecated property. Please use :attr:`joint_friction_coeff` instead.&quot;&quot;&quot;</span>
+        <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
+            <span class="s2">&quot;The `joint_friction` property will be deprecated in a future release. Please use&quot;</span>
+            <span class="s2">&quot; `joint_friction_coeff` instead.&quot;</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">joint_friction_coeff</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">default_joint_friction</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Deprecated property. Please use :attr:`default_joint_friction_coeff` instead.&quot;&quot;&quot;</span>
+        <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
+            <span class="s2">&quot;The `default_joint_friction` property will be deprecated in a future release. Please use&quot;</span>
+            <span class="s2">&quot; `default_joint_friction_coeff` instead.&quot;</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">default_joint_friction_coeff</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">fixed_tendon_limit</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Deprecated property. Please use :attr:`fixed_tendon_pos_limits` instead.&quot;&quot;&quot;</span>
+        <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
+            <span class="s2">&quot;The `fixed_tendon_limit` property will be deprecated in a future release. Please use&quot;</span>
+            <span class="s2">&quot; `fixed_tendon_pos_limits` instead.&quot;</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">fixed_tendon_pos_limits</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">default_fixed_tendon_limit</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Deprecated property. Please use :attr:`default_fixed_tendon_pos_limits` instead.&quot;&quot;&quot;</span>
+        <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
+            <span class="s2">&quot;The `default_fixed_tendon_limit` property will be deprecated in a future release. Please use&quot;</span>
+            <span class="s2">&quot; `default_fixed_tendon_pos_limits` instead.&quot;</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">default_fixed_tendon_pos_limits</span></div>
 </pre></div>
 
                 </article>
@@ -1428,7 +1595,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Mar 05, 2025.
+  Last updated on Mar 07, 2025.
   <br/>
 </p>
   </div>

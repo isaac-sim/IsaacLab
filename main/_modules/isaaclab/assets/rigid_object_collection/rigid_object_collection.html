@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.0.2" />
-    <meta name="docbuild:last-update" content="Mar 05, 2025"/>
+    <meta name="docbuild:last-update" content="Mar 07, 2025"/>
   </head>
   
   
@@ -560,21 +560,21 @@
 <div class="viewcode-block" id="RigidObjectCollection"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.assets.html#isaaclab.assets.RigidObjectCollection">[docs]</a><span class="k">class</span><span class="w"> </span><span class="nc">RigidObjectCollection</span><span class="p">(</span><span class="n">AssetBase</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;A rigid object collection class.</span>
 
-<span class="sd">    This class represents a collection of rigid objects in the simulation, where the state of the rigid objects can be</span>
-<span class="sd">    accessed and modified using a batched ``(env_ids, object_ids)`` API.</span>
+<span class="sd">    This class represents a collection of rigid objects in the simulation, where the state of the</span>
+<span class="sd">    rigid objects can be accessed and modified using a batched ``(env_ids, object_ids)`` API.</span>
 
 <span class="sd">    For each rigid body in the collection, the root prim of the asset must have the `USD RigidBodyAPI`_</span>
 <span class="sd">    applied to it. This API is used to define the simulation properties of the rigid bodies. On playing the</span>
 <span class="sd">    simulation, the physics engine will automatically register the rigid bodies and create a corresponding</span>
 <span class="sd">    rigid body handle. This handle can be accessed using the :attr:`root_physx_view` attribute.</span>
 
-<span class="sd">    .. note::</span>
-<span class="sd">        Rigid objects in the collection are uniquely identified via the key of the dictionary</span>
-<span class="sd">        :attr:`~isaaclab.assets.RigidObjectCollectionCfg.rigid_objects` in :class:`~isaaclab.assets.RigidObjectCollectionCfg`.</span>
-<span class="sd">        This differs from the class :class:`~isaaclab.assets.RigidObject`, where a rigid object is identified by</span>
-<span class="sd">        the name of the Xform where the `USD RigidBodyAPI`_ is applied. This would not be possible for the rigid object</span>
-<span class="sd">        collection since the :attr:`~isaaclab.assets.RigidObjectCollectionCfg.rigid_objects` dictionary could</span>
-<span class="sd">        contain the same rigid object multiple times, leading to ambiguity.</span>
+<span class="sd">    Rigid objects in the collection are uniquely identified via the key of the dictionary</span>
+<span class="sd">    :attr:`~isaaclab.assets.RigidObjectCollectionCfg.rigid_objects` in the</span>
+<span class="sd">    :class:`~isaaclab.assets.RigidObjectCollectionCfg` configuration class.</span>
+<span class="sd">    This differs from the :class:`~isaaclab.assets.RigidObject` class, where a rigid object is identified by</span>
+<span class="sd">    the name of the Xform where the `USD RigidBodyAPI`_ is applied. This would not be possible for the rigid</span>
+<span class="sd">    object collection since the :attr:`~isaaclab.assets.RigidObjectCollectionCfg.rigid_objects` dictionary</span>
+<span class="sd">    could contain the same rigid object multiple times, leading to ambiguity.</span>
 
 <span class="sd">    .. _`USD RigidBodyAPI`: https://openusd.org/dev/api/class_usd_physics_rigid_body_a_p_i.html</span>
 <span class="sd">    &quot;&quot;&quot;</span>
@@ -588,12 +588,15 @@
 <span class="sd">        Args:</span>
 <span class="sd">            cfg: A configuration instance.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># Note: We never call the parent constructor as it tries to call its own spawning which we don&#39;t want.</span>
         <span class="c1"># check that the config is valid</span>
         <span class="n">cfg</span><span class="o">.</span><span class="n">validate</span><span class="p">()</span>
         <span class="c1"># store inputs</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span> <span class="o">=</span> <span class="n">cfg</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
         <span class="c1"># flag for whether the asset is initialized</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_is_initialized</span> <span class="o">=</span> <span class="kc">False</span>
+
+        <span class="c1"># spawn the rigid objects</span>
         <span class="k">for</span> <span class="n">rigid_object_cfg</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">rigid_objects</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
             <span class="c1"># check if the rigid object path is valid</span>
             <span class="c1"># note: currently the spawner does not work if there is a regex pattern in the leaf</span>
@@ -667,7 +670,7 @@
 <span class="sd">        Note:</span>
 <span class="sd">            Use this view with caution. It requires handling of tensors in a specific way.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_root_physx_view</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_root_physx_view</span>  <span class="c1"># type: ignore</span>
 
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Operations.</span>
@@ -1262,7 +1265,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Mar 05, 2025.
+  Last updated on Mar 07, 2025.
   <br/>
 </p>
   </div>

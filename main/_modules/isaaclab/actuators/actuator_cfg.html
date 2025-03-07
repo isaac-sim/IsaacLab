@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.0.2" />
-    <meta name="docbuild:last-update" content="Mar 05, 2025"/>
+    <meta name="docbuild:last-update" content="Mar 07, 2025"/>
   </head>
   
   
@@ -562,53 +562,58 @@
     <span class="n">effort_limit</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">|</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Force/Torque limit of the joints in the group. Defaults to None.</span>
 
-<span class="sd">    This limit is used to clip the computed torque sent to the simulation. If None, the limit is set to the value</span>
-<span class="sd">    specified in the USD joint prim.</span>
+<span class="sd">    This limit is used to clip the computed torque sent to the simulation. If None, the</span>
+<span class="sd">    limit is set to the value specified in the USD joint prim.</span>
 
 <span class="sd">    .. attention::</span>
 
-<span class="sd">        The :attr:`effort_limit_sim` attribute should be used to set the effort limit for the simulation physics</span>
-<span class="sd">        solver.</span>
+<span class="sd">        The :attr:`effort_limit_sim` attribute should be used to set the effort limit for</span>
+<span class="sd">        the simulation physics solver.</span>
 
-<span class="sd">        The :attr:`effort_limit` attribute is used for clipping the effort output of the actuator model *only*</span>
-<span class="sd">        in the case of explicit actuators, such as the :class:`~isaaclab.actuators.IdealPDActuator`.</span>
+<span class="sd">        The :attr:`effort_limit` attribute is used for clipping the effort output of the</span>
+<span class="sd">        actuator model **only** in the case of explicit actuators, such as the</span>
+<span class="sd">        :class:`~isaaclab.actuators.IdealPDActuator`.</span>
 
 <span class="sd">    .. note::</span>
 
-<span class="sd">        For implicit actuators, the attributes :attr:`effort_limit` and :attr:`effort_limit_sim` are equivalent.</span>
-<span class="sd">        However, we suggest using the :attr:`effort_limit_sim` attribute because it is more intuitive.</span>
+<span class="sd">        For implicit actuators, the attributes :attr:`effort_limit` and :attr:`effort_limit_sim`</span>
+<span class="sd">        are equivalent. However, we suggest using the :attr:`effort_limit_sim` attribute because</span>
+<span class="sd">        it is more intuitive.</span>
 
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">velocity_limit</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">|</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Velocity limit of the joints in the group. Defaults to None.</span>
 
-<span class="sd">    This limit is used by the actuator model. If None, the limit is set to the value specified in the USD joint prim.</span>
+<span class="sd">    This limit is used by the actuator model. If None, the limit is set to the value specified</span>
+<span class="sd">    in the USD joint prim.</span>
 
 <span class="sd">    .. attention::</span>
 
-<span class="sd">        The :attr:`velocity_limit_sim` attribute should be used to set the velocity limit for the simulation physics</span>
-<span class="sd">        solver.</span>
+<span class="sd">        The :attr:`velocity_limit_sim` attribute should be used to set the velocity limit for</span>
+<span class="sd">        the simulation physics solver.</span>
 
-<span class="sd">        The :attr:`velocity_limit` attribute is used for clipping the effort output of the actuator model *only*</span>
-<span class="sd">        in the case of explicit actuators, such as the :class:`~isaaclab.actuators.IdealPDActuator`.</span>
+<span class="sd">        The :attr:`velocity_limit` attribute is used for clipping the effort output of the</span>
+<span class="sd">        actuator model **only** in the case of explicit actuators, such as the</span>
+<span class="sd">        :class:`~isaaclab.actuators.IdealPDActuator`.</span>
 
 <span class="sd">    .. note::</span>
 
-<span class="sd">        For implicit actuators, the attribute :attr:`velocity_limit` is not used. This is to stay backwards compatible</span>
-<span class="sd">        with previous versions of the Isaac Lab, where this parameter was unused since PhysX did not support setting</span>
-<span class="sd">        the velocity limit for the joints using the Tensor API.</span>
+<span class="sd">        For implicit actuators, the attribute :attr:`velocity_limit` is not used. This is to stay</span>
+<span class="sd">        backwards compatible with previous versions of the Isaac Lab, where this parameter was</span>
+<span class="sd">        unused since PhysX did not support setting the velocity limit for the joints using the</span>
+<span class="sd">        PhysX Tensor API.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">effort_limit_sim</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">|</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Effort limit of the joints in the group applied to the simulation physics solver. Defaults to None.</span>
 
-<span class="sd">    The effort limit is used to constrain the computed joint efforts in the physics engine. If the computed effort</span>
-<span class="sd">    exceeds this limit, the physics engine will clip the effort to this value.</span>
+<span class="sd">    The effort limit is used to constrain the computed joint efforts in the physics engine. If the</span>
+<span class="sd">    computed effort exceeds this limit, the physics engine will clip the effort to this value.</span>
 
-<span class="sd">    Since explicit actuators (e.g. DC motor), compute and clip the effort in the actuator model, this limit is by</span>
-<span class="sd">    default set to a large value to prevent the physics engine from any additional clipping. However, at times,</span>
-<span class="sd">    it may be necessary to set this limit to a smaller value as a safety measure.</span>
+<span class="sd">    Since explicit actuators (e.g. DC motor), compute and clip the effort in the actuator model, this</span>
+<span class="sd">    limit is by default set to a large value to prevent the physics engine from any additional clipping.</span>
+<span class="sd">    However, at times, it may be necessary to set this limit to a smaller value as a safety measure.</span>
 
 <span class="sd">    If None, the limit is resolved based on the type of actuator model:</span>
 
@@ -620,22 +625,25 @@
     <span class="n">velocity_limit_sim</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">|</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Velocity limit of the joints in the group applied to the simulation physics solver. Defaults to None.</span>
 
-<span class="sd">    The velocity limit is used to constrain the joint velocities in the physics engine.</span>
-<span class="sd">    The joint will only be able to reach this velocity if the :attr:`effort_limit_sim` is sufficiently large.</span>
-<span class="sd">    If the joint is moving faster than this velocity, the physics engine will actually try to brake the joint</span>
-<span class="sd">    to reach this velocity.</span>
+<span class="sd">    The velocity limit is used to constrain the joint velocities in the physics engine. The joint will only</span>
+<span class="sd">    be able to reach this velocity if the joint&#39;s effort limit is sufficiently large. If the joint is moving</span>
+<span class="sd">    faster than this velocity, the physics engine will actually try to brake the joint to reach this velocity.</span>
 
 <span class="sd">    If None, the limit is set to the value specified in the USD joint prim for both implicit and explicit actuators.</span>
 
 <span class="sd">    .. tip::</span>
 <span class="sd">        If the velocity limit is too tight, the physics engine may have trouble converging to a solution.</span>
-<span class="sd">        In such cases, we recommend either keeping this value sufficiently large or tuning the stiffness and damping</span>
-<span class="sd">        parameters of the joint to ensure the limits are not violated.</span>
+<span class="sd">        In such cases, we recommend either keeping this value sufficiently large or tuning the stiffness and</span>
+<span class="sd">        damping parameters of the joint to ensure the limits are not violated.</span>
 
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">stiffness</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">|</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="n">MISSING</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Stiffness gains (also known as p-gain) of the joints in the group.</span>
+
+<span class="sd">    The behavior of the stiffness is different for implicit and explicit actuators. For implicit actuators,</span>
+<span class="sd">    the stiffness gets set into the physics engine directly. For explicit actuators, the stiffness is used</span>
+<span class="sd">    by the actuator model to compute the joint efforts.</span>
 
 <span class="sd">    If None, the stiffness is set to the value from the USD joint prim.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
@@ -643,17 +651,35 @@
     <span class="n">damping</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">|</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="n">MISSING</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Damping gains (also known as d-gain) of the joints in the group.</span>
 
+<span class="sd">    The behavior of the damping is different for implicit and explicit actuators. For implicit actuators,</span>
+<span class="sd">    the damping gets set into the physics engine directly. For explicit actuators, the damping gain is used</span>
+<span class="sd">    by the actuator model to compute the joint efforts.</span>
+
 <span class="sd">    If None, the damping is set to the value from the USD joint prim.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">armature</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">|</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Armature of the joints in the group. Defaults to None.</span>
 
+<span class="sd">    The armature is directly added to the corresponding joint-space inertia. It helps improve the</span>
+<span class="sd">    simulation stability by reducing the joint velocities.</span>
+
+<span class="sd">    It is a physics engine solver parameter that gets set into the simulation.</span>
+
 <span class="sd">    If None, the armature is set to the value from the USD joint prim.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">friction</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">|</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Joint friction of the joints in the group. Defaults to None.</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;The friction coefficient of the joints in the group. Defaults to None.</span>
+
+<span class="sd">    The joint friction is a unitless quantity. It relates the magnitude of the spatial force transmitted</span>
+<span class="sd">    from the parent body to the child body to the maximal friction force that may be applied by the solver</span>
+<span class="sd">    to resist the joint motion.</span>
+
+<span class="sd">    Mathematically, this means that: :math:`F_{resist} \leq \mu F_{spatial}`, where :math:`F_{resist}`</span>
+<span class="sd">    is the resisting force applied by the solver and :math:`F_{spatial}` is the spatial force</span>
+<span class="sd">    transmitted from the parent body to the child body. The simulated friction effect is therefore</span>
+<span class="sd">    similar to static and Coulomb friction.</span>
 
 <span class="sd">    If None, the joint friction is set to the value from the USD joint prim.</span>
 <span class="sd">    &quot;&quot;&quot;</span></div>
@@ -825,7 +851,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Mar 05, 2025.
+  Last updated on Mar 07, 2025.
   <br/>
 </p>
   </div>

@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.0.2" />
-    <meta name="docbuild:last-update" content="Mar 05, 2025"/>
+    <meta name="docbuild:last-update" content="Mar 07, 2025"/>
   </head>
   
   
@@ -623,10 +623,11 @@
     <span class="c1">##</span>
 
     <span class="n">default_object_state</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Default object state ``[pos, quat, lin_vel, ang_vel]`` in local environment frame. Shape is (num_instances, num_objects, 13).</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Default object state ``[pos, quat, lin_vel, ang_vel]`` in local environment frame.</span>
+<span class="sd">    Shape is (num_instances, num_objects, 13).</span>
 
-<span class="sd">    The position and quaternion are of each object&#39;s rigid body&#39;s actor frame. Meanwhile, the linear and angular velocities are</span>
-<span class="sd">    of the center of mass frame.</span>
+<span class="sd">    The position and quaternion are of each object&#39;s rigid body&#39;s actor frame. Meanwhile, the linear and</span>
+<span class="sd">    angular velocities are of the center of mass frame.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">default_mass</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
@@ -645,7 +646,8 @@
 
     <span class="nd">@property</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">object_state_w</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Object state ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame. Shape is (num_instances, num_objects, 13).</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Object state ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame.</span>
+<span class="sd">        Shape is (num_instances, num_objects, 13).</span>
 
 <span class="sd">        The position and orientation are of the rigid body&#39;s actor frame. Meanwhile, the linear and angular</span>
 <span class="sd">        velocities are of the rigid body&#39;s center of mass frame.</span>
@@ -663,7 +665,8 @@
 
     <span class="nd">@property</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">object_link_state_w</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Object center of mass state ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame. Shape is (num_instances, num_objects, 13).</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Object center of mass state ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame.</span>
+<span class="sd">        Shape is (num_instances, num_objects, 13).</span>
 
 <span class="sd">        The position, quaternion, and linear/angular velocity are of the rigid body root frame relative to the</span>
 <span class="sd">        world.</span>
@@ -686,7 +689,8 @@
 
     <span class="nd">@property</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">object_com_state_w</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Object state ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame. Shape is (num_instances, num_objects, 13).</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Object state ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame.</span>
+<span class="sd">        Shape is (num_instances, num_objects, 13).</span>
 
 <span class="sd">        The position, quaternion, and linear/angular velocity are of the rigid body&#39;s center of mass frame</span>
 <span class="sd">        relative to the world. Center of mass frame is the orientation principle axes of inertia.</span>
@@ -978,7 +982,7 @@
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Reshapes and arranges the data from the physics view to (num_instances, num_objects, data_size).</span>
 
 <span class="sd">        Args:</span>
-<span class="sd">            data: The data from the physics view. Shape is (num_instances*num_objects, data_size).</span>
+<span class="sd">            data: The data from the physics view. Shape is (num_instances * num_objects, data_size).</span>
 
 <span class="sd">        Returns:</span>
 <span class="sd">            The reshaped data. Shape is (num_objects, num_instances, data_size).</span>
@@ -1031,7 +1035,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Mar 05, 2025.
+  Last updated on Mar 07, 2025.
   <br/>
 </p>
   </div>

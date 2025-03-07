@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.0.2" />
-    <meta name="docbuild:last-update" content="Mar 05, 2025"/>
+    <meta name="docbuild:last-update" content="Mar 07, 2025"/>
   </head>
   
   
@@ -950,14 +950,15 @@
     <span class="n">operation</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;add&quot;</span><span class="p">,</span> <span class="s2">&quot;scale&quot;</span><span class="p">,</span> <span class="s2">&quot;abs&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;abs&quot;</span><span class="p">,</span>
     <span class="n">distribution</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;uniform&quot;</span><span class="p">,</span> <span class="s2">&quot;log_uniform&quot;</span><span class="p">,</span> <span class="s2">&quot;gaussian&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;uniform&quot;</span><span class="p">,</span>
 <span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Randomize the joint parameters of an articulation by adding, scaling, or setting random values.</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Randomize the simulated joint parameters of an articulation by adding, scaling, or setting random values.</span>
 
-<span class="sd">    This function allows randomizing the joint parameters of the asset.</span>
-<span class="sd">    These correspond to the physics engine joint properties that affect the joint behavior.</span>
+<span class="sd">    This function allows randomizing the joint parameters of the asset. These correspond to the physics engine</span>
+<span class="sd">    joint properties that affect the joint behavior. The properties include the joint friction coefficient, armature,</span>
+<span class="sd">    and joint position limits.</span>
 
-<span class="sd">    The function samples random values from the given distribution parameters and applies the operation to the joint properties.</span>
-<span class="sd">    It then sets the values into the physics simulation. If the distribution parameters are not provided for a</span>
-<span class="sd">    particular property, the function does not modify the property.</span>
+<span class="sd">    The function samples random values from the given distribution parameters and applies the operation to the</span>
+<span class="sd">    joint properties. It then sets the values into the physics simulation. If the distribution parameters are</span>
+<span class="sd">    not provided for a particular property, the function does not modify the property.</span>
 
 <span class="sd">    .. tip::</span>
 <span class="sd">        This function uses CPU tensors to assign the joint properties. It is recommended to use this function</span>
@@ -977,53 +978,66 @@
         <span class="n">joint_ids</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">asset_cfg</span><span class="o">.</span><span class="n">joint_ids</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">int</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">asset</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
 
     <span class="c1"># sample joint properties from the given ranges and set into the physics simulation</span>
-    <span class="c1"># -- friction</span>
+    <span class="c1"># joint friction coefficient</span>
     <span class="k">if</span> <span class="n">friction_distribution_params</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="n">friction</span> <span class="o">=</span> <span class="n">asset</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_joint_friction</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">asset</span><span class="o">.</span><span class="n">device</span><span class="p">)</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
-        <span class="n">friction</span> <span class="o">=</span> <span class="n">_randomize_prop_by_op</span><span class="p">(</span>
-            <span class="n">friction</span><span class="p">,</span> <span class="n">friction_distribution_params</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">,</span> <span class="n">joint_ids</span><span class="p">,</span> <span class="n">operation</span><span class="o">=</span><span class="n">operation</span><span class="p">,</span> <span class="n">distribution</span><span class="o">=</span><span class="n">distribution</span>
-        <span class="p">)[</span><span class="n">env_ids</span><span class="p">][:,</span> <span class="n">joint_ids</span><span class="p">]</span>
-        <span class="n">asset</span><span class="o">.</span><span class="n">write_joint_friction_to_sim</span><span class="p">(</span><span class="n">friction</span><span class="p">,</span> <span class="n">joint_ids</span><span class="o">=</span><span class="n">joint_ids</span><span class="p">,</span> <span class="n">env_ids</span><span class="o">=</span><span class="n">env_ids</span><span class="p">)</span>
-    <span class="c1"># -- armature</span>
+        <span class="n">friction_coeff</span> <span class="o">=</span> <span class="n">_randomize_prop_by_op</span><span class="p">(</span>
+            <span class="n">asset</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_joint_friction_coeff</span><span class="o">.</span><span class="n">clone</span><span class="p">(),</span>
+            <span class="n">friction_distribution_params</span><span class="p">,</span>
+            <span class="n">env_ids</span><span class="p">,</span>
+            <span class="n">joint_ids</span><span class="p">,</span>
+            <span class="n">operation</span><span class="o">=</span><span class="n">operation</span><span class="p">,</span>
+            <span class="n">distribution</span><span class="o">=</span><span class="n">distribution</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="n">asset</span><span class="o">.</span><span class="n">write_joint_friction_coefficient_to_sim</span><span class="p">(</span>
+            <span class="n">friction_coeff</span><span class="p">[</span><span class="n">env_ids</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">],</span> <span class="n">joint_ids</span><span class="p">],</span> <span class="n">joint_ids</span><span class="o">=</span><span class="n">joint_ids</span><span class="p">,</span> <span class="n">env_ids</span><span class="o">=</span><span class="n">env_ids</span>
+        <span class="p">)</span>
+
+    <span class="c1"># joint armature</span>
     <span class="k">if</span> <span class="n">armature_distribution_params</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="n">armature</span> <span class="o">=</span> <span class="n">asset</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_joint_armature</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">asset</span><span class="o">.</span><span class="n">device</span><span class="p">)</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
         <span class="n">armature</span> <span class="o">=</span> <span class="n">_randomize_prop_by_op</span><span class="p">(</span>
-            <span class="n">armature</span><span class="p">,</span> <span class="n">armature_distribution_params</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">,</span> <span class="n">joint_ids</span><span class="p">,</span> <span class="n">operation</span><span class="o">=</span><span class="n">operation</span><span class="p">,</span> <span class="n">distribution</span><span class="o">=</span><span class="n">distribution</span>
-        <span class="p">)[</span><span class="n">env_ids</span><span class="p">][:,</span> <span class="n">joint_ids</span><span class="p">]</span>
-        <span class="n">asset</span><span class="o">.</span><span class="n">write_joint_armature_to_sim</span><span class="p">(</span><span class="n">armature</span><span class="p">,</span> <span class="n">joint_ids</span><span class="o">=</span><span class="n">joint_ids</span><span class="p">,</span> <span class="n">env_ids</span><span class="o">=</span><span class="n">env_ids</span><span class="p">)</span>
-    <span class="c1"># -- dof limits</span>
+            <span class="n">asset</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_joint_armature</span><span class="o">.</span><span class="n">clone</span><span class="p">(),</span>
+            <span class="n">armature_distribution_params</span><span class="p">,</span>
+            <span class="n">env_ids</span><span class="p">,</span>
+            <span class="n">joint_ids</span><span class="p">,</span>
+            <span class="n">operation</span><span class="o">=</span><span class="n">operation</span><span class="p">,</span>
+            <span class="n">distribution</span><span class="o">=</span><span class="n">distribution</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="n">asset</span><span class="o">.</span><span class="n">write_joint_armature_to_sim</span><span class="p">(</span><span class="n">armature</span><span class="p">[</span><span class="n">env_ids</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">],</span> <span class="n">joint_ids</span><span class="p">],</span> <span class="n">joint_ids</span><span class="o">=</span><span class="n">joint_ids</span><span class="p">,</span> <span class="n">env_ids</span><span class="o">=</span><span class="n">env_ids</span><span class="p">)</span>
+
+    <span class="c1"># joint position limits</span>
     <span class="k">if</span> <span class="n">lower_limit_distribution_params</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">upper_limit_distribution_params</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="n">dof_limits</span> <span class="o">=</span> <span class="n">asset</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_joint_limits</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">asset</span><span class="o">.</span><span class="n">device</span><span class="p">)</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+        <span class="n">joint_pos_limits</span> <span class="o">=</span> <span class="n">asset</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_joint_pos_limits</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+        <span class="c1"># -- randomize the lower limits</span>
         <span class="k">if</span> <span class="n">lower_limit_distribution_params</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="n">lower_limits</span> <span class="o">=</span> <span class="n">dof_limits</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span>
-            <span class="n">lower_limits</span> <span class="o">=</span> <span class="n">_randomize_prop_by_op</span><span class="p">(</span>
-                <span class="n">lower_limits</span><span class="p">,</span>
+            <span class="n">joint_pos_limits</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">_randomize_prop_by_op</span><span class="p">(</span>
+                <span class="n">joint_pos_limits</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
                 <span class="n">lower_limit_distribution_params</span><span class="p">,</span>
                 <span class="n">env_ids</span><span class="p">,</span>
                 <span class="n">joint_ids</span><span class="p">,</span>
                 <span class="n">operation</span><span class="o">=</span><span class="n">operation</span><span class="p">,</span>
                 <span class="n">distribution</span><span class="o">=</span><span class="n">distribution</span><span class="p">,</span>
-            <span class="p">)[</span><span class="n">env_ids</span><span class="p">][:,</span> <span class="n">joint_ids</span><span class="p">]</span>
-            <span class="n">dof_limits</span><span class="p">[</span><span class="n">env_ids</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">],</span> <span class="n">joint_ids</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">lower_limits</span>
+            <span class="p">)</span>
+        <span class="c1"># -- randomize the upper limits</span>
         <span class="k">if</span> <span class="n">upper_limit_distribution_params</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="n">upper_limits</span> <span class="o">=</span> <span class="n">dof_limits</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span>
-            <span class="n">upper_limits</span> <span class="o">=</span> <span class="n">_randomize_prop_by_op</span><span class="p">(</span>
-                <span class="n">upper_limits</span><span class="p">,</span>
+            <span class="n">joint_pos_limits</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">_randomize_prop_by_op</span><span class="p">(</span>
+                <span class="n">joint_pos_limits</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span>
                 <span class="n">upper_limit_distribution_params</span><span class="p">,</span>
                 <span class="n">env_ids</span><span class="p">,</span>
                 <span class="n">joint_ids</span><span class="p">,</span>
                 <span class="n">operation</span><span class="o">=</span><span class="n">operation</span><span class="p">,</span>
                 <span class="n">distribution</span><span class="o">=</span><span class="n">distribution</span><span class="p">,</span>
-            <span class="p">)[</span><span class="n">env_ids</span><span class="p">][:,</span> <span class="n">joint_ids</span><span class="p">]</span>
-            <span class="n">dof_limits</span><span class="p">[</span><span class="n">env_ids</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">],</span> <span class="n">joint_ids</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">upper_limits</span>
-        <span class="k">if</span> <span class="p">(</span><span class="n">dof_limits</span><span class="p">[</span><span class="n">env_ids</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">],</span> <span class="n">joint_ids</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">&gt;</span> <span class="n">dof_limits</span><span class="p">[</span><span class="n">env_ids</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">],</span> <span class="n">joint_ids</span><span class="p">,</span> <span class="mi">1</span><span class="p">])</span><span class="o">.</span><span class="n">any</span><span class="p">():</span>
-            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
-                <span class="s2">&quot;Randomization term &#39;randomize_joint_parameters&#39; is setting lower joint limits that are greater than&quot;</span>
-                <span class="s2">&quot; upper joint limits.&quot;</span>
             <span class="p">)</span>
 
-        <span class="n">asset</span><span class="o">.</span><span class="n">write_joint_limits_to_sim</span><span class="p">(</span>
-            <span class="n">dof_limits</span><span class="p">[</span><span class="n">env_ids</span><span class="p">][:,</span> <span class="n">joint_ids</span><span class="p">],</span> <span class="n">joint_ids</span><span class="o">=</span><span class="n">joint_ids</span><span class="p">,</span> <span class="n">env_ids</span><span class="o">=</span><span class="n">env_ids</span><span class="p">,</span> <span class="n">warn_limit_violation</span><span class="o">=</span><span class="kc">False</span>
+        <span class="c1"># extract the position limits for the concerned joints</span>
+        <span class="n">joint_pos_limits</span> <span class="o">=</span> <span class="n">joint_pos_limits</span><span class="p">[</span><span class="n">env_ids</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">],</span> <span class="n">joint_ids</span><span class="p">]</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">joint_pos_limits</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">&gt;</span> <span class="n">joint_pos_limits</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">])</span><span class="o">.</span><span class="n">any</span><span class="p">():</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s2">&quot;Randomization term &#39;randomize_joint_parameters&#39; is setting lower joint limits that are greater than&quot;</span>
+                <span class="s2">&quot; upper joint limits. Please check the distribution parameters for the joint position limits.&quot;</span>
+            <span class="p">)</span>
+        <span class="c1"># set the position limits into the physics simulation</span>
+        <span class="n">asset</span><span class="o">.</span><span class="n">write_joint_position_limit_to_sim</span><span class="p">(</span>
+            <span class="n">joint_pos_limits</span><span class="p">,</span> <span class="n">joint_ids</span><span class="o">=</span><span class="n">joint_ids</span><span class="p">,</span> <span class="n">env_ids</span><span class="o">=</span><span class="n">env_ids</span><span class="p">,</span> <span class="n">warn_limit_violation</span><span class="o">=</span><span class="kc">False</span>
         <span class="p">)</span></div>
 
 
@@ -1041,7 +1055,7 @@
     <span class="n">operation</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;add&quot;</span><span class="p">,</span> <span class="s2">&quot;scale&quot;</span><span class="p">,</span> <span class="s2">&quot;abs&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;abs&quot;</span><span class="p">,</span>
     <span class="n">distribution</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;uniform&quot;</span><span class="p">,</span> <span class="s2">&quot;log_uniform&quot;</span><span class="p">,</span> <span class="s2">&quot;gaussian&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;uniform&quot;</span><span class="p">,</span>
 <span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Randomize the fixed tendon parameters of an articulation by adding, scaling, or setting random values.</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Randomize the simulated fixed tendon parameters of an articulation by adding, scaling, or setting random values.</span>
 
 <span class="sd">    This function allows randomizing the fixed tendon parameters of the asset.</span>
 <span class="sd">    These correspond to the physics engine tendon properties that affect the joint behavior.</span>
@@ -1060,106 +1074,106 @@
 
     <span class="c1"># resolve joint indices</span>
     <span class="k">if</span> <span class="n">asset_cfg</span><span class="o">.</span><span class="n">fixed_tendon_ids</span> <span class="o">==</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">):</span>
-        <span class="n">fixed_tendon_ids</span> <span class="o">=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>  <span class="c1"># for optimization purposes</span>
+        <span class="n">tendon_ids</span> <span class="o">=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>  <span class="c1"># for optimization purposes</span>
     <span class="k">else</span><span class="p">:</span>
-        <span class="n">fixed_tendon_ids</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">asset_cfg</span><span class="o">.</span><span class="n">fixed_tendon_ids</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">int</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">asset</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+        <span class="n">tendon_ids</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">asset_cfg</span><span class="o">.</span><span class="n">fixed_tendon_ids</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">int</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">asset</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
 
     <span class="c1"># sample tendon properties from the given ranges and set into the physics simulation</span>
-    <span class="c1"># -- stiffness</span>
+    <span class="c1"># stiffness</span>
     <span class="k">if</span> <span class="n">stiffness_distribution_params</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="n">stiffness</span> <span class="o">=</span> <span class="n">asset</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_fixed_tendon_stiffness</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
         <span class="n">stiffness</span> <span class="o">=</span> <span class="n">_randomize_prop_by_op</span><span class="p">(</span>
-            <span class="n">stiffness</span><span class="p">,</span>
+            <span class="n">asset</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_fixed_tendon_stiffness</span><span class="o">.</span><span class="n">clone</span><span class="p">(),</span>
             <span class="n">stiffness_distribution_params</span><span class="p">,</span>
             <span class="n">env_ids</span><span class="p">,</span>
-            <span class="n">fixed_tendon_ids</span><span class="p">,</span>
+            <span class="n">tendon_ids</span><span class="p">,</span>
             <span class="n">operation</span><span class="o">=</span><span class="n">operation</span><span class="p">,</span>
             <span class="n">distribution</span><span class="o">=</span><span class="n">distribution</span><span class="p">,</span>
-        <span class="p">)[</span><span class="n">env_ids</span><span class="p">][:,</span> <span class="n">fixed_tendon_ids</span><span class="p">]</span>
-        <span class="n">asset</span><span class="o">.</span><span class="n">set_fixed_tendon_stiffness</span><span class="p">(</span><span class="n">stiffness</span><span class="p">,</span> <span class="n">fixed_tendon_ids</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">)</span>
-    <span class="c1"># -- damping</span>
+        <span class="p">)</span>
+        <span class="n">asset</span><span class="o">.</span><span class="n">set_fixed_tendon_stiffness</span><span class="p">(</span><span class="n">stiffness</span><span class="p">[</span><span class="n">env_ids</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">],</span> <span class="n">tendon_ids</span><span class="p">],</span> <span class="n">tendon_ids</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">)</span>
+
+    <span class="c1"># damping</span>
     <span class="k">if</span> <span class="n">damping_distribution_params</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="n">damping</span> <span class="o">=</span> <span class="n">asset</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_fixed_tendon_damping</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
         <span class="n">damping</span> <span class="o">=</span> <span class="n">_randomize_prop_by_op</span><span class="p">(</span>
-            <span class="n">damping</span><span class="p">,</span>
+            <span class="n">asset</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_fixed_tendon_damping</span><span class="o">.</span><span class="n">clone</span><span class="p">(),</span>
             <span class="n">damping_distribution_params</span><span class="p">,</span>
             <span class="n">env_ids</span><span class="p">,</span>
-            <span class="n">fixed_tendon_ids</span><span class="p">,</span>
+            <span class="n">tendon_ids</span><span class="p">,</span>
             <span class="n">operation</span><span class="o">=</span><span class="n">operation</span><span class="p">,</span>
             <span class="n">distribution</span><span class="o">=</span><span class="n">distribution</span><span class="p">,</span>
-        <span class="p">)[</span><span class="n">env_ids</span><span class="p">][:,</span> <span class="n">fixed_tendon_ids</span><span class="p">]</span>
-        <span class="n">asset</span><span class="o">.</span><span class="n">set_fixed_tendon_damping</span><span class="p">(</span><span class="n">damping</span><span class="p">,</span> <span class="n">fixed_tendon_ids</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">)</span>
-    <span class="c1"># -- limit stiffness</span>
+        <span class="p">)</span>
+        <span class="n">asset</span><span class="o">.</span><span class="n">set_fixed_tendon_damping</span><span class="p">(</span><span class="n">damping</span><span class="p">[</span><span class="n">env_ids</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">],</span> <span class="n">tendon_ids</span><span class="p">],</span> <span class="n">tendon_ids</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">)</span>
+
+    <span class="c1"># limit stiffness</span>
     <span class="k">if</span> <span class="n">limit_stiffness_distribution_params</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="n">limit_stiffness</span> <span class="o">=</span> <span class="n">asset</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_fixed_tendon_limit_stiffness</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
         <span class="n">limit_stiffness</span> <span class="o">=</span> <span class="n">_randomize_prop_by_op</span><span class="p">(</span>
-            <span class="n">limit_stiffness</span><span class="p">,</span>
+            <span class="n">asset</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_fixed_tendon_limit_stiffness</span><span class="o">.</span><span class="n">clone</span><span class="p">(),</span>
             <span class="n">limit_stiffness_distribution_params</span><span class="p">,</span>
             <span class="n">env_ids</span><span class="p">,</span>
-            <span class="n">fixed_tendon_ids</span><span class="p">,</span>
+            <span class="n">tendon_ids</span><span class="p">,</span>
             <span class="n">operation</span><span class="o">=</span><span class="n">operation</span><span class="p">,</span>
             <span class="n">distribution</span><span class="o">=</span><span class="n">distribution</span><span class="p">,</span>
-        <span class="p">)[</span><span class="n">env_ids</span><span class="p">][:,</span> <span class="n">fixed_tendon_ids</span><span class="p">]</span>
-        <span class="n">asset</span><span class="o">.</span><span class="n">set_fixed_tendon_limit_stiffness</span><span class="p">(</span><span class="n">limit_stiffness</span><span class="p">,</span> <span class="n">fixed_tendon_ids</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">)</span>
-    <span class="c1"># -- limits</span>
+        <span class="p">)</span>
+        <span class="n">asset</span><span class="o">.</span><span class="n">set_fixed_tendon_limit_stiffness</span><span class="p">(</span><span class="n">limit_stiffness</span><span class="p">[</span><span class="n">env_ids</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">],</span> <span class="n">tendon_ids</span><span class="p">],</span> <span class="n">tendon_ids</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">)</span>
+
+    <span class="c1"># position limits</span>
     <span class="k">if</span> <span class="n">lower_limit_distribution_params</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">upper_limit_distribution_params</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="n">limit</span> <span class="o">=</span> <span class="n">asset</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_fixed_tendon_limit</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+        <span class="n">limit</span> <span class="o">=</span> <span class="n">asset</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_fixed_tendon_pos_limits</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
         <span class="c1"># -- lower limit</span>
         <span class="k">if</span> <span class="n">lower_limit_distribution_params</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="n">lower_limit</span> <span class="o">=</span> <span class="n">limit</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span>
-            <span class="n">lower_limit</span> <span class="o">=</span> <span class="n">_randomize_prop_by_op</span><span class="p">(</span>
-                <span class="n">lower_limit</span><span class="p">,</span>
+            <span class="n">limit</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">_randomize_prop_by_op</span><span class="p">(</span>
+                <span class="n">limit</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
                 <span class="n">lower_limit_distribution_params</span><span class="p">,</span>
                 <span class="n">env_ids</span><span class="p">,</span>
-                <span class="n">fixed_tendon_ids</span><span class="p">,</span>
+                <span class="n">tendon_ids</span><span class="p">,</span>
                 <span class="n">operation</span><span class="o">=</span><span class="n">operation</span><span class="p">,</span>
                 <span class="n">distribution</span><span class="o">=</span><span class="n">distribution</span><span class="p">,</span>
-            <span class="p">)[</span><span class="n">env_ids</span><span class="p">][:,</span> <span class="n">fixed_tendon_ids</span><span class="p">]</span>
-            <span class="n">limit</span><span class="p">[</span><span class="n">env_ids</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">],</span> <span class="n">fixed_tendon_ids</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">lower_limit</span>
+            <span class="p">)</span>
         <span class="c1"># -- upper limit</span>
         <span class="k">if</span> <span class="n">upper_limit_distribution_params</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="n">upper_limit</span> <span class="o">=</span> <span class="n">limit</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span>
-            <span class="n">upper_limit</span> <span class="o">=</span> <span class="n">_randomize_prop_by_op</span><span class="p">(</span>
-                <span class="n">upper_limit</span><span class="p">,</span>
+            <span class="n">limit</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">_randomize_prop_by_op</span><span class="p">(</span>
+                <span class="n">limit</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span>
                 <span class="n">upper_limit_distribution_params</span><span class="p">,</span>
                 <span class="n">env_ids</span><span class="p">,</span>
-                <span class="n">fixed_tendon_ids</span><span class="p">,</span>
+                <span class="n">tendon_ids</span><span class="p">,</span>
                 <span class="n">operation</span><span class="o">=</span><span class="n">operation</span><span class="p">,</span>
                 <span class="n">distribution</span><span class="o">=</span><span class="n">distribution</span><span class="p">,</span>
-            <span class="p">)[</span><span class="n">env_ids</span><span class="p">][:,</span> <span class="n">fixed_tendon_ids</span><span class="p">]</span>
-            <span class="n">limit</span><span class="p">[</span><span class="n">env_ids</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">],</span> <span class="n">fixed_tendon_ids</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">upper_limit</span>
-        <span class="k">if</span> <span class="p">(</span><span class="n">limit</span><span class="p">[</span><span class="n">env_ids</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">],</span> <span class="n">fixed_tendon_ids</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">&gt;</span> <span class="n">limit</span><span class="p">[</span><span class="n">env_ids</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">],</span> <span class="n">fixed_tendon_ids</span><span class="p">,</span> <span class="mi">1</span><span class="p">])</span><span class="o">.</span><span class="n">any</span><span class="p">():</span>
+            <span class="p">)</span>
+
+        <span class="c1"># check if the limits are valid</span>
+        <span class="n">tendon_limits</span> <span class="o">=</span> <span class="n">limit</span><span class="p">[</span><span class="n">env_ids</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">],</span> <span class="n">tendon_ids</span><span class="p">]</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">tendon_limits</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">&gt;</span> <span class="n">tendon_limits</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">])</span><span class="o">.</span><span class="n">any</span><span class="p">():</span>
             <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
                 <span class="s2">&quot;Randomization term &#39;randomize_fixed_tendon_parameters&#39; is setting lower tendon limits that are greater&quot;</span>
                 <span class="s2">&quot; than upper tendon limits.&quot;</span>
             <span class="p">)</span>
-        <span class="n">asset</span><span class="o">.</span><span class="n">set_fixed_tendon_limit</span><span class="p">(</span><span class="n">limit</span><span class="p">,</span> <span class="n">fixed_tendon_ids</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">)</span>
-    <span class="c1"># -- rest length</span>
+        <span class="n">asset</span><span class="o">.</span><span class="n">set_fixed_tendon_position_limit</span><span class="p">(</span><span class="n">tendon_limits</span><span class="p">,</span> <span class="n">tendon_ids</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">)</span>
+
+    <span class="c1"># rest length</span>
     <span class="k">if</span> <span class="n">rest_length_distribution_params</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="n">rest_length</span> <span class="o">=</span> <span class="n">asset</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_fixed_tendon_rest_length</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
         <span class="n">rest_length</span> <span class="o">=</span> <span class="n">_randomize_prop_by_op</span><span class="p">(</span>
-            <span class="n">rest_length</span><span class="p">,</span>
+            <span class="n">asset</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_fixed_tendon_rest_length</span><span class="o">.</span><span class="n">clone</span><span class="p">(),</span>
             <span class="n">rest_length_distribution_params</span><span class="p">,</span>
             <span class="n">env_ids</span><span class="p">,</span>
-            <span class="n">fixed_tendon_ids</span><span class="p">,</span>
+            <span class="n">tendon_ids</span><span class="p">,</span>
             <span class="n">operation</span><span class="o">=</span><span class="n">operation</span><span class="p">,</span>
             <span class="n">distribution</span><span class="o">=</span><span class="n">distribution</span><span class="p">,</span>
-        <span class="p">)[</span><span class="n">env_ids</span><span class="p">][:,</span> <span class="n">fixed_tendon_ids</span><span class="p">]</span>
-        <span class="n">asset</span><span class="o">.</span><span class="n">set_fixed_tendon_rest_length</span><span class="p">(</span><span class="n">rest_length</span><span class="p">,</span> <span class="n">fixed_tendon_ids</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">)</span>
-    <span class="c1"># -- offset</span>
+        <span class="p">)</span>
+        <span class="n">asset</span><span class="o">.</span><span class="n">set_fixed_tendon_rest_length</span><span class="p">(</span><span class="n">rest_length</span><span class="p">[</span><span class="n">env_ids</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">],</span> <span class="n">tendon_ids</span><span class="p">],</span> <span class="n">tendon_ids</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">)</span>
+
+    <span class="c1"># offset</span>
     <span class="k">if</span> <span class="n">offset_distribution_params</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="n">offset</span> <span class="o">=</span> <span class="n">asset</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_fixed_tendon_offset</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
         <span class="n">offset</span> <span class="o">=</span> <span class="n">_randomize_prop_by_op</span><span class="p">(</span>
-            <span class="n">offset</span><span class="p">,</span>
+            <span class="n">asset</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_fixed_tendon_offset</span><span class="o">.</span><span class="n">clone</span><span class="p">(),</span>
             <span class="n">offset_distribution_params</span><span class="p">,</span>
             <span class="n">env_ids</span><span class="p">,</span>
-            <span class="n">fixed_tendon_ids</span><span class="p">,</span>
+            <span class="n">tendon_ids</span><span class="p">,</span>
             <span class="n">operation</span><span class="o">=</span><span class="n">operation</span><span class="p">,</span>
             <span class="n">distribution</span><span class="o">=</span><span class="n">distribution</span><span class="p">,</span>
-        <span class="p">)[</span><span class="n">env_ids</span><span class="p">][:,</span> <span class="n">fixed_tendon_ids</span><span class="p">]</span>
-        <span class="n">asset</span><span class="o">.</span><span class="n">set_fixed_tendon_offset</span><span class="p">(</span><span class="n">offset</span><span class="p">,</span> <span class="n">fixed_tendon_ids</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">)</span>
+        <span class="p">)</span>
+        <span class="n">asset</span><span class="o">.</span><span class="n">set_fixed_tendon_offset</span><span class="p">(</span><span class="n">offset</span><span class="p">[</span><span class="n">env_ids</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">],</span> <span class="n">tendon_ids</span><span class="p">],</span> <span class="n">tendon_ids</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">)</span>
 
-    <span class="n">asset</span><span class="o">.</span><span class="n">write_fixed_tendon_properties_to_sim</span><span class="p">(</span><span class="n">fixed_tendon_ids</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">)</span></div>
+    <span class="c1"># write the fixed tendon properties into the simulation</span>
+    <span class="n">asset</span><span class="o">.</span><span class="n">write_fixed_tendon_properties_to_sim</span><span class="p">(</span><span class="n">tendon_ids</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">)</span></div>
 
 
 <div class="viewcode-block" id="apply_external_force_torque"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.events.apply_external_force_torque">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">apply_external_force_torque</span><span class="p">(</span>
@@ -1639,7 +1653,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Mar 05, 2025.
+  Last updated on Mar 07, 2025.
   <br/>
 </p>
   </div>
