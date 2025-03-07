@@ -134,7 +134,7 @@ def _external(specification: dict):
             )
     # - other scripts
     _replace_in_file(
-        [("import isaaclab_tasks", f"import {name}.tasks"), ("isaaclab_tasks", name)],
+        [("import isaaclab_tasks", f"import {name}.tasks"), ("isaaclab_tasks", name), ('"Isaac"', '"Template-"')],
         src=os.path.join(ROOT_DIR, "scripts", "environments", "list_envs.py"),
         dst=os.path.join(dir, "list_envs.py"),
     )
