@@ -204,31 +204,3 @@ class NavigationObstacleEnvCfg_PLAY(NavigationObstacleEnvCfg):
         self.scene.env_spacing = 20
         # disable randomization for play
         self.observations.policy.enable_corruption = False
-
-        self.scene.tiled_camera = TiledCameraCfg(
-            prim_path="{ENV_REGEX_NS}/Robot/base/front_cam",
-            update_period=0.1,
-            height=64,
-            width=64,
-            data_types=["rgb", "distance_to_image_plane"],
-            spawn=sim_utils.PinholeCameraCfg(
-                focal_length=24.0,
-                focus_distance=400.0,
-                horizontal_aperture=20.955,
-                clipping_range=(0.1, 1.0e5),
-            ),
-            offset=CameraCfg.OffsetCfg(pos=(0.510, 0.0, 0.015), rot=(0.5, -0.5, 0.5, -0.5), convention="ros"),
-        )
-
-        self.scene.object = RigidObjectCfg(
-            prim_path="{ENV_REGEX_NS}/object",
-            spawn=sim_utils.CylinderCfg(
-                radius=0.2,
-                height=0.6,
-                rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-                mass_props=sim_utils.MassPropertiesCfg(mass=200.0),
-                collision_props=sim_utils.CollisionPropertiesCfg(),
-                visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 1.0, 0.0), metallic=0.2),
-            ),
-            init_state=RigidObjectCfg.InitialStateCfg(pos=(0, 0, 0)),
-        )
