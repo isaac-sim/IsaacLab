@@ -183,7 +183,7 @@ def main() -> None:
 
     # project/task name
     project_name = cli_handler.input_text(
-        "Project name:" if is_external_project else "Task name:",
+        "Project name:" if is_external_project else "Task's folder name:",
         validate=lambda name: name.isidentifier(),
         invalid_message=(
             "Project/task name must be a valid identifier (Letters, numbers and underscores only. No spaces, etc.)"

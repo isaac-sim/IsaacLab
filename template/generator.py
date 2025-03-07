@@ -6,6 +6,7 @@
 import glob
 import os
 import shutil
+import subprocess
 from datetime import datetime
 
 import jinja2
@@ -16,6 +17,23 @@ jinja_env = jinja2.Environment(
     trim_blocks=True,
     lstrip_blocks=True,
 )
+
+
+def _setup_git_repo(project_dir: str) -> None:
+    """Setup the git repository.
+
+    Args:
+        project_dir: The directory of the project.
+    """
+    commands = [
+        ["git", "init"],
+        ["git", "add", "-f", "."],
+        ["git", "commit", "-q", "-m", "Initial commit"],
+    ]
+    for command in commands:
+        result = subprocess.run(command, capture_output=True, text=True, cwd=project_dir)
+        for line in result.stdout.splitlines():
+            print(f"  |  {line}")
 
 
 def _replace_in_file(replacements: list[tuple[str, str]], src: str, dst: str | None = None) -> None:
@@ -120,6 +138,7 @@ def _generate_tasks(specification: dict, task_dir: str) -> None:
             task["id"] = f"{task_name_prefix}-{task_name}-Direct-v0"
         elif task["workflow"]["name"] == "manager-based":
             task["id"] = f"{task_name_prefix}-{task_name}-v0"
+        print(f"  |    |-- Generating '{task['id']}' task...")
         _generate_task_per_workflow(task["dir"], {**specification, "task": task})
 
 
@@ -133,6 +152,7 @@ def _external(specification: dict) -> None:
     project_dir = os.path.join(specification["path"], name)
     os.makedirs(project_dir, exist_ok=True)
     # repo files
+    print("  |-- Copying repo files...")
     shutil.copyfile(os.path.join(ROOT_DIR, ".dockerignore"), os.path.join(project_dir, ".dockerignore"))
     shutil.copyfile(os.path.join(ROOT_DIR, ".flake8"), os.path.join(project_dir, ".flake8"))
     shutil.copyfile(os.path.join(ROOT_DIR, ".gitattributes"), os.path.join(project_dir, ".gitattributes"))
@@ -146,6 +166,7 @@ def _external(specification: dict) -> None:
     template = jinja_env.get_template("external/README.md")
     _write_file(os.path.join(project_dir, "README.md"), content=template.render(**specification))
     # scripts
+    print("  |-- Copying scripts...")
     # reinforcement learning libraries
     dir = os.path.join(project_dir, "scripts")
     os.makedirs(dir, exist_ok=True)
@@ -171,6 +192,7 @@ def _external(specification: dict) -> None:
         dst=os.path.join(dir, "list_envs.py"),
     )
     # docker files
+    print("  |-- Copying docker files...")
     dir = os.path.join(project_dir, "docker")
     os.makedirs(dir, exist_ok=True)
     template = jinja_env.get_template("external/docker/.env.base")
@@ -180,6 +202,7 @@ def _external(specification: dict) -> None:
     template = jinja_env.get_template("external/docker/Dockerfile")
     _write_file(os.path.join(dir, "Dockerfile"), content=template.render(**specification))
     # extension files
+    print("  |-- Copying extension files...")
     # - config/extension.toml
     dir = os.path.join(project_dir, "source", name, "config")
     os.makedirs(dir, exist_ok=True)
@@ -198,6 +221,7 @@ def _external(specification: dict) -> None:
     _write_file(os.path.join(dir, "setup.py"), content=template.render(**specification))
     shutil.copyfile(os.path.join(TEMPLATE_DIR, "extension", "pyproject.toml"), os.path.join(dir, "pyproject.toml"))
     # - tasks
+    print("  |-- Generating tasks...")
     dir = os.path.join(project_dir, "source", name, name, "tasks")
     os.makedirs(dir, exist_ok=True)
     _generate_tasks(specification, dir)
@@ -207,6 +231,14 @@ def _external(specification: dict) -> None:
             os.path.join(TEMPLATE_DIR, "extension", "workflow__init__"),
             os.path.join(dir, workflow["name"].replace("-", "_"), "__init__.py"),
         )
+    # setup git repo
+    print(f"Setting up git repo in {project_dir} path...")
+    _setup_git_repo(project_dir)
+    # show end message
+    print("-" * 80)
+    print(f"Project '{name}' generated successfully in {project_dir} path.")
+    print(f"See {project_dir}/README.md to get started!")
+    print("-" * 80)
 
 
 def generate(specification: dict) -> None:
@@ -216,6 +248,7 @@ def generate(specification: dict) -> None:
         specification: The specification of the project/task.
     """
     # validate specification
+    print("\nValidating specification...")
     assert "external" in specification, "External flag is required"
     assert specification.get("name", "").isidentifier(), "Name must be a valid identifier"
     for workflow in specification["workflows"]:
@@ -225,26 +258,9 @@ def generate(specification: dict) -> None:
         assert "path" in specification, "Path is required for external projects"
     # generate project/task
     if specification["external"]:
+        print("Generating external project...")
         _external(specification)
     else:
+        print("Generating internal task...")
+        print("  |-- Generating tasks...")
         _generate_tasks(specification, TASKS_DIR)
-
-
-if __name__ == "__main__":
-    spec = {
-        "external": True,
-        "path": "/home/toni/Documents/RL",
-        "name": "lorem_ipsum",
-        "workflows": [
-            {"name": "direct", "type": "single-agent"},
-            {"name": "direct", "type": "multi-agent"},
-            {"name": "manager-based", "type": "single-agent"},
-        ],
-        "rl_libraries": [
-            {"name": "rl_games", "algorithms": ["ppo"]},
-            {"name": "rsl_rl", "algorithms": ["ppo"]},
-            {"name": "skrl", "algorithms": ["amp", "ppo", "ippo", "mappo"]},
-            {"name": "sb3", "algorithms": ["ppo"]},
-        ],
-    }
-    generate(spec)
