@@ -381,9 +381,9 @@ while [[ $# -gt 0 ]]; do
             python_exe=$(extract_python_exe)
             shift # past argument
             echo "[INFO] Installing template dependencies..."
-            ${python_exe} -m pip install -q -r ${ISAACLAB_PATH}/template/requirements.txt
+            ${python_exe} -m pip install -q -r ${ISAACLAB_PATH}/tools/template/requirements.txt
             echo -e "\n[INFO] Running template generator...\n"
-            ${python_exe} ${ISAACLAB_PATH}/template/cli.py $@
+            ${python_exe} ${ISAACLAB_PATH}/tools/template/cli.py $@
             # exit neatly
             break
             ;;

@@ -477,11 +477,11 @@ if "%arg%"=="-i" (
         )
     )
     echo [INFO] Installing template dependencies...
-    !python_exe! -m pip install -q -r template\requirements.txt
+    !python_exe! -m pip install -q -r tools\template\requirements.txt
     echo.
     echo [INFO] Running template generator...
     echo.
-    !python_exe! template\cli.py !allArgs!
+    !python_exe! tools\template\cli.py !allArgs!
     goto :end
 ) else if "%arg%"=="--new" (
     rem run the template generator script
@@ -496,11 +496,11 @@ if "%arg%"=="-i" (
         )
     )
     echo [INFO] Installing template dependencies...
-    !python_exe! -m pip install -q -r template\requirements.txt
+    !python_exe! -m pip install -q -r tools\template\requirements.txt
     echo.
     echo [INFO] Running template generator...
     echo.
-    !python_exe! template\cli.py !allArgs!
+    !python_exe! tools\template\cli.py !allArgs!
     goto :end
 ) else if "%arg%"=="-t" (
     rem run the python provided by Isaac Sim
