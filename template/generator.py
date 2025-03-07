@@ -3,6 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+import glob
 import os
 import shutil
 from datetime import datetime
@@ -119,6 +120,14 @@ def _external(specification: dict):
             os.path.join(dir, rl_library["name"]),
             dirs_exist_ok=True,
         )
+        # replace placeholder in scripts
+        for file in glob.glob(os.path.join(dir, rl_library["name"], "*.py")):
+            _replace_in_file(
+                file,
+                "# PLACEHOLDER: Extension template (do not remove this comment)",
+                f"import {name}.tasks  # noqa: F401",
+            )
+
     # docker files
     dir = os.path.join(project_dir, "docker")
     os.makedirs(dir, exist_ok=True)
