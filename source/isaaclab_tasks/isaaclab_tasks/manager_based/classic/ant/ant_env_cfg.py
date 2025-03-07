@@ -140,8 +140,8 @@ class RewardsCfg:
     # (6) Penalty for energy consumption
     energy = RewTerm(func=mdp.power_consumption, weight=-0.05, params={"gear_ratio": {".*": 15.0}})
     # (7) Penalty for reaching close to joint limits
-    joint_limits = RewTerm(
-        func=mdp.joint_limits_penalty_ratio, weight=-0.1, params={"threshold": 0.99, "gear_ratio": {".*": 15.0}}
+    joint_pos_limits = RewTerm(
+        func=mdp.joint_pos_limits_penalty_ratio, weight=-0.1, params={"threshold": 0.99, "gear_ratio": {".*": 15.0}}
     )
 
 
