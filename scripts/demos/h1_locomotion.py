@@ -16,12 +16,14 @@ This script demonstrates an interactive demo with the H1 rough terrain environme
 """Launch Isaac Sim Simulator first."""
 
 import argparse
+import os
+import sys
 
-from isaaclab.app import AppLauncher
-
-# local imports
+sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "../.."))
 import scripts.reinforcement_learning.rsl_rl.cli_args as cli_args  # isort: skip
 
+
+from isaaclab.app import AppLauncher
 
 # add argparse arguments
 parser = argparse.ArgumentParser(
@@ -43,7 +45,6 @@ import torch
 
 import carb
 import omni
-from isaaclab_rl.rsl_rl import RslRlOnPolicyRunnerCfg, RslRlVecEnvWrapper
 from omni.kit.viewport.utility import get_viewport_from_window_name
 from omni.kit.viewport.utility.camera_state import ViewportCameraState
 from pxr import Gf, Sdf
@@ -52,6 +53,8 @@ from rsl_rl.runners import OnPolicyRunner
 from isaaclab.envs import ManagerBasedRLEnv
 from isaaclab.utils.math import quat_apply
 from isaaclab.utils.pretrained_checkpoint import get_published_pretrained_checkpoint
+
+from isaaclab_rl.rsl_rl import RslRlOnPolicyRunnerCfg, RslRlVecEnvWrapper
 
 from isaaclab_tasks.manager_based.locomotion.velocity.config.h1.rough_env_cfg import H1RoughEnvCfg_PLAY
 
@@ -96,10 +99,8 @@ class H1RoughDemo:
         self.policy = ppo_runner.get_inference_policy(device=self.device)
 
         self.create_camera()
-        # self.env.unwrapped.command_manager.reset(torch.arange(env_cfg.scene.num_envs))
         self.commands = torch.zeros(env_cfg.scene.num_envs, 4, device=self.device)
         self.commands[:, 0:3] = self.env.unwrapped.command_manager.get_command("base_velocity")
-        # self.commands[:, 3] = self.env.unwrapped.command_manager.get_term("base_velocity").heading_target
         self.set_up_keyboard()
         self._prim_selection = omni.usd.get_context().get_selection()
         self._selected_id = None
@@ -137,7 +138,7 @@ class H1RoughDemo:
             "ZEROS": torch.tensor([0.0, 0.0, 0.0, 0.0], device=self.device),
         }
 
-    def _on_keyboard_event(self, event, *args, **kwargs):
+    def _on_keyboard_event(self, event):
         """Checks for a keyboard event and assign the corresponding command control depending on key pressed."""
         if event.type == carb.input.KeyboardEventType.KEY_PRESS:
             # Arrow keys map to pre-defined command vectors to control navigation of robot
