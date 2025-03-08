@@ -7,6 +7,7 @@
 
 import os
 import toml
+import subprocess
 
 from setuptools import setup
 
@@ -15,11 +16,24 @@ EXTENSION_PATH = os.path.dirname(os.path.realpath(__file__))
 # Read the extension.toml file
 EXTENSION_TOML_DATA = toml.load(os.path.join(EXTENSION_PATH, "config", "extension.toml"))
 
+# Get the GPU architecture
+try:
+    result = subprocess.run(
+        ["nvidia-smi", "--query-gpu=name", "--format=csv,noheader"],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    GPU_ARCH = result.stdout.strip()
+except Exception:
+    raise RuntimeError(
+        "Failed to get GPU architecture. Please ensure you have an NVIDIA GPU and the NVIDIA driver is installed."
+    )
+
 # Minimum dependencies required prior to installation
 INSTALL_REQUIRES = [
     # generic
     "numpy<2",
-    "torch==2.5.1",
     "onnx==1.16.1",  # 1.16.2 throws access violation on Windows
     "prettytable==3.3.0",
     "toml",
@@ -40,7 +54,15 @@ INSTALL_REQUIRES = [
     "starlette==0.46.0",
 ]
 
-PYTORCH_INDEX_URL = ["https://download.pytorch.org/whl/cu118"]
+# The latest GPU architectures are supported by CUDA 12.8.
+# The torch nightly build is required for the latest GPU architectures.
+# FIXME: This is a workaround till we switch to the latest torch version.
+if any(arch in GPU_ARCH for arch in ["5060", "5070", "5080", "5090"]):
+    PYTORCH_INDEX_URL = ["https://download.pytorch.org/whl/nightly/cu128"]
+    INSTALL_REQUIRES.append("torch")
+else:
+    PYTORCH_INDEX_URL = ["https://download.pytorch.org/whl/cu118"]
+    INSTALL_REQUIRES.append("torch==2.5.1")
 
 # Installation operation
 setup(
