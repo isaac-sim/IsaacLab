@@ -8,7 +8,7 @@ from __future__ import annotations
 import torch
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
 import isaaclab.utils.string as string_utils
 from isaaclab.utils.types import ArticulationActions
@@ -36,20 +36,55 @@ class ActuatorBase(ABC):
     To see how the class is used, check the :class:`isaaclab.assets.Articulation` class.
     """
 
+    is_implicit_model: ClassVar[bool] = False
+    """Flag indicating if the actuator is an implicit or explicit actuator model.
+
+    If a class inherits from :class:`ImplicitActuator`, then this flag should be set to :obj:`True`.
+    """
+
     computed_effort: torch.Tensor
     """The computed effort for the actuator group. Shape is (num_envs, num_joints)."""
+
     applied_effort: torch.Tensor
-    """The applied effort for the actuator group. Shape is (num_envs, num_joints)."""
+    """The applied effort for the actuator group. Shape is (num_envs, num_joints).
+
+    This is the effort obtained after clipping the :attr:`computed_effort` based on the
+    actuator characteristics.
+    """
+
     effort_limit: torch.Tensor
-    """The effort limit for the actuator group. Shape is (num_envs, num_joints)."""
+    """The effort limit for the actuator group. Shape is (num_envs, num_joints).
+
+    For implicit actuators, the :attr:`effort_limit` and :attr:`effort_limit_sim` are the same.
+    """
+
+    effort_limit_sim: torch.Tensor
+    """The effort limit for the actuator group in the simulation. Shape is (num_envs, num_joints).
+
+    For implicit actuators, the :attr:`effort_limit` and :attr:`effort_limit_sim` are the same.
+    """
+
     velocity_limit: torch.Tensor
-    """The velocity limit for the actuator group. Shape is (num_envs, num_joints)."""
+    """The velocity limit for the actuator group. Shape is (num_envs, num_joints).
+
+    For implicit actuators, the :attr:`velocity_limit` and :attr:`velocity_limit_sim` are the same.
+    """
+
+    velocity_limit_sim: torch.Tensor
+    """The velocity limit for the actuator group in the simulation. Shape is (num_envs, num_joints).
+
+    For implicit actuators, the :attr:`velocity_limit` and :attr:`velocity_limit_sim` are the same.
+    """
+
     stiffness: torch.Tensor
     """The stiffness (P gain) of the PD controller. Shape is (num_envs, num_joints)."""
+
     damping: torch.Tensor
     """The damping (D gain) of the PD controller. Shape is (num_envs, num_joints)."""
+
     armature: torch.Tensor
     """The armature of the actuator joints. Shape is (num_envs, num_joints)."""
+
     friction: torch.Tensor
     """The joint friction of the actuator joints. Shape is (num_envs, num_joints)."""
 
@@ -57,7 +92,7 @@ class ActuatorBase(ABC):
         self,
         cfg: ActuatorBaseCfg,
         joint_names: list[str],
-        joint_ids: slice | Sequence[int],
+        joint_ids: slice | torch.Tensor,
         num_envs: int,
         device: str,
         stiffness: torch.Tensor | float = 0.0,
@@ -69,9 +104,12 @@ class ActuatorBase(ABC):
     ):
         """Initialize the actuator.
 
-        Note:
-            The actuator parameters are parsed from the configuration and stored as buffers. If the parameters
-            are not specified in the configuration, then the default values provided in the arguments are used.
+        The actuator parameters are parsed from the configuration and stored as buffers. If the parameters
+        are not specified in the configuration, then their values provided in the constructor are used.
+
+        .. note::
+            The values in the constructor are typically obtained through the USD schemas corresponding
+            to the joints in the actuator model.
 
         Args:
             cfg: The configuration of the actuator model.
@@ -100,6 +138,11 @@ class ActuatorBase(ABC):
         self._joint_names = joint_names
         self._joint_indices = joint_ids
 
+        # For explicit models, we do not want to enforce the effort limit through the solver
+        # (unless it is explicitly set)
+        if not ActuatorBase.is_implicit_model and self.cfg.effort_limit_sim is None:
+            self.cfg.effort_limit_sim = 1.0e9
+
         # parse joint stiffness and damping
         self.stiffness = self._parse_joint_parameter(self.cfg.stiffness, stiffness)
         self.damping = self._parse_joint_parameter(self.cfg.damping, damping)
@@ -107,11 +150,12 @@ class ActuatorBase(ABC):
         self.armature = self._parse_joint_parameter(self.cfg.armature, armature)
         self.friction = self._parse_joint_parameter(self.cfg.friction, friction)
         # parse joint limits
-        # note: for velocity limits, we don't have USD parameter, so default is infinity
-        self.effort_limit = self._parse_joint_parameter(self.cfg.effort_limit, effort_limit)
-        self.velocity_limit = self._parse_joint_parameter(self.cfg.velocity_limit, velocity_limit)
-        self.effort_limit_sim = self._parse_joint_parameter(self.cfg.effort_limit_sim, effort_limit)
+        # -- velocity
         self.velocity_limit_sim = self._parse_joint_parameter(self.cfg.velocity_limit_sim, velocity_limit)
+        self.velocity_limit = self._parse_joint_parameter(self.cfg.velocity_limit, self.velocity_limit_sim)
+        # -- effort
+        self.effort_limit_sim = self._parse_joint_parameter(self.cfg.effort_limit_sim, effort_limit)
+        self.effort_limit = self._parse_joint_parameter(self.cfg.effort_limit, self.effort_limit_sim)
 
         # create commands buffers for allocation
         self.computed_effort = torch.zeros(self._num_envs, self.num_joints, device=self._device)
@@ -123,8 +167,12 @@ class ActuatorBase(ABC):
         joint_indices = self.joint_indices
         if joint_indices == slice(None):
             joint_indices = list(range(self.num_joints))
+        # resolve model type (implicit or explicit)
+        model_type = "implicit" if self.is_implicit_model else "explicit"
+
         return (
             f"<class {self.__class__.__name__}> object:\n"
+            f"\tModel type            : {model_type}\n"
             f"\tNumber of joints      : {self.num_joints}\n"
             f"\tJoint names expression: {self.cfg.joint_names_expr}\n"
             f"\tJoint names           : {self.joint_names}\n"
@@ -146,7 +194,7 @@ class ActuatorBase(ABC):
         return self._joint_names
 
     @property
-    def joint_indices(self) -> slice | Sequence[int]:
+    def joint_indices(self) -> slice | torch.Tensor:
         """Articulation's joint indices that are part of the group.
 
         Note:

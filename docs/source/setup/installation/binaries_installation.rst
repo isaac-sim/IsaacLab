@@ -17,7 +17,7 @@ to install the latest Isaac Sim release.
 
 From Isaac Sim 4.5 release, Isaac Sim binaries can be `downloaded <https://docs.isaacsim.omniverse.nvidia.com/latest/installation/download.html#download-isaac-sim-short>`_ directly as a zip file.
 
-To check the minimum system requirements,refer to the documentation
+To check the minimum system requirements, refer to the documentation
 `here <https://docs.isaacsim.omniverse.nvidia.com/latest/installation/requirements.html>`__.
 
 .. tab-set::
@@ -29,13 +29,12 @@ To check the minimum system requirements,refer to the documentation
       .. note::
 
          We have tested Isaac Lab with Isaac Sim 4.5 release on Ubuntu
-         22.04LTS with NVIDIA driver 535.129.
+         22.04 LTS with NVIDIA driver 535.129.
 
          From Isaac Sim 4.5 release, Isaac Sim binaries can be downloaded directly as a zip file.
-         The below steps assume the Isaac Sim folder was unzipped to the Downloads directory.
+         The below steps assume the Isaac Sim folder was unzipped to the ``${HOME}/isaacsim`` directory.
 
-      On Linux systems, Isaac Sim directory will be named
-      ``${HOME}/Downloads/isaac-sim-standalone@*``, with ``*`` corresponding to the Isaac Sim version.
+      On Linux systems, Isaac Sim directory will be named ``${HOME}/isaacsim``.
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
@@ -45,10 +44,9 @@ To check the minimum system requirements,refer to the documentation
          We have tested Isaac Lab with Isaac Sim 4.5 release on Windows11 with NVIDIA driver 552.86.
 
          From Isaac Sim 4.5 release, Isaac Sim binaries can be downloaded directly as a zip file.
-         The below steps assume the Isaac Sim folder was unzipped to the Downloads directory.
+         The below steps assume the Isaac Sim folder was unzipped to the ``C:/isaacsim`` directory.
 
-      On Windows systems, Isaac Sim directory will be named
-      ``%USERPROFILE%/Downloads/isaac-sim-standalone@*``, with ``*`` corresponding to the Isaac Sim version.
+      On Windows systems, Isaac Sim directory will be named ``C:/isaacsim``.
 
 Verifying the Isaac Sim installation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -66,7 +64,7 @@ variables to your terminal for the remaining of the installation instructions:
       .. code:: bash
 
          # Isaac Sim root directory
-         export ISAACSIM_PATH="${HOME}/Downloads/isaac-sim-standalone@4.5.0"
+         export ISAACSIM_PATH="${HOME}/isaacsim"
          # Isaac Sim python executable
          export ISAACSIM_PYTHON_EXE="${ISAACSIM_PATH}/python.sh"
 
@@ -76,7 +74,7 @@ variables to your terminal for the remaining of the installation instructions:
       .. code:: batch
 
          :: Isaac Sim root directory
-         set ISAACSIM_PATH="%USERPROFILE%/Downloads/isaac-sim-standalone@4.5.0"
+         set ISAACSIM_PATH="C:/isaacsim"
          :: Isaac Sim python executable
          set ISAACSIM_PYTHON_EXE="%ISAACSIM_PATH:"=%\python.bat"
 
@@ -259,7 +257,7 @@ to index the python modules and look for extensions shipped with Isaac Sim.
          cd IsaacLab
          # create a symbolic link
          ln -s path_to_isaac_sim _isaac_sim
-         # For example: ln -s ${HOME}/Downloads/isaac-sim-standalone@4.5.0 _isaac_sim
+         # For example: ln -s ${HOME}/isaacsim _isaac_sim
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
@@ -270,7 +268,7 @@ to index the python modules and look for extensions shipped with Isaac Sim.
          cd IsaacLab
          :: create a symbolic link - requires launching Command Prompt with Administrator access
          mklink /D _isaac_sim path_to_isaac_sim
-         :: For example: mklink /D _isaac_sim C:/Users/nvidia/Downloads/isaac-sim-standalone@4.5.0
+         :: For example: mklink /D _isaac_sim C:/isaacsim
 
 
 Setting up the conda environment (optional)
@@ -382,6 +380,27 @@ Installation
             isaaclab.bat --install rl_games :: or "isaaclab.bat -i rl_games"
 
    The valid options are ``rl_games``, ``rsl_rl``, ``sb3``, ``skrl``, ``robomimic``, ``none``.
+
+.. attention::
+
+   For 50 series GPUs, please use the latest PyTorch nightly build instead of PyTorch 2.5.1, which comes with Isaac Sim:
+
+   .. tab-set::
+      :sync-group: os
+
+      .. tab-item:: :icon:`fa-brands fa-linux` Linux
+         :sync: linux
+
+         .. code:: bash
+
+            ./isaaclab.sh -p -m pip install --upgrade --pre torch --index-url https://download.pytorch.org/whl/nightly/cu128
+
+      .. tab-item:: :icon:`fa-brands fa-windows` Windows
+         :sync: windows
+
+         .. code:: batch
+
+            isaaclab.bat -p -m pip install --upgrade --pre torch --index-url https://download.pytorch.org/whl/nightly/cu128
 
 Verifying the Isaac Lab installation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

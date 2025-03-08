@@ -12,6 +12,8 @@ import numpy as np
 import torch
 import unittest
 
+import isaaclab.utils.math as PoseUtils
+
 from isaaclab_mimic.datagen.datagen_info import DatagenInfo
 
 # Importing the necessary classes for the testing
@@ -19,8 +21,6 @@ from isaaclab_mimic.datagen.selection_strategy import (
     NearestNeighborObjectStrategy,
     NearestNeighborRobotDistanceStrategy,
 )
-
-import isaaclab.utils.math as PoseUtils
 
 # Number of iterations to run the batched tests
 NUM_ITERS = 1000

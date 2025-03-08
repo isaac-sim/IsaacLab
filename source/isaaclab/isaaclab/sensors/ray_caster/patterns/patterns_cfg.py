@@ -55,16 +55,16 @@ class GridPatternCfg(PatternBaseCfg):
     """Specifies the ordering of points in the generated grid. Defaults to ``"xy"``.
 
     Consider a grid pattern with points at :math:`(x, y)` where :math:`x` and :math:`y` are the grid indices.
-    The ordering of the points can be specified as "xy" or "yx". This determines the outer and inner loop order
+    The ordering of the points can be specified as "xy" or "yx". This determines the inner and outer loop order
     when iterating over the grid points.
 
-    * If *"xy"* is selected, the points are ordered with outer loop over "x" and inner loop over "y".
-    * If *"yx"* is selected, the points are ordered with outer loop over "y" and inner loop over "x".
+    * If "xy" is selected, the points are ordered with inner loop over "x" and outer loop over "y".
+    * If "yx" is selected, the points are ordered with inner loop over "y" and outer loop over "x".
 
     For example, the grid pattern points with :math:`X = (0, 1, 2)` and :math:`Y = (3, 4)`:
 
-    * *"xy"* ordering: :math:`[(0, 3), (0, 4), (1, 3), (1, 4), (2, 3), (2, 4)]`
-    * *"yx"* ordering: :math:`[(0, 3), (1, 3), (2, 3), (1, 4), (2, 4), (2, 4)]`
+    * "xy" ordering: :math:`[(0, 3), (1, 3), (2, 3), (1, 4), (2, 4), (2, 4)]`
+    * "yx" ordering: :math:`[(0, 3), (0, 4), (1, 3), (1, 4), (2, 3), (2, 4)]`
     """
 
 

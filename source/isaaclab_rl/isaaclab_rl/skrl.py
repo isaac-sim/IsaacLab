@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Wrapper to configure an Isaac Lab environment instance to skrl environment.
+"""Wrapper to configure an environment instance to skrl environment.
 
 The following example shows how to wrap an environment for skrl:
 
