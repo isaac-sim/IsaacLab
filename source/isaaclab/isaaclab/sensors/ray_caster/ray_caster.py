@@ -5,7 +5,6 @@
 
 from __future__ import annotations
 
-import numpy as np
 import re
 import torch
 from collections.abc import Sequence
@@ -15,11 +14,11 @@ import omni.log
 import omni.physics.tensors.impl.api as physx
 import warp as wp
 from isaacsim.core.prims import XFormPrim
-from pxr import UsdGeom, UsdPhysics
+from pxr import UsdPhysics
 
 import isaaclab.sim as sim_utils
 from isaaclab.markers import VisualizationMarkers
-from isaaclab.terrains.trimesh.utils import make_plane
+from isaaclab.terrains.utils import create_mesh_from_prim
 from isaaclab.utils.math import convert_quat, quat_apply, quat_apply_yaw
 from isaaclab.utils.warp import convert_to_warp_mesh, raycast_mesh
 
@@ -157,38 +156,9 @@ class RayCaster(SensorBase):
 
         # read prims to ray-cast
         for mesh_prim_path in self.cfg.mesh_prim_paths:
-            # check if the prim is a plane - handle PhysX plane as a special case
-            # if a plane exists then we need to create an infinite mesh that is a plane
-            mesh_prim = sim_utils.get_first_matching_child_prim(
-                mesh_prim_path, lambda prim: prim.GetTypeName() == "Plane"
-            )
-            # if we did not find a plane then we need to read the mesh
-            if mesh_prim is None:
-                # obtain the mesh prim
-                mesh_prim = sim_utils.get_first_matching_child_prim(
-                    mesh_prim_path, lambda prim: prim.GetTypeName() == "Mesh"
-                )
-                # check if valid
-                if mesh_prim is None or not mesh_prim.IsValid():
-                    raise RuntimeError(f"Invalid mesh prim path: {mesh_prim_path}")
-                # cast into UsdGeomMesh
-                mesh_prim = UsdGeom.Mesh(mesh_prim)
-                # read the vertices and faces
-                points = np.asarray(mesh_prim.GetPointsAttr().Get())
-                transform_matrix = np.array(omni.usd.get_world_transform_matrix(mesh_prim)).T
-                points = np.matmul(points, transform_matrix[:3, :3].T)
-                points += transform_matrix[:3, 3]
-                indices = np.asarray(mesh_prim.GetFaceVertexIndicesAttr().Get())
-                wp_mesh = convert_to_warp_mesh(points, indices, device=self.device)
-                # print info
-                omni.log.info(
-                    f"Read mesh prim: {mesh_prim.GetPath()} with {len(points)} vertices and {len(indices)} faces."
-                )
-            else:
-                mesh = make_plane(size=(2e6, 2e6), height=0.0, center_zero=True)
-                wp_mesh = convert_to_warp_mesh(mesh.vertices, mesh.faces, device=self.device)
-                # print info
-                omni.log.info(f"Created infinite plane mesh prim: {mesh_prim.GetPath()}.")
+            # parse the mesh
+            mesh = create_mesh_from_prim(mesh_prim_path)
+            wp_mesh = convert_to_warp_mesh(mesh.vertices, mesh.faces, device=self.device)
             # add the warp mesh to the list
             self.meshes[mesh_prim_path] = wp_mesh
 

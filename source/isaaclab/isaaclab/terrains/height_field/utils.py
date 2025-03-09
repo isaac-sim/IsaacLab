@@ -163,9 +163,11 @@ def convert_height_field_to_mesh(
         ind3 = ind2 + 1
         start = 2 * i * (num_cols - 1)
         stop = start + 2 * (num_cols - 1)
+        # first triangle
         triangles[start:stop:2, 0] = ind0
         triangles[start:stop:2, 1] = ind3
         triangles[start:stop:2, 2] = ind1
+        # second triangle
         triangles[start + 1 : stop : 2, 0] = ind0
         triangles[start + 1 : stop : 2, 1] = ind2
         triangles[start + 1 : stop : 2, 2] = ind3
