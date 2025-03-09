@@ -257,6 +257,7 @@ class AppLauncher:
         arg_group.add_argument(
             "--device",
             type=str,
+            default=AppLauncher._APPLAUNCHER_CFG_INFO["device"][1] if "--xr" not in sys.argv else None,
             help='The device to run the simulation on. Can be "cpu", "cuda", "cuda:N", where N is the device ID',
         )
         # Add the deprecated cpu flag to raise an error if it is used
