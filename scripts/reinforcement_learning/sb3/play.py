@@ -64,6 +64,8 @@ from isaaclab_rl.sb3 import Sb3VecEnvWrapper, process_sb3_cfg
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.parse_cfg import get_checkpoint_path, load_cfg_from_registry, parse_env_cfg
 
+# PLACEHOLDER: Extension template (do not remove this comment)
+
 
 def main():
     """Play with stable-baselines agent."""
