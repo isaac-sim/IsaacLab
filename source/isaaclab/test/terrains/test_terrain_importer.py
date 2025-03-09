@@ -14,7 +14,9 @@ simulation_app = AppLauncher(headless=True).app
 
 import numpy as np
 import torch
+import trimesh
 import pytest
+from typing import Literal
 
 import isaacsim.core.utils.prims as prim_utils
 import omni.kit
@@ -24,9 +26,10 @@ from isaacsim.core.api.objects import DynamicSphere
 from isaacsim.core.cloner import GridCloner
 from isaacsim.core.prims import RigidPrim, SingleGeometryPrim, SingleRigidPrim
 from isaacsim.core.utils.extensions import enable_extension
+from pxr import UsdGeom
 
 import isaaclab.terrains as terrain_gen
-from isaaclab.sim import PreviewSurfaceCfg, SimulationContext, build_simulation_context
+from isaaclab.sim import PreviewSurfaceCfg, SimulationContext, build_simulation_context, get_first_matching_child_prim
 from isaaclab.terrains import TerrainImporter, TerrainImporterCfg
 from isaaclab.terrains.config.rough import ROUGH_TERRAINS_CFG
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
@@ -73,8 +76,12 @@ def test_terrain_generation(device):
         )
         terrain_importer = TerrainImporter(terrain_importer_cfg)
 
-        # check mesh exists
-        mesh = terrain_importer.meshes["terrain"]
+        # check if mesh prim path exists
+        mesh_prim_path = terrain_importer.cfg.prim_path + "/terrain"
+        assert mesh_prim_path in terrain_importer.terrain_prim_paths
+
+        # obtain underling mesh
+        mesh = _obtain_collision_mesh(mesh_prim_path, mesh_type="Mesh")
         assert mesh is not None
 
         # calculate expected size from config
@@ -98,9 +105,6 @@ def test_plane(device, use_custom_material):
     with build_simulation_context(device=device, auto_add_lighting=True) as sim:
         sim._app_control_on_stop_handle = None
 
-        expectedSizeX = 2.0e6
-        expectedSizeY = 2.0e6
-
         # create custom material
         visual_material = PreviewSurfaceCfg(diffuse_color=(1.0, 0.0, 0.0)) if use_custom_material else None
         # Handler for terrains importing
@@ -113,16 +117,13 @@ def test_plane(device, use_custom_material):
         )
         terrain_importer = TerrainImporter(terrain_importer_cfg)
 
-        # check mesh exists
-        mesh = terrain_importer.meshes["terrain"]
-        assert mesh is not None
+        # check if mesh prim path exists
+        mesh_prim_path = terrain_importer.cfg.prim_path + "/terrain"
+        assert mesh_prim_path in terrain_importer.terrain_prim_paths
 
-        # get size from mesh bounds
-        bounds = mesh.bounds
-        actualSize = abs(bounds[1] - bounds[0])
-
-        assert actualSize[0] == pytest.approx(expectedSizeX)
-        assert actualSize[1] == pytest.approx(expectedSizeY)
+        # obtain underling mesh
+        mesh = _obtain_collision_mesh(mesh_prim_path, mesh_type="Plane")
+        assert mesh is None
 
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
@@ -140,8 +141,12 @@ def test_usd(device):
         )
         terrain_importer = TerrainImporter(terrain_importer_cfg)
 
-        # check mesh exists
-        mesh = terrain_importer.meshes["terrain"]
+        # check if mesh prim path exists
+        mesh_prim_path = terrain_importer.cfg.prim_path + "/terrain"
+        assert mesh_prim_path in terrain_importer.terrain_prim_paths
+
+        # obtain underling mesh
+        mesh = _obtain_collision_mesh(mesh_prim_path, mesh_type="Mesh")
         assert mesh is not None
 
         # expect values from USD file
@@ -217,6 +222,24 @@ def test_ball_drop_geom_sphere(device):
         # If balls fall through terrain velocity is much higher ~82.0
         max_velocity_z = torch.max(torch.abs(ball_view.get_linear_velocities()[:, 2]))
         assert max_velocity_z.item() <= 0.5
+
+
+def _obtain_collision_mesh(mesh_prim_path: str, mesh_type: Literal["Mesh", "Plane"]) -> trimesh.Trimesh | None:
+    """Get the collision mesh from the terrain."""
+    # traverse the prim and get the collision mesh
+    mesh_prim = get_first_matching_child_prim(mesh_prim_path, lambda prim: prim.GetTypeName() == mesh_type)
+    # check it is valid
+    assert mesh_prim.IsValid()
+
+    if mesh_prim.GetTypeName() == "Mesh":
+        # cast into UsdGeomMesh
+        mesh_prim = UsdGeom.Mesh(mesh_prim)
+        # store the mesh
+        vertices = np.asarray(mesh_prim.GetPointsAttr().Get())
+        faces = np.asarray(mesh_prim.GetFaceVertexIndicesAttr().Get()).reshape(-1, 3)
+        return trimesh.Trimesh(vertices=vertices, faces=faces)
+    else:
+        return None
 
 
 def _obtain_grid_cloner_env_origins(num_envs: int, env_spacing: float, device: str) -> torch.Tensor:
@@ -309,7 +332,3 @@ def _populate_scene(sim: SimulationContext, num_balls: int = 2048, geom_sphere: 
     # set initial poses
     # note: setting here writes to USD :)
     ball_view.set_world_poses(positions=ball_initial_positions)
-
-
-if __name__ == "__main__":
-    run_tests()
