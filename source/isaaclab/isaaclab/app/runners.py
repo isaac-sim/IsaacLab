@@ -3,17 +3,22 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Sub-module with runners to simplify running main via unittest."""
+"""Sub-module with runners to simplify running main via pytest."""
 
-import unittest
+import pytest
 
-
-def run_tests(verbosity: int = 2, **kwargs):
-    """Wrapper for running tests via ``unittest``.
+def run_tests(file: str, verbose: bool = True, **kwargs):
+    """Wrapper for running tests via ``pytest`` for a specific file.
 
     Args:
-        verbosity: Verbosity level for the test runner.
-        **kwargs: Additional arguments to pass to the `unittest.main` function.
+        file: The path to the test file to run.
+        verbose: Whether to run tests with verbose output.
+        **kwargs: Additional arguments to pass to the `pytest.main` function.
     """
-    # run main
-    unittest.main(verbosity=verbosity, exit=True, **kwargs)
+
+    # Add verbosity flag if verbose is True
+    verbosity_flag = ["-v"] if verbose else []
+
+    # Run pytest with `--capture=no` to avoid getting stuck
+    return pytest.main([file, "--capture=no"] + verbosity_flag + list(kwargs.get("extra_args", [])))
+

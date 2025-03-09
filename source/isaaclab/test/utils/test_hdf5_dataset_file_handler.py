@@ -16,7 +16,7 @@ import os
 import shutil
 import tempfile
 import torch
-import unittest
+import pytest
 import uuid
 
 from isaaclab.utils.datasets import EpisodeData, HDF5DatasetFileHandler
@@ -42,87 +42,81 @@ def create_test_episode(device):
     return test_episode
 
 
-class TestHDF5DatasetFileHandler(unittest.TestCase):
-    """Test HDF5 dataset filer handler implementation."""
+@pytest.fixture
+def temp_dir():
+    """Create a temporary directory for test datasets."""
+    temp_dir = tempfile.mkdtemp()
+    yield temp_dir
+    # cleanup after tests
+    shutil.rmtree(temp_dir)
 
-    """
-    Test cases for HDF5DatasetFileHandler class.
-    """
 
-    def setUp(self):
-        # create a temporary directory to store the test datasets
-        self.temp_dir = tempfile.mkdtemp()
+def test_create_dataset_file(temp_dir):
+    """Test creating a new dataset file."""
+    # create a dataset file given a file name with extension
+    dataset_file_path = os.path.join(temp_dir, f"{uuid.uuid4()}.hdf5")
+    dataset_file_handler = HDF5DatasetFileHandler()
+    dataset_file_handler.create(dataset_file_path, "test_env_name")
+    dataset_file_handler.close()
 
-    def tearDown(self):
-        # delete the temporary directory after the test
-        shutil.rmtree(self.temp_dir)
+    # check if the dataset is created
+    assert os.path.exists(dataset_file_path)
 
-    def test_create_dataset_file(self):
-        """Test creating a new dataset file."""
-        # create a dataset file given a file name with extension
-        dataset_file_path = os.path.join(self.temp_dir, f"{uuid.uuid4()}.hdf5")
-        dataset_file_handler = HDF5DatasetFileHandler()
-        dataset_file_handler.create(dataset_file_path, "test_env_name")
-        dataset_file_handler.close()
+    # create a dataset file given a file name without extension
+    dataset_file_path = os.path.join(temp_dir, f"{uuid.uuid4()}")
+    dataset_file_handler = HDF5DatasetFileHandler()
+    dataset_file_handler.create(dataset_file_path, "test_env_name")
+    dataset_file_handler.close()
 
-        # check if the dataset is created
-        self.assertTrue(os.path.exists(dataset_file_path))
+    # check if the dataset is created
+    assert os.path.exists(dataset_file_path + ".hdf5")
 
-        # create a dataset file given a file name without extension
-        dataset_file_path = os.path.join(self.temp_dir, f"{uuid.uuid4()}")
-        dataset_file_handler = HDF5DatasetFileHandler()
-        dataset_file_handler.create(dataset_file_path, "test_env_name")
-        dataset_file_handler.close()
 
-        # check if the dataset is created
-        self.assertTrue(os.path.exists(dataset_file_path + ".hdf5"))
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+def test_write_and_load_episode(temp_dir, device):
+    """Test writing and loading an episode to and from the dataset file."""
+    dataset_file_path = os.path.join(temp_dir, f"{uuid.uuid4()}.hdf5")
+    dataset_file_handler = HDF5DatasetFileHandler()
+    dataset_file_handler.create(dataset_file_path, "test_env_name")
 
-    def test_write_and_load_episode(self):
-        """Test writing and loading an episode to and from the dataset file."""
-        for device in ("cuda:0", "cpu"):
-            with self.subTest(device=device):
-                dataset_file_path = os.path.join(self.temp_dir, f"{uuid.uuid4()}.hdf5")
-                dataset_file_handler = HDF5DatasetFileHandler()
-                dataset_file_handler.create(dataset_file_path, "test_env_name")
+    test_episode = create_test_episode(device)
 
-                test_episode = create_test_episode(device)
+    # write the episode to the dataset
+    dataset_file_handler.write_episode(test_episode)
+    dataset_file_handler.flush()
 
-                # write the episode to the dataset
-                dataset_file_handler.write_episode(test_episode)
-                dataset_file_handler.flush()
+    assert dataset_file_handler.get_num_episodes() == 1
 
-                self.assertEqual(dataset_file_handler.get_num_episodes(), 1)
+    # write the episode again to test writing 2nd episode
+    dataset_file_handler.write_episode(test_episode)
+    dataset_file_handler.flush()
 
-                # write the episode again to test writing 2nd episode
-                dataset_file_handler.write_episode(test_episode)
-                dataset_file_handler.flush()
+    assert dataset_file_handler.get_num_episodes() == 2
 
-                self.assertEqual(dataset_file_handler.get_num_episodes(), 2)
+    # close the dataset file to prepare for testing the load function
+    dataset_file_handler.close()
 
-                # close the dataset file to prepare for testing the load function
-                dataset_file_handler.close()
+    # load the episode from the dataset
+    dataset_file_handler = HDF5DatasetFileHandler()
+    dataset_file_handler.open(dataset_file_path)
 
-                # load the episode from the dataset
-                dataset_file_handler = HDF5DatasetFileHandler()
-                dataset_file_handler.open(dataset_file_path)
+    assert dataset_file_handler.get_env_name() == "test_env_name"
 
-                self.assertEqual(dataset_file_handler.get_env_name(), "test_env_name")
+    loaded_episode_names = dataset_file_handler.get_episode_names()
+    assert len(list(loaded_episode_names)) == 2
 
-                loaded_episode_names = dataset_file_handler.get_episode_names()
-                self.assertEqual(len(list(loaded_episode_names)), 2)
+    for episode_name in loaded_episode_names:
+        loaded_episode = dataset_file_handler.load_episode(episode_name, device=device)
+        assert loaded_episode.env_id == "test_env_name"
+        assert loaded_episode.seed == test_episode.seed
+        assert loaded_episode.success == test_episode.success
 
-                for episode_name in loaded_episode_names:
-                    loaded_episode = dataset_file_handler.load_episode(episode_name, device=device)
-                    self.assertEqual(loaded_episode.env_id, "test_env_name")
-                    self.assertEqual(loaded_episode.seed, test_episode.seed)
-                    self.assertEqual(loaded_episode.success, test_episode.success)
+        assert torch.equal(loaded_episode.get_initial_state(), test_episode.get_initial_state())
 
-                    self.assertTrue(torch.equal(loaded_episode.get_initial_state(), test_episode.get_initial_state()))
+        for action in test_episode.data["actions"]:
+            assert torch.equal(loaded_episode.get_next_action(), action)
 
-                    for action in test_episode.data["actions"]:
-                        self.assertTrue(torch.equal(loaded_episode.get_next_action(), action))
-
-                dataset_file_handler.close()
+    dataset_file_handler.close()
 
 
 if __name__ == "__main__":
