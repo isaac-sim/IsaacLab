@@ -63,7 +63,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.0.2" />
-    <meta name="docbuild:last-update" content="Mar 07, 2025"/>
+    <meta name="docbuild:last-update" content="Mar 09, 2025"/>
   </head>
   
   
@@ -595,18 +595,20 @@
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#terrain-importer">Terrain importer</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.terrains.TerrainImporter"><code class="docutils literal notranslate"><span class="pre">TerrainImporter</span></code></a><ul class="nav section-nav flex-column">
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.terrains.TerrainImporter.__init__"><code class="docutils literal notranslate"><span class="pre">TerrainImporter.__init__()</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.terrains.TerrainImporter.meshes"><code class="docutils literal notranslate"><span class="pre">TerrainImporter.meshes</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.terrains.TerrainImporter.warp_meshes"><code class="docutils literal notranslate"><span class="pre">TerrainImporter.warp_meshes</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.terrains.TerrainImporter.env_origins"><code class="docutils literal notranslate"><span class="pre">TerrainImporter.env_origins</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.terrains.TerrainImporter.terrain_prim_paths"><code class="docutils literal notranslate"><span class="pre">TerrainImporter.terrain_prim_paths</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.terrains.TerrainImporter.terrain_origins"><code class="docutils literal notranslate"><span class="pre">TerrainImporter.terrain_origins</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.terrains.TerrainImporter.env_origins"><code class="docutils literal notranslate"><span class="pre">TerrainImporter.env_origins</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.terrains.TerrainImporter.has_debug_vis_implementation"><code class="docutils literal notranslate"><span class="pre">TerrainImporter.has_debug_vis_implementation</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.terrains.TerrainImporter.flat_patches"><code class="docutils literal notranslate"><span class="pre">TerrainImporter.flat_patches</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.terrains.TerrainImporter.terrain_names"><code class="docutils literal notranslate"><span class="pre">TerrainImporter.terrain_names</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.terrains.TerrainImporter.set_debug_vis"><code class="docutils literal notranslate"><span class="pre">TerrainImporter.set_debug_vis()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.terrains.TerrainImporter.import_ground_plane"><code class="docutils literal notranslate"><span class="pre">TerrainImporter.import_ground_plane()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.terrains.TerrainImporter.import_mesh"><code class="docutils literal notranslate"><span class="pre">TerrainImporter.import_mesh()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.terrains.TerrainImporter.import_usd"><code class="docutils literal notranslate"><span class="pre">TerrainImporter.import_usd()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.terrains.TerrainImporter.configure_env_origins"><code class="docutils literal notranslate"><span class="pre">TerrainImporter.configure_env_origins()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.terrains.TerrainImporter.update_env_origins"><code class="docutils literal notranslate"><span class="pre">TerrainImporter.update_env_origins()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.terrains.TerrainImporter.warp_meshes"><code class="docutils literal notranslate"><span class="pre">TerrainImporter.warp_meshes</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.terrains.TerrainImporter.meshes"><code class="docutils literal notranslate"><span class="pre">TerrainImporter.meshes</span></code></a></li>
 </ul>
 </li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.terrains.TerrainImporterCfg"><code class="docutils literal notranslate"><span class="pre">TerrainImporterCfg</span></code></a><ul class="nav section-nav flex-column">
@@ -1046,11 +1048,10 @@
 sub-terrain configuration. It creates a <code class="docutils literal notranslate"><span class="pre">trimesh</span></code> mesh object and contains the origins of
 each generated sub-terrain.</p></li>
 <li><p><a class="reference internal" href="#isaaclab.terrains.TerrainImporter" title="isaaclab.terrains.TerrainImporter"><code class="xref py py-class docutils literal notranslate"><span class="pre">TerrainImporter</span></code></a>: This class mainly deals with importing terrains from different
-possible sources and adding them to the simulator as a prim object. It also stores the
-terrain mesh into a dictionary called <a class="reference internal" href="#isaaclab.terrains.TerrainImporter.warp_meshes" title="isaaclab.terrains.TerrainImporter.warp_meshes"><code class="xref py py-obj docutils literal notranslate"><span class="pre">TerrainImporter.warp_meshes</span></code></a> that later can be used
-for ray-casting. The following functions are available for importing terrains:</p>
+possible sources and adding them to the simulator as a prim object.
+The following functions are available for importing terrains:</p>
 <ul>
-<li><p><a class="reference internal" href="#isaaclab.terrains.TerrainImporter.import_ground_plane" title="isaaclab.terrains.TerrainImporter.import_ground_plane"><code class="xref py py-meth docutils literal notranslate"><span class="pre">TerrainImporter.import_ground_plane()</span></code></a>: spawn a grid plane which is default in isaacsim/isaaclab.</p></li>
+<li><p><a class="reference internal" href="#isaaclab.terrains.TerrainImporter.import_ground_plane" title="isaaclab.terrains.TerrainImporter.import_ground_plane"><code class="xref py py-meth docutils literal notranslate"><span class="pre">TerrainImporter.import_ground_plane()</span></code></a>: spawn a grid plane which is default in Isaac Sim.</p></li>
 <li><p><a class="reference internal" href="#isaaclab.terrains.TerrainImporter.import_mesh" title="isaaclab.terrains.TerrainImporter.import_mesh"><code class="xref py py-meth docutils literal notranslate"><span class="pre">TerrainImporter.import_mesh()</span></code></a>: spawn a prim from a <code class="docutils literal notranslate"><span class="pre">trimesh</span></code> object.</p></li>
 <li><p><a class="reference internal" href="#isaaclab.terrains.TerrainImporter.import_usd" title="isaaclab.terrains.TerrainImporter.import_usd"><code class="xref py py-meth docutils literal notranslate"><span class="pre">TerrainImporter.import_usd()</span></code></a>: spawn a prim as reference to input USD file.</p></li>
 </ul>
@@ -1103,13 +1104,13 @@ curriculum. For example, in a game, the player starts with easy levels and progr
 <tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.terrains.TerrainImporter.set_debug_vis" title="isaaclab.terrains.TerrainImporter.set_debug_vis"><code class="xref py py-obj docutils literal notranslate"><span class="pre">set_debug_vis</span></code></a>(debug_vis)</p></td>
 <td><p>Set the debug visualization of the terrain importer.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.terrains.TerrainImporter.import_ground_plane" title="isaaclab.terrains.TerrainImporter.import_ground_plane"><code class="xref py py-obj docutils literal notranslate"><span class="pre">import_ground_plane</span></code></a>(key[, size])</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.terrains.TerrainImporter.import_ground_plane" title="isaaclab.terrains.TerrainImporter.import_ground_plane"><code class="xref py py-obj docutils literal notranslate"><span class="pre">import_ground_plane</span></code></a>(name[, size])</p></td>
 <td><p>Add a plane to the terrain importer.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.terrains.TerrainImporter.import_mesh" title="isaaclab.terrains.TerrainImporter.import_mesh"><code class="xref py py-obj docutils literal notranslate"><span class="pre">import_mesh</span></code></a>(key, mesh)</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.terrains.TerrainImporter.import_mesh" title="isaaclab.terrains.TerrainImporter.import_mesh"><code class="xref py py-obj docutils literal notranslate"><span class="pre">import_mesh</span></code></a>(name, mesh)</p></td>
 <td><p>Import a mesh into the simulator.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.terrains.TerrainImporter.import_usd" title="isaaclab.terrains.TerrainImporter.import_usd"><code class="xref py py-obj docutils literal notranslate"><span class="pre">import_usd</span></code></a>(key, usd_path)</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.terrains.TerrainImporter.import_usd" title="isaaclab.terrains.TerrainImporter.import_usd"><code class="xref py py-obj docutils literal notranslate"><span class="pre">import_usd</span></code></a>(name, usd_path)</p></td>
 <td><p>Import a mesh from a USD file.</p></td>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.terrains.TerrainImporter.configure_env_origins" title="isaaclab.terrains.TerrainImporter.configure_env_origins"><code class="xref py py-obj docutils literal notranslate"><span class="pre">configure_env_origins</span></code></a>([origins])</p></td>
@@ -1124,23 +1125,29 @@ curriculum. For example, in a game, the player starts with easy levels and progr
 <p><strong>Attributes:</strong></p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
 <tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.terrains.TerrainImporter.meshes" title="isaaclab.terrains.TerrainImporter.meshes"><code class="xref py py-obj docutils literal notranslate"><span class="pre">meshes</span></code></a></p></td>
-<td><p>A dictionary containing the names of the meshes and their keys.</p></td>
-</tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.terrains.TerrainImporter.warp_meshes" title="isaaclab.terrains.TerrainImporter.warp_meshes"><code class="xref py py-obj docutils literal notranslate"><span class="pre">warp_meshes</span></code></a></p></td>
-<td><p>A dictionary containing the names of the warp meshes and their keys.</p></td>
-</tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.terrains.TerrainImporter.env_origins" title="isaaclab.terrains.TerrainImporter.env_origins"><code class="xref py py-obj docutils literal notranslate"><span class="pre">env_origins</span></code></a></p></td>
-<td><p>The origins of the environments.</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.terrains.TerrainImporter.terrain_prim_paths" title="isaaclab.terrains.TerrainImporter.terrain_prim_paths"><code class="xref py py-obj docutils literal notranslate"><span class="pre">terrain_prim_paths</span></code></a></p></td>
+<td><p>A list containing the USD prim paths to the imported terrains.</p></td>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.terrains.TerrainImporter.terrain_origins" title="isaaclab.terrains.TerrainImporter.terrain_origins"><code class="xref py py-obj docutils literal notranslate"><span class="pre">terrain_origins</span></code></a></p></td>
 <td><p>The origins of the sub-terrains in the added terrain mesh.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.terrains.TerrainImporter.has_debug_vis_implementation" title="isaaclab.terrains.TerrainImporter.has_debug_vis_implementation"><code class="xref py py-obj docutils literal notranslate"><span class="pre">has_debug_vis_implementation</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.terrains.TerrainImporter.env_origins" title="isaaclab.terrains.TerrainImporter.env_origins"><code class="xref py py-obj docutils literal notranslate"><span class="pre">env_origins</span></code></a></p></td>
+<td><p>The origins of the environments.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.terrains.TerrainImporter.has_debug_vis_implementation" title="isaaclab.terrains.TerrainImporter.has_debug_vis_implementation"><code class="xref py py-obj docutils literal notranslate"><span class="pre">has_debug_vis_implementation</span></code></a></p></td>
 <td><p>Whether the terrain importer has a debug visualization implemented.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.terrains.TerrainImporter.flat_patches" title="isaaclab.terrains.TerrainImporter.flat_patches"><code class="xref py py-obj docutils literal notranslate"><span class="pre">flat_patches</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.terrains.TerrainImporter.flat_patches" title="isaaclab.terrains.TerrainImporter.flat_patches"><code class="xref py py-obj docutils literal notranslate"><span class="pre">flat_patches</span></code></a></p></td>
 <td><p>A dictionary containing the sampled valid (flat) patches for the terrain.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.terrains.TerrainImporter.terrain_names" title="isaaclab.terrains.TerrainImporter.terrain_names"><code class="xref py py-obj docutils literal notranslate"><span class="pre">terrain_names</span></code></a></p></td>
+<td><p>A list of names of the imported terrains.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.terrains.TerrainImporter.warp_meshes" title="isaaclab.terrains.TerrainImporter.warp_meshes"><code class="xref py py-obj docutils literal notranslate"><span class="pre">warp_meshes</span></code></a></p></td>
+<td><p>A dictionary containing the terrain's names and their warp meshes.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.terrains.TerrainImporter.meshes" title="isaaclab.terrains.TerrainImporter.meshes"><code class="xref py py-obj docutils literal notranslate"><span class="pre">meshes</span></code></a></p></td>
+<td><p>A dictionary containing the terrain's names and their tri-meshes.</p></td>
 </tr>
 </tbody>
 </table>
@@ -1165,28 +1172,23 @@ curriculum. For example, in a game, the player starts with easy levels and progr
 </dd></dl>
 
 <dl class="py attribute">
-<dt class="sig sig-object py" id="isaaclab.terrains.TerrainImporter.meshes">
-<span class="sig-name descname"><span class="pre">meshes</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.13)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">trimesh.Trimesh</span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#isaaclab.terrains.TerrainImporter.meshes" title="Permalink to this definition">#</a></dt>
-<dd><p>A dictionary containing the names of the meshes and their keys.</p>
-</dd></dl>
-
-<dl class="py attribute">
-<dt class="sig sig-object py" id="isaaclab.terrains.TerrainImporter.warp_meshes">
-<span class="sig-name descname"><span class="pre">warp_meshes</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.13)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://nvidia.github.io/warp/modules/runtime.html#warp.Mesh" title="(in Warp v1.6.1)"><span class="pre">warp.Mesh</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#isaaclab.terrains.TerrainImporter.warp_meshes" title="Permalink to this definition">#</a></dt>
-<dd><p>A dictionary containing the names of the warp meshes and their keys.</p>
-</dd></dl>
-
-<dl class="py attribute">
-<dt class="sig sig-object py" id="isaaclab.terrains.TerrainImporter.env_origins">
-<span class="sig-name descname"><span class="pre">env_origins</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.6)"><span class="pre">torch.Tensor</span></a></em><a class="headerlink" href="#isaaclab.terrains.TerrainImporter.env_origins" title="Permalink to this definition">#</a></dt>
-<dd><p>The origins of the environments. Shape is (num_envs, 3).</p>
+<dt class="sig sig-object py" id="isaaclab.terrains.TerrainImporter.terrain_prim_paths">
+<span class="sig-name descname"><span class="pre">terrain_prim_paths</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.13)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#isaaclab.terrains.TerrainImporter.terrain_prim_paths" title="Permalink to this definition">#</a></dt>
+<dd><p>A list containing the USD prim paths to the imported terrains.</p>
 </dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab.terrains.TerrainImporter.terrain_origins">
 <span class="sig-name descname"><span class="pre">terrain_origins</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.6)"><span class="pre">torch.Tensor</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></em><a class="headerlink" href="#isaaclab.terrains.TerrainImporter.terrain_origins" title="Permalink to this definition">#</a></dt>
 <dd><p>The origins of the sub-terrains in the added terrain mesh. Shape is (num_rows, num_cols, 3).</p>
-<p>If None, then it is assumed no sub-terrains exist. The environment origins are computed in a grid.</p>
+<p>If terrain origins is not None, the environment origins are computed based on the terrain origins.
+Otherwise, the environment origins are computed based on the grid spacing.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab.terrains.TerrainImporter.env_origins">
+<span class="sig-name descname"><span class="pre">env_origins</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.6)"><span class="pre">torch.Tensor</span></a></em><a class="headerlink" href="#isaaclab.terrains.TerrainImporter.env_origins" title="Permalink to this definition">#</a></dt>
+<dd><p>The origins of the environments. Shape is (num_envs, 3).</p>
 </dd></dl>
 
 <dl class="py property">
@@ -1203,6 +1205,12 @@ curriculum. For example, in a game, the player starts with easy levels and progr
 <p>This is only available if the terrain type is ‘generator’. For other terrain types, this feature
 is not available and the function returns an empty dictionary.</p>
 <p>Please refer to the <a class="reference internal" href="#isaaclab.terrains.TerrainGenerator.flat_patches" title="isaaclab.terrains.TerrainGenerator.flat_patches"><code class="xref py py-attr docutils literal notranslate"><span class="pre">TerrainGenerator.flat_patches</span></code></a> for more information.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="isaaclab.terrains.TerrainImporter.terrain_names">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">terrain_names</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.13)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#isaaclab.terrains.TerrainImporter.terrain_names" title="Permalink to this definition">#</a></dt>
+<dd><p>A list of names of the imported terrains.</p>
 </dd></dl>
 
 <dl class="py method">
@@ -1225,68 +1233,68 @@ importer does not support debug visualization.</p>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="isaaclab.terrains.TerrainImporter.import_ground_plane">
-<span class="sig-name descname"><span class="pre">import_ground_plane</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">key</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">size</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">(2000000.0,</span> <span class="pre">2000000.0)</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/isaaclab/terrains/terrain_importer.html#TerrainImporter.import_ground_plane"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.terrains.TerrainImporter.import_ground_plane" title="Permalink to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">import_ground_plane</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">size</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">(2000000.0,</span> <span class="pre">2000000.0)</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/isaaclab/terrains/terrain_importer.html#TerrainImporter.import_ground_plane"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.terrains.TerrainImporter.import_ground_plane" title="Permalink to this definition">#</a></dt>
 <dd><p>Add a plane to the terrain importer.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>key</strong> – The key to store the mesh.</p></li>
+<li><p><strong>name</strong> – The name of the imported terrain. This name is used to create the USD prim
+corresponding to the terrain.</p></li>
 <li><p><strong>size</strong> – The size of the plane. Defaults to (2.0e6, 2.0e6).</p></li>
 </ul>
 </dd>
 <dt class="field-even">Raises<span class="colon">:</span></dt>
-<dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.13)"><strong>ValueError</strong></a> – If a terrain with the same key already exists.</p>
+<dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.13)"><strong>ValueError</strong></a> – If a terrain with the same name already exists.</p>
 </dd>
 </dl>
 </dd></dl>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="isaaclab.terrains.TerrainImporter.import_mesh">
-<span class="sig-name descname"><span class="pre">import_mesh</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">key</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">mesh</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">trimesh.Trimesh</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/isaaclab/terrains/terrain_importer.html#TerrainImporter.import_mesh"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.terrains.TerrainImporter.import_mesh" title="Permalink to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">import_mesh</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">mesh</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">trimesh.Trimesh</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/isaaclab/terrains/terrain_importer.html#TerrainImporter.import_mesh"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.terrains.TerrainImporter.import_mesh" title="Permalink to this definition">#</a></dt>
 <dd><p>Import a mesh into the simulator.</p>
 <p>The mesh is imported into the simulator under the prim path <code class="docutils literal notranslate"><span class="pre">cfg.prim_path/{key}</span></code>. The created path
 contains the mesh as a <code class="xref py py-class docutils literal notranslate"><span class="pre">pxr.UsdGeom</span></code> instance along with visual or physics material prims.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>key</strong> – The key to store the mesh.</p></li>
+<li><p><strong>name</strong> – The name of the imported terrain. This name is used to create the USD prim
+corresponding to the terrain.</p></li>
 <li><p><strong>mesh</strong> – The mesh to import.</p></li>
 </ul>
 </dd>
 <dt class="field-even">Raises<span class="colon">:</span></dt>
-<dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.13)"><strong>ValueError</strong></a> – If a terrain with the same key already exists.</p>
+<dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.13)"><strong>ValueError</strong></a> – If a terrain with the same name already exists.</p>
 </dd>
 </dl>
 </dd></dl>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="isaaclab.terrains.TerrainImporter.import_usd">
-<span class="sig-name descname"><span class="pre">import_usd</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">key</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">usd_path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/isaaclab/terrains/terrain_importer.html#TerrainImporter.import_usd"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.terrains.TerrainImporter.import_usd" title="Permalink to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">import_usd</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">usd_path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/isaaclab/terrains/terrain_importer.html#TerrainImporter.import_usd"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.terrains.TerrainImporter.import_usd" title="Permalink to this definition">#</a></dt>
 <dd><p>Import a mesh from a USD file.</p>
-<p>We assume that the USD file contains a single mesh. If the USD file contains multiple meshes, then
-the first mesh is used. The function mainly helps in registering the mesh into the warp meshes
-and the meshes dictionary.</p>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>We do not apply any material properties to the mesh. The material properties should
+<p>This function imports a USD file into the simulator as a terrain. It parses the USD file and
+stores the mesh under the prim path <code class="docutils literal notranslate"><span class="pre">cfg.prim_path/{key}</span></code>. If multiple meshes are present in
+the USD file, only the first mesh is imported.</p>
+<p>The function doe not apply any material properties to the mesh. The material properties should
 be defined in the USD file.</p>
-</div>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>key</strong> – The key to store the mesh.</p></li>
+<li><p><strong>name</strong> – The name of the imported terrain. This name is used to create the USD prim
+corresponding to the terrain.</p></li>
 <li><p><strong>usd_path</strong> – The path to the USD file.</p></li>
 </ul>
 </dd>
 <dt class="field-even">Raises<span class="colon">:</span></dt>
-<dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.13)"><strong>ValueError</strong></a> – If a terrain with the same key already exists.</p>
+<dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.13)"><strong>ValueError</strong></a> – If a terrain with the same name already exists.</p>
 </dd>
 </dl>
 </dd></dl>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="isaaclab.terrains.TerrainImporter.configure_env_origins">
-<span class="sig-name descname"><span class="pre">configure_env_origins</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">origins</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">np.ndarray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/isaaclab/terrains/terrain_importer.html#TerrainImporter.configure_env_origins"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.terrains.TerrainImporter.configure_env_origins" title="Permalink to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">configure_env_origins</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">origins</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">np.ndarray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.6)"><span class="pre">torch.Tensor</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/isaaclab/terrains/terrain_importer.html#TerrainImporter.configure_env_origins"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.terrains.TerrainImporter.configure_env_origins" title="Permalink to this definition">#</a></dt>
 <dd><p>Configure the origins of the environments based on the added terrain.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -1299,6 +1307,24 @@ be defined in the USD file.</p>
 <dt class="sig sig-object py" id="isaaclab.terrains.TerrainImporter.update_env_origins">
 <span class="sig-name descname"><span class="pre">update_env_origins</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">env_ids</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.6)"><span class="pre">torch.Tensor</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">move_up</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.6)"><span class="pre">torch.Tensor</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">move_down</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.6)"><span class="pre">torch.Tensor</span></a></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/isaaclab/terrains/terrain_importer.html#TerrainImporter.update_env_origins"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.terrains.TerrainImporter.update_env_origins" title="Permalink to this definition">#</a></dt>
 <dd><p>Update the environment origins based on the terrain levels.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="isaaclab.terrains.TerrainImporter.warp_meshes">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">warp_meshes</span></span><a class="headerlink" href="#isaaclab.terrains.TerrainImporter.warp_meshes" title="Permalink to this definition">#</a></dt>
+<dd><p>A dictionary containing the terrain’s names and their warp meshes.</p>
+<div class="deprecated">
+<p><span class="versionmodified deprecated">Deprecated since version v2.1.0: </span>The <cite>warp_meshes</cite> attribute is deprecated. It is no longer stored inside the class.</p>
+</div>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="isaaclab.terrains.TerrainImporter.meshes">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">meshes</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.13)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">trimesh.Trimesh</span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#isaaclab.terrains.TerrainImporter.meshes" title="Permalink to this definition">#</a></dt>
+<dd><p>A dictionary containing the terrain’s names and their tri-meshes.</p>
+<div class="deprecated">
+<p><span class="versionmodified deprecated">Deprecated since version v2.1.0: </span>The <cite>meshes</cite> attribute is deprecated. It is no longer stored inside the class.</p>
+</div>
 </dd></dl>
 
 </dd></dl>
@@ -4956,18 +4982,20 @@ the patch is rejected.</p></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#terrain-importer">Terrain importer</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.terrains.TerrainImporter"><code class="docutils literal notranslate"><span class="pre">TerrainImporter</span></code></a><ul class="nav section-nav flex-column">
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.terrains.TerrainImporter.__init__"><code class="docutils literal notranslate"><span class="pre">TerrainImporter.__init__()</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.terrains.TerrainImporter.meshes"><code class="docutils literal notranslate"><span class="pre">TerrainImporter.meshes</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.terrains.TerrainImporter.warp_meshes"><code class="docutils literal notranslate"><span class="pre">TerrainImporter.warp_meshes</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.terrains.TerrainImporter.env_origins"><code class="docutils literal notranslate"><span class="pre">TerrainImporter.env_origins</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.terrains.TerrainImporter.terrain_prim_paths"><code class="docutils literal notranslate"><span class="pre">TerrainImporter.terrain_prim_paths</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.terrains.TerrainImporter.terrain_origins"><code class="docutils literal notranslate"><span class="pre">TerrainImporter.terrain_origins</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.terrains.TerrainImporter.env_origins"><code class="docutils literal notranslate"><span class="pre">TerrainImporter.env_origins</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.terrains.TerrainImporter.has_debug_vis_implementation"><code class="docutils literal notranslate"><span class="pre">TerrainImporter.has_debug_vis_implementation</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.terrains.TerrainImporter.flat_patches"><code class="docutils literal notranslate"><span class="pre">TerrainImporter.flat_patches</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.terrains.TerrainImporter.terrain_names"><code class="docutils literal notranslate"><span class="pre">TerrainImporter.terrain_names</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.terrains.TerrainImporter.set_debug_vis"><code class="docutils literal notranslate"><span class="pre">TerrainImporter.set_debug_vis()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.terrains.TerrainImporter.import_ground_plane"><code class="docutils literal notranslate"><span class="pre">TerrainImporter.import_ground_plane()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.terrains.TerrainImporter.import_mesh"><code class="docutils literal notranslate"><span class="pre">TerrainImporter.import_mesh()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.terrains.TerrainImporter.import_usd"><code class="docutils literal notranslate"><span class="pre">TerrainImporter.import_usd()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.terrains.TerrainImporter.configure_env_origins"><code class="docutils literal notranslate"><span class="pre">TerrainImporter.configure_env_origins()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.terrains.TerrainImporter.update_env_origins"><code class="docutils literal notranslate"><span class="pre">TerrainImporter.update_env_origins()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.terrains.TerrainImporter.warp_meshes"><code class="docutils literal notranslate"><span class="pre">TerrainImporter.warp_meshes</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.terrains.TerrainImporter.meshes"><code class="docutils literal notranslate"><span class="pre">TerrainImporter.meshes</span></code></a></li>
 </ul>
 </li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.terrains.TerrainImporterCfg"><code class="docutils literal notranslate"><span class="pre">TerrainImporterCfg</span></code></a><ul class="nav section-nav flex-column">
@@ -5420,7 +5448,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Mar 07, 2025.
+  Last updated on Mar 09, 2025.
   <br/>
 </p>
   </div>

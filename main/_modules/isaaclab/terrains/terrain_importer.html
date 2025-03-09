@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.0.2" />
-    <meta name="docbuild:last-update" content="Mar 07, 2025"/>
+    <meta name="docbuild:last-update" content="Mar 09, 2025"/>
   </head>
   
   
@@ -540,16 +540,12 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TYPE_CHECKING</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">omni.log</span>
-<span class="kn">import</span><span class="w"> </span><span class="nn">warp</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">pxr</span><span class="w"> </span><span class="kn">import</span> <span class="n">UsdGeom</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab.sim</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">sim_utils</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.markers</span><span class="w"> </span><span class="kn">import</span> <span class="n">VisualizationMarkers</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.markers.config</span><span class="w"> </span><span class="kn">import</span> <span class="n">FRAME_MARKER_CFG</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils.warp</span><span class="w"> </span><span class="kn">import</span> <span class="n">convert_to_warp_mesh</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">.terrain_generator</span><span class="w"> </span><span class="kn">import</span> <span class="n">TerrainGenerator</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">.trimesh.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">make_plane</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">create_prim_from_mesh</span>
 
 <span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
@@ -573,15 +569,16 @@
 <span class="sd">    curriculum. For example, in a game, the player starts with easy levels and progresses to harder levels.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="n">meshes</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">trimesh</span><span class="o">.</span><span class="n">Trimesh</span><span class="p">]</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;A dictionary containing the names of the meshes and their keys.&quot;&quot;&quot;</span>
-    <span class="n">warp_meshes</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">warp</span><span class="o">.</span><span class="n">Mesh</span><span class="p">]</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;A dictionary containing the names of the warp meshes and their keys.&quot;&quot;&quot;</span>
+    <span class="n">terrain_prim_paths</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;A list containing the USD prim paths to the imported terrains.&quot;&quot;&quot;</span>
+
     <span class="n">terrain_origins</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The origins of the sub-terrains in the added terrain mesh. Shape is (num_rows, num_cols, 3).</span>
 
-<span class="sd">    If None, then it is assumed no sub-terrains exist. The environment origins are computed in a grid.</span>
+<span class="sd">    If terrain origins is not None, the environment origins are computed based on the terrain origins.</span>
+<span class="sd">    Otherwise, the environment origins are computed based on the grid spacing.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
+
     <span class="n">env_origins</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The origins of the environments. Shape is (num_envs, 3).&quot;&quot;&quot;</span>
 
@@ -603,11 +600,10 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span> <span class="o">=</span> <span class="n">cfg</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">device</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">SimulationContext</span><span class="o">.</span><span class="n">instance</span><span class="p">()</span><span class="o">.</span><span class="n">device</span>  <span class="c1"># type: ignore</span>
 
-        <span class="c1"># create a dict of meshes</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">meshes</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">warp_meshes</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">env_origins</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="c1"># create buffers for the terrains</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">terrain_prim_paths</span> <span class="o">=</span> <span class="nb">list</span><span class="p">()</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">terrain_origins</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">env_origins</span> <span class="o">=</span> <span class="kc">None</span>  <span class="c1"># assigned later when `configure_env_origins` is called</span>
         <span class="c1"># private variables</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_terrain_flat_patches</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>
 
@@ -665,6 +661,11 @@
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_terrain_flat_patches</span>
 
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">terrain_names</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;A list of names of the imported terrains.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">[</span><span class="sa">f</span><span class="s2">&quot;&#39;</span><span class="si">{</span><span class="n">path</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;/&#39;</span><span class="p">)[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="si">}</span><span class="s2">&#39;&quot;</span> <span class="k">for</span> <span class="n">path</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">terrain_prim_paths</span><span class="p">]</span>
+
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Operations - Visibility.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
@@ -706,26 +707,27 @@
 <span class="sd">    Operations - Import.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-<div class="viewcode-block" id="TerrainImporter.import_ground_plane"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.terrains.html#isaaclab.terrains.TerrainImporter.import_ground_plane">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">import_ground_plane</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">size</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="mf">2.0e6</span><span class="p">,</span> <span class="mf">2.0e6</span><span class="p">)):</span>
+<div class="viewcode-block" id="TerrainImporter.import_ground_plane"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.terrains.html#isaaclab.terrains.TerrainImporter.import_ground_plane">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">import_ground_plane</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">size</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="mf">2.0e6</span><span class="p">,</span> <span class="mf">2.0e6</span><span class="p">)):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Add a plane to the terrain importer.</span>
 
 <span class="sd">        Args:</span>
-<span class="sd">            key: The key to store the mesh.</span>
+<span class="sd">            name: The name of the imported terrain. This name is used to create the USD prim</span>
+<span class="sd">                corresponding to the terrain.</span>
 <span class="sd">            size: The size of the plane. Defaults to (2.0e6, 2.0e6).</span>
 
 <span class="sd">        Raises:</span>
-<span class="sd">            ValueError: If a terrain with the same key already exists.</span>
+<span class="sd">            ValueError: If a terrain with the same name already exists.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># create prim path for the terrain</span>
+        <span class="n">prim_path</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">prim_path</span> <span class="o">+</span> <span class="sa">f</span><span class="s2">&quot;/</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">&quot;</span>
         <span class="c1"># check if key exists</span>
-        <span class="k">if</span> <span class="n">key</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">meshes</span><span class="p">:</span>
-            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Mesh with key </span><span class="si">{</span><span class="n">key</span><span class="si">}</span><span class="s2"> already exists. Existing keys: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">meshes</span><span class="o">.</span><span class="n">keys</span><span class="p">()</span><span class="si">}</span><span class="s2">.&quot;</span><span class="p">)</span>
-        <span class="c1"># create a plane</span>
-        <span class="n">mesh</span> <span class="o">=</span> <span class="n">make_plane</span><span class="p">(</span><span class="n">size</span><span class="p">,</span> <span class="n">height</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span> <span class="n">center_zero</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-        <span class="c1"># store the mesh</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">meshes</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">mesh</span>
-        <span class="c1"># create a warp mesh</span>
-        <span class="n">device</span> <span class="o">=</span> <span class="s2">&quot;cuda&quot;</span> <span class="k">if</span> <span class="s2">&quot;cuda&quot;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">device</span> <span class="k">else</span> <span class="s2">&quot;cpu&quot;</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">warp_meshes</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">convert_to_warp_mesh</span><span class="p">(</span><span class="n">mesh</span><span class="o">.</span><span class="n">vertices</span><span class="p">,</span> <span class="n">mesh</span><span class="o">.</span><span class="n">faces</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">device</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">prim_path</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">terrain_prim_paths</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;A terrain with the name &#39;</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">&#39; already exists. Existing terrains: </span><span class="si">{</span><span class="s1">&#39;, &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">terrain_names</span><span class="p">)</span><span class="si">}</span><span class="s2">.&quot;</span>
+            <span class="p">)</span>
+        <span class="c1"># store the mesh name</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">terrain_prim_paths</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">prim_path</span><span class="p">)</span>
+
         <span class="c1"># obtain ground plane color from the configured visual material</span>
         <span class="n">color</span> <span class="o">=</span> <span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">)</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">visual_material</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
@@ -741,89 +743,74 @@
 
         <span class="c1"># get the mesh</span>
         <span class="n">ground_plane_cfg</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">GroundPlaneCfg</span><span class="p">(</span><span class="n">physics_material</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">physics_material</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="n">size</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="n">color</span><span class="p">)</span>
-        <span class="n">ground_plane_cfg</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">prim_path</span><span class="p">,</span> <span class="n">ground_plane_cfg</span><span class="p">)</span></div>
+        <span class="n">ground_plane_cfg</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="n">prim_path</span><span class="p">,</span> <span class="n">ground_plane_cfg</span><span class="p">)</span></div>
 
-<div class="viewcode-block" id="TerrainImporter.import_mesh"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.terrains.html#isaaclab.terrains.TerrainImporter.import_mesh">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">import_mesh</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">mesh</span><span class="p">:</span> <span class="n">trimesh</span><span class="o">.</span><span class="n">Trimesh</span><span class="p">):</span>
+<div class="viewcode-block" id="TerrainImporter.import_mesh"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.terrains.html#isaaclab.terrains.TerrainImporter.import_mesh">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">import_mesh</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">mesh</span><span class="p">:</span> <span class="n">trimesh</span><span class="o">.</span><span class="n">Trimesh</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Import a mesh into the simulator.</span>
 
 <span class="sd">        The mesh is imported into the simulator under the prim path ``cfg.prim_path/{key}``. The created path</span>
 <span class="sd">        contains the mesh as a :class:`pxr.UsdGeom` instance along with visual or physics material prims.</span>
 
 <span class="sd">        Args:</span>
-<span class="sd">            key: The key to store the mesh.</span>
+<span class="sd">            name: The name of the imported terrain. This name is used to create the USD prim</span>
+<span class="sd">                corresponding to the terrain.</span>
 <span class="sd">            mesh: The mesh to import.</span>
 
 <span class="sd">        Raises:</span>
-<span class="sd">            ValueError: If a terrain with the same key already exists.</span>
+<span class="sd">            ValueError: If a terrain with the same name already exists.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># create prim path for the terrain</span>
+        <span class="n">prim_path</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">prim_path</span> <span class="o">+</span> <span class="sa">f</span><span class="s2">&quot;/</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">&quot;</span>
         <span class="c1"># check if key exists</span>
-        <span class="k">if</span> <span class="n">key</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">meshes</span><span class="p">:</span>
-            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Mesh with key </span><span class="si">{</span><span class="n">key</span><span class="si">}</span><span class="s2"> already exists. Existing keys: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">meshes</span><span class="o">.</span><span class="n">keys</span><span class="p">()</span><span class="si">}</span><span class="s2">.&quot;</span><span class="p">)</span>
-        <span class="c1"># store the mesh</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">meshes</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">mesh</span>
-        <span class="c1"># create a warp mesh</span>
-        <span class="n">device</span> <span class="o">=</span> <span class="s2">&quot;cuda&quot;</span> <span class="k">if</span> <span class="s2">&quot;cuda&quot;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">device</span> <span class="k">else</span> <span class="s2">&quot;cpu&quot;</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">warp_meshes</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">convert_to_warp_mesh</span><span class="p">(</span><span class="n">mesh</span><span class="o">.</span><span class="n">vertices</span><span class="p">,</span> <span class="n">mesh</span><span class="o">.</span><span class="n">faces</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">device</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">prim_path</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">terrain_prim_paths</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;A terrain with the name &#39;</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">&#39; already exists. Existing terrains: </span><span class="si">{</span><span class="s1">&#39;, &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">terrain_names</span><span class="p">)</span><span class="si">}</span><span class="s2">.&quot;</span>
+            <span class="p">)</span>
+        <span class="c1"># store the mesh name</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">terrain_prim_paths</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">prim_path</span><span class="p">)</span>
 
-        <span class="c1"># get the mesh</span>
-        <span class="n">mesh</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">meshes</span><span class="p">[</span><span class="n">key</span><span class="p">]</span>
-        <span class="n">mesh_prim_path</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">prim_path</span> <span class="o">+</span> <span class="sa">f</span><span class="s2">&quot;/</span><span class="si">{</span><span class="n">key</span><span class="si">}</span><span class="s2">&quot;</span>
         <span class="c1"># import the mesh</span>
         <span class="n">create_prim_from_mesh</span><span class="p">(</span>
-            <span class="n">mesh_prim_path</span><span class="p">,</span>
-            <span class="n">mesh</span><span class="p">,</span>
-            <span class="n">visual_material</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">visual_material</span><span class="p">,</span>
-            <span class="n">physics_material</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">physics_material</span><span class="p">,</span>
+            <span class="n">prim_path</span><span class="p">,</span> <span class="n">mesh</span><span class="p">,</span> <span class="n">visual_material</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">visual_material</span><span class="p">,</span> <span class="n">physics_material</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">physics_material</span>
         <span class="p">)</span></div>
 
-<div class="viewcode-block" id="TerrainImporter.import_usd"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.terrains.html#isaaclab.terrains.TerrainImporter.import_usd">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">import_usd</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">usd_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+<div class="viewcode-block" id="TerrainImporter.import_usd"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.terrains.html#isaaclab.terrains.TerrainImporter.import_usd">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">import_usd</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">usd_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Import a mesh from a USD file.</span>
 
-<span class="sd">        We assume that the USD file contains a single mesh. If the USD file contains multiple meshes, then</span>
-<span class="sd">        the first mesh is used. The function mainly helps in registering the mesh into the warp meshes</span>
-<span class="sd">        and the meshes dictionary.</span>
+<span class="sd">        This function imports a USD file into the simulator as a terrain. It parses the USD file and</span>
+<span class="sd">        stores the mesh under the prim path ``cfg.prim_path/{key}``. If multiple meshes are present in</span>
+<span class="sd">        the USD file, only the first mesh is imported.</span>
 
-<span class="sd">        Note:</span>
-<span class="sd">            We do not apply any material properties to the mesh. The material properties should</span>
-<span class="sd">            be defined in the USD file.</span>
+<span class="sd">        The function doe not apply any material properties to the mesh. The material properties should</span>
+<span class="sd">        be defined in the USD file.</span>
 
 <span class="sd">        Args:</span>
-<span class="sd">            key: The key to store the mesh.</span>
+<span class="sd">            name: The name of the imported terrain. This name is used to create the USD prim</span>
+<span class="sd">                corresponding to the terrain.</span>
 <span class="sd">            usd_path: The path to the USD file.</span>
 
 <span class="sd">        Raises:</span>
-<span class="sd">            ValueError: If a terrain with the same key already exists.</span>
+<span class="sd">            ValueError: If a terrain with the same name already exists.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="c1"># add mesh to the dict</span>
-        <span class="k">if</span> <span class="n">key</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">meshes</span><span class="p">:</span>
-            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Mesh with key </span><span class="si">{</span><span class="n">key</span><span class="si">}</span><span class="s2"> already exists. Existing keys: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">meshes</span><span class="o">.</span><span class="n">keys</span><span class="p">()</span><span class="si">}</span><span class="s2">.&quot;</span><span class="p">)</span>
+        <span class="c1"># create prim path for the terrain</span>
+        <span class="n">prim_path</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">prim_path</span> <span class="o">+</span> <span class="sa">f</span><span class="s2">&quot;/</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">&quot;</span>
+        <span class="c1"># check if key exists</span>
+        <span class="k">if</span> <span class="n">prim_path</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">terrain_prim_paths</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;A terrain with the name &#39;</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">&#39; already exists. Existing terrains: </span><span class="si">{</span><span class="s1">&#39;, &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">terrain_names</span><span class="p">)</span><span class="si">}</span><span class="s2">.&quot;</span>
+            <span class="p">)</span>
+        <span class="c1"># store the mesh name</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">terrain_prim_paths</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">prim_path</span><span class="p">)</span>
+
         <span class="c1"># add the prim path</span>
         <span class="n">cfg</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">UsdFileCfg</span><span class="p">(</span><span class="n">usd_path</span><span class="o">=</span><span class="n">usd_path</span><span class="p">)</span>
-        <span class="n">cfg</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">prim_path</span> <span class="o">+</span> <span class="sa">f</span><span class="s2">&quot;/</span><span class="si">{</span><span class="n">key</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">cfg</span><span class="p">)</span>
-
-        <span class="c1"># traverse the prim and get the collision mesh</span>
-        <span class="c1"># THINK: Should the user specify the collision mesh?</span>
-        <span class="n">mesh_prim</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">get_first_matching_child_prim</span><span class="p">(</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">prim_path</span> <span class="o">+</span> <span class="sa">f</span><span class="s2">&quot;/</span><span class="si">{</span><span class="n">key</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span> <span class="k">lambda</span> <span class="n">prim</span><span class="p">:</span> <span class="n">prim</span><span class="o">.</span><span class="n">GetTypeName</span><span class="p">()</span> <span class="o">==</span> <span class="s2">&quot;Mesh&quot;</span>
-        <span class="p">)</span>
-        <span class="c1"># check if the mesh is valid</span>
-        <span class="k">if</span> <span class="n">mesh_prim</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Could not find any collision mesh in </span><span class="si">{</span><span class="n">usd_path</span><span class="si">}</span><span class="s2">. Please check asset.&quot;</span><span class="p">)</span>
-        <span class="c1"># cast into UsdGeomMesh</span>
-        <span class="n">mesh_prim</span> <span class="o">=</span> <span class="n">UsdGeom</span><span class="o">.</span><span class="n">Mesh</span><span class="p">(</span><span class="n">mesh_prim</span><span class="p">)</span>
-        <span class="c1"># store the mesh</span>
-        <span class="n">vertices</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">mesh_prim</span><span class="o">.</span><span class="n">GetPointsAttr</span><span class="p">()</span><span class="o">.</span><span class="n">Get</span><span class="p">())</span>
-        <span class="n">faces</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">mesh_prim</span><span class="o">.</span><span class="n">GetFaceVertexIndicesAttr</span><span class="p">()</span><span class="o">.</span><span class="n">Get</span><span class="p">())</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">meshes</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">trimesh</span><span class="o">.</span><span class="n">Trimesh</span><span class="p">(</span><span class="n">vertices</span><span class="o">=</span><span class="n">vertices</span><span class="p">,</span> <span class="n">faces</span><span class="o">=</span><span class="n">faces</span><span class="p">)</span>
-        <span class="c1"># create a warp mesh</span>
-        <span class="n">device</span> <span class="o">=</span> <span class="s2">&quot;cuda&quot;</span> <span class="k">if</span> <span class="s2">&quot;cuda&quot;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">device</span> <span class="k">else</span> <span class="s2">&quot;cpu&quot;</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">warp_meshes</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">convert_to_warp_mesh</span><span class="p">(</span><span class="n">vertices</span><span class="p">,</span> <span class="n">faces</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">device</span><span class="p">)</span></div>
+        <span class="n">cfg</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="n">prim_path</span><span class="p">,</span> <span class="n">cfg</span><span class="p">)</span></div>
 
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Operations - Origins.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-<div class="viewcode-block" id="TerrainImporter.configure_env_origins"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.terrains.html#isaaclab.terrains.TerrainImporter.configure_env_origins">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">configure_env_origins</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">origins</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+<div class="viewcode-block" id="TerrainImporter.configure_env_origins"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.terrains.html#isaaclab.terrains.TerrainImporter.configure_env_origins">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">configure_env_origins</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">origins</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span> <span class="o">|</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Configure the origins of the environments based on the added terrain.</span>
 
 <span class="sd">        Args:</span>
@@ -881,9 +868,7 @@
         <span class="c1"># define all terrain levels and types available</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">terrain_levels</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">randint</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">max_init_level</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="p">(</span><span class="n">num_envs</span><span class="p">,),</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">terrain_types</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">div</span><span class="p">(</span>
-            <span class="n">torch</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">num_envs</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">),</span>
-            <span class="p">(</span><span class="n">num_envs</span> <span class="o">/</span> <span class="n">num_cols</span><span class="p">),</span>
-            <span class="n">rounding_mode</span><span class="o">=</span><span class="s2">&quot;floor&quot;</span><span class="p">,</span>
+            <span class="n">torch</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">num_envs</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">),</span> <span class="p">(</span><span class="n">num_envs</span> <span class="o">/</span> <span class="n">num_cols</span><span class="p">),</span> <span class="n">rounding_mode</span><span class="o">=</span><span class="s2">&quot;floor&quot;</span>
         <span class="p">)</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">long</span><span class="p">)</span>
         <span class="c1"># create tensor based on number of environments</span>
         <span class="n">env_origins</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">num_envs</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
@@ -903,7 +888,37 @@
         <span class="n">env_origins</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="o">-</span><span class="p">(</span><span class="n">ii</span><span class="o">.</span><span class="n">flatten</span><span class="p">()[:</span><span class="n">num_envs</span><span class="p">]</span> <span class="o">-</span> <span class="p">(</span><span class="n">num_rows</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="o">/</span> <span class="mi">2</span><span class="p">)</span> <span class="o">*</span> <span class="n">env_spacing</span>
         <span class="n">env_origins</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">jj</span><span class="o">.</span><span class="n">flatten</span><span class="p">()[:</span><span class="n">num_envs</span><span class="p">]</span> <span class="o">-</span> <span class="p">(</span><span class="n">num_cols</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="o">/</span> <span class="mi">2</span><span class="p">)</span> <span class="o">*</span> <span class="n">env_spacing</span>
         <span class="n">env_origins</span><span class="p">[:,</span> <span class="mi">2</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.0</span>
-        <span class="k">return</span> <span class="n">env_origins</span></div>
+        <span class="k">return</span> <span class="n">env_origins</span>
+
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Deprecated.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">warp_meshes</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;A dictionary containing the terrain&#39;s names and their warp meshes.</span>
+
+<span class="sd">        .. deprecated:: v2.1.0</span>
+<span class="sd">            The `warp_meshes` attribute is deprecated. It is no longer stored inside the class.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
+            <span class="s2">&quot;The `warp_meshes` attribute is deprecated. It is no longer stored inside the `TerrainImporter` class.&quot;</span>
+            <span class="s2">&quot; Returning an empty dictionary.&quot;</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="p">{}</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">meshes</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">trimesh</span><span class="o">.</span><span class="n">Trimesh</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;A dictionary containing the terrain&#39;s names and their tri-meshes.</span>
+
+<span class="sd">        .. deprecated:: v2.1.0</span>
+<span class="sd">            The `meshes` attribute is deprecated. It is no longer stored inside the class.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
+            <span class="s2">&quot;The `meshes` attribute is deprecated. It is no longer stored inside the `TerrainImporter` class.&quot;</span>
+            <span class="s2">&quot; Returning an empty dictionary.&quot;</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="p">{}</span></div>
 </pre></div>
 
                 </article>
@@ -951,7 +966,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Mar 07, 2025.
+  Last updated on Mar 09, 2025.
   <br/>
 </p>
   </div>
