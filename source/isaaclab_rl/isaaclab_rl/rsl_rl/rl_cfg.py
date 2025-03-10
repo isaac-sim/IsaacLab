@@ -98,6 +98,9 @@ class RslRlOnPolicyRunnerCfg:
     algorithm: RslRlPpoAlgorithmCfg = MISSING
     """The algorithm configuration."""
 
+    clip_actions: float | None = None
+    """The clipping value for actions. If ``None``, then no clipping is done."""
+
     ##
     # Checkpointing parameters
     ##
