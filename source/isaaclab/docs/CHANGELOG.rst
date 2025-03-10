@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.36.1 (2025-03-10)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :attr:`semantic_segmentation_mapping` for camera configs to allow specifying colors for semantics.
+
+
 0.36.0 (2025-03-07)
 ~~~~~~~~~~~~~~~~~~~
 
