@@ -7,7 +7,7 @@ We provide a command-line tool (**template generator**) for creating Isaac Lab-b
 It enables you to create an:
 
 * **External project** (recommended): An isolated project that is not part of the Isaac Lab repository. This approach
-  works outside the core Isaac Lab repository, ensuring that your development efforts remain self-contained. Also,
+  works outside of the core Isaac Lab repository, ensuring that your development efforts remain self-contained. Also,
   it allows your code to be run as an extension in Omniverse.
 
   .. hint::
