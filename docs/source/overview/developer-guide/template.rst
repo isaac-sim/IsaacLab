@@ -55,7 +55,7 @@ External project usage (once generated)
 Once the external project is generated, a ``README.md`` file will be created in the specified directory.
 This file will contain instructions on how to install the project and run the tasks.
 
-Anyway, here are some general commands to get started with it:
+Here are some general commands to get started with it:
 
 .. note::
 
