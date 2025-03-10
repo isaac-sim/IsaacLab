@@ -119,5 +119,4 @@ def test_write_and_load_episode(temp_dir, device):
     dataset_file_handler.close()
 
 
-if __name__ == "__main__":
-    run_tests()
+

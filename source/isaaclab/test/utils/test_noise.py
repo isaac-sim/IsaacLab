@@ -111,5 +111,4 @@ def test_constant_noise():
                     torch.testing.assert_close(noise_cfg.bias.repeat(data.shape[0], 1), bias_result)
 
 
-if __name__ == "__main__":
-    run_tests()
+

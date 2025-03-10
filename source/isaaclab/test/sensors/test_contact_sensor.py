@@ -213,7 +213,7 @@ COBBLESTONE_TERRAIN_CFG = TerrainImporterCfg(
 
 @pytest.fixture(scope="session")
 def test_setup():
-    """Contact sensor test suite init."""
+        """Contact sensor test suite init."""
     sim_dt = 0.0025
     durations = [sim_dt, sim_dt * 2, sim_dt * 32, sim_dt * 128]
     terrains = [FLAT_TERRAIN_CFG, COBBLESTONE_TERRAIN_CFG]
@@ -230,20 +230,20 @@ def test_setup():
 
 @pytest.mark.parametrize("disable_contact_processing", [True, False])
 def test_cube_contact_time(test_setup, disable_contact_processing):
-    """Checks contact sensor values for contact time and air time for a cube collision primitive."""
+        """Checks contact sensor values for contact time and air time for a cube collision primitive."""
     test_setup["carb_settings_iface"].set_bool("/physics/disableContactProcessing", disable_contact_processing)
     _run_contact_sensor_test(shape_cfg=CUBE_CFG)
 
 
 @pytest.mark.parametrize("disable_contact_processing", [True, False])
 def test_sphere_contact_time(test_setup, disable_contact_processing):
-    """Checks contact sensor values for contact time and air time for a sphere collision primitive."""
+        """Checks contact sensor values for contact time and air time for a sphere collision primitive."""
     test_setup["carb_settings_iface"].set_bool("/physics/disableContactProcessing", disable_contact_processing)
     _run_contact_sensor_test(shape_cfg=SPHERE_CFG)
 
 
 def test_cube_stack_contact_filtering():
-    """Checks contact sensor reporting for filtering stacked cube prims."""
+        """Checks contact sensor reporting for filtering stacked cube prims."""
     # TODO: Implement this test
     pass
 
@@ -272,14 +272,14 @@ def _test_sensor_contact(shape: RigidObject, sensor: ContactSensor, mode: Contac
     pass
 
 
-def _check_prim_contact_state_times(
-    sensor: ContactSensor,
-    expected_air_time: float,
-    expected_contact_time: float,
-    expected_last_air_time: float,
-    expected_last_contact_time: float,
-    dt: float,
-) -> None:
+    def _check_prim_contact_state_times(
+        sensor: ContactSensor,
+        expected_air_time: float,
+        expected_contact_time: float,
+        expected_last_air_time: float,
+        expected_last_contact_time: float,
+        dt: float,
+    ) -> None:
     """Check primitive contact state times."""
     # TODO: Implement this helper function
     pass
@@ -291,5 +291,4 @@ def _perform_sim_step() -> None:
     pass
 
 
-if __name__ == "__main__":
-    run_tests()
+

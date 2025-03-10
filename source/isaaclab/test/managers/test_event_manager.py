@@ -287,5 +287,4 @@ def test_apply_reset_mode_subset_env_ids(env):
             term_2_trigger_step_id[env_ids[trigger_ids]] = count
 
 
-if __name__ == "__main__":
-    run_tests()
+

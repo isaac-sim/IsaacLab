@@ -101,5 +101,4 @@ def test_dict_to_md5():
         assert md5_hash_1 == md5_hash_2
 
 
-if __name__ == "__main__":
-    run_tests()
+

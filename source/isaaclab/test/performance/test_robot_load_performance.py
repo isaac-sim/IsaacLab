@@ -56,5 +56,4 @@ def test_robot_load_performance(test_config, device):
         assert elapsed_time <= test_config["expected_load_time"]
 
 
-if __name__ == "__main__":
-    run_tests()
+

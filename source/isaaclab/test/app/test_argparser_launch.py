@@ -5,14 +5,15 @@
 
 import argparse
 import pytest
-from unittest import mock
 
 from isaaclab.app import AppLauncher, run_tests
 
 
-@mock.patch("argparse.ArgumentParser.parse_args", return_value=argparse.Namespace(livestream=1))
-def test_livestream_launch_with_argparser(mock_args):
+@pytest.mark.usefixtures("mocker")
+def test_livestream_launch_with_argparser(mocker):
     """Test launching with argparser arguments."""
+    # Mock the parse_args method
+    mocker.patch("argparse.ArgumentParser.parse_args", return_value=argparse.Namespace(livestream=1))
     # create argparser
     parser = argparse.ArgumentParser()
     # add app launcher arguments
@@ -40,5 +41,4 @@ def test_livestream_launch_with_argparser(mock_args):
     app.close()
 
 
-if __name__ == "__main__":
-    run_tests()
+# Remove the main block for pytest compatibility

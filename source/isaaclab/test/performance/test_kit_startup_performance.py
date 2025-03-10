@@ -25,5 +25,4 @@ def test_kit_start_up_time():
     assert elapsed_time <= 10.0
 
 
-if __name__ == "__main__":
-    run_tests()
+

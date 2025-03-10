@@ -142,5 +142,4 @@ def test_zero_gravity():
     np.testing.assert_almost_equal(gravity, cfg.gravity)
 
 
-if __name__ == "__main__":
-    run_tests()
+

@@ -1675,5 +1675,4 @@ class TestTiledCamera(unittest.TestCase):
             SingleRigidPrim(f"/World/Objects/Obj_{i:02d}", mass=5.0)
 
 
-if __name__ == "__main__":
-    run_tests()
+

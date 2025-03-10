@@ -152,5 +152,4 @@ def test_logical_or():
     assert torch.allclose(output_logical_or, output_bitwise_or)
 
 
-if __name__ == "__main__":
-    run_tests()
+

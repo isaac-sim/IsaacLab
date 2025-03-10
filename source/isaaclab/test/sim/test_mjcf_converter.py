@@ -102,5 +102,4 @@ def test_create_prim_from_usd(test_setup_teardown):
     assert prim_utils.is_prim_path_valid(prim_path)
 
 
-if __name__ == "__main__":
-    run_tests()
+

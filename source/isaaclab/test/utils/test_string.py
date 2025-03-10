@@ -194,5 +194,4 @@ def test_resolve_matching_names_values_with_basic_strings_and_preserved_order():
         _ = string_utils.resolve_matching_names_values(query_names, target_names, preserve_order=True)
 
 
-if __name__ == "__main__":
-    run_tests()
+

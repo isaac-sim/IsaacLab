@@ -117,5 +117,4 @@ def test_action_state_recorder_terms(task_name, device, num_envs, temp_dir):
     env.close()
 
 
-if __name__ == "__main__":
-    run_tests()
+

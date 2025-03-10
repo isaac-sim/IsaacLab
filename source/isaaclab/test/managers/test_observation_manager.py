@@ -627,5 +627,4 @@ def test_modifier_invalid_config(test_env):
         obs_man = ObservationManager(cfg, test_env)
 
 
-if __name__ == "__main__":
-    run_tests()
+

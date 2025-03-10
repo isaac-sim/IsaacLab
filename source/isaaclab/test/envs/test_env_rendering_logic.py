@@ -207,5 +207,4 @@ def test_env_rendering_logic(env_type, render_interval, physics_callback, render
     env.close()
 
 
-if __name__ == "__main__":
-    run_tests()
+

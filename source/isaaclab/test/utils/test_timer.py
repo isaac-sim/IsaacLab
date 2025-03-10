@@ -44,5 +44,4 @@ def test_timer_as_context_manager():
         assert abs(1 - timer.time_elapsed) < 10**(-PRECISION_PLACES)
 
 
-if __name__ == "__main__":
-    run_tests()
+

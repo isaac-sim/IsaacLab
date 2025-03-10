@@ -84,5 +84,4 @@ def test_initialization(device):
     env.close()
 
 
-if __name__ == "__main__":
-    run_tests()
+

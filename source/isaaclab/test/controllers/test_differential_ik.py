@@ -228,5 +228,4 @@ def _run_ik_controller(
         robot.update(sim_dt)
 
 
-if __name__ == "__main__":
-    run_tests()
+

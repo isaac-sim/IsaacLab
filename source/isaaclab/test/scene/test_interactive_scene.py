@@ -108,5 +108,4 @@ class TestInteractiveScene(unittest.TestCase):
             self.assertNotEqual(scene_0.extras, scene_1.extras)
 
 
-if __name__ == "__main__":
-    run_tests()
+
