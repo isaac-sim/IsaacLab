@@ -155,5 +155,4 @@ def test_get_next_action(device):
     assert episode.get_next_action() is None
 
 
-if __name__ == "__main__":
-    run_tests()
+

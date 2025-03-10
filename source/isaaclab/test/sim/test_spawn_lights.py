@@ -157,5 +157,4 @@ def test_spawn_sphere_light(test_setup_teardown):
     _validate_properties_on_prim("/World/sphere_light", cfg)
 
 
-if __name__ == "__main__":
-    run_tests()
+

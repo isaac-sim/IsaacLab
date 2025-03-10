@@ -258,5 +258,4 @@ def test_spawn_cone_with_all_rigid_props(sim):
         sim.step()
 
 
-if __name__ == "__main__":
-    run_tests()
+

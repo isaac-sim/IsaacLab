@@ -98,5 +98,4 @@ def test_random_time_lags(delay_buffer):
             assert torch.all(error == 0)
 
 
-if __name__ == "__main__":
-    run_tests()
+

@@ -322,5 +322,4 @@ def test_set_kinematic_targets(sim, num_cubes):
             assert torch.all(root_pos_w[1:, 2] < default_root_pos[1:, 2])
 
 
-if __name__ == "__main__":
-    run_tests()
+

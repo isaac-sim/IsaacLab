@@ -42,5 +42,4 @@ def test_check_file_path_invalid():
     assert assets_utils.check_file_path(usd_path) == 0
 
 
-if __name__ == "__main__":
-    run_tests()
+

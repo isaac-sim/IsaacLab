@@ -278,5 +278,4 @@ def test_collider_mesh_no_collision(assets):
     check_mesh_collider_settings(mesh_converter)
 
 
-if __name__ == "__main__":
-    run_tests()
+

@@ -164,5 +164,4 @@ def _check_tensorized(sample, batch_size):
         assert sample.shape[0] == batch_size
 
 
-if __name__ == "__main__":
-    run_tests()
+

@@ -96,5 +96,4 @@ def test_spawn_ground_plane(sim):
     assert prim.GetPrimTypeInfo().GetTypeName() == "Xform"
 
 
-if __name__ == "__main__":
-    run_tests()
+

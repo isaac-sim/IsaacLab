@@ -176,5 +176,4 @@ def test_return_buffer_prop(circular_buffer):
         assert torch.all(torch.le(retrieved_buffer[:, idx], retrieved_buffer[:, idx + 1]))
 
 
-if __name__ == "__main__":
-    run_tests()
+

@@ -48,5 +48,4 @@ def test_compute(env):
         command_term.command
 
 
-if __name__ == "__main__":
-    run_tests()
+

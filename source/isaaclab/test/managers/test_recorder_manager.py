@@ -156,5 +156,4 @@ def test_record(dataset_dir):
             assert episode.data["record_post_reset"].shape == (1, 3)
 
 
-if __name__ == "__main__":
-    run_tests()
+

@@ -964,7 +964,3 @@ class TestRigidObject(unittest.TestCase):
                                         torch.testing.assert_close(rand_state, cube_object.data.root_com_state_w)
                                     elif state_location == "link":
                                         torch.testing.assert_close(rand_state, cube_object.data.root_link_state_w)
-
-
-if __name__ == "__main__":
-    run_tests()

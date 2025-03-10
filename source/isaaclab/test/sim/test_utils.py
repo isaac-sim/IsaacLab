@@ -130,5 +130,4 @@ def test_select_usd_variants():
     assert variant_set.GetVariantSelection() == "red"
 
 
-if __name__ == "__main__":
-    run_tests()
+

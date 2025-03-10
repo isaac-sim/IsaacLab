@@ -1057,5 +1057,4 @@ def test_validity():
     assert len(error_message.split("\n")) - 2 == len(validity_expected_fields)
 
 
-if __name__ == "__main__":
-    run_tests()
+

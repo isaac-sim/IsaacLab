@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import time
 
-from isaaclab.app import AppLauncher, run_tests
+from isaaclab.app import AppLauncher
 
 if AppLauncher.instance():
     AppLauncher.clear_instance()

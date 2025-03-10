@@ -30,5 +30,4 @@ def test_livestream_launch_with_kwarg():
     app.close()
 
 
-if __name__ == "__main__":
-    run_tests()
+

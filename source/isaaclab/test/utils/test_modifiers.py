@@ -204,5 +204,4 @@ def test_integral():
         assert torch.allclose(output, test_cfg.result)
 
 
-if __name__ == "__main__":
-    run_tests()
+

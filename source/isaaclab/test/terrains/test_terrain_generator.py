@@ -167,5 +167,4 @@ def test_terrain_flat_patches():
         assert not torch.allclose(flat_patches, torch.zeros_like(flat_patches))
 
 
-if __name__ == "__main__":
-    run_tests()
+

@@ -205,5 +205,4 @@ def test_visualization_time_based_on_visibility(sim):
     assert time_with_no_visualization < time_with_visualization
 
 
-if __name__ == "__main__":
-    run_tests()
+
