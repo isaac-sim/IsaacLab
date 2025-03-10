@@ -16,7 +16,7 @@ from dataclasses import dataclass
 import carb
 
 try:
-    from omni.isaac.debug_draw import _debug_draw
+    import isaacsim.util.debug_draw._debug_draw as _debug_draw
 
     DRAW_INTERFACE_AVAILABLE = True
 except ImportError:
