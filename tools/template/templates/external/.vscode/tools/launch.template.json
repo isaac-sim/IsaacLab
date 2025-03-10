@@ -12,23 +12,36 @@
             "program": "${file}",
             "console": "integratedTerminal",
         },
+{% for specification in specifications %}
+  {% for rl_library in specification.rl_libraries %}
+    {% for rl_algorithm in rl_library.algorithms %}
         {
-            "name": "Python: Train Environment",
+            "name": "Python: Train {{ specification.task.id }} with {{ rl_library.name }} ({{ rl_algorithm|upper }})",
             "type": "debugpy",
             "request": "launch",
-            "args" : ["--task", "Template-Isaac-Velocity-Flat-Anymal-D-v0", "--num_envs", "4096", "--headless"],
-            "program": "${workspaceFolder}/scripts/rsl_rl/train.py",
+      {% if rl_library.name == "skrl" %}
+            "args" : ["--task", "{{ specification.task.id }}", "--num_envs", "4096", "--headless", "--algorithm", "{{ rl_algorithm|upper }}"],
+      {% else %}
+            "args" : ["--task", "{{ specification.task.id }}", "--num_envs", "4096", "--headless"],
+      {% endif %}
+            "program": "${workspaceFolder}/scripts/{{ rl_library.name }}/train.py",
             "console": "integratedTerminal",
         },
         {
-            "name": "Python: Play Environment",
+            "name": "Python: Play {{ specification.task.id }} with {{ rl_library.name }} ({{ rl_algorithm|upper }})",
             "type": "debugpy",
             "request": "launch",
-            "args" : ["--task", "Template-Isaac-Velocity-Flat-Anymal-D-Play-v0", "--num_envs", "32"],
-            "program": "${workspaceFolder}/scripts/rsl_rl/play.py",
+      {% if rl_library.name == "skrl" %}
+            "args" : ["--task", "{{ specification.task.id }}", "--num_envs", "32", "--algorithm", "{{ rl_algorithm|upper }}"],
+      {% else %}
+            "args" : ["--task", "{{ specification.task.id }}", "--num_envs", "32"],
+      {% endif %}
+            "program": "${workspaceFolder}/scripts/{{ rl_library.name }}/play.py",
             "console": "integratedTerminal",
         },
-
+    {% endfor %}
+  {% endfor %}
+{% endfor %}
         // For script execution inside a Docker
         {
             "name": "Docker: Current File",
@@ -40,27 +53,41 @@
                 "PYTHONPATH": "${env:PYTHONPATH}:${workspaceFolder}"
             }
         },
+{% for specification in specifications %}
+  {% for rl_library in specification.rl_libraries %}
+    {% for rl_algorithm in rl_library.algorithms %}
         {
-            "name": "Docker: Train Environment",
+            "name": "Docker: Train {{ specification.task.id }} with {{ rl_library.name }} ({{ rl_algorithm|upper }})",
             "type": "debugpy",
             "request": "launch",
-            "args" : ["--task", "Template-Isaac-Velocity-Flat-Anymal-D-v0", "--num_envs", "4096", "--headless"],
-            "program": "${workspaceFolder}/scripts/rsl_rl/train.py",
+      {% if rl_library.name == "skrl" %}
+            "args" : ["--task", "{{ specification.task.id }}", "--num_envs", "4096", "--headless", "--algorithm", "{{ rl_algorithm|upper }}"],
+      {% else %}
+            "args" : ["--task", "{{ specification.task.id }}", "--num_envs", "4096", "--headless"],
+      {% endif %}
+            "program": "${workspaceFolder}/scripts/{{ rl_library.name }}/train.py",
             "console": "integratedTerminal",
             "env": {
                 "PYTHONPATH": "${env:PYTHONPATH}:${workspaceFolder}"
-            }
+            },
         },
         {
-            "name": "Docker: Play Environment",
+            "name": "Docker: Play {{ specification.task.id }} with {{ rl_library.name }} ({{ rl_algorithm|upper }})",
             "type": "debugpy",
             "request": "launch",
-            "args" : ["--task", "Template-Isaac-Velocity-Flat-Anymal-D-Play-v0", "--num_envs", "32"],
-            "program": "${workspaceFolder}/scripts/rsl_rl/play.py",
+      {% if rl_library.name == "skrl" %}
+            "args" : ["--task", "{{ specification.task.id }}", "--num_envs", "32", "--algorithm", "{{ rl_algorithm|upper }}"],
+      {% else %}
+            "args" : ["--task", "{{ specification.task.id }}", "--num_envs", "32"],
+      {% endif %}
+            "program": "${workspaceFolder}/scripts/{{ rl_library.name }}/play.py",
             "console": "integratedTerminal",
             "env": {
                 "PYTHONPATH": "${env:PYTHONPATH}:${workspaceFolder}"
-            }
-        }
+            },
+        },
+    {% endfor %}
+  {% endfor %}
+{% endfor %}
     ]
 }

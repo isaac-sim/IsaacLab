@@ -117,13 +117,17 @@ def _generate_task_per_workflow(task_dir: str, specification: dict) -> None:
         )
 
 
-def _generate_tasks(specification: dict, task_dir: str) -> None:
+def _generate_tasks(specification: dict, task_dir: str) -> list[dict]:
     """Generate the task files for an external project or an internal task.
 
     Args:
         specification: The specification of the project/task.
         task_dir: The directory where the tasks will be generated.
+
+    Returns:
+        A list of specifications for the tasks.
     """
+    specifications = []
     task_name_prefix = "Template" if specification["external"] else "Isaac"
     general_task_name = "-".join([item.capitalize() for item in specification["name"].split("_")])
     for workflow in specification["workflows"]:
@@ -141,6 +145,8 @@ def _generate_tasks(specification: dict, task_dir: str) -> None:
             task["id"] = f"{task_name_prefix}-{task_name}-v0"
         print(f"  |    |-- Generating '{task['id']}' task...")
         _generate_task_per_workflow(task["dir"], {**specification, "task": task})
+        specifications.append({**specification, "task": task})
+    return specifications
 
 
 def _external(specification: dict) -> None:
@@ -189,12 +195,6 @@ def _external(specification: dict) -> None:
         src=os.path.join(ROOT_DIR, "scripts", "environments", "list_envs.py"),
         dst=os.path.join(dir, "list_envs.py"),
     )
-    # .vscode files
-    print("  |-- Copying vscode files...")
-    dir = os.path.join(project_dir, ".vscode")
-    shutil.copytree(os.path.join(TEMPLATE_DIR, "external", ".vscode"), dir, dirs_exist_ok=True)
-    template = jinja_env.get_template("external/.vscode/tasks.json")
-    _write_file(os.path.join(dir, "tasks.json"), content=template.render(**specification))
     # docker files
     print("  |-- Copying docker files...")
     dir = os.path.join(project_dir, "docker")
@@ -228,7 +228,7 @@ def _external(specification: dict) -> None:
     print("  |-- Generating tasks...")
     dir = os.path.join(project_dir, "source", name, name, "tasks")
     os.makedirs(dir, exist_ok=True)
-    _generate_tasks(specification, dir)
+    specifications = _generate_tasks(specification, dir)
     shutil.copyfile(os.path.join(TEMPLATE_DIR, "extension", "__init__tasks"), os.path.join(dir, "__init__.py"))
     for workflow in specification["workflows"]:
         shutil.copyfile(
@@ -240,6 +240,16 @@ def _external(specification: dict) -> None:
     template = jinja_env.get_template("extension/ui_extension_example.py")
     _write_file(os.path.join(dir, "ui_extension_example.py"), content=template.render(**specification))
     shutil.copyfile(os.path.join(TEMPLATE_DIR, "extension", "__init__ext"), os.path.join(dir, "__init__.py"))
+    # .vscode files
+    print("  |-- Copying vscode files...")
+    dir = os.path.join(project_dir, ".vscode")
+    shutil.copytree(os.path.join(TEMPLATE_DIR, "external", ".vscode"), dir, dirs_exist_ok=True)
+    template = jinja_env.get_template("external/.vscode/tasks.json")
+    _write_file(os.path.join(dir, "tasks.json"), content=template.render(**specification))
+    template = jinja_env.get_template("external/.vscode/tools/launch.template.json")
+    _write_file(
+        os.path.join(dir, "tools", "launch.template.json"), content=template.render(specifications=specifications)
+    )
     # setup git repo
     print(f"Setting up git repo in {project_dir} path...")
     _setup_git_repo(project_dir)
