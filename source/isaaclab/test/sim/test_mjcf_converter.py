@@ -26,7 +26,7 @@ from isaaclab.sim.converters import MjcfConverter, MjcfConverterCfg
 
 @pytest.fixture(autouse=True)
 def test_setup_teardown():
-    """Setup and teardown for each test, similar to unittest's setUp and tearDown."""
+    """Setup and teardown for each test."""
     # Setup: Create a new stage
     stage_utils.create_new_stage()
     
