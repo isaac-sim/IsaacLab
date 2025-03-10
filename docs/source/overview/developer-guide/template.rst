@@ -3,8 +3,12 @@
 Build your Own Project or Task
 ==============================
 
-We provide a command-line tool (**template generator**) for creating Isaac Lab-based projects and tasks.
-It enables you to create an:
+Traditionally, building new projects that utilize Isaac Lab's features required creating your own
+extensions within the Isaac Lab repository. However, this approach can obscure project visibility and
+complicate updates from one version of Isaac Lab to another. To circumvent these challenges,
+we now provide a command-line tool (**template generator**) for creating Isaac Lab-based projects and tasks.
+
+The template generator enables you to create an:
 
 * **External project** (recommended): An isolated project that is not part of the Isaac Lab repository. This approach
   works outside of the core Isaac Lab repository, ensuring that your development efforts remain self-contained. Also,
