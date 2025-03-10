@@ -356,7 +356,6 @@
 <li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab/isaaclab.sim.schemas.html">isaaclab.sim.schemas</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab/isaaclab.sim.spawners.html">isaaclab.sim.spawners</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab_rl/isaaclab_rl.html">isaaclab_rl</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab_mimic/isaaclab_mimic.datagen.html">isaaclab_mimic.datagen</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab_mimic/isaaclab_mimic.envs.html">isaaclab_mimic.envs</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab_tasks/isaaclab_tasks.utils.html">isaaclab_tasks.utils</a></li>
 </ul>
@@ -534,6 +533,7 @@
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
 
+<span class="kn">import</span><span class="w"> </span><span class="nn">json</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">math</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
@@ -753,7 +753,10 @@
             <span class="k">else</span><span class="p">:</span>
                 <span class="n">init_params</span> <span class="o">=</span> <span class="kc">None</span>
                 <span class="k">if</span> <span class="n">annotator_type</span> <span class="o">==</span> <span class="s2">&quot;semantic_segmentation&quot;</span><span class="p">:</span>
-                    <span class="n">init_params</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;colorize&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">colorize_semantic_segmentation</span><span class="p">}</span>
+                    <span class="n">init_params</span> <span class="o">=</span> <span class="p">{</span>
+                        <span class="s2">&quot;colorize&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">colorize_semantic_segmentation</span><span class="p">,</span>
+                        <span class="s2">&quot;mapping&quot;</span><span class="p">:</span> <span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">semantic_segmentation_mapping</span><span class="p">),</span>
+                    <span class="p">}</span>
                 <span class="k">elif</span> <span class="n">annotator_type</span> <span class="o">==</span> <span class="s2">&quot;instance_segmentation_fast&quot;</span><span class="p">:</span>
                     <span class="n">init_params</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;colorize&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">colorize_instance_segmentation</span><span class="p">}</span>
                 <span class="k">elif</span> <span class="n">annotator_type</span> <span class="o">==</span> <span class="s2">&quot;instance_id_segmentation_fast&quot;</span><span class="p">:</span>

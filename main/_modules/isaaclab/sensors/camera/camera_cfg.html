@@ -356,7 +356,6 @@
 <li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab/isaaclab.sim.schemas.html">isaaclab.sim.schemas</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab/isaaclab.sim.spawners.html">isaaclab.sim.spawners</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab_rl/isaaclab_rl.html">isaaclab_rl</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab_mimic/isaaclab_mimic.datagen.html">isaaclab_mimic.datagen</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab_mimic/isaaclab_mimic.envs.html">isaaclab_mimic.envs</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab_tasks/isaaclab_tasks.utils.html">isaaclab_tasks.utils</a></li>
 </ul>
@@ -642,6 +641,22 @@
 
 <span class="sd">    If True, instance segmentation is converted to an image where instance IDs are mapped to colors.</span>
 <span class="sd">    and returned as a ``uint8`` 4-channel array. If False, the output is returned as a ``int32`` array.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">semantic_segmentation_mapping</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">=</span> <span class="p">{}</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Dictionary mapping semantics to specific colours</span>
+
+<span class="sd">    Eg.</span>
+<span class="sd">    ```</span>
+<span class="sd">    {</span>
+<span class="sd">        &quot;class:cube_1&quot;: (255, 36, 66, 255),</span>
+<span class="sd">        &quot;class:cube_2&quot;: (255, 184, 48, 255),</span>
+<span class="sd">        &quot;class:cube_3&quot;: (55, 255, 139, 255),</span>
+<span class="sd">        &quot;class:table&quot;: (255, 237, 218, 255),</span>
+<span class="sd">        &quot;class:ground&quot;: (100, 100, 100, 255),</span>
+<span class="sd">        &quot;class:robot&quot;: (61, 178, 255, 255),</span>
+<span class="sd">    }</span>
+<span class="sd">    ```</span>
 <span class="sd">    &quot;&quot;&quot;</span></div>
 </pre></div>
 
