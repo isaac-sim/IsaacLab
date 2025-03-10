@@ -39,6 +39,7 @@ class RslRlVecEnvWrapper(VecEnv):
         Args:
             env: The environment to wrap around.
             clip_actions: The clipping value for actions. If ``None``, then no clipping is done.
+
         Raises:
             ValueError: When the environment is not an instance of :class:`ManagerBasedRLEnv` or :class:`DirectRLEnv`.
         """
@@ -56,6 +57,9 @@ class RslRlVecEnvWrapper(VecEnv):
         self.num_envs = self.unwrapped.num_envs
         self.device = self.unwrapped.device
         self.max_episode_length = self.unwrapped.max_episode_length
+
+        # modify the action space to the clip range
+        self._modify_action_space()
 
         # obtain dimensions of the environment
         if hasattr(self.unwrapped, "action_manager"):
@@ -110,10 +114,7 @@ class RslRlVecEnvWrapper(VecEnv):
     @property
     def action_space(self) -> gym.Space:
         """Returns the :attr:`Env` :attr:`action_space`."""
-        if self.clip_actions is None:
-            return self.env.action_space
-        else:
-            return gym.spaces.Box(low=-self.clip_actions, high=self.clip_actions, shape=(self.num_actions,))
+        return self.env.action_space
 
     @classmethod
     def class_name(cls) -> str:
@@ -188,3 +189,21 @@ class RslRlVecEnvWrapper(VecEnv):
 
     def close(self):  # noqa: D102
         return self.env.close()
+
+    """
+    Helper functions
+    """
+
+    def _modify_action_space(self):
+        """Modifies the action space to the clip range."""
+        if self.clip_actions is None:
+            return
+
+        # modify the action space to the clip range
+        # note: this is only possible for the box action space. we need to change it in the future for other action spaces.
+        self.env.unwrapped.single_action_space = gym.spaces.Box(
+            low=-self.clip_actions, high=self.clip_actions, shape=(self.num_actions,)
+        )
+        self.env.unwrapped.action_space = gym.vector.utils.batch_space(
+            self.env.unwrapped.single_action_space, self.num_envs
+        )
