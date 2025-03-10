@@ -6,10 +6,10 @@
 import argparse
 import pytest
 
-from isaaclab.app import AppLauncher, run_tests
+from isaaclab.app import AppLauncher
 
 if AppLauncher.instance():
-    AppLauncher.clear_instance()
+    raise ValueError("AppLauncher instance already exists")
 
 @pytest.mark.usefixtures("mocker")
 def test_livestream_launch_with_argparser(mocker):
@@ -41,6 +41,3 @@ def test_livestream_launch_with_argparser(mocker):
 
     # close the app on exit
     app.close()
-
-
-# Remove the main block for pytest compatibility

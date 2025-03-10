@@ -5,17 +5,24 @@
 
 """Launch Isaac Sim Simulator first."""
 
-from isaaclab.app import AppLauncher, run_tests
+from isaaclab.app import AppLauncher
 
 # launch omniverse app
-if not AppLauncher.instance() or AppLauncher.instance()._enable_cameras is False:
-    AppLauncher.clear_instance()
-    simulation_app = AppLauncher(headless=True, enable_cameras=True).app
+if not AppLauncher.instance():
+    app_launcher = AppLauncher(headless=True, enable_cameras=True)
+    simulation_app = app_launcher.app
+elif AppLauncher.instance() and AppLauncher.instance()._enable_cameras is False:
+    # FIXME: workaround as AppLauncher instance can currently not be closed without terminating the test
+    raise ValueError("AppLauncher instance exists but enable_cameras is False")
+else:
+    app_launcher = AppLauncher.instance()
+    simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
 import pathlib
 import torch
+import pytest
 
 import isaacsim.core.utils.stage as stage_utils
 

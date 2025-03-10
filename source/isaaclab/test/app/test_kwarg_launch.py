@@ -8,7 +8,7 @@ import pytest
 from isaaclab.app import AppLauncher, run_tests
 
 if AppLauncher.instance():
-    AppLauncher.clear_instance()
+    raise ValueError("AppLauncher instance already exists")
 
 def test_livestream_launch_with_kwarg():
     """Test launching with headless and livestreaming arguments."""
