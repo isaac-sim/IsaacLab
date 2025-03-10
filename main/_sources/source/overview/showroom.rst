@@ -168,3 +168,26 @@ A few quick showroom scripts to run and checkout:
    .. image:: ../_static/demos/markers.jpg
       :width: 100%
       :alt: Markers in Isaac Lab
+
+-  Interactive inference of trained H1 rough terrain locomotion policy:
+
+   .. tab-set::
+      :sync-group: os
+
+      .. tab-item:: :icon:`fa-brands fa-linux` Linux
+         :sync: linux
+
+         .. code:: bash
+
+            ./isaaclab.sh -p scripts/demos/h1_locomotion.py
+
+      .. tab-item:: :icon:`fa-brands fa-windows` Windows
+         :sync: windows
+
+         .. code:: batch
+
+            isaaclab.bat -p scripts\demos\h1_locomotion.py
+
+   .. image:: ../_static/demos/h1_locomotion.jpg
+      :width: 100%
+      :alt: H1 locomotion in Isaac Lab
