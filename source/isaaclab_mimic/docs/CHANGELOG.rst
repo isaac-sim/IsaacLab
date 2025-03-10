@@ -14,6 +14,7 @@ Added
 
 * Added ``Isaac-Stack-Cube-Franka-IK-Rel-Blueprint-Mimic-v0`` environment for blueprint vision stacking.
 
+
 1.0.2 (2025-01-10)
 ~~~~~~~~~~~~~~~~~~
 
