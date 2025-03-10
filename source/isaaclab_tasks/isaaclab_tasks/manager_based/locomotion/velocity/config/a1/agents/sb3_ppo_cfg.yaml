@@ -1,0 +1,22 @@
+# Reference: https://github.com/DLR-RM/rl-baselines3-zoo/blob/master/hyperparams/ppo.yml#L32
+seed: 42
+n_timesteps: !!float 1e7
+policy: 'MlpPolicy'
+n_steps: 25
+# for 1024 envs, to have 4 minibatches, also works with more envs
+batch_size: 6400
+gae_lambda: 0.95
+gamma: 0.99
+n_epochs: 5
+ent_coef: 0.01
+learning_rate: !!float 1e-3
+clip_range: !!float 0.2
+policy_kwargs: "dict(
+                  activation_fn=nn.ELU,
+                  net_arch=[512, 256, 128],
+                )"
+vf_coef: 1.0
+max_grad_norm: 1.0
+normalize_input: True
+normalize_value: False
+clip_obs: 10.0

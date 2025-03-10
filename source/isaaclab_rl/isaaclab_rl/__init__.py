@@ -18,6 +18,9 @@ expect different input and output data structures, their wrapper classes are not
 Thus, they should always be used in conjunction with the respective learning framework.
 """
 
-from . import rl_games, rsl_rl, sb3, skrl
+try:
+    from . import rl_games, rsl_rl, sb3, skrl
+except ModuleNotFoundError as e:
+    print(f"Some dependencies are not installed for all RL libs: {e}")
 
 __all__ = ["sb3", "skrl", "rsl_rl", "rl_games"]
