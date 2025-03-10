@@ -15,15 +15,16 @@ if not AppLauncher.instance():
 
 import numpy as np
 import os
-import pytest
 
 import isaacsim.core.utils.prims as prim_utils
 import isaacsim.core.utils.stage as stage_utils
+import pytest
 from isaacsim.core.api.simulation_context import SimulationContext
 from isaacsim.core.prims import Articulation
 from isaacsim.core.utils.extensions import enable_extension, get_extension_path_from_name
 
 from isaaclab.sim.converters import UrdfConverter, UrdfConverterCfg
+
 
 # Create a fixture for setup and teardown
 @pytest.fixture
@@ -44,9 +45,7 @@ def sim_config():
     # Simulation time-step
     dt = 0.01
     # Load kit helper
-    sim = SimulationContext(
-        physics_dt=dt, rendering_dt=dt, stage_units_in_meters=1.0, backend="numpy"
-    )
+    sim = SimulationContext(physics_dt=dt, rendering_dt=dt, stage_units_in_meters=1.0, backend="numpy")
     yield sim, config
     # Teardown
     sim.stop()

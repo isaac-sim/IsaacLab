@@ -5,7 +5,7 @@
 
 """Launch Isaac Sim Simulator first."""
 
-from isaaclab.app import AppLauncher, run_tests
+from isaaclab.app import AppLauncher
 
 # launch omniverse app
 if not AppLauncher.instance():
@@ -15,6 +15,7 @@ if not AppLauncher.instance():
 
 import isaacsim.core.utils.prims as prim_utils
 import isaacsim.core.utils.stage as stage_utils
+import pytest
 from isaacsim.core.api.simulation_context import SimulationContext
 from pxr import UsdPhysics
 
@@ -22,8 +23,6 @@ import isaaclab.sim.schemas as schemas
 from isaaclab.sim.utils import find_global_fixed_joint_prim
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.string import to_camel_case
-
-import pytest
 
 
 @pytest.fixture
@@ -81,7 +80,7 @@ def setup_simulation():
 
 def test_valid_properties_cfg(setup_simulation):
     """Test that all the config instances have non-None values.
-    
+
     This is to ensure that we check that all the properties of the schema are set.
     """
     sim, arti_cfg, rigid_cfg, collision_cfg, mass_cfg, joint_cfg = setup_simulation
@@ -101,7 +100,7 @@ def test_modify_properties_on_invalid_prim(setup_simulation):
 
 def test_modify_properties_on_articulation_instanced_usd(setup_simulation):
     """Test modifying properties on articulation instanced usd.
-    
+
     In this case, modifying collision properties on the articulation instanced usd will fail.
     """
     sim, arti_cfg, rigid_cfg, mass_cfg, joint_cfg = setup_simulation
@@ -209,11 +208,12 @@ def test_defining_articulation_properties_on_prim(setup_simulation):
 Helper functions.
 """
 
+
 def _validate_articulation_properties_on_prim(
     prim_path: str, arti_cfg, has_default_fixed_root: bool, verbose: bool = False
 ):
     """Validate the articulation properties on the prim.
-    
+
     If :attr:`has_default_fixed_root` is True, then the asset already has a fixed root link. This is used to check the
     expected behavior of the fixed root link configuration.
     """
@@ -245,12 +245,14 @@ def _validate_articulation_properties_on_prim(
         # convert attribute name in prim to cfg name
         prim_prop_name = f"physxArticulation:{to_camel_case(attr_name, to='cC')}"
         # validate the values
-        assert root_prim.GetAttribute(prim_prop_name).Get() == pytest.approx(attr_value, abs=1e-5), f"Failed setting for {prim_prop_name}"
+        assert root_prim.GetAttribute(prim_prop_name).Get() == pytest.approx(
+            attr_value, abs=1e-5
+        ), f"Failed setting for {prim_prop_name}"
 
 
 def _validate_rigid_body_properties_on_prim(prim_path: str, rigid_cfg, verbose: bool = False):
     """Validate the rigid body properties on the prim.
-    
+
     Note:
         Right now this function exploits the hierarchy in the asset to check the properties. This is not a
         fool-proof way of checking the properties.
@@ -267,14 +269,16 @@ def _validate_rigid_body_properties_on_prim(prim_path: str, rigid_cfg, verbose: 
                 # convert attribute name in prim to cfg name
                 prim_prop_name = f"physxRigidBody:{to_camel_case(attr_name, to='cC')}"
                 # validate the values
-                assert link_prim.GetAttribute(prim_prop_name).Get() == pytest.approx(attr_value, abs=1e-5), f"Failed setting for {prim_prop_name}"
+                assert link_prim.GetAttribute(prim_prop_name).Get() == pytest.approx(
+                    attr_value, abs=1e-5
+                ), f"Failed setting for {prim_prop_name}"
         elif verbose:
             print(f"Skipping prim {link_prim.GetPrimPath()} as it is not a rigid body.")
 
 
 def _validate_collision_properties_on_prim(prim_path: str, collision_cfg, verbose: bool = False):
     """Validate the collision properties on the prim.
-    
+
     Note:
         Right now this function exploits the hierarchy in the asset to check the properties. This is not a
         fool-proof way of checking the properties.
@@ -292,14 +296,16 @@ def _validate_collision_properties_on_prim(prim_path: str, collision_cfg, verbos
                     # convert attribute name in prim to cfg name
                     prim_prop_name = f"physxCollision:{to_camel_case(attr_name, to='cC')}"
                     # validate the values
-                    assert mesh_prim.GetAttribute(prim_prop_name).Get() == pytest.approx(attr_value, abs=1e-5), f"Failed setting for {prim_prop_name}"
+                    assert mesh_prim.GetAttribute(prim_prop_name).Get() == pytest.approx(
+                        attr_value, abs=1e-5
+                    ), f"Failed setting for {prim_prop_name}"
             elif verbose:
                 print(f"Skipping prim {mesh_prim.GetPrimPath()} as it is not a collision mesh.")
 
 
 def _validate_mass_properties_on_prim(prim_path: str, mass_cfg, verbose: bool = False):
     """Validate the mass properties on the prim.
-    
+
     Note:
         Right now this function exploits the hierarchy in the asset to check the properties. This is not a
         fool-proof way of checking the properties.
@@ -316,14 +322,16 @@ def _validate_mass_properties_on_prim(prim_path: str, mass_cfg, verbose: bool = 
                 # print(link_prim.GetProperties())
                 prim_prop_name = f"physics:{to_camel_case(attr_name, to='cC')}"
                 # validate the values
-                assert link_prim.GetAttribute(prim_prop_name).Get() == pytest.approx(attr_value, abs=1e-5), f"Failed setting for {prim_prop_name}"
+                assert link_prim.GetAttribute(prim_prop_name).Get() == pytest.approx(
+                    attr_value, abs=1e-5
+                ), f"Failed setting for {prim_prop_name}"
         elif verbose:
             print(f"Skipping prim {link_prim.GetPrimPath()} as it is not a mass api.")
 
 
 def _validate_joint_drive_properties_on_prim(prim_path: str, joint_cfg, verbose: bool = False):
     """Validate the mass properties on the prim.
-    
+
     Note:
         Right now this function exploits the hierarchy in the asset to check the properties. This is not a
         fool-proof way of checking the properties.

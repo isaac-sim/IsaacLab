@@ -5,7 +5,7 @@
 
 """Launch Isaac Sim Simulator first."""
 
-from isaaclab.app import AppLauncher, run_tests
+from isaaclab.app import AppLauncher
 
 # launch omniverse app in headless mode
 if not AppLauncher.instance():
@@ -17,8 +17,9 @@ import os
 import shutil
 import tempfile
 import torch
-import pytest
 import uuid
+
+import pytest
 
 from isaaclab.utils.datasets import EpisodeData, HDF5DatasetFileHandler
 
@@ -118,6 +119,3 @@ def test_write_and_load_episode(temp_dir, device):
             assert torch.equal(loaded_episode.get_next_action(), action)
 
     dataset_file_handler.close()
-
-
-

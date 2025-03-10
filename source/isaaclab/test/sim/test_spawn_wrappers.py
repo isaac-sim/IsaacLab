@@ -13,13 +13,14 @@ if not AppLauncher.instance():
 
 """Rest everything follows."""
 
-import pytest
 import isaacsim.core.utils.prims as prim_utils
 import isaacsim.core.utils.stage as stage_utils
+import pytest
 from isaacsim.core.api.simulation_context import SimulationContext
 
 import isaaclab.sim as sim_utils
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
+
 
 @pytest.fixture
 def sim():
@@ -33,6 +34,7 @@ def sim():
     sim.clear()
     sim.clear_all_callbacks()
     sim.clear_instance()
+
 
 def test_spawn_multiple_shapes_with_global_settings(sim):
     """Test spawning of shapes randomly with global rigid body settings."""
@@ -74,6 +76,7 @@ def test_spawn_multiple_shapes_with_global_settings(sim):
     for prim_path in prim_paths:
         prim = prim_utils.get_prim_at_path(prim_path)
         assert prim.GetAttribute("physics:mass").Get() == cfg.mass_props.mass
+
 
 def test_spawn_multiple_shapes_with_individual_settings(sim):
     """Test spawning of shapes randomly with individual rigid object settings."""
@@ -120,9 +123,11 @@ def test_spawn_multiple_shapes_with_individual_settings(sim):
         prim = prim_utils.get_prim_at_path(prim_path)
         assert prim.GetAttribute("physics:mass").Get() in mass_variations
 
+
 """
 Tests - Multiple USDs.
 """
+
 
 def test_spawn_multiple_files_with_global_settings(sim):
     """Test spawning of files randomly with global articulation settings."""

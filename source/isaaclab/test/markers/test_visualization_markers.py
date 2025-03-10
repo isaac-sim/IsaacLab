@@ -5,7 +5,7 @@
 
 """Launch Isaac Sim Simulator first."""
 
-from isaaclab.app import AppLauncher, run_tests
+from isaaclab.app import AppLauncher
 
 # launch omniverse app
 if not AppLauncher.instance():
@@ -14,9 +14,9 @@ if not AppLauncher.instance():
 """Rest everything follows."""
 
 import torch
-import pytest
 
 import isaacsim.core.utils.stage as stage_utils
+import pytest
 from isaacsim.core.api.simulation_context import SimulationContext
 
 import isaaclab.sim as sim_utils
@@ -203,6 +203,3 @@ def test_visualization_time_based_on_visibility(sim):
 
     # check that the time is less
     assert time_with_no_visualization < time_with_visualization
-
-
-

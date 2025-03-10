@@ -8,7 +8,7 @@
 
 """Launch Isaac Sim Simulator first."""
 
-from isaaclab.app import AppLauncher, run_tests
+from isaaclab.app import AppLauncher
 
 # launch omniverse app
 if not AppLauncher.instance():
@@ -25,11 +25,11 @@ import os
 import random
 import scipy.spatial.transform as tf
 import torch
-import pytest
 
 import isaacsim.core.utils.prims as prim_utils
 import isaacsim.core.utils.stage as stage_utils
 import omni.replicator.core as rep
+import pytest
 from isaacsim.core.prims import SingleGeometryPrim, SingleRigidPrim
 from pxr import Gf, Usd, UsdGeom
 
@@ -46,6 +46,7 @@ QUAT_OPENGL = (0.33985113, 0.17591988, 0.42470818, 0.82047324)
 QUAT_WORLD = (-0.3647052, -0.27984815, -0.1159169, 0.88047623)
 
 # NOTE: setup and teardown are own function to allow calling them in the tests
+
 
 def setup() -> tuple[sim_utils.SimulationContext, CameraCfg, float]:
     camera_cfg = CameraCfg(
@@ -71,6 +72,7 @@ def setup() -> tuple[sim_utils.SimulationContext, CameraCfg, float]:
     stage_utils.update_stage()
     return sim, camera_cfg, dt
 
+
 def teardown(sim: sim_utils.SimulationContext):
     # Cleanup
     # close all the opened viewport from before.
@@ -89,6 +91,7 @@ def setup_sim_camera():
     sim, camera_cfg, dt = setup()
     yield sim, camera_cfg, dt
     teardown(sim)
+
 
 def test_camera_init(setup_sim_camera):
     """Test camera initialization."""
@@ -130,6 +133,7 @@ def test_camera_init(setup_sim_camera):
         # check image data
         for im_data in camera.data.output.values():
             assert im_data.shape == (1, camera_cfg.height, camera_cfg.width, 1)
+
 
 def test_camera_init_offset(setup_sim_camera):
     """Test camera initialization with offset using different conventions."""
@@ -207,6 +211,7 @@ def test_camera_init_offset(setup_sim_camera):
     np.testing.assert_allclose(camera_ros.data.quat_w_opengl[0].cpu().numpy(), QUAT_OPENGL, rtol=1e-5)
     np.testing.assert_allclose(camera_ros.data.quat_w_world[0].cpu().numpy(), QUAT_WORLD, rtol=1e-5)
 
+
 def test_multi_camera_init(setup_sim_camera):
     """Test multi-camera initialization."""
     sim, camera_cfg, dt = setup_sim_camera
@@ -240,6 +245,7 @@ def test_multi_camera_init(setup_sim_camera):
             for im_data in cam.data.output.values():
                 assert im_data.shape == (1, camera_cfg.height, camera_cfg.width, 1)
 
+
 def test_multi_camera_with_different_resolution(setup_sim_camera):
     """Test multi-camera initialization with cameras having different image resolutions."""
     sim, camera_cfg, dt = setup_sim_camera
@@ -271,6 +277,7 @@ def test_multi_camera_with_different_resolution(setup_sim_camera):
     # check image sizes
     assert cam_1.data.output["distance_to_image_plane"].shape == (1, camera_cfg.height, camera_cfg.width, 1)
     assert cam_2.data.output["distance_to_image_plane"].shape == (1, cam_cfg_2.height, cam_cfg_2.width, 1)
+
 
 def test_camera_init_intrinsic_matrix(setup_sim_camera):
     """Test camera initialization from intrinsic matrix."""
@@ -324,6 +331,7 @@ def test_camera_init_intrinsic_matrix(setup_sim_camera):
         atol=1e-4,
     )
 
+
 def test_camera_set_world_poses(setup_sim_camera):
     """Test camera function to set specific world pose."""
     sim, camera_cfg, dt = setup_sim_camera
@@ -346,6 +354,7 @@ def test_camera_set_world_poses(setup_sim_camera):
     # check if transform correctly set in output
     torch.testing.assert_close(camera.data.pos_w, position)
     torch.testing.assert_close(camera.data.quat_w_world, orientation)
+
 
 def test_camera_set_world_poses_from_view(setup_sim_camera):
     """Test camera function to set specific world pose from view."""
@@ -370,6 +379,7 @@ def test_camera_set_world_poses_from_view(setup_sim_camera):
     # check if transform correctly set in output
     torch.testing.assert_close(camera.data.pos_w, eyes)
     torch.testing.assert_close(camera.data.quat_w_ros, quat_ros_gt)
+
 
 def test_intrinsic_matrix(setup_sim_camera):
     """Checks that the camera's set and retrieve methods work for intrinsic matrix."""
@@ -401,6 +411,7 @@ def test_intrinsic_matrix(setup_sim_camera):
         #       This is a bug in the simulator.
         torch.testing.assert_close(rs_intrinsic_matrix[0, 0, 0], camera.data.intrinsic_matrices[0, 0, 0])
         # torch.testing.assert_close(rs_intrinsic_matrix[0, 1, 1], camera.data.intrinsic_matrices[0, 1, 1])
+
 
 def test_depth_clipping(setup_sim_camera):
     """Test depth clipping.
@@ -453,35 +464,48 @@ def test_depth_clipping(setup_sim_camera):
     # none clipping should contain inf values
     assert torch.isinf(camera_none.data.output["distance_to_camera"]).any()
     assert torch.isinf(camera_none.data.output["distance_to_image_plane"]).any()
-    assert camera_none.data.output["distance_to_camera"][
-        ~torch.isinf(camera_none.data.output["distance_to_camera"])
-    ].min() >= camera_cfg_zero.spawn.clipping_range[0]
-    assert camera_none.data.output["distance_to_camera"][
-        ~torch.isinf(camera_none.data.output["distance_to_camera"])
-    ].max() <= camera_cfg_zero.spawn.clipping_range[1]
-    assert camera_none.data.output["distance_to_image_plane"][
-        ~torch.isinf(camera_none.data.output["distance_to_image_plane"])
-    ].min() >= camera_cfg_zero.spawn.clipping_range[0]
-    assert camera_none.data.output["distance_to_image_plane"][
-        ~torch.isinf(camera_none.data.output["distance_to_camera"])
-    ].max() <= camera_cfg_zero.spawn.clipping_range[1]
+    assert (
+        camera_none.data.output["distance_to_camera"][~torch.isinf(camera_none.data.output["distance_to_camera"])].min()
+        >= camera_cfg_zero.spawn.clipping_range[0]
+    )
+    assert (
+        camera_none.data.output["distance_to_camera"][~torch.isinf(camera_none.data.output["distance_to_camera"])].max()
+        <= camera_cfg_zero.spawn.clipping_range[1]
+    )
+    assert (
+        camera_none.data.output["distance_to_image_plane"][
+            ~torch.isinf(camera_none.data.output["distance_to_image_plane"])
+        ].min()
+        >= camera_cfg_zero.spawn.clipping_range[0]
+    )
+    assert (
+        camera_none.data.output["distance_to_image_plane"][
+            ~torch.isinf(camera_none.data.output["distance_to_camera"])
+        ].max()
+        <= camera_cfg_zero.spawn.clipping_range[1]
+    )
 
     # zero clipping should result in zero values
     assert torch.all(
-        camera_zero.data.output["distance_to_camera"][
-            torch.isinf(camera_none.data.output["distance_to_camera"])
-        ] == 0.0
+        camera_zero.data.output["distance_to_camera"][torch.isinf(camera_none.data.output["distance_to_camera"])] == 0.0
     )
     assert torch.all(
         camera_zero.data.output["distance_to_image_plane"][
             torch.isinf(camera_none.data.output["distance_to_image_plane"])
-        ] == 0.0
+        ]
+        == 0.0
     )
-    assert camera_zero.data.output["distance_to_camera"][camera_zero.data.output["distance_to_camera"] != 0.0].min() >= camera_cfg_zero.spawn.clipping_range[0]
+    assert (
+        camera_zero.data.output["distance_to_camera"][camera_zero.data.output["distance_to_camera"] != 0.0].min()
+        >= camera_cfg_zero.spawn.clipping_range[0]
+    )
     assert camera_zero.data.output["distance_to_camera"].max() <= camera_cfg_zero.spawn.clipping_range[1]
-    assert camera_zero.data.output["distance_to_image_plane"][
-        camera_zero.data.output["distance_to_image_plane"] != 0.0
-    ].min() >= camera_cfg_zero.spawn.clipping_range[0]
+    assert (
+        camera_zero.data.output["distance_to_image_plane"][
+            camera_zero.data.output["distance_to_image_plane"] != 0.0
+        ].min()
+        >= camera_cfg_zero.spawn.clipping_range[0]
+    )
     assert camera_zero.data.output["distance_to_image_plane"].max() <= camera_cfg_zero.spawn.clipping_range[1]
 
     # max clipping should result in max values
@@ -492,18 +516,19 @@ def test_depth_clipping(setup_sim_camera):
     assert torch.all(
         camera_max.data.output["distance_to_image_plane"][
             torch.isinf(camera_none.data.output["distance_to_image_plane"])
-        ] == camera_cfg_zero.spawn.clipping_range[1]
+        ]
+        == camera_cfg_zero.spawn.clipping_range[1]
     )
     assert camera_max.data.output["distance_to_camera"].min() >= camera_cfg_zero.spawn.clipping_range[0]
     assert camera_max.data.output["distance_to_camera"].max() <= camera_cfg_zero.spawn.clipping_range[1]
     assert camera_max.data.output["distance_to_image_plane"].min() >= camera_cfg_zero.spawn.clipping_range[0]
     assert camera_max.data.output["distance_to_image_plane"].max() <= camera_cfg_zero.spawn.clipping_range[1]
 
+
 def test_camera_resolution_all_colorize(setup_sim_camera):
     """Test camera resolution is correctly set for all types with colorization enabled."""
     # Add all types
     sim, camera_cfg, dt = setup_sim_camera
-    camera_cfg = copy.deepcopy(self.camera_cfg)
     camera_cfg.data_types = [
         "rgb",
         "rgba",
@@ -563,11 +588,11 @@ def test_camera_resolution_all_colorize(setup_sim_camera):
     assert output["instance_segmentation_fast"].dtype == torch.uint8
     assert output["instance_id_segmentation_fast"].dtype == torch.uint8
 
+
 def test_camera_resolution_no_colorize(setup_sim_camera):
     """Test camera resolution is correctly set for all types with no colorization enabled."""
     # Add all types
     sim, camera_cfg, dt = setup_sim_camera
-    camera_cfg = copy.deepcopy(camera_cfg)
     camera_cfg.data_types = [
         "rgb",
         "rgba",
@@ -626,11 +651,11 @@ def test_camera_resolution_no_colorize(setup_sim_camera):
     assert output["instance_segmentation_fast"].dtype == torch.int32
     assert output["instance_id_segmentation_fast"].dtype == torch.int32
 
+
 def test_camera_large_resolution_all_colorize(setup_sim_camera):
     """Test camera resolution is correctly set for all types with colorization enabled."""
     # Add all types
     sim, camera_cfg, dt = setup_sim_camera
-    camera_cfg = copy.deepcopy(self.camera_cfg)
     camera_cfg.data_types = [
         "rgb",
         "rgba",
@@ -692,11 +717,11 @@ def test_camera_large_resolution_all_colorize(setup_sim_camera):
     assert output["instance_segmentation_fast"].dtype == torch.uint8
     assert output["instance_id_segmentation_fast"].dtype == torch.uint8
 
+
 def test_camera_resolution_rgb_only(setup_sim_camera):
     """Test camera resolution is correctly set for RGB only."""
     # Add all types
     sim, camera_cfg, dt = setup_sim_camera
-    camera_cfg = copy.deepcopy(camera_cfg)
     camera_cfg.data_types = ["rgb"]
     # Create camera
     camera = Camera(camera_cfg)
@@ -719,11 +744,11 @@ def test_camera_resolution_rgb_only(setup_sim_camera):
     # access image data and compare dtype
     assert output["rgb"].dtype == torch.uint8
 
+
 def test_camera_resolution_rgba_only(setup_sim_camera):
     """Test camera resolution is correctly set for RGBA only."""
     # Add all types
     sim, camera_cfg, dt = setup_sim_camera
-    camera_cfg = copy.deepcopy(camera_cfg)
     camera_cfg.data_types = ["rgba"]
     # Create camera
     camera = Camera(camera_cfg)
@@ -746,11 +771,11 @@ def test_camera_resolution_rgba_only(setup_sim_camera):
     # access image data and compare dtype
     assert output["rgba"].dtype == torch.uint8
 
+
 def test_camera_resolution_depth_only(setup_sim_camera):
     """Test camera resolution is correctly set for depth only."""
     # Add all types
     sim, camera_cfg, dt = setup_sim_camera
-    camera_cfg = copy.deepcopy(camera_cfg)
     camera_cfg.data_types = ["depth"]
     # Create camera
     camera = Camera(camera_cfg)
@@ -773,6 +798,7 @@ def test_camera_resolution_depth_only(setup_sim_camera):
     # access image data and compare dtype
     assert output["depth"].dtype == torch.float
 
+
 def test_throughput(setup_sim_camera):
     """Checks that the single camera gets created properly with a rig."""
     # Create directory temp dir to dump the results
@@ -783,7 +809,6 @@ def test_throughput(setup_sim_camera):
     rep_writer = rep.BasicWriter(output_dir=temp_dir, frame_padding=3)
     # create camera
     sim, camera_cfg, dt = setup_sim_camera
-    camera_cfg = copy.deepcopy(camera_cfg)
     camera_cfg.height = 480
     camera_cfg.width = 640
     camera = Camera(camera_cfg)
@@ -826,6 +851,7 @@ def test_throughput(setup_sim_camera):
         for im_data in camera.data.output.values():
             assert im_data.shape == (1, camera_cfg.height, camera_cfg.width, 1)
 
+
 def test_sensor_print(setup_sim_camera):
     """Test sensor print is working correctly."""
     # Create sensor
@@ -835,6 +861,7 @@ def test_sensor_print(setup_sim_camera):
     sim.reset()
     # print info
     print(sensor)
+
 
 def _populate_scene():
     """Add prims to the scene."""

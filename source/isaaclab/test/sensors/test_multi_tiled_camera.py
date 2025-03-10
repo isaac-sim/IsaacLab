@@ -8,7 +8,7 @@
 
 """Launch Isaac Sim Simulator first."""
 
-from isaaclab.app import AppLauncher, run_tests
+from isaaclab.app import AppLauncher
 
 # launch omniverse app
 if not AppLauncher.instance():
@@ -530,7 +530,3 @@ class TestMultiTiledCamera(unittest.TestCase):
             # add rigid properties
             SingleGeometryPrim(f"/World/Objects/Obj_{i:02d}", collision=True)
             SingleRigidPrim(f"/World/Objects/Obj_{i:02d}", mass=5.0)
-
-
-if __name__ == "__main__":  #
-    run_tests()

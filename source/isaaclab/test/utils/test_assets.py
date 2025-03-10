@@ -7,15 +7,13 @@ from __future__ import annotations
 
 """Launch Isaac Sim Simulator first."""
 
-from isaaclab.app import AppLauncher, run_tests
+from isaaclab.app import AppLauncher
 
 # launch omniverse app
 if not AppLauncher.instance():
     simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows."""
-
-import pytest
 
 import isaaclab.utils.assets as assets_utils
 
@@ -40,6 +38,3 @@ def test_check_file_path_invalid():
     usd_path = f"{assets_utils.ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/panda_xyz.usd"
     # check file path
     assert assets_utils.check_file_path(usd_path) == 0
-
-
-

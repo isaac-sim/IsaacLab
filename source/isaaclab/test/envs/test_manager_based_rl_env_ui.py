@@ -10,7 +10,7 @@ from __future__ import annotations
 
 """Launch Isaac Sim Simulator first."""
 
-from isaaclab.app import AppLauncher, run_tests
+from isaaclab.app import AppLauncher
 
 if not AppLauncher.instance():
     simulation_app = AppLauncher(headless=True, enable_cameras=True).app
@@ -19,8 +19,6 @@ elif AppLauncher.instance() and AppLauncher.instance()._enable_cameras is False:
     raise ValueError("AppLauncher instance exists but enable_cameras is False")
 
 """Rest everything follows."""
-
-import pytest
 
 import carb
 import omni.usd
@@ -91,6 +89,3 @@ def test_ui_window():
     env = ManagerBasedRLEnv(cfg=get_empty_base_env_cfg(device=device))
     # close the environment
     env.close()
-
-
-

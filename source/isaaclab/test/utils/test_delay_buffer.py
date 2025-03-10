@@ -5,7 +5,7 @@
 
 """Launch Isaac Sim Simulator first."""
 
-from isaaclab.app import AppLauncher, run_tests
+from isaaclab.app import AppLauncher
 
 # launch omniverse app in headless mode
 if not AppLauncher.instance():
@@ -14,8 +14,9 @@ if not AppLauncher.instance():
 """Rest everything follows from here."""
 
 import torch
-import pytest
 from collections.abc import Generator
+
+import pytest
 
 from isaaclab.utils import DelayBuffer
 
@@ -82,7 +83,9 @@ def test_reset(delay_buffer):
 def test_random_time_lags(delay_buffer):
     """Test random delays."""
     max_lag: int = 3
-    time_lags = torch.randint(low=0, high=max_lag + 1, size=(delay_buffer.batch_size,), dtype=torch.int, device=delay_buffer.device)
+    time_lags = torch.randint(
+        low=0, high=max_lag + 1, size=(delay_buffer.batch_size,), dtype=torch.int, device=delay_buffer.device
+    )
 
     delay_buffer.set_time_lag(time_lags)
 
@@ -96,6 +99,3 @@ def test_random_time_lags(delay_buffer):
         for i in range(delay_buffer.batch_size):
             error = delayed_data[i] - all_data[true_delayed_index[i]][i]
             assert torch.all(error == 0)
-
-
-

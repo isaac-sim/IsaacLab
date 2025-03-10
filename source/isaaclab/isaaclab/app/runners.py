@@ -7,6 +7,7 @@
 
 import pytest
 
+
 def run_tests(file: str, verbose: bool = True, **kwargs):
     """Wrapper for running tests via ``pytest`` for a specific file.
 
@@ -21,4 +22,3 @@ def run_tests(file: str, verbose: bool = True, **kwargs):
 
     # Run pytest with `--capture=no` to avoid getting stuck
     return pytest.main([file, "--capture=no"] + verbosity_flag + list(kwargs.get("extra_args", [])))
-

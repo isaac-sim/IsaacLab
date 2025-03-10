@@ -5,7 +5,7 @@
 
 """Launch Isaac Sim Simulator first."""
 
-from isaaclab.app import AppLauncher, run_tests
+from isaaclab.app import AppLauncher
 
 # launch omniverse app
 if not AppLauncher.instance():
@@ -17,9 +17,9 @@ import numpy as np
 import os
 import shutil
 import torch
-import pytest
 
 import isaacsim.core.utils.torch as torch_utils
+import pytest
 
 from isaaclab.terrains import FlatPatchSamplingCfg, TerrainGenerator, TerrainGeneratorCfg
 from isaaclab.terrains.config.rough import ROUGH_TERRAINS_CFG
@@ -90,9 +90,7 @@ def test_generation_reproducibility(use_global_seed, seed):
     np.testing.assert_allclose(
         terrain_mesh_1.vertices, terrain_mesh_2.vertices, atol=1e-5, err_msg="Vertices are not equal"
     )
-    np.testing.assert_allclose(
-        terrain_mesh_1.faces, terrain_mesh_2.faces, atol=1e-5, err_msg="Faces are not equal"
-    )
+    np.testing.assert_allclose(terrain_mesh_1.faces, terrain_mesh_2.faces, atol=1e-5, err_msg="Faces are not equal")
 
 
 @pytest.mark.parametrize("curriculum", [True, False])
@@ -139,9 +137,7 @@ def test_generation_cache(output_dir, curriculum):
     np.testing.assert_allclose(
         terrain_mesh_1.vertices, terrain_mesh_2.vertices, atol=1e-5, err_msg="Vertices are not equal"
     )
-    np.testing.assert_allclose(
-        terrain_mesh_1.faces, terrain_mesh_2.faces, atol=1e-5, err_msg="Faces are not equal"
-    )
+    np.testing.assert_allclose(terrain_mesh_1.faces, terrain_mesh_2.faces, atol=1e-5, err_msg="Faces are not equal")
 
 
 def test_terrain_flat_patches():
@@ -165,6 +161,3 @@ def test_terrain_flat_patches():
     # check that no flat patches are zero
     for _, flat_patches in terrain_generator.flat_patches.items():
         assert not torch.allclose(flat_patches, torch.zeros_like(flat_patches))
-
-
-

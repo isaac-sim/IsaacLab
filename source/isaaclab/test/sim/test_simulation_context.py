@@ -5,7 +5,7 @@
 
 """Launch Isaac Sim Simulator first."""
 
-from isaaclab.app import AppLauncher, run_tests
+from isaaclab.app import AppLauncher
 
 # launch omniverse app
 if not AppLauncher.instance():
@@ -14,9 +14,9 @@ if not AppLauncher.instance():
 """Rest everything follows."""
 
 import numpy as np
-import pytest
 
 import isaacsim.core.utils.prims as prim_utils
+import pytest
 from isaacsim.core.api.simulation_context import SimulationContext as IsaacSimulationContext
 
 from isaaclab.sim import SimulationCfg, SimulationContext
@@ -27,10 +27,10 @@ def test_setup_teardown():
     """Setup and teardown for each test."""
     # Setup: Clear any existing simulation context
     SimulationContext.clear_instance()
-    
+
     # Yield for the test
     yield
-    
+
     # Teardown: Clear the simulation context after each test
     SimulationContext.clear_instance()
 
@@ -141,6 +141,3 @@ def test_zero_gravity():
     gravity_dir, gravity_mag = sim.get_physics_context().get_gravity()
     gravity = np.array(gravity_dir) * gravity_mag
     np.testing.assert_almost_equal(gravity, cfg.gravity)
-
-
-

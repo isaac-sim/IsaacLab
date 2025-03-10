@@ -5,7 +5,7 @@
 
 """Launch Isaac Sim Simulator first."""
 
-from isaaclab.app import AppLauncher, run_tests
+from isaaclab.app import AppLauncher
 
 # launch omniverse app
 if not AppLauncher.instance():
@@ -14,10 +14,10 @@ if not AppLauncher.instance():
 """Rest everything follows."""
 
 import torch
-import pytest
 
 import isaacsim.core.utils.prims as prim_utils
 import isaacsim.core.utils.stage as stage_utils
+import pytest
 from isaacsim.core.cloner import GridCloner
 
 import isaaclab.sim as sim_utils
@@ -98,7 +98,9 @@ def test_franka_ik_pose_abs(sim):
     diff_ik_controller = DifferentialIKController(diff_ik_cfg, num_envs=num_envs, device=sim_context.device)
 
     # Run the controller and check that it converges to the goal
-    _run_ik_controller(robot, diff_ik_controller, "panda_hand", ["panda_joint.*"], sim_context, num_envs, ee_pose_b_des_set)
+    _run_ik_controller(
+        robot, diff_ik_controller, "panda_hand", ["panda_joint.*"], sim_context, num_envs, ee_pose_b_des_set
+    )
 
 
 def test_ur10_ik_pose_abs(sim):
@@ -227,6 +229,3 @@ def _run_ik_controller(
         sim.step(render=False)
         # update buffers
         robot.update(sim_dt)
-
-
-

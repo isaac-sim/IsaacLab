@@ -7,7 +7,7 @@
 #       because warp is only available in the context of a running simulation
 """Launch Isaac Sim Simulator first."""
 
-from isaaclab.app import AppLauncher, run_tests
+from isaaclab.app import AppLauncher
 
 # launch omniverse app
 if not AppLauncher.instance():
@@ -16,7 +16,6 @@ if not AppLauncher.instance():
 """Rest everything follows."""
 
 import random
-import pytest
 
 import isaaclab.utils.dict as dict_utils
 
@@ -99,6 +98,3 @@ def test_dict_to_md5():
     for _ in range(200):
         md5_hash_2 = dict_utils.dict_to_md5_hash(test_dict)
         assert md5_hash_1 == md5_hash_2
-
-
-

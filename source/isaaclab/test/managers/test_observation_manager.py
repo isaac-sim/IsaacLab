@@ -8,7 +8,7 @@ from __future__ import annotations
 
 """Launch Isaac Sim Simulator first."""
 
-from isaaclab.app import AppLauncher, run_tests
+from isaaclab.app import AppLauncher
 
 # launch omniverse app
 if not AppLauncher.instance():
@@ -17,8 +17,8 @@ if not AppLauncher.instance():
 """Rest everything follows."""
 
 import torch
-import unittest
 from collections import namedtuple
+
 import pytest
 
 from isaaclab.managers import ManagerTermBase, ObservationGroupCfg, ObservationManager, ObservationTermCfg
@@ -532,7 +532,7 @@ def test_invalid_observation_config(setup_env):
     cfg = MyObservationManagerCfg()
     # check the invalid config
     with pytest.raises(ValueError):
-        obs_man = ObservationManager(cfg, env)
+        ObservationManager(cfg, env)
 
 
 def test_callable_class_term(setup_env):
@@ -595,7 +595,7 @@ def test_non_callable_class_term(setup_env):
     cfg = MyObservationManagerCfg()
     # create observation manager
     with pytest.raises(NotImplementedError):
-        obs_man = ObservationManager(cfg, env)
+        ObservationManager(cfg, env)
 
 
 def test_modifier_compute(setup_env):
@@ -674,4 +674,4 @@ def test_modifier_invalid_config(setup_env):
     cfg = MyObservationManagerCfg()
 
     with pytest.raises(ValueError):
-        obs_man = ObservationManager(cfg, env)
+        ObservationManager(cfg, env)

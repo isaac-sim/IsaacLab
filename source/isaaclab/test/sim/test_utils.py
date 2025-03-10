@@ -5,7 +5,7 @@
 
 """Launch Isaac Sim Simulator first."""
 
-from isaaclab.app import AppLauncher, run_tests
+from isaaclab.app import AppLauncher
 
 # launch omniverse app
 if not AppLauncher.instance():
@@ -14,10 +14,10 @@ if not AppLauncher.instance():
 """Rest everything follows."""
 
 import numpy as np
-import pytest
 
 import isaacsim.core.utils.prims as prim_utils
 import isaacsim.core.utils.stage as stage_utils
+import pytest
 from pxr import Sdf, Usd, UsdGeom
 
 import isaaclab.sim as sim_utils
@@ -30,10 +30,10 @@ def test_setup_teardown():
     # Setup: Create a new stage
     stage_utils.create_new_stage()
     stage_utils.update_stage()
-    
+
     # Yield for the test
     yield
-    
+
     # Teardown: Clear stage after each test
     stage_utils.clear_stage()
 
@@ -91,9 +91,7 @@ def test_find_global_fixed_joint_prim():
     """Test find_global_fixed_joint_prim() function."""
     # create scene
     prim_utils.create_prim("/World")
-    prim_utils.create_prim(
-        "/World/ANYmal", usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/ANYbotics/ANYmal-C/anymal_c.usd"
-    )
+    prim_utils.create_prim("/World/ANYmal", usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/ANYbotics/ANYmal-C/anymal_c.usd")
     prim_utils.create_prim(
         "/World/Franka", usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/panda_instanceable.usd"
     )
@@ -128,6 +126,3 @@ def test_select_usd_variants():
 
     # Check if the variant selection is correct
     assert variant_set.GetVariantSelection() == "red"
-
-
-

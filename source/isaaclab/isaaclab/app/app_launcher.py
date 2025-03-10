@@ -13,7 +13,6 @@ fault occurs. The launched :class:`isaacsim.simulation_app.SimulationApp` instan
 """
 from __future__ import annotations
 
-import carb
 import argparse
 import contextlib
 import os
@@ -22,6 +21,8 @@ import signal
 import sys
 import warnings
 from typing import Any, Literal
+
+import carb
 
 with contextlib.suppress(ModuleNotFoundError):
     import isaacsim  # noqa: F401
@@ -89,7 +90,7 @@ class AppLauncher:
         if AppLauncher._initialized:
             return
         AppLauncher._initialized = True
-        
+
         if launcher_args is None:
             launcher_args = {}
         elif isinstance(launcher_args, argparse.Namespace):
@@ -142,7 +143,7 @@ class AppLauncher:
             AppLauncher: The instance of the app launcher.
         """
         if AppLauncher._instance is None:
-            AppLauncher._instance = super(AppLauncher, cls).__new__(cls)
+            AppLauncher._instance = super().__new__(cls)
         else:
             carb.log_info("AppLauncher is defined already, returning the previously defined one")
         return AppLauncher._instance
@@ -187,7 +188,6 @@ class AppLauncher:
             # clear the instance
         AppLauncher._instance = None
         return
-
 
     """
     Properties.

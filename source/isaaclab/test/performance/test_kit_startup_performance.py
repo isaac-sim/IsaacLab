@@ -15,10 +15,11 @@ from isaaclab.app import AppLauncher
 if AppLauncher.instance():
     raise ValueError("AppLauncher instance already exists")
 
+
 def test_kit_start_up_time():
     """Test kit start-up time."""
     start_time = time.time()
-    app_launcher = AppLauncher(headless=True).app
+    app_launcher = AppLauncher(headless=True).app  # noqa: F841
     end_time = time.time()
     elapsed_time = end_time - start_time
     assert elapsed_time <= 10.0

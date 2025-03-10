@@ -13,14 +13,15 @@ if not AppLauncher.instance():
 
 """Rest everything follows."""
 
-import pytest
 import isaacsim.core.utils.prims as prim_utils
 import isaacsim.core.utils.stage as stage_utils
+import pytest
 from isaacsim.core.api.simulation_context import SimulationContext
 
 import isaaclab.sim as sim_utils
 from isaaclab.sim.spawners.sensors.sensors import CUSTOM_FISHEYE_CAMERA_ATTRIBUTES, CUSTOM_PINHOLE_CAMERA_ATTRIBUTES
 from isaaclab.utils.string import to_camel_case
+
 
 @pytest.fixture
 def sim():
@@ -35,9 +36,11 @@ def sim():
     sim.clear_all_callbacks()
     sim.clear_instance()
 
+
 """
 Basic spawning.
 """
+
 
 def test_spawn_pinhole_camera(sim):
     """Test spawning a pinhole camera."""
@@ -51,6 +54,7 @@ def test_spawn_pinhole_camera(sim):
     assert prim.GetPrimTypeInfo().GetTypeName() == "Camera"
     # Check properties
     _validate_properties_on_prim("/World/pinhole_camera", cfg, CUSTOM_PINHOLE_CAMERA_ATTRIBUTES)
+
 
 def test_spawn_fisheye_camera(sim):
     """Test spawning a fisheye camera."""
@@ -76,9 +80,10 @@ def test_spawn_fisheye_camera(sim):
 Helper functions.
 """
 
+
 def _validate_properties_on_prim(prim_path: str, cfg: object, custom_attr: dict):
     """Validate the properties on the prim.
-    
+
     Args:
         prim_path: The prim name.
         cfg: The configuration object.
@@ -109,5 +114,3 @@ def _validate_properties_on_prim(prim_path: str, cfg: object, custom_attr: dict)
             prim_prop_name = to_camel_case(attr_name, to="cC")
         # validate the values
         assert prim.GetAttribute(prim_prop_name).Get() == pytest.approx(attr_value, rel=1e-5)
-
-

@@ -18,9 +18,9 @@ elif AppLauncher.instance() and AppLauncher.instance()._enable_cameras is False:
 """Rest everything follows."""
 
 import torch
-import pytest
 
 import omni.usd
+import pytest
 
 from isaaclab.envs import (
     DirectRLEnv,
@@ -204,10 +204,9 @@ def test_env_rendering_logic(env_type, render_interval, physics_callback, render
         assert num_render_steps == (i + 1) * env.cfg.decimation // env.cfg.sim.render_interval, "Render steps mismatch"
         # check that we have rendered for the correct amount of time
         render_time, _ = get_render_stats()
-        assert abs(render_time - num_render_steps * env.cfg.sim.dt * env.cfg.sim.render_interval) < 1e-6, "Render time mismatch"
+        assert (
+            abs(render_time - num_render_steps * env.cfg.sim.dt * env.cfg.sim.render_interval) < 1e-6
+        ), "Render time mismatch"
 
     # close the environment
     env.close()
-
-
-

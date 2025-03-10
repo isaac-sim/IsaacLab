@@ -5,7 +5,7 @@
 
 """Launch Isaac Sim Simulator first."""
 
-from isaaclab.app import AppLauncher, run_tests
+from isaaclab.app import AppLauncher
 
 # launch omniverse app
 if not AppLauncher.instance():
@@ -16,9 +16,9 @@ if not AppLauncher.instance():
 import math
 import scipy.spatial.transform as tf
 import torch
-import pytest
 
 import isaacsim.core.utils.stage as stage_utils
+import pytest
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
@@ -90,7 +90,7 @@ def sim():
 
 def test_frame_transformer_feet_wrt_base(sim):
     """Test feet transformations w.r.t. base source frame.
-    
+
     In this test, the source frame is the robot base.
     """
     # Spawn things into stage
@@ -138,9 +138,7 @@ def test_frame_transformer_feet_wrt_base(sim):
     sim.reset()
 
     # Acquire the index of ground truth bodies
-    feet_indices, feet_names = scene.articulations["robot"].find_bodies(
-        ["LF_FOOT", "RF_FOOT", "LH_FOOT", "RH_FOOT"]
-    )
+    feet_indices, feet_names = scene.articulations["robot"].find_bodies(["LF_FOOT", "RF_FOOT", "LH_FOOT", "RH_FOOT"])
 
     target_frame_names = scene.sensors["frame_transformer"].data.target_frame_names
 
@@ -389,7 +387,7 @@ def test_frame_transformer_robot_body_to_external_cube(sim):
 
 def test_frame_transformer_offset_frames(sim):
     """Test body transformation w.r.t. base source frame.
-    
+
     In this test, the source frame is the cube frame.
     """
     # Spawn things into stage
@@ -484,7 +482,7 @@ def test_frame_transformer_offset_frames(sim):
 
 def test_frame_transformer_all_bodies(sim):
     """Test transformation of all bodies w.r.t. base source frame.
-    
+
     In this test, the source frame is the robot base.
 
     The target_frames are all bodies in the robot, implemented using .* pattern.
@@ -573,7 +571,6 @@ def test_frame_transformer_all_bodies(sim):
 
 def test_sensor_print(sim):
     """Test sensor print is working correctly."""
-    sim = sim
     # Spawn things into stage
     scene_cfg = MySceneCfg(num_envs=2, env_spacing=5.0, lazy_sensor_update=False)
     scene_cfg.frame_transformer = FrameTransformerCfg(

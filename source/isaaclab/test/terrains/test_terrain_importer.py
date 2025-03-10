@@ -16,12 +16,12 @@ if not AppLauncher.instance():
 import numpy as np
 import torch
 import trimesh
-import pytest
 from typing import Literal
 
 import isaacsim.core.utils.prims as prim_utils
 import omni.kit
 import omni.kit.commands
+import pytest
 from isaacsim.core.api.materials import PhysicsMaterial, PreviewSurface
 from isaacsim.core.api.objects import DynamicSphere
 from isaacsim.core.cloner import GridCloner
@@ -251,9 +251,7 @@ def _obtain_grid_cloner_env_origins(num_envs: int, env_spacing: float, device: s
     envs_prim_paths = cloner.generate_paths("/World/envs/env", num_paths=num_envs)
     prim_utils.define_prim("/World/envs/env_0")
     # clone envs using grid cloner
-    env_origins = cloner.clone(
-        source_prim_path="/World/envs/env_0", prim_paths=envs_prim_paths, replicate_physics=True
-    )
+    env_origins = cloner.clone(source_prim_path="/World/envs/env_0", prim_paths=envs_prim_paths, replicate_physics=True)
     # return as tensor
     return torch.tensor(env_origins, dtype=torch.float32, device=device)
 

@@ -5,9 +5,8 @@
 
 import torch
 import torch.utils.benchmark as benchmark
-import pytest
 
-from isaaclab.app import run_tests
+import pytest
 
 
 def test_array_slicing():
@@ -150,6 +149,3 @@ def test_logical_or():
     output_bitwise_or = my_tensor_1 | my_tensor_2
 
     assert torch.allclose(output_logical_or, output_bitwise_or)
-
-
-

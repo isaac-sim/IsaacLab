@@ -10,7 +10,7 @@ from __future__ import annotations
 
 """Launch Isaac Sim Simulator first."""
 
-from isaaclab.app import AppLauncher, run_tests
+from isaaclab.app import AppLauncher
 
 # launch omniverse app
 if not AppLauncher.instance():
@@ -19,9 +19,9 @@ if not AppLauncher.instance():
 """Rest everything follows."""
 
 import torch
-import pytest
 
 import omni.usd
+import pytest
 
 from isaaclab.envs import ManagerBasedEnv, ManagerBasedEnvCfg
 from isaaclab.scene import InteractiveSceneCfg
@@ -91,6 +91,3 @@ def test_initialization(device):
         obs, ext = env.step(action=act)
     # close the environment
     env.close()
-
-
-

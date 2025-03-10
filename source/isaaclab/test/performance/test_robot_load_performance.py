@@ -8,15 +8,14 @@
 
 from __future__ import annotations
 
-from isaaclab.app import AppLauncher, run_tests
+from isaaclab.app import AppLauncher
 
 # launch omniverse app
 if not AppLauncher.instance():
     simulation_app = AppLauncher(headless=True).app
 
-import pytest
-
 import omni
+import pytest
 from isaacsim.core.cloner import GridCloner
 
 from isaaclab_assets import ANYMAL_D_CFG, CARTPOLE_CFG
@@ -49,12 +48,7 @@ def test_robot_load_performance(test_config, device):
             copy_from_source=True,
         )
         with Timer(f"{test_config['name']} load time for device {device}") as timer:
-            robot = Articulation(  # noqa: F841
-                test_config["robot_cfg"].replace(prim_path="/World/Robots_.*/Robot")
-            )
+            robot = Articulation(test_config["robot_cfg"].replace(prim_path="/World/Robots_.*/Robot"))  # noqa: F841
             sim.reset()
             elapsed_time = timer.time_elapsed
         assert elapsed_time <= test_config["expected_load_time"]
-
-
-

@@ -8,7 +8,7 @@
 
 """Launch Isaac Sim Simulator first."""
 
-from isaaclab.app import AppLauncher, run_tests
+from isaaclab.app import AppLauncher
 
 HEADLESS = True
 
@@ -20,9 +20,9 @@ if not AppLauncher.instance():
 
 import ctypes
 import torch
-import pytest
 
 import isaacsim.core.utils.prims as prim_utils
+import pytest
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
@@ -149,42 +149,44 @@ def generate_articulation(
 
     return articulation, translations
 
+
 @pytest.fixture
 def sim(request):
     """Create simulation context with the specified device."""
-    device = request.getfixturevalue('device')
+    device = request.getfixturevalue("device")
     if "gravity_enabled" in request.fixturenames:
-        gravity_enabled = request.getfixturevalue('gravity_enabled')
+        gravity_enabled = request.getfixturevalue("gravity_enabled")
     else:
         gravity_enabled = True  # default to gravity enabled
     if "add_ground_plane" in request.fixturenames:
-        add_ground_plane = request.getfixturevalue('add_ground_plane')
+        add_ground_plane = request.getfixturevalue("add_ground_plane")
     else:
         add_ground_plane = False  # default to no ground plane
-    with build_simulation_context(device=device, auto_add_lighting=True, gravity_enabled=gravity_enabled, add_ground_plane=add_ground_plane) as sim:
+    with build_simulation_context(
+        device=device, auto_add_lighting=True, gravity_enabled=gravity_enabled, add_ground_plane=add_ground_plane
+    ) as sim:
         sim._app_control_on_stop_handle = None
         yield sim
+
 
 @pytest.mark.parametrize("num_articulations", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("add_ground_plane", [True])
 def test_initialization_floating_base_non_root(sim, num_articulations, device, add_ground_plane):
     """Test initialization for a floating-base with articulation root on a rigid body.
-    
+
     This test verifies that:
     1. The articulation is properly initialized
     2. The articulation is not fixed base
     3. All buffers have correct shapes
     4. The articulation can be simulated
-    
+
     Args:
         sim: The simulation fixture
         num_articulations: Number of articulations to test
         device: The device to run the simulation on
     """
-    articulation_cfg = generate_articulation_cfg(
-        articulation_type="humanoid", stiffness=0.0, damping=0.0
-    )
+    articulation_cfg = generate_articulation_cfg(articulation_type="humanoid", stiffness=0.0, damping=0.0)
     articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=sim.device)
 
     # Check that boundedness of articulation is correct
@@ -208,15 +210,11 @@ def test_initialization_floating_base_non_root(sim, num_articulations, device, a
     # -- link related
     assert articulation.root_physx_view.max_links == articulation.root_physx_view.shared_metatype.link_count
     # -- link names (check within articulation ordering is correct)
-    prim_path_body_names = [
-        path.split("/")[-1] for path in articulation.root_physx_view.link_paths[0]
-    ]
+    prim_path_body_names = [path.split("/")[-1] for path in articulation.root_physx_view.link_paths[0]]
     assert prim_path_body_names == articulation.body_names
     # -- actuator type
     for actuator_name, actuator in articulation.actuators.items():
-        is_implicit_model_cfg = isinstance(
-            articulation_cfg.actuators[actuator_name], ImplicitActuatorCfg
-        )
+        is_implicit_model_cfg = isinstance(articulation_cfg.actuators[actuator_name], ImplicitActuatorCfg)
         assert actuator.is_implicit_model == is_implicit_model_cfg
 
     # Simulate physics
@@ -232,21 +230,19 @@ def test_initialization_floating_base_non_root(sim, num_articulations, device, a
 @pytest.mark.parametrize("add_ground_plane", [True])
 def test_initialization_floating_base(sim, num_articulations, device, add_ground_plane):
     """Test initialization for a floating-base with articulation root on provided prim path.
-    
+
     This test verifies that:
     1. The articulation is properly initialized
     2. The articulation is not fixed base
     3. All buffers have correct shapes
     4. The articulation can be simulated
-    
+
     Args:
         sim: The simulation fixture
         num_articulations: Number of articulations to test
         device: The device to run the simulation on
     """
-    articulation_cfg = generate_articulation_cfg(
-        articulation_type="anymal", stiffness=0.0, damping=0.0
-    )
+    articulation_cfg = generate_articulation_cfg(articulation_type="anymal", stiffness=0.0, damping=0.0)
     articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=device)
 
     # Check that boundedness of articulation is correct
@@ -271,15 +267,11 @@ def test_initialization_floating_base(sim, num_articulations, device, add_ground
     # -- link related
     assert articulation.root_physx_view.max_links == articulation.root_physx_view.shared_metatype.link_count
     # -- link names (check within articulation ordering is correct)
-    prim_path_body_names = [
-        path.split("/")[-1] for path in articulation.root_physx_view.link_paths[0]
-    ]
+    prim_path_body_names = [path.split("/")[-1] for path in articulation.root_physx_view.link_paths[0]]
     assert prim_path_body_names == articulation.body_names
     # -- actuator type
     for actuator_name, actuator in articulation.actuators.items():
-        is_implicit_model_cfg = isinstance(
-            articulation_cfg.actuators[actuator_name], ImplicitActuatorCfg
-        )
+        is_implicit_model_cfg = isinstance(articulation_cfg.actuators[actuator_name], ImplicitActuatorCfg)
         assert actuator.is_implicit_model == is_implicit_model_cfg
 
     # Simulate physics
@@ -289,17 +281,18 @@ def test_initialization_floating_base(sim, num_articulations, device, add_ground
         # update articulation
         articulation.update(sim.cfg.dt)
 
+
 @pytest.mark.parametrize("num_articulations", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 def test_initialization_fixed_base(sim, num_articulations, device):
     """Test initialization for fixed base.
-    
+
     This test verifies that:
     1. The articulation is properly initialized
     2. The articulation is fixed base
     3. All buffers have correct shapes
     4. The articulation maintains its default state
-    
+
     Args:
         sim: The simulation fixture
         num_articulations: Number of articulations to test
@@ -330,15 +323,11 @@ def test_initialization_fixed_base(sim, num_articulations, device):
     # -- link related
     assert articulation.root_physx_view.max_links == articulation.root_physx_view.shared_metatype.link_count
     # -- link names (check within articulation ordering is correct)
-    prim_path_body_names = [
-        path.split("/")[-1] for path in articulation.root_physx_view.link_paths[0]
-    ]
+    prim_path_body_names = [path.split("/")[-1] for path in articulation.root_physx_view.link_paths[0]]
     assert prim_path_body_names == articulation.body_names
     # -- actuator type
     for actuator_name, actuator in articulation.actuators.items():
-        is_implicit_model_cfg = isinstance(
-            articulation_cfg.actuators[actuator_name], ImplicitActuatorCfg
-        )
+        is_implicit_model_cfg = isinstance(articulation_cfg.actuators[actuator_name], ImplicitActuatorCfg)
         assert actuator.is_implicit_model == is_implicit_model_cfg
 
     # Simulate physics
@@ -354,18 +343,19 @@ def test_initialization_fixed_base(sim, num_articulations, device):
 
         torch.testing.assert_close(articulation.data.root_state_w, default_root_state)
 
+
 @pytest.mark.parametrize("num_articulations", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("add_ground_plane", [True])
 def test_initialization_fixed_base_single_joint(sim, num_articulations, device, add_ground_plane):
     """Test initialization for fixed base articulation with a single joint.
-    
-    This test verifies that:    
+
+    This test verifies that:
     1. The articulation is properly initialized
     2. The articulation is fixed base
     3. All buffers have correct shapes
     4. The articulation maintains its default state
-    
+
     Args:
         sim: The simulation fixture
         num_articulations: Number of articulations to test
@@ -396,15 +386,11 @@ def test_initialization_fixed_base_single_joint(sim, num_articulations, device, 
     # -- link related
     assert articulation.root_physx_view.max_links == articulation.root_physx_view.shared_metatype.link_count
     # -- link names (check within articulation ordering is correct)
-    prim_path_body_names = [
-        path.split("/")[-1] for path in articulation.root_physx_view.link_paths[0]
-    ]
+    prim_path_body_names = [path.split("/")[-1] for path in articulation.root_physx_view.link_paths[0]]
     assert prim_path_body_names == articulation.body_names
     # -- actuator type
     for actuator_name, actuator in articulation.actuators.items():
-        is_implicit_model_cfg = isinstance(
-            articulation_cfg.actuators[actuator_name], ImplicitActuatorCfg
-        )
+        is_implicit_model_cfg = isinstance(articulation_cfg.actuators[actuator_name], ImplicitActuatorCfg)
         assert actuator.is_implicit_model == is_implicit_model_cfg
 
     # Simulate physics
@@ -420,17 +406,18 @@ def test_initialization_fixed_base_single_joint(sim, num_articulations, device, 
 
         torch.testing.assert_close(articulation.data.root_state_w, default_root_state)
 
+
 @pytest.mark.parametrize("num_articulations", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 def test_initialization_hand_with_tendons(sim, num_articulations, device):
     """Test initialization for fixed base articulated hand with tendons.
-    
+
     This test verifies that:
     1. The articulation is properly initialized
     2. The articulation is fixed base
     3. All buffers have correct shapes
     4. The articulation can be simulated
-    
+
     Args:
         sim: The simulation fixture
         num_articulations: Number of articulations to test
@@ -462,9 +449,7 @@ def test_initialization_hand_with_tendons(sim, num_articulations, device):
     assert articulation.root_physx_view.max_links == articulation.root_physx_view.shared_metatype.link_count
     # -- actuator type
     for actuator_name, actuator in articulation.actuators.items():
-        is_implicit_model_cfg = isinstance(
-            articulation_cfg.actuators[actuator_name], ImplicitActuatorCfg
-        )
+        is_implicit_model_cfg = isinstance(articulation_cfg.actuators[actuator_name], ImplicitActuatorCfg)
         assert actuator.is_implicit_model == is_implicit_model_cfg
 
     # Simulate physics
@@ -474,18 +459,19 @@ def test_initialization_hand_with_tendons(sim, num_articulations, device):
         # update articulation
         articulation.update(sim.cfg.dt)
 
+
 @pytest.mark.parametrize("num_articulations", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("add_ground_plane", [True])
 def test_initialization_floating_base_made_fixed_base(sim, num_articulations, device, add_ground_plane):
     """Test initialization for a floating-base articulation made fixed-base using schema properties.
-    
+
     This test verifies that:
     1. The articulation is properly initialized
     2. The articulation is fixed base after modification
     3. All buffers have correct shapes
     4. The articulation maintains its default state
-    
+
     Args:
         sim: The simulation fixture
         num_articulations: Number of articulations to test
@@ -515,9 +501,7 @@ def test_initialization_floating_base_made_fixed_base(sim, num_articulations, de
     # -- link related
     assert articulation.root_physx_view.max_links == articulation.root_physx_view.shared_metatype.link_count
     # -- link names (check within articulation ordering is correct)
-    prim_path_body_names = [
-        path.split("/")[-1] for path in articulation.root_physx_view.link_paths[0]
-    ]
+    prim_path_body_names = [path.split("/")[-1] for path in articulation.root_physx_view.link_paths[0]]
     assert prim_path_body_names == articulation.body_names
 
     # Simulate physics
@@ -533,18 +517,19 @@ def test_initialization_floating_base_made_fixed_base(sim, num_articulations, de
 
         torch.testing.assert_close(articulation.data.root_state_w, default_root_state)
 
+
 @pytest.mark.parametrize("num_articulations", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("add_ground_plane", [True])
 def test_initialization_fixed_base_made_floating_base(sim, num_articulations, device, add_ground_plane):
     """Test initialization for fixed base made floating-base using schema properties.
-    
+
     This test verifies that:
     1. The articulation is properly initialized
     2. The articulation is floating base after modification
     3. All buffers have correct shapes
     4. The articulation can be simulated
-    
+
     Args:
         sim: The simulation fixture
         num_articulations: Number of articulations to test
@@ -574,9 +559,7 @@ def test_initialization_fixed_base_made_floating_base(sim, num_articulations, de
     # -- link related
     assert articulation.root_physx_view.max_links == articulation.root_physx_view.shared_metatype.link_count
     # -- link names (check within articulation ordering is correct)
-    prim_path_body_names = [
-        path.split("/")[-1] for path in articulation.root_physx_view.link_paths[0]
-    ]
+    prim_path_body_names = [path.split("/")[-1] for path in articulation.root_physx_view.link_paths[0]]
     assert prim_path_body_names == articulation.body_names
 
     # Simulate physics
@@ -586,16 +569,17 @@ def test_initialization_fixed_base_made_floating_base(sim, num_articulations, de
         # update articulation
         articulation.update(sim.cfg.dt)
 
+
 @pytest.mark.parametrize("num_articulations", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("add_ground_plane", [True])
 def test_out_of_range_default_joint_pos(sim, num_articulations, device, add_ground_plane):
     """Test that the default joint position from configuration is out of range.
-    
+
     This test verifies that:
     1. The articulation fails to initialize when joint positions are out of range
     2. The error is properly handled
-    
+
     Args:
         sim: The simulation fixture
         num_articulations: Number of articulations to test
@@ -617,10 +601,11 @@ def test_out_of_range_default_joint_pos(sim, num_articulations, device, add_grou
     # Check if articulation is initialized
     assert not articulation.is_initialized
 
+
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 def test_out_of_range_default_joint_vel(sim, device):
     """Test that the default joint velocity from configuration is out of range.
-    
+
     This test verifies that:
     1. The articulation fails to initialize when joint velocities are out of range
     2. The error is properly handled
@@ -640,18 +625,19 @@ def test_out_of_range_default_joint_vel(sim, device):
     # Check if articulation is initialized
     assert not articulation.is_initialized
 
+
 @pytest.mark.parametrize("num_articulations", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("add_ground_plane", [True])
 def test_joint_pos_limits(sim, num_articulations, device, add_ground_plane):
     """Test write_joint_limits_to_sim API and when default pos falls outside of the new limits.
-    
+
     This test verifies that:
     1. Joint limits can be set correctly
     2. Default positions are preserved when setting new limits
     3. Joint limits can be set with indexing
     4. Invalid joint positions are properly handled
-    
+
     Args:
         sim: The simulation fixture
         num_articulations: Number of articulations to test
@@ -670,9 +656,7 @@ def test_joint_pos_limits(sim, num_articulations, device, add_ground_plane):
 
     # Set new joint limits
     limits = torch.zeros(num_articulations, articulation.num_joints, 2, device=device)
-    limits[..., 0] = (
-        torch.rand(num_articulations, articulation.num_joints, device=device) + 5.0
-    ) * -1.0
+    limits[..., 0] = (torch.rand(num_articulations, articulation.num_joints, device=device) + 5.0) * -1.0
     limits[..., 1] = torch.rand(num_articulations, articulation.num_joints, device=device) + 5.0
     articulation.write_joint_position_limit_to_sim(limits)
 
@@ -711,21 +695,22 @@ def test_joint_pos_limits(sim, num_articulations, device, add_ground_plane):
     articulation.write_joint_position_limit_to_sim(limits, env_ids=env_ids, joint_ids=joint_ids)
 
     # Check if all values are within the bounds
-    within_bounds = (
-        articulation._data.default_joint_pos[env_ids][:, joint_ids] >= limits[..., 0]
-    ) & (articulation._data.default_joint_pos[env_ids][:, joint_ids] <= limits[..., 1])
+    within_bounds = (articulation._data.default_joint_pos[env_ids][:, joint_ids] >= limits[..., 0]) & (
+        articulation._data.default_joint_pos[env_ids][:, joint_ids] <= limits[..., 1]
+    )
     assert torch.all(within_bounds)
+
 
 @pytest.mark.parametrize("num_articulations", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 def test_external_force_buffer(sim, num_articulations, device):
     """Test if external force buffer correctly updates in the force value is zero case.
-    
+
     This test verifies that:
     1. External forces can be applied correctly
     2. Force buffers are updated properly
     3. Zero forces are handled correctly
-    
+
     Args:
         sim: The simulation fixture
         num_articulations: Number of articulations to test
@@ -789,16 +774,17 @@ def test_external_force_buffer(sim, num_articulations, device):
         # update buffers
         articulation.update(sim.cfg.dt)
 
+
 @pytest.mark.parametrize("num_articulations", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 def test_external_force_on_single_body(sim, num_articulations, device):
     """Test application of external force on the base of the articulation.
-    
+
     This test verifies that:
     1. External forces can be applied to specific bodies
     2. The forces affect the articulation's motion correctly
     3. The articulation responds to the forces as expected
-    
+
     Args:
         sim: The simulation fixture
         num_articulations: Number of articulations to test
@@ -846,16 +832,17 @@ def test_external_force_on_single_body(sim, num_articulations, device):
         for i in range(num_articulations):
             assert articulation.data.root_pos_w[i, 2].item() < 0.2
 
+
 @pytest.mark.parametrize("num_articulations", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 def test_external_force_on_multiple_bodies(sim, num_articulations, device):
     """Test application of external force on the legs of the articulation.
-    
+
     This test verifies that:
     1. External forces can be applied to multiple bodies
     2. The forces affect the articulation's motion correctly
     3. The articulation responds to the forces as expected
-    
+
     Args:
         sim: The simulation fixture
         num_articulations: Number of articulations to test
@@ -903,23 +890,22 @@ def test_external_force_on_multiple_bodies(sim, num_articulations, device):
             # since there is a moment applied on the articulation, the articulation should rotate
             assert articulation.data.root_ang_vel_w[i, 2].item() > 0.1
 
+
 @pytest.mark.parametrize("num_articulations", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 def test_loading_gains_from_usd(sim, num_articulations, device):
     """Test that gains are loaded from USD file if actuator model has them as None.
-    
+
     This test verifies that:
     1. Gains are loaded correctly from USD file
     2. Default gains are applied when not specified
     3. The gains match the expected values
-    
+
     Args:
         sim: The simulation fixture
         num_articulations: Number of articulations to test
     """
-    articulation_cfg = generate_articulation_cfg(
-        articulation_type="humanoid", stiffness=None, damping=None
-    )
+    articulation_cfg = generate_articulation_cfg(articulation_type="humanoid", stiffness=None, damping=None)
     articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=sim.device)
 
     # Play sim
@@ -941,9 +927,7 @@ def test_loading_gains_from_usd(sim, num_articulations, device):
     indices_list, _, values_list = string_utils.resolve_matching_names_values(
         expected_stiffness, articulation.joint_names
     )
-    expected_stiffness = torch.zeros(
-        articulation.num_instances, articulation.num_joints, device=articulation.device
-    )
+    expected_stiffness = torch.zeros(articulation.num_instances, articulation.num_joints, device=articulation.device)
     expected_stiffness[:, indices_list] = torch.tensor(values_list, device=articulation.device)
     # -- Damping values
     expected_damping = {
@@ -967,17 +951,18 @@ def test_loading_gains_from_usd(sim, num_articulations, device):
     torch.testing.assert_close(articulation.actuators["body"].stiffness, expected_stiffness)
     torch.testing.assert_close(articulation.actuators["body"].damping, expected_damping)
 
+
 @pytest.mark.parametrize("num_articulations", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("add_ground_plane", [True])
 def test_setting_gains_from_cfg(sim, num_articulations, device, add_ground_plane):
     """Test that gains are loaded from the configuration correctly.
-    
+
     This test verifies that:
     1. Gains are loaded correctly from configuration
     2. The gains match the expected values
     3. The gains are applied correctly to the actuators
-    
+
     Args:
         sim: The simulation fixture
         num_articulations: Number of articulations to test
@@ -999,17 +984,18 @@ def test_setting_gains_from_cfg(sim, num_articulations, device, add_ground_plane
     # Check that gains are loaded from USD file
     torch.testing.assert_close(articulation.actuators["body"].stiffness, expected_stiffness)
     torch.testing.assert_close(articulation.actuators["body"].damping, expected_damping)
+
 
 @pytest.mark.parametrize("num_articulations", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 def test_setting_gains_from_cfg_dict(sim, num_articulations, device):
     """Test that gains are loaded from the configuration dictionary correctly.
-    
+
     This test verifies that:
     1. Gains are loaded correctly from configuration dictionary
     2. The gains match the expected values
     3. The gains are applied correctly to the actuators
-    
+
     Args:
         sim: The simulation fixture
         num_articulations: Number of articulations to test
@@ -1030,6 +1016,7 @@ def test_setting_gains_from_cfg_dict(sim, num_articulations, device):
     # Check that gains are loaded from USD file
     torch.testing.assert_close(articulation.actuators["body"].stiffness, expected_stiffness)
     torch.testing.assert_close(articulation.actuators["body"].damping, expected_damping)
+
 
 @pytest.mark.parametrize("num_articulations", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
@@ -1037,12 +1024,12 @@ def test_setting_gains_from_cfg_dict(sim, num_articulations, device):
 @pytest.mark.parametrize("vel_limit", [1e2, None])
 def test_setting_velocity_limit_implicit(sim, num_articulations, device, vel_limit_sim, vel_limit):
     """Test setting of velocity limit for implicit actuators.
-    
+
     This test verifies that:
     1. Velocity limits can be set correctly for implicit actuators
     2. The limits are applied correctly to the simulation
     3. The limits are handled correctly when both sim and non-sim limits are set
-    
+
     Args:
         sim: The simulation fixture
         num_articulations: Number of articulations to test
@@ -1076,9 +1063,7 @@ def test_setting_velocity_limit_implicit(sim, num_articulations, device, vel_lim
     # check data buffer
     torch.testing.assert_close(articulation.data.joint_velocity_limits, physx_vel_limit)
     # check actuator has simulation velocity limit
-    torch.testing.assert_close(
-        articulation.actuators["joint"].velocity_limit_sim, physx_vel_limit
-    )
+    torch.testing.assert_close(articulation.actuators["joint"].velocity_limit_sim, physx_vel_limit)
 
     if vel_limit_sim is None:
         # Case 2: both velocity limit and velocity limit sim are not set
@@ -1096,9 +1081,7 @@ def test_setting_velocity_limit_implicit(sim, num_articulations, device, vel_lim
             articulation.actuators["joint"].velocity_limit,
         )
         # check the value is set to USD default
-        torch.testing.assert_close(
-            articulation.actuators["joint"].velocity_limit, physx_vel_limit
-        )
+        torch.testing.assert_close(articulation.actuators["joint"].velocity_limit, physx_vel_limit)
 
     else:
         # Case 4: only velocity limit sim is set
@@ -1116,6 +1099,7 @@ def test_setting_velocity_limit_implicit(sim, num_articulations, device, vel_lim
             articulation.actuators["joint"].velocity_limit_sim,
             articulation.actuators["joint"].velocity_limit,
         )
+
 
 @pytest.mark.parametrize("num_articulations", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
@@ -1173,6 +1157,7 @@ def test_setting_velocity_limit_explicit(sim, num_articulations, device, vel_lim
         # check physx is not set by vel_limit_sim
         assert physx_vel_limit[0].item() > 1.0e9
 
+
 @pytest.mark.parametrize("num_articulations", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("effort_limit_sim", [1e5, None])
@@ -1205,9 +1190,7 @@ def test_setting_effort_limit_implicit(sim, num_articulations, device, effort_li
         articulation.actuators["joint"].effort_limit_sim,
         articulation.actuators["joint"].effort_limit,
     )
-    torch.testing.assert_close(
-        articulation.actuators["joint"].effort_limit_sim, physx_effort_limit
-    )
+    torch.testing.assert_close(articulation.actuators["joint"].effort_limit_sim, physx_effort_limit)
 
     if effort_limit_sim is None and effort_limit is None:
         # check to make sure the root_physx_view does not match either:
@@ -1225,6 +1208,7 @@ def test_setting_effort_limit_implicit(sim, num_articulations, device, effort_li
         )
         # check root_physx_view
         torch.testing.assert_close(physx_effort_limit, expected_effort_limit)
+
 
 @pytest.mark.parametrize("num_articulations", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
@@ -1279,6 +1263,7 @@ def test_setting_effort_limit_explicit(sim, num_articulations, device, effort_li
         # check physx is not set by vel_limit_sim
         assert physx_effort_limit[0].item() == pytest.approx(1.0e9)
 
+
 @pytest.mark.parametrize("num_articulations", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 def test_reset(sim, num_articulations, device):
@@ -1299,6 +1284,7 @@ def test_reset(sim, num_articulations, device):
     assert not articulation.has_external_wrench
     assert torch.count_nonzero(articulation._external_force_b) == 0
     assert torch.count_nonzero(articulation._external_torque_b) == 0
+
 
 @pytest.mark.parametrize("num_articulations", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
@@ -1338,17 +1324,18 @@ def test_apply_joint_command(sim, num_articulations, device, add_ground_plane):
     # are not properly tuned
     assert not torch.allclose(articulation.data.joint_pos, joint_pos)
 
+
 @pytest.mark.parametrize("num_articulations", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("with_offset", [True, False])
 def test_body_root_state(sim, num_articulations, device, with_offset):
     """Test for reading the `body_state_w` property.
-    
+
     This test verifies that:
     1. Body states can be read correctly
     2. States are correct with and without offsets
     3. States are consistent across different devices
-    
+
     Args:
         sim: The simulation fixture
         num_articulations: Number of articulations to test
@@ -1417,13 +1404,9 @@ def test_body_root_state(sim, num_articulations, device, with_offset):
             lin_vel_gt[:, 1, :] = torch.cat([vx, vy, vz], dim=-1).squeeze(-2)
 
             # linear velocity of root link should be zero
-            torch.testing.assert_close(
-                lin_vel_gt[:, 0, :], root_link_state_w[..., 7:10], atol=1e-3, rtol=1e-1
-            )
+            torch.testing.assert_close(lin_vel_gt[:, 0, :], root_link_state_w[..., 7:10], atol=1e-3, rtol=1e-1)
             # linear velocity of pendulum link should be
-            torch.testing.assert_close(
-                lin_vel_gt, body_link_state_w[..., 7:10], atol=1e-3, rtol=1e-1
-            )
+            torch.testing.assert_close(lin_vel_gt, body_link_state_w[..., 7:10], atol=1e-3, rtol=1e-1)
 
             # ang_vel
             torch.testing.assert_close(root_state_w[..., 10:], root_link_state_w[..., 10:])
@@ -1437,9 +1420,7 @@ def test_body_root_state(sim, num_articulations, device, with_offset):
             pz = (link_offset[0] + offset[0]) * torch.sin(joint_pos)
             pos_gt[:, 1, :] = torch.cat([px, py, pz], dim=-1).squeeze(-2)
             pos_gt += env_pos.unsqueeze(-2).repeat(1, num_bodies, 1)
-            torch.testing.assert_close(
-                pos_gt[:, 0, :], root_com_state_w[..., :3], atol=1e-3, rtol=1e-1
-            )
+            torch.testing.assert_close(pos_gt[:, 0, :], root_com_state_w[..., :3], atol=1e-3, rtol=1e-1)
             torch.testing.assert_close(pos_gt, body_com_state_w[..., :3], atol=1e-3, rtol=1e-1)
 
             # orientation
@@ -1458,6 +1439,7 @@ def test_body_root_state(sim, num_articulations, device, with_offset):
             torch.testing.assert_close(body_state_w, body_link_state_w)
             torch.testing.assert_close(body_state_w, body_com_state_w)
 
+
 @pytest.mark.parametrize("num_articulations", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("with_offset", [True, False])
@@ -1465,13 +1447,13 @@ def test_body_root_state(sim, num_articulations, device, with_offset):
 @pytest.mark.parametrize("gravity_enabled", [False])
 def test_write_root_state(sim, num_articulations, device, with_offset, state_location, gravity_enabled):
     """Test the setters for root_state using both the link frame and center of mass as reference frame.
-    
+
     This test verifies that:
     1. Root states can be written correctly
     2. States are correct with and without offsets
     3. States can be written for both COM and link frames
     4. States are consistent across different devices
-    
+
     Args:
         sim: The simulation fixture
         num_articulations: Number of articulations to test
@@ -1481,9 +1463,7 @@ def test_write_root_state(sim, num_articulations, device, with_offset, state_loc
     """
     sim._app_control_on_stop_handle = None
     articulation_cfg = generate_articulation_cfg(articulation_type="anymal")
-    articulation, env_pos = generate_articulation(
-        articulation_cfg, num_articulations, device
-    )
+    articulation, env_pos = generate_articulation(articulation_cfg, num_articulations, device)
     env_idx = torch.tensor([x for x in range(num_articulations)])
 
     # Play sim

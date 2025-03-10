@@ -9,7 +9,7 @@ from __future__ import annotations
 #       because warp is only available in the context of a running simulation
 """Launch Isaac Sim Simulator first."""
 
-from isaaclab.app import AppLauncher, run_tests
+from isaaclab.app import AppLauncher
 
 # launch omniverse app
 if not AppLauncher.instance():
@@ -20,11 +20,12 @@ if not AppLauncher.instance():
 import copy
 import os
 import torch
-import pytest
 from collections.abc import Callable
 from dataclasses import MISSING, asdict, field
 from functools import wraps
 from typing import Any, ClassVar
+
+import pytest
 
 from isaaclab.utils.configclass import configclass
 from isaaclab.utils.dict import class_to_dict, dict_to_md5_hash, update_class_from_dict
@@ -989,10 +990,10 @@ def test_nested_config_class_declarations():
     cfg = OutsideClassCfg()
 
     # check types
-    assert not "InsideClassCfg" in cfg.__annotations__
-    assert not "InsideClassCfg" in OutsideClassCfg.__annotations__
-    assert not "InsideInsideClassCfg" in OutsideClassCfg.InsideClassCfg.__annotations__
-    assert not "InsideInsideClassCfg" in cfg.inside.__annotations__
+    assert "InsideClassCfg" not in cfg.__annotations__
+    assert "InsideClassCfg" not in OutsideClassCfg.__annotations__
+    assert "InsideInsideClassCfg" not in OutsideClassCfg.InsideClassCfg.__annotations__
+    assert "InsideInsideClassCfg" not in cfg.inside.__annotations__
     # check values
     assert cfg.inside.class_type == DummyClass
     assert cfg.inside.b == "dummy_changed"
@@ -1023,7 +1024,7 @@ def test_config_dumping():
     # load config
     cfg_loaded = load_yaml(filename)
     # check dictionaries are the same
-    assert not list(cfg.to_dict().keys()) == list(cfg_loaded.keys())
+    assert list(cfg.to_dict().keys()) != list(cfg_loaded.keys())
     assert cfg.to_dict() == cfg_loaded
 
 
@@ -1055,6 +1056,3 @@ def test_validity():
 
     # check that no more than the expected missing fields are in the error message
     assert len(error_message.split("\n")) - 2 == len(validity_expected_fields)
-
-
-

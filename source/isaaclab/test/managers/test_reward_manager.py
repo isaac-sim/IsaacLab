@@ -5,7 +5,7 @@
 
 """Launch Isaac Sim Simulator first."""
 
-from isaaclab.app import AppLauncher, run_tests
+from isaaclab.app import AppLauncher
 
 # launch omniverse app
 if not AppLauncher.instance():
@@ -14,8 +14,9 @@ if not AppLauncher.instance():
 """Rest everything follows."""
 
 import torch
-import pytest
 from collections import namedtuple
+
+import pytest
 
 from isaaclab.managers import RewardManager, RewardTermCfg
 from isaaclab.utils import configclass
@@ -163,7 +164,7 @@ def test_missing_weight(env):
         "term_2": RewardTermCfg(func=grilled_chicken_with_bbq, params={"bbq": True}),
     }
     with pytest.raises(TypeError):
-        rew_man = RewardManager(cfg, env)
+        RewardManager(cfg, env)
 
 
 def test_invalid_reward_func_module(env):
@@ -174,7 +175,7 @@ def test_invalid_reward_func_module(env):
         "term_3": RewardTermCfg(func="a:grilled_chicken_with_no_bbq", weight=0.1, params={"hot": False}),
     }
     with pytest.raises(ValueError):
-        rew_man = RewardManager(cfg, env)
+        RewardManager(cfg, env)
 
 
 def test_invalid_reward_config(env):
@@ -184,4 +185,4 @@ def test_invalid_reward_config(env):
         "term_2": RewardTermCfg(func=grilled_chicken_with_yoghurt, weight=2.0, params={"hot": False}),
     }
     with pytest.raises(ValueError):
-        rew_man = RewardManager(cfg, env)
+        RewardManager(cfg, env)

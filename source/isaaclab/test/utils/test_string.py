@@ -16,6 +16,7 @@ if not AppLauncher.instance():
 """Rest everything follows."""
 
 import random
+
 import pytest
 
 import isaaclab.utils.string as string_utils

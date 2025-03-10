@@ -3,12 +3,11 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-import pytest
-
-from isaaclab.app import AppLauncher, run_tests
+from isaaclab.app import AppLauncher
 
 if AppLauncher.instance():
     raise ValueError("AppLauncher instance already exists")
+
 
 def test_livestream_launch_with_kwarg():
     """Test launching with headless and livestreaming arguments."""
@@ -28,6 +27,3 @@ def test_livestream_launch_with_kwarg():
 
     # close the app on exit
     app.close()
-
-
-

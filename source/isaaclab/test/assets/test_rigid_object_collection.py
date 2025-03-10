@@ -9,7 +9,7 @@
 
 """Launch Isaac Sim Simulator first."""
 
-from isaaclab.app import AppLauncher, run_tests
+from isaaclab.app import AppLauncher
 
 # launch omniverse app
 if not AppLauncher.instance():
@@ -19,9 +19,9 @@ if not AppLauncher.instance():
 
 import ctypes
 import torch
-import pytest
 
 import isaacsim.core.utils.prims as prim_utils
+import pytest
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObjectCfg, RigidObjectCollection, RigidObjectCollectionCfg
@@ -85,12 +85,13 @@ def generate_cubes_scene(
 
     return cube_object_colection, origins
 
+
 @pytest.fixture
 def sim(request):
     """Create simulation context with the specified device."""
-    device = request.getfixturevalue('device')
+    device = request.getfixturevalue("device")
     if "gravity_enabled" in request.fixturenames:
-        gravity_enabled = request.getfixturevalue('gravity_enabled')
+        gravity_enabled = request.getfixturevalue("gravity_enabled")
     else:
         gravity_enabled = True  # default to gravity enabled
     with build_simulation_context(device=device, auto_add_lighting=True, gravity_enabled=gravity_enabled) as sim:
@@ -103,9 +104,7 @@ def sim(request):
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 def test_initialization(sim, num_envs, num_cubes, device):
     """Test initialization for prim with rigid body API at the provided prim path."""
-    object_collection, _ = generate_cubes_scene(
-        num_envs=num_envs, num_cubes=num_cubes, device=device
-    )
+    object_collection, _ = generate_cubes_scene(num_envs=num_envs, num_cubes=num_cubes, device=device)
 
     # Check that boundedness of rigid object is correct
     assert ctypes.c_long.from_address(id(object_collection)).value == 1
@@ -161,6 +160,7 @@ def test_id_conversion(sim, device):
     )
     assert (view_ids == expected[3]).all()
 
+
 @pytest.mark.parametrize("num_envs", [1, 2])
 @pytest.mark.parametrize("num_cubes", [1, 3])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
@@ -191,9 +191,8 @@ def test_initialization_with_kinematic_enabled(sim, num_envs, num_cubes, device)
         # check that the object is kinematic
         default_object_state = object_collection.data.default_object_state.clone()
         default_object_state[..., :3] += origins.unsqueeze(1)
-        torch.testing.assert_close(
-            object_collection.data.object_link_state_w, default_object_state
-        )
+        torch.testing.assert_close(object_collection.data.object_link_state_w, default_object_state)
+
 
 @pytest.mark.parametrize("num_cubes", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
@@ -210,14 +209,13 @@ def test_initialization_with_no_rigid_body(sim, num_cubes, device):
     # Check if object is initialized
     assert not object_collection.is_initialized
 
+
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 def test_external_force_buffer(sim, device):
     """Test if external force buffer correctly updates in the force value is zero case."""
     num_envs = 2
     num_cubes = 1
-    object_collection, origins = generate_cubes_scene(
-        num_envs=num_envs, num_cubes=num_cubes, device=device
-    )
+    object_collection, origins = generate_cubes_scene(num_envs=num_envs, num_cubes=num_cubes, device=device)
     sim.reset()
 
     # find objects to apply the force
@@ -228,9 +226,7 @@ def test_external_force_buffer(sim, device):
     # perform simulation
     for step in range(5):
         # initiate force tensor
-        external_wrench_b = torch.zeros(
-            object_collection.num_instances, len(object_ids), 6, device=sim.device
-        )
+        external_wrench_b = torch.zeros(object_collection.num_instances, len(object_ids), 6, device=sim.device)
 
         # decide if zero or non-zero force
         force = 1 if step == 0 or step == 3 else 0
@@ -253,23 +249,20 @@ def test_external_force_buffer(sim, device):
         sim.step()
         object_collection.update(sim.cfg.dt)
 
+
 @pytest.mark.parametrize("num_envs", [1, 2])
 @pytest.mark.parametrize("num_cubes", [1, 4])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 def test_external_force_on_single_body(sim, num_envs, num_cubes, device):
     """Test application of external force on the base of the object."""
-    object_collection, origins = generate_cubes_scene(
-        num_envs=num_envs, num_cubes=num_cubes, device=device
-    )
+    object_collection, origins = generate_cubes_scene(num_envs=num_envs, num_cubes=num_cubes, device=device)
     sim.reset()
 
     # find objects to apply the force
     object_ids, object_names = object_collection.find_objects(".*")
 
     # Sample a force equal to the weight of the object
-    external_wrench_b = torch.zeros(
-        object_collection.num_instances, len(object_ids), 6, device=sim.device
-    )
+    external_wrench_b = torch.zeros(object_collection.num_instances, len(object_ids), 6, device=sim.device)
     # Every 2nd cube should have a force applied to it
     external_wrench_b[:, 0::2, 2] = 9.81 * object_collection.data.default_mass[:, 0::2, 0]
 
@@ -303,20 +296,19 @@ def test_external_force_on_single_body(sim, num_envs, num_cubes, device):
         # Second object should have fallen, so it's Z height should be less than initial height of 1.0
         assert torch.all(object_collection.data.object_link_pos_w[:, 1::2, 2] < 1.0)
 
+
 @pytest.mark.parametrize("num_envs", [1, 3])
 @pytest.mark.parametrize("num_cubes", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("gravity_enabled", [False])
 def test_set_object_state(sim, num_envs, num_cubes, device, gravity_enabled):
     """Test setting the state of the object.
-    
+
     .. note::
         Turn off gravity for this test as we don't want any external forces acting on the object
         to ensure state remains static
     """
-    object_collection, origins = generate_cubes_scene(
-        num_envs=num_envs, num_cubes=num_cubes, device=device
-    )
+    object_collection, origins = generate_cubes_scene(num_envs=num_envs, num_cubes=num_cubes, device=device)
     sim.reset()
 
     state_types = ["object_pos_w", "object_quat_w", "object_lin_vel_w", "object_ang_vel_w"]
@@ -324,18 +316,12 @@ def test_set_object_state(sim, num_envs, num_cubes, device, gravity_enabled):
     # Set each state type individually as they are dependent on each other
     for state_type_to_randomize in state_types:
         state_dict = {
-            "object_pos_w": torch.zeros_like(
-                object_collection.data.object_pos_w, device=sim.device
+            "object_pos_w": torch.zeros_like(object_collection.data.object_pos_w, device=sim.device),
+            "object_quat_w": default_orientation(num=num_cubes * num_envs, device=sim.device).view(
+                num_envs, num_cubes, 4
             ),
-            "object_quat_w": default_orientation(
-                num=num_cubes * num_envs, device=sim.device
-            ).view(num_envs, num_cubes, 4),
-            "object_lin_vel_w": torch.zeros_like(
-                object_collection.data.object_lin_vel_w, device=sim.device
-            ),
-            "object_ang_vel_w": torch.zeros_like(
-                object_collection.data.object_ang_vel_w, device=sim.device
-            ),
+            "object_lin_vel_w": torch.zeros_like(object_collection.data.object_lin_vel_w, device=sim.device),
+            "object_ang_vel_w": torch.zeros_like(object_collection.data.object_ang_vel_w, device=sim.device),
         }
 
         for _ in range(5):
@@ -348,9 +334,7 @@ def test_set_object_state(sim, num_envs, num_cubes, device, gravity_enabled):
                     num=num_cubes * num_envs, device=sim.device
                 ).view(num_envs, num_cubes, 4)
             else:
-                state_dict[state_type_to_randomize] = torch.randn(
-                    num_envs, num_cubes, 3, device=sim.device
-                )
+                state_dict[state_type_to_randomize] = torch.randn(num_envs, num_cubes, 3, device=sim.device)
                 # make sure objects do not overlap
                 if state_type_to_randomize == "object_pos_w":
                     state_dict[state_type_to_randomize][..., :2] += origins.unsqueeze(1)[..., :2]
@@ -377,15 +361,14 @@ def test_set_object_state(sim, num_envs, num_cubes, device, gravity_enabled):
 
                 object_collection.update(sim.cfg.dt)
 
+
 @pytest.mark.parametrize("num_envs", [1, 4])
 @pytest.mark.parametrize("num_cubes", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("with_offset", [True, False])
 def test_object_state_properties(sim, num_envs, num_cubes, device, with_offset):
     """Test the object_com_state_w and object_link_state_w properties."""
-    cube_object, env_pos = generate_cubes_scene(
-        num_envs=num_envs, num_cubes=num_cubes, height=0.0, device=device
-    )
+    cube_object, env_pos = generate_cubes_scene(num_envs=num_envs, num_cubes=num_cubes, height=0.0, device=device)
     view_ids = torch.tensor([x for x in range(num_cubes * num_envs)])
 
     sim.reset()
@@ -394,18 +377,18 @@ def test_object_state_properties(sim, num_envs, num_cubes, device, with_offset):
     assert cube_object.is_initialized
 
     # change center of mass offset from link frame
-    offset = torch.tensor([0.1, 0.0, 0.0], device=device).repeat(num_envs, num_cubes, 1) if with_offset else torch.tensor([0.0, 0.0, 0.0], device=device).repeat(num_envs, num_cubes, 1)
+    offset = (
+        torch.tensor([0.1, 0.0, 0.0], device=device).repeat(num_envs, num_cubes, 1)
+        if with_offset
+        else torch.tensor([0.0, 0.0, 0.0], device=device).repeat(num_envs, num_cubes, 1)
+    )
 
     com = cube_object.reshape_view_to_data(cube_object.root_physx_view.get_coms())
     com[..., :3] = offset.to("cpu")
-    cube_object.root_physx_view.set_coms(
-        cube_object.reshape_data_to_view(com.clone()), view_ids
-    )
+    cube_object.root_physx_view.set_coms(cube_object.reshape_data_to_view(com.clone()), view_ids)
 
     # check center of mass has been set
-    torch.testing.assert_close(
-        cube_object.reshape_view_to_data(cube_object.root_physx_view.get_coms()), com
-    )
+    torch.testing.assert_close(cube_object.reshape_view_to_data(cube_object.root_physx_view.get_coms()), com)
 
     # random z spin velocity
     spin_twist = torch.zeros(6, device=device)
@@ -416,9 +399,7 @@ def test_object_state_properties(sim, num_envs, num_cubes, device, with_offset):
 
     for i in range(10):
         # spin the object around Z axis (com)
-        cube_object.write_object_com_velocity_to_sim(
-            spin_twist.repeat(num_envs, num_cubes, 1)
-        )
+        cube_object.write_object_com_velocity_to_sim(spin_twist.repeat(num_envs, num_cubes, 1))
         sim.step()
         cube_object.update(sim.cfg.dt)
 
@@ -451,9 +432,7 @@ def test_object_state_properties(sim, num_envs, num_cubes, device, with_offset):
             torch.testing.assert_close(com_quat_w, object_com_state_w[..., 3:7])
 
             # orientation of link will match object state will always match
-            torch.testing.assert_close(
-                object_state_w[..., 3:7], object_link_state_w[..., 3:7]
-            )
+            torch.testing.assert_close(object_state_w[..., 3:7], object_link_state_w[..., 3:7])
 
             # lin_vel will not match
             # center of mass vel will be constant (i.e. spining around com)
@@ -463,23 +442,14 @@ def test_object_state_properties(sim, num_envs, num_cubes, device, with_offset):
             )
 
             # link frame will be moving, and should be equal to input angular velocity cross offset
-            lin_vel_rel_object_gt = quat_rotate_inverse(
-                object_link_state_w[..., 3:7], object_link_state_w[..., 7:10]
-            )
-            lin_vel_rel_gt = torch.linalg.cross(
-                spin_twist.repeat(num_envs, num_cubes, 1)[..., 3:], -offset
-            )
-            torch.testing.assert_close(
-                lin_vel_rel_gt, lin_vel_rel_object_gt, atol=1e-4, rtol=1e-3
-            )
+            lin_vel_rel_object_gt = quat_rotate_inverse(object_link_state_w[..., 3:7], object_link_state_w[..., 7:10])
+            lin_vel_rel_gt = torch.linalg.cross(spin_twist.repeat(num_envs, num_cubes, 1)[..., 3:], -offset)
+            torch.testing.assert_close(lin_vel_rel_gt, lin_vel_rel_object_gt, atol=1e-4, rtol=1e-3)
 
             # ang_vel will always match
-            torch.testing.assert_close(
-                object_state_w[..., 10:], object_com_state_w[..., 10:]
-            )
-            torch.testing.assert_close(
-                object_state_w[..., 10:], object_link_state_w[..., 10:]
-            )
+            torch.testing.assert_close(object_state_w[..., 10:], object_com_state_w[..., 10:])
+            torch.testing.assert_close(object_state_w[..., 10:], object_link_state_w[..., 10:])
+
 
 @pytest.mark.parametrize("num_envs", [1, 3])
 @pytest.mark.parametrize("num_cubes", [1, 2])
@@ -489,9 +459,7 @@ def test_object_state_properties(sim, num_envs, num_cubes, device, with_offset):
 def test_write_object_state(sim, num_envs, num_cubes, device, with_offset, state_location):
     """Test the setters for object_state using both the link frame and center of mass as reference frame."""
     # Create a scene with random cubes
-    cube_object, env_pos = generate_cubes_scene(
-        num_envs=num_envs, num_cubes=num_cubes, height=0.0, device=device
-    )
+    cube_object, env_pos = generate_cubes_scene(num_envs=num_envs, num_cubes=num_cubes, height=0.0, device=device)
     view_ids = torch.tensor([x for x in range(num_cubes * num_cubes)])
     env_ids = torch.tensor([x for x in range(num_envs)])
     object_ids = torch.tensor([x for x in range(num_cubes)])
@@ -502,22 +470,18 @@ def test_write_object_state(sim, num_envs, num_cubes, device, with_offset, state
     assert cube_object.is_initialized
 
     # change center of mass offset from link frame
-    offset = torch.tensor([0.1, 0.0, 0.0], device=device).repeat(
-        num_envs, num_cubes, 1
-    ) if with_offset else torch.tensor([0.0, 0.0, 0.0], device=device).repeat(
-        num_envs, num_cubes, 1
+    offset = (
+        torch.tensor([0.1, 0.0, 0.0], device=device).repeat(num_envs, num_cubes, 1)
+        if with_offset
+        else torch.tensor([0.0, 0.0, 0.0], device=device).repeat(num_envs, num_cubes, 1)
     )
 
     com = cube_object.reshape_view_to_data(cube_object.root_physx_view.get_coms())
     com[..., :3] = offset.to("cpu")
-    cube_object.root_physx_view.set_coms(
-        cube_object.reshape_data_to_view(com.clone()), view_ids
-    )
+    cube_object.root_physx_view.set_coms(cube_object.reshape_data_to_view(com.clone()), view_ids)
 
     # check center of mass has been set
-    torch.testing.assert_close(
-        cube_object.reshape_view_to_data(cube_object.root_physx_view.get_coms()), com
-    )
+    torch.testing.assert_close(cube_object.reshape_view_to_data(cube_object.root_physx_view.get_coms()), com)
 
     rand_state = torch.zeros_like(cube_object.data.object_link_state_w)
     rand_state[..., :7] = cube_object.data.default_object_state[..., :7]
@@ -535,30 +499,25 @@ def test_write_object_state(sim, num_envs, num_cubes, device, with_offset, state
             if i % 2 == 0:
                 cube_object.write_object_com_state_to_sim(rand_state)
             else:
-                cube_object.write_object_com_state_to_sim(
-                    rand_state, env_ids=env_ids, object_ids=object_ids
-                )
+                cube_object.write_object_com_state_to_sim(rand_state, env_ids=env_ids, object_ids=object_ids)
         elif state_location == "link":
             if i % 2 == 0:
                 cube_object.write_object_link_state_to_sim(rand_state)
             else:
-                cube_object.write_object_link_state_to_sim(
-                    rand_state, env_ids=env_ids, object_ids=object_ids
-                )
+                cube_object.write_object_link_state_to_sim(rand_state, env_ids=env_ids, object_ids=object_ids)
 
         if state_location == "com":
             torch.testing.assert_close(rand_state, cube_object.data.object_com_state_w)
         elif state_location == "link":
             torch.testing.assert_close(rand_state, cube_object.data.object_link_state_w)
 
+
 @pytest.mark.parametrize("num_envs", [1, 3])
 @pytest.mark.parametrize("num_cubes", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 def test_reset_object_collection(sim, num_envs, num_cubes, device):
     """Test resetting the state of the rigid object."""
-    object_collection, _ = generate_cubes_scene(
-        num_envs=num_envs, num_cubes=num_cubes, device=device
-    )
+    object_collection, _ = generate_cubes_scene(num_envs=num_envs, num_cubes=num_cubes, device=device)
     sim.reset()
 
     for i in range(5):
@@ -580,14 +539,13 @@ def test_reset_object_collection(sim, num_envs, num_cubes, device):
             assert torch.count_nonzero(object_collection._external_force_b) == 0
             assert torch.count_nonzero(object_collection._external_torque_b) == 0
 
+
 @pytest.mark.parametrize("num_envs", [1, 3])
 @pytest.mark.parametrize("num_cubes", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 def test_set_material_properties(sim, num_envs, num_cubes, device):
     """Test getting and setting material properties of rigid object."""
-    object_collection, _ = generate_cubes_scene(
-        num_envs=num_envs, num_cubes=num_cubes, device=device
-    )
+    object_collection, _ = generate_cubes_scene(num_envs=num_envs, num_cubes=num_cubes, device=device)
     sim.reset()
 
     # Set material properties
@@ -611,9 +569,8 @@ def test_set_material_properties(sim, num_envs, num_cubes, device):
     materials_to_check = object_collection.root_physx_view.get_material_properties()
 
     # Check if material properties are set correctly
-    torch.testing.assert_close(
-        object_collection.reshape_view_to_data(materials_to_check), materials
-    )
+    torch.testing.assert_close(object_collection.reshape_view_to_data(materials_to_check), materials)
+
 
 @pytest.mark.parametrize("num_envs", [1, 3])
 @pytest.mark.parametrize("num_cubes", [1, 2])
@@ -621,9 +578,7 @@ def test_set_material_properties(sim, num_envs, num_cubes, device):
 @pytest.mark.parametrize("gravity_enabled", [True, False])
 def test_gravity_vec_w(sim, num_envs, num_cubes, device, gravity_enabled):
     """Test that gravity vector direction is set correctly for the rigid object."""
-    object_collection, _ = generate_cubes_scene(
-        num_envs=num_envs, num_cubes=num_cubes, device=device
-    )
+    object_collection, _ = generate_cubes_scene(num_envs=num_envs, num_cubes=num_cubes, device=device)
 
     # Obtain gravity direction
     gravity_dir = (0.0, 0.0, -1.0) if gravity_enabled else (0.0, 0.0, 0.0)
@@ -644,6 +599,6 @@ def test_gravity_vec_w(sim, num_envs, num_cubes, device, gravity_enabled):
         gravity = torch.zeros(num_envs, num_cubes, 6, device=device)
         if gravity_enabled:
             gravity[..., 2] = -9.81
-       
+
         # Check the body accelerations are correct
         torch.testing.assert_close(object_collection.data.object_acc_w, gravity)

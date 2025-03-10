@@ -13,7 +13,7 @@ If you need to make a change to this test, please make sure to also make the sam
 
 """Launch Isaac Sim Simulator first."""
 
-from isaaclab.app import AppLauncher, run_tests
+from isaaclab.app import AppLauncher
 
 # launch omniverse app
 if not AppLauncher.instance():
@@ -21,12 +21,11 @@ if not AppLauncher.instance():
 
 """Rest everything follows."""
 
+import pytest
 from isaacsim.core.utils.prims import is_prim_path_valid
 
 from isaaclab.sim.simulation_cfg import SimulationCfg
 from isaaclab.sim.simulation_context import build_simulation_context
-
-import pytest
 
 
 @pytest.mark.parametrize("gravity_enabled", [True, False])

@@ -8,7 +8,7 @@
 import argparse
 import sys
 
-from isaaclab.app import AppLauncher, run_tests
+from isaaclab.app import AppLauncher
 
 # add argparse arguments
 parser = argparse.ArgumentParser(
@@ -146,6 +146,3 @@ class TestTiledCameraCartpole(unittest.TestCase):
 
         # close the environment
         env.close()
-
-
-

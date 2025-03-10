@@ -10,7 +10,7 @@ from __future__ import annotations
 
 """Launch Isaac Sim Simulator first."""
 
-from isaaclab.app import AppLauncher, run_tests
+from isaaclab.app import AppLauncher
 
 # launch omniverse app
 if not AppLauncher.instance():
@@ -20,7 +20,6 @@ if not AppLauncher.instance():
 
 import numpy as np
 import torch
-import pytest
 from gymnasium.spaces import Box, Dict, Discrete, MultiDiscrete, Tuple
 
 from isaaclab.envs.utils.spaces import deserialize_space, sample_space, serialize_space, spec_to_gym_space
@@ -162,6 +161,3 @@ def _check_tensorized(sample, batch_size):
     else:
         assert isinstance(sample, torch.Tensor)
         assert sample.shape[0] == batch_size
-
-
-

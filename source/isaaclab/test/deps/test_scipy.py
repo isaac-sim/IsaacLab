@@ -46,9 +46,7 @@ def test_interpolation():
     x_upsampled = np.linspace(0, size[0] * horizontal_scale, width_pixels)
     y_upsampled = np.linspace(0, size[1] * horizontal_scale, length_pixels)
     # -- method 1: RegularGridInterpolator (replacing deprecated interp2d)
-    func_RegularGridInterpolator = interpolate.RegularGridInterpolator(
-        (x, y), height_field_downsampled, method="cubic"
-    )
+    func_RegularGridInterpolator = interpolate.RegularGridInterpolator((x, y), height_field_downsampled, method="cubic")
     xx_upsampled, yy_upsampled = np.meshgrid(x_upsampled, y_upsampled, indexing="ij", sparse=True)
     z_upsampled_RegularGridInterpolator = func_RegularGridInterpolator((xx_upsampled, yy_upsampled))
     # -- method 2: RectBivariateSpline (alternate to interp2d)

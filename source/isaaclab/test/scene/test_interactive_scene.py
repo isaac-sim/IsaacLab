@@ -5,7 +5,7 @@
 
 """Launch Isaac Sim Simulator first."""
 
-from isaaclab.app import AppLauncher, run_tests
+from isaaclab.app import AppLauncher
 
 # launch omniverse app
 if not AppLauncher.instance():
@@ -107,6 +107,3 @@ class TestInteractiveScene(unittest.TestCase):
             self.assertNotEqual(scene_0.sensors, scene_1.sensors)
             self.assertEqual(scene_0.extras, dict())
             self.assertNotEqual(scene_0.extras, scene_1.extras)
-
-
-

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 """Launch Isaac Sim Simulator first."""
 
-from isaaclab.app import AppLauncher, run_tests
+from isaaclab.app import AppLauncher
 
 # launch omniverse app
 if not AppLauncher.instance():
@@ -20,10 +20,11 @@ import os
 import shutil
 import tempfile
 import torch
-import pytest
 import uuid
 from collections import namedtuple
 from collections.abc import Sequence
+
+import pytest
 
 from isaaclab.envs import ManagerBasedEnv
 from isaaclab.managers import DatasetExportMode, RecorderManager, RecorderManagerBaseCfg, RecorderTerm, RecorderTermCfg
@@ -154,6 +155,3 @@ def test_record(dataset_dir):
         for env_id in range(env.num_envs):
             episode = recorder_manager.get_episode(env_id)
             assert episode.data["record_post_reset"].shape == (1, 3)
-
-
-

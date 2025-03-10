@@ -5,7 +5,7 @@
 
 """Launch Isaac Sim Simulator first."""
 
-from isaaclab.app import AppLauncher, run_tests
+from isaaclab.app import AppLauncher
 
 # launch omniverse app
 if not AppLauncher.instance():
@@ -14,10 +14,10 @@ if not AppLauncher.instance():
 """Rest everything follows."""
 
 import torch
-import pytest
 
 import isaacsim.core.utils.prims as prim_utils
 import isaacsim.core.utils.stage as stage_utils
+import pytest
 from isaacsim.core.cloner import GridCloner
 
 import isaaclab.sim as sim_utils
@@ -212,7 +212,25 @@ def sim():
 
 def test_franka_pose_abs_without_inertial_decoupling(sim):
     """Test absolute pose control with fixed impedance and without inertial dynamics decoupling."""
-    sim_context, num_envs, robot_cfg, ee_marker, goal_marker, contact_forces, _, target_abs_pose_set_b, _, _, _, _, _, _, _, _, frame = sim
+    (
+        sim_context,
+        num_envs,
+        robot_cfg,
+        ee_marker,
+        goal_marker,
+        contact_forces,
+        _,
+        target_abs_pose_set_b,
+        _,
+        _,
+        _,
+        _,
+        _,
+        _,
+        _,
+        _,
+        frame,
+    ) = sim
 
     robot = Articulation(cfg=robot_cfg)
     osc_cfg = OperationalSpaceControllerCfg(
@@ -225,12 +243,42 @@ def test_franka_pose_abs_without_inertial_decoupling(sim):
     )
     osc = OperationalSpaceController(osc_cfg, num_envs=num_envs, device=sim_context.device)
 
-    _run_op_space_controller(robot, osc, "panda_hand", ["panda_joint.*"], target_abs_pose_set_b, sim_context, num_envs, ee_marker, goal_marker, contact_forces, frame)
+    _run_op_space_controller(
+        robot,
+        osc,
+        "panda_hand",
+        ["panda_joint.*"],
+        target_abs_pose_set_b,
+        sim_context,
+        num_envs,
+        ee_marker,
+        goal_marker,
+        contact_forces,
+        frame,
+    )
 
 
 def test_franka_pose_abs_with_partial_inertial_decoupling(sim):
     """Test absolute pose control with fixed impedance and partial inertial dynamics decoupling."""
-    sim_context, num_envs, robot_cfg, ee_marker, goal_marker, contact_forces, _, target_abs_pose_set_b, _, _, _, _, _, _, _, _, frame = sim
+    (
+        sim_context,
+        num_envs,
+        robot_cfg,
+        ee_marker,
+        goal_marker,
+        contact_forces,
+        _,
+        target_abs_pose_set_b,
+        _,
+        _,
+        _,
+        _,
+        _,
+        _,
+        _,
+        _,
+        frame,
+    ) = sim
 
     robot = Articulation(cfg=robot_cfg)
     osc_cfg = OperationalSpaceControllerCfg(
@@ -244,12 +292,42 @@ def test_franka_pose_abs_with_partial_inertial_decoupling(sim):
     )
     osc = OperationalSpaceController(osc_cfg, num_envs=num_envs, device=sim_context.device)
 
-    _run_op_space_controller(robot, osc, "panda_hand", ["panda_joint.*"], target_abs_pose_set_b, sim_context, num_envs, ee_marker, goal_marker, contact_forces, frame)
+    _run_op_space_controller(
+        robot,
+        osc,
+        "panda_hand",
+        ["panda_joint.*"],
+        target_abs_pose_set_b,
+        sim_context,
+        num_envs,
+        ee_marker,
+        goal_marker,
+        contact_forces,
+        frame,
+    )
 
 
 def test_franka_pose_abs_fixed_impedance_with_gravity_compensation(sim):
     """Test absolute pose control with fixed impedance, gravity compensation, and inertial dynamics decoupling."""
-    sim_context, num_envs, robot_cfg, ee_marker, goal_marker, contact_forces, _, target_abs_pose_set_b, _, _, _, _, _, _, _, _, frame = sim
+    (
+        sim_context,
+        num_envs,
+        robot_cfg,
+        ee_marker,
+        goal_marker,
+        contact_forces,
+        _,
+        target_abs_pose_set_b,
+        _,
+        _,
+        _,
+        _,
+        _,
+        _,
+        _,
+        _,
+        frame,
+    ) = sim
 
     robot_cfg.spawn.rigid_props.disable_gravity = False
     robot = Articulation(cfg=robot_cfg)
@@ -264,12 +342,42 @@ def test_franka_pose_abs_fixed_impedance_with_gravity_compensation(sim):
     )
     osc = OperationalSpaceController(osc_cfg, num_envs=num_envs, device=sim_context.device)
 
-    _run_op_space_controller(robot, osc, "panda_hand", ["panda_joint.*"], target_abs_pose_set_b, sim_context, num_envs, ee_marker, goal_marker, contact_forces, frame)
+    _run_op_space_controller(
+        robot,
+        osc,
+        "panda_hand",
+        ["panda_joint.*"],
+        target_abs_pose_set_b,
+        sim_context,
+        num_envs,
+        ee_marker,
+        goal_marker,
+        contact_forces,
+        frame,
+    )
 
 
 def test_franka_pose_abs(sim):
     """Test absolute pose control with fixed impedance and inertial dynamics decoupling."""
-    sim_context, num_envs, robot_cfg, ee_marker, goal_marker, contact_forces, _, target_abs_pose_set_b, _, _, _, _, _, _, _, _, frame = sim
+    (
+        sim_context,
+        num_envs,
+        robot_cfg,
+        ee_marker,
+        goal_marker,
+        contact_forces,
+        _,
+        target_abs_pose_set_b,
+        _,
+        _,
+        _,
+        _,
+        _,
+        _,
+        _,
+        _,
+        frame,
+    ) = sim
 
     robot = Articulation(cfg=robot_cfg)
     osc_cfg = OperationalSpaceControllerCfg(
@@ -283,12 +391,42 @@ def test_franka_pose_abs(sim):
     )
     osc = OperationalSpaceController(osc_cfg, num_envs=num_envs, device=sim_context.device)
 
-    _run_op_space_controller(robot, osc, "panda_hand", ["panda_joint.*"], target_abs_pose_set_b, sim_context, num_envs, ee_marker, goal_marker, contact_forces, frame)
+    _run_op_space_controller(
+        robot,
+        osc,
+        "panda_hand",
+        ["panda_joint.*"],
+        target_abs_pose_set_b,
+        sim_context,
+        num_envs,
+        ee_marker,
+        goal_marker,
+        contact_forces,
+        frame,
+    )
 
 
 def test_franka_pose_rel(sim):
     """Test relative pose control with fixed impedance and inertial dynamics decoupling."""
-    sim_context, num_envs, robot_cfg, ee_marker, goal_marker, contact_forces, _, _, _, target_rel_pose_set_b, _, _, _, _, _, _, frame = sim
+    (
+        sim_context,
+        num_envs,
+        robot_cfg,
+        ee_marker,
+        goal_marker,
+        contact_forces,
+        _,
+        _,
+        _,
+        target_rel_pose_set_b,
+        _,
+        _,
+        _,
+        _,
+        _,
+        _,
+        frame,
+    ) = sim
 
     robot = Articulation(cfg=robot_cfg)
     osc_cfg = OperationalSpaceControllerCfg(
@@ -302,12 +440,42 @@ def test_franka_pose_rel(sim):
     )
     osc = OperationalSpaceController(osc_cfg, num_envs=num_envs, device=sim_context.device)
 
-    _run_op_space_controller(robot, osc, "panda_hand", ["panda_joint.*"], target_rel_pose_set_b, sim_context, num_envs, ee_marker, goal_marker, contact_forces, frame)
+    _run_op_space_controller(
+        robot,
+        osc,
+        "panda_hand",
+        ["panda_joint.*"],
+        target_rel_pose_set_b,
+        sim_context,
+        num_envs,
+        ee_marker,
+        goal_marker,
+        contact_forces,
+        frame,
+    )
 
 
 def test_franka_pose_abs_variable_impedance(sim):
     """Test absolute pose control with variable impedance and inertial dynamics decoupling."""
-    sim_context, num_envs, robot_cfg, ee_marker, goal_marker, contact_forces, _, _, _, _, _, _, target_abs_pose_variable_set, _, _, _, frame = sim
+    (
+        sim_context,
+        num_envs,
+        robot_cfg,
+        ee_marker,
+        goal_marker,
+        contact_forces,
+        _,
+        _,
+        _,
+        _,
+        _,
+        _,
+        target_abs_pose_variable_set,
+        _,
+        _,
+        _,
+        frame,
+    ) = sim
 
     robot = Articulation(cfg=robot_cfg)
     osc_cfg = OperationalSpaceControllerCfg(
@@ -319,12 +487,43 @@ def test_franka_pose_abs_variable_impedance(sim):
     )
     osc = OperationalSpaceController(osc_cfg, num_envs=num_envs, device=sim_context.device)
 
-    _run_op_space_controller(robot, osc, "panda_hand", ["panda_joint.*"], target_abs_pose_variable_set, sim_context, num_envs, ee_marker, goal_marker, contact_forces, frame)
+    _run_op_space_controller(
+        robot,
+        osc,
+        "panda_hand",
+        ["panda_joint.*"],
+        target_abs_pose_variable_set,
+        sim_context,
+        num_envs,
+        ee_marker,
+        goal_marker,
+        contact_forces,
+        frame,
+    )
 
 
 def test_franka_wrench_abs_open_loop(sim):
     """Test open loop absolute force control."""
-    sim_context, num_envs, robot_cfg, ee_marker, goal_marker, contact_forces, _, _, _, _, target_abs_wrench_set, _, _, _, _, _, _, frame = sim
+    (
+        sim_context,
+        num_envs,
+        robot_cfg,
+        ee_marker,
+        goal_marker,
+        contact_forces,
+        _,
+        _,
+        _,
+        _,
+        target_abs_wrench_set,
+        _,
+        _,
+        _,
+        _,
+        _,
+        _,
+        frame,
+    ) = sim
 
     robot = Articulation(cfg=robot_cfg)
 
@@ -369,12 +568,43 @@ def test_franka_wrench_abs_open_loop(sim):
     )
     osc = OperationalSpaceController(osc_cfg, num_envs=num_envs, device=sim_context.device)
 
-    _run_op_space_controller(robot, osc, "panda_hand", ["panda_joint.*"], target_abs_wrench_set, sim_context, num_envs, ee_marker, goal_marker, contact_forces, frame)
+    _run_op_space_controller(
+        robot,
+        osc,
+        "panda_hand",
+        ["panda_joint.*"],
+        target_abs_wrench_set,
+        sim_context,
+        num_envs,
+        ee_marker,
+        goal_marker,
+        contact_forces,
+        frame,
+    )
 
 
 def test_franka_wrench_abs_closed_loop(sim):
     """Test closed loop absolute force control."""
-    sim_context, num_envs, robot_cfg, ee_marker, goal_marker, contact_forces, _, _, _, _, target_abs_wrench_set, _, _, _, _, _, _, frame = sim
+    (
+        sim_context,
+        num_envs,
+        robot_cfg,
+        ee_marker,
+        goal_marker,
+        contact_forces,
+        _,
+        _,
+        _,
+        _,
+        target_abs_wrench_set,
+        _,
+        _,
+        _,
+        _,
+        _,
+        _,
+        frame,
+    ) = sim
 
     robot = Articulation(cfg=robot_cfg)
 
@@ -427,12 +657,42 @@ def test_franka_wrench_abs_closed_loop(sim):
     )
     osc = OperationalSpaceController(osc_cfg, num_envs=num_envs, device=sim_context.device)
 
-    _run_op_space_controller(robot, osc, "panda_hand", ["panda_joint.*"], target_abs_wrench_set, sim_context, num_envs, ee_marker, goal_marker, contact_forces, frame)
+    _run_op_space_controller(
+        robot,
+        osc,
+        "panda_hand",
+        ["panda_joint.*"],
+        target_abs_wrench_set,
+        sim_context,
+        num_envs,
+        ee_marker,
+        goal_marker,
+        contact_forces,
+        frame,
+    )
 
 
 def test_franka_hybrid_decoupled_motion(sim):
     """Test hybrid control with fixed impedance and partial inertial dynamics decoupling."""
-    sim_context, num_envs, robot_cfg, ee_marker, goal_marker, contact_forces, _, _, _, _, _, _, _, target_hybrid_set_b, _, _, frame = sim
+    (
+        sim_context,
+        num_envs,
+        robot_cfg,
+        ee_marker,
+        goal_marker,
+        contact_forces,
+        _,
+        _,
+        _,
+        _,
+        _,
+        _,
+        _,
+        target_hybrid_set_b,
+        _,
+        _,
+        frame,
+    ) = sim
 
     robot = Articulation(cfg=robot_cfg)
 
@@ -472,12 +732,42 @@ def test_franka_hybrid_decoupled_motion(sim):
     )
     osc = OperationalSpaceController(osc_cfg, num_envs=num_envs, device=sim_context.device)
 
-    _run_op_space_controller(robot, osc, "panda_leftfinger", ["panda_joint.*"], target_hybrid_set_b, sim_context, num_envs, ee_marker, goal_marker, contact_forces, frame)
+    _run_op_space_controller(
+        robot,
+        osc,
+        "panda_leftfinger",
+        ["panda_joint.*"],
+        target_hybrid_set_b,
+        sim_context,
+        num_envs,
+        ee_marker,
+        goal_marker,
+        contact_forces,
+        frame,
+    )
 
 
 def test_franka_hybrid_variable_kp_impedance(sim):
     """Test hybrid control with variable kp impedance and inertial dynamics decoupling."""
-    sim_context, num_envs, robot_cfg, ee_marker, goal_marker, contact_forces, _, _, _, _, _, _, _, _, target_hybrid_variable_kp_set, _, frame = sim
+    (
+        sim_context,
+        num_envs,
+        robot_cfg,
+        ee_marker,
+        goal_marker,
+        contact_forces,
+        _,
+        _,
+        _,
+        _,
+        _,
+        _,
+        _,
+        _,
+        target_hybrid_variable_kp_set,
+        _,
+        frame,
+    ) = sim
 
     robot = Articulation(cfg=robot_cfg)
 
@@ -517,13 +807,41 @@ def test_franka_hybrid_variable_kp_impedance(sim):
     osc = OperationalSpaceController(osc_cfg, num_envs=num_envs, device=sim_context.device)
 
     _run_op_space_controller(
-        robot, osc, "panda_leftfinger", ["panda_joint.*"], target_hybrid_variable_kp_set, sim_context, num_envs, ee_marker, goal_marker, contact_forces, frame
+        robot,
+        osc,
+        "panda_leftfinger",
+        ["panda_joint.*"],
+        target_hybrid_variable_kp_set,
+        sim_context,
+        num_envs,
+        ee_marker,
+        goal_marker,
+        contact_forces,
+        frame,
     )
 
 
 def test_franka_taskframe_pose_abs(sim):
     """Test absolute pose control in task frame with fixed impedance and inertial dynamics decoupling."""
-    sim_context, num_envs, robot_cfg, ee_marker, goal_marker, contact_forces, _, target_abs_pose_set_b, _, _, _, _, _, _, _, _, frame = sim
+    (
+        sim_context,
+        num_envs,
+        robot_cfg,
+        ee_marker,
+        goal_marker,
+        contact_forces,
+        _,
+        target_abs_pose_set_b,
+        _,
+        _,
+        _,
+        _,
+        _,
+        _,
+        _,
+        _,
+        frame,
+    ) = sim
 
     robot = Articulation(cfg=robot_cfg)
     frame = "task"
@@ -538,12 +856,42 @@ def test_franka_taskframe_pose_abs(sim):
     )
     osc = OperationalSpaceController(osc_cfg, num_envs=num_envs, device=sim_context.device)
 
-    _run_op_space_controller(robot, osc, "panda_hand", ["panda_joint.*"], target_abs_pose_set_b, sim_context, num_envs, ee_marker, goal_marker, contact_forces, frame)
+    _run_op_space_controller(
+        robot,
+        osc,
+        "panda_hand",
+        ["panda_joint.*"],
+        target_abs_pose_set_b,
+        sim_context,
+        num_envs,
+        ee_marker,
+        goal_marker,
+        contact_forces,
+        frame,
+    )
 
 
 def test_franka_taskframe_pose_rel(sim):
     """Test relative pose control in task frame with fixed impedance and inertial dynamics decoupling."""
-    sim_context, num_envs, robot_cfg, ee_marker, goal_marker, contact_forces, _, _, _, target_rel_pose_set_b, _, _, _, _, _, _, frame = sim
+    (
+        sim_context,
+        num_envs,
+        robot_cfg,
+        ee_marker,
+        goal_marker,
+        contact_forces,
+        _,
+        _,
+        _,
+        target_rel_pose_set_b,
+        _,
+        _,
+        _,
+        _,
+        _,
+        _,
+        frame,
+    ) = sim
 
     robot = Articulation(cfg=robot_cfg)
     frame = "task"
@@ -558,12 +906,42 @@ def test_franka_taskframe_pose_rel(sim):
     )
     osc = OperationalSpaceController(osc_cfg, num_envs=num_envs, device=sim_context.device)
 
-    _run_op_space_controller(robot, osc, "panda_hand", ["panda_joint.*"], target_rel_pose_set_b, sim_context, num_envs, ee_marker, goal_marker, contact_forces, frame)
+    _run_op_space_controller(
+        robot,
+        osc,
+        "panda_hand",
+        ["panda_joint.*"],
+        target_rel_pose_set_b,
+        sim_context,
+        num_envs,
+        ee_marker,
+        goal_marker,
+        contact_forces,
+        frame,
+    )
 
 
 def test_franka_taskframe_hybrid(sim):
     """Test hybrid control in task frame with fixed impedance and inertial dynamics decoupling."""
-    sim_context, num_envs, robot_cfg, ee_marker, goal_marker, contact_forces, _, _, _, _, _, _, _, _, _, target_hybrid_set_tilted, frame = sim
+    (
+        sim_context,
+        num_envs,
+        robot_cfg,
+        ee_marker,
+        goal_marker,
+        contact_forces,
+        _,
+        _,
+        _,
+        _,
+        _,
+        _,
+        _,
+        _,
+        _,
+        target_hybrid_set_tilted,
+        frame,
+    ) = sim
 
     robot = Articulation(cfg=robot_cfg)
     frame = "task"
@@ -604,12 +982,42 @@ def test_franka_taskframe_hybrid(sim):
     )
     osc = OperationalSpaceController(osc_cfg, num_envs=num_envs, device=sim_context.device)
 
-    _run_op_space_controller(robot, osc, "panda_leftfinger", ["panda_joint.*"], target_hybrid_set_tilted, sim_context, num_envs, ee_marker, goal_marker, contact_forces, frame)
+    _run_op_space_controller(
+        robot,
+        osc,
+        "panda_leftfinger",
+        ["panda_joint.*"],
+        target_hybrid_set_tilted,
+        sim_context,
+        num_envs,
+        ee_marker,
+        goal_marker,
+        contact_forces,
+        frame,
+    )
 
 
 def test_franka_pose_abs_without_inertial_decoupling_with_nullspace_centering(sim):
     """Test absolute pose control with fixed impedance and nullspace centerin but without inertial decoupling."""
-    sim_context, num_envs, robot_cfg, ee_marker, goal_marker, contact_forces, _, target_abs_pose_set_b, _, _, _, _, _, _, _, _, frame = sim
+    (
+        sim_context,
+        num_envs,
+        robot_cfg,
+        ee_marker,
+        goal_marker,
+        contact_forces,
+        _,
+        target_abs_pose_set_b,
+        _,
+        _,
+        _,
+        _,
+        _,
+        _,
+        _,
+        _,
+        frame,
+    ) = sim
 
     robot = Articulation(cfg=robot_cfg)
     osc_cfg = OperationalSpaceControllerCfg(
@@ -623,12 +1031,42 @@ def test_franka_pose_abs_without_inertial_decoupling_with_nullspace_centering(si
     )
     osc = OperationalSpaceController(osc_cfg, num_envs=num_envs, device=sim_context.device)
 
-    _run_op_space_controller(robot, osc, "panda_hand", ["panda_joint.*"], target_abs_pose_set_b, sim_context, num_envs, ee_marker, goal_marker, contact_forces, frame)
+    _run_op_space_controller(
+        robot,
+        osc,
+        "panda_hand",
+        ["panda_joint.*"],
+        target_abs_pose_set_b,
+        sim_context,
+        num_envs,
+        ee_marker,
+        goal_marker,
+        contact_forces,
+        frame,
+    )
 
 
 def test_franka_pose_abs_with_partial_inertial_decoupling_nullspace_centering(sim):
     """Test absolute pose control with fixed impedance, partial inertial decoupling and nullspace centering."""
-    sim_context, num_envs, robot_cfg, ee_marker, goal_marker, contact_forces, _, target_abs_pose_set_b, _, _, _, _, _, _, _, _, frame = sim
+    (
+        sim_context,
+        num_envs,
+        robot_cfg,
+        ee_marker,
+        goal_marker,
+        contact_forces,
+        _,
+        target_abs_pose_set_b,
+        _,
+        _,
+        _,
+        _,
+        _,
+        _,
+        _,
+        _,
+        frame,
+    ) = sim
 
     robot = Articulation(cfg=robot_cfg)
     osc_cfg = OperationalSpaceControllerCfg(
@@ -643,12 +1081,42 @@ def test_franka_pose_abs_with_partial_inertial_decoupling_nullspace_centering(si
     )
     osc = OperationalSpaceController(osc_cfg, num_envs=num_envs, device=sim_context.device)
 
-    _run_op_space_controller(robot, osc, "panda_hand", ["panda_joint.*"], target_abs_pose_set_b, sim_context, num_envs, ee_marker, goal_marker, contact_forces, frame)
+    _run_op_space_controller(
+        robot,
+        osc,
+        "panda_hand",
+        ["panda_joint.*"],
+        target_abs_pose_set_b,
+        sim_context,
+        num_envs,
+        ee_marker,
+        goal_marker,
+        contact_forces,
+        frame,
+    )
 
 
 def test_franka_pose_abs_with_nullspace_centering(sim):
     """Test absolute pose control with fixed impedance, inertial decoupling and nullspace centering."""
-    sim_context, num_envs, robot_cfg, ee_marker, goal_marker, contact_forces, _, target_abs_pose_set_b, _, _, _, _, _, _, _, _, frame = sim
+    (
+        sim_context,
+        num_envs,
+        robot_cfg,
+        ee_marker,
+        goal_marker,
+        contact_forces,
+        _,
+        target_abs_pose_set_b,
+        _,
+        _,
+        _,
+        _,
+        _,
+        _,
+        _,
+        _,
+        frame,
+    ) = sim
 
     robot = Articulation(cfg=robot_cfg)
     osc_cfg = OperationalSpaceControllerCfg(
@@ -663,12 +1131,42 @@ def test_franka_pose_abs_with_nullspace_centering(sim):
     )
     osc = OperationalSpaceController(osc_cfg, num_envs=num_envs, device=sim_context.device)
 
-    _run_op_space_controller(robot, osc, "panda_hand", ["panda_joint.*"], target_abs_pose_set_b, sim_context, num_envs, ee_marker, goal_marker, contact_forces, frame)
+    _run_op_space_controller(
+        robot,
+        osc,
+        "panda_hand",
+        ["panda_joint.*"],
+        target_abs_pose_set_b,
+        sim_context,
+        num_envs,
+        ee_marker,
+        goal_marker,
+        contact_forces,
+        frame,
+    )
 
 
 def test_franka_taskframe_hybrid_with_nullspace_centering(sim):
     """Test hybrid control in task frame with fixed impedance, inertial decoupling and nullspace centering."""
-    sim_context, num_envs, robot_cfg, ee_marker, goal_marker, contact_forces, _, _, _, _, _, _, _, _, _, target_hybrid_set_tilted, frame = sim
+    (
+        sim_context,
+        num_envs,
+        robot_cfg,
+        ee_marker,
+        goal_marker,
+        contact_forces,
+        _,
+        _,
+        _,
+        _,
+        _,
+        _,
+        _,
+        _,
+        _,
+        target_hybrid_set_tilted,
+        frame,
+    ) = sim
 
     robot = Articulation(cfg=robot_cfg)
     frame = "task"
@@ -710,7 +1208,19 @@ def test_franka_taskframe_hybrid_with_nullspace_centering(sim):
     )
     osc = OperationalSpaceController(osc_cfg, num_envs=num_envs, device=sim_context.device)
 
-    _run_op_space_controller(robot, osc, "panda_leftfinger", ["panda_joint.*"], target_hybrid_set_tilted, sim_context, num_envs, ee_marker, goal_marker, contact_forces, frame)
+    _run_op_space_controller(
+        robot,
+        osc,
+        "panda_leftfinger",
+        ["panda_joint.*"],
+        target_hybrid_set_tilted,
+        sim_context,
+        num_envs,
+        ee_marker,
+        goal_marker,
+        contact_forces,
+        frame,
+    )
 
 
 def _run_op_space_controller(
@@ -784,9 +1294,7 @@ def _run_op_space_controller(
         num_envs, osc.action_dim, device=sim.device
     )  # Generic target command, which can be pose, position, force, etc.
     ee_target_pose_b = torch.zeros(num_envs, 7, device=sim.device)  # Target pose in the body frame
-    ee_target_pose_w = torch.zeros(
-        num_envs, 7, device=sim.device
-    )  # Target pose in the world frame (for marker)
+    ee_target_pose_w = torch.zeros(num_envs, 7, device=sim.device)  # Target pose in the world frame (for marker)
 
     # Set joint efforts to zero
     zero_joint_efforts = torch.zeros(num_envs, robot.num_joints, device=sim.device)
@@ -798,7 +1306,9 @@ def _run_op_space_controller(
         if count % 500 == 0:
             # check that we converged to the goal
             if count > 0:
-                _check_convergence(osc, ee_pose_b, ee_target_pose_b, ee_force_b, command, pos_mask, rot_mask, force_mask)
+                _check_convergence(
+                    osc, ee_pose_b, ee_target_pose_b, ee_force_b, command, pos_mask, rot_mask, force_mask
+                )
             # reset joint state to default
             default_joint_pos = robot.data.default_joint_pos.clone()
             default_joint_vel = robot.data.default_joint_vel.clone()
@@ -822,9 +1332,7 @@ def _run_op_space_controller(
             command, task_frame_pose_b = _convert_to_task_frame(
                 osc, command=command, ee_target_pose_b=ee_target_pose_b, frame=frame
             )
-            osc.set_command(
-                command=command, current_ee_pose_b=ee_pose_b, current_task_frame_pose_b=task_frame_pose_b
-            )
+            osc.set_command(command=command, current_ee_pose_b=ee_pose_b, current_task_frame_pose_b=task_frame_pose_b)
         else:
             # get the updated states
             (
@@ -1128,4 +1636,3 @@ def _check_convergence(
             cmd_idx += 6
         else:
             raise ValueError("Undefined target_type within _check_convergence().")
-

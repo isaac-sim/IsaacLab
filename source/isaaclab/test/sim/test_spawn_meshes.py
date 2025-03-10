@@ -5,7 +5,7 @@
 
 """Launch Isaac Sim Simulator first."""
 
-from isaaclab.app import AppLauncher, run_tests
+from isaaclab.app import AppLauncher
 
 # launch omniverse app
 if not AppLauncher.instance():
@@ -13,10 +13,9 @@ if not AppLauncher.instance():
 
 """Rest everything follows."""
 
-import pytest
-
 import isaacsim.core.utils.prims as prim_utils
 import isaacsim.core.utils.stage as stage_utils
+import pytest
 from isaacsim.core.api.simulation_context import SimulationContext
 
 import isaaclab.sim as sim_utils
@@ -210,7 +209,7 @@ def test_spawn_cone_with_all_deformable_props(sim):
     # Check properties
     # -- deformable body
     prim = prim_utils.get_prim_at_path("/World/Cone/geometry/mesh")
-    assert prim.GetAttribute("physxDeformable:deformableEnabled").Get() == True
+    assert prim.GetAttribute("physxDeformable:deformableEnabled").Get() is True
 
     # check sim playing
     sim.play()
@@ -250,12 +249,9 @@ def test_spawn_cone_with_all_rigid_props(sim):
     assert prim.GetAttribute("physics:mass").Get() == cfg.mass_props.mass
     # -- collision shape
     prim = prim_utils.get_prim_at_path("/World/Cone/geometry/mesh")
-    assert prim.GetAttribute("physics:collisionEnabled").Get() == True
+    assert prim.GetAttribute("physics:collisionEnabled").Get() is True
 
     # check sim playing
     sim.play()
     for _ in range(10):
         sim.step()
-
-
-

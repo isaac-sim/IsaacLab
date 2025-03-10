@@ -5,7 +5,7 @@
 
 """Launch Isaac Sim Simulator first."""
 
-from isaaclab.app import AppLauncher, run_tests
+from isaaclab.app import AppLauncher
 
 # launch omniverse app
 if not AppLauncher.instance():
@@ -13,8 +13,9 @@ if not AppLauncher.instance():
 
 """Rest everything follows."""
 
-import pytest
 from collections import namedtuple
+
+import pytest
 
 from isaaclab.envs.mdp import NullCommandCfg
 
@@ -46,6 +47,3 @@ def test_compute(env):
     # expect error
     with pytest.raises(RuntimeError):
         command_term.command
-
-
-

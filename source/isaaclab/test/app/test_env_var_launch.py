@@ -4,12 +4,12 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import os
-import pytest
 
-from isaaclab.app import AppLauncher, run_tests
+from isaaclab.app import AppLauncher
 
 if AppLauncher.instance():
     raise ValueError("AppLauncher instance already exists")
+
 
 def test_livestream_launch_with_env_var():
     """Test launching with no-keyword args but environment variables."""
@@ -31,6 +31,3 @@ def test_livestream_launch_with_env_var():
 
     # close the app on exit
     app.close()
-
-
-

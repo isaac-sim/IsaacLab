@@ -5,7 +5,7 @@
 
 """Launch Isaac Sim Simulator first."""
 
-from isaaclab.app import AppLauncher, run_tests
+from isaaclab.app import AppLauncher
 
 # launch the simulator
 if not AppLauncher.instance():
@@ -86,6 +86,3 @@ class TestFrameTransformerAfterReset(unittest.TestCase):
 
                         # close the environment
                         env.close()
-
-
-

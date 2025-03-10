@@ -5,7 +5,7 @@
 
 """Launch Isaac Sim Simulator first."""
 
-from isaaclab.app import AppLauncher, run_tests
+from isaaclab.app import AppLauncher
 
 # launch omniverse app
 if not AppLauncher.instance():
@@ -14,7 +14,6 @@ if not AppLauncher.instance():
 """Rest everything follows."""
 
 import torch
-import pytest
 
 import isaaclab.utils.noise as noise
 
@@ -109,6 +108,3 @@ def test_constant_noise():
 
                     assert noise_cfg.bias.device == device
                     torch.testing.assert_close(noise_cfg.bias.repeat(data.shape[0], 1), bias_result)
-
-
-

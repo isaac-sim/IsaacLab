@@ -5,7 +5,7 @@
 
 """Launch Isaac Sim Simulator first."""
 
-from isaaclab.app import AppLauncher, run_tests
+from isaaclab.app import AppLauncher
 
 # launch the simulator
 if not AppLauncher.instance():
@@ -18,11 +18,11 @@ import gymnasium as gym
 import shutil
 import tempfile
 import torch
-import pytest
 import uuid
 
 import carb
 import omni.usd
+import pytest
 
 from isaaclab.envs.mdp.recorders.recorders_cfg import ActionStateRecorderManagerCfg
 
@@ -115,6 +115,3 @@ def test_action_state_recorder_terms(task_name, device, num_envs, temp_dir):
 
     # close the environment
     env.close()
-
-
-

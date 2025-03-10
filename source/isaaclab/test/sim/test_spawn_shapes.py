@@ -13,12 +13,13 @@ if not AppLauncher.instance():
 
 """Rest everything follows."""
 
-import pytest
 import isaacsim.core.utils.prims as prim_utils
 import isaacsim.core.utils.stage as stage_utils
+import pytest
 from isaacsim.core.api.simulation_context import SimulationContext
 
 import isaaclab.sim as sim_utils
+
 
 @pytest.fixture
 def sim():
@@ -33,9 +34,11 @@ def sim():
     sim.clear_all_callbacks()
     sim.clear_instance()
 
+
 """
 Basic spawning.
 """
+
 
 def test_spawn_cone(sim):
     """Test spawning of UsdGeom.Cone prim."""
@@ -52,6 +55,7 @@ def test_spawn_cone(sim):
     assert prim.GetAttribute("height").Get() == cfg.height
     assert prim.GetAttribute("axis").Get() == cfg.axis
 
+
 def test_spawn_capsule(sim):
     """Test spawning of UsdGeom.Capsule prim."""
     cfg = sim_utils.CapsuleCfg(radius=1.0, height=2.0, axis="Y")
@@ -64,6 +68,7 @@ def test_spawn_capsule(sim):
     assert prim.GetAttribute("radius").Get() == cfg.radius
     assert prim.GetAttribute("height").Get() == cfg.height
     assert prim.GetAttribute("axis").Get() == cfg.axis
+
 
 def test_spawn_cylinder(sim):
     """Test spawning of UsdGeom.Cylinder prim."""
@@ -80,6 +85,7 @@ def test_spawn_cylinder(sim):
     assert prim.GetAttribute("height").Get() == cfg.height
     assert prim.GetAttribute("axis").Get() == cfg.axis
 
+
 def test_spawn_cuboid(sim):
     """Test spawning of UsdGeom.Cube prim."""
     cfg = sim_utils.CuboidCfg(size=(1.0, 2.0, 3.0))
@@ -92,6 +98,7 @@ def test_spawn_cuboid(sim):
     prim = prim_utils.get_prim_at_path("/World/Cube/geometry/mesh")
     assert prim.GetPrimTypeInfo().GetTypeName() == "Cube"
     assert prim.GetAttribute("size").Get() == min(cfg.size)
+
 
 def test_spawn_sphere(sim):
     """Test spawning of UsdGeom.Sphere prim."""
@@ -106,13 +113,15 @@ def test_spawn_sphere(sim):
     assert prim.GetPrimTypeInfo().GetTypeName() == "Sphere"
     assert prim.GetAttribute("radius").Get() == cfg.radius
 
+
 """
 Physics properties.
 """
 
+
 def test_spawn_cone_with_rigid_props(sim):
     """Test spawning of UsdGeom.Cone prim with rigid body API.
-    
+
     Note:
         Playing the simulation in this case will give a warning that no mass is specified!
         Need to also setup mass and colliders.
@@ -131,8 +140,12 @@ def test_spawn_cone_with_rigid_props(sim):
     # Check properties
     prim = prim_utils.get_prim_at_path("/World/Cone")
     assert prim.GetAttribute("physics:rigidBodyEnabled").Get() == cfg.rigid_props.rigid_body_enabled
-    assert prim.GetAttribute("physxRigidBody:solverPositionIterationCount").Get() == cfg.rigid_props.solver_position_iteration_count
+    assert (
+        prim.GetAttribute("physxRigidBody:solverPositionIterationCount").Get()
+        == cfg.rigid_props.solver_position_iteration_count
+    )
     assert prim.GetAttribute("physxRigidBody:sleepThreshold").Get() == pytest.approx(cfg.rigid_props.sleep_threshold)
+
 
 def test_spawn_cone_with_rigid_and_mass_props(sim):
     """Test spawning of UsdGeom.Cone prim with rigid body and mass API."""
@@ -157,13 +170,14 @@ def test_spawn_cone_with_rigid_and_mass_props(sim):
     for _ in range(10):
         sim.step()
 
+
 def test_spawn_cone_with_rigid_and_density_props(sim):
     """Test spawning of UsdGeom.Cone prim with rigid body and mass API.
-    
+
     Note:
         In this case, we specify the density instead of the mass. In that case, physics need to know
         the collision shape to compute the mass. Thus, we have to set the collider properties. In
-        order to not have a collision shape, we disable the collision.    
+        order to not have a collision shape, we disable the collision.
     """
     cfg = sim_utils.ConeCfg(
         radius=1.0,
@@ -187,6 +201,7 @@ def test_spawn_cone_with_rigid_and_density_props(sim):
     for _ in range(10):
         sim.step()
 
+
 def test_spawn_cone_with_all_props(sim):
     """Test spawning of UsdGeom.Cone prim with all properties."""
     cfg = sim_utils.ConeCfg(
@@ -206,10 +221,10 @@ def test_spawn_cone_with_all_props(sim):
     # Check properties
     # -- rigid body properties
     prim = prim_utils.get_prim_at_path("/World/Cone")
-    assert prim.GetAttribute("physics:rigidBodyEnabled").Get() == True
+    assert prim.GetAttribute("physics:rigidBodyEnabled").Get() is True
     # -- collision properties
     prim = prim_utils.get_prim_at_path("/World/Cone/geometry/mesh")
-    assert prim.GetAttribute("physics:collisionEnabled").Get() == True
+    assert prim.GetAttribute("physics:collisionEnabled").Get() is True
 
     # check sim playing
     sim.play()
@@ -276,4 +291,3 @@ def test_spawn_cone_clone_with_all_props_global_material(sim):
     # find matching material prims
     prims = prim_utils.find_matching_prim_paths("/Looks/visualMaterial.*")
     assert len(prims) == 1
-

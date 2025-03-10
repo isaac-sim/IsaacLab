@@ -5,7 +5,7 @@
 
 """Launch Isaac Sim Simulator first."""
 
-from isaaclab.app import AppLauncher, run_tests
+from isaaclab.app import AppLauncher
 
 # launch omniverse app
 if not AppLauncher.instance():
@@ -13,10 +13,9 @@ if not AppLauncher.instance():
 
 """Rest everything follows."""
 
-import pytest
-
 import isaacsim.core.utils.prims as prim_utils
 import isaacsim.core.utils.stage as stage_utils
+import pytest
 from isaacsim.core.api.simulation_context import SimulationContext
 from pxr import UsdLux
 
@@ -35,10 +34,10 @@ def test_setup_teardown():
     sim = SimulationContext(physics_dt=dt, rendering_dt=dt, backend="numpy")
     # Wait for spawning
     stage_utils.update_stage()
-    
+
     # Yield the simulation context for the test
     yield sim
-    
+
     # Teardown: Stop simulation
     sim.stop()
     sim.clear()
@@ -155,6 +154,3 @@ def test_spawn_sphere_light(test_setup_teardown):
     assert prim.GetPrimTypeInfo().GetTypeName() == "SphereLight"
     # validate properties on the prim
     _validate_properties_on_prim("/World/sphere_light", cfg)
-
-
-

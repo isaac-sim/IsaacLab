@@ -1,7 +1,11 @@
-import pytest
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+import os
 import subprocess
 import sys
-import os
 
 # Tests that require a new instance of the AppLauncher
 FIRST_RUN_TESTS = {
@@ -25,6 +29,7 @@ SECOND_RUN_TESTS = {
     "/sim/test_simulation_render_config.py",
 }
 
+
 def pytest_ignore_collect(path, config):
     """Ignore collecting tests that are not part of the current test stage."""
     if os.path.isdir(str(path)):
@@ -42,18 +47,20 @@ def pytest_ignore_collect(path, config):
 
     return False  # Default: collect everything if no stage is set
 
+
 def run_test_group(test_files, stage_name, config_args):
     """Run a specific group of tests as a separate pytest session."""
     if test_files:
         print(f"\n🚀 Running {stage_name} tests...\n")
         env = os.environ.copy()
-        env["PYTEST_EXEC_STAGE"] = stage_name  
+        env["PYTEST_EXEC_STAGE"] = stage_name
 
         # Run subprocess for the test group and capture the return code
         process = subprocess.run([sys.executable, "-m", "pytest", *config_args], env=env)
         return process.returncode  # Return the status of the test run
 
     return 0  # No tests in the group
+
 
 def run_individual_tests(test_files):
     """Run each test file separately, ensuring one finishes before starting the next."""
@@ -71,9 +78,10 @@ def run_individual_tests(test_files):
 
     return failed_tests  # Return True if any test failed
 
+
 def pytest_sessionstart(session):
     """Intercept pytest startup to execute tests in the correct order."""
-    if os.getenv("PYTEST_EXEC_STAGE"):  
+    if os.getenv("PYTEST_EXEC_STAGE"):
         return  # Prevent infinite loop in subprocesses
 
     rootdir = str(session.config.rootpath) + "/test"

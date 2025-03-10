@@ -5,7 +5,7 @@
 
 """Launch Isaac Sim Simulator first."""
 
-from isaaclab.app import AppLauncher, run_tests
+from isaaclab.app import AppLauncher
 
 # launch omniverse app
 if not AppLauncher.instance():
@@ -17,11 +17,10 @@ import math
 import os
 import random
 import tempfile
-import pytest
 
 import isaacsim.core.utils.prims as prim_utils
 import isaacsim.core.utils.stage as stage_utils
-import omni
+import pytest
 from isaacsim.core.api.simulation_context import SimulationContext
 from pxr import UsdGeom, UsdPhysics
 
@@ -276,6 +275,3 @@ def test_collider_mesh_no_collision(assets):
     mesh_converter = MeshConverter(mesh_config)
     # check that mesh conversion is successful
     check_mesh_collider_settings(mesh_converter)
-
-
-

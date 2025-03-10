@@ -9,7 +9,7 @@
 
 """Launch Isaac Sim Simulator first."""
 
-from isaaclab.app import AppLauncher, run_tests
+from isaaclab.app import AppLauncher
 
 # launch omniverse app
 if not AppLauncher.instance():
@@ -22,13 +22,12 @@ import torch
 
 import carb
 import isaacsim.core.utils.prims as prim_utils
+import pytest
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
 from isaaclab.assets import DeformableObject, DeformableObjectCfg
 from isaaclab.sim import build_simulation_context
-
-import pytest
 
 
 def generate_cubes_scene(
@@ -139,11 +138,31 @@ def test_initialization(sim, num_cubes, material_path):
 
     # Check sim data
     assert cube_object.data.sim_element_quat_w.shape == (num_cubes, cube_object.max_sim_elements_per_body, 4)
-    assert cube_object.data.sim_element_deform_gradient_w.shape == (num_cubes, cube_object.max_sim_elements_per_body, 3, 3)
+    assert cube_object.data.sim_element_deform_gradient_w.shape == (
+        num_cubes,
+        cube_object.max_sim_elements_per_body,
+        3,
+        3,
+    )
     assert cube_object.data.sim_element_stress_w.shape == (num_cubes, cube_object.max_sim_elements_per_body, 3, 3)
-    assert cube_object.data.collision_element_quat_w.shape == (num_cubes, cube_object.max_collision_elements_per_body, 4)
-    assert cube_object.data.collision_element_deform_gradient_w.shape == (num_cubes, cube_object.max_collision_elements_per_body, 3, 3)
-    assert cube_object.data.collision_element_stress_w.shape == (num_cubes, cube_object.max_collision_elements_per_body, 3, 3)
+    assert cube_object.data.collision_element_quat_w.shape == (
+        num_cubes,
+        cube_object.max_collision_elements_per_body,
+        4,
+    )
+    assert cube_object.data.collision_element_deform_gradient_w.shape == (
+        num_cubes,
+        cube_object.max_collision_elements_per_body,
+        3,
+        3,
+    )
+    assert cube_object.data.collision_element_stress_w.shape == (
+        num_cubes,
+        cube_object.max_collision_elements_per_body,
+        3,
+        3,
+    )
+
 
 def test_initialization_on_device_cpu():
     """Test that initialization fails with deformable body API on the CPU."""
@@ -159,6 +178,7 @@ def test_initialization_on_device_cpu():
 
         # Check if object is initialized
         assert not cube_object.is_initialized
+
 
 @pytest.mark.parametrize("num_cubes", [1, 2])
 def test_initialization_with_kinematic_enabled(sim, num_cubes):
@@ -185,6 +205,7 @@ def test_initialization_with_kinematic_enabled(sim, num_cubes):
         default_nodal_state_w = cube_object.data.default_nodal_state_w.clone()
         torch.testing.assert_close(cube_object.data.nodal_state_w, default_nodal_state_w)
 
+
 @pytest.mark.parametrize("num_cubes", [1, 2])
 def test_initialization_with_no_deformable_body(sim, num_cubes):
     """Test that initialization fails when no deformable body is found at the provided prim path."""
@@ -198,6 +219,7 @@ def test_initialization_with_no_deformable_body(sim, num_cubes):
 
     # Check if object is initialized
     assert not cube_object.is_initialized
+
 
 @pytest.mark.parametrize("num_cubes", [1, 2])
 def test_set_nodal_state(sim, num_cubes):
@@ -230,12 +252,11 @@ def test_set_nodal_state(sim, num_cubes):
                 )
                 cube_object.write_nodal_state_to_sim(nodal_state)
 
-                torch.testing.assert_close(
-                    cube_object.data.nodal_state_w, nodal_state, rtol=1e-5, atol=1e-5
-                )
+                torch.testing.assert_close(cube_object.data.nodal_state_w, nodal_state, rtol=1e-5, atol=1e-5)
 
                 sim.step()
                 cube_object.update(sim.cfg.dt)
+
 
 @pytest.mark.parametrize("num_cubes", [1, 2])
 def test_set_nodal_state_with_applied_transform(sim, num_cubes):
@@ -263,15 +284,11 @@ def test_set_nodal_state_with_applied_transform(sim, num_cubes):
                 else:
                     quat_w = None
 
-                nodal_state[..., :3] = cube_object.transform_nodal_pos(
-                    nodal_state[..., :3], pos_w, quat_w
-                )
+                nodal_state[..., :3] = cube_object.transform_nodal_pos(nodal_state[..., :3], pos_w, quat_w)
                 mean_nodal_pos_init = nodal_state[..., :3].mean(dim=1)
 
                 if pos_w is None:
-                    torch.testing.assert_close(
-                        mean_nodal_pos_init, mean_nodal_pos_default, rtol=1e-5, atol=1e-5
-                    )
+                    torch.testing.assert_close(mean_nodal_pos_init, mean_nodal_pos_default, rtol=1e-5, atol=1e-5)
                 else:
                     torch.testing.assert_close(
                         mean_nodal_pos_init, mean_nodal_pos_default + pos_w, rtol=1e-5, atol=1e-5
@@ -284,9 +301,8 @@ def test_set_nodal_state_with_applied_transform(sim, num_cubes):
                     sim.step()
                     cube_object.update(sim.cfg.dt)
 
-                torch.testing.assert_close(
-                    cube_object.data.root_pos_w, mean_nodal_pos_init, rtol=1e-5, atol=1e-5
-                )
+                torch.testing.assert_close(cube_object.data.root_pos_w, mean_nodal_pos_init, rtol=1e-5, atol=1e-5)
+
 
 @pytest.mark.parametrize("num_cubes", [2, 4])
 def test_set_kinematic_targets(sim, num_cubes):
@@ -320,6 +336,3 @@ def test_set_kinematic_targets(sim, num_cubes):
             )
             root_pos_w = cube_object.data.root_pos_w
             assert torch.all(root_pos_w[1:, 2] < default_root_pos[1:, 2])
-
-
-

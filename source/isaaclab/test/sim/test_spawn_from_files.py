@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab.app import AppLauncher, run_tests
+from isaaclab.app import AppLauncher
 
 """Launch Isaac Sim Simulator first."""
 
@@ -13,10 +13,9 @@ if not AppLauncher.instance():
 
 """Rest everything follows."""
 
-import pytest
-
 import isaacsim.core.utils.prims as prim_utils
 import isaacsim.core.utils.stage as stage_utils
+import pytest
 from isaacsim.core.api.simulation_context import SimulationContext
 from isaacsim.core.utils.extensions import enable_extension, get_extension_path_from_name
 
@@ -35,9 +34,9 @@ def sim():
     sim = SimulationContext(physics_dt=dt, rendering_dt=dt, backend="numpy")
     # Wait for spawning
     stage_utils.update_stage()
-    
+
     yield sim
-    
+
     # cleanup after test
     sim.stop()
     sim.clear()
@@ -94,6 +93,3 @@ def test_spawn_ground_plane(sim):
     assert prim.IsValid()
     assert prim_utils.is_prim_path_valid("/World/ground_plane")
     assert prim.GetPrimTypeInfo().GetTypeName() == "Xform"
-
-
-

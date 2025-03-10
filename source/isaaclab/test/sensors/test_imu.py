@@ -22,9 +22,9 @@ else:
 
 import pathlib
 import torch
-import pytest
 
 import isaacsim.core.utils.stage as stage_utils
+import pytest
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
@@ -159,6 +159,7 @@ class MySceneCfg(InteractiveSceneCfg):
         self.robot.spawn.articulation_props.solver_position_iteration_count = 32
         self.robot.spawn.articulation_props.solver_velocity_iteration_count = 32
 
+
 @pytest.fixture
 def setup_sim():
     """Create a simulation context and scene."""
@@ -178,9 +179,10 @@ def setup_sim():
     sim.clear_all_callbacks()
     sim.clear_instance()
 
+
 def test_constant_velocity(setup_sim):
     """Test the Imu sensor with a constant velocity.
-    
+
     Expected behavior is that the linear and angular are approx the same at every time step as in each step we set
     the same velocity and therefore reset the physx buffers.
     """
@@ -244,17 +246,17 @@ def test_constant_velocity(setup_sim):
             #       the data.lin_vel_b is returning approx. v_i.
             torch.testing.assert_close(
                 scene.sensors["imu_ball"].data.lin_vel_b,
-                torch.tensor(
-                    [[1.0, 0.0, -scene.physics_dt * 9.81]], dtype=torch.float32, device=scene.device
-                ).repeat(scene.num_envs, 1),
+                torch.tensor([[1.0, 0.0, -scene.physics_dt * 9.81]], dtype=torch.float32, device=scene.device).repeat(
+                    scene.num_envs, 1
+                ),
                 rtol=1e-4,
                 atol=1e-4,
             )
             torch.testing.assert_close(
                 scene.sensors["imu_cube"].data.lin_vel_b,
-                torch.tensor(
-                    [[1.0, 0.0, -scene.physics_dt * 9.81]], dtype=torch.float32, device=scene.device
-                ).repeat(scene.num_envs, 1),
+                torch.tensor([[1.0, 0.0, -scene.physics_dt * 9.81]], dtype=torch.float32, device=scene.device).repeat(
+                    scene.num_envs, 1
+                ),
                 rtol=1e-4,
                 atol=1e-4,
             )
@@ -264,6 +266,7 @@ def test_constant_velocity(setup_sim):
         prev_ang_acc_ball = scene.sensors["imu_ball"].data.ang_acc_b.clone()
         prev_lin_acc_cube = scene.sensors["imu_cube"].data.lin_acc_b.clone()
         prev_ang_acc_cube = scene.sensors["imu_cube"].data.ang_acc_b.clone()
+
 
 def test_constant_acceleration(setup_sim):
     """Test the Imu sensor with a constant acceleration."""
@@ -292,9 +295,7 @@ def test_constant_acceleration(setup_sim):
             scene.sensors["imu_ball"].data.lin_acc_b,
             math_utils.quat_rotate_inverse(
                 scene.rigid_objects["balls"].data.root_quat_w,
-                torch.tensor([[0.1, 0.0, 0.0]], dtype=torch.float32, device=scene.device).repeat(
-                    scene.num_envs, 1
-                )
+                torch.tensor([[0.1, 0.0, 0.0]], dtype=torch.float32, device=scene.device).repeat(scene.num_envs, 1)
                 / sim.get_physics_dt(),
             ),
             rtol=1e-4,
@@ -308,6 +309,7 @@ def test_constant_acceleration(setup_sim):
             rtol=1e-4,
             atol=1e-4,
         )
+
 
 def test_single_dof_pendulum(setup_sim):
     """Test imu against analytical pendulum problem."""
@@ -350,11 +352,7 @@ def test_single_dof_pendulum(setup_sim):
 
         ax = -joint_acc * pend_length * torch.sin(joint_pos) - joint_vel**2 * pend_length * torch.cos(joint_pos)
         ay = torch.zeros(2, 1, device=scene.device)
-        az = (
-            -joint_acc * pend_length * torch.cos(joint_pos)
-            + joint_vel**2 * pend_length * torch.sin(joint_pos)
-            + 9.81
-        )
+        az = -joint_acc * pend_length * torch.cos(joint_pos) + joint_vel**2 * pend_length * torch.sin(joint_pos) + 9.81
         gt_linear_acc_w = torch.cat([ax, ay, az], dim=-1)
 
         # skip first step where initial velocity is zero
@@ -437,6 +435,7 @@ def test_single_dof_pendulum(setup_sim):
             atol=1e-1,
         )
 
+
 def test_offset_calculation(setup_sim):
     """Test offset configuration argument."""
     sim, scene = setup_sim
@@ -503,6 +502,7 @@ def test_offset_calculation(setup_sim):
             atol=1e-4,
         )
 
+
 def test_env_ids_propagation(setup_sim):
     """Test that env_ids argument propagates through update and reset methods"""
     sim, scene = setup_sim
@@ -531,6 +531,7 @@ def test_env_ids_propagation(setup_sim):
     sim.step()
     # read data from sim
     scene.update(sim.get_physics_dt())
+
 
 def test_sensor_print(setup_sim):
     """Test sensor print is working correctly."""

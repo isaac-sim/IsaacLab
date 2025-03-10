@@ -5,7 +5,7 @@
 
 """Launch Isaac Sim Simulator first."""
 
-from isaaclab.app import AppLauncher, run_tests
+from isaaclab.app import AppLauncher
 
 # launch omniverse app
 if not AppLauncher.instance():
@@ -14,10 +14,10 @@ if not AppLauncher.instance():
 """Rest everything follows."""
 
 import os
-import pytest
 
 import isaacsim.core.utils.prims as prim_utils
 import isaacsim.core.utils.stage as stage_utils
+import pytest
 from isaacsim.core.api.simulation_context import SimulationContext
 from isaacsim.core.utils.extensions import enable_extension, get_extension_path_from_name
 
@@ -29,11 +29,11 @@ def test_setup_teardown():
     """Setup and teardown for each test."""
     # Setup: Create a new stage
     stage_utils.create_new_stage()
-    
+
     # Setup: Create simulation context
     dt = 0.01
     sim = SimulationContext(physics_dt=dt, rendering_dt=dt, backend="numpy")
-    
+
     # Setup: Create MJCF config
     enable_extension("isaacsim.asset.importer.mjcf")
     extension_path = get_extension_path_from_name("isaacsim.asset.importer.mjcf")
@@ -43,10 +43,10 @@ def test_setup_teardown():
         fix_base=False,
         make_instanceable=True,
     )
-    
+
     # Yield the resources for the test
     yield sim, config
-    
+
     # Teardown: Cleanup simulation
     sim.stop()
     sim.clear()
@@ -100,6 +100,3 @@ def test_create_prim_from_usd(test_setup_teardown):
     prim_utils.create_prim(prim_path, usd_path=urdf_converter.usd_path)
 
     assert prim_utils.is_prim_path_valid(prim_path)
-
-
-

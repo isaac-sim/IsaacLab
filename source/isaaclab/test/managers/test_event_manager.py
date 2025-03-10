@@ -8,7 +8,7 @@
 
 """Launch Isaac Sim Simulator first."""
 
-from isaaclab.app import AppLauncher, run_tests
+from isaaclab.app import AppLauncher
 
 # launch omniverse app
 if not AppLauncher.instance():
@@ -18,8 +18,9 @@ if not AppLauncher.instance():
 
 
 import torch
-import pytest
 from collections import namedtuple
+
+import pytest
 
 from isaaclab.managers import EventManager, EventTermCfg
 from isaaclab.utils import configclass
@@ -101,9 +102,7 @@ def test_config_equivalence(env):
     class MyEventManagerAnnotatedCfg:
         """Event manager config with type annotations."""
 
-        term_1: EventTermCfg = EventTermCfg(
-            func=increment_dummy1_by_one, mode="interval", interval_range_s=(0.1, 0.1)
-        )
+        term_1: EventTermCfg = EventTermCfg(func=increment_dummy1_by_one, mode="interval", interval_range_s=(0.1, 0.1))
         term_2: EventTermCfg = EventTermCfg(func=reset_dummy1_to_zero, mode="reset")
         term_3: EventTermCfg = EventTermCfg(func=change_dummy1_by_value, mode="custom", params={"value": 10})
 
@@ -154,7 +153,7 @@ def test_invalid_event_func_module(env):
         "term_2": EventTermCfg(func="a:reset_dummy1_to_zero", mode="reset"),
     }
     with pytest.raises(ValueError):
-        event_man = EventManager(cfg, env)
+        EventManager(cfg, env)
 
 
 def test_invalid_event_config(env):
@@ -165,7 +164,7 @@ def test_invalid_event_config(env):
         "term_3": EventTermCfg(func=change_dummy1_by_value, mode="custom"),
     }
     with pytest.raises(ValueError):
-        event_man = EventManager(cfg, env)
+        EventManager(cfg, env)
 
 
 def test_apply_interval_mode_without_global_time(env):
@@ -306,9 +305,7 @@ def test_apply_reset_mode(env):
 
         # check the values of trigger count
         # -- term 1
-        expected_trigger_count = torch.full(
-            (env.num_envs,), 3 * (count // 3), dtype=torch.int32, device=env.device
-        )
+        expected_trigger_count = torch.full((env.num_envs,), 3 * (count // 3), dtype=torch.int32, device=env.device)
         torch.testing.assert_close(event_man._reset_term_last_triggered_step_id[0], expected_trigger_count)
         # -- term 2
         torch.testing.assert_close(event_man._reset_term_last_triggered_step_id[1], term_2_trigger_step_id)
@@ -351,9 +348,7 @@ def test_apply_reset_mode_subset_env_ids(env):
         # check the values of trigger count
         # -- term 1
         expected_trigger_count = torch.full((len(env_ids),), count, dtype=torch.int32, device=env.device)
-        torch.testing.assert_close(
-            event_man._reset_term_last_triggered_step_id[0][env_ids], expected_trigger_count
-        )
+        torch.testing.assert_close(event_man._reset_term_last_triggered_step_id[0][env_ids], expected_trigger_count)
         # -- term 2
         torch.testing.assert_close(event_man._reset_term_last_triggered_step_id[1], term_2_trigger_step_id)
 

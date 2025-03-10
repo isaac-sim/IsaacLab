@@ -4,11 +4,12 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import torch
+
 import pytest
 
 """Launch Isaac Sim Simulator first."""
 
-from isaaclab.app import AppLauncher, run_tests
+from isaaclab.app import AppLauncher
 
 # launch omniverse app in headless mode
 if not AppLauncher.instance():
@@ -100,7 +101,11 @@ def test_buffer_overflow(circular_buffer):
         circular_buffer.append(data)
 
     # check buffer length is correct
-    assert circular_buffer.current_length.tolist() == [circular_buffer.max_length, circular_buffer.max_length, circular_buffer.max_length]
+    assert circular_buffer.current_length.tolist() == [
+        circular_buffer.max_length,
+        circular_buffer.max_length,
+        circular_buffer.max_length,
+    ]
 
     # retrieve most recent data
     key = torch.tensor([0, 0, 0], device=circular_buffer.device)
@@ -110,7 +115,10 @@ def test_buffer_overflow(circular_buffer):
     assert torch.equal(retrieved_data, expected_data)
 
     # retrieve the oldest data
-    key = torch.tensor([circular_buffer.max_length - 1, circular_buffer.max_length - 1, circular_buffer.max_length - 1], device=circular_buffer.device)
+    key = torch.tensor(
+        [circular_buffer.max_length - 1, circular_buffer.max_length - 1, circular_buffer.max_length - 1],
+        device=circular_buffer.device,
+    )
     retrieved_data = circular_buffer[key]
     expected_data = torch.full_like(data, 2)
 
@@ -174,6 +182,3 @@ def test_return_buffer_prop(circular_buffer):
     # check that it is returned oldest first
     for idx in range(circular_buffer.max_length - 1):
         assert torch.all(torch.le(retrieved_buffer[:, idx], retrieved_buffer[:, idx + 1]))
-
-
-

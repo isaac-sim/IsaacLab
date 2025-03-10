@@ -8,7 +8,7 @@
 
 """Launch Isaac Sim Simulator first."""
 
-from isaaclab.app import AppLauncher, run_tests
+from isaaclab.app import AppLauncher
 
 # launch omniverse app
 if not AppLauncher.instance():
@@ -23,11 +23,11 @@ import copy
 import numpy as np
 import os
 import torch
-import pytest
 
 import isaacsim.core.utils.prims as prim_utils
 import isaacsim.core.utils.stage as stage_utils
 import omni.replicator.core as rep
+import pytest
 from pxr import Gf
 
 import isaaclab.sim as sim_utils
@@ -44,6 +44,7 @@ POSITION = [2.5, 2.5, 2.5]
 QUAT_ROS = [-0.17591989, 0.33985114, 0.82047325, -0.42470819]
 QUAT_OPENGL = [0.33985113, 0.17591988, 0.42470818, 0.82047324]
 QUAT_WORLD = [-0.3647052, -0.27984815, -0.1159169, 0.88047623]
+
 
 def setup() -> tuple[sim_utils.SimulationContext, RayCasterCameraCfg, float]:
     # Create a blank new stage
@@ -79,6 +80,7 @@ def setup() -> tuple[sim_utils.SimulationContext, RayCasterCameraCfg, float]:
     # load stage
     stage_utils.update_stage()
     return sim, camera_cfg, dt
+
 
 def teardown(sim: sim_utils.SimulationContext):
     # Teardown
@@ -125,6 +127,7 @@ def test_camera_init(setup_sim):
         for im_data in camera.data.output.values():
             assert im_data.shape == (1, camera_cfg.pattern_cfg.height, camera_cfg.pattern_cfg.width, 1)
 
+
 def test_camera_resolution(setup_sim):
     """Test camera resolution is correctly set."""
     sim, camera_cfg, dt = setup_sim
@@ -136,6 +139,7 @@ def test_camera_resolution(setup_sim):
     # access image data and compare shapes
     for im_data in camera.data.output.values():
         assert im_data.shape == (1, camera_cfg.pattern_cfg.height, camera_cfg.pattern_cfg.width, 1)
+
 
 def test_depth_clipping(setup_sim):
     """Test depth clipping.
@@ -153,9 +157,7 @@ def test_depth_clipping(setup_sim):
     camera_cfg_zero = RayCasterCameraCfg(
         prim_path="/World/CameraZero",
         mesh_prim_paths=["/World/defaultGroundPlane"],
-        offset=RayCasterCameraCfg.OffsetCfg(
-            pos=(2.5, 2.5, 6.0), rot=(0.9914449, 0.0, 0.1305, 0.0), convention="world"
-        ),
+        offset=RayCasterCameraCfg.OffsetCfg(pos=(2.5, 2.5, 6.0), rot=(0.9914449, 0.0, 0.1305, 0.0), convention="world"),
         pattern_cfg=patterns.PinholeCameraPatternCfg().from_intrinsic_matrix(
             focal_length=38.0,
             intrinsic_matrix=[380.08, 0.0, 467.79, 0.0, 380.08, 262.05, 0.0, 0.0, 1.0],
@@ -189,9 +191,7 @@ def test_depth_clipping(setup_sim):
     assert torch.isinf(camera_none.data.output["distance_to_camera"]).any()
     assert torch.isnan(camera_none.data.output["distance_to_image_plane"]).any()
     assert (
-        camera_none.data.output["distance_to_camera"][
-            ~torch.isinf(camera_none.data.output["distance_to_camera"])
-        ].max()
+        camera_none.data.output["distance_to_camera"][~torch.isinf(camera_none.data.output["distance_to_camera"])].max()
         > camera_cfg_zero.max_distance
     )
     assert (
@@ -202,42 +202,32 @@ def test_depth_clipping(setup_sim):
     )
 
     # zero clipping should result in zero values
-    assert (
-        torch.all(
-            camera_zero.data.output["distance_to_camera"][
-                torch.isinf(camera_none.data.output["distance_to_camera"])
-            ]
-            == 0.0
-        )
+    assert torch.all(
+        camera_zero.data.output["distance_to_camera"][torch.isinf(camera_none.data.output["distance_to_camera"])] == 0.0
     )
-    assert (
-        torch.all(
-            camera_zero.data.output["distance_to_image_plane"][
-                torch.isnan(camera_none.data.output["distance_to_image_plane"])
-            ]
-            == 0.0
-        )
+    assert torch.all(
+        camera_zero.data.output["distance_to_image_plane"][
+            torch.isnan(camera_none.data.output["distance_to_image_plane"])
+        ]
+        == 0.0
     )
     assert camera_zero.data.output["distance_to_camera"].max() <= camera_cfg_zero.max_distance
     assert camera_zero.data.output["distance_to_image_plane"].max() <= camera_cfg_zero.max_distance
 
     # max clipping should result in max values
-    assert (
-        torch.all(
-            camera_max.data.output["distance_to_camera"][torch.isinf(camera_none.data.output["distance_to_camera"])]
-            == camera_cfg_zero.max_distance
-        )
+    assert torch.all(
+        camera_max.data.output["distance_to_camera"][torch.isinf(camera_none.data.output["distance_to_camera"])]
+        == camera_cfg_zero.max_distance
     )
-    assert (
-        torch.all(
-            camera_max.data.output["distance_to_image_plane"][
-                torch.isnan(camera_none.data.output["distance_to_image_plane"])
-            ]
-            == camera_cfg_zero.max_distance
-        )
+    assert torch.all(
+        camera_max.data.output["distance_to_image_plane"][
+            torch.isnan(camera_none.data.output["distance_to_image_plane"])
+        ]
+        == camera_cfg_zero.max_distance
     )
     assert camera_max.data.output["distance_to_camera"].max() <= camera_cfg_zero.max_distance
     assert camera_max.data.output["distance_to_image_plane"].max() <= camera_cfg_zero.max_distance
+
 
 def test_camera_init_offset(setup_sim):
     """Test camera initialization with offset using different conventions."""
@@ -293,6 +283,7 @@ def test_camera_init_offset(setup_sim):
     np.testing.assert_allclose(camera_ros.data.quat_w_opengl[0].cpu().numpy(), QUAT_OPENGL, rtol=1e-5)
     np.testing.assert_allclose(camera_ros.data.quat_w_world[0].cpu().numpy(), QUAT_WORLD, rtol=1e-5)
 
+
 def test_camera_init_intrinsic_matrix(setup_sim):
     """Test camera initialization from intrinsic matrix."""
     sim, camera_cfg, dt = setup_sim
@@ -343,6 +334,7 @@ def test_camera_init_intrinsic_matrix(setup_sim):
         camera_2.data.intrinsic_matrices[0],
     )
 
+
 def test_multi_camera_init(setup_sim):
     """Test multi-camera initialization."""
     sim, camera_cfg, dt = setup_sim
@@ -380,6 +372,7 @@ def test_multi_camera_init(setup_sim):
             for im_data in cam.data.output.values():
                 assert im_data.shape == (1, camera_cfg.pattern_cfg.height, camera_cfg.pattern_cfg.width, 1)
 
+
 def test_camera_set_world_poses(setup_sim):
     """Test camera function to set specific world pose."""
     sim, camera_cfg, dt = setup_sim
@@ -396,6 +389,7 @@ def test_camera_set_world_poses(setup_sim):
     # check if transform correctly set in output
     torch.testing.assert_close(camera.data.pos_w, position)
     torch.testing.assert_close(camera.data.quat_w_world, orientation)
+
 
 def test_camera_set_world_poses_from_view(setup_sim):
     """Test camera function to set specific world pose from view."""
@@ -414,6 +408,7 @@ def test_camera_set_world_poses_from_view(setup_sim):
     # check if transform correctly set in output
     torch.testing.assert_close(camera.data.pos_w, eyes)
     torch.testing.assert_close(camera.data.quat_w_ros, quat_ros_gt)
+
 
 def test_intrinsic_matrix(setup_sim):
     """Checks that the camera's set and retrieve methods work for intrinsic matrix."""
@@ -437,6 +432,7 @@ def test_intrinsic_matrix(setup_sim):
         camera.update(dt)
         # Check that matrix is correct
         torch.testing.assert_close(rs_intrinsic_matrix, camera.data.intrinsic_matrices)
+
 
 def test_throughput(setup_sim):
     """Checks that the single camera gets created properly with a rig."""
@@ -487,6 +483,7 @@ def test_throughput(setup_sim):
         # Check image data
         for im_data in camera.data.output.values():
             assert im_data.shape == (1, camera_cfg.pattern_cfg.height, camera_cfg.pattern_cfg.width, 1)
+
 
 def test_output_equal_to_usdcamera(setup_sim):
     sim, camera_cfg, dt = setup_sim
@@ -583,6 +580,7 @@ def test_output_equal_to_usdcamera(setup_sim):
         atol=1e-4,
     )
 
+
 def test_output_equal_to_usdcamera_offset(setup_sim):
     sim, camera_cfg, dt = setup_sim
     offset_rot = [-0.1251, 0.3617, 0.8731, -0.3020]
@@ -616,7 +614,9 @@ def test_output_equal_to_usdcamera_offset(setup_sim):
         spawn=PinholeCameraCfg(
             focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(1e-6, 1.0e5)
         ),
-        offset=CameraCfg.OffsetCfg(pos=(2.5, 2.5, 4.0), rot=(offset_rot[0], offset_rot[1], offset_rot[2], offset_rot[3]), convention="ros"),
+        offset=CameraCfg.OffsetCfg(
+            pos=(2.5, 2.5, 4.0), rot=(offset_rot[0], offset_rot[1], offset_rot[2], offset_rot[3]), convention="ros"
+        ),
     )
     camera_usd = Camera(camera_cfg_usd)
 
@@ -655,6 +655,7 @@ def test_output_equal_to_usdcamera_offset(setup_sim):
         atol=1e-4,
     )
 
+
 def test_output_equal_to_usdcamera_prim_offset(setup_sim):
     """Test that the output of the ray caster camera is equal to the output of the usd camera when both are placed
     under an XForm prim that is translated and rotated from the world origin
@@ -681,7 +682,9 @@ def test_output_equal_to_usdcamera_prim_offset(setup_sim):
         prim_path="/World/Camera_warp",
         mesh_prim_paths=["/World/defaultGroundPlane"],
         update_period=0,
-        offset=RayCasterCameraCfg.OffsetCfg(pos=(0, 0, 2.0), rot=(offset_rot[0], offset_rot[1], offset_rot[2], offset_rot[3]), convention="ros"),
+        offset=RayCasterCameraCfg.OffsetCfg(
+            pos=(0, 0, 2.0), rot=(offset_rot[0], offset_rot[1], offset_rot[2], offset_rot[3]), convention="ros"
+        ),
         debug_vis=False,
         pattern_cfg=camera_pattern_cfg,
         data_types=["distance_to_image_plane", "distance_to_camera", "normals"],
@@ -699,7 +702,9 @@ def test_output_equal_to_usdcamera_prim_offset(setup_sim):
         spawn=PinholeCameraCfg(
             focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(1e-6, 1.0e5)
         ),
-        offset=CameraCfg.OffsetCfg(pos=(0, 0, 2.0), rot=(offset_rot[0], offset_rot[1], offset_rot[2], offset_rot[3]), convention="ros"),
+        offset=CameraCfg.OffsetCfg(
+            pos=(0, 0, 2.0), rot=(offset_rot[0], offset_rot[1], offset_rot[2], offset_rot[3]), convention="ros"
+        ),
     )
     prim_usd = prim_utils.create_prim("/World/Camera_usd", "Xform")
     prim_usd.GetAttribute("xformOp:translate").Set(tuple(POSITION))
@@ -745,6 +750,7 @@ def test_output_equal_to_usdcamera_prim_offset(setup_sim):
         rtol=1e-5,
         atol=1e-4,
     )
+
 
 def test_output_equal_to_usd_camera_intrinsics(setup_sim):
     """
@@ -838,6 +844,7 @@ def test_output_equal_to_usd_camera_intrinsics(setup_sim):
         rtol=5e-6,
     )
 
+
 def test_output_equal_to_usd_camera_when_intrinsics_set(setup_sim):
     """
     Test that the output of the ray caster camera is equal to the output of the usd camera when both are placed
@@ -915,6 +922,7 @@ def test_output_equal_to_usd_camera_when_intrinsics_set(setup_sim):
         atol=1e-4,
     )
 
+
 def test_sensor_print(setup_sim):
     """Test sensor print is working correctly."""
     sim, camera_cfg, dt = setup_sim
@@ -924,4 +932,3 @@ def test_sensor_print(setup_sim):
     sim.reset()
     # print info
     print(sensor)
-

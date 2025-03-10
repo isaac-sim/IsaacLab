@@ -6,7 +6,7 @@
 
 """Launch Isaac Sim Simulator first."""
 
-from isaaclab.app import AppLauncher, run_tests
+from isaaclab.app import AppLauncher
 
 # launch omniverse app
 if not AppLauncher.instance():
@@ -76,7 +76,10 @@ def test_render_cfg():
     assert carb_settings_iface.get("/rtx-transient/dldenoiser/enabled") == sim.cfg.render.enable_dl_denoiser
     assert carb_settings_iface.get("/rtx/post/dlss/execMode") == sim.cfg.render.dlss_mode
     assert carb_settings_iface.get("/rtx/directLighting/enabled") == sim.cfg.render.enable_direct_lighting
-    assert carb_settings_iface.get("/rtx/directLighting/sampledLighting/samplesPerPixel") == sim.cfg.render.samples_per_pixel
+    assert (
+        carb_settings_iface.get("/rtx/directLighting/sampledLighting/samplesPerPixel")
+        == sim.cfg.render.samples_per_pixel
+    )
     assert carb_settings_iface.get("/rtx/shadows/enabled") == sim.cfg.render.enable_shadows
     assert carb_settings_iface.get("/rtx/ambientOcclusion/enabled") == sim.cfg.render.enable_ambient_occlusion
     assert carb_settings_iface.get("/rtx/post/aa/op") == 4  # dlss = 3, dlaa=4
@@ -134,7 +137,10 @@ def test_render_cfg_defaults():
     assert carb_settings_iface.get("/rtx-transient/dldenoiser/enabled") == sim.cfg.render.enable_dl_denoiser
     assert carb_settings_iface.get("/rtx/post/dlss/execMode") == sim.cfg.render.dlss_mode
     assert carb_settings_iface.get("/rtx/directLighting/enabled") == sim.cfg.render.enable_direct_lighting
-    assert carb_settings_iface.get("/rtx/directLighting/sampledLighting/samplesPerPixel") == sim.cfg.render.samples_per_pixel
+    assert (
+        carb_settings_iface.get("/rtx/directLighting/sampledLighting/samplesPerPixel")
+        == sim.cfg.render.samples_per_pixel
+    )
     assert carb_settings_iface.get("/rtx/shadows/enabled") == sim.cfg.render.enable_shadows
     assert carb_settings_iface.get("/rtx/ambientOcclusion/enabled") == sim.cfg.render.enable_ambient_occlusion
     assert carb_settings_iface.get("/rtx/post/aa/op") == 3  # dlss = 3, dlaa=4

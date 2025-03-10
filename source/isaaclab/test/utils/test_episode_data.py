@@ -5,7 +5,7 @@
 
 """Launch Isaac Sim Simulator first."""
 
-from isaaclab.app import AppLauncher, run_tests
+from isaaclab.app import AppLauncher
 
 # launch omniverse app in headless mode
 if not AppLauncher.instance():
@@ -14,6 +14,7 @@ if not AppLauncher.instance():
 """Rest everything follows from here."""
 
 import torch
+
 import pytest
 
 from isaaclab.utils.datasets import EpisodeData
@@ -153,6 +154,3 @@ def test_get_next_action(device):
 
     # check if None is returned when all actions are exhausted
     assert episode.get_next_action() is None
-
-
-

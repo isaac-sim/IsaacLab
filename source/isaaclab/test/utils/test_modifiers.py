@@ -5,7 +5,7 @@
 
 """Launch Isaac Sim Simulator first."""
 
-from isaaclab.app import AppLauncher, run_tests
+from isaaclab.app import AppLauncher
 
 # launch omniverse app
 if not AppLauncher.instance():
@@ -14,7 +14,6 @@ if not AppLauncher.instance():
 """Rest everything follows."""
 
 import torch
-import pytest
 from dataclasses import MISSING
 
 import isaaclab.utils.modifiers as modifiers
@@ -202,6 +201,3 @@ def test_integral():
         modifier_obj.reset()
         output = modifier_obj(test_cfg.init_data)
         assert torch.allclose(output, test_cfg.result)
-
-
-
