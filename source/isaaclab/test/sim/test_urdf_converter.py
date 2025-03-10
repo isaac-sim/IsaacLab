@@ -5,7 +5,7 @@
 
 """Launch Isaac Sim Simulator first."""
 
-from isaaclab.app import AppLauncher, run_tests
+from isaaclab.app import AppLauncher
 
 # launch omniverse app
 config = {"headless": True}
@@ -25,10 +25,9 @@ from isaacsim.core.utils.extensions import enable_extension, get_extension_path_
 
 from isaaclab.sim.converters import UrdfConverter, UrdfConverterCfg
 
-
+# Create a fixture for setup and teardown
 @pytest.fixture
-def setup_simulation():
-    """Fixture to set up and tear down the simulation context."""
+def sim_config():
     # Create a new stage
     stage_utils.create_new_stage()
     # retrieve path to urdf importer extension
@@ -56,9 +55,9 @@ def setup_simulation():
     sim.clear_instance()
 
 
-def test_no_change(setup_simulation):
+def test_no_change(sim_config):
     """Call conversion twice. This should not generate a new USD file."""
-    sim, config = setup_simulation
+    sim, config = sim_config
     urdf_converter = UrdfConverter(config)
     time_usd_file_created = os.stat(urdf_converter.usd_path).st_mtime_ns
 
@@ -72,9 +71,9 @@ def test_no_change(setup_simulation):
     assert time_usd_file_created == new_time_usd_file_created
 
 
-def test_config_change(setup_simulation):
+def test_config_change(sim_config):
     """Call conversion twice but change the config in the second call. This should generate a new USD file."""
-    sim, config = setup_simulation
+    sim, config = sim_config
     urdf_converter = UrdfConverter(config)
     time_usd_file_created = os.stat(urdf_converter.usd_path).st_mtime_ns
 
@@ -90,9 +89,9 @@ def test_config_change(setup_simulation):
     assert time_usd_file_created != new_time_usd_file_created
 
 
-def test_create_prim_from_usd(setup_simulation):
+def test_create_prim_from_usd(sim_config):
     """Call conversion and create a prim from it."""
-    sim, config = setup_simulation
+    sim, config = sim_config
     urdf_converter = UrdfConverter(config)
 
     prim_path = "/World/Robot"
@@ -101,10 +100,9 @@ def test_create_prim_from_usd(setup_simulation):
     assert prim_utils.is_prim_path_valid(prim_path)
 
 
-def test_config_drive_type(setup_simulation):
+def test_config_drive_type(sim_config):
     """Change the drive mechanism of the robot to be position."""
-    sim, config = setup_simulation
-
+    sim, config = sim_config
     # Create directory to dump results
     test_dir = os.path.dirname(os.path.abspath(__file__))
     output_dir = os.path.join(test_dir, "output", "urdf_converter")
@@ -138,4 +136,3 @@ def test_config_drive_type(setup_simulation):
     drive_stiffness, drive_damping = robot.get_gains()
     np.testing.assert_array_equal(drive_stiffness, config.joint_drive.gains.stiffness)
     np.testing.assert_array_equal(drive_damping, config.joint_drive.gains.damping)
-    
