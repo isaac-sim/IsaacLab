@@ -68,24 +68,24 @@ Isaac Lab, you can will first need to make a wrapper for the library, as explain
 
 The following steps can be followed to integrate a new library with Isaac Lab:
 
-1. Add your library as an extra-dependency in the ``setup.py`` for the extension ``omni.isaac.lab_tasks``.
+1. Add your library as an extra-dependency in the ``setup.py`` for the extension ``isaaclab_tasks``.
    This will ensure that the library is installed when you install Isaac Lab or it will complain if the library is not
    installed or available.
 2. Install your library in the Python environment used by Isaac Lab. You can do this by following the steps mentioned
    in the previous section.
-3. Create a wrapper for the library. You can check the module :mod:`omni.isaac.lab_tasks.utils.wrappers`
+3. Create a wrapper for the library. You can check the module :mod:`isaaclab_rl`
    for examples of wrappers for different libraries. You can create a new wrapper for your library and add it to the
    module. You can also create a new module for the wrapper if you prefer.
 4. Create workflow scripts for your library to train and evaluate agents. You can check the existing workflow scripts
-   in the ``source/standalone/workflows`` directory for examples. You can create new workflow
+   in the ``scripts/reinforcement_learning`` directory for examples. You can create new workflow
    scripts for your library and add them to the directory.
 
 Optionally, you can also add some tests and documentation for the wrapper. This will help ensure that the wrapper
 works as expected and can guide users on how to use the wrapper.
 
 * Add some tests to ensure that the wrapper works as expected and remains compatible with the library.
-  These tests can be added to the ``source/extensions/omni.isaac.lab_tasks/test/wrappers`` directory.
+  These tests can be added to the ``source/isaaclab_rl/test`` directory.
 * Add some documentation for the wrapper. You can add the API documentation to the
-  ``docs/source/api/lab_tasks/omni.isaac.lab_tasks.utils.wrappers.rst`` file.
+  ``docs/source/api/lab_tasks/isaaclab_rl.rst`` file.
 
 .. _rsl-rl: https://github.com/leggedrobotics/rsl_rl

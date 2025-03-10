@@ -2,6 +2,11 @@ name: Build & deploy docs
 
 on:
   push:
+    branches:
+      - main
+      - devel
+  pull_request:
+    types: [opened, synchronize, reopened]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}

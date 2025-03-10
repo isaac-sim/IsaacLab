@@ -4,10 +4,10 @@
 Creating a Direct Workflow RL Environment
 =========================================
 
-.. currentmodule:: omni.isaac.lab
+.. currentmodule:: isaaclab
 
 In addition to the :class:`envs.ManagerBasedRLEnv` class, which encourages the use of configuration classes
-for more modular environments, the :class:`~omni.isaac.lab.envs.DirectRLEnv` class allows for more direct control
+for more modular environments, the :class:`~isaaclab.envs.DirectRLEnv` class allows for more direct control
 in the scripting of environment.
 
 Instead of using Manager classes for defining rewards and observations, the direct workflow tasks
@@ -24,12 +24,12 @@ for scene creation, actions, resets, rewards and observations.
 The Code
 ~~~~~~~~
 
-For this tutorial, we use the cartpole environment defined in ``omni.isaac.lab_tasks.direct.cartpole`` module.
+For this tutorial, we use the cartpole environment defined in ``isaaclab_tasks.direct.cartpole`` module.
 
 .. dropdown:: Code for cartpole_env.py
    :icon: code
 
-   .. literalinclude:: ../../../../source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/direct/cartpole/cartpole_env.py
+   .. literalinclude:: ../../../../source/isaaclab_tasks/isaaclab_tasks/direct/cartpole/cartpole_env.py
       :language: python
       :linenos:
 
@@ -71,7 +71,7 @@ and thresholds for reset conditions.
       rew_scale_cart_vel = -0.01
       rew_scale_pole_vel = -0.005
 
-When creating a new environment, the code should define a new class that inherits from :class:`~omni.isaac.lab.envs.DirectRLEnv`.
+When creating a new environment, the code should define a new class that inherits from :class:`~isaaclab.envs.DirectRLEnv`.
 
 .. code-block:: python
 
@@ -94,7 +94,7 @@ between the environments, adding the actors into the scene, and adding any addit
 scene, such as ground plane and lights. These operations should be implemented in the
 ``_setup_scene(self)`` method.
 
-.. literalinclude:: ../../../../source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/direct/cartpole/cartpole_env.py
+.. literalinclude:: ../../../../source/isaaclab_tasks/isaaclab_tasks/direct/cartpole/cartpole_env.py
    :language: python
    :pyobject: CartpoleEnv._setup_scene
 
@@ -154,7 +154,7 @@ a dictionary should be returned that contains ``policy`` as the key, and the ful
 observation buffer as the value. For asymmetric policies, the dictionary should also
 include the key ``critic`` and the states buffer as the value.
 
-.. literalinclude:: ../../../../source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/direct/cartpole/cartpole_env.py
+.. literalinclude:: ../../../../source/isaaclab_tasks/isaaclab_tasks/direct/cartpole/cartpole_env.py
    :language: python
    :pyobject: CartpoleEnv._get_observations
 
@@ -166,7 +166,7 @@ This method is free to implement logic that computes which environments would ne
 and which environments have reached the episode length limit. Both results should be
 returned by the ``_get_dones(self)`` function, in the form of a tuple of boolean tensors.
 
-.. literalinclude:: ../../../../source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/direct/cartpole/cartpole_env.py
+.. literalinclude:: ../../../../source/isaaclab_tasks/isaaclab_tasks/direct/cartpole/cartpole_env.py
    :language: python
    :pyobject: CartpoleEnv._get_dones
 
@@ -174,7 +174,7 @@ Once the indices for environments requiring reset have been computed, the ``_res
 function performs the reset operations on those environments. Within this function, new states
 for the environments requiring reset should be set directly into simulation.
 
-.. literalinclude:: ../../../../source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/direct/cartpole/cartpole_env.py
+.. literalinclude:: ../../../../source/isaaclab_tasks/isaaclab_tasks/direct/cartpole/cartpole_env.py
    :language: python
    :pyobject: CartpoleEnv._reset_idx
 
@@ -185,7 +185,7 @@ There are two APIs that are designed for working with actions. The ``_pre_physic
 from the policy as an argument and is called once per RL step, prior to taking any physics steps. This function can
 be used to process the actions buffer from the policy and cache the data in a class variable for the environment.
 
-.. literalinclude:: ../../../../source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/direct/cartpole/cartpole_env.py
+.. literalinclude:: ../../../../source/isaaclab_tasks/isaaclab_tasks/direct/cartpole/cartpole_env.py
    :language: python
    :pyobject: CartpoleEnv._pre_physics_step
 
@@ -193,7 +193,7 @@ The ``_apply_action(self)`` API is called ``decimation`` number of times for eac
 each physics step. This provides more flexibility for environments where actions should be applied
 for each physics step.
 
-.. literalinclude:: ../../../../source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/direct/cartpole/cartpole_env.py
+.. literalinclude:: ../../../../source/isaaclab_tasks/isaaclab_tasks/direct/cartpole/cartpole_env.py
    :language: python
    :pyobject: CartpoleEnv._apply_action
 
@@ -205,7 +205,7 @@ To run training for the direct workflow Cartpole environment, we can use the fol
 
 .. code-block:: bash
 
-   ./isaaclab.sh -p source/standalone/workflows/rl_games/train.py --task=Isaac-Cartpole-Direct-v0
+   ./isaaclab.sh -p scripts/reinforcement_learning/rl_games/train.py --task=Isaac-Cartpole-Direct-v0
 
 .. figure:: ../../_static/tutorials/tutorial_create_direct_workflow.jpg
     :align: center
@@ -218,7 +218,7 @@ All direct workflow tasks have the suffix ``-Direct`` added to the task name to 
 Domain Randomization
 ~~~~~~~~~~~~~~~~~~~~
 
-In the direct workflow, domain randomization configuration uses the :class:`~omni.isaac.lab.utils.configclass` module
+In the direct workflow, domain randomization configuration uses the :class:`~isaaclab.utils.configclass` module
 to specify a configuration class consisting of :class:`~managers.EventTermCfg` variables.
 
 Below is an example of a configuration class for domain randomization:
@@ -333,7 +333,7 @@ to specify an additive Gaussian distribution that adds the sampled noise to the 
 In this tutorial, we learnt how to create a direct workflow task environment for reinforcement learning. We do this
 by extending the base environment to include the scene setup, actions, dones, reset, reward and observaion functions.
 
-While it is possible to manually create an instance of :class:`~omni.isaac.lab.envs.DirectRLEnv` class for a desired task,
+While it is possible to manually create an instance of :class:`~isaaclab.envs.DirectRLEnv` class for a desired task,
 this is not scalable as it requires specialized scripts for each task. Thus, we exploit the
 :meth:`gymnasium.make` function to create the environment with the gym interface. We will learn how to do this
 in the next tutorial.

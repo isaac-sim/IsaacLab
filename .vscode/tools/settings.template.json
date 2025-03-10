@@ -45,7 +45,6 @@
         "teleoperation",
         "xform",
         "numpy",
-        "tensordict",
         "flatcache",
         "physx",
         "dpad",
@@ -56,7 +55,8 @@
         "arange",
         "discretization",
         "trimesh",
-        "uninstanceable"
+        "uninstanceable",
+        "coeff"
     ],
     // This enables python language server. Seems to work slightly better than jedi:
     "python.languageServer": "Pylance",

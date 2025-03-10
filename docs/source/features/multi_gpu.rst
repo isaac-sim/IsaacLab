@@ -1,7 +1,7 @@
 Multi-GPU and Multi-Node Training
 =================================
 
-.. currentmodule:: omni.isaac.lab
+.. currentmodule:: isaaclab
 
 Isaac Lab supports multi-GPU and multi-node reinforcement learning. Currently, this feature is only
 available for RL-Games and skrl libraries workflows. We are working on extending this feature to
@@ -45,7 +45,7 @@ the skrl library provides a module to start them.
 
 |
 
-To train with multiple GPUs, use the following command, where ``--proc_per_node`` represents the number of available GPUs:
+To train with multiple GPUs, use the following command, where ``--nproc_per_node`` represents the number of available GPUs:
 
 .. tab-set::
     :sync-group: rl-train
@@ -55,7 +55,7 @@ To train with multiple GPUs, use the following command, where ``--proc_per_node`
 
         .. code-block:: shell
 
-            python -m torch.distributed.run --nnodes=1 --nproc_per_node=2 source/standalone/workflows/rl_games/train.py --task=Isaac-Cartpole-v0 --headless --distributed
+            python -m torch.distributed.run --nnodes=1 --nproc_per_node=2 scripts/reinforcement_learning/rl_games/train.py --task=Isaac-Cartpole-v0 --headless --distributed
 
     .. tab-item:: skrl
         :sync: skrl
@@ -67,14 +67,14 @@ To train with multiple GPUs, use the following command, where ``--proc_per_node`
 
                 .. code-block:: shell
 
-                    python -m torch.distributed.run --nnodes=1 --nproc_per_node=2 source/standalone/workflows/skrl/train.py --task=Isaac-Cartpole-v0 --headless --distributed
+                    python -m torch.distributed.run --nnodes=1 --nproc_per_node=2 scripts/reinforcement_learning/skrl/train.py --task=Isaac-Cartpole-v0 --headless --distributed
 
             .. tab-item:: JAX
                 :sync: jax
 
                 .. code-block:: shell
 
-                    python -m skrl.utils.distributed.jax --nnodes=1 --nproc_per_node=2 source/standalone/workflows/skrl/train.py --task=Isaac-Cartpole-v0 --headless --distributed --ml_framework jax
+                    python -m skrl.utils.distributed.jax --nnodes=1 --nproc_per_node=2 scripts/reinforcement_learning/skrl/train.py --task=Isaac-Cartpole-v0 --headless --distributed --ml_framework jax
 
 Multi-Node Training
 -------------------
@@ -93,7 +93,7 @@ For the master node, use the following command, where ``--nproc_per_node`` repre
 
         .. code-block:: shell
 
-            python -m torch.distributed.run --nproc_per_node=2 --nnodes=2 --node_rank=0 --rdzv_id=123 --rdzv_backend=c10d --rdzv_endpoint=localhost:5555 source/standalone/workflows/rl_games/train.py --task=Isaac-Cartpole-v0 --headless --distributed
+            python -m torch.distributed.run --nproc_per_node=2 --nnodes=2 --node_rank=0 --rdzv_id=123 --rdzv_backend=c10d --rdzv_endpoint=localhost:5555 scripts/reinforcement_learning/rl_games/train.py --task=Isaac-Cartpole-v0 --headless --distributed
 
     .. tab-item:: skrl
         :sync: skrl
@@ -105,14 +105,14 @@ For the master node, use the following command, where ``--nproc_per_node`` repre
 
                 .. code-block:: shell
 
-                    python -m torch.distributed.run --nproc_per_node=2 --nnodes=2 --node_rank=0 --rdzv_id=123 --rdzv_backend=c10d --rdzv_endpoint=localhost:5555 source/standalone/workflows/skrl/train.py --task=Isaac-Cartpole-v0 --headless --distributed
+                    python -m torch.distributed.run --nproc_per_node=2 --nnodes=2 --node_rank=0 --rdzv_id=123 --rdzv_backend=c10d --rdzv_endpoint=localhost:5555 scripts/reinforcement_learning/skrl/train.py --task=Isaac-Cartpole-v0 --headless --distributed
 
             .. tab-item:: JAX
                 :sync: jax
 
                 .. code-block:: shell
 
-                    python -m skrl.utils.distributed.jax --nproc_per_node=2 --nnodes=2 --node_rank=0 --coordinator_address=ip_of_master_machine:5555 source/standalone/workflows/skrl/train.py --task=Isaac-Cartpole-v0 --headless --distributed --ml_framework jax
+                    python -m skrl.utils.distributed.jax --nproc_per_node=2 --nnodes=2 --node_rank=0 --coordinator_address=ip_of_master_machine:5555 scripts/reinforcement_learning/skrl/train.py --task=Isaac-Cartpole-v0 --headless --distributed --ml_framework jax
 
 Note that the port (``5555``) can be replaced with any other available port.
 
@@ -126,7 +126,7 @@ For non-master nodes, use the following command, replacing ``--node_rank`` with 
 
         .. code-block:: shell
 
-            python -m torch.distributed.run --nproc_per_node=2 --nnodes=2 --node_rank=1 --rdzv_id=123 --rdzv_backend=c10d --rdzv_endpoint=ip_of_master_machine:5555 source/standalone/workflows/rl_games/train.py --task=Isaac-Cartpole-v0 --headless --distributed
+            python -m torch.distributed.run --nproc_per_node=2 --nnodes=2 --node_rank=1 --rdzv_id=123 --rdzv_backend=c10d --rdzv_endpoint=ip_of_master_machine:5555 scripts/reinforcement_learning/rl_games/train.py --task=Isaac-Cartpole-v0 --headless --distributed
 
     .. tab-item:: skrl
         :sync: skrl
@@ -138,14 +138,14 @@ For non-master nodes, use the following command, replacing ``--node_rank`` with 
 
                 .. code-block:: shell
 
-                    python -m torch.distributed.run --nproc_per_node=2 --nnodes=2 --node_rank=1 --rdzv_id=123 --rdzv_backend=c10d --rdzv_endpoint=ip_of_master_machine:5555 source/standalone/workflows/skrl/train.py --task=Isaac-Cartpole-v0 --headless --distributed
+                    python -m torch.distributed.run --nproc_per_node=2 --nnodes=2 --node_rank=1 --rdzv_id=123 --rdzv_backend=c10d --rdzv_endpoint=ip_of_master_machine:5555 scripts/reinforcement_learning/skrl/train.py --task=Isaac-Cartpole-v0 --headless --distributed
 
             .. tab-item:: JAX
                 :sync: jax
 
                 .. code-block:: shell
 
-                    python -m skrl.utils.distributed.jax --nproc_per_node=2 --nnodes=2 --node_rank=1 --coordinator_address=ip_of_master_machine:5555 source/standalone/workflows/skrl/train.py --task=Isaac-Cartpole-v0 --headless --distributed --ml_framework jax
+                    python -m skrl.utils.distributed.jax --nproc_per_node=2 --nnodes=2 --node_rank=1 --coordinator_address=ip_of_master_machine:5555 scripts/reinforcement_learning/skrl/train.py --task=Isaac-Cartpole-v0 --headless --distributed --ml_framework jax
 
 For more details on multi-node training with PyTorch, please visit the
 `PyTorch documentation <https://pytorch.org/tutorials/intermediate/ddp_series_multinode.html>`_.

@@ -3,7 +3,7 @@
 <!--
 Thank you for your interest in sending a pull request. Please make sure to check the contribution guidelines.
 
-Link: https://isaac-sim.github.io/IsaacLab/source/refs/contributing.html
+Link: https://isaac-sim.github.io/IsaacLab/main/source/refs/contributing.html
 -->
 
 Please include a summary of the change and which issue is fixed. Please also include relevant motivation and context.

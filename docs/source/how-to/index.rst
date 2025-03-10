@@ -71,7 +71,7 @@ This guide demonstrates how to estimate the number of cameras one can run on the
 Drawing Markers
 ---------------
 
-This guide explains how to use the :class:`~omni.isaac.lab.markers.VisualizationMarkers` class to draw markers in
+This guide explains how to use the :class:`~isaaclab.markers.VisualizationMarkers` class to draw markers in
 Isaac Lab.
 
 .. toctree::

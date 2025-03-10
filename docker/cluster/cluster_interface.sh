@@ -177,7 +177,7 @@ case $command in
     job)
         if [ $# -ge 1 ]; then
             passed_profile=$1
-            if [ -f ".env.$passed_profile" ]; then
+            if [ -f "$SCRIPT_DIR/../.env.$passed_profile" ]; then
                 profile=$passed_profile
                 shift
             fi
