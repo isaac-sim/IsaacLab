@@ -11,11 +11,10 @@ There are two main components in this package:
   sub-terrain configuration. It creates a ``trimesh`` mesh object and contains the origins of
   each generated sub-terrain.
 * :class:`TerrainImporter`: This class mainly deals with importing terrains from different
-  possible sources and adding them to the simulator as a prim object. It also stores the
-  terrain mesh into a dictionary called :obj:`TerrainImporter.warp_meshes` that later can be used
-  for ray-casting. The following functions are available for importing terrains:
+  possible sources and adding them to the simulator as a prim object.
+  The following functions are available for importing terrains:
 
-  * :meth:`TerrainImporter.import_ground_plane`: spawn a grid plane which is default in isaacsim/isaaclab.
+  * :meth:`TerrainImporter.import_ground_plane`: spawn a grid plane which is default in Isaac Sim.
   * :meth:`TerrainImporter.import_mesh`: spawn a prim from a ``trimesh`` object.
   * :meth:`TerrainImporter.import_usd`: spawn a prim as reference to input USD file.
 
