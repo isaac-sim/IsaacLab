@@ -117,9 +117,24 @@ class AppLauncher:
         # Hide the stop button in the toolbar
         self._hide_stop_button()
 
+        # Hide play button callback if the timeline is stopped
+        import omni.timeline
+
+        self._hide_play_button_callback = (
+            omni.timeline.get_timeline_interface()
+            .get_timeline_event_stream()
+            .create_subscription_to_pop_by_type(
+                int(omni.timeline.TimelineEventType.STOP), lambda e: self._hide_play_button(True)
+            )
+        )
+        self._unhide_play_button_callback = (
+            omni.timeline.get_timeline_interface()
+            .get_timeline_event_stream()
+            .create_subscription_to_pop_by_type(
+                int(omni.timeline.TimelineEventType.PLAY), lambda e: self._hide_play_button(False)
+            )
+        )
         # Set up signal handlers for graceful shutdown
-        # -- during interrupts
-        signal.signal(signal.SIGINT, self._interrupt_signal_handle_callback)
         # -- during explicit `kill` commands
         signal.signal(signal.SIGTERM, self._abort_signal_handle_callback)
         # -- during segfaults
@@ -796,12 +811,22 @@ class AppLauncher:
                 play_button_group._stop_button.enabled = False  # type: ignore
                 play_button_group._stop_button = None  # type: ignore
 
-    def _interrupt_signal_handle_callback(self, signal, frame):
-        """Handle the interrupt signal from the keyboard."""
-        # close the app
-        self._app.close()
-        # raise the error for keyboard interrupt
-        raise KeyboardInterrupt
+    def _hide_play_button(self, flag):
+        """Hide/Unhide the play button in the toolbar.
+
+        This is used if the timeline is stopped by a GUI action like "save as" to not allow the user to
+        resume the timeline afterwards.
+        """
+        # when we are truly headless, then we can't import the widget toolbar
+        # thus, we only hide the play button when we are not headless (i.e. GUI is enabled)
+        if self._livestream >= 1 or not self._headless:
+            import omni.kit.widget.toolbar
+
+            toolbar = omni.kit.widget.toolbar.get_instance()
+            play_button_group = toolbar._builtin_tools._play_button_group  # type: ignore
+            if play_button_group is not None:
+                play_button_group._play_button.visible = not flag  # type: ignore
+                play_button_group._play_button.enabled = not flag  # type: ignore
 
     def _abort_signal_handle_callback(self, signal, frame):
         """Handle the abort/segmentation/kill signals."""

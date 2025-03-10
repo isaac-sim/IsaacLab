@@ -6,7 +6,6 @@
 import builtins
 import enum
 import numpy as np
-import sys
 import torch
 import traceback
 import weakref
@@ -261,17 +260,17 @@ class SimulationContext(_SimulationContext):
         #   you can reproduce the issue by commenting out this line and running the test `test_articulation.py`.
         self._gravity_tensor = torch.tensor(self.cfg.gravity, dtype=torch.float32, device=self.cfg.device)
 
-        # add callback to deal the simulation app when simulation is stopped.
-        # this is needed because physics views go invalid once we stop the simulation
+        # add a callback to keep rendering when a stop is triggered through different GUI commands like (save as)
         if not builtins.ISAAC_LAUNCHED_FROM_TERMINAL:
             timeline_event_stream = omni.timeline.get_timeline_interface().get_timeline_event_stream()
             self._app_control_on_stop_handle = timeline_event_stream.create_subscription_to_pop_by_type(
                 int(omni.timeline.TimelineEventType.STOP),
-                lambda *args, obj=weakref.proxy(self): obj._app_control_on_stop_callback(*args),
+                lambda *args, obj=weakref.proxy(self): obj._app_control_on_stop_handle_fn(*args),
                 order=15,
             )
         else:
             self._app_control_on_stop_handle = None
+        self._disable_app_control_on_stop_handle = False
 
         # flatten out the simulation dictionary
         sim_params = self.cfg.to_dict()
@@ -455,6 +454,7 @@ class SimulationContext(_SimulationContext):
     """
 
     def reset(self, soft: bool = False):
+        self._disable_app_control_on_stop_handle = True
         super().reset(soft=soft)
         # app.update() may be changing the cuda device in reset, so we force it back to our desired device here
         if "cuda" in self.device:
@@ -467,6 +467,7 @@ class SimulationContext(_SimulationContext):
         if not soft:
             for _ in range(2):
                 self.render()
+        self._disable_app_control_on_stop_handle = False
 
     def step(self, render: bool = True):
         """Steps the simulation.
@@ -662,7 +663,7 @@ class SimulationContext(_SimulationContext):
     Callbacks.
     """
 
-    def _app_control_on_stop_callback(self, event: carb.events.IEvent):
+    def _app_control_on_stop_handle_fn(self, event: carb.events.IEvent):
         """Callback to deal with the app when the simulation is stopped.
 
         Once the simulation is stopped, the physics handles go invalid. After that, it is not possible to
@@ -679,67 +680,10 @@ class SimulationContext(_SimulationContext):
             This callback is used only when running the simulation in a standalone python script. In an extension,
             it is expected that the user handles the extension shutdown.
         """
-        # check if the simulation is stopped
-        if event.type == int(omni.timeline.TimelineEventType.STOP):
-            # keep running the simulator when configured to not shutdown the app
-            if self._has_gui and sys.exc_info()[0] is None:
-                omni.log.warn(
-                    "Simulation is stopped. The app will keep running with physics disabled."
-                    " Press Ctrl+C or close the window to exit the app."
-                )
-                while self.app.is_running():
-                    self.render()
-
-        # Note: For the following code:
-        #   The method is an exact copy of the implementation in the `isaacsim.simulation_app.SimulationApp` class.
-        #   We need to remove this method once the SimulationApp class becomes a singleton.
-
-        # make sure that any replicator workflows finish rendering/writing
-        try:
-            import omni.replicator.core as rep
-
-            rep_status = rep.orchestrator.get_status()
-            if rep_status not in [rep.orchestrator.Status.STOPPED, rep.orchestrator.Status.STOPPING]:
-                rep.orchestrator.stop()
-            if rep_status != rep.orchestrator.Status.STOPPED:
-                rep.orchestrator.wait_until_complete()
-
-            # Disable capture on play to avoid replicator engaging on any new timeline events
-            rep.orchestrator.set_capture_on_play(False)
-        except Exception:
-            pass
-
-        # clear the instance and all callbacks
-        # note: clearing callbacks is important to prevent memory leaks
-        self.clear_all_callbacks()
-
-        # workaround for exit issues, clean the stage first:
-        if omni.usd.get_context().can_close_stage():
-            omni.usd.get_context().close_stage()
-
-        # print logging information
-        print("[INFO]: Simulation is stopped. Shutting down the app.")
-
-        # Cleanup any running tracy instances so data is not lost
-        try:
-            profiler_tracy = carb.profiler.acquire_profiler_interface(plugin_name="carb.profiler-tracy.plugin")
-            if profiler_tracy:
-                profiler_tracy.set_capture_mask(0)
-                profiler_tracy.end(0)
-                profiler_tracy.shutdown()
-        except RuntimeError:
-            # Tracy plugin was not loaded, so profiler never started - skip checks.
-            pass
-
-        # Disable logging before shutdown to keep the log clean
-        # Warnings at this point don't matter as the python process is about to be terminated
-        logging = carb.logging.acquire_logging()
-        logging.set_level_threshold(carb.logging.LEVEL_ERROR)
-
-        # App shutdown is disabled to prevent crashes on shutdown. Terminating carb is faster
-        self._app.shutdown()
-        self._framework.unload_all_plugins()
-        sys.exit(0)
+        if not self._disable_app_control_on_stop_handle:
+            while not omni.timeline.get_timeline_interface().is_playing():
+                self.render()
+        return
 
 
 @contextmanager

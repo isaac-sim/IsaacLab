@@ -44,14 +44,11 @@ Fixed
 0.36.2 (2025-03-12)
 ~~~~~~~~~~~~~~~~~~~
 
-Added
-^^^^^
+Changed
+^^^^^^^
 
-* Added a new event mode called "prestartup", which gets called right after the scene design is complete
-  and before the simulation is played.
-* Added a callback to resolve the scene entity configurations separately once the simulation plays,
-  since the scene entities cannot be resolved before the simulation starts playing
-  (as we currently rely on PhysX to provide us with the joint/body ordering)
+* Allowed users to exit on 1 Ctrl+C instead of consecutive 2 key strokes.
+* Allowed physics reset during simulation through :meth:`reset` in :class:`~isaaclab.sim.SimulationContext`.
 
 
 0.36.1 (2025-03-10)
@@ -116,6 +113,19 @@ Changed
   * ``fixed_tendon_limit`` → ``fixed_tendon_pos_limits``
   * ``default_fixed_tendon_limit`` → ``default_fixed_tendon_pos_limits``
   * ``set_fixed_tendon_limit`` → ``set_fixed_tendon_position_limit``
+
+
+0.34.13 (2025-03-06)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added a new event mode called "prestartup", which gets called right after the scene design is complete
+  and before the simulation is played.
+* Added a callback to resolve the scene entity configurations separately once the simulation plays,
+  since the scene entities cannot be resolved before the simulation starts playing
+  (as we currently rely on PhysX to provide us with the joint/body ordering)
 
 
 0.34.12 (2025-03-06)
