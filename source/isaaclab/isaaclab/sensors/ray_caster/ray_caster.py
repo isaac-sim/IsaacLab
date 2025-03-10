@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING
 
 import omni.log
 import omni.physics.tensors.impl.api as physx
+import warp as wp
 from isaacsim.core.prims import XFormPrim
 from pxr import UsdGeom, UsdPhysics
 
@@ -20,7 +21,7 @@ import isaaclab.sim as sim_utils
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.terrains.trimesh.utils import make_plane
 from isaaclab.utils.math import convert_quat, quat_apply, quat_apply_yaw
-from isaaclab.utils.warp import convert_to_warp_mesh, raycast_mesh
+from isaaclab.utils.warp import convert_to_warp_mesh, multi_raycast_mesh
 
 from ..sensor_base import SensorBase
 from .ray_caster_data import RayCasterData
@@ -63,8 +64,10 @@ class RayCaster(SensorBase):
         super().__init__(cfg)
         # Create empty variables for storing output data
         self._data = RayCasterData()
-        # Dictionary to hold warp mesh info. Keys are mesh prim patterns.
+        # Dictionary to hold warp mesh info. Keys are mesh prim patterns
         self.meshes: dict[str, list[dict]] = {}
+        # Cached mapping to avoid per-frame CPU overhead
+        self._cached_mesh_mapping = None
 
     def __str__(self) -> str:
         """Returns: A string containing information about the instance."""
@@ -177,14 +180,14 @@ class RayCaster(SensorBase):
                     mesh = make_plane(size=(2e6, 2e6), height=0.0, center_zero=True)
                     base_points = mesh.vertices
                     base_indices = mesh.faces
-                    wp_mesh = convert_to_warp_mesh(base_points, base_indices, device=self.device)
+                    wp_mesh = convert_to_warp_mesh(base_points, base_indices, device=self._device)
                     is_plane = True
                 elif prim_type == "Mesh":
                     # read vertices and face indices from the mesh prim.
                     mesh_prim = UsdGeom.Mesh(prim)
                     base_points = np.asarray(mesh_prim.GetPointsAttr().Get())
                     base_indices = np.asarray(mesh_prim.GetFaceVertexIndicesAttr().Get())
-                    wp_mesh = convert_to_warp_mesh(base_points, base_indices, device=self.device)
+                    wp_mesh = convert_to_warp_mesh(base_points, base_indices, device=self._device)
                     is_plane = False
                 else:
                     omni.log.warn(f"Unsupported prim type '{prim_type}' at {prim.GetPath()}")
@@ -218,7 +221,7 @@ class RayCaster(SensorBase):
         self.ray_starts = self.ray_starts.repeat(self._view.count, 1, 1)
         self.ray_directions = self.ray_directions.repeat(self._view.count, 1, 1)
         # prepare drift
-        self.drift = torch.zeros(self._view.count, 3, device=self.device)
+        self.drift = torch.zeros(self._view.count, 3, device=self._device)
         # fill the data buffer
         self._data.pos_w = torch.zeros(self._view.count, 3, device=self._device)
         self._data.quat_w = torch.zeros(self._view.count, 4, device=self._device)
@@ -258,43 +261,131 @@ class RayCaster(SensorBase):
             ray_starts_w += pos_w.unsqueeze(1)
             ray_directions_w = quat_apply(quat_w.repeat(1, self.num_rays), self.ray_directions[env_ids])
 
-        # initialize buffers for storing the closest hit for each ray
-        final_hits = torch.full((self._view.count, self.num_rays, 3), float("inf"), device=self.device)
-        final_distances = torch.full((self._view.count, self.num_rays), float("inf"), device=self.device)
+        num_env = ray_starts_w.shape[0]
+        final_hits = torch.full((num_env, self.num_rays, 3), float("inf"), device=self._device)
+        mesh_ids_list = []
+        mesh_env_indices_list = []
+        # to avoid the meshes from being garbage collected we hold the references alive during the kernel execution
+        self._dynamic_wp_meshes = []
 
         # loop over each mesh and its corresponding mesh infos
         for pattern, mesh_info_list in self.meshes.items():
             for mesh_info in mesh_info_list:
                 mesh_view = mesh_info["xform_view"]
-                indices = torch.arange(mesh_view.count, device=self.device)
+                indices = torch.arange(mesh_view.count, device=self._device)
                 # get the current world transforms for the mesh prim (for dynamic updates)
                 mesh_pos, mesh_quat = mesh_view.get_world_poses(indices)
-                base_points = torch.tensor(mesh_info["base_points"], device=self.device, dtype=torch.float32)
+                base_points = torch.tensor(mesh_info["base_points"], device=self._device)
                 # vectorize the transformation by applying the current rotation and translation to all base points using broadcasting
                 new_points = quat_apply(
                     mesh_quat, base_points.unsqueeze(0).repeat(mesh_view.count, 1, 1)
                 ) + mesh_pos.unsqueeze(1)
-                # flatten the transformed points
-                new_points_np = new_points.cpu().numpy().reshape(-1, 3)
-                # create a new warp mesh with updated vertex positions for dynamic collision detection
-                new_wp_mesh = convert_to_warp_mesh(new_points_np, mesh_info["indices"], device=self.device)
-                # update the warp mesh in the mesh info dictionary for future use
-                mesh_info["warp_mesh"] = new_wp_mesh
-                # perform ray casting on the updated warp mesh
-                hit, distance, _, _ = raycast_mesh(
-                    ray_starts_w,
-                    ray_directions_w,
-                    max_dist=self.cfg.max_distance,
-                    mesh=new_wp_mesh,
-                    return_distance=True,
-                )
-                # use a mask to determine which rays hit this mesh closer than previous hits.
-                mask = distance < final_distances[env_ids]
-                final_distances[env_ids][mask] = distance[env_ids][mask]
-                final_hits[env_ids][mask] = hit[env_ids][mask]
+                # if there is only one mesh instance, update the points and refit the mesh
+                # then, assign the mesh to all environments
+                if mesh_view.count == 1:
+                    wp_points = wp.from_torch(new_points[0], dtype=wp.vec3)
+                    existing_mesh = mesh_info["warp_mesh"]
+                    existing_mesh.points = wp_points
+                    existing_mesh.refit()
+                    for env_idx in range(self._view.count):
+                        mesh_ids_list.append(existing_mesh.id)
+                        mesh_env_indices_list.append(env_idx)
+                        self._dynamic_wp_meshes.append(existing_mesh)
+                # if there are separate mesh instances for each environment, update each instance individually
+                else:
+                    if "dynamic_meshes" not in mesh_info:
+                        mesh_info["dynamic_meshes"] = {}
+                    for env_idx in range(mesh_view.count):
+                        if env_idx in mesh_info["dynamic_meshes"]:
+                            dynamic_mesh = mesh_info["dynamic_meshes"][env_idx]
+                            wp_points = wp.from_torch(new_points[env_idx], dtype=wp.vec3)
+                            dynamic_mesh.points = wp_points
+                            dynamic_mesh.refit()
+                        else:
+                            wp_points = wp.from_torch(new_points[env_idx], dtype=wp.vec3)
+                            dynamic_mesh = convert_to_warp_mesh(
+                                wp_points.numpy(), mesh_info["indices"], device=self._device
+                            )
+                            mesh_info["dynamic_meshes"][env_idx] = dynamic_mesh
+                        mesh_ids_list.append(dynamic_mesh.id)
+                        mesh_env_indices_list.append(env_idx)
+                        self._dynamic_wp_meshes.append(dynamic_mesh)
 
-        # update the ray hit data for the specified environments
-        self._data.ray_hits_w[env_ids] = final_hits[env_ids]
+        # cache the full mapping across all environments once
+        if not hasattr(self, "_cached_full_mesh_mapping"):
+            # build full mapping
+            full_mesh_ids = torch.tensor(mesh_ids_list, dtype=torch.int64, device=self._device)
+            full_env_ids = torch.tensor(mesh_env_indices_list, dtype=torch.int32, device=self._device)
+            sorted_order = torch.argsort(full_env_ids)
+            full_mesh_ids = full_mesh_ids[sorted_order]
+            full_env_ids = full_env_ids[sorted_order]
+            offsets = [0]
+            mapping_dict = {}
+            full_env_ids_cpu = full_env_ids.cpu().numpy()
+            for env in range(self._view.count):
+                indices_env = [i for i, val in enumerate(full_env_ids_cpu) if val == env]
+                if indices_env:
+                    start = indices_env[0]
+                    end = indices_env[-1] + 1
+                else:
+                    start = 0
+                    end = 0
+                mapping_dict[env] = (start, end)
+                offsets.append(end)
+            full_offsets = torch.tensor(offsets, dtype=torch.int32, device=self._device)
+            # cache the full mapping and the dictionary
+            self._cached_full_mesh_mapping = (full_mesh_ids, full_offsets, mapping_dict)
+
+        # retrieve the cached mapping
+        full_mesh_ids, full_offsets, mapping_dict = self._cached_full_mesh_mapping
+
+        # if updating all environments, use the full cached mapping
+        # otherwise, build a subset mapping for the selected env_ids
+        if isinstance(env_ids, slice) and env_ids == slice(None):
+            mesh_ids_tensor = full_mesh_ids
+            env_offsets = full_offsets
+        else:
+            try:
+                if hasattr(env_ids, "cpu"):
+                    env_ids_list = sorted(env_ids.cpu().tolist())
+                else:
+                    env_ids_list = sorted(list(env_ids))
+            except Exception:
+                env_ids_list = sorted(list(env_ids))
+            subset_ids = []
+            subset_offsets = [0]
+            for env in env_ids_list:
+                start, end = mapping_dict.get(env, (0, 0))
+                if end > start:
+                    subset_ids.append(full_mesh_ids[start:end])
+                    count = end - start
+                else:
+                    count = 0
+                subset_offsets.append(subset_offsets[-1] + count)
+            if subset_ids:
+                mesh_ids_tensor = torch.cat(subset_ids)
+            else:
+                mesh_ids_tensor = torch.tensor([], dtype=torch.int64, device=self._device)
+            env_offsets = torch.tensor(subset_offsets, dtype=torch.int32, device=self._device)
+
+        # flatten the ray arrays for launching the multi–mesh kernel
+        rays_flat = ray_starts_w.view(-1, 3)
+        ray_dirs_flat = ray_directions_w.view(-1, 3)
+
+        # launch the multi–mesh raycast kernel
+        hits_flat, distances_flat = multi_raycast_mesh(
+            ray_starts=rays_flat,
+            ray_directions=ray_dirs_flat,
+            env_offsets=env_offsets,
+            mesh_ids=mesh_ids_tensor,
+            rays_per_env=self.num_rays,
+            max_dist=self.cfg.max_distance,
+            return_distance=True,
+        )
+        final_hits = hits_flat.view(num_env, self.num_rays, 3)
+
+        # store the hits into the sensor data buffer
+        self._data.ray_hits_w[env_ids] = final_hits
 
     def _set_debug_vis_impl(self, debug_vis: bool):
         # set visibility of markers

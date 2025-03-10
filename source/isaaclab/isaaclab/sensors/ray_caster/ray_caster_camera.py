@@ -11,11 +11,12 @@ from typing import TYPE_CHECKING, ClassVar, Literal
 
 import isaacsim.core.utils.stage as stage_utils
 import omni.physics.tensors.impl.api as physx
+import warp as wp
 from isaacsim.core.prims import XFormPrim
 
 import isaaclab.utils.math as math_utils
 from isaaclab.sensors.camera import CameraData
-from isaaclab.utils.warp import convert_to_warp_mesh, raycast_mesh
+from isaaclab.utils.warp import convert_to_warp_mesh, multi_raycast_mesh
 
 from .ray_caster import RayCaster
 
@@ -75,6 +76,8 @@ class RayCasterCamera(RayCaster):
         super().__init__(cfg)
         # create empty variables for storing output data
         self._data = CameraData()
+        # Cached mapping to avoid per-frame CPU overhead
+        self._cached_mesh_mapping_cam = None
 
     def __str__(self) -> str:
         """Returns: A string containing information about the instance."""
@@ -130,8 +133,7 @@ class RayCasterCamera(RayCaster):
         # save new intrinsic matrices and focal length
         self._data.intrinsic_matrices[env_ids] = matrices.to(self._device)
         self._focal_length = focal_length
-        # recompute ray directions
-        self.ray_starts[env_ids], self.ray_directions[env_ids] = self.cfg.pattern_cfg.func(
+        self.ray_starts, self.ray_directions = self.cfg.pattern_cfg.func(
             self.cfg.pattern_cfg, self._data.intrinsic_matrices[env_ids], self._device
         )
 
@@ -228,7 +230,7 @@ class RayCasterCamera(RayCaster):
     """
 
     def _initialize_rays_impl(self):
-        # Create all indices buffer
+        # Prepare per–sensor indices and frame counter.
         self._ALL_INDICES = torch.arange(self._view.count, device=self._device, dtype=torch.long)
         # Create frame count buffer
         self._frame = torch.zeros(self._view.count, device=self._device, dtype=torch.long)
@@ -245,7 +247,9 @@ class RayCasterCamera(RayCaster):
         self.ray_hits_w = torch.zeros(self._view.count, self.num_rays, 3, device=self._device)
         # set offsets
         quat_w = math_utils.convert_camera_frame_orientation_convention(
-            torch.tensor([self.cfg.offset.rot], device=self._device), origin=self.cfg.offset.convention, target="world"
+            torch.tensor([self.cfg.offset.rot], device=self._device),
+            origin=self.cfg.offset.convention,
+            target="world",
         )
         self._offset_quat = quat_w.repeat(self._view.count, 1)
         self._offset_pos = torch.tensor(list(self.cfg.offset.pos), device=self._device).repeat(self._view.count, 1)
@@ -265,49 +269,110 @@ class RayCasterCamera(RayCaster):
         ray_starts_w = math_utils.quat_apply(quat_w.repeat(1, self.num_rays), self.ray_starts[env_ids])
         ray_starts_w += pos_w.unsqueeze(1)
         ray_directions_w = math_utils.quat_apply(quat_w.repeat(1, self.num_rays), self.ray_directions[env_ids])
+        num_batch = ray_starts_w.shape[0]
 
-        # initialize buffers for accumulating results.
-        final_hits = torch.full((self._view.count, self.num_rays, 3), float("inf"), device=self.device)
-        final_depth = torch.full((self._view.count, self.num_rays), float("inf"), device=self.device)
-        final_normals = torch.full((self._view.count, self.num_rays, 3), float("inf"), device=self.device)
-
-        # loop over all mesh and their corresponding mesh infos.
+        final_hits = torch.full((num_batch, self.num_rays, 3), float("inf"), device=self._device)
+        final_depth = torch.full((num_batch, self.num_rays), float("inf"), device=self._device)
+        final_normals = None
+        if "normals" in self.cfg.data_types:
+            final_normals = torch.full((num_batch, self.num_rays, 3), float("inf"), device=self._device)
+        mesh_ids_list = []
+        mesh_env_indices_list = []
+        # to avoid the meshes from being garbage collected we hold the references alive during the kernel execution
+        self._dynamic_wp_meshes = []
+        # loop over each mesh and its corresponding mesh infos
         for pattern, mesh_info_list in self.meshes.items():
             for mesh_info in mesh_info_list:
                 # retrieve the current transform of the mesh using its xform view.
                 mesh_view = mesh_info["xform_view"]
-                indices = torch.arange(mesh_view.count, device=self.device)
+                indices = torch.arange(mesh_view.count, device=self._device)
                 mesh_pos, mesh_quat = mesh_view.get_world_poses(indices)
-                base_points = torch.tensor(mesh_info["base_points"], device=self.device, dtype=torch.float32)
-                # update vertex positions by applying the current mesh transformation.
+                base_points = torch.tensor(mesh_info["base_points"], device=self._device)
                 new_points = math_utils.quat_apply(
                     mesh_quat, base_points.unsqueeze(0).repeat(mesh_view.count, 1, 1)
                 ) + mesh_pos.unsqueeze(1)
-                new_points_np = new_points.cpu().numpy().reshape(-1, 3)
-                # rebuild the warp mesh with updated vertex positions.
-                new_wp_mesh = convert_to_warp_mesh(new_points_np, mesh_info["indices"], device=self.device)
-                # store the updated warp mesh in the mesh info dictionary.
-                mesh_info["warp_mesh"] = new_wp_mesh
-                # perform raycasting for this dynamic mesh
-                # note: we set max distance to 1e6 during the ray-casting. This is because we clip the distance
-                # to the image plane and distance to the camera to the maximum distance afterwards in-order to
-                # match the USD camera behavior.
-                hit, depth, normal, _ = raycast_mesh(
-                    ray_starts_w,
-                    ray_directions_w,
-                    max_dist=1e6,
-                    mesh=new_wp_mesh,
-                    return_distance=True,
-                    return_normal="normals" in self.cfg.data_types,
-                )
-                # update the final results if this mesh produces a closer hit.
-                mask = depth < final_depth
-                final_depth[mask] = depth[mask]
-                final_hits[mask] = hit[mask]
-                if "normals" in self.cfg.data_types:
-                    final_normals[mask] = normal[mask]
+                # if there is only one mesh instance, update the points and refit the mesh
+                # then, assign the mesh to all environments
+                if mesh_view.count == 1:
+                    wp_points = wp.from_torch(new_points[0], dtype=wp.vec3)
+                    existing_mesh = mesh_info["warp_mesh"]
+                    existing_mesh.points = wp_points
+                    existing_mesh.refit()
+                    for env_idx in range(self._view.count):
+                        mesh_ids_list.append(existing_mesh.id)
+                        mesh_env_indices_list.append(env_idx)
+                        self._dynamic_wp_meshes.append(existing_mesh)
+                # if there are separate mesh instances for each environment, update each instance individually
+                else:
+                    if "dynamic_meshes" not in mesh_info:
+                        mesh_info["dynamic_meshes"] = {}
+                    for env_idx in range(mesh_view.count):
+                        if env_idx in mesh_info["dynamic_meshes"]:
+                            dynamic_mesh = mesh_info["dynamic_meshes"][env_idx]
+                            wp_points = wp.from_torch(new_points[env_idx], dtype=wp.vec3)
+                            dynamic_mesh.points = wp_points
+                            dynamic_mesh.refit()
+                        else:
+                            wp_points = wp.from_torch(new_points[env_idx], dtype=wp.vec3)
+                            dynamic_mesh = convert_to_warp_mesh(
+                                wp_points.numpy(), mesh_info["indices"], device=self._device
+                            )
+                            mesh_info["dynamic_meshes"][env_idx] = dynamic_mesh
+                        mesh_ids_list.append(dynamic_mesh.id)
+                        mesh_env_indices_list.append(env_idx)
+                        self._dynamic_wp_meshes.append(dynamic_mesh)
 
-        # save the computed ray hit positions.
+        # cache the sorted mapping on the first update to avoid re-sorting every frame
+        if self._cached_mesh_mapping_cam is None:
+            mesh_ids_tensor = torch.tensor(mesh_ids_list, dtype=torch.int64, device=self._device)
+            mesh_env_indices_tensor = torch.tensor(mesh_env_indices_list, dtype=torch.int32, device=self._device)
+            sorted_order = torch.argsort(mesh_env_indices_tensor)
+            mesh_ids_tensor = mesh_ids_tensor[sorted_order]
+            mesh_env_indices_tensor = mesh_env_indices_tensor[sorted_order]
+            offsets = [0]
+            mesh_env_indices_cpu = mesh_env_indices_tensor.cpu().numpy()
+            for env in range(self._view.count):
+                indices_env = [i for i, val in enumerate(mesh_env_indices_cpu) if val == env]
+                if indices_env:
+                    offsets.append(indices_env[-1] + 1)
+                else:
+                    offsets.append(offsets[-1])
+            env_offsets = torch.tensor(offsets, dtype=torch.int32, device=self._device)
+            self._cached_mesh_mapping_cam = (mesh_ids_tensor, env_offsets)
+        else:
+            mesh_ids_tensor, env_offsets = self._cached_mesh_mapping_cam
+
+        # flatten the ray arrays for launching the multi–mesh kernel
+        rays_flat = ray_starts_w.view(-1, 3)
+        ray_dirs_flat = ray_directions_w.view(-1, 3)
+
+        # launch the multi–mesh raycast kernel
+        if "normals" in self.cfg.data_types:
+            hits_flat, distances_flat, normals_flat = multi_raycast_mesh(
+                ray_starts=rays_flat,
+                ray_directions=ray_dirs_flat,
+                env_offsets=env_offsets,
+                mesh_ids=mesh_ids_tensor,
+                rays_per_env=self.num_rays,
+                max_dist=1e6,
+                return_distance=True,
+                return_normal=True,
+            )
+            final_normals = normals_flat.view(num_batch, self.num_rays, 3)
+        else:
+            hits_flat, distances_flat = multi_raycast_mesh(
+                ray_starts=rays_flat,
+                ray_directions=ray_dirs_flat,
+                env_offsets=env_offsets,
+                mesh_ids=mesh_ids_tensor,
+                rays_per_env=self.num_rays,
+                max_dist=1e6,
+                return_distance=True,
+                return_normal=False,
+            )
+        final_hits = hits_flat.view(num_batch, self.num_rays, 3)
+        final_depth = distances_flat.view(num_batch, self.num_rays)
+
         self.ray_hits_w[env_ids] = final_hits[env_ids]
 
         # process and store camera-specific outputs.
@@ -331,7 +396,7 @@ class RayCasterCamera(RayCaster):
             )
 
         if "distance_to_camera" in self.cfg.data_types:
-            ray_depth = final_depth
+            ray_depth = final_depth.clone()
             if self.cfg.depth_clipping_behavior == "max":
                 ray_depth = torch.clip(ray_depth, max=self.cfg.max_distance)
             elif self.cfg.depth_clipping_behavior == "zero":
@@ -368,7 +433,7 @@ class RayCasterCamera(RayCaster):
     def _create_buffers(self):
         """Create buffers for storing data."""
         # prepare drift
-        self.drift = torch.zeros(self._view.count, 3, device=self.device)
+        self.drift = torch.zeros(self._view.count, 3, device=self._device)
         # create the data object
         # -- pose of the cameras
         self._data.pos_w = torch.zeros((self._view.count, 3), device=self._device)

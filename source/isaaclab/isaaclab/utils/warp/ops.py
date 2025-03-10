@@ -127,6 +127,103 @@ def raycast_mesh(
     return ray_hits.to(device).view(shape), ray_distance, ray_normal, ray_face_id
 
 
+def multi_raycast_mesh(
+    ray_starts: torch.Tensor,
+    ray_directions: torch.Tensor,
+    env_offsets: torch.Tensor,
+    mesh_ids: torch.Tensor,
+    rays_per_env: int,
+    max_dist: float = 1e6,
+    return_distance: bool = False,
+    return_normal: bool = False,
+) -> tuple[torch.Tensor, torch.Tensor | None]:
+    """Performs batched ray-casting using multiple meshes across environments.
+
+    This function launches the warp kernel `multi_mesh_raycast_kernel` to process a batch of rays
+    grouped by environment. Each ray is cast against all meshes in its environment and the closest
+    hit is recorded.
+
+    Args:
+        ray_starts: The starting positions of the rays. Shape (N, 3), where N is the total number of rays.
+        ray_directions: The normalized ray direction vectors. Shape (N, 3).
+        env_offsets: Offsets delineating the mesh grouping per environment. Shape (num_envs + 1,). Each pair of
+            consecutive entries defines the range of mesh indices for that environment.
+        mesh_ids: Sorted warp mesh IDs corresponding to the meshes in each environment.
+        rays_per_env: The number of rays processed per environment.
+        max_dist: The maximum distance to search for ray intersections. Defaults to 1e6.
+        return_distance: Whether to return the distance from the ray start to the hit point. Defaults to False.
+        return_normal: Whether to return the normal of the mesh face that is hit. Defaults to False.
+
+    Returns:
+        The ray hit positions. Shape (N, 3), with float('inf') for missed hits.
+        The ray hit distances. Shape (N,), with float('inf') for missed hits.
+            Returned only if return_distance is True; else, returns None.
+        The ray hit normals. Shape (N, 3), with float('inf') for missed hits.
+            Returned only if return_normal is True; else, returns None.
+    """
+    total_rays = ray_starts.shape[0]
+    device = ray_starts.device
+    out_hits = torch.full((total_rays, 3), float("inf"), device=device)
+    if return_distance:
+        out_distance = torch.full((total_rays,), float("inf"), device=device)
+    else:
+        out_distance = None
+    if return_normal:
+        out_normal = torch.full((total_rays, 3), float("inf"), device=device)
+    else:
+        out_normal = None
+
+    # convert tensors to warp arrays once
+    ray_starts_wp = wp.from_torch(ray_starts.contiguous(), dtype=wp.vec3)
+    ray_directions_wp = wp.from_torch(ray_directions.contiguous(), dtype=wp.vec3)
+    out_hits_wp = wp.from_torch(out_hits, dtype=wp.vec3)
+    if return_distance:
+        out_distance_wp = wp.from_torch(out_distance, dtype=wp.float32)
+    else:
+        out_distance_wp = wp.empty((1,), dtype=wp.float32, device=device.type)
+    if return_normal:
+        out_normal_wp = wp.from_torch(out_normal, dtype=wp.vec3)
+    else:
+        out_normal_wp = wp.empty((1,), dtype=wp.vec3, device=device.type)
+
+    mesh_ids_wp = wp.from_torch(mesh_ids.contiguous(), dtype=wp.uint64)
+    env_offsets_wp = wp.from_torch(env_offsets.contiguous(), dtype=wp.int32)
+
+    wp.launch(
+        kernel=kernels.multi_mesh_raycast_kernel,
+        dim=total_rays,
+        inputs=[
+            env_offsets_wp,
+            mesh_ids_wp,
+            ray_starts_wp,
+            ray_directions_wp,
+            out_hits_wp,
+            out_distance_wp,
+            out_normal_wp,
+            rays_per_env,
+            float(max_dist),
+            int(return_distance),
+            int(return_normal),
+        ],
+        device=device.type,
+    )
+    wp.synchronize()
+
+    # note: the kernel does not support infinity, so it is replaced here
+    if return_distance:
+        mask = out_distance == max_dist
+        out_distance[mask] = float("inf")
+        out_hits[mask] = float("inf")
+        out_distance = out_distance.to(device)
+    out_hits = out_hits.to(device)
+
+    if return_normal:
+        out_normal = out_normal.to(device)
+        return out_hits, out_distance, out_normal
+    else:
+        return out_hits, out_distance
+
+
 def convert_to_warp_mesh(points: np.ndarray, indices: np.ndarray, device: str) -> wp.Mesh:
     """Create a warp mesh object with a mesh defined from vertices and triangles.
 
