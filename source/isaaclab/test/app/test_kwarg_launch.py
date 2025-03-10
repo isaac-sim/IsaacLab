@@ -7,6 +7,8 @@ import pytest
 
 from isaaclab.app import AppLauncher, run_tests
 
+if AppLauncher.instance():
+    AppLauncher.clear_instance()
 
 def test_livestream_launch_with_kwarg():
     """Test launching with headless and livestreaming arguments."""

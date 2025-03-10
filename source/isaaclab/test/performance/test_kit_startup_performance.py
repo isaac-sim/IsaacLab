@@ -9,21 +9,16 @@
 from __future__ import annotations
 
 import time
-import pytest
 
-from isaaclab.app import run_tests
+from isaaclab.app import AppLauncher, run_tests
 
+if AppLauncher.instance():
+    AppLauncher.clear_instance()
 
 def test_kit_start_up_time():
     """Test kit start-up time."""
-    from isaaclab.app import AppLauncher
-
     start_time = time.time()
     app_launcher = AppLauncher(headless=True).app
     end_time = time.time()
     elapsed_time = end_time - start_time
     assert elapsed_time <= 10.0
-
-
-if __name__ == "__main__":
-    run_tests()

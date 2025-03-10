@@ -11,9 +11,11 @@
 from isaaclab.app import AppLauncher, run_tests
 
 # launch omniverse app
-simulation_app = AppLauncher(headless=True).app
+if not AppLauncher.instance():
+    simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows."""
+
 
 import torch
 import pytest
@@ -27,11 +29,11 @@ DummyEnv = namedtuple("ManagerBasedRLEnv", ["num_envs", "dt", "device", "dummy1"
 
 
 def reset_dummy1_to_zero(env, env_ids: torch.Tensor):
-    env.dummy1[env_ids] = 0.0
+    env.dummy1[env_ids] = 0
 
 
 def increment_dummy1_by_one(env, env_ids: torch.Tensor):
-    env.dummy1[env_ids] += 1.0
+    env.dummy1[env_ids] += 1
 
 
 def change_dummy1_by_value(env, env_ids: torch.Tensor, value: int):
@@ -39,17 +41,22 @@ def change_dummy1_by_value(env, env_ids: torch.Tensor, value: int):
 
 
 def reset_dummy2_to_zero(env, env_ids: torch.Tensor):
-    env.dummy2[env_ids] = 0.0
+    env.dummy2[env_ids] = 0
 
 
 def increment_dummy2_by_one(env, env_ids: torch.Tensor):
-    env.dummy2[env_ids] += 1.0
+    env.dummy2[env_ids] += 1
 
 
 @pytest.fixture
 def env():
-    """Create a dummy environment."""
-    return DummyEnv(20, 0.01, "cpu", torch.zeros(20, device="cpu"), torch.zeros(20, device="cpu"))
+    num_envs = 32
+    device = "cpu"
+    # create dummy tensors
+    dummy1 = torch.zeros((num_envs, 2), device=device)
+    dummy2 = torch.zeros((num_envs, 10), device=device)
+    # create dummy environment
+    return DummyEnv(num_envs, 0.01, device, dummy1, dummy2)
 
 
 def test_str(env):
@@ -61,7 +68,7 @@ def test_str(env):
         "term_4": EventTermCfg(func=change_dummy1_by_value, mode="custom", params={"value": 2}),
     }
     event_man = EventManager(cfg, env)
-    assert len(event_man.active_terms) == 3
+
     # print the expected string
     print()
     print(event_man)
@@ -131,7 +138,7 @@ def test_active_terms(env):
 
 
 def test_config_empty(env):
-    """Test the creation of event manager with empty config."""
+    """Test the creation of reward manager with empty config."""
     event_man = EventManager(None, env)
     assert len(event_man.active_terms) == 0
 
@@ -147,145 +154,208 @@ def test_invalid_event_func_module(env):
         "term_2": EventTermCfg(func="a:reset_dummy1_to_zero", mode="reset"),
     }
     with pytest.raises(ValueError):
-        EventManager(cfg, env)
+        event_man = EventManager(cfg, env)
 
 
 def test_invalid_event_config(env):
     """Test the handling of invalid event function's config parameters."""
     cfg = {
         "term_1": EventTermCfg(func=increment_dummy1_by_one, mode="interval", interval_range_s=(0.1, 0.1)),
-        "term_2": EventTermCfg(func=change_dummy1_by_value, mode="custom", params={"hot": False}),
+        "term_2": EventTermCfg(func=reset_dummy1_to_zero, mode="reset"),
+        "term_3": EventTermCfg(func=change_dummy1_by_value, mode="custom"),
     }
     with pytest.raises(ValueError):
-        EventManager(cfg, env)
+        event_man = EventManager(cfg, env)
 
 
 def test_apply_interval_mode_without_global_time(env):
     """Test the application of event terms that are in interval mode without global time.
 
-    We test that the event terms are applied at the correct intervals and that the dummy values are updated
-    correctly.
+    During local time, each environment instance has its own time for the interval term.
     """
+    # make two intervals -- one is fixed and the other is random
+    term_1_interval_range_s = (10 * env.dt, 10 * env.dt)
+    term_2_interval_range_s = (2 * env.dt, 10 * env.dt)
+
     cfg = {
-        "term_1": EventTermCfg(func=increment_dummy1_by_one, mode="interval", interval_range_s=(0.1, 0.1)),
-        "term_2": EventTermCfg(func=increment_dummy2_by_one, mode="interval", interval_range_s=(0.1, 0.1)),
+        "term_1": EventTermCfg(
+            func=increment_dummy1_by_one,
+            mode="interval",
+            interval_range_s=term_1_interval_range_s,
+            is_global_time=False,
+        ),
+        "term_2": EventTermCfg(
+            func=increment_dummy2_by_one,
+            mode="interval",
+            interval_range_s=term_2_interval_range_s,
+            is_global_time=False,
+        ),
     }
 
     event_man = EventManager(cfg, env)
 
     # obtain the initial time left for the interval terms
     term_2_interval_time = event_man._interval_term_time_left[1].clone()
+    expected_dummy2_value = torch.zeros_like(env.dummy2)
 
-    # apply the event terms for a few steps
-    for count in range(10):
-        event_man.apply("interval", env_ids=None)
+    for count in range(50):
+        # apply the event terms
+        event_man.apply("interval", dt=env.dt)
+        # manually decrement the interval time for term2 since it is randomly sampled
+        term_2_interval_time -= env.dt
 
-        # check if the dummy values are updated correctly
-        assert torch.allclose(env.dummy1, torch.ones_like(env.dummy1) * (count + 1))
-        assert torch.allclose(env.dummy2, torch.ones_like(env.dummy2) * (count + 1))
+        # check the values
+        # we increment the dummy1 by 1 every 10 steps. at the 9th count (aka 10th apply), the value should be 1
+        torch.testing.assert_close(env.dummy1, (count + 1) // 10 * torch.ones_like(env.dummy1))
 
-        # check if the time left for term 2 is updated correctly
-        assert torch.allclose(
-            event_man._interval_term_time_left[1],
-            term_2_interval_time - torch.ones_like(term_2_interval_time) * (count + 1) * 0.1,
-        )
+        # we increment the dummy2 by 1 every 2 to 10 steps based on the random interval
+        expected_dummy2_value += term_2_interval_time.unsqueeze(1) < 1e-6
+        torch.testing.assert_close(env.dummy2, expected_dummy2_value)
+
+        # check the time sampled at the end of the interval is valid
+        # -- fixed interval
+        if (count + 1) % 10 == 0:
+            term_1_interval_time_init = event_man._interval_term_time_left[0].clone()
+            expected_time_interval_init = torch.full_like(term_1_interval_time_init, term_1_interval_range_s[1])
+            torch.testing.assert_close(term_1_interval_time_init, expected_time_interval_init)
+        # -- random interval
+        env_ids = (term_2_interval_time < 1e-6).nonzero(as_tuple=True)[0]
+        if len(env_ids) > 0:
+            term_2_interval_time[env_ids] = event_man._interval_term_time_left[1][env_ids]
 
 
 def test_apply_interval_mode_with_global_time(env):
     """Test the application of event terms that are in interval mode with global time.
 
-    We test that the event terms are applied at the correct intervals and that the dummy values are updated
-    correctly.
+    During global time, all the environment instances share the same time for the interval term.
     """
+    # make two intervals -- one is fixed and the other is random
+    term_1_interval_range_s = (10 * env.dt, 10 * env.dt)
+    term_2_interval_range_s = (2 * env.dt, 10 * env.dt)
+
     cfg = {
-        "term_1": EventTermCfg(func=increment_dummy1_by_one, mode="interval", interval_range_s=(0.1, 0.1)),
-        "term_2": EventTermCfg(func=increment_dummy2_by_one, mode="interval", interval_range_s=(0.1, 0.1)),
+        "term_1": EventTermCfg(
+            func=increment_dummy1_by_one,
+            mode="interval",
+            interval_range_s=term_1_interval_range_s,
+            is_global_time=True,
+        ),
+        "term_2": EventTermCfg(
+            func=increment_dummy2_by_one,
+            mode="interval",
+            interval_range_s=term_2_interval_range_s,
+            is_global_time=True,
+        ),
     }
 
     event_man = EventManager(cfg, env)
 
     # obtain the initial time left for the interval terms
     term_2_interval_time = event_man._interval_term_time_left[1].clone()
+    expected_dummy2_value = torch.zeros_like(env.dummy2)
 
-    # apply the event terms for a few steps
-    for count in range(10):
-        event_man.apply("interval", env_ids=None, global_env_step_count=count)
+    for count in range(50):
+        # apply the event terms
+        event_man.apply("interval", dt=env.dt)
+        # manually decrement the interval time for term2 since it is randomly sampled
+        term_2_interval_time -= env.dt
 
-        # check if the dummy values are updated correctly
-        assert torch.allclose(env.dummy1, torch.ones_like(env.dummy1) * (count + 1))
-        assert torch.allclose(env.dummy2, torch.ones_like(env.dummy2) * (count + 1))
+        # check the values
+        # we increment the dummy1 by 1 every 10 steps. at the 9th count (aka 10th apply), the value should be 1
+        torch.testing.assert_close(env.dummy1, (count + 1) // 10 * torch.ones_like(env.dummy1))
 
-        # check if the time left for term 2 is updated correctly
-        assert torch.allclose(
-            event_man._interval_term_time_left[1],
-            term_2_interval_time - torch.ones_like(term_2_interval_time) * (count + 1) * 0.1,
-        )
+        # we increment the dummy2 by 1 every 2 to 10 steps based on the random interval
+        expected_dummy2_value += term_2_interval_time < 1e-6
+        torch.testing.assert_close(env.dummy2, expected_dummy2_value)
+
+        # check the time sampled at the end of the interval is valid
+        # -- fixed interval
+        if (count + 1) % 10 == 0:
+            term_1_interval_time_init = event_man._interval_term_time_left[0].clone()
+            expected_time_interval_init = torch.full_like(term_1_interval_time_init, term_1_interval_range_s[1])
+            torch.testing.assert_close(term_1_interval_time_init, expected_time_interval_init)
+        # -- random interval
+        if term_2_interval_time < 1e-6:
+            term_2_interval_time = event_man._interval_term_time_left[1].clone()
 
 
 def test_apply_reset_mode(env):
-    """Test the application of event terms that are in reset mode.
-
-    We test that the event terms are applied at the correct intervals and that the dummy values are updated
-    correctly.
-    """
+    """Test the application of event terms that are in reset mode."""
     cfg = {
-        "term_1": EventTermCfg(func=increment_dummy1_by_one, mode="interval", interval_range_s=(0.1, 0.1)),
-        "term_2": EventTermCfg(func=reset_dummy1_to_zero, mode="reset"),
+        "term_1": EventTermCfg(func=increment_dummy1_by_one, mode="reset"),
+        "term_2": EventTermCfg(func=reset_dummy1_to_zero, mode="reset", min_step_count_between_reset=10),
     }
 
     event_man = EventManager(cfg, env)
 
     # manually keep track of the expected values for dummy1 and trigger count
     expected_dummy1_value = torch.zeros_like(env.dummy1)
-    term_2_trigger_step_id = torch.zeros(env.num_envs, dtype=torch.long, device=env.device)
+    term_2_trigger_step_id = torch.zeros((env.num_envs,), dtype=torch.int32, device=env.device)
 
-    # apply the event terms for a few steps
-    for count in range(10):
-        event_man.apply("reset", env_ids=None, global_env_step_count=count)
+    for count in range(50):
+        # apply the event terms for all the env ids
+        if count % 3 == 0:
+            event_man.apply("reset", global_env_step_count=count)
 
-        # check if the dummy values are updated correctly
-        assert torch.allclose(env.dummy1, expected_dummy1_value)
+            # we increment the dummy1 by 1 every call to reset mode due to term 1
+            expected_dummy1_value[:] += 1
+            # manually update the expected value for term 2
+            if (count - term_2_trigger_step_id[0]) >= 10 or count == 0:
+                expected_dummy1_value = torch.zeros_like(env.dummy1)
+                term_2_trigger_step_id[:] = count
 
-        # check if the trigger count for term 2 is updated correctly
-        trigger_ids = (count - term_2_trigger_step_id) >= 10
-        if torch.any(trigger_ids):
-            expected_dummy1_value[trigger_ids] = 0.0
-            term_2_trigger_step_id[trigger_ids] = count
+        # check the values of trigger count
+        # -- term 1
+        expected_trigger_count = torch.full(
+            (env.num_envs,), 3 * (count // 3), dtype=torch.int32, device=env.device
+        )
+        torch.testing.assert_close(event_man._reset_term_last_triggered_step_id[0], expected_trigger_count)
+        # -- term 2
+        torch.testing.assert_close(event_man._reset_term_last_triggered_step_id[1], term_2_trigger_step_id)
+
+        # check the values of dummy1
+        torch.testing.assert_close(env.dummy1, expected_dummy1_value)
 
 
 def test_apply_reset_mode_subset_env_ids(env):
-    """Test the application of event terms that are in reset mode over a subset of env ids.
-
-    We test that the event terms are applied at the correct intervals and that the dummy values are updated
-    correctly.
-    """
+    """Test the application of event terms that are in reset mode over a subset of environment ids."""
     cfg = {
-        "term_1": EventTermCfg(func=increment_dummy1_by_one, mode="interval", interval_range_s=(0.1, 0.1)),
-        "term_2": EventTermCfg(func=reset_dummy1_to_zero, mode="reset"),
+        "term_1": EventTermCfg(func=increment_dummy1_by_one, mode="reset"),
+        "term_2": EventTermCfg(func=reset_dummy1_to_zero, mode="reset", min_step_count_between_reset=10),
     }
 
     event_man = EventManager(cfg, env)
 
-    # manually keep track of the expected values for dummy1 and trigger count
+    # since we are applying the event terms over a subset of env ids, we need to keep track of the trigger count
+    # manually for the sake of testing
+    term_2_trigger_step_id = torch.zeros((env.num_envs,), dtype=torch.int32, device=env.device)
+    term_2_trigger_once = torch.zeros((env.num_envs,), dtype=torch.bool, device=env.device)
     expected_dummy1_value = torch.zeros_like(env.dummy1)
-    term_2_trigger_step_id = torch.zeros(env.num_envs, dtype=torch.long, device=env.device)
 
-    # apply the event terms for a few steps
-    for count in range(10):
-        # randomly select a subset of env ids
+    for count in range(50):
+        # randomly select a subset of environment ids
         env_ids = (torch.rand(env.num_envs, device=env.device) < 0.5).nonzero().flatten()
         # apply the event terms for the selected env ids
         event_man.apply("reset", env_ids=env_ids, global_env_step_count=count)
 
-        # check if the dummy values are updated correctly
-        assert torch.allclose(env.dummy1, expected_dummy1_value)
-
-        # check if the trigger count for term 2 is updated correctly
+        # modify the trigger count for term 2
         trigger_ids = (count - term_2_trigger_step_id[env_ids]) >= 10
-        if torch.any(trigger_ids):
-            expected_dummy1_value[env_ids[trigger_ids]] = 0.0
-            term_2_trigger_step_id[env_ids[trigger_ids]] = count
+        trigger_ids |= (term_2_trigger_step_id[env_ids] == 0) & ~term_2_trigger_once[env_ids]
+        term_2_trigger_step_id[env_ids[trigger_ids]] = count
+        term_2_trigger_once[env_ids[trigger_ids]] = True
+        # we increment the dummy1 by 1 every call to reset mode
+        # every 10th call, we reset the dummy1 to 0
+        expected_dummy1_value[env_ids] += 1  # effect of term 1
+        expected_dummy1_value[env_ids[trigger_ids]] = 0  # effect of term 2
 
+        # check the values of trigger count
+        # -- term 1
+        expected_trigger_count = torch.full((len(env_ids),), count, dtype=torch.int32, device=env.device)
+        torch.testing.assert_close(
+            event_man._reset_term_last_triggered_step_id[0][env_ids], expected_trigger_count
+        )
+        # -- term 2
+        torch.testing.assert_close(event_man._reset_term_last_triggered_step_id[1], term_2_trigger_step_id)
 
-if __name__ == "__main__":
-    run_tests()
+        # check the values of dummy1
+        torch.testing.assert_close(env.dummy1, expected_dummy1_value)

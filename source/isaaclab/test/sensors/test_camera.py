@@ -11,8 +11,9 @@
 from isaaclab.app import AppLauncher, run_tests
 
 # launch omniverse app
-app_launcher = AppLauncher(headless=True, enable_cameras=True)
-simulation_app = app_launcher.app
+if not AppLauncher.instance() or AppLauncher.instance()._enable_cameras is False:
+    AppLauncher.clear_instance()
+    simulation_app = AppLauncher(headless=True, enable_cameras=True).app
 
 """Rest everything follows."""
 

@@ -11,7 +11,8 @@ from __future__ import annotations
 from isaaclab.app import AppLauncher, run_tests
 
 # launch omniverse app
-simulation_app = AppLauncher(headless=True).app
+if not AppLauncher.instance():
+    simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows."""
 
@@ -105,7 +106,6 @@ def test_str(dataset_dir):
     recorder_manager = RecorderManager(cfg, create_dummy_env())
     assert len(recorder_manager.active_terms) == 2
     # print the expected string
-    print()
     print(recorder_manager)
 
 

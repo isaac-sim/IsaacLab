@@ -7,11 +7,11 @@
 #       because warp is only available in the context of a running simulation
 """Launch Isaac Sim Simulator first."""
 
-from isaaclab.app import AppLauncher, run_tests
+from isaaclab.app import AppLauncher
 
 # launch omniverse app
-app_launcher = AppLauncher(headless=True)
-simulation_app = app_launcher.app
+if not AppLauncher.instance():
+    simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows."""
 
@@ -192,7 +192,3 @@ def test_resolve_matching_names_values_with_basic_strings_and_preserved_order():
     query_names = {"a|c": 1, "b": 0, "f": 2}
     with pytest.raises(ValueError):
         _ = string_utils.resolve_matching_names_values(query_names, target_names, preserve_order=True)
-
-
-if __name__ == "__main__":
-    run_tests()

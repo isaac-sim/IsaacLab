@@ -8,7 +8,8 @@ from isaaclab.app import AppLauncher, run_tests
 """Launch Isaac Sim Simulator first."""
 
 # launch omniverse app
-simulation_app = AppLauncher(headless=True).app
+if not AppLauncher.instance():
+    simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows."""
 

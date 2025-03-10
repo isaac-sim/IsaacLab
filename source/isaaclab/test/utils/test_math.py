@@ -13,7 +13,8 @@ This is only needed because of warp dependency.
 from isaaclab.app import AppLauncher, run_tests
 
 # launch omniverse app in headless mode
-simulation_app = AppLauncher(headless=True).app
+if not AppLauncher.instance():
+    simulation_app = AppLauncher(headless=True).app
 
 
 """Rest everything follows."""

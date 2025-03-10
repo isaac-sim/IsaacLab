@@ -9,6 +9,8 @@ from unittest import mock
 
 from isaaclab.app import AppLauncher, run_tests
 
+if AppLauncher.instance():
+    AppLauncher.clear_instance()
 
 @mock.patch("argparse.ArgumentParser.parse_args", return_value=argparse.Namespace(livestream=1))
 def test_livestream_launch_with_argparser(mock_args):

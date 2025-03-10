@@ -8,6 +8,8 @@ import pytest
 
 from isaaclab.app import AppLauncher, run_tests
 
+if AppLauncher.instance():
+    AppLauncher.clear_instance()
 
 def test_livestream_launch_with_env_var():
     """Test launching with no-keyword args but environment variables."""

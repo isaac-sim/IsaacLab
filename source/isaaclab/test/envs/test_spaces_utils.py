@@ -12,12 +12,9 @@ from __future__ import annotations
 
 from isaaclab.app import AppLauncher, run_tests
 
-# Can set this to False to see the GUI for debugging
-HEADLESS = True
-
 # launch omniverse app
-app_launcher = AppLauncher(headless=HEADLESS)
-simulation_app = app_launcher.app
+if not AppLauncher.instance():
+    simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows."""
 
