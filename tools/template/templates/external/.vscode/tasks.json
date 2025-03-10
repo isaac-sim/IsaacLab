@@ -16,7 +16,11 @@
         {
             "id": "isaac_path",
             "description": "Absolute path to the current Isaac Sim installation. Can be skipped if Isaac Sim installed from pip.",
-            "default": "${HOME}/.local/share/ov/pkg/isaac_sim-4.2.0",
+{% if platform == "win32" %}
+            "default": "C:/isaacsim",
+{% else %}
+            "default": "${HOME}/isaacsim",
+{% endif %}
             "type": "promptString"
         },
     ]

@@ -7,6 +7,7 @@ import glob
 import os
 import shutil
 import subprocess
+import sys
 from datetime import datetime
 
 import jinja2
@@ -160,9 +161,6 @@ def _external(specification: dict) -> None:
     shutil.copyfile(
         os.path.join(ROOT_DIR, ".pre-commit-config.yaml"), os.path.join(project_dir, ".pre-commit-config.yaml")
     )
-    shutil.copytree(
-        os.path.join(TEMPLATE_DIR, "external", ".vscode"), os.path.join(project_dir, ".vscode"), dirs_exist_ok=True
-    )
     template = jinja_env.get_template("external/README.md")
     _write_file(os.path.join(project_dir, "README.md"), content=template.render(**specification))
     # scripts
@@ -191,6 +189,12 @@ def _external(specification: dict) -> None:
         src=os.path.join(ROOT_DIR, "scripts", "environments", "list_envs.py"),
         dst=os.path.join(dir, "list_envs.py"),
     )
+    # .vscode files
+    print("  |-- Copying vscode files...")
+    dir = os.path.join(project_dir, ".vscode")
+    shutil.copytree(os.path.join(TEMPLATE_DIR, "external", ".vscode"), dir, dirs_exist_ok=True)
+    template = jinja_env.get_template("external/.vscode/tasks.json")
+    _write_file(os.path.join(dir, "tasks.json"), content=template.render(**specification))
     # docker files
     print("  |-- Copying docker files...")
     dir = os.path.join(project_dir, "docker")
@@ -261,6 +265,8 @@ def generate(specification: dict) -> None:
         assert workflow["type"] in ["single-agent", "multi-agent"], f"Invalid workflow type: {workflow}"
     if specification["external"]:
         assert "path" in specification, "Path is required for external projects"
+    # add other information to specification
+    specification["platform"] = sys.platform
     # generate project/task
     if specification["external"]:
         print("Generating external project...")
