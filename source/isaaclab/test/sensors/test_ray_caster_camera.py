@@ -572,7 +572,11 @@ class TestWarpCamera(unittest.TestCase):
         )
         torch.testing.assert_close(
             camera_usd._sensor_prims[0].GetVerticalApertureAttr().Get(),
-            camera_cfg_warp.pattern_cfg.vertical_aperture,
+            (
+                camera_cfg_warp.pattern_cfg.horizontal_aperture
+                * camera_cfg_warp.pattern_cfg.height
+                / camera_cfg_warp.pattern_cfg.width
+            ),
         )
 
         # check image data

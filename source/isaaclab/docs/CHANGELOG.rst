@@ -1,7 +1,7 @@
 Changelog
 ---------
 
-0.35.0 (2025-03-04)
+0.36.0 (2025-03-07)
 ~~~~~~~~~~~~~~~~~~~
 
 Removed
@@ -20,6 +20,73 @@ Changed
 * Changed the prim path of the "plane" terrain inside the :class:`~isaaclab.terrains.TerrainImporter` class.
   Earlier, the terrain was imported directly as the importer's prim path. Now, the terrain is imported as
   ``{importer_prim_path}/{name}``, where ``name`` is the name of the terrain.
+
+
+0.35.0 (2025-03-07)
+~~~~~~~~~~~~~~~~~~~
+
+* Improved documentation of various attributes in the :class:`~isaaclab.assets.ArticulationData` class to make
+  it clearer which values represent the simulation and internal class values. In the new convention,
+  the ``default_xxx`` attributes are whatever the user configured from their configuration of the articulation
+  class, while the ``xxx`` attributes are the values from the simulation.
+* Updated the soft joint position limits inside the :meth:`~isaaclab.assets.Articulation.write_joint_pos_limits_to_sim`
+  method to use the new limits passed to the function.
+* Added setting of :attr:`~isaaclab.assets.ArticulationData.default_joint_armature` and
+  :attr:`~isaaclab.assets.ArticulationData.default_joint_friction` attributes in the
+  :class:`~isaaclab.assets.Articulation` class based on user configuration.
+
+Changed
+^^^^^^^
+
+* Removed unnecessary buffer creation operations inside the :class:`~isaaclab.assets.Articulation` class.
+  Earlier, the class initialized a variety of buffer data with zeros and in the next function assigned
+  them the value from PhysX. This made the code bulkier and more complex for no reason.
+* Renamed parameters for a consistent nomenclature. These changes are backwards compatible with previous releases
+  with a deprecation warning for the old names.
+
+  * ``joint_velocity_limits`` → ``joint_vel_limits`` (to match attribute ``joint_vel`` and ``joint_vel_limits``)
+  * ``joint_limits`` → ``joint_pos_limits`` (to match attribute ``joint_pos`` and ``soft_joint_pos_limits``)
+  * ``default_joint_limits`` → ``default_joint_pos_limits``
+  * ``write_joint_limits_to_sim`` → ``write_joint_position_limit_to_sim``
+  * ``joint_friction`` → ``joint_friction_coeff``
+  * ``default_joint_friction`` → ``default_joint_friction_coeff``
+  * ``write_joint_friction_to_sim`` → ``write_joint_friction_coefficient_to_sim``
+  * ``fixed_tendon_limit`` → ``fixed_tendon_pos_limits``
+  * ``default_fixed_tendon_limit`` → ``default_fixed_tendon_pos_limits``
+  * ``set_fixed_tendon_limit`` → ``set_fixed_tendon_position_limit``
+
+
+0.34.9 (2025-03-04)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed issue in :class:`~isaaclab.sensors.TiledCamera` where segmentation outputs only display the first tile
+  when scene instancing is enabled. A workaround is added for now to disable instancing when segmentation
+  outputs are requested.
+
+
+0.34.8 (2025-03-04)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the issue of misalignment in the motion vectors from the :class:`TiledCamera`
+  with other modalities such as RGBA and depth.
+
+
+0.34.7 (2025-03-04)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added methods inside the :class:`omni.isaac.lab.assets.Articulation` class to set the joint
+  position and velocity for the articulation. Previously, the joint position and velocity could
+  only be set using the :meth:`omni.isaac.lab.assets.Articulation.write_joint_state_to_sim` method,
+  which didn't allow setting the joint position and velocity separately.
 
 
 0.34.6 (2025-03-02)

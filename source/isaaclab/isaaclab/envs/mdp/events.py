@@ -421,14 +421,15 @@ def randomize_joint_parameters(
     operation: Literal["add", "scale", "abs"] = "abs",
     distribution: Literal["uniform", "log_uniform", "gaussian"] = "uniform",
 ):
-    """Randomize the joint parameters of an articulation by adding, scaling, or setting random values.
+    """Randomize the simulated joint parameters of an articulation by adding, scaling, or setting random values.
 
-    This function allows randomizing the joint parameters of the asset.
-    These correspond to the physics engine joint properties that affect the joint behavior.
+    This function allows randomizing the joint parameters of the asset. These correspond to the physics engine
+    joint properties that affect the joint behavior. The properties include the joint friction coefficient, armature,
+    and joint position limits.
 
-    The function samples random values from the given distribution parameters and applies the operation to the joint properties.
-    It then sets the values into the physics simulation. If the distribution parameters are not provided for a
-    particular property, the function does not modify the property.
+    The function samples random values from the given distribution parameters and applies the operation to the
+    joint properties. It then sets the values into the physics simulation. If the distribution parameters are
+    not provided for a particular property, the function does not modify the property.
 
     .. tip::
         This function uses CPU tensors to assign the joint properties. It is recommended to use this function
@@ -448,53 +449,66 @@ def randomize_joint_parameters(
         joint_ids = torch.tensor(asset_cfg.joint_ids, dtype=torch.int, device=asset.device)
 
     # sample joint properties from the given ranges and set into the physics simulation
-    # -- friction
+    # joint friction coefficient
     if friction_distribution_params is not None:
-        friction = asset.data.default_joint_friction.to(asset.device).clone()
-        friction = _randomize_prop_by_op(
-            friction, friction_distribution_params, env_ids, joint_ids, operation=operation, distribution=distribution
-        )[env_ids][:, joint_ids]
-        asset.write_joint_friction_to_sim(friction, joint_ids=joint_ids, env_ids=env_ids)
-    # -- armature
+        friction_coeff = _randomize_prop_by_op(
+            asset.data.default_joint_friction_coeff.clone(),
+            friction_distribution_params,
+            env_ids,
+            joint_ids,
+            operation=operation,
+            distribution=distribution,
+        )
+        asset.write_joint_friction_coefficient_to_sim(
+            friction_coeff[env_ids[:, None], joint_ids], joint_ids=joint_ids, env_ids=env_ids
+        )
+
+    # joint armature
     if armature_distribution_params is not None:
-        armature = asset.data.default_joint_armature.to(asset.device).clone()
         armature = _randomize_prop_by_op(
-            armature, armature_distribution_params, env_ids, joint_ids, operation=operation, distribution=distribution
-        )[env_ids][:, joint_ids]
-        asset.write_joint_armature_to_sim(armature, joint_ids=joint_ids, env_ids=env_ids)
-    # -- dof limits
+            asset.data.default_joint_armature.clone(),
+            armature_distribution_params,
+            env_ids,
+            joint_ids,
+            operation=operation,
+            distribution=distribution,
+        )
+        asset.write_joint_armature_to_sim(armature[env_ids[:, None], joint_ids], joint_ids=joint_ids, env_ids=env_ids)
+
+    # joint position limits
     if lower_limit_distribution_params is not None or upper_limit_distribution_params is not None:
-        dof_limits = asset.data.default_joint_limits.to(asset.device).clone()
+        joint_pos_limits = asset.data.default_joint_pos_limits.clone()
+        # -- randomize the lower limits
         if lower_limit_distribution_params is not None:
-            lower_limits = dof_limits[..., 0]
-            lower_limits = _randomize_prop_by_op(
-                lower_limits,
+            joint_pos_limits[..., 0] = _randomize_prop_by_op(
+                joint_pos_limits[..., 0],
                 lower_limit_distribution_params,
                 env_ids,
                 joint_ids,
                 operation=operation,
                 distribution=distribution,
-            )[env_ids][:, joint_ids]
-            dof_limits[env_ids[:, None], joint_ids, 0] = lower_limits
+            )
+        # -- randomize the upper limits
         if upper_limit_distribution_params is not None:
-            upper_limits = dof_limits[..., 1]
-            upper_limits = _randomize_prop_by_op(
-                upper_limits,
+            joint_pos_limits[..., 1] = _randomize_prop_by_op(
+                joint_pos_limits[..., 1],
                 upper_limit_distribution_params,
                 env_ids,
                 joint_ids,
                 operation=operation,
                 distribution=distribution,
-            )[env_ids][:, joint_ids]
-            dof_limits[env_ids[:, None], joint_ids, 1] = upper_limits
-        if (dof_limits[env_ids[:, None], joint_ids, 0] > dof_limits[env_ids[:, None], joint_ids, 1]).any():
-            raise ValueError(
-                "Randomization term 'randomize_joint_parameters' is setting lower joint limits that are greater than"
-                " upper joint limits."
             )
 
-        asset.write_joint_limits_to_sim(
-            dof_limits[env_ids][:, joint_ids], joint_ids=joint_ids, env_ids=env_ids, warn_limit_violation=False
+        # extract the position limits for the concerned joints
+        joint_pos_limits = joint_pos_limits[env_ids[:, None], joint_ids]
+        if (joint_pos_limits[..., 0] > joint_pos_limits[..., 1]).any():
+            raise ValueError(
+                "Randomization term 'randomize_joint_parameters' is setting lower joint limits that are greater than"
+                " upper joint limits. Please check the distribution parameters for the joint position limits."
+            )
+        # set the position limits into the physics simulation
+        asset.write_joint_position_limit_to_sim(
+            joint_pos_limits, joint_ids=joint_ids, env_ids=env_ids, warn_limit_violation=False
         )
 
 
@@ -512,7 +526,7 @@ def randomize_fixed_tendon_parameters(
     operation: Literal["add", "scale", "abs"] = "abs",
     distribution: Literal["uniform", "log_uniform", "gaussian"] = "uniform",
 ):
-    """Randomize the fixed tendon parameters of an articulation by adding, scaling, or setting random values.
+    """Randomize the simulated fixed tendon parameters of an articulation by adding, scaling, or setting random values.
 
     This function allows randomizing the fixed tendon parameters of the asset.
     These correspond to the physics engine tendon properties that affect the joint behavior.
@@ -531,106 +545,106 @@ def randomize_fixed_tendon_parameters(
 
     # resolve joint indices
     if asset_cfg.fixed_tendon_ids == slice(None):
-        fixed_tendon_ids = slice(None)  # for optimization purposes
+        tendon_ids = slice(None)  # for optimization purposes
     else:
-        fixed_tendon_ids = torch.tensor(asset_cfg.fixed_tendon_ids, dtype=torch.int, device=asset.device)
+        tendon_ids = torch.tensor(asset_cfg.fixed_tendon_ids, dtype=torch.int, device=asset.device)
 
     # sample tendon properties from the given ranges and set into the physics simulation
-    # -- stiffness
+    # stiffness
     if stiffness_distribution_params is not None:
-        stiffness = asset.data.default_fixed_tendon_stiffness.clone()
         stiffness = _randomize_prop_by_op(
-            stiffness,
+            asset.data.default_fixed_tendon_stiffness.clone(),
             stiffness_distribution_params,
             env_ids,
-            fixed_tendon_ids,
+            tendon_ids,
             operation=operation,
             distribution=distribution,
-        )[env_ids][:, fixed_tendon_ids]
-        asset.set_fixed_tendon_stiffness(stiffness, fixed_tendon_ids, env_ids)
-    # -- damping
+        )
+        asset.set_fixed_tendon_stiffness(stiffness[env_ids[:, None], tendon_ids], tendon_ids, env_ids)
+
+    # damping
     if damping_distribution_params is not None:
-        damping = asset.data.default_fixed_tendon_damping.clone()
         damping = _randomize_prop_by_op(
-            damping,
+            asset.data.default_fixed_tendon_damping.clone(),
             damping_distribution_params,
             env_ids,
-            fixed_tendon_ids,
+            tendon_ids,
             operation=operation,
             distribution=distribution,
-        )[env_ids][:, fixed_tendon_ids]
-        asset.set_fixed_tendon_damping(damping, fixed_tendon_ids, env_ids)
-    # -- limit stiffness
+        )
+        asset.set_fixed_tendon_damping(damping[env_ids[:, None], tendon_ids], tendon_ids, env_ids)
+
+    # limit stiffness
     if limit_stiffness_distribution_params is not None:
-        limit_stiffness = asset.data.default_fixed_tendon_limit_stiffness.clone()
         limit_stiffness = _randomize_prop_by_op(
-            limit_stiffness,
+            asset.data.default_fixed_tendon_limit_stiffness.clone(),
             limit_stiffness_distribution_params,
             env_ids,
-            fixed_tendon_ids,
+            tendon_ids,
             operation=operation,
             distribution=distribution,
-        )[env_ids][:, fixed_tendon_ids]
-        asset.set_fixed_tendon_limit_stiffness(limit_stiffness, fixed_tendon_ids, env_ids)
-    # -- limits
+        )
+        asset.set_fixed_tendon_limit_stiffness(limit_stiffness[env_ids[:, None], tendon_ids], tendon_ids, env_ids)
+
+    # position limits
     if lower_limit_distribution_params is not None or upper_limit_distribution_params is not None:
-        limit = asset.data.default_fixed_tendon_limit.clone()
+        limit = asset.data.default_fixed_tendon_pos_limits.clone()
         # -- lower limit
         if lower_limit_distribution_params is not None:
-            lower_limit = limit[..., 0]
-            lower_limit = _randomize_prop_by_op(
-                lower_limit,
+            limit[..., 0] = _randomize_prop_by_op(
+                limit[..., 0],
                 lower_limit_distribution_params,
                 env_ids,
-                fixed_tendon_ids,
+                tendon_ids,
                 operation=operation,
                 distribution=distribution,
-            )[env_ids][:, fixed_tendon_ids]
-            limit[env_ids[:, None], fixed_tendon_ids, 0] = lower_limit
+            )
         # -- upper limit
         if upper_limit_distribution_params is not None:
-            upper_limit = limit[..., 1]
-            upper_limit = _randomize_prop_by_op(
-                upper_limit,
+            limit[..., 1] = _randomize_prop_by_op(
+                limit[..., 1],
                 upper_limit_distribution_params,
                 env_ids,
-                fixed_tendon_ids,
+                tendon_ids,
                 operation=operation,
                 distribution=distribution,
-            )[env_ids][:, fixed_tendon_ids]
-            limit[env_ids[:, None], fixed_tendon_ids, 1] = upper_limit
-        if (limit[env_ids[:, None], fixed_tendon_ids, 0] > limit[env_ids[:, None], fixed_tendon_ids, 1]).any():
+            )
+
+        # check if the limits are valid
+        tendon_limits = limit[env_ids[:, None], tendon_ids]
+        if (tendon_limits[..., 0] > tendon_limits[..., 1]).any():
             raise ValueError(
                 "Randomization term 'randomize_fixed_tendon_parameters' is setting lower tendon limits that are greater"
                 " than upper tendon limits."
             )
-        asset.set_fixed_tendon_limit(limit, fixed_tendon_ids, env_ids)
-    # -- rest length
+        asset.set_fixed_tendon_position_limit(tendon_limits, tendon_ids, env_ids)
+
+    # rest length
     if rest_length_distribution_params is not None:
-        rest_length = asset.data.default_fixed_tendon_rest_length.clone()
         rest_length = _randomize_prop_by_op(
-            rest_length,
+            asset.data.default_fixed_tendon_rest_length.clone(),
             rest_length_distribution_params,
             env_ids,
-            fixed_tendon_ids,
+            tendon_ids,
             operation=operation,
             distribution=distribution,
-        )[env_ids][:, fixed_tendon_ids]
-        asset.set_fixed_tendon_rest_length(rest_length, fixed_tendon_ids, env_ids)
-    # -- offset
+        )
+        asset.set_fixed_tendon_rest_length(rest_length[env_ids[:, None], tendon_ids], tendon_ids, env_ids)
+
+    # offset
     if offset_distribution_params is not None:
-        offset = asset.data.default_fixed_tendon_offset.clone()
         offset = _randomize_prop_by_op(
-            offset,
+            asset.data.default_fixed_tendon_offset.clone(),
             offset_distribution_params,
             env_ids,
-            fixed_tendon_ids,
+            tendon_ids,
             operation=operation,
             distribution=distribution,
-        )[env_ids][:, fixed_tendon_ids]
-        asset.set_fixed_tendon_offset(offset, fixed_tendon_ids, env_ids)
+        )
+        asset.set_fixed_tendon_offset(offset[env_ids[:, None], tendon_ids], tendon_ids, env_ids)
 
-    asset.write_fixed_tendon_properties_to_sim(fixed_tendon_ids, env_ids)
+    # write the fixed tendon properties into the simulation
+    asset.write_fixed_tendon_properties_to_sim(tendon_ids, env_ids)
 
 
 def apply_external_force_torque(
