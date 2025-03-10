@@ -16,34 +16,32 @@ simulation_app = app_launcher.app
 """Rest everything follows."""
 
 import time
-import unittest
+import pytest
 
 from isaaclab.utils.timer import Timer
 
 
-class TestTimer(unittest.TestCase):
-    """Test fixture for the Timer class."""
+# number of decimal places to check
+PRECISION_PLACES = 2
 
-    def setUp(self):
-        # number of decimal places to check
-        self.precision_places = 2
 
-    def test_timer_as_object(self):
-        """Test using a `Timer` as a regular object."""
-        timer = Timer()
-        timer.start()
-        self.assertAlmostEqual(0, timer.time_elapsed, self.precision_places)
+def test_timer_as_object():
+    """Test using a `Timer` as a regular object."""
+    timer = Timer()
+    timer.start()
+    assert abs(0 - timer.time_elapsed) < 10**(-PRECISION_PLACES)
+    time.sleep(1)
+    assert abs(1 - timer.time_elapsed) < 10**(-PRECISION_PLACES)
+    timer.stop()
+    assert abs(1 - timer.total_run_time) < 10**(-PRECISION_PLACES)
+
+
+def test_timer_as_context_manager():
+    """Test using a `Timer` as a context manager."""
+    with Timer() as timer:
+        assert abs(0 - timer.time_elapsed) < 10**(-PRECISION_PLACES)
         time.sleep(1)
-        self.assertAlmostEqual(1, timer.time_elapsed, self.precision_places)
-        timer.stop()
-        self.assertAlmostEqual(1, timer.total_run_time, self.precision_places)
-
-    def test_timer_as_context_manager(self):
-        """Test using a `Timer` as a context manager."""
-        with Timer() as timer:
-            self.assertAlmostEqual(0, timer.time_elapsed, self.precision_places)
-            time.sleep(1)
-            self.assertAlmostEqual(1, timer.time_elapsed, self.precision_places)
+        assert abs(1 - timer.time_elapsed) < 10**(-PRECISION_PLACES)
 
 
 if __name__ == "__main__":
