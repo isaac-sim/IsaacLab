@@ -13,7 +13,7 @@ It enables you to create an:
   .. hint::
 
     For the external project, the template generator will initialize a new Git repository in the specified directory.
-    So, you can push the generated content to your own remote repository (e.g. GitHub) and share it with others.
+    You can push the generated content to your own remote repository (e.g. GitHub) and share it with others.
 
 * **Internal task**: A task that is part of the Isaac Lab repository. This approach should only be used to create
   new tasks within the Isaac Lab repository in order to contribute to it.
