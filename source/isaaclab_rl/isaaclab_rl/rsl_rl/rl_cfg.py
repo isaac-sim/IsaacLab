@@ -46,9 +46,6 @@ class RslRlPpoActorCriticConv2dCfg(RslRlPpoActorCriticCfg):
     conv_linear_output_size: int = 16
     """Output size of the linear layer after the convolutional features are flattened."""
 
-    image_input_shape: tuple[int, int, int] = (3, 64, 64)
-    """Shape of the image input in (channels, height, width)."""
-
 
 @configclass
 class RslRlPpoAlgorithmCfg:

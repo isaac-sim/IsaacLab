@@ -79,10 +79,15 @@ class ObservationsCfg:
         base_lin_vel = ObsTerm(func=mdp.base_lin_vel)
         projected_gravity = ObsTerm(func=mdp.projected_gravity)
         pose_command = ObsTerm(func=mdp.generated_commands, params={"command_name": "pose_command"})
-        camera_data = ObsTerm(func=mdp.image_flatten, params={"sensor_cfg": SceneEntityCfg("tiled_camera")})
+
+    class SensorCfg(ObsGroup):
+        """Observations for sensor group."""
+
+        camera_data = ObsTerm(func=mdp.image, params={"sensor_cfg": SceneEntityCfg("tiled_camera")})
 
     # observation groups
     policy: PolicyCfg = PolicyCfg()
+    sensor: SensorCfg = SensorCfg()
 
 
 @configclass
