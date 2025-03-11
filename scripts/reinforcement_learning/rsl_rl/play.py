@@ -131,7 +131,10 @@ def main():
     dt = env.unwrapped.physics_dt
 
     # reset environment
-    obs, _ = env.get_observations()
+    obs, extras = env.get_observations()
+    if "sensor" in extras["observations"]:
+        image_obs = extras["observations"]["sensor"].permute(0, 3, 1, 2).flatten(start_dim=1)
+        obs = torch.cat([obs, image_obs], dim=1)
     timestep = 0
     # simulate environment
     while simulation_app.is_running():
@@ -141,7 +144,10 @@ def main():
             # agent stepping
             actions = policy(obs)
             # env stepping
-            obs, _, _, _ = env.step(actions)
+            obs, _, _, infos = env.step(actions)
+            if "sensor" in infos["observations"]:
+                image_obs = infos["observations"]["sensor"].permute(0, 3, 1, 2).flatten(start_dim=1)
+                obs = torch.cat([obs, image_obs], dim=1)
         if args_cli.video:
             timestep += 1
             # Exit the play loop after recording one video

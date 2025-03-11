@@ -138,6 +138,8 @@ class _OnnxPolicyExporter(torch.nn.Module):
             )
         else:
             input_size = getattr(self.actor, "input_dim", None)
+            if input_size is None:
+                input_size = self.actor[0].in_features
             obs = torch.zeros(1, input_size)
             torch.onnx.export(
                 self,
