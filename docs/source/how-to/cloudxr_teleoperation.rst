@@ -246,12 +246,13 @@ Apple Vision Pro, connecting to Isaac Lab, and teleoperating a simulated robot.
 Build and Install the Isaac XR Teleop Sample Client App for Apple Vision Pro
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-#. On your Mac: Clone the Isaac XR Teleop Sample Client from Github:
+On your Mac:
+
+#. Clone the `Isaac XR Teleop Sample Client`_ GitHub repository:
 
    .. code-block:: bash
 
-      # TODO: change
-      git clone git@github.com:isaac-sim/isaac-xr-teleop-sample-client.git
+      git clone git@github.com:isaac-sim/isaac-xr-teleop-sample-client-apple.git
 
 #. Follow the README in the repository to build and install the app on your Apple Vision Pro.
 
@@ -449,3 +450,4 @@ Optimize XR Performance
 .. _`Docker`: https://docs.docker.com/desktop/install/linux-install/
 .. _`NVIDIA CloudXR`: https://developer.nvidia.com/cloudxr-sdk
 .. _`NVIDIA Container Toolkit`: https://github.com/NVIDIA/nvidia-container-toolkit
+.. _`Isaac XR Teleop Sample Client`: https://github.com/isaac-sim/isaac-xr-teleop-sample-client-apple
