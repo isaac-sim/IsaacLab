@@ -12,7 +12,7 @@ is defined. The action term is responsible for processing the raw actions and ap
 scene entities.
 
 We also define an event term called 'randomize_scale' that randomizes the scale of
-the cube. This event term has the mode 'usd', which means that it is applied on the USD stage
+the cube. This event term has the mode 'setup', which means that it is applied on the USD stage
 before the simulation starts. Additionally, the flag 'replicate_physics' is set to False,
 which means that the cube is not replicated across multiple environments but rather each
 environment gets its own cube instance.
@@ -249,12 +249,12 @@ class EventCfg:
     )
 
     # This event term randomizes the scale of the cube.
-    # The mode is set to 'usd', which means that the scale is randomize on the USD stage before the
+    # The mode is set to 'setup', which means that the scale is randomize on the USD stage before the
     # simulation starts.
     # Note: USD-level randomizations require the flag 'replicate_physics' to be set to False.
     randomize_scale = EventTerm(
         func=mdp.randomize_rigid_body_scale,
-        mode="usd",
+        mode="setup",
         params={
             "scale_range": {"x": (0.5, 1.5), "y": (0.5, 1.5), "z": (0.5, 1.5)},
             "asset_cfg": SceneEntityCfg("cube"),

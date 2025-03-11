@@ -138,8 +138,8 @@ class DirectMARLEnv(gym.Env):
             print("[INFO] Event Manager: ", self.event_manager)
 
             # apply USD-related randomization events
-            if "usd" in self.event_manager.available_modes:
-                self.event_manager.apply(mode="usd")
+            if "setup" in self.event_manager.available_modes:
+                self.event_manager.apply(mode="setup")
 
         # play the simulator to activate physics handles
         # note: this activates the physics simulation view that exposes TensorAPIs
