@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.10.25 (2025-03-10)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``Isaac-Stack-Cube-Franka-IK-Rel-Blueprint-v0`` stacking environment with camera inputs.
+
+
 0.10.24 (2025-02-13)
 ~~~~~~~~~~~~~~~~~~~~
 
