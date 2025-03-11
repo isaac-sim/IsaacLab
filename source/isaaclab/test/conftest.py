@@ -35,16 +35,19 @@ def pytest_ignore_collect(path, config):
     if os.path.isdir(str(path)):
         return False
 
-    test_name = str(path).removeprefix(str(config.rootdir) + "/test")
-    stage = os.getenv("PYTEST_EXEC_STAGE", "main")
+    # Check if the path 'source/IsaacLab/test' is in config.args
+    if any('source/IsaacLab/test' == arg for arg in config.args):
+        test_name = str(path).removeprefix(str(config.rootdir) + "/test")
+        stage = os.getenv("PYTEST_EXEC_STAGE", "main")
 
-    if stage == "first":
-        return test_name not in FIRST_RUN_TESTS
-    if stage == "second":
-        return test_name not in SECOND_RUN_TESTS
-    if stage == "remaining":
-        return test_name in FIRST_RUN_TESTS or test_name in SECOND_RUN_TESTS
+        if stage == "first":
+            return test_name not in FIRST_RUN_TESTS
+        if stage == "second":
+            return test_name not in SECOND_RUN_TESTS
+        if stage == "remaining":
+            return test_name in FIRST_RUN_TESTS or test_name in SECOND_RUN_TESTS
 
+    # Default behavior if path is not 'source/IsaacLab/test'
     return False  # Default: collect everything if no stage is set
 
 
@@ -84,19 +87,24 @@ def pytest_sessionstart(session):
     if os.getenv("PYTEST_EXEC_STAGE"):
         return  # Prevent infinite loop in subprocesses
 
-    rootdir = str(session.config.rootpath) + "/test"
-    failed = False  # Track failures
+    # Check if the path 'source/IsaacLab/test' is in session.config.args
+    if any('source/IsaacLab/test' == arg for arg in session.config.args):
+        rootdir = str(session.config.rootpath) + "/test"
+        failed = False  # Track failures
 
-    # Step 1: Run first batch of tests separately (sequential execution)
-    first_tests = [rootdir + test for test in FIRST_RUN_TESTS if os.path.exists(rootdir + test)]
-    failed |= run_individual_tests(first_tests)
+        # Step 1: Run first batch of tests separately (sequential execution)
+        first_tests = [rootdir + test for test in FIRST_RUN_TESTS if os.path.exists(rootdir + test)]
+        failed |= run_individual_tests(first_tests)
 
-    # Step 2: Run second batch together (ensures completion before moving forward)
-    failed |= run_test_group(SECOND_RUN_TESTS, "second", session.config.args)
+        # Step 2: Run second batch together (ensures completion before moving forward)
+        failed |= run_test_group(SECOND_RUN_TESTS, "second", session.config.args)
 
-    # Step 3: Run all remaining tests
-    failed |= run_test_group([], "remaining", session.config.args)
+        # Step 3: Run all remaining tests
+        failed |= run_test_group([], "remaining", session.config.args)
 
-    # Exit only at the end with failure code if any test failed
-    if failed:
-        sys.exit(1)
+        # Exit only at the end with failure code if any test failed
+        if failed:
+            sys.exit(1)
+
+    # Default behavior if path is not 'source/IsaacLab/test'
+    # Add any default session start logic here if needed
