@@ -137,8 +137,8 @@ class DirectRLEnv(gym.Env):
             self.viewport_camera_controller = None
 
         # create event manager
-        # note: this is moved here to allow USD-related randomization events that need to be
-        #   applied before the simulation starts.
+        # note: this is needed here (rather than after simulation play) to allow USD-related randomization events
+        #   that must happen before the simulation starts. Example: randomizing mesh scale
         if self.cfg.events:
             self.event_manager = EventManager(self.cfg.events, self)
             print("[INFO] Event Manager: ", self.event_manager)
