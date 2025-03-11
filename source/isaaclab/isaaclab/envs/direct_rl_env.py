@@ -144,8 +144,8 @@ class DirectRLEnv(gym.Env):
             print("[INFO] Event Manager: ", self.event_manager)
 
             # apply USD-related randomization events
-            if "setup" in self.event_manager.available_modes:
-                self.event_manager.apply(mode="setup")
+            if "prestartup" in self.event_manager.available_modes:
+                self.event_manager.apply(mode="prestartup")
 
         # play the simulator to activate physics handles
         # note: this activates the physics simulation view that exposes TensorAPIs
