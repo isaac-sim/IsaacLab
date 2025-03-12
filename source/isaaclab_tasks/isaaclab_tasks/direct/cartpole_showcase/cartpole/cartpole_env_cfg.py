@@ -1,48 +1,15 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 from __future__ import annotations
 
 from gymnasium import spaces
 
-from isaaclab_assets.robots.cartpole import CARTPOLE_CFG
-
-from isaaclab.assets import ArticulationCfg
-from isaaclab.envs import DirectRLEnvCfg
-from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.sim import SimulationCfg
 from isaaclab.utils import configclass
 
-
-@configclass
-class CartpoleBaseEnvCfg(DirectRLEnvCfg):
-    # env
-    decimation = 2
-    episode_length_s = 5.0
-    state_space = 0
-
-    # simulation
-    sim: SimulationCfg = SimulationCfg(dt=1 / 120, render_interval=decimation)
-
-    # robot
-    robot_cfg: ArticulationCfg = CARTPOLE_CFG.replace(prim_path="/World/envs/env_.*/Robot")
-    cart_dof_name = "slider_to_cart"
-    pole_dof_name = "cart_to_pole"
-
-    # scene
-    scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=4096, env_spacing=4.0, replicate_physics=True)
-
-    # control
-    max_effort = 100.0  # [N]
-
-    # reset
-    max_cart_pos = 3.0  # the cart is reset if it exceeds that position [m]
-    initial_pole_angle_range = [-0.25, 0.25]  # the range in which the pole angle is sampled from on reset [rad]
-
-    # reward scales
-    rew_scale_alive = 1.0
-    rew_scale_terminated = -2.0
-    rew_scale_pole_pos = -1.0
-    rew_scale_cart_vel = -0.01
-    rew_scale_pole_vel = -0.005
-
+from isaaclab_tasks.direct.cartpole.cartpole_env import CartpoleEnvCfg
 
 ###
 # Observation space as Box
@@ -50,7 +17,7 @@ class CartpoleBaseEnvCfg(DirectRLEnvCfg):
 
 
 @configclass
-class BoxBoxEnvCfg(CartpoleBaseEnvCfg):
+class BoxBoxEnvCfg(CartpoleEnvCfg):
     """
     * Observation space (``~gymnasium.spaces.Box`` with shape (4,))
 
@@ -77,7 +44,7 @@ class BoxBoxEnvCfg(CartpoleBaseEnvCfg):
 
 
 @configclass
-class BoxDiscreteEnvCfg(CartpoleBaseEnvCfg):
+class BoxDiscreteEnvCfg(CartpoleEnvCfg):
     """
     * Observation space (``~gymnasium.spaces.Box`` with shape (4,))
 
@@ -106,7 +73,7 @@ class BoxDiscreteEnvCfg(CartpoleBaseEnvCfg):
 
 
 @configclass
-class BoxMultiDiscreteEnvCfg(CartpoleBaseEnvCfg):
+class BoxMultiDiscreteEnvCfg(CartpoleEnvCfg):
     """
     * Observation space (``~gymnasium.spaces.Box`` with shape (4,))
 
@@ -147,7 +114,7 @@ class BoxMultiDiscreteEnvCfg(CartpoleBaseEnvCfg):
 
 
 @configclass
-class DiscreteBoxEnvCfg(CartpoleBaseEnvCfg):
+class DiscreteBoxEnvCfg(CartpoleEnvCfg):
     """
     * Observation space (``~gymnasium.spaces.Discrete`` with 16 elements)
 
@@ -186,7 +153,7 @@ class DiscreteBoxEnvCfg(CartpoleBaseEnvCfg):
 
 
 @configclass
-class DiscreteDiscreteEnvCfg(CartpoleBaseEnvCfg):
+class DiscreteDiscreteEnvCfg(CartpoleEnvCfg):
     """
     * Observation space (``~gymnasium.spaces.Discrete`` with 16 elements)
 
@@ -227,7 +194,7 @@ class DiscreteDiscreteEnvCfg(CartpoleBaseEnvCfg):
 
 
 @configclass
-class DiscreteMultiDiscreteEnvCfg(CartpoleBaseEnvCfg):
+class DiscreteMultiDiscreteEnvCfg(CartpoleEnvCfg):
     """
     * Observation space (``~gymnasium.spaces.Discrete`` with 16 elements)
 
@@ -280,7 +247,7 @@ class DiscreteMultiDiscreteEnvCfg(CartpoleBaseEnvCfg):
 
 
 @configclass
-class MultiDiscreteBoxEnvCfg(CartpoleBaseEnvCfg):
+class MultiDiscreteBoxEnvCfg(CartpoleEnvCfg):
     """
     * Observation space (``~gymnasium.spaces.MultiDiscrete`` with 4 discrete spaces)
 
@@ -326,7 +293,7 @@ class MultiDiscreteBoxEnvCfg(CartpoleBaseEnvCfg):
 
 
 @configclass
-class MultiDiscreteDiscreteEnvCfg(CartpoleBaseEnvCfg):
+class MultiDiscreteDiscreteEnvCfg(CartpoleEnvCfg):
     """
     * Observation space (``~gymnasium.spaces.MultiDiscrete`` with 4 discrete spaces)
 
@@ -374,7 +341,7 @@ class MultiDiscreteDiscreteEnvCfg(CartpoleBaseEnvCfg):
 
 
 @configclass
-class MultiDiscreteMultiDiscreteEnvCfg(CartpoleBaseEnvCfg):
+class MultiDiscreteMultiDiscreteEnvCfg(CartpoleEnvCfg):
     """
     * Observation space (``~gymnasium.spaces.MultiDiscrete`` with 4 discrete spaces)
 
@@ -434,7 +401,7 @@ class MultiDiscreteMultiDiscreteEnvCfg(CartpoleBaseEnvCfg):
 
 
 @configclass
-class DictBoxEnvCfg(CartpoleBaseEnvCfg):
+class DictBoxEnvCfg(CartpoleEnvCfg):
     """
     * Observation space (``~gymnasium.spaces.Dict`` with 2 constituent spaces)
 
@@ -462,7 +429,7 @@ class DictBoxEnvCfg(CartpoleBaseEnvCfg):
 
 
 @configclass
-class DictDiscreteEnvCfg(CartpoleBaseEnvCfg):
+class DictDiscreteEnvCfg(CartpoleEnvCfg):
     """
     * Observation space (``~gymnasium.spaces.Dict`` with 2 constituent spaces)
 
@@ -492,7 +459,7 @@ class DictDiscreteEnvCfg(CartpoleBaseEnvCfg):
 
 
 @configclass
-class DictMultiDiscreteEnvCfg(CartpoleBaseEnvCfg):
+class DictMultiDiscreteEnvCfg(CartpoleEnvCfg):
     """
     * Observation space (``~gymnasium.spaces.Dict`` with 2 constituent spaces)
 
@@ -534,7 +501,7 @@ class DictMultiDiscreteEnvCfg(CartpoleBaseEnvCfg):
 
 
 @configclass
-class TupleBoxEnvCfg(CartpoleBaseEnvCfg):
+class TupleBoxEnvCfg(CartpoleEnvCfg):
     """
     * Observation space (``~gymnasium.spaces.Tuple`` with 2 constituent spaces)
 
@@ -562,7 +529,7 @@ class TupleBoxEnvCfg(CartpoleBaseEnvCfg):
 
 
 @configclass
-class TupleDiscreteEnvCfg(CartpoleBaseEnvCfg):
+class TupleDiscreteEnvCfg(CartpoleEnvCfg):
     """
     * Observation space (``~gymnasium.spaces.Tuple`` with 2 constituent spaces)
 
@@ -592,7 +559,7 @@ class TupleDiscreteEnvCfg(CartpoleBaseEnvCfg):
 
 
 @configclass
-class TupleMultiDiscreteEnvCfg(CartpoleBaseEnvCfg):
+class TupleMultiDiscreteEnvCfg(CartpoleEnvCfg):
     """
     * Observation space (``~gymnasium.spaces.Tuple`` with 2 constituent spaces)
 
