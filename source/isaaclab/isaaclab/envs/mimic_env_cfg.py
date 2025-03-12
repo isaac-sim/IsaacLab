@@ -77,7 +77,9 @@ class DataGenConfig:
 
 @configclass
 class SubTaskConfig:
-    """Configuration settings specific to the management of individual subtasks."""
+    """
+    Configuration settings for specifying subtasks used in Mimic environments.
+    """
 
     """Mandatory options that should be defined for every subtask."""
 
@@ -150,7 +152,9 @@ class SubTaskConstraintCoordinationScheme(enum.IntEnum):
 
 @configclass
 class SubTaskConstraintConfig:
-    """Configuration settings for subtask constraints."""
+    """
+    Configuration settings for specifying subtask constraints used in multi-eef Mimic environments.
+    """
 
     eef_subtask_constraint_tuple: list[tuple[str, int]] = (("", 0), ("", 0))
     """List of associated subtasks tuples in order.
