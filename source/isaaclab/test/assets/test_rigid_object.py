@@ -19,7 +19,6 @@ if not AppLauncher.instance():
 
 import ctypes
 import torch
-import unittest
 from typing import Literal
 
 import isaacsim.core.utils.prims as prim_utils

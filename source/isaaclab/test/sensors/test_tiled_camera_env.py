@@ -36,7 +36,6 @@ elif AppLauncher.instance() and AppLauncher.instance()._enable_cameras is False:
 
 import gymnasium as gym
 import sys
-import unittest
 
 import omni.usd
 
@@ -46,18 +45,8 @@ from isaaclab.sensors import save_images_to_file
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
 
-import pytest
 
-@pytest.fixture(scope="module")
-def setup_env():
-    """Fixture to set up the environment for testing."""
-    # acquire all Isaac environments names
-    registered_tasks = ["Isaac-Cartpole-RGB-Camera-Direct-v0"]
-    print(">>> All registered environments:", registered_tasks)
-    yield registered_tasks
-
-
-def test_tiled_resolutions_tiny(setup_env):
+def test_tiled_resolutions_tiny():
     """Define settings for resolution and number of environments"""
     num_envs = 1024
     tile_widths = range(32, 48)
@@ -65,7 +54,7 @@ def test_tiled_resolutions_tiny(setup_env):
     _launch_tests(tile_widths, tile_heights, num_envs)
 
 
-def test_tiled_resolutions_small(setup_env):
+def test_tiled_resolutions_small():
     """Define settings for resolution and number of environments"""
     num_envs = 300
     tile_widths = range(128, 156)
@@ -73,7 +62,7 @@ def test_tiled_resolutions_small(setup_env):
     _launch_tests(tile_widths, tile_heights, num_envs)
 
 
-def test_tiled_resolutions_medium(setup_env):
+def test_tiled_resolutions_medium():
     """Define settings for resolution and number of environments"""
     num_envs = 64
     tile_widths = range(320, 400, 20)
@@ -81,7 +70,7 @@ def test_tiled_resolutions_medium(setup_env):
     _launch_tests(tile_widths, tile_heights, num_envs)
 
 
-def test_tiled_resolutions_large(setup_env):
+def test_tiled_resolutions_large():
     """Define settings for resolution and number of environments"""
     num_envs = 4
     tile_widths = range(480, 640, 40)
@@ -89,7 +78,7 @@ def test_tiled_resolutions_large(setup_env):
     _launch_tests(tile_widths, tile_heights, num_envs)
 
 
-def test_tiled_resolutions_edge_cases(setup_env):
+def test_tiled_resolutions_edge_cases():
     """Define settings for resolution and number of environments"""
     num_envs = 1000
     tile_widths = [12, 67, 93, 147]
@@ -97,7 +86,7 @@ def test_tiled_resolutions_edge_cases(setup_env):
     _launch_tests(tile_widths, tile_heights, num_envs)
 
 
-def test_tiled_num_envs_edge_cases(setup_env):
+def test_tiled_num_envs_edge_cases():
     """Define settings for resolution and number of environments"""
     num_envs = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 53, 359, 733, 927]
     tile_widths = [67, 93, 147]
