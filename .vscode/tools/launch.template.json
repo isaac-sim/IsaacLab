@@ -35,7 +35,7 @@
             "console": "integratedTerminal"
         },
         {
-            "name": "Python: Pytest",
+            "name": "Python: SinglePytest",
             "type": "python",
             "request": "launch",
             "module": "pytest",
@@ -43,6 +43,15 @@
               "${file}"
             ],
             "console": "integratedTerminal"
+        },
+        {
+            "name": "Python: ALL Pytest",
+            "type": "python",
+            "request": "launch",
+            "module": "pytest",
+            "args": ["source/isaaclab/test"],
+            "console": "integratedTerminal",
+            "justMyCode": false
         }
     ]
 }
