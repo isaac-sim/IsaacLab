@@ -1,16 +1,17 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 from __future__ import annotations
 
 from gymnasium import spaces
 
-from isaaclab_assets.robots.cartpole import CARTPOLE_CFG
-
 import isaaclab.sim as sim_utils
-from isaaclab.assets import ArticulationCfg
-from isaaclab.envs import DirectRLEnvCfg, ViewerCfg
-from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import TiledCameraCfg
-from isaaclab.sim import SimulationCfg
 from isaaclab.utils import configclass
+
+from isaaclab_tasks.direct.cartpole.cartpole_camera_env import CartpoleRGBCameraEnvCfg as CartpoleCameraEnvCfg
 
 
 def get_tiled_camera_cfg(data_type: str, width: int = 100, height: int = 100) -> TiledCameraCfg:
@@ -26,49 +27,13 @@ def get_tiled_camera_cfg(data_type: str, width: int = 100, height: int = 100) ->
     )
 
 
-@configclass
-class CartpoleCameraBaseEnvCfg(DirectRLEnvCfg):
-    # env
-    decimation = 2
-    episode_length_s = 5.0
-    state_space = 0
-
-    # simulation
-    sim: SimulationCfg = SimulationCfg(dt=1 / 120, render_interval=decimation)
-
-    # robot
-    robot_cfg: ArticulationCfg = CARTPOLE_CFG.replace(prim_path="/World/envs/env_.*/Robot")
-    cart_dof_name = "slider_to_cart"
-    pole_dof_name = "cart_to_pole"
-
-    # change viewer settings
-    viewer = ViewerCfg(eye=(20.0, 20.0, 20.0))
-
-    # scene
-    scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=1024, env_spacing=20.0, replicate_physics=True)
-
-    # control
-    max_effort = 100.0  # [N]
-
-    # reset
-    max_cart_pos = 3.0  # the cart is reset if it exceeds that position [m]
-    initial_pole_angle_range = [-0.125, 0.125]  # the range in which the pole angle is sampled from on reset [rad]
-
-    # reward scales
-    rew_scale_alive = 1.0
-    rew_scale_terminated = -2.0
-    rew_scale_pole_pos = -1.0
-    rew_scale_cart_vel = -0.01
-    rew_scale_pole_vel = -0.005
-
-
 ###
 # Observation space as Box
 ###
 
 
 @configclass
-class BoxBoxEnvCfg(CartpoleCameraBaseEnvCfg):
+class BoxBoxEnvCfg(CartpoleCameraEnvCfg):
     """
     * Observation space (``~gymnasium.spaces.Box`` with shape (height, width, 3))
 
@@ -98,7 +63,7 @@ class BoxBoxEnvCfg(CartpoleCameraBaseEnvCfg):
 
 
 @configclass
-class BoxDiscreteEnvCfg(CartpoleCameraBaseEnvCfg):
+class BoxDiscreteEnvCfg(CartpoleCameraEnvCfg):
     """
     * Observation space (``~gymnasium.spaces.Box`` with shape (height, width, 3))
 
@@ -130,7 +95,7 @@ class BoxDiscreteEnvCfg(CartpoleCameraBaseEnvCfg):
 
 
 @configclass
-class BoxMultiDiscreteEnvCfg(CartpoleCameraBaseEnvCfg):
+class BoxMultiDiscreteEnvCfg(CartpoleCameraEnvCfg):
     """
     * Observation space (``~gymnasium.spaces.Box`` with shape (height, width, 3))
 
@@ -174,7 +139,7 @@ class BoxMultiDiscreteEnvCfg(CartpoleCameraBaseEnvCfg):
 
 
 @configclass
-class DictBoxEnvCfg(CartpoleCameraBaseEnvCfg):
+class DictBoxEnvCfg(CartpoleCameraEnvCfg):
     """
     * Observation space (``~gymnasium.spaces.Dict`` with 2 constituent spaces)
 
@@ -206,7 +171,7 @@ class DictBoxEnvCfg(CartpoleCameraBaseEnvCfg):
 
 
 @configclass
-class DictDiscreteEnvCfg(CartpoleCameraBaseEnvCfg):
+class DictDiscreteEnvCfg(CartpoleCameraEnvCfg):
     """
     * Observation space (``~gymnasium.spaces.Dict`` with 2 constituent spaces)
 
@@ -240,7 +205,7 @@ class DictDiscreteEnvCfg(CartpoleCameraBaseEnvCfg):
 
 
 @configclass
-class DictMultiDiscreteEnvCfg(CartpoleCameraBaseEnvCfg):
+class DictMultiDiscreteEnvCfg(CartpoleCameraEnvCfg):
     """
     * Observation space (``~gymnasium.spaces.Dict`` with 2 constituent spaces)
 

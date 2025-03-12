@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2024, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -21,7 +21,7 @@ from . import agents
 
 gym.register(
     id="Isaac-Cartpole-Camera-Showcase-Box-Box-Direct-v0",
-    entry_point=f"{__name__}.cartpole_camera_env:CartpoleCameraEnv",
+    entry_point=f"{__name__}.cartpole_camera_env:CartpoleCameraShowcaseEnv",
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.cartpole_camera_env_cfg:BoxBoxEnvCfg",
@@ -31,7 +31,7 @@ gym.register(
 
 gym.register(
     id="Isaac-Cartpole-Camera-Showcase-Box-Discrete-Direct-v0",
-    entry_point=f"{__name__}.cartpole_camera_env:CartpoleCameraEnv",
+    entry_point=f"{__name__}.cartpole_camera_env:CartpoleCameraShowcaseEnv",
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.cartpole_camera_env_cfg:BoxDiscreteEnvCfg",
@@ -41,7 +41,7 @@ gym.register(
 
 gym.register(
     id="Isaac-Cartpole-Camera-Showcase-Box-MultiDiscrete-Direct-v0",
-    entry_point=f"{__name__}.cartpole_camera_env:CartpoleCameraEnv",
+    entry_point=f"{__name__}.cartpole_camera_env:CartpoleCameraShowcaseEnv",
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.cartpole_camera_env_cfg:BoxMultiDiscreteEnvCfg",
@@ -55,7 +55,7 @@ gym.register(
 
 gym.register(
     id="Isaac-Cartpole-Camera-Showcase-Dict-Box-Direct-v0",
-    entry_point=f"{__name__}.cartpole_camera_env:CartpoleCameraEnv",
+    entry_point=f"{__name__}.cartpole_camera_env:CartpoleCameraShowcaseEnv",
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.cartpole_camera_env_cfg:DictBoxEnvCfg",
@@ -65,7 +65,7 @@ gym.register(
 
 gym.register(
     id="Isaac-Cartpole-Camera-Showcase-Dict-Discrete-Direct-v0",
-    entry_point=f"{__name__}.cartpole_camera_env:CartpoleCameraEnv",
+    entry_point=f"{__name__}.cartpole_camera_env:CartpoleCameraShowcaseEnv",
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.cartpole_camera_env_cfg:DictDiscreteEnvCfg",
@@ -75,7 +75,7 @@ gym.register(
 
 gym.register(
     id="Isaac-Cartpole-Camera-Showcase-Dict-MultiDiscrete-Direct-v0",
-    entry_point=f"{__name__}.cartpole_camera_env:CartpoleCameraEnv",
+    entry_point=f"{__name__}.cartpole_camera_env:CartpoleCameraShowcaseEnv",
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.cartpole_camera_env_cfg:DictMultiDiscreteEnvCfg",
