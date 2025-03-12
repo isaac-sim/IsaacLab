@@ -37,11 +37,11 @@ models:
     unnormalized_log_prob: True
     network:
       - name: net_pos
-        input: STATES[0]
+        input: OBSERVATIONS[0]
         layers: [16, 16]
         activations: elu
       - name: net_vel
-        input: STATES[1]
+        input: OBSERVATIONS[1]
         layers: [16, 16]
         activations: elu
       - name: net
@@ -54,11 +54,11 @@ models:
     clip_actions: False
     network:
       - name: net_pos
-        input: STATES[0]
+        input: OBSERVATIONS[0]
         layers: [16, 16]
         activations: elu
       - name: net_vel
-        input: STATES[1]
+        input: OBSERVATIONS[1]
         layers: [16, 16]
         activations: elu
       - name: net

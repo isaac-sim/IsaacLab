@@ -37,11 +37,11 @@ models:
     unnormalized_log_prob: True
     network:
       - name: net_pos
-        input: STATES["joint-positions"]
+        input: OBSERVATIONS["joint-positions"]
         layers: [16, 16]
         activations: elu
       - name: net_vel
-        input: STATES["joint-velocities"]
+        input: OBSERVATIONS["joint-velocities"]
         layers: [16, 16]
         activations: elu
       - name: net
@@ -54,11 +54,11 @@ models:
     clip_actions: False
     network:
       - name: net_pos
-        input: STATES["joint-positions"]
+        input: OBSERVATIONS["joint-positions"]
         layers: [16, 16]
         activations: elu
       - name: net_vel
-        input: STATES["joint-velocities"]
+        input: OBSERVATIONS["joint-velocities"]
         layers: [16, 16]
         activations: elu
       - name: net

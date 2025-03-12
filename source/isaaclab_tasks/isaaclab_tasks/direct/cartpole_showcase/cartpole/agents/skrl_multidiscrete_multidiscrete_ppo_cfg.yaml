@@ -32,7 +32,7 @@ models:
     unnormalized_log_prob: True
     network:
       - name: net
-        input: one_hot_encoding(OBSERVATION_SPACE, STATES)
+        input: one_hot_encoding(OBSERVATION_SPACE, OBSERVATIONS)
         layers: [32, 32]
         activations: elu
     output: ACTIONS
@@ -41,7 +41,7 @@ models:
     clip_actions: False
     network:
       - name: net
-        input: one_hot_encoding(OBSERVATION_SPACE, STATES)
+        input: one_hot_encoding(OBSERVATION_SPACE, OBSERVATIONS)
         layers: [32, 32]
         activations: elu
     output: ONE
