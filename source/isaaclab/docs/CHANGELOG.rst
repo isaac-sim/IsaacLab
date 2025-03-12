@@ -1,7 +1,7 @@
 Changelog
 ---------
 
-0.36.6 (2025-04-09)
+0.36.7 (2025-04-09)
 ~~~~~~~~~~~~~~~~~~~
 
 Changed
@@ -12,7 +12,7 @@ Changed
   the cuda device, which results in NCCL errors on distributed setups.
 
 
-0.36.5 (2025-04-01)
+0.36.6 (2025-04-01)
 ~~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -21,7 +21,7 @@ Fixed
 * Adds check in RecorderManager to ensure that the success indicator is only set if the termination manager is present.
 
 
-0.36.4 (2025-03-24)
+0.36.5 (2025-03-24)
 ~~~~~~~~~~~~~~~~~~~
 
 Changed
@@ -31,7 +31,7 @@ Changed
   the default settings will be used from the experience files and the double definition is removed.
 
 
-0.36.3 (2025-03-17)
+0.36.4 (2025-03-17)
 ~~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -41,8 +41,17 @@ Fixed
   :attr:`effort_limit` is set.
 
 
-0.36.2 (2025-03-12)
-~~~~~~~~~~~~~~~~~~~
+0.36.3 (2025-03-10)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Added the PinkIKController controller class that interfaces Isaac Lab with the Pink differential inverse kinematics solver to allow control of multiple links in a robot using a single solver.
+
+
+0.36.2 (2025-03-07)
+~~~~~~~~~~~~~~~~~~~~
 
 Changed
 ^^^^^^^

@@ -1,7 +1,7 @@
 {
     "algo_name": "bc",
     "experiment": {
-        "name": "bc_rnn_low_dim_franka_stack",
+        "name": "bc_rnn_low_dim_gr1t2",
         "validate": false,
         "logging": {
             "terminal_output_to_txt": true,
@@ -65,7 +65,7 @@
         },
         "actor_layer_dims": [],
         "gmm": {
-            "enabled": true,
+            "enabled": false,
             "num_modes": 5,
             "min_std": 0.0001,
             "std_activation": "softplus",
@@ -81,15 +81,31 @@
             "kwargs": {
                 "bidirectional": false
             }
+        },
+        "transformer": {
+            "enabled": false,
+            "context_length": 10,
+            "embed_dim": 512,
+            "num_layers": 6,
+            "num_heads": 8,
+            "emb_dropout": 0.1,
+            "attn_dropout": 0.1,
+            "block_output_dropout": 0.1,
+            "sinusoidal_embedding": false,
+            "activation": "gelu",
+            "supervise_all_steps": false,
+            "nn_parameter_for_timesteps": true
         }
     },
     "observation": {
         "modalities": {
             "obs": {
                 "low_dim": [
-                    "eef_pos",
-                    "eef_quat",
-                    "gripper_pos",
+                    "left_eef_pos",
+                    "left_eef_quat",
+                    "right_eef_pos",
+                    "right_eef_quat",
+                    "hand_joint_state",
                     "object"
                 ],
                 "rgb": [],

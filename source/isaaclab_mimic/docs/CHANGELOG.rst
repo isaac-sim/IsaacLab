@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+1.0.6 (2025-03-10)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^^^
+
+* Added :class:`FrankaCubeStackIKAbsMimicEnv` and support for the GR1T2 robot task (:class:`PickPlaceGR1T2MimicEnv`).
+
+
 1.0.5 (2025-03-10)
 ~~~~~~~~~~~~~~~~~~
 

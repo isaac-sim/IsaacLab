@@ -38,6 +38,8 @@ INSTALL_REQUIRES = [
     "pillow==11.0.0",
     # livestream
     "starlette==0.46.0",
+    "pin-pink==3.1.0",  # required by isaaclab.isaaclab.controllers.pink_ik
+    "dex-retargeting==0.4.6",  # required by isaaclab.devices.openxr.retargeters.humanoid.fourier.gr1_t2_dex_retargeting_utils
 ]
 
 PYTORCH_INDEX_URL = ["https://download.pytorch.org/whl/cu118"]

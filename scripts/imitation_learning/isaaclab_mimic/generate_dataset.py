@@ -7,6 +7,10 @@
 Main data generation script.
 """
 
+# Import pinocchio in the main script to force the use of the dependencies installed by IsaacLab and not the one installed by Isaac Sim
+# pinocchio is required by the Pink IK controller
+import pinocchio  # noqa: F401
+
 """Launch Isaac Sim Simulator first."""
 
 import argparse

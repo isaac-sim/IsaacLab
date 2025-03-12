@@ -1,4 +1,4 @@
-# Copyright (c) 2024-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: Apache-2.0
@@ -6,24 +6,23 @@
 from isaaclab.envs.mimic_env_cfg import MimicEnvCfg, SubTaskConfig
 from isaaclab.utils import configclass
 
-from isaaclab_tasks.manager_based.manipulation.stack.config.franka.stack_ik_rel_env_cfg import FrankaCubeStackEnvCfg
+from isaaclab_tasks.manager_based.manipulation.stack.config.franka.stack_ik_rel_visuomotor_env_cfg import (
+    FrankaCubeStackVisuomotorEnvCfg,
+)
 
 
 @configclass
-class FrankaCubeStackIKRelMimicEnvCfg(FrankaCubeStackEnvCfg, MimicEnvCfg):
+class FrankaCubeStackIKRelVisuomotorMimicEnvCfg(FrankaCubeStackVisuomotorEnvCfg, MimicEnvCfg):
     """
-    Isaac Lab Mimic environment config class for Franka Cube Stack IK Rel env.
+    Isaac Lab Mimic environment config class for Franka Cube Stack IK Rel Visuomotor env.
     """
 
     def __post_init__(self):
         # post init of parents
         super().__post_init__()
-        # # TODO: Figure out how we can move this to the MimicEnvCfg class
-        # # The __post_init__() above only calls the init for FrankaCubeStackEnvCfg and not MimicEnvCfg
-        # # https://stackoverflow.com/questions/59986413/achieving-multiple-inheritance-using-python-dataclasses
 
         # Override the existing values
-        self.datagen_config.name = "demo_src_stack_isaac_lab_task_D0"
+        self.datagen_config.name = "isaac_lab_franka_stack_ik_rel_visuomotor_D0"
         self.datagen_config.generation_guarantee = True
         self.datagen_config.generation_keep_failed = True
         self.datagen_config.generation_num_trials = 10

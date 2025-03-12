@@ -1,7 +1,7 @@
 Changelog
 ---------
 
-0.10.27 (2025-03-25)
+0.10.28 (2025-03-25)
 ~~~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -10,7 +10,7 @@ Fixed
 * Fixed environment test failure for ``Isaac-Stack-Cube-Franka-IK-Rel-Blueprint-v0``.
 
 
-0.10.26 (2025-03-18)
+0.10.27 (2025-03-18)
 ~~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -19,11 +19,20 @@ Added
 * Added Gymnasium spaces showcase tasks (``Isaac-Cartpole-Showcase-*-Direct-v0``, and ``Isaac-Cartpole-Camera-Showcase-*-Direct-v0``).
 
 
-0.10.25 (2025-03-10)
+0.10.26 (2025-03-10)
 ~~~~~~~~~~~~~~~~~~~~
 
 Added
 ^^^^^
+
+* Added the ``Isaac-PickPlace-GR1T2-Abs-v0`` environment that implements a humanoid arm picking and placing a steering wheel task using the PinkIKController.
+
+
+0.10.25 (2025-03-06)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^^^
 
 * Added ``Isaac-Stack-Cube-Franka-IK-Rel-Blueprint-v0`` stacking environment with camera inputs.
 

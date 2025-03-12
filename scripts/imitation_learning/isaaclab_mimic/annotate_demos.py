@@ -7,11 +7,16 @@
 Script to add mimic annotations to demos to be used as source demos for mimic dataset generation.
 """
 
-# Launching Isaac Sim Simulator first.
-
 import argparse
 
+# Import pinocchio in the main script to force the use of the dependencies installed by IsaacLab and not the one installed by Isaac Sim
+# pinocchio is required by the Pink IK controller
+import pinocchio  # noqa: F401
+
 from isaaclab.app import AppLauncher
+
+# Launching Isaac Sim Simulator first.
+
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Annotate demonstrations for Isaac Lab environments.")
@@ -48,6 +53,7 @@ import isaaclab_mimic.envs  # noqa: F401
 # Only enables inputs if this script is NOT headless mode
 if not args_cli.headless and not os.environ.get("HEADLESS", 0):
     from isaaclab.devices import Se3Keyboard
+
 from isaaclab.envs import ManagerBasedRLMimicEnv
 from isaaclab.envs.mdp.recorders.recorders_cfg import ActionStateRecorderManagerCfg
 from isaaclab.managers import RecorderTerm, RecorderTermCfg, TerminationTermCfg
@@ -204,7 +210,8 @@ def main():
             # no need to annotate the last subtask term signal, so remove it from the list
             subtask_term_signal_names[eef_name].pop()
 
-    # reset environment
+    # reset environment - we do a full simulation reset to achieve full determinism
+    env.sim.reset()
     env.reset()
 
     # Only enables inputs if this script is NOT headless mode
@@ -281,6 +288,7 @@ def replay_episode(
     # read initial state and actions from the loaded episode
     initial_state = episode.data["initial_state"]
     actions = episode.data["actions"]
+    env.sim.reset()
     env.recorder_manager.reset()
     env.reset_to(initial_state, None, is_relative=True)
     first_action = True

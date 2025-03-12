@@ -24,9 +24,25 @@ optional arguments:
 
 """Launch Isaac Sim Simulator first."""
 
+# Standard library imports
 import argparse
-import os
+import contextlib
 
+# Third-party imports
+import gymnasium as gym
+import numpy as np
+import os
+import time
+import torch
+
+# Omniverse logger
+import omni.log
+
+# Import pinocchio in the main script to force the use of the dependencies installed by IsaacLab and not the one installed by Isaac Sim
+# pinocchio is required by the Pink IK controller
+import pinocchio  # noqa: F401
+
+# Isaac Lab AppLauncher
 from isaaclab.app import AppLauncher
 
 # add argparse arguments
@@ -57,19 +73,15 @@ if "handtracking" in args_cli.teleop_device.lower():
     app_launcher_args["xr"] = True
 
 # launch the simulator
-app_launcher = AppLauncher(app_launcher_args)
+app_launcher = AppLauncher(args_cli)
 simulation_app = app_launcher.app
 
-"""Rest everything follows."""
+if "handtracking" in args_cli.teleop_device.lower():
+    from isaacsim.xr.openxr import OpenXRSpec
 
-import contextlib
-import gymnasium as gym
-import time
-import torch
-
-import omni.log
-
+# Additional Isaac Lab imports that can only be imported after the simulator is running
 from isaaclab.devices import OpenXRDevice, Se3Keyboard, Se3SpaceMouse
+from isaaclab.devices.openxr.retargeters.humanoid.fourier.gr1t2_retargeter import GR1T2Retargeter
 from isaaclab.devices.openxr.retargeters.manipulator import GripperRetargeter, Se3AbsRetargeter, Se3RelRetargeter
 from isaaclab.envs.mdp.recorders.recorders_cfg import ActionStateRecorderManagerCfg
 
@@ -80,18 +92,23 @@ from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
 class RateLimiter:
     """Convenience class for enforcing rates in loops."""
 
-    def __init__(self, hz):
-        """
+    def __init__(self, hz: int):
+        """Initialize a RateLimiter with specified frequency.
+
         Args:
-            hz (int): frequency to enforce
+            hz: Frequency to enforce in Hertz.
         """
         self.hz = hz
         self.last_time = time.time()
         self.sleep_duration = 1.0 / hz
         self.render_period = min(0.033, self.sleep_duration)
 
-    def sleep(self, env):
-        """Attempt to sleep at the specified rate in hz."""
+    def sleep(self, env: gym.Env):
+        """Attempt to sleep at the specified rate in hz.
+
+        Args:
+            env: Environment to render during sleep periods.
+        """
         next_wakeup_time = self.last_time + self.sleep_duration
         while time.time() < next_wakeup_time:
             time.sleep(self.render_period)
@@ -105,16 +122,47 @@ class RateLimiter:
                 self.last_time += self.sleep_duration
 
 
-def pre_process_actions(delta_pose: torch.Tensor, gripper_command: bool) -> torch.Tensor:
-    """Pre-process actions for the environment."""
+def pre_process_actions(
+    teleop_data: tuple[np.ndarray, bool] | list[tuple[np.ndarray, np.ndarray, np.ndarray]], num_envs: int, device: str
+) -> torch.Tensor:
+    """Convert teleop data to the format expected by the environment action space.
+
+    Args:
+        teleop_data: Data from the teleoperation device.
+        num_envs: Number of environments.
+        device: Device to create tensors on.
+
+    Returns:
+        Processed actions as a tensor.
+    """
     # compute actions based on environment
     if "Reach" in args_cli.task:
+        delta_pose, gripper_command = teleop_data
+        # convert to torch
+        delta_pose = torch.tensor(delta_pose, dtype=torch.float, device=device).repeat(num_envs, 1)
         # note: reach is the only one that uses a different action space
         # compute actions
         return delta_pose
+    elif "PickPlace-GR1T2" in args_cli.task:
+        (left_wrist_pose, right_wrist_pose, hand_joints) = teleop_data[0]
+        # Reconstruct actions_arms tensor with converted positions and rotations
+        actions = torch.tensor(
+            np.concatenate([
+                left_wrist_pose,  # left ee pose
+                right_wrist_pose,  # right ee pose
+                hand_joints,  # hand joint angles
+            ]),
+            device=device,
+            dtype=torch.float32,
+        ).unsqueeze(0)
+        # Concatenate arm poses and hand joint angles
+        return actions
     else:
         # resolve gripper command
-        gripper_vel = torch.zeros((delta_pose.shape[0], 1), dtype=torch.float, device=delta_pose.device)
+        delta_pose, gripper_command = teleop_data
+        # convert to torch
+        delta_pose = torch.tensor(delta_pose, dtype=torch.float, device=device).repeat(num_envs, 1)
+        gripper_vel = torch.zeros((delta_pose.shape[0], 1), dtype=torch.float, device=device)
         gripper_vel[:] = -1 if gripper_command else 1
         # compute actions
         return torch.concat([delta_pose, gripper_vel], dim=1)
@@ -210,7 +258,7 @@ def main():
         nonlocal running_recording_instance
         running_recording_instance = False
 
-    def create_teleop_device(device_name: str):
+    def create_teleop_device(device_name: str, env: gym.Env):
         """Create and configure teleoperation device for robot control.
 
         Args:
@@ -224,10 +272,32 @@ def main():
             DeviceBase: Configured teleoperation device ready for robot control
         """
         device_name = device_name.lower()
+        nonlocal running_recording_instance
         if device_name == "keyboard":
             return Se3Keyboard(pos_sensitivity=0.2, rot_sensitivity=0.5)
         elif device_name == "spacemouse":
             return Se3SpaceMouse(pos_sensitivity=0.2, rot_sensitivity=0.5)
+        elif "dualhandtracking_abs" in device_name and "GR1T2" in env.cfg.env_name:
+            # Create GR1T2 retargeter with desired configuration
+            gr1t2_retargeter = GR1T2Retargeter(
+                enable_visualization=True,
+                num_open_xr_hand_joints=2 * (int(OpenXRSpec.HandJointEXT.XR_HAND_JOINT_LITTLE_TIP_EXT) + 1),
+                device=env.unwrapped.device,
+                hand_joint_names=env.scene["robot"].data.joint_names[-22:],
+            )
+
+            # Create hand tracking device with retargeter
+            device = OpenXRDevice(
+                env_cfg.xr,
+                hand=OpenXRDevice.Hand.BOTH,
+                retargeters=[gr1t2_retargeter],
+            )
+            device.add_callback("RESET", reset_recording_instance)
+            device.add_callback("START", start_recording_instance)
+            device.add_callback("STOP", stop_recording_instance)
+
+            running_recording_instance = False
+            return device
         elif "handtracking" in device_name:
             # Create Franka retargeter with desired configuration
             if "_abs" in device_name:
@@ -247,20 +317,20 @@ def main():
             device.add_callback("START", start_recording_instance)
             device.add_callback("STOP", stop_recording_instance)
 
-            nonlocal running_recording_instance
             running_recording_instance = False
             return device
         else:
             raise ValueError(
                 f"Invalid device interface '{device_name}'. Supported: 'keyboard', 'spacemouse', 'handtracking',"
-                " 'handtracking_abs'."
+                " 'handtracking_abs', 'dualhandtracking_abs'."
             )
 
-    teleop_interface = create_teleop_device(args_cli.teleop_device)
+    teleop_interface = create_teleop_device(args_cli.teleop_device, env)
     teleop_interface.add_callback("R", reset_recording_instance)
     print(teleop_interface)
 
     # reset before starting
+    env.sim.reset()
     env.reset()
     teleop_interface.reset()
 
@@ -269,15 +339,13 @@ def main():
     success_step_count = 0
     with contextlib.suppress(KeyboardInterrupt) and torch.inference_mode():
         while simulation_app.is_running():
-            # get keyboard command
-            delta_pose, gripper_command = teleop_interface.advance()
-            # convert to torch
-            delta_pose = torch.tensor(delta_pose, dtype=torch.float, device=env.device).repeat(env.num_envs, 1)
-            # compute actions based on environment
-            actions = pre_process_actions(delta_pose, gripper_command)
+            # get data from teleop device
+            teleop_data = teleop_interface.advance()
 
             # perform action on environment
             if running_recording_instance:
+                # compute actions based on environment
+                actions = pre_process_actions(teleop_data, env.num_envs, env.device)
                 env.step(actions)
             else:
                 env.sim.render()
@@ -296,6 +364,7 @@ def main():
                     success_step_count = 0
 
             if should_reset_recording_instance:
+                env.sim.reset()
                 env.recorder_manager.reset()
                 env.reset()
                 should_reset_recording_instance = False

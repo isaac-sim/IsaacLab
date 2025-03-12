@@ -178,6 +178,10 @@ autodoc_mock_imports = [
     "tensordict",
     "trimesh",
     "toml",
+    "qpsolvers",
+    "pink",
+    "pinocchio",
+    "nvidia.srl",
 ]
 
 # List of zero or more Sphinx-specific warning categories to be squelched (i.e.,
