@@ -62,7 +62,7 @@ def sim():
     # create source prim
     prim_utils.define_prim(env_prim_paths[0], "Xform")
     # clone the env xform
-    env_origins = cloner.clone(
+    cloner.clone(
         source_prim_path=env_prim_paths[0],
         prim_paths=env_prim_paths,
         replicate_physics=True,

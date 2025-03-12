@@ -23,6 +23,7 @@ import scipy.spatial.transform as scipy_tf
 import torch
 import torch.utils.benchmark as benchmark
 from math import pi as PI
+
 import pytest
 
 import isaaclab.utils.math as math_utils
@@ -41,22 +42,22 @@ def test_is_identity_pose(device):
     # Single row identity pose
     identity_pos = torch.zeros(3, device=device)
     identity_rot = torch.tensor((1.0, 0.0, 0.0, 0.0), device=device)
-    assert math_utils.is_identity_pose(identity_pos, identity_rot) == True
+    assert math_utils.is_identity_pose(identity_pos, identity_rot) is True
 
     # Modified single row pose
     identity_pos = torch.tensor([1.0, 0.0, 0.0], device=device)
     identity_rot = torch.tensor((1.0, 1.0, 0.0, 0.0), device=device)
-    assert math_utils.is_identity_pose(identity_pos, identity_rot) == False
+    assert math_utils.is_identity_pose(identity_pos, identity_rot) is False
 
     # Multi-row identity pose
     identity_pos = torch.zeros(3, 3, device=device)
     identity_rot = torch.tensor([[1.0, 0.0, 0.0, 0.0], [1.0, 0.0, 0.0, 0.0], [1.0, 0.0, 0.0, 0.0]], device=device)
-    assert math_utils.is_identity_pose(identity_pos, identity_rot) == True
+    assert math_utils.is_identity_pose(identity_pos, identity_rot) is True
 
     # Modified multi-row pose
     identity_pos = torch.tensor([[1.0, 0.0, 0.0], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0]], device=device)
     identity_rot = torch.tensor([[1.0, 1.0, 0.0, 0.0], [1.0, 0.0, 0.0, 0.0], [1.0, 0.0, 0.0, 0.0]], device=device)
-    assert math_utils.is_identity_pose(identity_pos, identity_rot) == False
+    assert math_utils.is_identity_pose(identity_pos, identity_rot) is False
 
 
 @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
@@ -132,9 +133,16 @@ def test_quat_error_magnitude(device):
     assert math.isclose(q12_diff.item(), expected_diff.item(), rel_tol=1e-5)
 
     # Batched inputs
-    q1 = torch.stack([torch.Tensor([1, 0, 0, 0]), torch.Tensor([1.0, 0, 0.0, 0]), torch.Tensor([1.0, 0, 0.0, 0])], dim=0).to(device)
-    q2 = torch.stack([torch.Tensor([1, 0, 0, 0]), torch.Tensor([0.7071068, 0.7071068, 0, 0]), torch.Tensor([0.0, 0.0, 1.0, 0])], dim=0).to(device)
-    expected_diff = torch.stack([torch.Tensor([0.0]), torch.Tensor([PI / 2]), torch.Tensor([PI])], dim=0).flatten().to(device)
+    q1 = torch.stack(
+        [torch.Tensor([1, 0, 0, 0]), torch.Tensor([1.0, 0, 0.0, 0]), torch.Tensor([1.0, 0, 0.0, 0])], dim=0
+    ).to(device)
+    q2 = torch.stack(
+        [torch.Tensor([1, 0, 0, 0]), torch.Tensor([0.7071068, 0.7071068, 0, 0]), torch.Tensor([0.0, 0.0, 1.0, 0])],
+        dim=0,
+    ).to(device)
+    expected_diff = (
+        torch.stack([torch.Tensor([0.0]), torch.Tensor([PI / 2]), torch.Tensor([PI])], dim=0).flatten().to(device)
+    )
     q12_diff = math_utils.quat_error_magnitude(q1, q2)
     torch.testing.assert_close(q12_diff, expected_diff)
 
@@ -227,9 +235,7 @@ def test_convention_converter(device):
     torch.testing.assert_close(
         math_utils.convert_camera_frame_orientation_convention(quat_ros, "ros", "world"), quat_world
     )
-    torch.testing.assert_close(
-        math_utils.convert_camera_frame_orientation_convention(quat_ros, "ros", "ros"), quat_ros
-    )
+    torch.testing.assert_close(math_utils.convert_camera_frame_orientation_convention(quat_ros, "ros", "ros"), quat_ros)
     # from OpenGL
     torch.testing.assert_close(
         math_utils.convert_camera_frame_orientation_convention(quat_opengl, "opengl", "ros"), quat_ros
@@ -426,9 +432,7 @@ def test_quat_rotate_and_quat_rotate_inverse(device):
     # check output values are the same
     torch.testing.assert_close(math_utils.quat_rotate(q_rand, v_rand), iter_quat_rotate(q_rand, v_rand))
     torch.testing.assert_close(math_utils.quat_rotate(q_rand, v_rand), iter_old_quat_rotate(q_rand, v_rand))
-    torch.testing.assert_close(
-        math_utils.quat_rotate_inverse(q_rand, v_rand), iter_quat_rotate_inverse(q_rand, v_rand)
-    )
+    torch.testing.assert_close(math_utils.quat_rotate_inverse(q_rand, v_rand), iter_quat_rotate_inverse(q_rand, v_rand))
     torch.testing.assert_close(
         math_utils.quat_rotate_inverse(q_rand, v_rand),
         iter_old_quat_rotate_inverse(q_rand, v_rand),
@@ -439,9 +443,7 @@ def test_quat_rotate_and_quat_rotate_inverse(device):
 def test_orthogonalize_perspective_depth(device):
     """Test for converting perspective depth to orthogonal depth."""
     # Create a sample perspective depth image (N, H, W)
-    perspective_depth = torch.tensor(
-        [[[10.0, 0.0, 100.0], [0.0, 3000.0, 0.0], [100.0, 0.0, 100.0]]], device=device
-    )
+    perspective_depth = torch.tensor([[[10.0, 0.0, 100.0], [0.0, 3000.0, 0.0], [100.0, 0.0, 100.0]]], device=device)
 
     # Create sample intrinsic matrix (3, 3)
     intrinsics = torch.tensor([[500.0, 0.0, 5.0], [0.0, 500.0, 5.0], [0.0, 0.0, 1.0]], device=device)

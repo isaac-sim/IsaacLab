@@ -36,7 +36,7 @@ def pytest_ignore_collect(path, config):
         return False
 
     # Check if the path 'source/IsaacLab/test' is in config.args
-    if any('source/isaaclab/test' == arg for arg in config.args):
+    if any(arg == "source/isaaclab/test" for arg in config.args):
         test_name = str(path).removeprefix(str(config.rootdir) + "/test")
         stage = os.getenv("PYTEST_EXEC_STAGE", "main")
 
@@ -88,7 +88,7 @@ def pytest_sessionstart(session):
         return  # Prevent infinite loop in subprocesses
 
     # Check if the path 'source/IsaacLab/test' is in session.config.args
-    if any('source/isaaclab/test' == arg for arg in session.config.args):
+    if any(arg == "source/isaaclab/test" for arg in session.config.args):
         rootdir = str(session.config.rootpath) + "/test"
         failed = False  # Track failures
 

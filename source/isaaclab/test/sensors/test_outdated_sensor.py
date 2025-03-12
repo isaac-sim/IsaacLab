@@ -24,13 +24,13 @@ import torch
 
 import carb
 import omni.usd
+import pytest
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
 
-import pytest
 
-@pytest.fixture()  # scope="module"
+@pytest.fixture(scope="function")  # scope="module"
 def setup_carb_settings():
     """Fixture to set up carb settings."""
     # this flag is necessary to prevent a bug where the simulation gets stuck randomly when running the
@@ -39,7 +39,8 @@ def setup_carb_settings():
     carb_settings_iface.set_bool("/physics/cooking/ujitsoCollisionCooking", False)
     return carb_settings_iface
 
-@pytest.fixture()  # scope="function"
+
+@pytest.fixture(scope="function")
 def temp_dir():
     """Fixture to create and clean up a temporary directory for test datasets."""
     # create a temporary directory to store the test datasets
@@ -47,6 +48,7 @@ def temp_dir():
     yield temp_dir
     # delete the temporary directory after the test
     shutil.rmtree(temp_dir)
+
 
 @pytest.mark.parametrize("task_name", ["Isaac-Stack-Cube-Franka-IK-Rel-v0"])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])

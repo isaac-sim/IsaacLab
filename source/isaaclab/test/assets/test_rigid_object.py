@@ -22,6 +22,7 @@ import torch
 from typing import Literal
 
 import isaacsim.core.utils.prims as prim_utils
+import pytest
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObject, RigidObjectCfg
@@ -29,7 +30,6 @@ from isaaclab.sim import build_simulation_context
 from isaaclab.sim.spawners import materials
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 from isaaclab.utils.math import default_orientation, quat_mul, quat_rotate_inverse, random_orientation
-import pytest
 
 
 def generate_cubes_scene(
@@ -120,6 +120,7 @@ def test_initialization(num_cubes, device):
             # update object
             cube_object.update(sim.cfg.dt)
 
+
 @pytest.mark.parametrize("num_cubes", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 def test_initialization_with_kinematic_enabled(num_cubes, device):
@@ -154,6 +155,7 @@ def test_initialization_with_kinematic_enabled(num_cubes, device):
             default_root_state[:, :3] += origins
             torch.testing.assert_close(cube_object.data.root_state_w, default_root_state)
 
+
 @pytest.mark.parametrize("num_cubes", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 def test_initialization_with_no_rigid_body(num_cubes, device):
@@ -172,6 +174,7 @@ def test_initialization_with_no_rigid_body(num_cubes, device):
         # Check if object is initialized
         assert not cube_object.is_initialized
 
+
 @pytest.mark.parametrize("num_cubes", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 def test_initialization_with_articulation_root(num_cubes, device):
@@ -189,6 +192,7 @@ def test_initialization_with_articulation_root(num_cubes, device):
 
         # Check if object is initialized
         assert not cube_object.is_initialized
+
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 def test_external_force_buffer(device):
@@ -246,6 +250,7 @@ def test_external_force_buffer(device):
 
             # update buffers
             cube_object.update(sim.cfg.dt)
+
 
 @pytest.mark.parametrize("num_cubes", [2, 4])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
@@ -307,6 +312,7 @@ def test_external_force_on_single_body(num_cubes, device):
             # Second object should have fallen, so it's Z height should be less than initial height of 1.0
             assert torch.all(cube_object.data.root_pos_w[1::2, 2] < 1.0)
 
+
 @pytest.mark.parametrize("num_cubes", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 def test_set_rigid_object_state(num_cubes, device):
@@ -344,9 +350,7 @@ def test_set_rigid_object_state(num_cubes, device):
 
                 # Set random state
                 if state_type_to_randomize == "root_quat_w":
-                    state_dict[state_type_to_randomize] = random_orientation(
-                        num=num_cubes, device=sim.device
-                    )
+                    state_dict[state_type_to_randomize] = random_orientation(num=num_cubes, device=sim.device)
                 else:
                     state_dict[state_type_to_randomize] = torch.randn(num_cubes, 3, device=sim.device)
 
@@ -373,6 +377,7 @@ def test_set_rigid_object_state(num_cubes, device):
                         torch.testing.assert_close(value, expected_value, rtol=1e-5, atol=1e-5)
 
                     cube_object.update(sim.cfg.dt)
+
 
 @pytest.mark.parametrize("num_cubes", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
@@ -411,11 +416,14 @@ def test_reset_rigid_object(num_cubes, device):
                 assert torch.count_nonzero(cube_object._external_force_b) == 0
                 assert torch.count_nonzero(cube_object._external_torque_b) == 0
 
+
 @pytest.mark.parametrize("num_cubes", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 def test_rigid_body_set_material_properties(num_cubes, device):
     """Test getting and setting material properties of rigid object."""
-    with build_simulation_context(device=device, gravity_enabled=True, add_ground_plane=True, auto_add_lighting=True) as sim:
+    with build_simulation_context(
+        device=device, gravity_enabled=True, add_ground_plane=True, auto_add_lighting=True
+    ) as sim:
         sim._app_control_on_stop_handle = None
         # Generate cubes scene
         cube_object, _ = generate_cubes_scene(num_cubes=num_cubes, device=device)
@@ -445,6 +453,7 @@ def test_rigid_body_set_material_properties(num_cubes, device):
 
         # Check if material properties are set correctly
         torch.testing.assert_close(materials_to_check.reshape(num_cubes, 3), materials)
+
 
 @pytest.mark.parametrize("num_cubes", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
@@ -502,6 +511,7 @@ def test_rigid_body_no_friction(num_cubes, device):
                 cube_object.data.root_lin_vel_w, initial_velocity[:, :3], rtol=1e-5, atol=tolerance
             )
 
+
 @pytest.mark.parametrize("num_cubes", [1, 2])
 @pytest.mark.parametrize("device", ["cuda", "cpu"])
 def test_rigid_body_with_static_friction(num_cubes, device):
@@ -558,13 +568,9 @@ def test_rigid_body_with_static_friction(num_cubes, device):
 
             external_wrench_b = torch.zeros((num_cubes, 1, 6), device=sim.device)
             if force == "below_mu":
-                external_wrench_b[..., 0] = (
-                    static_friction_coefficient * cube_mass * gravity_magnitude * 0.99
-                )
+                external_wrench_b[..., 0] = static_friction_coefficient * cube_mass * gravity_magnitude * 0.99
             else:
-                external_wrench_b[..., 0] = (
-                    static_friction_coefficient * cube_mass * gravity_magnitude * 1.01
-                )
+                external_wrench_b[..., 0] = static_friction_coefficient * cube_mass * gravity_magnitude * 1.01
 
             cube_object.set_external_force_and_torque(
                 external_wrench_b[..., :3],
@@ -582,13 +588,10 @@ def test_rigid_body_with_static_friction(num_cubes, device):
                 cube_object.update(sim.cfg.dt)
                 if force == "below_mu":
                     # Assert that the block has not moved
-                    torch.testing.assert_close(
-                        cube_object.data.root_pos_w, initial_root_pos, rtol=1e-3, atol=1e-3
-                    )
+                    torch.testing.assert_close(cube_object.data.root_pos_w, initial_root_pos, rtol=1e-3, atol=1e-3)
             if force == "above_mu":
-                assert (
-                    cube_object.data.root_state_w[..., 0] - initial_root_pos[..., 0] > 0.02
-                ).all()
+                assert (cube_object.data.root_state_w[..., 0] - initial_root_pos[..., 0] > 0.02).all()
+
 
 @pytest.mark.parametrize("num_cubes", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
@@ -668,11 +671,14 @@ def test_rigid_body_with_restitution(num_cubes, device):
                 assert torch.all(torch.le(abs(curr_z_velocity), abs(prev_z_velocity)))
                 assert (curr_z_velocity > 0.0).all()
 
+
 @pytest.mark.parametrize("num_cubes", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 def test_rigid_body_set_mass(num_cubes, device):
     """Test getting and setting mass of rigid object."""
-    with build_simulation_context(device=device, gravity_enabled=False, add_ground_plane=True, auto_add_lighting=True) as sim:
+    with build_simulation_context(
+        device=device, gravity_enabled=False, add_ground_plane=True, auto_add_lighting=True
+    ) as sim:
         sim._app_control_on_stop_handle = None
         # Create a scene with random cubes
         cube_object, _ = generate_cubes_scene(num_cubes=num_cubes, height=1.0, device=device)
@@ -705,6 +711,7 @@ def test_rigid_body_set_mass(num_cubes, device):
 
         # Check if mass is set correctly
         torch.testing.assert_close(masses, masses_to_check)
+
 
 @pytest.mark.parametrize("num_cubes", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
@@ -743,6 +750,7 @@ def test_gravity_vec_w(num_cubes, device, gravity_enabled):
                 gravity[:, :, 2] = -9.81
             # Check the body accelerations are correct
             torch.testing.assert_close(cube_object.data.body_acc_w, gravity)
+
 
 @pytest.mark.parametrize("num_cubes", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
@@ -831,34 +839,21 @@ def test_body_root_state_properties(num_cubes, device, with_offset):
 
                 # lin_vel will not match
                 # center of mass vel will be constant (i.e. spining around com)
-                torch.testing.assert_close(
-                    torch.zeros_like(root_com_state_w[..., 7:10]), root_com_state_w[..., 7:10]
-                )
-                torch.testing.assert_close(
-                    torch.zeros_like(body_com_state_w[..., 7:10]), body_com_state_w[..., 7:10]
-                )
+                torch.testing.assert_close(torch.zeros_like(root_com_state_w[..., 7:10]), root_com_state_w[..., 7:10])
+                torch.testing.assert_close(torch.zeros_like(body_com_state_w[..., 7:10]), body_com_state_w[..., 7:10])
                 # link frame will be moving, and should be equal to input angular velocity cross offset
-                lin_vel_rel_root_gt = quat_rotate_inverse(
-                    root_link_state_w[..., 3:7], root_link_state_w[..., 7:10]
-                )
-                lin_vel_rel_body_gt = quat_rotate_inverse(
-                    body_link_state_w[..., 3:7], body_link_state_w[..., 7:10]
-                )
-                lin_vel_rel_gt = torch.linalg.cross(
-                    spin_twist.repeat(num_cubes, 1)[..., 3:], -offset
-                )
-                torch.testing.assert_close(
-                    lin_vel_rel_gt, lin_vel_rel_root_gt, atol=1e-4, rtol=1e-4
-                )
-                torch.testing.assert_close(
-                    lin_vel_rel_gt, lin_vel_rel_body_gt.squeeze(-2), atol=1e-4, rtol=1e-4
-                )
+                lin_vel_rel_root_gt = quat_rotate_inverse(root_link_state_w[..., 3:7], root_link_state_w[..., 7:10])
+                lin_vel_rel_body_gt = quat_rotate_inverse(body_link_state_w[..., 3:7], body_link_state_w[..., 7:10])
+                lin_vel_rel_gt = torch.linalg.cross(spin_twist.repeat(num_cubes, 1)[..., 3:], -offset)
+                torch.testing.assert_close(lin_vel_rel_gt, lin_vel_rel_root_gt, atol=1e-4, rtol=1e-4)
+                torch.testing.assert_close(lin_vel_rel_gt, lin_vel_rel_body_gt.squeeze(-2), atol=1e-4, rtol=1e-4)
 
                 # ang_vel will always match
                 torch.testing.assert_close(root_state_w[..., 10:], root_com_state_w[..., 10:])
                 torch.testing.assert_close(root_state_w[..., 10:], root_link_state_w[..., 10:])
                 torch.testing.assert_close(body_state_w[..., 10:], body_com_state_w[..., 10:])
                 torch.testing.assert_close(body_state_w[..., 10:], body_link_state_w[..., 10:])
+
 
 @pytest.mark.parametrize("num_cubes", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])

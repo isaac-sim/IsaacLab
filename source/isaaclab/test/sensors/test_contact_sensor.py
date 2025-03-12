@@ -26,10 +26,9 @@ import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObject, RigidObjectCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors import ContactSensor, ContactSensorCfg
-from isaaclab.sim import build_simulation_context
+from isaaclab.sim import SimulationContext, build_simulation_context
 from isaaclab.terrains import HfRandomUniformTerrainCfg, TerrainGeneratorCfg, TerrainImporterCfg
 from isaaclab.utils import configclass
-from isaaclab.sim import SimulationContext
 
 ##
 # Custom helper classes.
@@ -236,7 +235,7 @@ def test_cube_contact_time(setup_simulation):
 def test_sphere_contact_time(setup_simulation):
     """Checks contact sensor values for contact time and air time for a sphere collision primitive."""
     # check for both contact processing enabled and disabled
-    # internally, the contact sensor should enable contact processing so it should always work.   
+    # internally, the contact sensor should enable contact processing so it should always work.
     sim_dt, durations, terrains, devices, carb_settings_iface = setup_simulation
     for disable_contact_processing in [True, False]:
         carb_settings_iface.set_bool("/physics/disableContactProcessing", disable_contact_processing)
@@ -310,7 +309,7 @@ def test_cube_stack_contact_filtering(setup_simulation):
 
 def test_no_contact_reporting(setup_simulation):
     """Test that forcing the disable of contact processing results in no contact reporting.
-    
+
     We borrow the test :func:`test_cube_stack_contact_filtering` to test this and force disable contact processing.
     """
     # TODO: This test only works on CPU. For GPU, it seems the contact processing is not disabled.
@@ -395,12 +394,20 @@ def test_sensor_print(setup_simulation):
         # print info
         print(scene.sensors["contact_sensor"])
 
+
 """
 Internal helpers.
 """
 
 
-def _run_contact_sensor_test(shape_cfg: TestContactSensorRigidObjectCfg, sim_dt: float, devices: list[str], terrains: list[TerrainImporterCfg], carb_settings_iface, durations: list[float]):
+def _run_contact_sensor_test(
+    shape_cfg: TestContactSensorRigidObjectCfg,
+    sim_dt: float,
+    devices: list[str],
+    terrains: list[TerrainImporterCfg],
+    carb_settings_iface,
+    durations: list[float],
+):
     """
     Runs a rigid body test for a given contact primitive configuration.
 
@@ -430,11 +437,23 @@ def _run_contact_sensor_test(shape_cfg: TestContactSensorRigidObjectCfg, sim_dt:
                 # Play the simulator
                 sim.reset()
 
-                _test_sensor_contact(scene["shape"], scene["contact_sensor"], ContactTestMode.IN_CONTACT, sim, scene, sim_dt, durations)
-                _test_sensor_contact(scene["shape"], scene["contact_sensor"], ContactTestMode.NON_CONTACT, sim, scene, sim_dt, durations)
+                _test_sensor_contact(
+                    scene["shape"], scene["contact_sensor"], ContactTestMode.IN_CONTACT, sim, scene, sim_dt, durations
+                )
+                _test_sensor_contact(
+                    scene["shape"], scene["contact_sensor"], ContactTestMode.NON_CONTACT, sim, scene, sim_dt, durations
+                )
 
 
-def _test_sensor_contact(shape: RigidObject, sensor: ContactSensor, mode: ContactTestMode, sim: SimulationContext, scene: InteractiveScene, sim_dt: float, durations: list[float]):
+def _test_sensor_contact(
+    shape: RigidObject,
+    sensor: ContactSensor,
+    mode: ContactTestMode,
+    sim: SimulationContext,
+    scene: InteractiveScene,
+    sim_dt: float,
+    durations: list[float],
+):
     """Test for the contact sensor.
 
     This test sets the contact prim to a pose either in contact or out of contact with the ground plane for
@@ -510,7 +529,14 @@ def _test_sensor_contact(shape: RigidObject, sensor: ContactSensor, mode: Contac
         expected_last_reset_contact_time = 2 * sim_dt
 
 
-def _check_prim_contact_state_times(sensor: ContactSensor, expected_air_time: float, expected_contact_time: float, expected_last_air_time: float, expected_last_contact_time: float, dt: float):
+def _check_prim_contact_state_times(
+    sensor: ContactSensor,
+    expected_air_time: float,
+    expected_contact_time: float,
+    expected_last_air_time: float,
+    expected_last_contact_time: float,
+    dt: float,
+):
     """Checks contact sensor data matches expected values.
 
     Args:

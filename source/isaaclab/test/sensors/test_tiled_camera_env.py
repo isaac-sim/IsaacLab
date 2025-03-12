@@ -97,6 +97,7 @@ def test_tiled_num_envs_edge_cases():
 
 # Helper functions
 
+
 def _launch_tests(tile_widths: range, tile_heights: range, num_envs: int):
     """Run through different resolutions for tiled rendering"""
     device = "cuda:0"
@@ -107,9 +108,7 @@ def _launch_tests(tile_widths: range, tile_heights: range, num_envs: int):
             # create a new stage
             omni.usd.get_context().new_stage()
             # parse configuration
-            env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg = parse_env_cfg(
-                task_name, device=device, num_envs=num_envs
-            )
+            env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg = parse_env_cfg(task_name, device=device, num_envs=num_envs)
             env_cfg.tiled_camera.width = width
             env_cfg.tiled_camera.height = height
             print(f">>> Running test for resolution: {width} x {height}")

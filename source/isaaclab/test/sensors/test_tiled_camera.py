@@ -23,11 +23,11 @@ import copy
 import numpy as np
 import random
 import torch
-import pytest
 
 import isaacsim.core.utils.prims as prim_utils
 import isaacsim.core.utils.stage as stage_utils
 import omni.replicator.core as rep
+import pytest
 from isaacsim.core.prims import SingleGeometryPrim, SingleRigidPrim
 from pxr import Gf, Semantics, UsdGeom
 
@@ -187,7 +187,10 @@ def test_depth_clipping_none(setup_camera):
 
     assert len(camera.data.output["depth"][torch.isinf(camera.data.output["depth"])]) > 0
     assert camera.data.output["depth"].min() >= camera_cfg.spawn.clipping_range[0]
-    assert camera.data.output["depth"][~torch.isinf(camera.data.output["depth"])].max() <= camera_cfg.spawn.clipping_range[1]
+    assert (
+        camera.data.output["depth"][~torch.isinf(camera.data.output["depth"])].max()
+        <= camera_cfg.spawn.clipping_range[1]
+    )
 
     del camera
 
@@ -744,7 +747,7 @@ def test_semantic_segmentation_colorize_only_camera(setup_camera):
             for i in range(4):
                 assert (im_data[i] / 255.0).mean() > 0.0
     assert camera.data.output["semantic_segmentation"].dtype == torch.uint8
-    assert type(camera.data.info["semantic_segmentation"]) == dict
+    assert isinstance(camera.data.info["semantic_segmentation"], dict)
     del camera
 
 
@@ -797,7 +800,7 @@ def test_instance_segmentation_fast_colorize_only_camera(setup_camera):
             for i in range(num_cameras):
                 assert (im_data[i] / 255.0).mean() > 0.0
     assert camera.data.output["instance_segmentation_fast"].dtype == torch.uint8
-    assert type(camera.data.info["instance_segmentation_fast"]) == dict
+    assert isinstance(camera.data.info["instance_segmentation_fast"], dict)
     del camera
 
 
@@ -850,7 +853,7 @@ def test_instance_id_segmentation_fast_colorize_only_camera(setup_camera):
             for i in range(num_cameras):
                 assert (im_data[i] / 255.0).mean() > 0.0
     assert camera.data.output["instance_id_segmentation_fast"].dtype == torch.uint8
-    assert type(camera.data.info["instance_id_segmentation_fast"]) == dict
+    assert isinstance(camera.data.info["instance_id_segmentation_fast"], dict)
     del camera
 
 
@@ -904,7 +907,7 @@ def test_semantic_segmentation_non_colorize_only_camera(setup_camera):
             for i in range(num_cameras):
                 assert im_data[i].to(dtype=float).mean() > 0.0
     assert camera.data.output["semantic_segmentation"].dtype == torch.int32
-    assert type(camera.data.info["semantic_segmentation"]) == dict
+    assert isinstance(camera.data.info["semantic_segmentation"], dict)
 
     del camera
 
@@ -959,7 +962,7 @@ def test_instance_segmentation_fast_non_colorize_only_camera(setup_camera):
             for i in range(num_cameras):
                 assert im_data[i].to(dtype=float).mean() > 0.0
     assert camera.data.output["instance_segmentation_fast"].dtype == torch.int32
-    assert type(camera.data.info["instance_segmentation_fast"]) == dict
+    assert isinstance(camera.data.info["instance_segmentation_fast"], dict)
     del camera
 
 
@@ -1013,7 +1016,7 @@ def test_instance_id_segmentation_fast_non_colorize_only_camera(setup_camera):
             for i in range(num_cameras):
                 assert im_data[i].to(dtype=float).mean() > 0.0
     assert camera.data.output["instance_id_segmentation_fast"].dtype == torch.int32
-    assert type(camera.data.info["instance_id_segmentation_fast"]) == dict
+    assert isinstance(camera.data.info["instance_id_segmentation_fast"], dict)
     del camera
 
 
@@ -1108,9 +1111,9 @@ def test_all_annotators_camera(setup_camera):
     assert output["semantic_segmentation"].dtype == torch.uint8
     assert output["instance_segmentation_fast"].dtype == torch.uint8
     assert output["instance_id_segmentation_fast"].dtype == torch.uint8
-    assert type(info["semantic_segmentation"]) == dict
-    assert type(info["instance_segmentation_fast"]) == dict
-    assert type(info["instance_id_segmentation_fast"]) == dict
+    assert isinstance(info["semantic_segmentation"], dict)
+    assert isinstance(info["instance_segmentation_fast"], dict)
+    assert isinstance(info["instance_id_segmentation_fast"], dict)
 
     del camera
 
@@ -1208,9 +1211,9 @@ def test_all_annotators_low_resolution_camera(setup_camera):
     assert output["semantic_segmentation"].dtype == torch.uint8
     assert output["instance_segmentation_fast"].dtype == torch.uint8
     assert output["instance_id_segmentation_fast"].dtype == torch.uint8
-    assert type(info["semantic_segmentation"]) == dict
-    assert type(info["instance_segmentation_fast"]) == dict
-    assert type(info["instance_id_segmentation_fast"]) == dict
+    assert isinstance(info["semantic_segmentation"], dict)
+    assert isinstance(info["instance_segmentation_fast"], dict)
+    assert isinstance(info["instance_id_segmentation_fast"], dict)
 
     del camera
 
@@ -1306,9 +1309,9 @@ def test_all_annotators_non_perfect_square_number_camera(setup_camera):
     assert output["semantic_segmentation"].dtype == torch.uint8
     assert output["instance_segmentation_fast"].dtype == torch.uint8
     assert output["instance_id_segmentation_fast"].dtype == torch.uint8
-    assert type(info["semantic_segmentation"]) == dict
-    assert type(info["instance_segmentation_fast"]) == dict
-    assert type(info["instance_id_segmentation_fast"]) == dict
+    assert isinstance(info["semantic_segmentation"], dict)
+    assert isinstance(info["instance_segmentation_fast"], dict)
+    assert isinstance(info["instance_id_segmentation_fast"], dict)
 
     del camera
 
@@ -1435,9 +1438,9 @@ def test_all_annotators_instanceable(setup_camera):
     assert output["semantic_segmentation"].dtype == torch.uint8
     assert output["instance_segmentation_fast"].dtype == torch.uint8
     assert output["instance_id_segmentation_fast"].dtype == torch.uint8
-    assert type(info["semantic_segmentation"]) == dict
-    assert type(info["instance_segmentation_fast"]) == dict
-    assert type(info["instance_id_segmentation_fast"]) == dict
+    assert isinstance(info["semantic_segmentation"], dict)
+    assert isinstance(info["instance_segmentation_fast"], dict)
+    assert isinstance(info["instance_id_segmentation_fast"], dict)
 
     del camera
 
@@ -1670,6 +1673,7 @@ def test_frame_offset_large_resolution(setup_camera):
 """
 Helper functions.
 """
+
 
 @staticmethod
 def _populate_scene():

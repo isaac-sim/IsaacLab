@@ -79,7 +79,7 @@ def sim():
     # create source prim
     prim_utils.define_prim(env_prim_paths[0], "Xform")
     # clone the env xform
-    env_origins = cloner.clone(
+    cloner.clone(
         source_prim_path=env_prim_paths[0],
         prim_paths=env_prim_paths,
         replicate_physics=True,
@@ -521,7 +521,6 @@ def test_franka_wrench_abs_open_loop(sim):
         _,
         _,
         _,
-        _,
         frame,
     ) = sim
 
@@ -597,7 +596,6 @@ def test_franka_wrench_abs_closed_loop(sim):
         _,
         _,
         target_abs_wrench_set,
-        _,
         _,
         _,
         _,
@@ -763,7 +761,7 @@ def test_franka_hybrid_variable_kp_impedance(sim):
         _,
         _,
         _,
-        _,
+        target_hybrid_set_b,
         target_hybrid_variable_kp_set,
         _,
         frame,
@@ -1286,7 +1284,7 @@ def _run_op_space_controller(
         ee_force_b,
         joint_pos,
         joint_vel,
-    ) = _update_states(robot, ee_frame_idx, arm_joint_ids, sim, contact_forces)
+    ) = _update_states(robot, ee_frame_idx, arm_joint_ids, sim, contact_forces, num_envs)
 
     # Track the given target command
     current_goal_idx = 0  # Current goal index for the arm
@@ -1307,7 +1305,7 @@ def _run_op_space_controller(
             # check that we converged to the goal
             if count > 0:
                 _check_convergence(
-                    osc, ee_pose_b, ee_target_pose_b, ee_force_b, command, pos_mask, rot_mask, force_mask
+                    osc, ee_pose_b, ee_target_pose_b, ee_force_b, command, pos_mask, rot_mask, force_mask, frame
                 )
             # reset joint state to default
             default_joint_pos = robot.data.default_joint_pos.clone()
@@ -1322,7 +1320,7 @@ def _run_op_space_controller(
             # reset target pose
             robot.update(sim_dt)
             _, _, _, ee_pose_b, _, _, _, _, _, _ = _update_states(
-                robot, ee_frame_idx, arm_joint_ids, sim, contact_forces
+                robot, ee_frame_idx, arm_joint_ids, sim, contact_forces, num_envs
             )  # at reset, the jacobians are not updated to the latest state
             command, ee_target_pose_b, ee_target_pose_w, current_goal_idx = _update_target(
                 osc, root_pose_w, ee_pose_b, target_set, current_goal_idx
@@ -1346,7 +1344,7 @@ def _run_op_space_controller(
                 ee_force_b,
                 joint_pos,
                 joint_vel,
-            ) = _update_states(robot, ee_frame_idx, arm_joint_ids, sim, contact_forces)
+            ) = _update_states(robot, ee_frame_idx, arm_joint_ids, sim, contact_forces, num_envs)
             # compute the joint commands
             joint_efforts = osc.compute(
                 jacobian_b=jacobian_b,
@@ -1378,6 +1376,7 @@ def _update_states(
     arm_joint_ids: list[int],
     sim: sim_utils.SimulationContext,
     contact_forces: ContactSensor | None,
+    num_envs: int,
 ):
     """Update the states of the robot and obtain the relevant quantities for the operational space controller.
 
@@ -1387,6 +1386,7 @@ def _update_states(
         arm_joint_ids (list[int]): The indices of the arm joints.
         sim (sim_utils.SimulationContext): The simulation context.
         contact_forces (ContactSensor | None): The contact forces sensor.
+        num_envs (int): Number of environments.
 
     Returns:
         jacobian_b (torch.tensor): The Jacobian in the root frame.
@@ -1428,7 +1428,7 @@ def _update_states(
     ee_vel_b = torch.cat([ee_lin_vel_b, ee_ang_vel_b], dim=-1)
 
     # Calculate the contact force
-    ee_force_w = torch.zeros(sim.num_envs, 3, device=sim.device)
+    ee_force_w = torch.zeros(num_envs, 3, device=sim.device)
     if contact_forces is not None:  # Only modify if it exist
         sim_dt = sim.get_physics_dt()
         contact_forces.update(sim_dt)  # update contact sensor
@@ -1483,11 +1483,11 @@ def _update_target(
         ValueError: If the target type is undefined.
     """
     # update the ee desired command
-    command = torch.zeros(osc.num_envs, osc.action_dim, device=osc.device)
+    command = torch.zeros(osc.num_envs, osc.action_dim, device=osc._device)
     command[:] = target_set[current_goal_idx]
 
     # update the ee desired pose
-    ee_target_pose_b = torch.zeros(osc.num_envs, 7, device=osc.device)
+    ee_target_pose_b = torch.zeros(osc.num_envs, 7, device=osc._device)
     for target_type in osc.cfg.target_types:
         if target_type == "pose_abs":
             ee_target_pose_b[:] = command[:, :7]
@@ -1576,6 +1576,7 @@ def _check_convergence(
     pos_mask: torch.tensor,
     rot_mask: torch.tensor,
     force_mask: torch.tensor,
+    frame: str,
 ):
     """Check the convergence to the target.
 
@@ -1588,6 +1589,7 @@ def _check_convergence(
         pos_mask (torch.tensor): The position mask.
         rot_mask (torch.tensor): The rotation mask.
         force_mask (torch.tensor): The force mask.
+        frame (str): The reference frame for targets.
 
     Raises:
         AssertionError: If the convergence is not achieved.
