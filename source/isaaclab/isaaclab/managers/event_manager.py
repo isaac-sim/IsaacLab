@@ -38,7 +38,9 @@ class EventManager(ManagerBase):
 
     For a typical training process, you may want to apply events in the following modes:
 
-    - "startup": Event is applied once at the beginning of the training.
+    - "prestartup": Event is applied once at the beginning of the training before the simulation starts.
+      This is used to randomize USD-level properties of the simulation stage.
+    - "startup": Event is applied once at the beginning of the training once simulation is started.
     - "reset": Event is applied at every reset.
     - "interval": Event is applied at pre-specified intervals of time.
 
@@ -184,6 +186,16 @@ class EventManager(ManagerBase):
         if mode not in self._mode_term_names:
             omni.log.warn(f"Event mode '{mode}' is not defined. Skipping event.")
             return
+        # check if mode is pre-startup and scene replication is enabled
+        if mode == "prestartup" and self._env.scene.cfg.replicate_physics:
+            omni.log.warn(
+                "Scene replication is enabled, which may affect USD-level randomization."
+                " When assets are replicated, their properties are shared across instances,"
+                " potentially leading to unintended behavior."
+                " For stable USD-level randomization, consider disabling scene replication"
+                " by setting 'replicate_physics' to False in 'InteractiveSceneCfg'."
+            )
+
         # check if mode is interval and dt is not provided
         if mode == "interval" and dt is None:
             raise ValueError(f"Event mode '{mode}' requires the time-step of the environment.")
