@@ -245,7 +245,7 @@
 
 <li class="toctree-l2"><a class="reference internal" href="../../../../source/overview/developer-guide/repo_structure.html">Repository organization</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../source/overview/developer-guide/development.html">Extension Development</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../../../source/overview/developer-guide/template.html">Building your Own Project</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/overview/developer-guide/template.html">Build your Own Project or Task</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../../../source/overview/core-concepts/index.html">Core Concepts</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
@@ -547,6 +547,8 @@
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">carb</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">omni.physics.tensors.impl.api</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">physx</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">omni.usd</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pxr</span><span class="w"> </span><span class="kn">import</span> <span class="n">Gf</span><span class="p">,</span> <span class="n">Sdf</span><span class="p">,</span> <span class="n">UsdGeom</span><span class="p">,</span> <span class="n">Vt</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab.sim</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">sim_utils</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab.utils.math</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">math_utils</span>
@@ -557,6 +559,116 @@
 
 <span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
     <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.envs</span><span class="w"> </span><span class="kn">import</span> <span class="n">ManagerBasedEnv</span>
+
+
+<div class="viewcode-block" id="randomize_rigid_body_scale"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.events.randomize_rigid_body_scale">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">randomize_rigid_body_scale</span><span class="p">(</span>
+    <span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedEnv</span><span class="p">,</span>
+    <span class="n">env_ids</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">scale_range</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">|</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]],</span>
+    <span class="n">asset_cfg</span><span class="p">:</span> <span class="n">SceneEntityCfg</span><span class="p">,</span>
+    <span class="n">relative_child_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Randomize the scale of a rigid body asset in the USD stage.</span>
+
+<span class="sd">    This function modifies the &quot;xformOp:scale&quot; property of all the prims corresponding to the asset.</span>
+
+<span class="sd">    It takes a tuple or dictionary for the scale ranges. If it is a tuple, then the scaling along</span>
+<span class="sd">    individual axis is performed equally. If it is a dictionary, the scaling is independent across each dimension.</span>
+<span class="sd">    The keys of the dictionary are ``x``, ``y``, and ``z``. The values are tuples of the form ``(min, max)``.</span>
+
+<span class="sd">    If the dictionary does not contain a key, the range is set to one for that axis.</span>
+
+<span class="sd">    Relative child path can be used to randomize the scale of a specific child prim of the asset.</span>
+<span class="sd">    For example, if the asset at prim path expression &quot;/World/envs/env_.*/Object&quot; has a child</span>
+<span class="sd">    with the path &quot;/World/envs/env_.*/Object/mesh&quot;, then the relative child path should be &quot;mesh&quot; or</span>
+<span class="sd">    &quot;/mesh&quot;.</span>
+
+<span class="sd">    .. attention::</span>
+<span class="sd">        Since this function modifies USD properties that are parsed by the physics engine once the simulation</span>
+<span class="sd">        starts, the term should only be used before the simulation starts playing. This corresponds to the</span>
+<span class="sd">        event mode named &quot;usd&quot;. Using it at simulation time, may lead to unpredictable behaviors.</span>
+
+<span class="sd">    .. note::</span>
+<span class="sd">        When randomizing the scale of individual assets, please make sure to set</span>
+<span class="sd">        :attr:`isaaclab.scene.InteractiveSceneCfg.replicate_physics` to False. This ensures that physics</span>
+<span class="sd">        parser will parse the individual asset properties separately.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># check if sim is running</span>
+    <span class="k">if</span> <span class="n">env</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">is_playing</span><span class="p">():</span>
+        <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span>
+            <span class="s2">&quot;Randomizing scale while simulation is running leads to unpredictable behaviors.&quot;</span>
+            <span class="s2">&quot; Please ensure that the event term is called before the simulation starts by using the &#39;usd&#39; mode.&quot;</span>
+        <span class="p">)</span>
+
+    <span class="c1"># extract the used quantities (to enable type-hinting)</span>
+    <span class="n">asset</span><span class="p">:</span> <span class="n">RigidObject</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">scene</span><span class="p">[</span><span class="n">asset_cfg</span><span class="o">.</span><span class="n">name</span><span class="p">]</span>
+
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">asset</span><span class="p">,</span> <span class="n">Articulation</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="s2">&quot;Scaling an articulation randomly is not supported, as it affects joint attributes and can cause&quot;</span>
+            <span class="s2">&quot; unexpected behavior. To achieve different scales, we recommend generating separate USD files for&quot;</span>
+            <span class="s2">&quot; each version of the articulation and using multi-asset spawning. For more details, refer to:&quot;</span>
+            <span class="s2">&quot; https://isaac-sim.github.io/IsaacLab/main/source/how-to/multi_asset_spawning.html&quot;</span>
+        <span class="p">)</span>
+
+    <span class="c1"># resolve environment ids</span>
+    <span class="k">if</span> <span class="n">env_ids</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">env_ids</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">env</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">num_envs</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="s2">&quot;cpu&quot;</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">env_ids</span> <span class="o">=</span> <span class="n">env_ids</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span>
+
+    <span class="c1"># acquire stage</span>
+    <span class="n">stage</span> <span class="o">=</span> <span class="n">omni</span><span class="o">.</span><span class="n">usd</span><span class="o">.</span><span class="n">get_context</span><span class="p">()</span><span class="o">.</span><span class="n">get_stage</span><span class="p">()</span>
+    <span class="c1"># resolve prim paths for spawning and cloning</span>
+    <span class="n">prim_paths</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">find_matching_prim_paths</span><span class="p">(</span><span class="n">asset</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">prim_path</span><span class="p">)</span>
+
+    <span class="c1"># sample scale values</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">scale_range</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+        <span class="n">range_list</span> <span class="o">=</span> <span class="p">[</span><span class="n">scale_range</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="p">(</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">))</span> <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="p">[</span><span class="s2">&quot;x&quot;</span><span class="p">,</span> <span class="s2">&quot;y&quot;</span><span class="p">,</span> <span class="s2">&quot;z&quot;</span><span class="p">]]</span>
+        <span class="n">ranges</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">range_list</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="s2">&quot;cpu&quot;</span><span class="p">)</span>
+        <span class="n">rand_samples</span> <span class="o">=</span> <span class="n">math_utils</span><span class="o">.</span><span class="n">sample_uniform</span><span class="p">(</span><span class="n">ranges</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">],</span> <span class="n">ranges</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">],</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">env_ids</span><span class="p">),</span> <span class="mi">3</span><span class="p">),</span> <span class="n">device</span><span class="o">=</span><span class="s2">&quot;cpu&quot;</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">rand_samples</span> <span class="o">=</span> <span class="n">math_utils</span><span class="o">.</span><span class="n">sample_uniform</span><span class="p">(</span><span class="o">*</span><span class="n">scale_range</span><span class="p">,</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">env_ids</span><span class="p">),</span> <span class="mi">1</span><span class="p">),</span> <span class="n">device</span><span class="o">=</span><span class="s2">&quot;cpu&quot;</span><span class="p">)</span>
+        <span class="n">rand_samples</span> <span class="o">=</span> <span class="n">rand_samples</span><span class="o">.</span><span class="n">repeat</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span>
+    <span class="c1"># convert to list for the for loop</span>
+    <span class="n">rand_samples</span> <span class="o">=</span> <span class="n">rand_samples</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span>
+
+    <span class="c1"># apply the randomization to the parent if no relative child path is provided</span>
+    <span class="c1"># this might be useful if user wants to randomize a particular mesh in the prim hierarchy</span>
+    <span class="k">if</span> <span class="n">relative_child_path</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">relative_child_path</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>
+    <span class="k">elif</span> <span class="ow">not</span> <span class="n">relative_child_path</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">&quot;/&quot;</span><span class="p">):</span>
+        <span class="n">relative_child_path</span> <span class="o">=</span> <span class="s2">&quot;/&quot;</span> <span class="o">+</span> <span class="n">relative_child_path</span>
+
+    <span class="c1"># use sdf changeblock for faster processing of USD properties</span>
+    <span class="k">with</span> <span class="n">Sdf</span><span class="o">.</span><span class="n">ChangeBlock</span><span class="p">():</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">env_id</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">env_ids</span><span class="p">):</span>
+            <span class="c1"># path to prim to randomize</span>
+            <span class="n">prim_path</span> <span class="o">=</span> <span class="n">prim_paths</span><span class="p">[</span><span class="n">env_id</span><span class="p">]</span> <span class="o">+</span> <span class="n">relative_child_path</span>
+            <span class="c1"># spawn single instance</span>
+            <span class="n">prim_spec</span> <span class="o">=</span> <span class="n">Sdf</span><span class="o">.</span><span class="n">CreatePrimInLayer</span><span class="p">(</span><span class="n">stage</span><span class="o">.</span><span class="n">GetRootLayer</span><span class="p">(),</span> <span class="n">prim_path</span><span class="p">)</span>
+
+            <span class="c1"># get the attribute to randomize</span>
+            <span class="n">scale_spec</span> <span class="o">=</span> <span class="n">prim_spec</span><span class="o">.</span><span class="n">GetAttributeAtPath</span><span class="p">(</span><span class="n">prim_path</span> <span class="o">+</span> <span class="s2">&quot;.xformOp:scale&quot;</span><span class="p">)</span>
+            <span class="c1"># if the scale attribute does not exist, create it</span>
+            <span class="n">has_scale_attr</span> <span class="o">=</span> <span class="n">scale_spec</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">has_scale_attr</span><span class="p">:</span>
+                <span class="n">scale_spec</span> <span class="o">=</span> <span class="n">Sdf</span><span class="o">.</span><span class="n">AttributeSpec</span><span class="p">(</span><span class="n">prim_spec</span><span class="p">,</span> <span class="n">prim_path</span> <span class="o">+</span> <span class="s2">&quot;.xformOp:scale&quot;</span><span class="p">,</span> <span class="n">Sdf</span><span class="o">.</span><span class="n">ValueTypeNames</span><span class="o">.</span><span class="n">Double3</span><span class="p">)</span>
+
+            <span class="c1"># set the new scale</span>
+            <span class="n">scale_spec</span><span class="o">.</span><span class="n">default</span> <span class="o">=</span> <span class="n">Gf</span><span class="o">.</span><span class="n">Vec3f</span><span class="p">(</span><span class="o">*</span><span class="n">rand_samples</span><span class="p">[</span><span class="n">i</span><span class="p">])</span>
+
+            <span class="c1"># ensure the operation is done in the right ordering if we created the scale attribute.</span>
+            <span class="c1"># otherwise, we assume the scale attribute is already in the right order.</span>
+            <span class="c1"># note: by default isaac sim follows this ordering for the transform stack so any asset</span>
+            <span class="c1">#   created through it will have the correct ordering</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">has_scale_attr</span><span class="p">:</span>
+                <span class="n">op_order_spec</span> <span class="o">=</span> <span class="n">prim_spec</span><span class="o">.</span><span class="n">GetAttributeAtPath</span><span class="p">(</span><span class="n">prim_path</span> <span class="o">+</span> <span class="s2">&quot;.xformOpOrder&quot;</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">op_order_spec</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="n">op_order_spec</span> <span class="o">=</span> <span class="n">Sdf</span><span class="o">.</span><span class="n">AttributeSpec</span><span class="p">(</span>
+                        <span class="n">prim_spec</span><span class="p">,</span> <span class="n">UsdGeom</span><span class="o">.</span><span class="n">Tokens</span><span class="o">.</span><span class="n">xformOpOrder</span><span class="p">,</span> <span class="n">Sdf</span><span class="o">.</span><span class="n">ValueTypeNames</span><span class="o">.</span><span class="n">TokenArray</span>
+                    <span class="p">)</span>
+                <span class="n">op_order_spec</span><span class="o">.</span><span class="n">default</span> <span class="o">=</span> <span class="n">Vt</span><span class="o">.</span><span class="n">TokenArray</span><span class="p">([</span><span class="s2">&quot;xformOp:translate&quot;</span><span class="p">,</span> <span class="s2">&quot;xformOp:orient&quot;</span><span class="p">,</span> <span class="s2">&quot;xformOp:scale&quot;</span><span class="p">])</span></div>
 
 
 <div class="viewcode-block" id="randomize_rigid_body_material"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.events.randomize_rigid_body_material">[docs]</a><span class="k">class</span><span class="w"> </span><span class="nc">randomize_rigid_body_material</span><span class="p">(</span><span class="n">ManagerTermBase</span><span class="p">):</span>

@@ -246,7 +246,7 @@
 
 <li class="toctree-l2"><a class="reference internal" href="../../overview/developer-guide/repo_structure.html">Repository organization</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../overview/developer-guide/development.html">Extension Development</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../overview/developer-guide/template.html">Building your Own Project</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/developer-guide/template.html">Build your Own Project or Task</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../overview/core-concepts/index.html">Core Concepts</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
@@ -1164,6 +1164,11 @@ and should be called only once.</p>
 <dt class="sig sig-object py" id="isaaclab.managers.ManagerBase.__init__">
 <span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cfg</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.13)"><span class="pre">object</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">env</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="isaaclab.envs.html#isaaclab.envs.ManagerBasedEnv" title="isaaclab.envs.ManagerBasedEnv"><span class="pre">ManagerBasedEnv</span></a></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/isaaclab/managers/manager_base.html#ManagerBase.__init__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.managers.ManagerBase.__init__" title="Permalink to this definition">#</a></dt>
 <dd><p>Initialize the manager.</p>
+<p>This function is responsible for parsing the configuration object and creating the terms.</p>
+<p>If the simulation is not playing, the scene entities are not resolved immediately.
+Instead, the resolution is deferred until the simulation starts. This is done to ensure
+that the scene entities are resolved even if the manager is created after the simulation
+has already started.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
@@ -2267,7 +2272,9 @@ the event term should be applied. This provides the user complete control over w
 terms should be applied.</p>
 <p>For a typical training process, you may want to apply events in the following modes:</p>
 <ul class="simple">
-<li><p>“startup”: Event is applied once at the beginning of the training.</p></li>
+<li><p>“prestartup”: Event is applied once at the beginning of the training before the simulation starts.
+This is used to randomize USD-level properties of the simulation stage.</p></li>
+<li><p>“startup”: Event is applied once at the beginning of the training once simulation is started.</p></li>
 <li><p>“reset”: Event is applied at every reset.</p></li>
 <li><p>“interval”: Event is applied at pre-specified intervals of time.</p></li>
 </ul>

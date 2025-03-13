@@ -245,7 +245,7 @@
 
 <li class="toctree-l2"><a class="reference internal" href="../../../source/overview/developer-guide/repo_structure.html">Repository organization</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/overview/developer-guide/development.html">Extension Development</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../../source/overview/developer-guide/template.html">Building your Own Project</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/overview/developer-guide/template.html">Build your Own Project or Task</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../../source/overview/core-concepts/index.html">Core Concepts</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
@@ -623,6 +623,10 @@
         <span class="k">else</span><span class="p">:</span>
             <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;Simulation context already exists. Cannot create a new one.&quot;</span><span class="p">)</span>
 
+        <span class="c1"># make sure torch is running on the correct device</span>
+        <span class="k">if</span> <span class="s2">&quot;cuda&quot;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">:</span>
+            <span class="n">torch</span><span class="o">.</span><span class="n">cuda</span><span class="o">.</span><span class="n">set_device</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+
         <span class="c1"># print useful information</span>
         <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[INFO]: Base environment:&quot;</span><span class="p">)</span>
         <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="se">\t</span><span class="s2">Environment device    : </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
@@ -654,6 +658,17 @@
         <span class="k">else</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">viewport_camera_controller</span> <span class="o">=</span> <span class="kc">None</span>
 
+        <span class="c1"># create event manager</span>
+        <span class="c1"># note: this is needed here (rather than after simulation play) to allow USD-related randomization events</span>
+        <span class="c1">#   that must happen before the simulation starts. Example: randomizing mesh scale</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">events</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">event_manager</span> <span class="o">=</span> <span class="n">EventManager</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">events</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[INFO] Event Manager: &quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">event_manager</span><span class="p">)</span>
+
+            <span class="c1"># apply USD-related randomization events</span>
+            <span class="k">if</span> <span class="s2">&quot;prestartup&quot;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">event_manager</span><span class="o">.</span><span class="n">available_modes</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">event_manager</span><span class="o">.</span><span class="n">apply</span><span class="p">(</span><span class="n">mode</span><span class="o">=</span><span class="s2">&quot;prestartup&quot;</span><span class="p">)</span>
+
         <span class="c1"># play the simulator to activate physics handles</span>
         <span class="c1"># note: this activates the physics simulation view that exposes TensorAPIs</span>
         <span class="c1"># note: when started in extension mode, first call sim.reset_async() and then initialize the managers</span>
@@ -665,15 +680,6 @@
                 <span class="c1"># this is needed for the observation manager to get valid tensors for initialization.</span>
                 <span class="c1"># this shouldn&#39;t cause an issue since later on, users do a reset over all the environments so the lazy buffers would be reset.</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">dt</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">physics_dt</span><span class="p">)</span>
-
-        <span class="c1"># -- event manager used for randomization</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">events</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">event_manager</span> <span class="o">=</span> <span class="n">EventManager</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">events</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span>
-            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[INFO] Event Manager: &quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">event_manager</span><span class="p">)</span>
-
-        <span class="c1"># make sure torch is running on the correct device</span>
-        <span class="k">if</span> <span class="s2">&quot;cuda&quot;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">:</span>
-            <span class="n">torch</span><span class="o">.</span><span class="n">cuda</span><span class="o">.</span><span class="n">set_device</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
 
         <span class="c1"># check if debug visualization is has been implemented by the environment</span>
         <span class="n">source_code</span> <span class="o">=</span> <span class="n">inspect</span><span class="o">.</span><span class="n">getsource</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_set_debug_vis_impl</span><span class="p">)</span>

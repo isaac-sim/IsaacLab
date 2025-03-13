@@ -246,7 +246,7 @@
 
 <li class="toctree-l2"><a class="reference internal" href="../../overview/developer-guide/repo_structure.html">Repository organization</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../overview/developer-guide/development.html">Extension Development</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../overview/developer-guide/template.html">Building your Own Project</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/developer-guide/template.html">Build your Own Project or Task</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../overview/core-concepts/index.html">Core Concepts</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
@@ -771,6 +771,7 @@
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-isaaclab.envs.mdp.events">Events</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.mdp.events.randomize_rigid_body_scale"><code class="docutils literal notranslate"><span class="pre">randomize_rigid_body_scale()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.mdp.events.randomize_rigid_body_material"><code class="docutils literal notranslate"><span class="pre">randomize_rigid_body_material</span></code></a><ul class="nav section-nav flex-column">
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.mdp.events.randomize_rigid_body_material.__init__"><code class="docutils literal notranslate"><span class="pre">randomize_rigid_body_material.__init__()</span></code></a></li>
 </ul>
@@ -2594,6 +2595,60 @@ For instance, for the Franka Emika arm, the end-effector is defined at an offset
 materials, applying external forces, and resetting the state of the asset.</p>
 <p>The functions can be passed to the <a class="reference internal" href="isaaclab.managers.html#isaaclab.managers.EventTermCfg" title="isaaclab.managers.EventTermCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">isaaclab.managers.EventTermCfg</span></code></a> object to enable
 the event introduced by the function.</p>
+<p><strong>Functions:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.envs.mdp.events.randomize_rigid_body_scale" title="isaaclab.envs.mdp.events.randomize_rigid_body_scale"><code class="xref py py-obj docutils literal notranslate"><span class="pre">randomize_rigid_body_scale</span></code></a>(env, env_ids, ...)</p></td>
+<td><p>Randomize the scale of a rigid body asset in the USD stage.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.envs.mdp.events.randomize_rigid_body_mass" title="isaaclab.envs.mdp.events.randomize_rigid_body_mass"><code class="xref py py-obj docutils literal notranslate"><span class="pre">randomize_rigid_body_mass</span></code></a>(env, env_ids, ...)</p></td>
+<td><p>Randomize the mass of the bodies by adding, scaling, or setting random values.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.envs.mdp.events.randomize_rigid_body_collider_offsets" title="isaaclab.envs.mdp.events.randomize_rigid_body_collider_offsets"><code class="xref py py-obj docutils literal notranslate"><span class="pre">randomize_rigid_body_collider_offsets</span></code></a>(env, ...)</p></td>
+<td><p>Randomize the collider parameters of rigid bodies in an asset by adding, scaling, or setting random values.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.envs.mdp.events.randomize_physics_scene_gravity" title="isaaclab.envs.mdp.events.randomize_physics_scene_gravity"><code class="xref py py-obj docutils literal notranslate"><span class="pre">randomize_physics_scene_gravity</span></code></a>(env, ...[, ...])</p></td>
+<td><p>Randomize gravity by adding, scaling, or setting random values.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.envs.mdp.events.randomize_actuator_gains" title="isaaclab.envs.mdp.events.randomize_actuator_gains"><code class="xref py py-obj docutils literal notranslate"><span class="pre">randomize_actuator_gains</span></code></a>(env, env_ids, asset_cfg)</p></td>
+<td><p>Randomize the actuator gains in an articulation by adding, scaling, or setting random values.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.envs.mdp.events.randomize_joint_parameters" title="isaaclab.envs.mdp.events.randomize_joint_parameters"><code class="xref py py-obj docutils literal notranslate"><span class="pre">randomize_joint_parameters</span></code></a>(env, env_ids, ...)</p></td>
+<td><p>Randomize the simulated joint parameters of an articulation by adding, scaling, or setting random values.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.envs.mdp.events.randomize_fixed_tendon_parameters" title="isaaclab.envs.mdp.events.randomize_fixed_tendon_parameters"><code class="xref py py-obj docutils literal notranslate"><span class="pre">randomize_fixed_tendon_parameters</span></code></a>(env, ...)</p></td>
+<td><p>Randomize the simulated fixed tendon parameters of an articulation by adding, scaling, or setting random values.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.envs.mdp.events.apply_external_force_torque" title="isaaclab.envs.mdp.events.apply_external_force_torque"><code class="xref py py-obj docutils literal notranslate"><span class="pre">apply_external_force_torque</span></code></a>(env, env_ids, ...)</p></td>
+<td><p>Randomize the external forces and torques applied to the bodies.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.envs.mdp.events.push_by_setting_velocity" title="isaaclab.envs.mdp.events.push_by_setting_velocity"><code class="xref py py-obj docutils literal notranslate"><span class="pre">push_by_setting_velocity</span></code></a>(env, env_ids, ...)</p></td>
+<td><p>Push the asset by setting the root velocity to a random value within the given ranges.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.envs.mdp.events.reset_root_state_uniform" title="isaaclab.envs.mdp.events.reset_root_state_uniform"><code class="xref py py-obj docutils literal notranslate"><span class="pre">reset_root_state_uniform</span></code></a>(env, env_ids, ...)</p></td>
+<td><p>Reset the asset root state to a random position and velocity uniformly within the given ranges.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.envs.mdp.events.reset_root_state_with_random_orientation" title="isaaclab.envs.mdp.events.reset_root_state_with_random_orientation"><code class="xref py py-obj docutils literal notranslate"><span class="pre">reset_root_state_with_random_orientation</span></code></a>(...)</p></td>
+<td><p>Reset the asset root position and velocities sampled randomly within the given ranges and the asset root orientation sampled randomly from the SO(3).</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.envs.mdp.events.reset_root_state_from_terrain" title="isaaclab.envs.mdp.events.reset_root_state_from_terrain"><code class="xref py py-obj docutils literal notranslate"><span class="pre">reset_root_state_from_terrain</span></code></a>(env, env_ids, ...)</p></td>
+<td><p>Reset the asset root state by sampling a random valid pose from the terrain.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.envs.mdp.events.reset_joints_by_scale" title="isaaclab.envs.mdp.events.reset_joints_by_scale"><code class="xref py py-obj docutils literal notranslate"><span class="pre">reset_joints_by_scale</span></code></a>(env, env_ids, ...[, ...])</p></td>
+<td><p>Reset the robot joints by scaling the default position and velocity by the given ranges.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.envs.mdp.events.reset_joints_by_offset" title="isaaclab.envs.mdp.events.reset_joints_by_offset"><code class="xref py py-obj docutils literal notranslate"><span class="pre">reset_joints_by_offset</span></code></a>(env, env_ids, ...[, ...])</p></td>
+<td><p>Reset the robot joints with offsets around the default position and velocity by the given ranges.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.envs.mdp.events.reset_nodal_state_uniform" title="isaaclab.envs.mdp.events.reset_nodal_state_uniform"><code class="xref py py-obj docutils literal notranslate"><span class="pre">reset_nodal_state_uniform</span></code></a>(env, env_ids, ...)</p></td>
+<td><p>Reset the asset nodal state to a random position and velocity uniformly within the given ranges.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.envs.mdp.events.reset_scene_to_default" title="isaaclab.envs.mdp.events.reset_scene_to_default"><code class="xref py py-obj docutils literal notranslate"><span class="pre">reset_scene_to_default</span></code></a>(env, env_ids)</p></td>
+<td><p>Reset the scene to the default state specified in the scene configuration.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
 <p><strong>Classes:</strong></p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
 <tbody>
@@ -2603,57 +2658,33 @@ the event introduced by the function.</p>
 </tbody>
 </table>
 </div>
-<p><strong>Functions:</strong></p>
-<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
-<tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.envs.mdp.events.randomize_rigid_body_mass" title="isaaclab.envs.mdp.events.randomize_rigid_body_mass"><code class="xref py py-obj docutils literal notranslate"><span class="pre">randomize_rigid_body_mass</span></code></a>(env, env_ids, ...)</p></td>
-<td><p>Randomize the mass of the bodies by adding, scaling, or setting random values.</p></td>
-</tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.envs.mdp.events.randomize_rigid_body_collider_offsets" title="isaaclab.envs.mdp.events.randomize_rigid_body_collider_offsets"><code class="xref py py-obj docutils literal notranslate"><span class="pre">randomize_rigid_body_collider_offsets</span></code></a>(env, ...)</p></td>
-<td><p>Randomize the collider parameters of rigid bodies in an asset by adding, scaling, or setting random values.</p></td>
-</tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.envs.mdp.events.randomize_physics_scene_gravity" title="isaaclab.envs.mdp.events.randomize_physics_scene_gravity"><code class="xref py py-obj docutils literal notranslate"><span class="pre">randomize_physics_scene_gravity</span></code></a>(env, ...[, ...])</p></td>
-<td><p>Randomize gravity by adding, scaling, or setting random values.</p></td>
-</tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.envs.mdp.events.randomize_actuator_gains" title="isaaclab.envs.mdp.events.randomize_actuator_gains"><code class="xref py py-obj docutils literal notranslate"><span class="pre">randomize_actuator_gains</span></code></a>(env, env_ids, asset_cfg)</p></td>
-<td><p>Randomize the actuator gains in an articulation by adding, scaling, or setting random values.</p></td>
-</tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.envs.mdp.events.randomize_joint_parameters" title="isaaclab.envs.mdp.events.randomize_joint_parameters"><code class="xref py py-obj docutils literal notranslate"><span class="pre">randomize_joint_parameters</span></code></a>(env, env_ids, ...)</p></td>
-<td><p>Randomize the simulated joint parameters of an articulation by adding, scaling, or setting random values.</p></td>
-</tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.envs.mdp.events.randomize_fixed_tendon_parameters" title="isaaclab.envs.mdp.events.randomize_fixed_tendon_parameters"><code class="xref py py-obj docutils literal notranslate"><span class="pre">randomize_fixed_tendon_parameters</span></code></a>(env, ...)</p></td>
-<td><p>Randomize the simulated fixed tendon parameters of an articulation by adding, scaling, or setting random values.</p></td>
-</tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.envs.mdp.events.apply_external_force_torque" title="isaaclab.envs.mdp.events.apply_external_force_torque"><code class="xref py py-obj docutils literal notranslate"><span class="pre">apply_external_force_torque</span></code></a>(env, env_ids, ...)</p></td>
-<td><p>Randomize the external forces and torques applied to the bodies.</p></td>
-</tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.envs.mdp.events.push_by_setting_velocity" title="isaaclab.envs.mdp.events.push_by_setting_velocity"><code class="xref py py-obj docutils literal notranslate"><span class="pre">push_by_setting_velocity</span></code></a>(env, env_ids, ...)</p></td>
-<td><p>Push the asset by setting the root velocity to a random value within the given ranges.</p></td>
-</tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.envs.mdp.events.reset_root_state_uniform" title="isaaclab.envs.mdp.events.reset_root_state_uniform"><code class="xref py py-obj docutils literal notranslate"><span class="pre">reset_root_state_uniform</span></code></a>(env, env_ids, ...)</p></td>
-<td><p>Reset the asset root state to a random position and velocity uniformly within the given ranges.</p></td>
-</tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.envs.mdp.events.reset_root_state_with_random_orientation" title="isaaclab.envs.mdp.events.reset_root_state_with_random_orientation"><code class="xref py py-obj docutils literal notranslate"><span class="pre">reset_root_state_with_random_orientation</span></code></a>(...)</p></td>
-<td><p>Reset the asset root position and velocities sampled randomly within the given ranges and the asset root orientation sampled randomly from the SO(3).</p></td>
-</tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.envs.mdp.events.reset_root_state_from_terrain" title="isaaclab.envs.mdp.events.reset_root_state_from_terrain"><code class="xref py py-obj docutils literal notranslate"><span class="pre">reset_root_state_from_terrain</span></code></a>(env, env_ids, ...)</p></td>
-<td><p>Reset the asset root state by sampling a random valid pose from the terrain.</p></td>
-</tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.envs.mdp.events.reset_joints_by_scale" title="isaaclab.envs.mdp.events.reset_joints_by_scale"><code class="xref py py-obj docutils literal notranslate"><span class="pre">reset_joints_by_scale</span></code></a>(env, env_ids, ...[, ...])</p></td>
-<td><p>Reset the robot joints by scaling the default position and velocity by the given ranges.</p></td>
-</tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.envs.mdp.events.reset_joints_by_offset" title="isaaclab.envs.mdp.events.reset_joints_by_offset"><code class="xref py py-obj docutils literal notranslate"><span class="pre">reset_joints_by_offset</span></code></a>(env, env_ids, ...[, ...])</p></td>
-<td><p>Reset the robot joints with offsets around the default position and velocity by the given ranges.</p></td>
-</tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.envs.mdp.events.reset_nodal_state_uniform" title="isaaclab.envs.mdp.events.reset_nodal_state_uniform"><code class="xref py py-obj docutils literal notranslate"><span class="pre">reset_nodal_state_uniform</span></code></a>(env, env_ids, ...)</p></td>
-<td><p>Reset the asset nodal state to a random position and velocity uniformly within the given ranges.</p></td>
-</tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.envs.mdp.events.reset_scene_to_default" title="isaaclab.envs.mdp.events.reset_scene_to_default"><code class="xref py py-obj docutils literal notranslate"><span class="pre">reset_scene_to_default</span></code></a>(env, env_ids)</p></td>
-<td><p>Reset the scene to the default state specified in the scene configuration.</p></td>
-</tr>
-</tbody>
-</table>
+<dl class="py function">
+<dt class="sig sig-object py" id="isaaclab.envs.mdp.events.randomize_rigid_body_scale">
+<span class="sig-prename descclassname"><span class="pre">isaaclab.envs.mdp.events.</span></span><span class="sig-name descname"><span class="pre">randomize_rigid_body_scale</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">env</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="isaaclab.envs.html#isaaclab.envs.ManagerBasedEnv" title="isaaclab.envs.ManagerBasedEnv"><span class="pre">ManagerBasedEnv</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">env_ids</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.6)"><span class="pre">torch.Tensor</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">scale_range</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.13)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">asset_cfg</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="isaaclab.managers.html#isaaclab.managers.SceneEntityCfg" title="isaaclab.managers.SceneEntityCfg"><span class="pre">SceneEntityCfg</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">relative_child_path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/isaaclab/envs/mdp/events.html#randomize_rigid_body_scale"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.envs.mdp.events.randomize_rigid_body_scale" title="Permalink to this definition">#</a></dt>
+<dd><p>Randomize the scale of a rigid body asset in the USD stage.</p>
+<p>This function modifies the “xformOp:scale” property of all the prims corresponding to the asset.</p>
+<p>It takes a tuple or dictionary for the scale ranges. If it is a tuple, then the scaling along
+individual axis is performed equally. If it is a dictionary, the scaling is independent across each dimension.
+The keys of the dictionary are <code class="docutils literal notranslate"><span class="pre">x</span></code>, <code class="docutils literal notranslate"><span class="pre">y</span></code>, and <code class="docutils literal notranslate"><span class="pre">z</span></code>. The values are tuples of the form <code class="docutils literal notranslate"><span class="pre">(min,</span> <span class="pre">max)</span></code>.</p>
+<p>If the dictionary does not contain a key, the range is set to one for that axis.</p>
+<p>Relative child path can be used to randomize the scale of a specific child prim of the asset.
+For example, if the asset at prim path expression “/World/envs/<a href="#id4"><span class="problematic" id="id5">env_</span></a>.*/Object” has a child
+with the path “/World/envs/<a href="#id6"><span class="problematic" id="id7">env_</span></a>.*/Object/mesh”, then the relative child path should be “mesh” or
+“/mesh”.</p>
+<div class="admonition attention">
+<p class="admonition-title">Attention</p>
+<p>Since this function modifies USD properties that are parsed by the physics engine once the simulation
+starts, the term should only be used before the simulation starts playing. This corresponds to the
+event mode named “usd”. Using it at simulation time, may lead to unpredictable behaviors.</p>
 </div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>When randomizing the scale of individual assets, please make sure to set
+<a class="reference internal" href="isaaclab.scene.html#isaaclab.scene.InteractiveSceneCfg.replicate_physics" title="isaaclab.scene.InteractiveSceneCfg.replicate_physics"><code class="xref py py-attr docutils literal notranslate"><span class="pre">isaaclab.scene.InteractiveSceneCfg.replicate_physics</span></code></a> to False. This ensures that physics
+parser will parse the individual asset properties separately.</p>
+</div>
+</dd></dl>
+
 <dl class="py class">
 <dt class="sig sig-object py" id="isaaclab.envs.mdp.events.randomize_rigid_body_material">
 <em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">isaaclab.envs.mdp.events.</span></span><span class="sig-name descname"><span class="pre">randomize_rigid_body_material</span></span><a class="reference internal" href="../../../_modules/isaaclab/envs/mdp/events.html#randomize_rigid_body_material"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.envs.mdp.events.randomize_rigid_body_material" title="Permalink to this definition">#</a></dt>
@@ -4345,6 +4376,7 @@ the curriculum introduced by the function.</p>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-isaaclab.envs.mdp.events">Events</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.mdp.events.randomize_rigid_body_scale"><code class="docutils literal notranslate"><span class="pre">randomize_rigid_body_scale()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.mdp.events.randomize_rigid_body_material"><code class="docutils literal notranslate"><span class="pre">randomize_rigid_body_material</span></code></a><ul class="nav section-nav flex-column">
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.mdp.events.randomize_rigid_body_material.__init__"><code class="docutils literal notranslate"><span class="pre">randomize_rigid_body_material.__init__()</span></code></a></li>
 </ul>

@@ -246,7 +246,7 @@
 
 <li class="toctree-l2"><a class="reference internal" href="../../overview/developer-guide/repo_structure.html">Repository organization</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../overview/developer-guide/development.html">Extension Development</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../overview/developer-guide/template.html">Building your Own Project</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/developer-guide/template.html">Build your Own Project or Task</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../overview/core-concepts/index.html">Core Concepts</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
@@ -795,7 +795,7 @@ utilities to manage extensions:</p>
 <i class="fa-brands fa-linux"></i> Linux</label><div class="sd-tab-content docutils">
 <div class="highlight-text notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh --help
 
-usage: isaaclab.sh [-h] [-i] [-f] [-p] [-s] [-t] [-o] [-v] [-d] [-c] -- Utility to manage Isaac Lab.
+usage: isaaclab.sh [-h] [-i] [-f] [-p] [-s] [-t] [-o] [-v] [-d] [-n] [-c] -- Utility to manage Isaac Lab.
 
 optional arguments:
    -h, --help           Display the help content.
@@ -807,6 +807,7 @@ optional arguments:
    -o, --docker         Run the docker container helper script (docker/container.sh).
    -v, --vscode         Generate the VSCode settings file from template.
    -d, --docs           Build the documentation from source using sphinx.
+   -n, --new            Create a new external project or internal task from template.
    -c, --conda [NAME]   Create the conda environment for Isaac Lab. Default name is &#39;env_isaaclab&#39;.
 </pre></div>
 </div>
@@ -816,7 +817,7 @@ optional arguments:
 <i class="fa-brands fa-windows"></i> Windows</label><div class="sd-tab-content docutils">
 <div class="highlight-text notranslate"><div class="highlight"><pre><span></span>isaaclab.bat --help
 
-usage: isaaclab.bat [-h] [-i] [-f] [-p] [-s] [-v] [-d] [-c] -- Utility to manage Isaac Lab.
+usage: isaaclab.bat [-h] [-i] [-f] [-p] [-s] [-v] [-d] [-n] [-c] -- Utility to manage Isaac Lab.
 
 optional arguments:
    -h, --help           Display the help content.
@@ -827,6 +828,7 @@ optional arguments:
    -t, --test           Run all python unittest tests.
    -v, --vscode         Generate the VSCode settings file from template.
    -d, --docs           Build the documentation from source using sphinx.
+   -n, --new            Create a new external project or internal task from template.
    -c, --conda [NAME]   Create the conda environment for Isaac Lab. Default name is &#39;env_isaaclab&#39;.
 </pre></div>
 </div>

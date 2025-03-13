@@ -245,7 +245,7 @@
 
 <li class="toctree-l2"><a class="reference internal" href="../../../source/overview/developer-guide/repo_structure.html">Repository organization</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/overview/developer-guide/development.html">Extension Development</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../../source/overview/developer-guide/template.html">Building your Own Project</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/overview/developer-guide/template.html">Build your Own Project or Task</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../../source/overview/core-concepts/index.html">Core Concepts</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
@@ -566,7 +566,9 @@
 
 <span class="sd">    For a typical training process, you may want to apply events in the following modes:</span>
 
-<span class="sd">    - &quot;startup&quot;: Event is applied once at the beginning of the training.</span>
+<span class="sd">    - &quot;prestartup&quot;: Event is applied once at the beginning of the training before the simulation starts.</span>
+<span class="sd">      This is used to randomize USD-level properties of the simulation stage.</span>
+<span class="sd">    - &quot;startup&quot;: Event is applied once at the beginning of the training once simulation is started.</span>
 <span class="sd">    - &quot;reset&quot;: Event is applied at every reset.</span>
 <span class="sd">    - &quot;interval&quot;: Event is applied at pre-specified intervals of time.</span>
 
@@ -712,6 +714,16 @@
         <span class="k">if</span> <span class="n">mode</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_mode_term_names</span><span class="p">:</span>
             <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Event mode &#39;</span><span class="si">{</span><span class="n">mode</span><span class="si">}</span><span class="s2">&#39; is not defined. Skipping event.&quot;</span><span class="p">)</span>
             <span class="k">return</span>
+        <span class="c1"># check if mode is pre-startup and scene replication is enabled</span>
+        <span class="k">if</span> <span class="n">mode</span> <span class="o">==</span> <span class="s2">&quot;prestartup&quot;</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">_env</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">replicate_physics</span><span class="p">:</span>
+            <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
+                <span class="s2">&quot;Scene replication is enabled, which may affect USD-level randomization.&quot;</span>
+                <span class="s2">&quot; When assets are replicated, their properties are shared across instances,&quot;</span>
+                <span class="s2">&quot; potentially leading to unintended behavior.&quot;</span>
+                <span class="s2">&quot; For stable USD-level randomization, consider disabling scene replication&quot;</span>
+                <span class="s2">&quot; by setting &#39;replicate_physics&#39; to False in &#39;InteractiveSceneCfg&#39;.&quot;</span>
+            <span class="p">)</span>
+
         <span class="c1"># check if mode is interval and dt is not provided</span>
         <span class="k">if</span> <span class="n">mode</span> <span class="o">==</span> <span class="s2">&quot;interval&quot;</span> <span class="ow">and</span> <span class="n">dt</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Event mode &#39;</span><span class="si">{</span><span class="n">mode</span><span class="si">}</span><span class="s2">&#39; requires the time-step of the environment.&quot;</span><span class="p">)</span>

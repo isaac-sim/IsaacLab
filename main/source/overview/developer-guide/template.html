@@ -9,7 +9,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
 
-    <title>Building your Own Project &#8212; Isaac Lab Documentation</title>
+    <title>Build your Own Project or Task &#8212; Isaac Lab Documentation</title>
   
   
   
@@ -246,7 +246,7 @@
 
 <li class="toctree-l2"><a class="reference internal" href="repo_structure.html">Repository organization</a></li>
 <li class="toctree-l2"><a class="reference internal" href="development.html">Extension Development</a></li>
-<li class="toctree-l2 current active"><a class="current reference internal" href="#">Building your Own Project</a></li>
+<li class="toctree-l2 current active"><a class="current reference internal" href="#">Build your Own Project or Task</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../core-concepts/index.html">Core Concepts</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
@@ -579,7 +579,7 @@
               
 
 <div id="jb-print-docs-body" class="onlyprint">
-    <h1>Building your Own Project</h1>
+    <h1>Build your Own Project or Task</h1>
     <!-- Table of contents -->
     <div id="print-main-content">
         <div id="jb-print-toc">
@@ -589,7 +589,8 @@
             </div>
             <nav aria-label="Page">
                 <ul class="visible nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#installation">Installation</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#running-the-template-generator">Running the template generator</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#external-project-usage-once-generated">External project usage (once generated)</a></li>
 </ul>
             </nav>
         </div>
@@ -601,51 +602,87 @@
 <div id="searchbox"></div>
                 <article class="bd-article">
                   
-  <section id="building-your-own-project">
-<h1>Building your Own Project<a class="headerlink" href="#building-your-own-project" title="Permalink to this heading">#</a></h1>
+  <section id="build-your-own-project-or-task">
+<span id="template-generator"></span><h1>Build your Own Project or Task<a class="headerlink" href="#build-your-own-project-or-task" title="Permalink to this heading">#</a></h1>
 <p>Traditionally, building new projects that utilize Isaac Lab’s features required creating your own
 extensions within the Isaac Lab repository. However, this approach can obscure project visibility and
-complicate updates from one version of Isaac Lab to another. To circumvent these challenges, we now
-provide a pre-configured and customizable <a class="reference external" href="https://github.com/isaac-sim/IsaacLabExtensionTemplate">extension template</a>
-for creating projects in an isolated environment.</p>
-<p>This template serves three distinct use cases:</p>
-<ul class="simple">
-<li><p><strong>Project Template</strong>: Provides essential access to Isaac Sim and Isaac Lab’s features, making it ideal for projects
-that require a standalone environment.</p></li>
-<li><p><strong>Python Package</strong>: Facilitates integration with Isaac Sim’s native or virtual Python environment, allowing for
-the creation of Python packages that can be shared and reused across multiple projects.</p></li>
-<li><p><strong>Omniverse Extension</strong>: Supports direct integration into Omniverse extension workflow.</p></li>
+complicate updates from one version of Isaac Lab to another. To circumvent these challenges,
+we now provide a command-line tool (<strong>template generator</strong>) for creating Isaac Lab-based projects and tasks.</p>
+<p>The template generator enables you to create an:</p>
+<ul>
+<li><p><strong>External project</strong> (recommended): An isolated project that is not part of the Isaac Lab repository. This approach
+works outside of the core Isaac Lab repository, ensuring that your development efforts remain self-contained. Also,
+it allows your code to be run as an extension in Omniverse.</p>
+<div class="admonition hint">
+<p class="admonition-title">Hint</p>
+<p>For the external project, the template generator will initialize a new Git repository in the specified directory.
+You can push the generated content to your own remote repository (e.g. GitHub) and share it with others.</p>
+</div>
+</li>
+<li><p><strong>Internal task</strong>: A task that is part of the Isaac Lab repository. This approach should only be used to create
+new tasks within the Isaac Lab repository in order to contribute to it.</p></li>
 </ul>
+<section id="running-the-template-generator">
+<h2>Running the template generator<a class="headerlink" href="#running-the-template-generator" title="Permalink to this heading">#</a></h2>
+<p>Install Isaac Lab by following the <a class="reference external" href="../../setup/installation/index.html">installation guide</a>.
+We recommend using conda installation as it simplifies calling Python scripts from the terminal.</p>
+<p>Then, run the following command to generate a new external project or internal task:</p>
+<div class="sd-tab-set docutils">
+<input checked="checked" id="sd-tab-item-0" name="sd-tab-set-0" type="radio">
+<label class="sd-tab-label" data-sync-group="os" data-sync-id="linux" for="sd-tab-item-0">
+<i class="fa-brands fa-linux"></i> Linux</label><div class="sd-tab-content docutils">
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>--new<span class="w">  </span><span class="c1"># or &quot;./isaaclab.sh -n&quot;</span>
+</pre></div>
+</div>
+</div>
+<input id="sd-tab-item-1" name="sd-tab-set-0" type="radio">
+<label class="sd-tab-label" data-sync-group="os" data-sync-id="windows" for="sd-tab-item-1">
+<i class="fa-brands fa-windows"></i> Windows</label><div class="sd-tab-content docutils">
+<div class="highlight-batch notranslate"><div class="highlight"><pre><span></span>isaaclab.bat --new  :: or <span class="s2">&quot;isaaclab.bat -n&quot;</span>
+</pre></div>
+</div>
+</div>
+</div>
+<p>The generator will guide you in setting up the project/task for your needs by asking you the following questions:</p>
+<ul class="simple">
+<li><p>Type of project/task (external or internal), and project/task path or names according to the selected type.</p></li>
+<li><p>Isaac Lab workflows (see <a class="reference internal" href="../core-concepts/task_workflows.html#feature-workflows"><span class="std std-ref">Task Design Workflows</span></a>).</p></li>
+<li><p>Reinforcement learning libraries (see <a class="reference internal" href="../reinforcement-learning/rl_frameworks.html#rl-frameworks"><span class="std std-ref">Reinforcement Learning Library Comparison</span></a>), and algorithms (if the selected libraries support multiple algorithms).</p></li>
+</ul>
+</section>
+<section id="external-project-usage-once-generated">
+<h2>External project usage (once generated)<a class="headerlink" href="#external-project-usage-once-generated" title="Permalink to this heading">#</a></h2>
+<p>Once the external project is generated, a <code class="docutils literal notranslate"><span class="pre">README.md</span></code> file will be created in the specified directory.
+This file will contain instructions on how to install the project and run the tasks.</p>
+<p>Here are some general commands to get started with it:</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>We recommend using the extension template for new projects, as it provides a more streamlined and
-efficient workflow. Additionally it ensures that your project remains up-to-date with the latest
-features and improvements in Isaac Lab.</p>
+<p>If Isaac Lab is not installed in a conda environment or in a (virtual) Python environment, use <code class="docutils literal notranslate"><span class="pre">FULL_PATH_TO_ISAACLAB/isaaclab.sh</span> <span class="pre">-p</span></code>
+(or <code class="docutils literal notranslate"><span class="pre">FULL_PATH_TO_ISAACLAB\isaaclab.bat</span> <span class="pre">-p</span></code> on Windows) instead of <code class="docutils literal notranslate"><span class="pre">python</span></code> to run the commands below.</p>
 </div>
-<section id="installation">
-<h2>Installation<a class="headerlink" href="#installation" title="Permalink to this heading">#</a></h2>
-<p>Install Isaac Lab by following the <a class="reference external" href="../../setup/installation/index.html">installation guide</a>. We recommend using the conda installation as it simplifies calling Python scripts from the terminal.</p>
-<p>Clone the extension template repository separately from the Isaac Lab installation (i.e. outside the IsaacLab directory):</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Option 1: HTTPS</span>
-git<span class="w"> </span>clone<span class="w"> </span>https://github.com/isaac-sim/IsaacLabExtensionTemplate.git
-
-<span class="c1"># Option 2: SSH</span>
-git<span class="w"> </span>clone<span class="w"> </span>git@github.com:isaac-sim/IsaacLabExtensionTemplate.git
+<ul>
+<li><p>Install the project (in editable mode).</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span>source/&lt;given-project-name&gt;
 </pre></div>
 </div>
-<p>Throughout the repository, the name <code class="docutils literal notranslate"><span class="pre">ext_template</span></code> only serves as an example and we provide a script to rename all the references to it automatically:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Enter the repository</span>
-<span class="nb">cd</span><span class="w"> </span>IsaacLabExtensionTemplate
-
-<span class="c1"># Rename all occurrences of ext_template (in files/directories) to your_fancy_extension_name</span>
-python<span class="w"> </span>scripts/rename_template.py<span class="w"> </span>your_fancy_extension_name
+</li>
+<li><p>List the tasks available in the project.</p>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>If the task names change, it may be necessary to update the search pattern <code class="docutils literal notranslate"><span class="pre">&quot;Template-&quot;</span></code>
+(in the <code class="docutils literal notranslate"><span class="pre">scripts/list_envs.py</span></code> file) so that they can be listed.</p>
+</div>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>scripts/list_envs.py
 </pre></div>
 </div>
-<p>Using a python interpreter that has Isaac Lab installed, install the library:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span>source/ext_template
+</li>
+<li><p>Run a task.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>scripts/&lt;specific-rl-library&gt;/train.py<span class="w"> </span>--task<span class="o">=</span>&lt;Task-Name&gt;
 </pre></div>
 </div>
-<p>For more details, please follow the instructions in the <a class="reference external" href="https://github.com/isaac-sim/IsaacLabExtensionTemplate">extension template repository</a>.</p>
+</li>
+</ul>
+<p>For more details, please follow the instructions in the generated project’s <code class="docutils literal notranslate"><span class="pre">README.md</span></code> file.</p>
 </section>
 </section>
 
@@ -695,7 +732,8 @@ python<span class="w"> </span>scripts/rename_template.py<span class="w"> </span>
   </div>
   <nav class="bd-toc-nav page-toc">
     <ul class="visible nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#installation">Installation</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#running-the-template-generator">Running the template generator</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#external-project-usage-once-generated">External project usage (once generated)</a></li>
 </ul>
   </nav></div>
 
