@@ -7,11 +7,13 @@ from __future__ import annotations
 
 import copy
 import inspect
+import weakref
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
 import omni.log
+import omni.timeline
 
 import isaaclab.utils.string as string_utils
 from isaaclab.utils import string_to_callable
@@ -119,6 +121,13 @@ class ManagerBase(ABC):
     def __init__(self, cfg: object, env: ManagerBasedEnv):
         """Initialize the manager.
 
+        This function is responsible for parsing the configuration object and creating the terms.
+
+        If the simulation is not playing, the scene entities are not resolved immediately.
+        Instead, the resolution is deferred until the simulation starts. This is done to ensure
+        that the scene entities are resolved even if the manager is created after the simulation
+        has already started.
+
         Args:
             cfg: The configuration object. If None, the manager is initialized without any terms.
             env: The environment instance.
@@ -126,9 +135,33 @@ class ManagerBase(ABC):
         # store the inputs
         self.cfg = copy.deepcopy(cfg)
         self._env = env
+
         # parse config to create terms information
         if self.cfg:
             self._prepare_terms()
+
+        # if the simulation is not playing, we use callbacks to trigger the resolution of the scene
+        # entities configuration. this is needed for cases where the manager is created after the
+        # simulation, but before the simulation is playing.
+        if not self._env.sim.is_playing():
+            # note: Use weakref on all callbacks to ensure that this object can be deleted when its destructor
+            # is called
+            # The order is set to 20 to allow asset/sensor initialization to complete before the scene entities
+            # are resolved. Those have the order 10.
+            timeline_event_stream = omni.timeline.get_timeline_interface().get_timeline_event_stream()
+            self._resolve_scene_entities_handle = timeline_event_stream.create_subscription_to_pop_by_type(
+                int(omni.timeline.TimelineEventType.PLAY),
+                lambda event, obj=weakref.proxy(self): obj._resolve_scene_entities_callback(event),
+                order=20,
+            )
+        else:
+            self._resolve_scene_entities_handle = None
+
+    def __del__(self):
+        """Delete the manager."""
+        if self._resolve_scene_entities_handle:
+            self._resolve_scene_entities_handle.unsubscribe()
+            self._resolve_scene_entities_handle = None
 
     """
     Properties.
@@ -213,6 +246,30 @@ class ManagerBase(ABC):
         raise NotImplementedError
 
     """
+    Internal callbacks.
+    """
+
+    def _resolve_scene_entities_callback(self, event):
+        """Resolve the scene entities configuration.
+
+        This callback is called when the simulation starts. It is used to resolve the
+        scene entities configuration for the terms.
+        """
+        # check if config is dict already
+        if isinstance(self.cfg, dict):
+            cfg_items = self.cfg.items()
+        else:
+            cfg_items = self.cfg.__dict__.items()
+
+        # iterate over all the terms
+        for term_name, term_cfg in cfg_items:
+            # check for non config
+            if term_cfg is None:
+                continue
+            # resolve the scene entity configuration
+            self._resolve_scene_entity_cfg(term_name, term_cfg)
+
+    """
     Helper functions.
     """
 
@@ -221,12 +278,11 @@ class ManagerBase(ABC):
 
         Usually, called by the :meth:`_prepare_terms` method to resolve common term configuration.
 
-        Note:
-            By default, all term functions are expected to have at least one argument, which is the
-            environment object. Some other managers may expect functions to take more arguments, for
-            instance, the environment indices as the second argument. In such cases, the
-            ``min_argc`` argument can be used to specify the minimum number of arguments
-            required by the term function to be called correctly by the manager.
+        By default, all term functions are expected to have at least one argument, which is the
+        environment object. Some other managers may expect functions to take more arguments, for
+        instance, the environment indices as the second argument. In such cases, the
+        ``min_argc`` argument can be used to specify the minimum number of arguments
+        required by the term function to be called correctly by the manager.
 
         Args:
             term_name: The name of the term.
@@ -246,25 +302,10 @@ class ManagerBase(ABC):
                 f"Configuration for the term '{term_name}' is not of type ManagerTermBaseCfg."
                 f" Received: '{type(term_cfg)}'."
             )
+
         # iterate over all the entities and parse the joint and body names
-        for key, value in term_cfg.params.items():
-            # deal with string
-            if isinstance(value, SceneEntityCfg):
-                # load the entity
-                try:
-                    value.resolve(self._env.scene)
-                except ValueError as e:
-                    raise ValueError(f"Error while parsing '{term_name}:{key}'. {e}")
-                # log the entity for checking later
-                msg = f"[{term_cfg.__class__.__name__}:{term_name}] Found entity '{value.name}'."
-                if value.joint_ids is not None:
-                    msg += f"\n\tJoint names: {value.joint_names} [{value.joint_ids}]"
-                if value.body_ids is not None:
-                    msg += f"\n\tBody names: {value.body_names} [{value.body_ids}]"
-                # print the information
-                omni.log.info(msg)
-            # store the entity
-            term_cfg.params[key] = value
+        if self._env.sim.is_playing():
+            self._resolve_scene_entity_cfg(term_name, term_cfg)
 
         # get the corresponding function or functional class
         if isinstance(term_cfg.func, str):
@@ -296,3 +337,28 @@ class ManagerBase(ABC):
                     f"The term '{term_name}' expects mandatory parameters: {args_without_defaults[min_argc:]}"
                     f" and optional parameters: {args_with_defaults}, but received: {term_params}."
                 )
+
+    def _resolve_scene_entity_cfg(self, term_name: str, term_cfg: ManagerTermBaseCfg):
+        """Resolve the scene entity configuration for the term.
+
+        Args:
+            term_name: The name of the term.
+            term_cfg: The term configuration.
+        """
+        for key, value in term_cfg.params.items():
+            if isinstance(value, SceneEntityCfg):
+                # load the entity
+                try:
+                    value.resolve(self._env.scene)
+                except ValueError as e:
+                    raise ValueError(f"Error while parsing '{term_name}:{key}'. {e}")
+                # log the entity for checking later
+                msg = f"[{term_cfg.__class__.__name__}:{term_name}] Found entity '{value.name}'."
+                if value.joint_ids is not None:
+                    msg += f"\n\tJoint names: {value.joint_names} [{value.joint_ids}]"
+                if value.body_ids is not None:
+                    msg += f"\n\tBody names: {value.body_names} [{value.body_ids}]"
+                # print the information
+                omni.log.info(msg)
+            # store the entity
+            term_cfg.params[key] = value
