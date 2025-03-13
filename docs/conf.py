@@ -182,6 +182,7 @@ autodoc_mock_imports = [
     "pink",
     "pinocchio",
     "nvidia.srl",
+    "flatdict",
 ]
 
 # List of zero or more Sphinx-specific warning categories to be squelched (i.e.,

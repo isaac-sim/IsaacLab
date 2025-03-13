@@ -1,7 +1,7 @@
 Changelog
 ---------
 
-0.36.8 (2025-04-09)
+0.36.9 (2025-04-09)
 ~~~~~~~~~~~~~~~~~~~
 
 Changed
@@ -12,7 +12,7 @@ Changed
   the cuda device, which results in NCCL errors on distributed setups.
 
 
-0.36.7 (2025-04-01)
+0.36.8 (2025-04-01)
 ~~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -21,7 +21,7 @@ Fixed
 * Adds check in RecorderManager to ensure that the success indicator is only set if the termination manager is present.
 
 
-0.36.6 (2025-03-24)
+0.36.7 (2025-03-24)
 ~~~~~~~~~~~~~~~~~~~
 
 Changed
@@ -31,7 +31,7 @@ Changed
   the default settings will be used from the experience files and the double definition is removed.
 
 
-0.36.5 (2025-03-17)
+0.36.6 (2025-03-17)
 ~~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -39,6 +39,23 @@ Fixed
 
 * Fixed default behavior of :class:`~isaaclab.actuators.ImplicitActuator` if no :attr:`effort_limits_sim` or
   :attr:`effort_limit` is set.
+
+
+0.36.5 (2025-03-11)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^^^
+
+* Added 3 rendering mode presets: performance, balanced, and quality.
+* Preset settings are stored in ``apps/rendering_modes``.
+* Presets can be set with cli arg ``--rendering_mode`` or with :class:`RenderCfg`.
+* Preset rendering settings can be overwritten with :class:`RenderCfg`.
+* :class:`RenderCfg` supports all native RTX carb settings.
+
+Changed
+^^^^^^^
+* :class:`RenderCfg` default settings are unset.
 
 
 0.36.4 (2025-03-11)

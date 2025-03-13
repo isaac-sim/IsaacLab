@@ -18,8 +18,11 @@ import os
 import re
 import signal
 import sys
+import toml
 import warnings
 from typing import Any, Literal
+
+import flatdict
 
 with contextlib.suppress(ModuleNotFoundError):
     import isaacsim  # noqa: F401
@@ -116,6 +119,8 @@ class AppLauncher:
         self._load_extensions()
         # Hide the stop button in the toolbar
         self._hide_stop_button()
+        # Set settings from the given rendering mode
+        self._set_rendering_mode_settings(launcher_args)
 
         # Hide play button callback if the timeline is stopped
         import omni.timeline
@@ -295,6 +300,17 @@ class AppLauncher:
                 "The experience file to load when launching the SimulationApp. If an empty string is provided,"
                 " the experience file is determined based on the headless flag. If a relative path is provided,"
                 " it is resolved relative to the `apps` folder in Isaac Sim and Isaac Lab (in that order)."
+            ),
+        )
+        arg_group.add_argument(
+            "--rendering_mode",
+            type=str,
+            default="balanced",
+            choices={"performance", "balanced", "quality"},
+            help=(
+                "Sets the rendering mode. Preset settings files can be found in apps/rendering_modes."
+                ' Can be "performance", "balanced", or "quality".'
+                " Individual settings can be overwritten by using the RenderCfg class."
             ),
         )
         arg_group.add_argument(
@@ -640,7 +656,7 @@ class AppLauncher:
         kit_app_exp_path = os.environ["EXP_PATH"]
         isaaclab_app_exp_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), *[".."] * 4, "apps")
         if self._sim_experience_file == "":
-            # check if the headless flag is setS
+            # check if the headless flag is set
             if self._enable_cameras:
                 if self._headless and not self._livestream:
                     self._sim_experience_file = os.path.join(
@@ -810,6 +826,33 @@ class AppLauncher:
                 play_button_group._stop_button.visible = False  # type: ignore
                 play_button_group._stop_button.enabled = False  # type: ignore
                 play_button_group._stop_button = None  # type: ignore
+
+    def _set_rendering_mode_settings(self, launcher_args: dict) -> None:
+        """Set RTX rendering settings to the values from the selected preset."""
+        import carb
+        from isaacsim.core.utils.carb import set_carb_setting
+
+        rendering_mode = launcher_args.get("rendering_mode", "balanced")
+
+        # parse preset file
+        repo_path = os.path.join(carb.tokens.get_tokens_interface().resolve("${app}"), "..")
+        preset_filename = os.path.join(repo_path, f"apps/rendering_modes/{rendering_mode}.kit")
+        with open(preset_filename) as file:
+            preset_dict = toml.load(file)
+        preset_dict = dict(flatdict.FlatDict(preset_dict, delimiter="."))
+
+        # set presets
+        carb_setting = carb.settings.get_settings()
+        for key, value in preset_dict.items():
+            key = "/" + key.replace(".", "/")  # convert to carb setting format
+            set_carb_setting(carb_setting, key, value)
+
+    def _interrupt_signal_handle_callback(self, signal, frame):
+        """Handle the interrupt signal from the keyboard."""
+        # close the app
+        self._app.close()
+        # raise the error for keyboard interrupt
+        raise KeyboardInterrupt
 
     def _hide_play_button(self, flag):
         """Hide/Unhide the play button in the toolbar.

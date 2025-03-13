@@ -6,6 +6,8 @@
 import builtins
 import enum
 import numpy as np
+import os
+import toml
 import torch
 import traceback
 import weakref
@@ -14,10 +16,12 @@ from contextlib import contextmanager
 from typing import Any
 
 import carb
+import flatdict
 import isaacsim.core.utils.stage as stage_utils
 import omni.log
 import omni.physx
 from isaacsim.core.api.simulation_context import SimulationContext as _SimulationContext
+from isaacsim.core.utils.carb import get_carb_setting, set_carb_setting
 from isaacsim.core.utils.viewports import set_camera_view
 from isaacsim.core.version import get_version
 from pxr import Gf, PhysxSchema, Usd, UsdPhysics
@@ -120,84 +124,31 @@ class SimulationContext(_SimulationContext):
         if stage_utils.get_current_stage() is None:
             raise RuntimeError("The stage has not been created. Did you run the simulator?")
 
-        # set flags for simulator
         # acquire settings interface
-        carb_settings_iface = carb.settings.get_settings()
-        # enable hydra scene-graph instancing
-        # note: this allows rendering of instanceable assets on the GUI
-        carb_settings_iface.set_bool("/persistent/omnihydra/useSceneGraphInstancing", True)
-        # change dispatcher to use the default dispatcher in PhysX SDK instead of carb tasking
-        # note: dispatcher handles how threads are launched for multi-threaded physics
-        carb_settings_iface.set_bool("/physics/physxDispatcher", True)
-        # disable contact processing in omni.physx
-        # note: we disable it by default to avoid the overhead of contact processing when it isn't needed.
-        #   The physics flag gets enabled when a contact sensor is created.
-        if hasattr(self.cfg, "disable_contact_processing"):
-            omni.log.warn(
-                "The `disable_contact_processing` attribute is deprecated and always set to True"
-                " to avoid unnecessary overhead. Contact processing is automatically enabled when"
-                " a contact sensor is created, so manual configuration is no longer required."
-            )
-        # FIXME: From investigation, it seems this flag only affects CPU physics. For GPU physics, contacts
-        #  are always processed. The issue is reported to the PhysX team by @mmittal.
-        carb_settings_iface.set_bool("/physics/disableContactProcessing", True)
-        # disable custom geometry for cylinder and cone collision shapes to allow contact reporting for them
-        # reason: cylinders and cones aren't natively supported by PhysX so we need to use custom geometry flags
-        # reference: https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/docs/Geometry.html?highlight=capsule#geometry
-        carb_settings_iface.set_bool("/physics/collisionConeCustomGeometry", False)
-        carb_settings_iface.set_bool("/physics/collisionCylinderCustomGeometry", False)
-        # hide the Simulation Settings window
-        carb_settings_iface.set_bool("/physics/autoPopupSimulationOutputWindow", False)
+        self.carb_settings = carb.settings.get_settings()
+
+        # apply carb physics settings
+        self._apply_physics_settings()
+
         # note: we read this once since it is not expected to change during runtime
         # read flag for whether a local GUI is enabled
-        self._local_gui = carb_settings_iface.get("/app/window/enabled")
+        self._local_gui = self.carb_settings.get("/app/window/enabled")
         # read flag for whether livestreaming GUI is enabled
-        self._livestream_gui = carb_settings_iface.get("/app/livestream/enabled")
+        self._livestream_gui = self.carb_settings.get("/app/livestream/enabled")
         # read flag for whether XR GUI is enabled
-        self._xr_gui = carb_settings_iface.get("/app/xr/enabled")
+        self._xr_gui = self.carb_settings.get("/app/xr/enabled")
 
         # read flag for whether the Isaac Lab viewport capture pipeline will be used,
         # casting None to False if the flag doesn't exist
         # this flag is set from the AppLauncher class
-        self._offscreen_render = bool(carb_settings_iface.get("/isaaclab/render/offscreen"))
+        self._offscreen_render = bool(self.carb_settings.get("/isaaclab/render/offscreen"))
         # read flag for whether the default viewport should be enabled
-        self._render_viewport = bool(carb_settings_iface.get("/isaaclab/render/active_viewport"))
+        self._render_viewport = bool(self.carb_settings.get("/isaaclab/render/active_viewport"))
         # flag for whether any GUI will be rendered (local, livestreamed or viewport)
         self._has_gui = self._local_gui or self._livestream_gui or self._xr_gui
 
         # apply render settings from render config
-        if self.cfg.render.enable_translucency is not None:
-            carb_settings_iface.set_bool("/rtx/translucency/enabled", self.cfg.render.enable_translucency)
-        if self.cfg.render.enable_reflections is not None:
-            carb_settings_iface.set_bool("/rtx/reflections/enabled", self.cfg.render.enable_reflections)
-        if self.cfg.render.enable_global_illumination is not None:
-            carb_settings_iface.set_bool("/rtx/indirectDiffuse/enabled", self.cfg.render.enable_global_illumination)
-        if self.cfg.render.enable_dlssg is not None:
-            carb_settings_iface.set_bool("/rtx-transient/dlssg/enabled", self.cfg.render.enable_dlssg)
-        if self.cfg.render.enable_dl_denoiser is not None:
-            carb_settings_iface.set_bool("/rtx-transient/dldenoiser/enabled", self.cfg.render.enable_dl_denoiser)
-        if self.cfg.render.dlss_mode is not None:
-            carb_settings_iface.set_int("/rtx/post/dlss/execMode", self.cfg.render.dlss_mode)
-        if self.cfg.render.enable_direct_lighting is not None:
-            carb_settings_iface.set_bool("/rtx/directLighting/enabled", self.cfg.render.enable_direct_lighting)
-        if self.cfg.render.samples_per_pixel is not None:
-            carb_settings_iface.set_int(
-                "/rtx/directLighting/sampledLighting/samplesPerPixel", self.cfg.render.samples_per_pixel
-            )
-        if self.cfg.render.enable_shadows is not None:
-            carb_settings_iface.set_bool("/rtx/shadows/enabled", self.cfg.render.enable_shadows)
-        if self.cfg.render.enable_ambient_occlusion is not None:
-            carb_settings_iface.set_bool("/rtx/ambientOcclusion/enabled", self.cfg.render.enable_ambient_occlusion)
-        # set denoiser mode
-        if self.cfg.render.antialiasing_mode is not None:
-            try:
-                import omni.replicator.core as rep
-
-                rep.settings.set_render_rtx_realtime(antialiasing=self.cfg.render.antialiasing_mode)
-                # WAR: The omni.replicator.core extension sets /rtx/renderMode=RayTracedLighting with incorrect casing.
-                carb_settings_iface.set("/rtx/rendermode", "RaytracedLighting")
-            except Exception:
-                pass
+        self._apply_render_settings_from_cfg()
 
         # store the default render mode
         if not self._has_gui and not self._offscreen_render:
@@ -288,6 +239,113 @@ class SimulationContext(_SimulationContext):
             physics_prim_path=self.cfg.physics_prim_path,
             device=self.cfg.device,
         )
+
+    def _apply_physics_settings(self):
+        """Sets various carb physics settings."""
+        # enable hydra scene-graph instancing
+        # note: this allows rendering of instanceable assets on the GUI
+        set_carb_setting(self.carb_settings, "/persistent/omnihydra/useSceneGraphInstancing", True)
+        # change dispatcher to use the default dispatcher in PhysX SDK instead of carb tasking
+        # note: dispatcher handles how threads are launched for multi-threaded physics
+        set_carb_setting(self.carb_settings, "/physics/physxDispatcher", True)
+        # disable contact processing in omni.physx
+        # note: we disable it by default to avoid the overhead of contact processing when it isn't needed.
+        #   The physics flag gets enabled when a contact sensor is created.
+        if hasattr(self.cfg, "disable_contact_processing"):
+            omni.log.warn(
+                "The `disable_contact_processing` attribute is deprecated and always set to True"
+                " to avoid unnecessary overhead. Contact processing is automatically enabled when"
+                " a contact sensor is created, so manual configuration is no longer required."
+            )
+        # FIXME: From investigation, it seems this flag only affects CPU physics. For GPU physics, contacts
+        #  are always processed. The issue is reported to the PhysX team by @mmittal.
+        set_carb_setting("/physics/disableContactProcessing", True)
+        # disable custom geometry for cylinder and cone collision shapes to allow contact reporting for them
+        # reason: cylinders and cones aren't natively supported by PhysX so we need to use custom geometry flags
+        # reference: https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/docs/Geometry.html?highlight=capsule#geometry
+        set_carb_setting("/physics/collisionConeCustomGeometry", False)
+        set_carb_setting("/physics/collisionCylinderCustomGeometry", False)
+        # hide the Simulation Settings window
+        set_carb_setting("/physics/autoPopupSimulationOutputWindow", False)
+
+    def _apply_render_settings_from_cfg(self):
+        """Sets rtx settings specified in the RenderCfg."""
+
+        # define mapping of user-friendly RenderCfg names to native carb names
+        rendering_setting_name_mapping = {
+            "enable_translucency": "/rtx/translucency/enabled",
+            "enable_reflections": "/rtx/reflections/enabled",
+            "enable_global_illumination": "/rtx/indirectDiffuse/enabled",
+            "enable_dlssg": "/rtx-transient/dlssg/enabled",
+            "enable_dl_denoiser": "/rtx-transient/dldenoiser/enabled",
+            "dlss_mode": "/rtx/post/dlss/execMode",
+            "enable_direct_lighting": "/rtx/directLighting/enabled",
+            "samples_per_pixel": "/rtx/directLighting/sampledLighting/samplesPerPixel",
+            "enable_shadows": "/rtx/shadows/enabled",
+            "enable_ambient_occlusion": "/rtx/ambientOcclusion/enabled",
+        }
+
+        not_carb_settings = ["rendering_mode", "carb_settings", "antialiasing_mode"]
+
+        # set preset settings (same behavior as the CLI arg --rendering_mode)
+        rendering_mode = self.cfg.render.rendering_mode
+        if rendering_mode is not None:
+            # check if preset is supported
+            supported_rendering_modes = ["performance", "balanced", "quality"]
+            if rendering_mode not in supported_rendering_modes:
+                raise ValueError(
+                    f"RenderCfg rendering mode '{rendering_mode}' not in supported modes {supported_rendering_modes}."
+                )
+
+            # parse preset file
+            repo_path = os.path.join(carb.tokens.get_tokens_interface().resolve("${app}"), "..")
+            preset_filename = os.path.join(repo_path, f"apps/rendering_modes/{rendering_mode}.kit")
+            with open(preset_filename) as file:
+                preset_dict = toml.load(file)
+            preset_dict = dict(flatdict.FlatDict(preset_dict, delimiter="."))
+
+            # set presets
+            carb_setting = carb.settings.get_settings()
+            for key, value in preset_dict.items():
+                key = "/" + key.replace(".", "/")  # convert to carb setting format
+                set_carb_setting(carb_setting, key, value)
+
+        # set user-friendly named settings
+        for key, value in vars(self.cfg.render).items():
+            if value is None or key in not_carb_settings:
+                # skip unset settings and non-carb settings
+                continue
+            if key not in rendering_setting_name_mapping:
+                raise ValueError(
+                    f"'{key}' in RenderCfg not found. Note: internal 'rendering_setting_name_mapping' dictionary might"
+                    " need to be updated."
+                )
+            key = rendering_setting_name_mapping[key]
+            set_carb_setting(self.carb_settings, key, value)
+
+        # set general carb settings
+        carb_settings = self.cfg.render.carb_settings
+        if carb_settings is not None:
+            for key, value in carb_settings.items():
+                if "_" in key:
+                    key = "/" + key.replace("_", "/")  # convert from python variable style string
+                elif "." in key:
+                    key = "/" + key.replace(".", "/")  # convert from .kit file style string
+                if get_carb_setting(self.carb_settings, key) is None:
+                    raise ValueError(f"'{key}' in RenderCfg.general_parameters does not map to a carb setting.")
+                set_carb_setting(self.carb_settings, key, value)
+
+        # set denoiser mode
+        if self.cfg.render.antialiasing_mode is not None:
+            try:
+                import omni.replicator.core as rep
+
+                rep.settings.set_render_rtx_realtime(antialiasing=self.cfg.render.antialiasing_mode)
+            except Exception:
+                pass
+
+        # WAR: The omni.replicator.core extension sets /rtx/renderMode=RayTracedLighting with incorrect casing.
+        set_carb_setting(self.carb_settings, "/rtx/rendermode", "RaytracedLighting")
 
     """
     Operations - New.

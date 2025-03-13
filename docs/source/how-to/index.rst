@@ -67,6 +67,15 @@ This guide demonstrates how to estimate the number of cameras one can run on the
 
     estimate_how_many_cameras_can_run
 
+Configure Rendering
+-------------------
+
+This guide demonstrates how to select rendering mode presets and overwrite preset rendering settings.
+
+.. toctree::
+    :maxdepth: 1
+
+    configure_rendering
 
 Drawing Markers
 ---------------
