@@ -16,12 +16,12 @@ the interface between the USD articulation of the robot and the learning algorit
 The Code
 ~~~~~~~~
 
-The tutorial corresponds to the ``add_new_robot`` script in the ``scripts/tutorials/03_envs`` directory.
+The tutorial corresponds to the ``add_new_robot`` script in the ``scripts/tutorials/01_assets`` directory.
 
 .. dropdown:: Code for add_new_robot.py
    :icon: code
 
-   .. literalinclude:: ../../../../scripts/tutorials/03_envs/add_new_robot.py
+   .. literalinclude:: ../../../../scripts/tutorials/01_assets/add_new_robot.py
       :language: python
       :linenos:
 
@@ -41,7 +41,7 @@ The Jetbot is a simple, two wheeled differential base with a camera on top. The 
 tutorials in Isaac Sim, so we know it's good to go! To bring it into Isaac lab, we must first define one of these configurations.
 Because a robot is an articulation with joint drives, we define an ``ArticulationCfg`` that describes the robot.
 
-.. literalinclude:: ../../../../scripts/tutorials/03_envs/add_new_robot.py
+.. literalinclude:: ../../../../scripts/tutorials/01_assets/add_new_robot.py
     :language: python
     :lines: 27-38
 
@@ -67,9 +67,9 @@ Other regex can also be used to group joints and associated configurations.
 
 While this is the minimal configuration, there are a number of other parameters we could specify
 
-.. literalinclude:: ../../../../scripts/tutorials/03_envs/add_new_robot.py
+.. literalinclude:: ../../../../scripts/tutorials/01_assets/add_new_robot.py
     :language: python
-    :lines: 43-86
+    :lines: 39-82
 
 This configuration can be used to add a Dofbot to the scene, and it contains some of those parameters.
 The Dofbot is a hobbiest robot arm with several joints, and so we have more options available for configuration.
@@ -91,16 +91,16 @@ Armed with the configurations for these robots, we can now add them to the scene
 for the direct workflow: by defining an ``InteractiveSceneCfg`` containing the articulation configs for the robots ...
 
 
-.. literalinclude:: ../../../../scripts/tutorials/03_envs/add_new_robot.py
+.. literalinclude:: ../../../../scripts/tutorials/01_assets/add_new_robot.py
     :language: python
-    :lines: 89 - 102
+    :lines: 85 - 99
 
 
 ...and then stepping the simulation while updating the scene entities appropriately.
 
-.. literalinclude:: ../../../../scripts/tutorials/03_envs/add_new_robot.py
+.. literalinclude:: ../../../../scripts/tutorials/01_assets/add_new_robot.py
     :language: python
-    :lines: 105 - 161
+    :lines: 101 - 158
 
 
 .. figure:: ../../_static/tutorials/tutorial_add_new_robot_result.jpg
