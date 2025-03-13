@@ -195,16 +195,16 @@ def _external(specification: dict) -> None:
         src=os.path.join(ROOT_DIR, "scripts", "environments", "list_envs.py"),
         dst=os.path.join(dir, "list_envs.py"),
     )
-    # docker files
-    print("  |-- Copying docker files...")
-    dir = os.path.join(project_dir, "docker")
-    os.makedirs(dir, exist_ok=True)
-    template = jinja_env.get_template("external/docker/.env.base")
-    _write_file(os.path.join(dir, ".env.base"), content=template.render(**specification))
-    template = jinja_env.get_template("external/docker/docker-compose.yaml")
-    _write_file(os.path.join(dir, "docker-compose.yaml"), content=template.render(**specification))
-    template = jinja_env.get_template("external/docker/Dockerfile")
-    _write_file(os.path.join(dir, "Dockerfile"), content=template.render(**specification))
+    # # docker files
+    # print("  |-- Copying docker files...")
+    # dir = os.path.join(project_dir, "docker")
+    # os.makedirs(dir, exist_ok=True)
+    # template = jinja_env.get_template("external/docker/.env.base")
+    # _write_file(os.path.join(dir, ".env.base"), content=template.render(**specification))
+    # template = jinja_env.get_template("external/docker/docker-compose.yaml")
+    # _write_file(os.path.join(dir, "docker-compose.yaml"), content=template.render(**specification))
+    # template = jinja_env.get_template("external/docker/Dockerfile")
+    # _write_file(os.path.join(dir, "Dockerfile"), content=template.render(**specification))
     # extension files
     print("  |-- Copying extension files...")
     # - config/extension.toml
