@@ -144,15 +144,21 @@ In the following example, we will show how to use Isaac Lab Mimic to generate ad
 
 In order to use Isaac Lab Mimic with the recorded dataset, first annotate the subtasks in the recording:
 
-.. tabs::
-   .. tab:: State-based policy
+.. tab-set::
+   :sync-group: policy_type
+
+   .. tab-item:: State-based policy
+      :sync: state
+
       .. code:: bash
 
          ./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/annotate_demos.py \
          --device cuda --task Isaac-Stack-Cube-Franka-IK-Rel-Mimic-v0 --auto \
          --input_file ./datasets/dataset.hdf5 --output_file ./datasets/annotated_dataset.hdf5
 
-   .. tab:: Visuomotor policy
+   .. tab-item:: Visuomotor policy
+      :sync: visuomotor
+
       .. code:: bash
 
          ./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/annotate_demos.py \
@@ -162,15 +168,21 @@ In order to use Isaac Lab Mimic with the recorded dataset, first annotate the su
 
 Then, use Isaac Lab Mimic to generate some additional demonstrations:
 
-.. tabs::
-   .. tab:: State-based policy
+.. tab-set::
+   :sync-group: policy_type
+
+   .. tab-item:: State-based policy
+      :sync: state
+
       .. code:: bash
 
          ./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
          --device cuda --num_envs 10 --generation_num_trials 10 \
          --input_file ./datasets/annotated_dataset.hdf5 --output_file ./datasets/generated_dataset_small.hdf5
 
-   .. tab:: Visuomotor policy
+   .. tab-item:: Visuomotor policy
+      :sync: visuomotor
+
       .. code:: bash
 
          ./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
@@ -183,15 +195,21 @@ Then, use Isaac Lab Mimic to generate some additional demonstrations:
 
 Inspect the output of generated data (filename: ``generated_dataset_small.hdf5``), and if satisfactory, generate the full dataset:
 
-.. tabs::
-   .. tab:: State-based policy
+.. tab-set::
+   :sync-group: policy_type
+
+   .. tab-item:: State-based policy
+      :sync: state
+
       .. code:: bash
 
          ./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
          --device cuda --headless --num_envs 10 --generation_num_trials 1000 \
          --input_file ./datasets/annotated_dataset.hdf5 --output_file ./datasets/generated_dataset.hdf5
 
-   .. tab:: Visuomotor policy
+   .. tab-item:: Visuomotor policy
+      :sync: visuomotor
+
       .. code:: bash
 
          ./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
@@ -224,15 +242,21 @@ Training an agent
 
 Using the Mimic generated data we can now train a state-based BC agent for ``Isaac-Stack-Cube-Franka-IK-Rel-v0``, or a visuomotor BC agent for ``Isaac-Stack-Cube-Franka-IK-Rel-Visuomotor-v0``:
 
-.. tabs::
-   .. tab:: State-based policy
+.. tab-set::
+   :sync-group: policy_type
+
+   .. tab-item:: State-based policy
+      :sync: state
+
       .. code:: bash
 
          ./isaaclab.sh -p scripts/imitation_learning/robomimic/train.py \
          --task Isaac-Stack-Cube-Franka-IK-Rel-v0 --algo bc \
          --dataset ./datasets/generated_dataset.hdf5
 
-   .. tab:: Image-based policy
+   .. tab-item:: Visuomotor policy
+      :sync: visuomotor
+
       .. code:: bash
 
          ./isaaclab.sh -p scripts/imitation_learning/robomimic/train.py \
@@ -247,15 +271,21 @@ Visualizing results
 
 By inferencing using the generated model, we can visualize the results of the policy:
 
-.. tabs::
-   .. tab:: State-based policy
+.. tab-set::
+   :sync-group: policy_type
+
+   .. tab-item:: State-based policy
+      :sync: state
+
       .. code:: bash
 
          ./isaaclab.sh -p scripts/imitation_learning/robomimic/play.py \
          --device cuda --task Isaac-Stack-Cube-Franka-IK-Rel-v0 --num_rollouts 50 \
          --checkpoint /PATH/TO/desired_model_checkpoint.pth
 
-   .. tab:: Visuomotor policy
+   .. tab-item:: Visuomotor policy
+      :sync: visuomotor
+
       .. code:: bash
 
          ./isaaclab.sh -p scripts/imitation_learning/robomimic/play.py \
@@ -275,11 +305,61 @@ Demo: Data Generation and Policy Training for a Humanoid Robot
 Isaac Lab Mimic supports data generation for robots with multiple end effectors. In the following demonstration, we will show how to generate data
 to train a Fourier GR-1 humanoid robot to perform a pick and place task.
 
+Optional: Collect and annotate demonstrations
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. note::
+
+   Data collection for the GR-1 humanoid robot environment requires use of an Apple Vision Pro headset. If you do not have access to
+   an Apple Vision Pro, you may skip this step and continue on to the next step: `Generate the dataset`_.
+   A pre-recorded annotated dataset is provided in the next step .
+
+Set up the CloudXR Runtime and Apple Vision Pro for teleoperation by following the steps in :ref:`cloudxr-teleoperation`.
+
+Collect a set of human demonstrations using the command below. We recommend 10 successful demonstrations for good data generation results.
+
+.. code:: bash
+
+   ./isaaclab.sh -p scripts/tools/record_demos.py \
+   --device cuda \
+   --task Isaac-PickPlace-GR1T2-Abs-v0 \
+   --teleop_device dualhandtracking_abs \
+   --dataset_file ./datasets/dataset_gr1.hdf5 \
+   --num_demos 10
+
+Unlike the prior Franka stacking task, the GR-1 pick and place task uses manual annotation to define subtasks.
+Each demo requires a single annotation which denotes when the right robot arm finishes the "idle" subtask and begins to
+move towards the target object. Annotate the demonstrations by running the following command:
+
+.. code:: bash
+
+   ./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/annotate_demos.py \
+   --device cuda \
+   --task Isaac-PickPlace-GR1T2-Abs-Mimic-v0 \
+   --input_file ./datasets/dataset_gr1.hdf5 \
+   --output_file ./datasets/dataset_annotated_gr1.hdf5
+
+.. note::
+
+   The script prints the keyboard commands for manual annotation and the current subtask being annotated:
+
+   .. code:: text
+
+      Annotating episode #0 (demo_0)
+         Playing the episode for subtask annotations for eef "right".
+         Subtask signals to annotate:
+            - Termination:	['idle_right']
+
+         Press "N" to begin.
+         Press "B" to pause.
+         Press "S" to annotate subtask signals.
+         Press "Q" to skip the episode.
+
 
 Generate the dataset
 ^^^^^^^^^^^^^^^^^^^^
 
-Download the pre-recorded annotated dataset ``dataset_annotated_gr1.hdf5`` from
+If you skipped the prior step, download the pre-recorded annotated dataset ``dataset_annotated_gr1.hdf5`` from
 `here <https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/4.5/Isaac/IsaacLab/Mimic/dataset_annotated_gr1.hdf5>`_.
 Place the file under ``IsaacLab/datasets`` and run the following command to generate a new dataset with 1000 demonstrations.
 
