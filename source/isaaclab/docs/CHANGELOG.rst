@@ -1,6 +1,36 @@
 Changelog
 ---------
 
+0.36.1 (2025-03-10)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :attr:`semantic_segmentation_mapping` for camera configs to allow specifying colors for semantics.
+
+
+0.36.0 (2025-03-07)
+~~~~~~~~~~~~~~~~~~~
+
+Removed
+^^^^^^^
+
+* Removed the storage of tri-meshes and warp meshes inside the :class:`~isaaclab.terrains.TerrainImporter` class.
+  Initially these meshes were added for ray-casting purposes. However, since the ray-caster reads the terrains
+  directly from the USD files, these meshes are no longer needed.
+* Deprecated the :attr:`warp_meshes` and :attr:`meshes` attributes from the
+  :class:`~isaaclab.terrains.TerrainImporter` class. These attributes now return an empty dictionary
+  with a deprecation warning.
+
+Changed
+^^^^^^^
+
+* Changed the prim path of the "plane" terrain inside the :class:`~isaaclab.terrains.TerrainImporter` class.
+  Earlier, the terrain was imported directly as the importer's prim path. Now, the terrain is imported as
+  ``{importer_prim_path}/{name}``, where ``name`` is the name of the terrain.
+
+
 0.35.0 (2025-03-07)
 ~~~~~~~~~~~~~~~~~~~
 
