@@ -259,14 +259,14 @@ class SimulationContext(_SimulationContext):
             )
         # FIXME: From investigation, it seems this flag only affects CPU physics. For GPU physics, contacts
         #  are always processed. The issue is reported to the PhysX team by @mmittal.
-        set_carb_setting("/physics/disableContactProcessing", True)
+        set_carb_setting(self.carb_settings, "/physics/disableContactProcessing", True)
         # disable custom geometry for cylinder and cone collision shapes to allow contact reporting for them
         # reason: cylinders and cones aren't natively supported by PhysX so we need to use custom geometry flags
         # reference: https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/docs/Geometry.html?highlight=capsule#geometry
-        set_carb_setting("/physics/collisionConeCustomGeometry", False)
-        set_carb_setting("/physics/collisionCylinderCustomGeometry", False)
+        set_carb_setting(self.carb_settings, "/physics/collisionConeCustomGeometry", False)
+        set_carb_setting(self.carb_settings, "/physics/collisionCylinderCustomGeometry", False)
         # hide the Simulation Settings window
-        set_carb_setting("/physics/autoPopupSimulationOutputWindow", False)
+        set_carb_setting(self.carb_settings, "/physics/autoPopupSimulationOutputWindow", False)
 
     def _apply_render_settings_from_cfg(self):
         """Sets rtx settings specified in the RenderCfg."""
