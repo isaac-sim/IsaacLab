@@ -344,8 +344,9 @@ class SimulationContext(_SimulationContext):
             except Exception:
                 pass
 
-        # WAR: The omni.replicator.core extension sets /rtx/renderMode=RayTracedLighting with incorrect casing.
-        set_carb_setting(self.carb_settings, "/rtx/rendermode", "RaytracedLighting")
+        # WAR: Ensure /rtx/renderMode RaytracedLighting is correctly cased.
+        if get_carb_setting(self.carb_settings, "/rtx/rendermode").lower() == "raytracedlighting":
+            set_carb_setting(self.carb_settings, "/rtx/rendermode", "RaytracedLighting")
 
     """
     Operations - New.
