@@ -55,7 +55,7 @@ System Requirements
 
 Prior to using CloudXR with Isaac Lab, please review the following recommended system requirements:
 
-  * Isaac Lab workstation
+  * Isaac Lab workstation (Linux)
 
     * Ubuntu 22.04
     * `Docker`_ 26.0.0+, `Docker Compose`_ 2.25.0+, and the `NVIDIA Container Toolkit`_. Refer to
@@ -136,10 +136,10 @@ There are two options to run the CloudXR Runtime Docker container:
 
          ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
              --xr \
-             --task Isaac-Stack-Cube-Franka-IK-Rel-v0 \
+             --task Isaac-Lift-Cube-Franka-IK-Abs-v0 \
              --num_envs 1 \
              --device cpu \
-             --teleop_device handtracking
+             --teleop_device handtracking_abs
 
    #. You'll want to leave the container running for the next steps. But once you are finished, you can
       stop the containers with:
@@ -169,7 +169,7 @@ There are two options to run the CloudXR Runtime Docker container:
 
       .. code:: bash
 
-         docker run -dit --name cloudxr-runtime-standalone \
+         docker run -it --rm --name cloudxr-runtime \
              --user $(id -u):$(id -g) \
              --runtime=nvidia \
              -e "ACCEPT_EULA=Y" \
@@ -199,10 +199,10 @@ There are two options to run the CloudXR Runtime Docker container:
 
          ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
              --xr \
-             --task Isaac-Stack-Cube-Franka-IK-Rel-v0 \
+             --task Isaac-Lift-Cube-Franka-IK-Abs-v0 \
              --num_envs 1 \
              --device cpu \
-             --teleop_device handtracking
+             --teleop_device handtracking_abs
 
 With Isaac Lab and the CloudXR Runtime running:
 
@@ -275,10 +275,10 @@ On your Isaac Lab workstation:
 
       ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
           --xr \
-          --task Isaac-Stack-Cube-Franka-IK-Rel-v0 \
+          --task Isaac-Lift-Cube-Franka-IK-Abs-v0 \
           --num_envs 1 \
           --device cpu \
-          --teleop_device handtracking
+          --teleop_device handtracking_abs
 
    .. note::
       Recall that the script above should either be run within the Isaac Lab Docker container
@@ -318,12 +318,12 @@ Back on your Apple Vision Pro:
    .. figure:: ../_static/setup/cloudxr_avp_teleop_ui.jpg
       :align: center
       :figwidth: 50%
-      :alt: Isaacl Lab UI: AR Panel
+      :alt: Isaac Lab UI: AR Panel
 
-#. Click **Start** to begin teleoperating the simulated robot. The robot motion should now be
+#. Click **Play** to begin teleoperating the simulated robot. The robot motion should now be
    directed by your hand movements.
 
-   You may repeatedly **Start**, **Stop**, and **Reset** the teleoperation session using the UI
+   You may repeatedly **Play**, **Stop**, and **Reset** the teleoperation session using the UI
    controls.
 
    .. tip::
@@ -333,9 +333,11 @@ Back on your Apple Vision Pro:
 
       #. In **Settings** > **Accessibility** > **Voice Control**, Turn on **Voice Control**
 
-      #. In **Settings** > **Accessibility** > **Commands** > **Basic Navigation** > Turn on **<item name>**
+      #. In **Settings** > **Accessibility** > **Voice Control** > **Commands** > **Basic
+         Navigation** > Turn on **<item name>**
 
-      #. Now you can say "Start", "Stop", and "Reset" to control teleoperation.
+      #. Now you can say "Play", "Stop", and "Reset" to control teleoperation while the app is
+         connected.
 
 #. Teleoperate the simulated robot by moving your hands.
 
