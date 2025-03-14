@@ -20,9 +20,10 @@ import unittest
 from collections import namedtuple
 
 from isaaclab.managers import EventManager, EventTermCfg
+from isaaclab.sim import SimulationContext
 from isaaclab.utils import configclass
 
-DummyEnv = namedtuple("ManagerBasedRLEnv", ["num_envs", "dt", "device", "dummy1", "dummy2"])
+DummyEnv = namedtuple("ManagerBasedRLEnv", ["num_envs", "dt", "device", "sim", "dummy1", "dummy2"])
 """Dummy environment for testing."""
 
 
@@ -56,8 +57,10 @@ class TestEventManager(unittest.TestCase):
         # create dummy tensors
         dummy1 = torch.zeros((num_envs, 2), device=device)
         dummy2 = torch.zeros((num_envs, 10), device=device)
+        # create sim
+        sim = SimulationContext()
         # create dummy environment
-        self.env = DummyEnv(num_envs, 0.01, device, dummy1, dummy2)
+        self.env = DummyEnv(num_envs, 0.01, device, sim, dummy1, dummy2)
 
     def test_str(self):
         """Test the string representation of the event manager."""

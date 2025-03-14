@@ -20,6 +20,7 @@ import unittest
 from collections import namedtuple
 
 from isaaclab.managers import ManagerTermBase, ObservationGroupCfg, ObservationManager, ObservationTermCfg
+from isaaclab.sim import SimulationContext
 from isaaclab.utils import configclass, modifiers
 
 
@@ -98,9 +99,11 @@ class TestObservationManager(unittest.TestCase):
         self.dt = 0.01
         self.num_envs = 20
         self.device = "cuda:0"
+        # set up sim
+        self.sim = SimulationContext()
         # create dummy environment
-        self.env = namedtuple("ManagerBasedEnv", ["num_envs", "device", "data", "dt"])(
-            self.num_envs, self.device, MyDataClass(self.num_envs, self.device), self.dt
+        self.env = namedtuple("ManagerBasedEnv", ["num_envs", "device", "data", "dt", "sim"])(
+            self.num_envs, self.device, MyDataClass(self.num_envs, self.device), self.dt, self.sim
         )
 
     def test_str(self):
