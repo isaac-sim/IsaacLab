@@ -30,6 +30,16 @@ with contextlib.suppress(ModuleNotFoundError):
 from isaacsim import SimulationApp
 
 
+class ExplicitAction(argparse.Action):
+    """Custom action to track if an argument was explicitly passed by the user."""
+
+    def __call__(self, parser, namespace, values, option_string=None):
+        # Set the parameter value
+        setattr(namespace, self.dest, values)
+        # Set a flag indicating the parameter was explicitly passed
+        setattr(namespace, f"{self.dest}_explicit", True)
+
+
 class AppLauncher:
     """A utility class to launch Isaac Sim application based on command-line arguments and environment variables.
 
@@ -277,7 +287,8 @@ class AppLauncher:
         arg_group.add_argument(
             "--device",
             type=str,
-            default=AppLauncher._APPLAUNCHER_CFG_INFO["device"][1] if "--xr" not in sys.argv else None,
+            action=ExplicitAction,
+            default=AppLauncher._APPLAUNCHER_CFG_INFO["device"][1],
             help='The device to run the simulation on. Can be "cpu", "cuda", "cuda:N", where N is the device ID',
         )
         # Add the deprecated cpu flag to raise an error if it is used
@@ -604,10 +615,12 @@ class AppLauncher:
     def _resolve_device_settings(self, launcher_args: dict):
         """Resolve simulation GPU device related settings."""
         self.device_id = 0
-        device = launcher_args.get("device")
-        if device is None:
-            # If no device is specified, default to the GPU device if we are not running in XR
-            device = "cpu" if self._xr else AppLauncher._APPLAUNCHER_CFG_INFO["device"][1]
+        device = launcher_args.get("device", AppLauncher._APPLAUNCHER_CFG_INFO["device"][1])
+
+        device_explicitly_passed = launcher_args.pop("device_explicit", False)
+        if self._xr and not device_explicitly_passed:
+            # If no device is specified, default to the CPU device if we are running in XR
+            device = "cpu"
 
         if "cuda" not in device and "cpu" not in device:
             raise ValueError(
