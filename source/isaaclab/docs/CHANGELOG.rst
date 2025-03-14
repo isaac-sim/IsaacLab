@@ -1,6 +1,19 @@
 Changelog
 ---------
 
+0.36.2 (2025-03-12)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added a new event mode called "prestartup", which gets called right after the scene design is complete
+  and before the simulation is played.
+* Added a callback to resolve the scene entity configurations separately once the simulation plays,
+  since the scene entities cannot be resolved before the simulation starts playing
+  (as we currently rely on PhysX to provide us with the joint/body ordering)
+
+
 0.36.1 (2025-03-10)
 ~~~~~~~~~~~~~~~~~~~
 
