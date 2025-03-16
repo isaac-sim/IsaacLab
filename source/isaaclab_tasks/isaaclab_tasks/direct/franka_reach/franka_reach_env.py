@@ -222,7 +222,7 @@ class FrankaReachEnv(DirectRLEnv):
         distance = torch.norm(end_effector_pos - target, dim=-1)
 
         # Terminate if close enough to the goal
-        terminated = distance < 0.02
+        terminated = distance < 0.01
 
         # Truncate if max episode length is reached
         truncated = self.episode_length_buf >= self.max_episode_length - 1
