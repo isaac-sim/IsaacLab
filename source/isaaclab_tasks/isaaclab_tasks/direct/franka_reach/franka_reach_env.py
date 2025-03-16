@@ -206,6 +206,12 @@ class FrankaReachEnv(DirectRLEnv):
         # Action penalty for smoothness
         action_penalty = torch.sum(self.actions**2, dim=-1) * self.cfg.action_penalty_scale
 
+        self.extras["log"] = {
+            "distance": (d).mean(),
+            "dist_reward": (dist_reward).mean(),
+            "action_penalty": (action_penalty).mean(),
+        }
+
         return dist_reward - action_penalty
 
     def _get_dones(self) -> tuple[torch.Tensor, torch.Tensor]:
