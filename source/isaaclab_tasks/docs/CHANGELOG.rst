@@ -1,6 +1,14 @@
 Changelog
 ---------
 
+0.10.26 (2025-03-16)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``Isaac-Franka-Reach-Direct-v0`` environment as a direct RL env that implements the Franka Reach task.
+
 0.10.25 (2025-03-10)
 ~~~~~~~~~~~~~~~~~~~~
 
