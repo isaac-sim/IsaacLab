@@ -11,14 +11,14 @@ import isaaclab.sim as sim_utils
 from isaaclab.actuators.actuator_cfg import ImplicitActuatorCfg
 from isaaclab.assets import Articulation, ArticulationCfg
 from isaaclab.envs import DirectRLEnv, DirectRLEnvCfg
+from isaaclab.markers import VisualizationMarkers
+from isaaclab.markers.config import FRAME_MARKER_CFG
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
+from isaaclab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_plane
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.math import sample_uniform
-from isaaclab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_plane
-from isaaclab.markers.config import FRAME_MARKER_CFG
-from isaaclab.markers import VisualizationMarkers
 
 
 @configclass
@@ -46,11 +46,7 @@ class FrankaReachEnvCfg(DirectRLEnvCfg):
     )
 
     # Scene
-    scene: InteractiveSceneCfg = InteractiveSceneCfg(
-        num_envs=4096,
-        env_spacing=3.0,
-        replicate_physics=True
-    )
+    scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=4096, env_spacing=3.0, replicate_physics=True)
 
     # Robot
     robot = ArticulationCfg(
@@ -139,11 +135,7 @@ class FrankaReachEnv(DirectRLEnv):
         self.scene.target_markers = VisualizationMarkers(self.cfg.markers)
         self.scene.ee_markers = VisualizationMarkers(self.cfg.markers)
         # Add ground plane
-        spawn_ground_plane(
-            prim_path="/World/ground",
-            cfg=GroundPlaneCfg(),
-            translation=(0.0, 0.0, -1.05)
-        )
+        spawn_ground_plane(prim_path="/World/ground", cfg=GroundPlaneCfg(), translation=(0.0, 0.0, -1.05))
         # Add table
         table_cfg = sim_utils.UsdFileCfg(
             usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/SeattleLabTable/table_instanceable.usd"
@@ -164,7 +156,7 @@ class FrankaReachEnv(DirectRLEnv):
 
     def _pre_physics_step(self, actions: torch.Tensor) -> None:
         """
-        Process actions before stepping the physics and update markers 
+        Process actions before stepping the physics and update markers
         for the end-effector and target.
         """
         self.actions = actions.clone().clamp(self.robot_dof_lower_limits, self.robot_dof_upper_limits)
@@ -187,10 +179,7 @@ class FrankaReachEnv(DirectRLEnv):
           - Joint velocities
           - Relative position from the end-effector to the target
         """
-        dof_pos_scaled = (
-            2.0
-            * (self._robot.data.joint_pos - self._robot.data.default_joint_pos)
-        )
+        dof_pos_scaled = 2.0 * (self._robot.data.joint_pos - self._robot.data.default_joint_pos)
         end_effector_pos = self._robot.data.body_pos_w[:, self._robot.find_bodies("panda_hand")[0][0]]
         root_pos = self._robot.data.root_state_w[:, :3]
         target = self.target_pos + root_pos  # Convert to local frame
@@ -242,20 +231,13 @@ class FrankaReachEnv(DirectRLEnv):
         super()._reset_idx(env_ids)
 
         # Randomize joint positions
-        joint_pos = (
-            self._robot.data.default_joint_pos[env_ids]
-            + sample_uniform(
-                self.cfg.initial_joint_pos_range[0],
-                self.cfg.initial_joint_pos_range[1],
-                (len(env_ids), self._robot.num_joints),
-                self.device,
-            )
+        joint_pos = self._robot.data.default_joint_pos[env_ids] + sample_uniform(
+            self.cfg.initial_joint_pos_range[0],
+            self.cfg.initial_joint_pos_range[1],
+            (len(env_ids), self._robot.num_joints),
+            self.device,
         )
-        joint_pos = torch.clamp(
-            joint_pos,
-            self.robot_dof_lower_limits,
-            self.robot_dof_upper_limits
-        )
+        joint_pos = torch.clamp(joint_pos, self.robot_dof_lower_limits, self.robot_dof_upper_limits)
         joint_vel = torch.zeros_like(joint_pos)
 
         # Set joint positions and velocities
