@@ -99,6 +99,10 @@ class ManagerBasedEnv:
                 raise RuntimeError("Simulation context already exists. Cannot create a new one.")
             self.sim: SimulationContext = SimulationContext.instance()
 
+        # make sure torch is running on the correct device
+        if "cuda" in self.device:
+            torch.cuda.set_device(self.device)
+
         # print useful information
         print("[INFO]: Base environment:")
         print(f"\tEnvironment device    : {self.device}")
@@ -132,6 +136,16 @@ class ManagerBasedEnv:
         else:
             self.viewport_camera_controller = None
 
+        # create event manager
+        # note: this is needed here (rather than after simulation play) to allow USD-related randomization events
+        #   that must happen before the simulation starts. Example: randomizing mesh scale
+        self.event_manager = EventManager(self.cfg.events, self)
+        print("[INFO] Event Manager: ", self.event_manager)
+
+        # apply USD-related randomization events
+        if "prestartup" in self.event_manager.available_modes:
+            self.event_manager.apply(mode="prestartup")
+
         # play the simulator to activate physics handles
         # note: this activates the physics simulation view that exposes TensorAPIs
         # note: when started in extension mode, first call sim.reset_async() and then initialize the managers
@@ -145,10 +159,6 @@ class ManagerBasedEnv:
                 self.scene.update(dt=self.physics_dt)
             # add timeline event to load managers
             self.load_managers()
-
-        # make sure torch is running on the correct device
-        if "cuda" in self.device:
-            torch.cuda.set_device(self.device)
 
         # extend UI elements
         # we need to do this here after all the managers are initialized
@@ -231,9 +241,6 @@ class ManagerBasedEnv:
         # -- observation manager
         self.observation_manager = ObservationManager(self.cfg.observations, self)
         print("[INFO] Observation Manager:", self.observation_manager)
-        # -- event manager
-        self.event_manager = EventManager(self.cfg.events, self)
-        print("[INFO] Event Manager: ", self.event_manager)
 
         # perform events at the start of the simulation
         # in-case a child implementation creates other managers, the randomization should happen

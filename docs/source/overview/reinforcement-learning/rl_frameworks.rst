@@ -1,3 +1,5 @@
+.. _rl-frameworks:
+
 Reinforcement Learning Library Comparison
 =========================================
 
