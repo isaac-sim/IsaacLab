@@ -22,9 +22,9 @@ import scipy.spatial.transform as tf
 import torch
 import unittest
 
-import omni.isaac.core.utils.stage as stage_utils
+import isaacsim.core.utils.stage as stage_utils
 import omni.replicator.core as rep
-from omni.isaac.core.utils.extensions import get_extension_path_from_name
+from isaacsim.core.utils.extensions import get_extension_path_from_name
 from pxr import Usd, UsdGeom
 
 import isaaclab.sim as sim_utils
@@ -39,7 +39,7 @@ QUATERNION = (0.0, 0.3461835, 0.0, 0.9381668)
 # load example json
 EXAMPLE_ROTARY_PATH = os.path.abspath(
     os.path.join(
-        get_extension_path_from_name("omni.isaac.sensor"),
+        get_extension_path_from_name("isaacsim.sensors.rtx"),
         "data/lidar_configs/NVIDIA/Simple_Example_Solid_State.json",
     )
 )
@@ -134,7 +134,7 @@ class TestRtxLidar(unittest.TestCase):
                 self.assertTrue(isinstance(info_value, RTX_LIDAR_INFO_FIELDS[info_key]))
 
             # check lidar data
-            for data_key, data_value in lidar.data.output.to_dict().items():
+            for data_key, data_value in lidar.data.output.items():
                 if data_key in self.lidar_cfg.optional_data_types:
                     self.assertTrue(data_value.shape[1] > 0)
 
@@ -197,7 +197,7 @@ class TestRtxLidar(unittest.TestCase):
                     else:
                         self.assertTrue(info1 == info2)
             # check lidar data shape
-            for lidar_data_key in lidar_1.data.output.to_dict().keys():
+            for lidar_data_key in lidar_1.data.output.keys():
                 data1 = lidar_1.data.output[lidar_data_key]
                 data2 = lidar_2.data.output[lidar_data_key]
                 self.assertTrue(data1.shape == data2.shape)
@@ -240,7 +240,7 @@ class TestRtxLidar(unittest.TestCase):
                 self.assertTrue(isinstance(info_value, RTX_LIDAR_INFO_FIELDS[info_key]))
 
             # check lidar data
-            for data_key, data_value in lidar.data.output.to_dict().items():
+            for data_key, data_value in lidar.data.output.items():
                 if data_key in self.lidar_cfg.optional_data_types:
                     self.assertTrue(data_value.shape[1] > 0)
 

@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING, Any
 import carb
 import omni.kit.commands
 import omni.usd
-from omni.isaac.core.prims import XFormPrimView
+from isaacsim.core.prims import XFormPrim
 from pxr import UsdGeom
 
 import isaaclab.sim as sim_utils
@@ -169,7 +169,7 @@ class RtxLidar(SensorBase):
 
         super()._initialize_impl()
         # Create a view for the sensor
-        self._view = XFormPrimView(self.cfg.prim_path, reset_xform_properties=False)
+        self._view = XFormPrim(self.cfg.prim_path, reset_xform_properties=False)
         self._view.initialize()
         # Check that sizes are correct
         if self._view.count != self._num_envs:

@@ -10,15 +10,12 @@ import os
 from typing import TYPE_CHECKING
 
 import isaacsim.core.utils.prims as prim_utils
-import os
-
 import omni.kit.commands
 import omni.log
 from pxr import Gf, Sdf, Usd
 
 from isaaclab.sim.utils import clone
 from isaaclab.utils import to_camel_case
-from isaaclab import ISAACLAB_EXT_DIR
 
 if TYPE_CHECKING:
     from . import sensors_cfg
