@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+0.37.0 (2025-03-17)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`isaaclab.sensors.RTXLidar` sensor integration
+* Added :class:`isaaclab.sensors.RTXLidarCfg` and :class:`isaaclab.sensors.RTXLidarData` configuration and data classes
+* Added :meth:`sim/spawn/sensors/sensors/spawn_lidar` and :class:`sim/spawn/sensors/sensors_cfg/LidarCfg` functionality for spawning both builtin and custom lidar models
+
+
 0.36.2 (2025-03-12)
 ~~~~~~~~~~~~~~~~~~~
 
@@ -842,15 +853,6 @@ Fixed
 * Corrected the iteration over ``group_cfg_items`` inside the observation manager.
 
 
-0.28.0 (2024-10-28)
-~~~~~~~~~~~~~~~~~~~
-
-Added
-^^^^^
-
-* Added :class:`omni.isaac.lab.sensors.RTXLidar` sensor integration
-* Added :class:`omni.isaac.lab.sensors.RTXLidarCfg` and :class:`omni.isaac.lab.sensors.RTXLidarData` configuration and data classes
-* Added :meth:`sim/spawn/sensors/sensors/spawn_lidar` and :class:`sim/spawn/sensors/sensors_cfg/LidarCfg` functionality for spawning both builtin and custom lidar models
 
 
 0.27.7 (2024-10-28)

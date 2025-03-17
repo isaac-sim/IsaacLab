@@ -8,9 +8,9 @@ from __future__ import annotations
 from dataclasses import MISSING
 from typing import Literal
 
-from omni.isaac.lab.sensors import SensorBaseCfg
-from omni.isaac.lab.sim import LidarCfg
-from omni.isaac.lab.utils import configclass
+from isaaclab.sensors import SensorBaseCfg
+from isaaclab.sim import LidarCfg
+from isaaclab.utils import configclass
 
 from .rtx_lidar import RtxLidar
 

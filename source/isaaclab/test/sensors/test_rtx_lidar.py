@@ -8,7 +8,7 @@
 
 """Launch Isaac Sim Simulator first."""
 
-from omni.isaac.lab.app import AppLauncher, run_tests
+from isaaclab.app import AppLauncher, run_tests
 
 # launch omniverse app
 app_launcher = AppLauncher(headless=True, enable_cameras=True)
@@ -27,11 +27,11 @@ import omni.replicator.core as rep
 from omni.isaac.core.utils.extensions import get_extension_path_from_name
 from pxr import Usd, UsdGeom
 
-import omni.isaac.lab.sim as sim_utils
-from omni.isaac.lab.sensors.rtx_lidar import RTX_LIDAR_INFO_FIELDS, RtxLidar, RtxLidarCfg
-from omni.isaac.lab.terrains.trimesh.utils import make_border, make_plane
-from omni.isaac.lab.terrains.utils import create_prim_from_mesh
-from omni.isaac.lab.utils.math import convert_quat
+import isaaclab.sim as sim_utils
+from isaaclab.sensors.rtx_lidar import RTX_LIDAR_INFO_FIELDS, RtxLidar, RtxLidarCfg
+from isaaclab.terrains.trimesh.utils import make_border, make_plane
+from isaaclab.terrains.utils import create_prim_from_mesh
+from isaaclab.utils.math import convert_quat
 
 POSITION = (0.0, 0.0, 0.5)
 QUATERNION = (0.0, 0.3461835, 0.0, 0.9381668)

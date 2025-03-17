@@ -17,8 +17,8 @@ import omni.usd
 from omni.isaac.core.prims import XFormPrimView
 from pxr import UsdGeom
 
-import omni.isaac.lab.sim as sim_utils
-from omni.isaac.lab.utils.array import convert_to_torch
+import isaaclab.sim as sim_utils
+from isaaclab.utils.array import convert_to_torch
 
 from ..sensor_base import SensorBase
 from .rtx_lidar_data import RTX_LIDAR_INFO_FIELDS, RtxLidarData
