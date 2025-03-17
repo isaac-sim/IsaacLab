@@ -16,10 +16,10 @@ simulation_app = app_launcher.app
 
 import gymnasium as gym
 import torch
-import pytest
 
 import carb
 import omni.usd
+import pytest
 
 from isaaclab.envs import DirectMARLEnv, multi_agent_to_single_agent
 
@@ -94,9 +94,7 @@ def test_random_actions(registered_tasks):
         with torch.inference_mode():
             for _ in range(100):
                 # sample actions from -1 to 1
-                actions = (
-                    2 * torch.rand(num_envs, *env.action_space.shape, device=env.unwrapped.device) - 1
-                )
+                actions = 2 * torch.rand(num_envs, *env.action_space.shape, device=env.unwrapped.device) - 1
                 # apply actions
                 transition = env.step(actions)
                 # check signals
@@ -111,6 +109,7 @@ def test_random_actions(registered_tasks):
 """
 Helper functions.
 """
+
 
 @staticmethod
 def _check_valid_tensor(data: torch.Tensor | dict) -> bool:

@@ -28,8 +28,6 @@ from isaaclab.utils import replace_strings_with_slices
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.hydra import register_task_to_hydra
 
-import pytest
-
 
 def hydra_task_config_test(task_name: str, agent_cfg_entry_point: str) -> Callable:
     """Copied from hydra.py hydra_task_config, since hydra.main requires a single point of entry,
@@ -105,4 +103,3 @@ def test_nested_iterable_dict():
     # clean up
     sys.argv = [sys.argv[0]]
     hydra.core.global_hydra.GlobalHydra.instance().clear()
-

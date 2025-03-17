@@ -16,9 +16,9 @@ simulation_app = app_launcher.app
 
 import gymnasium as gym
 import torch
-import pytest
 
 import omni.usd
+import pytest
 
 from isaaclab.envs import DirectMARLEnv, DirectMARLEnvCfg
 from isaaclab.envs.utils.spaces import sample_space
@@ -125,4 +125,3 @@ def _check_valid_tensor(data: torch.Tensor | dict) -> bool:
         return all(_check_valid_tensor(value) for value in data.values())
     else:
         raise ValueError(f"Input data of invalid type: {type(data)}.")
-

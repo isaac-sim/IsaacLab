@@ -16,10 +16,10 @@ simulation_app = app_launcher.app
 
 import gymnasium as gym
 import torch
-import pytest
 
 import carb
 import omni.usd
+import pytest
 
 from isaaclab.envs import DirectMARLEnv, multi_agent_to_single_agent
 
@@ -147,6 +147,7 @@ def test_no_time_outs(registered_tasks):
 """
 Helper functions.
 """
+
 
 @staticmethod
 def _check_valid_tensor(data: torch.Tensor | dict) -> bool:

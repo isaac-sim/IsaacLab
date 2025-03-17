@@ -16,9 +16,9 @@ simulation_app = app_launcher.app
 import gymnasium as gym
 import os
 import torch
-import pytest
 
 import omni.usd
+import pytest
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import parse_env_cfg
@@ -44,7 +44,7 @@ def setup_video_params():
     num_envs = 16
     device = "cuda"
     # video parameters
-    step_trigger = lambda step: step % 225 == 0
+    step_trigger = lambda step: step % 225 == 0  # noqa: E731
     video_length = 200
     return num_envs, device, step_trigger, video_length
 

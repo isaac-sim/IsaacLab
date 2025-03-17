@@ -16,10 +16,10 @@ simulation_app = app_launcher.app
 
 import gymnasium as gym
 import torch
-import pytest
 
 import carb
 import omni.usd
+import pytest
 
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.envs.utils.spaces import sample_space
@@ -45,6 +45,7 @@ def setup_environment():
     carb_settings_iface.set_bool("/physics/cooking/ujitsoCollisionCooking", False)
 
     return registered_tasks
+
 
 @pytest.mark.parametrize("num_envs, device", [(32, "cuda"), (1, "cuda")])
 @pytest.mark.parametrize("task_name", setup_environment())
@@ -100,9 +101,7 @@ def _check_random_actions(task_name: str, device: str, num_envs: int, num_steps:
     with torch.inference_mode():
         for _ in range(num_steps):
             # sample actions according to the defined space
-            actions = sample_space(
-                env.unwrapped.single_action_space, device=env.unwrapped.device, batch_size=num_envs
-            )
+            actions = sample_space(env.unwrapped.single_action_space, device=env.unwrapped.device, batch_size=num_envs)
             # apply actions
             transition = env.step(actions)
             # check signals
@@ -130,4 +129,3 @@ def _check_valid_tensor(data: torch.Tensor | dict) -> bool:
         return all(_check_valid_tensor(value) for value in data.values())
     else:
         raise ValueError(f"Input data of invalid type: {type(data)}.")
-

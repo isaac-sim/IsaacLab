@@ -17,10 +17,10 @@ simulation_app = app_launcher.app
 import gymnasium as gym
 import numpy as np
 import torch
-import pytest
 
 import carb
 import omni.usd
+import pytest
 
 from isaaclab.envs import DirectMARLEnv, multi_agent_to_single_agent
 
@@ -107,6 +107,7 @@ def test_random_actions(registered_tasks):
 """
 Helper functions.
 """
+
 
 @staticmethod
 def _check_valid_array(data: np.ndarray | dict | list) -> bool:

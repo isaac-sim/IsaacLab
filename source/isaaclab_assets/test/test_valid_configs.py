@@ -17,13 +17,14 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
+# Define a fixture to replace setUpClass
+import pytest
+
 import isaaclab_assets as lab_assets  # noqa: F401
 
 from isaaclab.assets import AssetBase, AssetBaseCfg
 from isaaclab.sim import build_simulation_context
 
-# Define a fixture to replace setUpClass
-import pytest
 
 @pytest.fixture(scope="module")
 def registered_entities():
@@ -38,6 +39,7 @@ def registered_entities():
     # print all existing entities names
     print(">>> All registered entities:", list(registered_entities.keys()))
     return registered_entities
+
 
 # Add parameterization for the device
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])

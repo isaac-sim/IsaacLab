@@ -16,10 +16,10 @@ simulation_app = app_launcher.app
 
 import gymnasium as gym
 import torch
-import pytest
 
 import carb
 import omni.usd
+import pytest
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
@@ -33,29 +33,40 @@ def setup_environment():
     carb_settings_iface.set_bool("/physics/cooking/ujitsoCollisionCooking", False)
 
 
-@pytest.mark.parametrize("task_name", [
-    "Isaac-Open-Drawer-Franka-v0",
-    "Isaac-Lift-Cube-Franka-v0",
-])
+@pytest.mark.parametrize(
+    "task_name",
+    [
+        "Isaac-Open-Drawer-Franka-v0",
+        "Isaac-Lift-Cube-Franka-v0",
+    ],
+)
 @pytest.mark.parametrize("device", ["cuda", "cpu"])
 def test_manipulation_env_determinism(task_name, device):
     """Check deterministic environment creation for manipulation."""
     _test_environment_determinism(task_name, device)
 
-@pytest.mark.parametrize("task_name", [
-    "Isaac-Velocity-Flat-Anymal-C-v0",
-    "Isaac-Velocity-Rough-Anymal-C-v0",
-    "Isaac-Velocity-Rough-Anymal-C-Direct-v0",
-])
+
+@pytest.mark.parametrize(
+    "task_name",
+    [
+        "Isaac-Velocity-Flat-Anymal-C-v0",
+        "Isaac-Velocity-Rough-Anymal-C-v0",
+        "Isaac-Velocity-Rough-Anymal-C-Direct-v0",
+    ],
+)
 @pytest.mark.parametrize("device", ["cuda", "cpu"])
 def test_locomotion_env_determinism(task_name, device):
     """Check deterministic environment creation for locomotion."""
     _test_environment_determinism(task_name, device)
 
-@pytest.mark.parametrize("task_name", [
-    "Isaac-Repose-Cube-Allegro-v0",
-    # "Isaac-Repose-Cube-Allegro-Direct-v0",  # FIXME: @kellyg, any idea why it is not deterministic?
-])
+
+@pytest.mark.parametrize(
+    "task_name",
+    [
+        "Isaac-Repose-Cube-Allegro-v0",
+        # "Isaac-Repose-Cube-Allegro-Direct-v0",  # FIXME: @kellyg, any idea why it is not deterministic?
+    ],
+)
 @pytest.mark.parametrize("device", ["cuda", "cpu"])
 def test_dextrous_env_determinism(task_name, device):
     """Check deterministic environment creation for dextrous manipulation."""
@@ -79,9 +90,7 @@ def _test_environment_determinism(task_name: str, device: str):
         torch.testing.assert_close(obs_1[key], obs_2[key])
 
 
-def _obtain_transition_tuples(
-    task_name: str, num_envs: int, device: str, num_steps: int
-) -> tuple[dict, torch.Tensor]:
+def _obtain_transition_tuples(task_name: str, num_envs: int, device: str, num_steps: int) -> tuple[dict, torch.Tensor]:
     """Run random actions and obtain transition tuples after fixed number of steps."""
     # create a new stage
     omni.usd.get_context().new_stage()
