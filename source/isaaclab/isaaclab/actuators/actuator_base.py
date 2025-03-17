@@ -140,7 +140,7 @@ class ActuatorBase(ABC):
 
         # For explicit models, we do not want to enforce the effort limit through the solver
         # (unless it is explicitly set)
-        if not ActuatorBase.is_implicit_model and self.cfg.effort_limit_sim is None:
+        if not self.is_implicit_model and self.cfg.effort_limit_sim is None:
             self.cfg.effort_limit_sim = 1.0e9
 
         # parse joint stiffness and damping
