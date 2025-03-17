@@ -15,5 +15,3 @@ from .differential_ik import DifferentialIKController
 from .differential_ik_cfg import DifferentialIKControllerCfg
 from .operational_space import OperationalSpaceController
 from .operational_space_cfg import OperationalSpaceControllerCfg
-from .pink_ik import PinkIKController
-from .pink_ik_cfg import PinkIKControllerCfg

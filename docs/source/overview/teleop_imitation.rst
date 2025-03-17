@@ -325,7 +325,7 @@ Collect a set of human demonstrations using the command below. We recommend 10 s
    --task Isaac-PickPlace-GR1T2-Abs-v0 \
    --teleop_device dualhandtracking_abs \
    --dataset_file ./datasets/dataset_gr1.hdf5 \
-   --num_demos 10
+   --num_demos 10 --enable_pinocchio
 
 Unlike the prior Franka stacking task, the GR-1 pick and place task uses manual annotation to define subtasks.
 Each demo requires a single annotation which denotes when the right robot arm finishes the "idle" subtask and begins to
@@ -337,7 +337,7 @@ move towards the target object. Annotate the demonstrations by running the follo
    --device cuda \
    --task Isaac-PickPlace-GR1T2-Abs-Mimic-v0 \
    --input_file ./datasets/dataset_gr1.hdf5 \
-   --output_file ./datasets/dataset_annotated_gr1.hdf5
+   --output_file ./datasets/dataset_annotated_gr1.hdf5 --enable_pinocchio
 
 .. note::
 
@@ -366,7 +366,7 @@ Place the file under ``IsaacLab/datasets`` and run the following command to gene
 .. code:: bash
 
    ./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
-   --device cuda --headless --num_envs 10 --generation_num_trials 1000 \
+   --device cuda --headless --num_envs 10 --generation_num_trials 1000 --enable_pinocchio \
    --input_file ./datasets/dataset_annotated_gr1.hdf5 --output_file ./datasets/generated_dataset_gr1.hdf5
 
 Train a policy
@@ -397,6 +397,7 @@ Visualize the results of the trained policy by running the following command, us
 
    ./isaaclab.sh -p scripts/imitation_learning/robomimic/play.py \
    --device cuda \
+   --enable_pinocchio \
    --task Isaac-PickPlace-GR1T2-Abs-v0 \
    --num_rollouts 50 \
    --norm_factor_min <NORM_FACTOR_MIN> \

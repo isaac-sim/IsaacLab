@@ -1,7 +1,7 @@
 Changelog
 ---------
 
-0.10.28 (2025-03-25)
+0.10.29 (2025-03-25)
 ~~~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -10,13 +10,23 @@ Fixed
 * Fixed environment test failure for ``Isaac-Stack-Cube-Franka-IK-Rel-Blueprint-v0``.
 
 
-0.10.27 (2025-03-18)
+0.10.28 (2025-03-18)
 ~~~~~~~~~~~~~~~~~~~~
 
 Added
 ^^^^^
 
 * Added Gymnasium spaces showcase tasks (``Isaac-Cartpole-Showcase-*-Direct-v0``, and ``Isaac-Cartpole-Camera-Showcase-*-Direct-v0``).
+
+
+0.10.27 (2025-03-13)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Blacklisted pick_place task from being imported automatically by isaaclab_tasks. It now has to be imported
+  manually by the script due to dependencies on the pinocchio import.
 
 
 0.10.26 (2025-03-10)

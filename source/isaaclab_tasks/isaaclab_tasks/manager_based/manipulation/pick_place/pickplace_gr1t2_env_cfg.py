@@ -11,10 +11,10 @@ import isaaclab.controllers.utils as ControllerUtils
 import isaaclab.envs.mdp as base_mdp
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
-from isaaclab.controllers import PinkIKControllerCfg
+from isaaclab.controllers.pink_ik_cfg import PinkIKControllerCfg
 from isaaclab.devices.openxr import XrCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
-from isaaclab.envs.mdp.actions.actions_cfg import PinkInverseKinematicsActionCfg
+from isaaclab.envs.mdp.actions.pink_actions_cfg import PinkInverseKinematicsActionCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm

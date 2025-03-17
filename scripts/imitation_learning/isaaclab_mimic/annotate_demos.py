@@ -9,10 +9,6 @@ Script to add mimic annotations to demos to be used as source demos for mimic da
 
 import argparse
 
-# Import pinocchio in the main script to force the use of the dependencies installed by IsaacLab and not the one installed by Isaac Sim
-# pinocchio is required by the Pink IK controller
-import pinocchio  # noqa: F401
-
 from isaaclab.app import AppLauncher
 
 # Launching Isaac Sim Simulator first.
@@ -31,11 +27,22 @@ parser.add_argument(
     help="File name of the annotated output dataset file.",
 )
 parser.add_argument("--auto", action="store_true", default=False, help="Automatically annotate subtasks.")
+parser.add_argument(
+    "--enable_pinocchio",
+    action="store_true",
+    default=False,
+    help="Enable Pinocchio.",
+)
 
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
 args_cli = parser.parse_args()
+
+if args_cli.enable_pinocchio:
+    # Import pinocchio before AppLauncher to force the use of the version installed by IsaacLab and not the one installed by Isaac Sim
+    # pinocchio is required by the Pink IK controllers and the GR1T2 retargeter
+    import pinocchio  # noqa: F401
 
 # launch the simulator
 app_launcher = AppLauncher(args_cli)
@@ -61,6 +68,9 @@ from isaaclab.utils import configclass
 from isaaclab.utils.datasets import EpisodeData, HDF5DatasetFileHandler
 
 import isaaclab_tasks  # noqa: F401
+
+if args_cli.enable_pinocchio:
+    import isaaclab_tasks.manager_based.manipulation.pick_place  # noqa: F401
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
 
 is_paused = False

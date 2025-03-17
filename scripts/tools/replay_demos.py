@@ -10,10 +10,6 @@
 
 import argparse
 
-# Import pinocchio in the main script to force the use of the dependencies installed by IsaacLab and not the one installed by Isaac Sim
-# pinocchio is required by the Pink IK controller
-import pinocchio  # noqa: F401
-
 from isaaclab.app import AppLauncher
 
 # add argparse arguments
@@ -37,12 +33,23 @@ parser.add_argument(
         " --num_envs is 1."
     ),
 )
+parser.add_argument(
+    "--enable_pinocchio",
+    action="store_true",
+    default=False,
+    help="Enable Pinocchio.",
+)
 
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
 args_cli = parser.parse_args()
 # args_cli.headless = True
+
+if args_cli.enable_pinocchio:
+    # Import pinocchio before AppLauncher to force the use of the version installed by IsaacLab and not the one installed by Isaac Sim
+    # pinocchio is required by the Pink IK controllers and the GR1T2 retargeter
+    import pinocchio  # noqa: F401
 
 # launch the simulator
 app_launcher = AppLauncher(args_cli)

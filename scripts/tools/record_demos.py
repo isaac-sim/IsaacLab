@@ -38,10 +38,6 @@ import torch
 # Omniverse logger
 import omni.log
 
-# Import pinocchio in the main script to force the use of the dependencies installed by IsaacLab and not the one installed by Isaac Sim
-# pinocchio is required by the Pink IK controller
-import pinocchio  # noqa: F401
-
 # Isaac Lab AppLauncher
 from isaaclab.app import AppLauncher
 
@@ -62,6 +58,12 @@ parser.add_argument(
     default=10,
     help="Number of continuous steps with task success for concluding a demo as successful. Default is 10.",
 )
+parser.add_argument(
+    "--enable_pinocchio",
+    action="store_true",
+    default=False,
+    help="Enable Pinocchio.",
+)
 
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
@@ -69,6 +71,11 @@ AppLauncher.add_app_launcher_args(parser)
 args_cli = parser.parse_args()
 
 app_launcher_args = vars(args_cli)
+
+if args_cli.enable_pinocchio:
+    # Import pinocchio before AppLauncher to force the use of the version installed by IsaacLab and not the one installed by Isaac Sim
+    # pinocchio is required by the Pink IK controllers and the GR1T2 retargeter
+    import pinocchio  # noqa: F401
 if "handtracking" in args_cli.teleop_device.lower():
     app_launcher_args["xr"] = True
 
@@ -81,7 +88,10 @@ if "handtracking" in args_cli.teleop_device.lower():
 
 # Additional Isaac Lab imports that can only be imported after the simulator is running
 from isaaclab.devices import OpenXRDevice, Se3Keyboard, Se3SpaceMouse
-from isaaclab.devices.openxr.retargeters.humanoid.fourier.gr1t2_retargeter import GR1T2Retargeter
+
+if args_cli.enable_pinocchio:
+    from isaaclab.devices.openxr.retargeters.humanoid.fourier.gr1t2_retargeter import GR1T2Retargeter
+    import isaaclab_tasks.manager_based.manipulation.pick_place  # noqa: F401
 from isaaclab.devices.openxr.retargeters.manipulator import GripperRetargeter, Se3AbsRetargeter, Se3RelRetargeter
 from isaaclab.envs.mdp.recorders.recorders_cfg import ActionStateRecorderManagerCfg
 
