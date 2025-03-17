@@ -61,6 +61,9 @@ rtx.viewTile.limit = 1000000
 # Disable present thread to improve performance
 exts."omni.renderer.core".present.enabled=false
 
+# Optimized denoiser flags for better rendering performance
+rtx.directLighting.sampledLighting.denoisingTechnique = 0
+
 # Disabling these settings reduces renderer VRAM usage and improves rendering performance, but at some quality cost
 rtx.raytracing.cached.enabled = false
 rtx.ambientOcclusion.enabled = false
