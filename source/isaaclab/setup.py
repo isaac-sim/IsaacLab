@@ -39,6 +39,7 @@ INSTALL_REQUIRES = [
     # livestream
     "starlette==0.46.0",
     # testing
+    "pytest",
     "pytest-mock",
 ]
 
