@@ -248,7 +248,7 @@ class RenderCfg:
              rtx.translucency.enabled: False # .kit
              rtx_translucency_enabled: False # python"""
 
-    rendering_mode: Literal["performance", "balanced", "quality"] | None = None
+    rendering_mode: Literal["performance", "balanced", "quality", "xr"] | None = None
     """Sets the rendering mode. Behaves the same as the CLI arg '--rendering_mode'"""
 
 

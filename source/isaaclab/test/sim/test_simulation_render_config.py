@@ -172,7 +172,7 @@ class TestSimulationRenderConfig(unittest.TestCase):
         # user-friendly setting overrides
         dlss_mode = ("/rtx/post/dlss/execMode", 5)
 
-        rendering_modes = ["performance", "balanced", "quality"]
+        rendering_modes = ["performance", "balanced", "quality", "xr"]
 
         for rendering_mode in rendering_modes:
             # grab groundtruth preset settings

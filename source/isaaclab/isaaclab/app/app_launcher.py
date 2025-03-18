@@ -316,11 +316,12 @@ class AppLauncher:
         arg_group.add_argument(
             "--rendering_mode",
             type=str,
+            action=ExplicitAction,
             default="balanced",
-            choices={"performance", "balanced", "quality"},
+            choices={"performance", "balanced", "quality", "xr"},
             help=(
                 "Sets the rendering mode. Preset settings files can be found in apps/rendering_modes."
-                ' Can be "performance", "balanced", or "quality".'
+                ' Can be "performance", "balanced", "quality", or "xr".'
                 " Individual settings can be overwritten by using the RenderCfg class."
             ),
         )
@@ -351,6 +352,7 @@ class AppLauncher:
         "xr": ([bool], False),
         "device": ([str], "cuda:0"),
         "experience": ([str], ""),
+        "rendering_mode": ([str], "balanced"),
     }
     """A dictionary of arguments added manually by the :meth:`AppLauncher.add_app_launcher_args` method.
 
@@ -846,6 +848,11 @@ class AppLauncher:
         from isaacsim.core.utils.carb import set_carb_setting
 
         rendering_mode = launcher_args.get("rendering_mode", "balanced")
+
+        rendering_mode_explicitly_passed = launcher_args.pop("rendering_mode_explicit", False)
+        if self._xr and not rendering_mode_explicitly_passed:
+            # If no rendering mode is specified, default to the xr mode if we are running in XR
+            rendering_mode = "xr"
 
         # parse preset file
         repo_path = os.path.join(carb.tokens.get_tokens_interface().resolve("${app}"), "..")
