@@ -60,7 +60,7 @@ class CartpoleCameraShowcaseEnv(CartpoleCameraEnv):
         # composite spaces
         # - Tuple
         elif isinstance(self.single_observation_space["policy"], gym.spaces.Tuple):
-            obs = (self.joint_vel, camera_data)
+            obs = (camera_data, self.joint_vel)
         # - Dict
         elif isinstance(self.single_observation_space["policy"], gym.spaces.Dict):
             obs = {"joint-velocities": self.joint_vel, "camera": camera_data}
