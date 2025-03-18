@@ -85,7 +85,7 @@ agent:
   mixed_precision: False
   # logging and checkpoint
   experiment:
-    directory: "cartpole_direct_discrete_discrete"
+    directory: "cartpole_direct_multidiscrete_discrete"
     experiment_name: ""
     write_interval: auto
     checkpoint_interval: auto
