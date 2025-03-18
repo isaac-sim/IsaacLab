@@ -304,7 +304,7 @@ class EventCfg:
                 "y": [0.0, 0.05],
             },
             "velocity_range": {},
-            "asset_cfg": SceneEntityCfg("object", body_names=".*"),
+            "asset_cfg": SceneEntityCfg("object"),
         },
     )
 

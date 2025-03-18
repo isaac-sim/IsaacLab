@@ -151,7 +151,8 @@ class GR1TR2DexRetargeting:
         # Convert hand pose to the canonical frame.
         joint_position = joint_position - joint_position[0:1, :]
         xr_wrist_quat = hand_poses.get("wrist")[3:]
-        wrist_rot = R.from_quat(xr_wrist_quat, scalar_first=True).as_matrix()
+        # OpenXR hand uses w,x,y,z order for quaternions but scipy uses x,y,z,w order
+        wrist_rot = R.from_quat([xr_wrist_quat[1], xr_wrist_quat[2], xr_wrist_quat[3], xr_wrist_quat[0]]).as_matrix()
 
         return joint_position @ wrist_rot @ operator2mano
 
