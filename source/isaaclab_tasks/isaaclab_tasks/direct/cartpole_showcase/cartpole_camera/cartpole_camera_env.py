@@ -14,6 +14,9 @@ from isaaclab_tasks.direct.cartpole.cartpole_camera_env import CartpoleCameraEnv
 class CartpoleCameraShowcaseEnv(CartpoleCameraEnv):
     cfg: CartpoleRGBCameraEnvCfg
 
+    def _pre_physics_step(self, actions: torch.Tensor) -> None:
+        self.actions = actions.clone()
+
     def _apply_action(self) -> None:
         # fundamental spaces
         # - Box
@@ -61,6 +64,10 @@ class CartpoleCameraShowcaseEnv(CartpoleCameraEnv):
         # - Dict
         elif isinstance(self.single_observation_space["policy"], gym.spaces.Dict):
             obs = {"joint-velocities": self.joint_vel, "camera": camera_data}
+        else:
+            raise NotImplementedError(
+                f"Observation space {type(self.single_observation_space['policy'])} not implemented"
+            )
 
         observations = {"policy": obs}
         return observations

@@ -14,6 +14,9 @@ from isaaclab_tasks.direct.cartpole.cartpole_env import CartpoleEnv, CartpoleEnv
 class CartpoleShowcaseEnv(CartpoleEnv):
     cfg: CartpoleEnvCfg
 
+    def _pre_physics_step(self, actions: torch.Tensor) -> None:
+        self.actions = actions.clone()
+
     def _apply_action(self) -> None:
         # fundamental spaces
         # - Box
@@ -118,6 +121,10 @@ class CartpoleShowcaseEnv(CartpoleEnv):
         # - Dict
         elif isinstance(self.single_observation_space["policy"], gym.spaces.Dict):
             obs = {"joint-positions": self.joint_pos, "joint-velocities": self.joint_vel}
+        else:
+            raise NotImplementedError(
+                f"Observation space {type(self.single_observation_space['policy'])} not implemented"
+            )
 
         observations = {"policy": obs}
         return observations
