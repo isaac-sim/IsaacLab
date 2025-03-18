@@ -7,7 +7,7 @@ Changelog
 Fixed
 ^^^^^
 
-* Fix default behavior of :class:`~isaaclab.actuators.ImplicitActuator` if no :attr:`effort_limits_sim` or
+* Fixed default behavior of :class:`~isaaclab.actuators.ImplicitActuator` if no :attr:`effort_limits_sim` or
   :attr:`effort_limit` is set.
 
 
