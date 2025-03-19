@@ -290,9 +290,10 @@ class RigidObjectData:
 
     @property
     def body_com_pose_b(self) -> torch.Tensor:
-        """Body center of mass pose ``[pos, quat]`` in simulation body frame. Shape is (num_instances, 1, 7).
+        """Center of mass pose ``[pos, quat]`` of all bodies in their respective body's link frames.
+        Shape is (num_instances, 1, 7).
 
-        This quantity is the pose of the center of mass frame of the rigid body relative to the body frame.
+        This quantity is the pose of the center of mass frame of the rigid body relative to the body's link frame.
         The orientation is provided in (w, x, y, z) format.
         """
         if self._body_com_pose_b.timestamp < self._sim_timestamp:
@@ -511,18 +512,19 @@ class RigidObjectData:
 
     @property
     def body_com_pos_b(self) -> torch.Tensor:
-        """Center of mass of all of the bodies in simulation world frame. Shape is (num_instances, 1, 3).
+        """Center of mass position of all of the bodies in their respective link frames.
+        Shape is (num_instances, 1, 3).
 
-        This quantity is the center of mass location relative to its body frame.
+        This quantity is the center of mass location relative to its body'slink frame.
         """
         return self.body_com_pose_b[..., :3]
 
     @property
     def body_com_quat_b(self) -> torch.Tensor:
-        """Orientation (w,x,y,z) of the principle axies of inertia of all of the bodies in simulation world frame.
-        Shape is (num_instances, 1, 4).
+        """Orientation (w, x, y, z) of the principle axis of inertia of all of the bodies in their
+        respective link frames. Shape is (num_instances, 1, 4).
 
-        This quantity is the orientation of the principles axes of inertia relative to its body frame.
+        This quantity is the orientation of the principles axes of inertia relative to its body's link frame.
         """
         return self.body_com_pose_b[..., 3:7]
 
