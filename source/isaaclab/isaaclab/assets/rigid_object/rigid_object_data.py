@@ -163,11 +163,9 @@ class RigidObjectData:
         The orientation is provided in (w, x, y, z) format.
         """
         if self._root_com_pose_w.timestamp < self._sim_timestamp:
-            # read the link pose
-            pose = self.root_link_pose_w
             # apply local transform to center of mass frame
             pos, quat = math_utils.combine_frame_transforms(
-                pose[:, :3], pose[:, 3:7], self.body_com_pos_b[:, 0], self.body_com_quat_b[:, 0]
+                self.root_link_pos_w, self.root_link_quat_w, self.body_com_pos_b[:, 0], self.body_com_quat_b[:, 0]
             )
             # set the buffer data and timestamp
             self._root_com_pose_w.data = torch.cat((pos, quat), dim=-1)
@@ -183,13 +181,13 @@ class RigidObjectData:
         relative to the world.
         """
         if self._root_com_vel_w.timestamp < self._sim_timestamp:
-            self._root_com_vel_w.data = self._root_physx_view.get_velocities()
+            self._root_com_vel_w.data = self._root_physx_view.get_velocities().clone()
             self._root_com_vel_w.timestamp = self._sim_timestamp
 
         return self._root_com_vel_w.data
 
     @property
-    def root_link_state_w(self):
+    def root_link_state_w(self) -> torch.Tensor:
         """Root state ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame. Shape is (num_instances, 13).
 
         The position, quaternion, and linear/angular velocity are of the rigid body root frame relative to the
@@ -202,7 +200,7 @@ class RigidObjectData:
         return self._root_link_state_w.data
 
     @property
-    def root_com_state_w(self):
+    def root_com_state_w(self) -> torch.Tensor:
         """Root center of mass state ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame.
         Shape is (num_instances, 13).
 
@@ -257,7 +255,7 @@ class RigidObjectData:
         return self.root_com_vel_w.view(-1, 1, 6)
 
     @property
-    def body_link_state_w(self):
+    def body_link_state_w(self) -> torch.Tensor:
         """State of all bodies ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame.
         Shape is (num_instances, 1, 13).
 
@@ -267,7 +265,7 @@ class RigidObjectData:
         return self.root_link_state_w.view(-1, 1, 13)
 
     @property
-    def body_com_state_w(self):
+    def body_com_state_w(self) -> torch.Tensor:
         """State of all bodies ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame.
         Shape is (num_instances, num_bodies, 13).
 
@@ -278,7 +276,7 @@ class RigidObjectData:
         return self.root_com_state_w.view(-1, 1, 13)
 
     @property
-    def body_com_acc_w(self):
+    def body_com_acc_w(self) -> torch.Tensor:
         """Acceleration of all bodies ``[lin_acc, ang_acc]`` in the simulation world frame. Shape is (num_instances, 1, 6).
 
         This quantity is the acceleration of the rigid bodies' center of mass frame relative to the world.
@@ -311,12 +309,12 @@ class RigidObjectData:
     ##
 
     @property
-    def projected_gravity_b(self):
+    def projected_gravity_b(self) -> torch.Tensor:
         """Projection of the gravity direction on base frame. Shape is (num_instances, 3)."""
         return math_utils.quat_rotate_inverse(self.root_link_quat_w, self.GRAVITY_VEC_W)
 
     @property
-    def heading_w(self):
+    def heading_w(self) -> torch.Tensor:
         """Yaw heading of the base frame (in radians). Shape is (num_instances,).
 
         Note:
@@ -532,7 +530,7 @@ class RigidObjectData:
     ##
 
     @property
-    def root_state_w(self):
+    def root_state_w(self) -> torch.Tensor:
         """Root state ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame. Shape is (num_instances, 13).
 
         The position and orientation are of the rigid body's actor frame. Meanwhile, the linear and angular
@@ -581,7 +579,7 @@ class RigidObjectData:
         return self.root_com_ang_vel_b
 
     @property
-    def body_state_w(self):
+    def body_state_w(self) -> torch.Tensor:
         """State of all bodies `[pos, quat, lin_vel, ang_vel]` in simulation world frame.
         Shape is (num_instances, 1, 13).
 

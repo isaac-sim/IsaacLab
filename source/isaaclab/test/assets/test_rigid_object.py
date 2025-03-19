@@ -936,7 +936,7 @@ class TestRigidObject(unittest.TestCase):
                                 com[..., :3] = offset.to("cpu")
                                 cube_object.root_physx_view.set_coms(com, env_idx)
 
-                                # check ceter of mass has been set
+                                # check center of mass has been set
                                 torch.testing.assert_close(cube_object.root_physx_view.get_coms(), com)
 
                                 rand_state = torch.zeros_like(cube_object.data.root_state_w)
