@@ -27,7 +27,7 @@ import isaacsim.core.utils.prims as prim_utils
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
 import isaaclab.utils.string as string_utils
-from isaaclab.actuators import IdealPDActuatorCfg, ImplicitActuatorCfg
+from isaaclab.actuators import IdealPDActuatorCfg, ImplicitActuatorCfg, ActuatorBase
 from isaaclab.assets import Articulation, ArticulationCfg
 from isaaclab.sim import build_simulation_context
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
@@ -1243,9 +1243,12 @@ class TestArticulation(unittest.TestCase):
                                     torch.testing.assert_close(actuator_effort_limit, physx_effort_limit)
 
                                 # when using explicit actuators, the limits are set to high unless user overrides
-                                limit = effort_limit_sim if effort_limit_sim is not None else 1.0e9
-                                expected_effort_limit = torch.full_like(physx_effort_limit, limit)
+                                if effort_limit_sim is not None:
+                                    limit = effort_limit_sim
+                                else:
+                                    limit = ActuatorBase._DEFAULT_MAX_EFFORT_SIM  # type: ignore
                                 # check physx internal value matches the expected sim value
+                                expected_effort_limit = torch.full_like(physx_effort_limit, limit)
                                 torch.testing.assert_close(physx_effort_limit, expected_effort_limit)
 
     def test_reset(self):
