@@ -436,7 +436,7 @@ class RigidObjectData:
 
         This quantity is the position of the rigid bodies' actor frame relative to the world.
         """
-        return self.body_link_state_w[..., :3]
+        return self.body_link_pose_w[..., :3]
 
     @property
     def body_link_quat_w(self) -> torch.Tensor:
@@ -444,7 +444,7 @@ class RigidObjectData:
 
         This quantity is the orientation of the rigid bodies' actor frame  relative to the world.
         """
-        return self.body_link_state_w[..., 3:7]
+        return self.body_link_pose_w[..., 3:7]
 
     @property
     def body_link_lin_vel_w(self) -> torch.Tensor:
@@ -468,7 +468,7 @@ class RigidObjectData:
 
         This quantity is the position of the rigid bodies' actor frame.
         """
-        return self.body_com_state_w[..., :3]
+        return self.body_com_pose_w[..., :3]
 
     @property
     def body_com_quat_w(self) -> torch.Tensor:
@@ -476,7 +476,7 @@ class RigidObjectData:
 
         Shape is (num_instances, 1, 4). This quantity is the orientation of the rigid bodies' actor frame.
         """
-        return self.body_com_state_w[..., 3:7]
+        return self.body_com_pose_w[..., 3:7]
 
     @property
     def body_com_lin_vel_w(self) -> torch.Tensor:
