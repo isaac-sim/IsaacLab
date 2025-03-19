@@ -49,6 +49,8 @@ This guide will walk you through how to:
 * :ref:`develop-xr-isaac-lab`, including how to :ref:`run-isaac-lab-with-xr`,
   :ref:`configure-scene-placement`, and :ref:`optimize-xr-performance`.
 
+As well as :ref:`xr-known-issues`.
+
 
 System Requirements
 -------------------
@@ -93,6 +95,13 @@ streaming the Isaac Lab simulation to a compatible XR device.
 
 Ensure that `Docker`_, `Docker Compose`_, and the `NVIDIA Container Toolkit`_ are installed on your
 Isaac Lab workstation as described in the Isaac Lab :ref:`deployment-docker`.
+
+Also ensure that your firewall allows connections to the ports used by CloudXR by running:
+
+.. code:: bash
+
+   sudo ufw allow 47998:48000,48005,48008,48012/udp
+   sudo ufw allow 48010/tcp
 
 There are two options to run the CloudXR Runtime Docker container:
 
@@ -341,6 +350,11 @@ Back on your Apple Vision Pro:
 
 #. Teleoperate the simulated robot by moving your hands.
 
+   .. note::
+
+      See :ref:`teleoperation-imitation-learning` to learn how to record teleoperated demonstrations
+      and build teleoperation and imitation learning workflows with Isaac Lab.
+
 #. When you are finished with the example, click **Disconnect** to disconnect from Isaac Lab.
 
 
@@ -444,6 +458,24 @@ Optimize XR Performance
    It is currently recommended to try running Isaac Lab teleoperation scripts with the ``--device
    cpu`` flag. This will cause Physics calculations to be done on the CPU, which may be reduce
    latency when only a single environment is present in the simulation.
+
+
+.. _xr-known-issues:
+
+Known Issues
+------------
+
+* ``[omni.kit.xr.system.openxr.plugin] Message received from CloudXR does not have a field called 'type'``
+
+  This error message can be safely ignored. It is caused by a deprecated, non-backwards-compatible
+  data message sent by the CloudXR Framework from Apple Vision Pro, and will be fixed in future
+  CloudXR Framework versions.
+
+* ``XR_ERROR_VALIDATION_FAILURE: xrWaitFrame(frameState->type == 0)`` when stopping AR Mode
+
+  This error message can be safely ignored. It is caused by a race condition in the exit handler for
+  AR Mode.
+
 
 ..
   References
