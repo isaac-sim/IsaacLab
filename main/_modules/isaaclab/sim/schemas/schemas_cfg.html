@@ -725,6 +725,36 @@
 
 <span class="sd">    If the drive type is &quot;force&quot;, then the joint is driven by a force. If the drive type is &quot;acceleration&quot;,</span>
 <span class="sd">    then the joint is driven by an acceleration (usually used for kinematic joints).</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">max_effort</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Maximum effort that can be applied to the joint (in kg-m^2/s^2).&quot;&quot;&quot;</span>
+
+    <span class="n">max_velocity</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Maximum velocity of the joint.</span>
+
+<span class="sd">    The unit depends on the joint model:</span>
+
+<span class="sd">    * For linear joints, the unit is m/s.</span>
+<span class="sd">    * For angular joints, the unit is rad/s.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">stiffness</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Stiffness of the joint drive.</span>
+
+<span class="sd">    The unit depends on the joint model:</span>
+
+<span class="sd">    * For linear joints, the unit is kg-m/s^2 (N/m).</span>
+<span class="sd">    * For angular joints, the unit is kg-m^2/s^2/rad (N-m/rad).</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">damping</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Damping of the joint drive.</span>
+
+<span class="sd">    The unit depends on the joint model:</span>
+
+<span class="sd">    * For linear joints, the unit is kg-m/s (N-s/m).</span>
+<span class="sd">    * For angular joints, the unit is kg-m^2/s/rad (N-m-s/rad).</span>
 <span class="sd">    &quot;&quot;&quot;</span></div>
 
 

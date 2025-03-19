@@ -534,6 +534,8 @@
 <span class="c1"># needed to import for allowing type-hinting: Usd.Stage | None</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
 
+<span class="kn">import</span><span class="w"> </span><span class="nn">math</span>
+
 <span class="kn">import</span><span class="w"> </span><span class="nn">isaacsim.core.utils.stage</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">stage_utils</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">omni.log</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">omni.physx.scripts.utils</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">physx_utils</span>
@@ -1057,7 +1059,7 @@
 
 <div class="viewcode-block" id="modify_joint_drive_properties"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.sim.schemas.html#isaaclab.sim.schemas.modify_joint_drive_properties">[docs]</a><span class="nd">@apply_nested</span>
 <span class="k">def</span><span class="w"> </span><span class="nf">modify_joint_drive_properties</span><span class="p">(</span>
-    <span class="n">prim_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">drive_props</span><span class="p">:</span> <span class="n">schemas_cfg</span><span class="o">.</span><span class="n">JointDrivePropertiesCfg</span><span class="p">,</span> <span class="n">stage</span><span class="p">:</span> <span class="n">Usd</span><span class="o">.</span><span class="n">Stage</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">prim_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">schemas_cfg</span><span class="o">.</span><span class="n">JointDrivePropertiesCfg</span><span class="p">,</span> <span class="n">stage</span><span class="p">:</span> <span class="n">Usd</span><span class="o">.</span><span class="n">Stage</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Modify PhysX parameters for a joint prim.</span>
 
@@ -1080,7 +1082,7 @@
 
 <span class="sd">    Args:</span>
 <span class="sd">        prim_path: The prim path where to apply the joint drive schema.</span>
-<span class="sd">        drive_props: The configuration for the joint drive.</span>
+<span class="sd">        cfg: The configuration for the joint drive.</span>
 <span class="sd">        stage: The stage where to find the prim. Defaults to None, in which case the</span>
 <span class="sd">            current stage is used.</span>
 
@@ -1115,10 +1117,43 @@
     <span class="n">usd_drive_api</span> <span class="o">=</span> <span class="n">UsdPhysics</span><span class="o">.</span><span class="n">DriveAPI</span><span class="p">(</span><span class="n">prim</span><span class="p">,</span> <span class="n">drive_api_name</span><span class="p">)</span>
     <span class="k">if</span> <span class="ow">not</span> <span class="n">usd_drive_api</span><span class="p">:</span>
         <span class="n">usd_drive_api</span> <span class="o">=</span> <span class="n">UsdPhysics</span><span class="o">.</span><span class="n">DriveAPI</span><span class="o">.</span><span class="n">Apply</span><span class="p">(</span><span class="n">prim</span><span class="p">,</span> <span class="n">drive_api_name</span><span class="p">)</span>
+    <span class="c1"># check if prim has Physx joint drive applied on it</span>
+    <span class="n">physx_joint_api</span> <span class="o">=</span> <span class="n">PhysxSchema</span><span class="o">.</span><span class="n">PhysxJointAPI</span><span class="p">(</span><span class="n">prim</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">physx_joint_api</span><span class="p">:</span>
+        <span class="n">physx_joint_api</span> <span class="o">=</span> <span class="n">PhysxSchema</span><span class="o">.</span><span class="n">PhysxJointAPI</span><span class="o">.</span><span class="n">Apply</span><span class="p">(</span><span class="n">prim</span><span class="p">)</span>
 
-    <span class="c1"># change the drive type to input</span>
-    <span class="k">if</span> <span class="n">drive_props</span><span class="o">.</span><span class="n">drive_type</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="n">usd_drive_api</span><span class="o">.</span><span class="n">CreateTypeAttr</span><span class="p">()</span><span class="o">.</span><span class="n">Set</span><span class="p">(</span><span class="n">drive_props</span><span class="o">.</span><span class="n">drive_type</span><span class="p">)</span>
+    <span class="c1"># mapping from configuration name to USD attribute name</span>
+    <span class="n">cfg_to_usd_map</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s2">&quot;max_velocity&quot;</span><span class="p">:</span> <span class="s2">&quot;max_joint_velocity&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;max_effort&quot;</span><span class="p">:</span> <span class="s2">&quot;max_force&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;drive_type&quot;</span><span class="p">:</span> <span class="s2">&quot;type&quot;</span><span class="p">,</span>
+    <span class="p">}</span>
+    <span class="c1"># convert to dict</span>
+    <span class="n">cfg</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">to_dict</span><span class="p">()</span>
+
+    <span class="c1"># check if linear drive</span>
+    <span class="n">is_linear_drive</span> <span class="o">=</span> <span class="n">prim</span><span class="o">.</span><span class="n">IsA</span><span class="p">(</span><span class="n">UsdPhysics</span><span class="o">.</span><span class="n">PrismaticJoint</span><span class="p">)</span>
+    <span class="c1"># convert values for angular drives from radians to degrees units</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">is_linear_drive</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">cfg</span><span class="p">[</span><span class="s2">&quot;max_velocity&quot;</span><span class="p">]</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="c1"># rad / s --&gt; deg / s</span>
+            <span class="n">cfg</span><span class="p">[</span><span class="s2">&quot;max_velocity&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">cfg</span><span class="p">[</span><span class="s2">&quot;max_velocity&quot;</span><span class="p">]</span> <span class="o">*</span> <span class="mf">180.0</span> <span class="o">/</span> <span class="n">math</span><span class="o">.</span><span class="n">pi</span>
+        <span class="k">if</span> <span class="n">cfg</span><span class="p">[</span><span class="s2">&quot;stiffness&quot;</span><span class="p">]</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="c1"># N-m/rad --&gt; N-m/deg</span>
+            <span class="n">cfg</span><span class="p">[</span><span class="s2">&quot;stiffness&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">cfg</span><span class="p">[</span><span class="s2">&quot;stiffness&quot;</span><span class="p">]</span> <span class="o">*</span> <span class="n">math</span><span class="o">.</span><span class="n">pi</span> <span class="o">/</span> <span class="mf">180.0</span>
+        <span class="k">if</span> <span class="n">cfg</span><span class="p">[</span><span class="s2">&quot;damping&quot;</span><span class="p">]</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="c1"># N-m-s/rad --&gt; N-m-s/deg</span>
+            <span class="n">cfg</span><span class="p">[</span><span class="s2">&quot;damping&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">cfg</span><span class="p">[</span><span class="s2">&quot;damping&quot;</span><span class="p">]</span> <span class="o">*</span> <span class="n">math</span><span class="o">.</span><span class="n">pi</span> <span class="o">/</span> <span class="mf">180.0</span>
+
+    <span class="c1"># set into PhysX API</span>
+    <span class="k">for</span> <span class="n">attr_name</span> <span class="ow">in</span> <span class="p">[</span><span class="s2">&quot;max_velocity&quot;</span><span class="p">]:</span>
+        <span class="n">value</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">attr_name</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+        <span class="n">attr_name</span> <span class="o">=</span> <span class="n">cfg_to_usd_map</span><span class="p">[</span><span class="n">attr_name</span><span class="p">]</span>
+        <span class="n">safe_set_attribute_on_usd_schema</span><span class="p">(</span><span class="n">physx_joint_api</span><span class="p">,</span> <span class="n">attr_name</span><span class="p">,</span> <span class="n">value</span><span class="p">,</span> <span class="n">camel_case</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="c1"># set into USD API</span>
+    <span class="k">for</span> <span class="n">attr_name</span><span class="p">,</span> <span class="n">attr_value</span> <span class="ow">in</span> <span class="n">cfg</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="n">attr_name</span> <span class="o">=</span> <span class="n">cfg_to_usd_map</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">attr_name</span><span class="p">,</span> <span class="n">attr_name</span><span class="p">)</span>
+        <span class="n">safe_set_attribute_on_usd_schema</span><span class="p">(</span><span class="n">usd_drive_api</span><span class="p">,</span> <span class="n">attr_name</span><span class="p">,</span> <span class="n">attr_value</span><span class="p">,</span> <span class="n">camel_case</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 
     <span class="k">return</span> <span class="kc">True</span></div>
 

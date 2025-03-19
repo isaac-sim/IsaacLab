@@ -654,6 +654,10 @@
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#joint-drive">Joint Drive</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.schemas.JointDrivePropertiesCfg"><code class="docutils literal notranslate"><span class="pre">JointDrivePropertiesCfg</span></code></a><ul class="nav section-nav flex-column">
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.schemas.JointDrivePropertiesCfg.drive_type"><code class="docutils literal notranslate"><span class="pre">JointDrivePropertiesCfg.drive_type</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.schemas.JointDrivePropertiesCfg.max_effort"><code class="docutils literal notranslate"><span class="pre">JointDrivePropertiesCfg.max_effort</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.schemas.JointDrivePropertiesCfg.max_velocity"><code class="docutils literal notranslate"><span class="pre">JointDrivePropertiesCfg.max_velocity</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.schemas.JointDrivePropertiesCfg.stiffness"><code class="docutils literal notranslate"><span class="pre">JointDrivePropertiesCfg.stiffness</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.schemas.JointDrivePropertiesCfg.damping"><code class="docutils literal notranslate"><span class="pre">JointDrivePropertiesCfg.damping</span></code></a></li>
 </ul>
 </li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.schemas.modify_joint_drive_properties"><code class="docutils literal notranslate"><span class="pre">modify_joint_drive_properties()</span></code></a></li>
@@ -792,7 +796,7 @@ properties cannot be set.</p>
 <tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sim.schemas.modify_mass_properties" title="isaaclab.sim.schemas.modify_mass_properties"><code class="xref py py-obj docutils literal notranslate"><span class="pre">modify_mass_properties</span></code></a>(prim_path, cfg[, stage])</p></td>
 <td><p>Set properties for the mass of a rigid body prim.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sim.schemas.modify_joint_drive_properties" title="isaaclab.sim.schemas.modify_joint_drive_properties"><code class="xref py py-obj docutils literal notranslate"><span class="pre">modify_joint_drive_properties</span></code></a>(prim_path, ...)</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sim.schemas.modify_joint_drive_properties" title="isaaclab.sim.schemas.modify_joint_drive_properties"><code class="xref py py-obj docutils literal notranslate"><span class="pre">modify_joint_drive_properties</span></code></a>(prim_path, cfg)</p></td>
 <td><p>Modify PhysX parameters for a joint prim.</p></td>
 </tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sim.schemas.modify_fixed_tendon_properties" title="isaaclab.sim.schemas.modify_fixed_tendon_properties"><code class="xref py py-obj docutils literal notranslate"><span class="pre">modify_fixed_tendon_properties</span></code></a>(prim_path, cfg)</p></td>
@@ -1442,6 +1446,18 @@ the properties and leave the rest as-is.</p>
 <tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sim.schemas.JointDrivePropertiesCfg.drive_type" title="isaaclab.sim.schemas.JointDrivePropertiesCfg.drive_type"><code class="xref py py-obj docutils literal notranslate"><span class="pre">drive_type</span></code></a></p></td>
 <td><p>Joint drive type to apply.</p></td>
 </tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sim.schemas.JointDrivePropertiesCfg.max_effort" title="isaaclab.sim.schemas.JointDrivePropertiesCfg.max_effort"><code class="xref py py-obj docutils literal notranslate"><span class="pre">max_effort</span></code></a></p></td>
+<td><p>Maximum effort that can be applied to the joint (in kg-m^2/s^2).</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sim.schemas.JointDrivePropertiesCfg.max_velocity" title="isaaclab.sim.schemas.JointDrivePropertiesCfg.max_velocity"><code class="xref py py-obj docutils literal notranslate"><span class="pre">max_velocity</span></code></a></p></td>
+<td><p>Maximum velocity of the joint.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sim.schemas.JointDrivePropertiesCfg.stiffness" title="isaaclab.sim.schemas.JointDrivePropertiesCfg.stiffness"><code class="xref py py-obj docutils literal notranslate"><span class="pre">stiffness</span></code></a></p></td>
+<td><p>Stiffness of the joint drive.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sim.schemas.JointDrivePropertiesCfg.damping" title="isaaclab.sim.schemas.JointDrivePropertiesCfg.damping"><code class="xref py py-obj docutils literal notranslate"><span class="pre">damping</span></code></a></p></td>
+<td><p>Damping of the joint drive.</p></td>
+</tr>
 </tbody>
 </table>
 </div>
@@ -1453,11 +1469,50 @@ the properties and leave the rest as-is.</p>
 then the joint is driven by an acceleration (usually used for kinematic joints).</p>
 </dd></dl>
 
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab.sim.schemas.JointDrivePropertiesCfg.max_effort">
+<span class="sig-name descname"><span class="pre">max_effort</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></em><a class="headerlink" href="#isaaclab.sim.schemas.JointDrivePropertiesCfg.max_effort" title="Permalink to this definition">#</a></dt>
+<dd><p>Maximum effort that can be applied to the joint (in kg-m^2/s^2).</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab.sim.schemas.JointDrivePropertiesCfg.max_velocity">
+<span class="sig-name descname"><span class="pre">max_velocity</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></em><a class="headerlink" href="#isaaclab.sim.schemas.JointDrivePropertiesCfg.max_velocity" title="Permalink to this definition">#</a></dt>
+<dd><p>Maximum velocity of the joint.</p>
+<p>The unit depends on the joint model:</p>
+<ul class="simple">
+<li><p>For linear joints, the unit is m/s.</p></li>
+<li><p>For angular joints, the unit is rad/s.</p></li>
+</ul>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab.sim.schemas.JointDrivePropertiesCfg.stiffness">
+<span class="sig-name descname"><span class="pre">stiffness</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></em><a class="headerlink" href="#isaaclab.sim.schemas.JointDrivePropertiesCfg.stiffness" title="Permalink to this definition">#</a></dt>
+<dd><p>Stiffness of the joint drive.</p>
+<p>The unit depends on the joint model:</p>
+<ul class="simple">
+<li><p>For linear joints, the unit is kg-m/s^2 (N/m).</p></li>
+<li><p>For angular joints, the unit is kg-m^2/s^2/rad (N-m/rad).</p></li>
+</ul>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab.sim.schemas.JointDrivePropertiesCfg.damping">
+<span class="sig-name descname"><span class="pre">damping</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></em><a class="headerlink" href="#isaaclab.sim.schemas.JointDrivePropertiesCfg.damping" title="Permalink to this definition">#</a></dt>
+<dd><p>Damping of the joint drive.</p>
+<p>The unit depends on the joint model:</p>
+<ul class="simple">
+<li><p>For linear joints, the unit is kg-m/s (N-s/m).</p></li>
+<li><p>For angular joints, the unit is kg-m^2/s/rad (N-m-s/rad).</p></li>
+</ul>
+</dd></dl>
+
 </dd></dl>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="isaaclab.sim.schemas.modify_joint_drive_properties">
-<span class="sig-prename descclassname"><span class="pre">isaaclab.sim.schemas.</span></span><span class="sig-name descname"><span class="pre">modify_joint_drive_properties</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">prim_path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">drive_props</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#isaaclab.sim.schemas.JointDrivePropertiesCfg" title="isaaclab.sim.schemas.schemas_cfg.JointDrivePropertiesCfg"><span class="pre">schemas_cfg.JointDrivePropertiesCfg</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">stage</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Usd.Stage</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a></span></span><a class="reference internal" href="../../../_modules/isaaclab/sim/schemas/schemas.html#modify_joint_drive_properties"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.sim.schemas.modify_joint_drive_properties" title="Permalink to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">isaaclab.sim.schemas.</span></span><span class="sig-name descname"><span class="pre">modify_joint_drive_properties</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">prim_path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">cfg</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#isaaclab.sim.schemas.JointDrivePropertiesCfg" title="isaaclab.sim.schemas.schemas_cfg.JointDrivePropertiesCfg"><span class="pre">schemas_cfg.JointDrivePropertiesCfg</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">stage</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Usd.Stage</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a></span></span><a class="reference internal" href="../../../_modules/isaaclab/sim/schemas/schemas.html#modify_joint_drive_properties"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.sim.schemas.modify_joint_drive_properties" title="Permalink to this definition">#</a></dt>
 <dd><p>Modify PhysX parameters for a joint prim.</p>
 <p>This function checks if the input prim is a prismatic or revolute joint and applies the joint drive schema
 on it. If the joint is a tendon (i.e., it has the <a class="reference external" href="https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/104.2/class_physx_schema_physx_tendon_axis_a_p_i.html">PhysxTendonAxisAPI</a> schema applied on it), then the joint
@@ -1475,7 +1530,7 @@ properties only.</p>
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>prim_path</strong> – The prim path where to apply the joint drive schema.</p></li>
-<li><p><strong>drive_props</strong> – The configuration for the joint drive.</p></li>
+<li><p><strong>cfg</strong> – The configuration for the joint drive.</p></li>
 <li><p><strong>stage</strong> – The stage where to find the prim. Defaults to None, in which case the
 current stage is used.</p></li>
 </ul>
@@ -2009,6 +2064,10 @@ current stage is used.</p></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#joint-drive">Joint Drive</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.schemas.JointDrivePropertiesCfg"><code class="docutils literal notranslate"><span class="pre">JointDrivePropertiesCfg</span></code></a><ul class="nav section-nav flex-column">
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.schemas.JointDrivePropertiesCfg.drive_type"><code class="docutils literal notranslate"><span class="pre">JointDrivePropertiesCfg.drive_type</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.schemas.JointDrivePropertiesCfg.max_effort"><code class="docutils literal notranslate"><span class="pre">JointDrivePropertiesCfg.max_effort</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.schemas.JointDrivePropertiesCfg.max_velocity"><code class="docutils literal notranslate"><span class="pre">JointDrivePropertiesCfg.max_velocity</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.schemas.JointDrivePropertiesCfg.stiffness"><code class="docutils literal notranslate"><span class="pre">JointDrivePropertiesCfg.stiffness</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.schemas.JointDrivePropertiesCfg.damping"><code class="docutils literal notranslate"><span class="pre">JointDrivePropertiesCfg.damping</span></code></a></li>
 </ul>
 </li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.schemas.modify_joint_drive_properties"><code class="docutils literal notranslate"><span class="pre">modify_joint_drive_properties()</span></code></a></li>

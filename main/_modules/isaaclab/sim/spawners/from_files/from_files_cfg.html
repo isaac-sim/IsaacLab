@@ -571,7 +571,14 @@
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Properties to apply to the fixed tendons (if any).&quot;&quot;&quot;</span>
 
     <span class="n">joint_drive_props</span><span class="p">:</span> <span class="n">schemas</span><span class="o">.</span><span class="n">JointDrivePropertiesCfg</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Properties to apply to a joint.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Properties to apply to a joint.</span>
+
+<span class="sd">    .. note::</span>
+<span class="sd">        The joint drive properties set the USD attributes of all the joint drives in the asset.</span>
+<span class="sd">        We recommend using this attribute sparingly and only when necessary. Instead, please use the</span>
+<span class="sd">        :attr:`~isaaclab.assets.ArticulationCfg.actuators` parameter to set the joint drive properties</span>
+<span class="sd">        for specific joints in an articulation.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">visual_material_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;material&quot;</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Path to the visual material to use for the prim. Defaults to &quot;material&quot;.</span>

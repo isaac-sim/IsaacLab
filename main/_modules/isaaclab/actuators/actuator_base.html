@@ -616,6 +616,13 @@
     <span class="n">friction</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The joint friction of the actuator joints. Shape is (num_envs, num_joints).&quot;&quot;&quot;</span>
 
+    <span class="n">_DEFAULT_MAX_EFFORT_SIM</span><span class="p">:</span> <span class="n">ClassVar</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="mf">1.0e9</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The default maximum effort for the actuator joints in the simulation. Defaults to 1.0e9.</span>
+
+<span class="sd">    If the :attr:`ActuatorBaseCfg.effort_limit_sim` is not specified and the actuator is an explicit</span>
+<span class="sd">    actuator, then this value is used.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
 <div class="viewcode-block" id="ActuatorBase.__init__"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.actuators.html#isaaclab.actuators.ActuatorBase.__init__">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
         <span class="bp">self</span><span class="p">,</span>
         <span class="n">cfg</span><span class="p">:</span> <span class="n">ActuatorBaseCfg</span><span class="p">,</span>
@@ -668,8 +675,8 @@
 
         <span class="c1"># For explicit models, we do not want to enforce the effort limit through the solver</span>
         <span class="c1"># (unless it is explicitly set)</span>
-        <span class="k">if</span> <span class="ow">not</span> <span class="n">ActuatorBase</span><span class="o">.</span><span class="n">is_implicit_model</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">effort_limit_sim</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">effort_limit_sim</span> <span class="o">=</span> <span class="mf">1.0e9</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_implicit_model</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">effort_limit_sim</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">effort_limit_sim</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_DEFAULT_MAX_EFFORT_SIM</span>
 
         <span class="c1"># parse joint stiffness and damping</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">stiffness</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_parse_joint_parameter</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">stiffness</span><span class="p">,</span> <span class="n">stiffness</span><span class="p">)</span>
