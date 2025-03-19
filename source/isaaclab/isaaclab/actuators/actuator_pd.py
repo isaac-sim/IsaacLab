@@ -100,7 +100,7 @@ class ImplicitActuator(ActuatorBase):
                 )
 
         # set implicit actuator model flag
-        self.is_implicit_model = True
+        ImplicitActuator.is_implicit_model = True
         # call the base class
         super().__init__(cfg, *args, **kwargs)
 
