@@ -71,7 +71,9 @@ class TestPhysicsSchema(unittest.TestCase):
             torsional_patch_radius=1.0,
         )
         self.mass_cfg = schemas.MassPropertiesCfg(mass=1.0, density=100.0)
-        self.joint_cfg = schemas.JointDrivePropertiesCfg(drive_type="acceleration")
+        self.joint_cfg = schemas.JointDrivePropertiesCfg(
+            drive_type="acceleration", max_effort=80.0, max_velocity=10.0, stiffness=10.0, damping=0.1
+        )
 
     def tearDown(self) -> None:
         """Stops simulator after each test."""
@@ -347,17 +349,29 @@ class TestPhysicsSchema(unittest.TestCase):
                         # skip names we know are not present
                         if attr_name == "func":
                             continue
-                        # manually check joint type
+                        # resolve the drive (linear or angular)
+                        drive_type = "linear" if joint_prim.IsA(UsdPhysics.PrismaticJoint) else "angular"
+
+                        # manually check joint type since it is a string type
                         if attr_name == "drive_type":
-                            if joint_prim.IsA(UsdPhysics.PrismaticJoint):
-                                prim_attr_name = "drive:linear:physics:type"
-                            elif joint_prim.IsA(UsdPhysics.RevoluteJoint):
-                                prim_attr_name = "drive:angular:physics:type"
-                            else:
-                                raise ValueError(f"Unknown joint type for prim {joint_prim.GetPrimPath()}")
+                            prim_attr_name = f"drive:{drive_type}:physics:type"
                             # check the value
                             self.assertEqual(attr_value, joint_prim.GetAttribute(prim_attr_name).Get())
                             continue
+                        # non-string attributes
+                        if attr_name == "max_velocity":
+                            prim_attr_name = "physxJoint:maxJointVelocity"
+                        elif attr_name == "max_effort":
+                            prim_attr_name = f"drive:{drive_type}:physics:maxForce"
+                        else:
+                            prim_attr_name = f"drive:{drive_type}:physics:{to_camel_case(attr_name, to='cC')}"
+                        # validate the values
+                        self.assertAlmostEqual(
+                            joint_prim.GetAttribute(prim_attr_name).Get(),
+                            attr_value,
+                            places=5,
+                            msg=f"Failed setting for {prim_attr_name}",
+                        )
                 elif verbose:
                     print(f"Skipping prim {joint_prim.GetPrimPath()} as it is not a joint drive api.")
 

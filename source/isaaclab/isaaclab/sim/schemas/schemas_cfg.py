@@ -199,6 +199,18 @@ class JointDrivePropertiesCfg:
     then the joint is driven by an acceleration (usually used for kinematic joints).
     """
 
+    max_effort: float | None = None
+    """Maximum effort that can be applied to the joint."""
+
+    max_velocity: float | None = None
+    """Maximum velocity of the joint."""
+
+    stiffness: float | None = None
+    """Stiffness of the joint drive."""
+
+    damping: float | None = None
+    """Damping of the joint drive."""
+
 
 @configclass
 class FixedTendonPropertiesCfg:
