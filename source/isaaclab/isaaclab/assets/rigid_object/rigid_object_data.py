@@ -183,7 +183,6 @@ class RigidObjectData:
         relative to the world.
         """
         if self._root_com_vel_w.timestamp < self._sim_timestamp:
-            # set the buffer data and timestamp
             self._root_com_vel_w.data = self._root_physx_view.get_velocities()
             self._root_com_vel_w.timestamp = self._sim_timestamp
 
@@ -197,7 +196,6 @@ class RigidObjectData:
         world. The orientation is provided in (w, x, y, z) format.
         """
         if self._root_link_state_w.timestamp < self._sim_timestamp:
-            # set the buffer data and timestamp
             self._root_link_state_w.data = torch.cat((self.root_link_pose_w, self.root_link_vel_w), dim=-1)
             self._root_link_state_w.timestamp = self._sim_timestamp
 
@@ -212,9 +210,9 @@ class RigidObjectData:
         relative to the world. Center of mass frame is the orientation principle axes of inertia.
         """
         if self._root_com_state_w.timestamp < self._sim_timestamp:
-            # set the buffer data and timestamp
             self._root_com_state_w.data = torch.cat((self.root_com_pose_w, self.root_com_vel_w), dim=-1)
             self._root_com_state_w.timestamp = self._sim_timestamp
+
         return self._root_com_state_w.data
 
     ##
@@ -223,7 +221,7 @@ class RigidObjectData:
 
     @property
     def body_link_pose_w(self) -> torch.Tensor:
-        """Body link pose ``[pos, quat]`` in simulation world frame. Shape is (num_instances, 7).
+        """Body link pose ``[pos, quat]`` in simulation world frame. Shape is (num_instances, 1, 7).
 
         This quantity is the pose of the actor frame of the rigid body relative to the world.
         The orientation is provided in (w, x, y, z) format.
@@ -232,7 +230,7 @@ class RigidObjectData:
 
     @property
     def body_link_vel_w(self) -> torch.Tensor:
-        """Body link velocity ``[lin_vel, ang_vel]`` in simulation world frame. Shape is (num_instances, 6).
+        """Body link velocity ``[lin_vel, ang_vel]`` in simulation world frame. Shape is (num_instances, 1, 6).
 
         This quantity contains the linear and angular velocities of the actor frame of the root
         rigid body relative to the world.
@@ -241,16 +239,17 @@ class RigidObjectData:
 
     @property
     def body_com_pose_w(self) -> torch.Tensor:
-        """Body center of mass pose ``[pos, quat]`` in simulation world frame. Shape is (num_instances, 7).
+        """Body center of mass pose ``[pos, quat]`` in simulation world frame. Shape is (num_instances, 1, 7).
 
         This quantity is the pose of the center of mass frame of the rigid body relative to the world.
         The orientation is provided in (w, x, y, z) format.
         """
-        return self.root_com_pose_w.view(-1, 1, 3)
+        return self.root_com_pose_w.view(-1, 1, 7)
 
     @property
     def body_com_vel_w(self) -> torch.Tensor:
-        """Body center of mass velocity ``[lin_vel, ang_vel]`` in simulation world frame. Shape is (num_instances, 6).
+        """Body center of mass velocity ``[lin_vel, ang_vel]`` in simulation world frame.
+        Shape is (num_instances, 1, 6).
 
         This quantity contains the linear and angular velocities of the root rigid body's center of mass frame
         relative to the world.
@@ -285,7 +284,6 @@ class RigidObjectData:
         This quantity is the acceleration of the rigid bodies' center of mass frame relative to the world.
         """
         if self._body_com_acc_w.timestamp < self._sim_timestamp:
-            # note: we use finite differencing to compute acceleration
             self._body_com_acc_w.data = self._root_physx_view.get_accelerations().unsqueeze(1)
             self._body_com_acc_w.timestamp = self._sim_timestamp
 
@@ -305,6 +303,7 @@ class RigidObjectData:
             # set the buffer data and timestamp
             self._body_com_pose_b.data = pose.view(-1, 1, 7)
             self._body_com_pose_b.timestamp = self._sim_timestamp
+
         return self._body_com_pose_b.data
 
     ##
