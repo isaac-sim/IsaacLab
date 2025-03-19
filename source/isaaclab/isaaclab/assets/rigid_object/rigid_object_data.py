@@ -277,7 +277,8 @@ class RigidObjectData:
 
     @property
     def body_com_acc_w(self) -> torch.Tensor:
-        """Acceleration of all bodies ``[lin_acc, ang_acc]`` in the simulation world frame. Shape is (num_instances, 1, 6).
+        """Acceleration of all bodies ``[lin_acc, ang_acc]`` in the simulation world frame.
+        Shape is (num_instances, 1, 6).
 
         This quantity is the acceleration of the rigid bodies' center of mass frame relative to the world.
         """
@@ -289,7 +290,7 @@ class RigidObjectData:
 
     @property
     def body_com_pose_b(self) -> torch.Tensor:
-        """Body center of mass pose ``[pos, quat]`` in simulation body frame. Shape is (num_instances, 1,7).
+        """Body center of mass pose ``[pos, quat]`` in simulation body frame. Shape is (num_instances, 1, 7).
 
         This quantity is the pose of the center of mass frame of the rigid body relative to the body frame.
         The orientation is provided in (w, x, y, z) format.
