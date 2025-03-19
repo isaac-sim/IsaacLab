@@ -377,11 +377,8 @@ class TestPhysicsSchema(unittest.TestCase):
                             if attr_name == "max_velocity":
                                 # deg / s --> rad / s
                                 prim_attr_value = prim_attr_value * math.pi / 180.0
-                            elif attr_name == "stiffness":
-                                # N-m/deg --> N-m/rad
-                                prim_attr_value = prim_attr_value * 180.0 / math.pi
-                            elif attr_name == "damping":
-                                # N-m-s/deg --> N-m-s/rad
+                            elif attr_name in ["stiffness", "damping"]:
+                                # N-m/deg or N-m-s/deg --> N-m/rad or N-m-s/rad
                                 prim_attr_value = prim_attr_value * 180.0 / math.pi
 
                         # validate the values
