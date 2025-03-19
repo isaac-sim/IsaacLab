@@ -624,6 +624,9 @@ class AppLauncher:
             # If no device is specified, default to the CPU device if we are running in XR
             device = "cpu"
 
+            # Overwrite for downstream consumers
+            launcher_args["device"] = "cpu"
+
         if "cuda" not in device and "cpu" not in device:
             raise ValueError(
                 f"Invalid value for input keyword argument `device`: {device}."
@@ -853,6 +856,9 @@ class AppLauncher:
         if self._xr and not rendering_mode_explicitly_passed:
             # If no rendering mode is specified, default to the xr mode if we are running in XR
             rendering_mode = "xr"
+
+            # Overwrite for downstream consumers
+            launcher_args["rendering_mode"] = "xr"
 
         # parse preset file
         repo_path = os.path.join(carb.tokens.get_tokens_interface().resolve("${app}"), "..")

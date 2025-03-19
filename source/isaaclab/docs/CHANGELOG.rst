@@ -1,7 +1,7 @@
 Changelog
 ---------
 
-0.36.13 (2025-04-09)
+0.36.14 (2025-04-09)
 ~~~~~~~~~~~~~~~~~~~~
 
 Changed
@@ -12,7 +12,7 @@ Changed
   the cuda device, which results in NCCL errors on distributed setups.
 
 
-0.36.12 (2025-04-01)
+0.36.13 (2025-04-01)
 ~~~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -21,7 +21,7 @@ Fixed
 * Added check in RecorderManager to ensure that the success indicator is only set if the termination manager is present.
 
 
-0.36.11 (2025-03-24)
+0.36.12 (2025-03-24)
 ~~~~~~~~~~~~~~~~~~~~
 
 Changed
@@ -31,7 +31,7 @@ Changed
   the default settings will be used from the experience files and the double definition is removed.
 
 
-0.36.10 (2025-03-17)
+0.36.11 (2025-03-19)
 ~~~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -39,6 +39,15 @@ Fixed
 
 * Fixed default behavior of :class:`~isaaclab.actuators.ImplicitActuator` if no :attr:`effort_limits_sim` or
   :attr:`effort_limit` is set.
+
+
+0.36.10 (2025-03-17)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* App launcher to update the cli arguments if conditional defaults are used.
 
 
 0.36.9 (2025-03-18)
