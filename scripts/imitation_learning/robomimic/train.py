@@ -84,6 +84,7 @@ from robomimic.utils.log_utils import DataLogger, PrintLogger
 
 # Isaac Lab imports (needed so that environment is registered)
 import isaaclab_tasks  # noqa: F401
+import isaaclab_tasks.manager_based.manipulation.pick_place  # noqa: F401
 
 
 def normalize_hdf5_actions(config: Config, log_dir: str) -> str:
