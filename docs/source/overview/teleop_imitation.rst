@@ -33,6 +33,16 @@ For smoother operation and off-axis operation, we recommend using a SpaceMouse a
    Identify the device corresponding to the SpaceMouse by running ``cat /sys/class/hidraw/hidraw<#>/device/uevent`` on each of the devices listed
    from the prior step.
 
+   We recommend using local deployment of Isaac Lab to use the SpaceMouse. If using container deployment (:ref:`deployment-docker`), you must manually mount the SpaceMouse to the ``isaac-lab-base`` container by
+   adding a ``devices`` attribute with the path to the device in your ``docker-compose.yaml`` file:
+
+   .. code:: yaml
+
+      devices:
+         - /dev/hidraw<#>:/dev/hidraw<#>
+
+   where ``<#>`` is the device index of the connected SpaceMouse.
+
    Only compatible with the SpaceMouse Wireless and SpaceMouse Compact models from 3Dconnexion.
 
 For tasks that benefit from the use of an extended reality (XR) device with hand tracking, Isaac Lab supports using NVIDIA CloudXR to immersively stream the scene to compatible XR devices for teleoperation.
