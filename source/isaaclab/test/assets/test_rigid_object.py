@@ -847,7 +847,7 @@ class TestRigidObject(unittest.TestCase):
                                 else:
                                     # cubes are spinning around center of mass
                                     # position will not match
-                                    # center of mass position will be constant (i.e. spining around com)
+                                    # center of mass position will be constant (i.e. spinning around com)
                                     torch.testing.assert_close(env_pos + offset, root_com_state_w[..., :3])
                                     torch.testing.assert_close(env_pos + offset, body_com_state_w[..., :3].squeeze(-2))
                                     # link position will be moving but should stay constant away from center of mass
@@ -863,7 +863,7 @@ class TestRigidObject(unittest.TestCase):
                                     torch.testing.assert_close(-offset, body_link_state_pos_rel_com.squeeze(-2))
 
                                     # orientation of com will be a constant rotation from link orientation
-                                    com_quat_b = cube_object.data.com_quat_b
+                                    com_quat_b = cube_object.data.body_com_quat_b
                                     com_quat_w = quat_mul(body_link_state_w[..., 3:7], com_quat_b)
                                     torch.testing.assert_close(com_quat_w, body_com_state_w[..., 3:7])
                                     torch.testing.assert_close(com_quat_w.squeeze(-2), root_com_state_w[..., 3:7])
@@ -873,7 +873,7 @@ class TestRigidObject(unittest.TestCase):
                                     torch.testing.assert_close(body_state_w[..., 3:7], body_link_state_w[..., 3:7])
 
                                     # lin_vel will not match
-                                    # center of mass vel will be constant (i.e. spining around com)
+                                    # center of mass vel will be constant (i.e. spinning around com)
                                     torch.testing.assert_close(
                                         torch.zeros_like(root_com_state_w[..., 7:10]), root_com_state_w[..., 7:10]
                                     )
