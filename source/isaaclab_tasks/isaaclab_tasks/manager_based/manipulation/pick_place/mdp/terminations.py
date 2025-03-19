@@ -24,13 +24,13 @@ if TYPE_CHECKING:
 def task_done(
     env: ManagerBasedRLEnv,
     object_cfg: SceneEntityCfg = SceneEntityCfg("object"),
-    right_wrist_max_x: float = 0.23,
-    min_x: float = 0.40,
-    max_x: float = 1.1,
-    min_y: float = 0.3,
-    max_y: float = 0.6,
+    right_wrist_max_x: float = 0.26,
+    min_x: float = 0.30,
+    max_x: float = 0.95,
+    min_y: float = 0.25,
+    max_y: float = 0.66,
     min_height: float = 1.13,
-    min_vel: float = 0.08,
+    min_vel: float = 0.20,
 ) -> torch.Tensor:
     """Determine if the object placement task is complete.
 

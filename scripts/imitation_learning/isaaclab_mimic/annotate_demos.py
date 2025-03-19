@@ -416,6 +416,7 @@ def annotate_episode_in_manual_mode(
 
             if not task_success_result:
                 print("\tThe final task was not completed.")
+                return False
 
             if expected_subtask_signal_count != len(marked_subtask_action_indices):
                 print(

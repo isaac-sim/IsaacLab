@@ -325,17 +325,24 @@ Optional: Collect and annotate demonstrations
    A pre-recorded annotated dataset is provided in the next step .
 
 Set up the CloudXR Runtime and Apple Vision Pro for teleoperation by following the steps in :ref:`cloudxr-teleoperation`.
+CPU simulation is used in the following steps for better XR performance when running a single environment.
 
-Collect a set of human demonstrations using the command below. We recommend 10 successful demonstrations for good data generation results.
+Collect a set of human demonstrations using the command below.
+A success demo requires the object to be placed in the bin and for the robot's right arm to be retracted to the starting position.
+We recommend 10 successful demonstrations for good data generation results.
 
 .. code:: bash
 
    ./isaaclab.sh -p scripts/tools/record_demos.py \
-   --device cuda \
+   --device cpu \
    --task Isaac-PickPlace-GR1T2-Abs-v0 \
    --teleop_device dualhandtracking_abs \
    --dataset_file ./datasets/dataset_gr1.hdf5 \
    --num_demos 10 --enable_pinocchio
+
+.. note::
+   If a demo fails during data collection, the environment can be reset using the teleoperation controls panel in the XR teleop client
+   on the Apple Vision Pro or via voice control by saying "reset". See :ref:`teleoperate-apple-vision-pro` for more details.
 
 Unlike the prior Franka stacking task, the GR-1 pick and place task uses manual annotation to define subtasks.
 Each demo requires a single annotation which denotes when the right robot arm finishes the "idle" subtask and begins to
@@ -344,7 +351,7 @@ move towards the target object. Annotate the demonstrations by running the follo
 .. code:: bash
 
    ./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/annotate_demos.py \
-   --device cuda \
+   --device cpu \
    --task Isaac-PickPlace-GR1T2-Abs-Mimic-v0 \
    --input_file ./datasets/dataset_gr1.hdf5 \
    --output_file ./datasets/dataset_annotated_gr1.hdf5 --enable_pinocchio
