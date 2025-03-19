@@ -1041,17 +1041,14 @@ class TestArticulation(unittest.TestCase):
 
                                 if vel_limit_sim is None:
                                     # Case 2: both velocity limit and velocity limit sim are not set
-                                    #  This is the case where the velocity limit is set to the USD default value
+                                    #  This is the case where the velocity limit keeps its USD default value
                                     # Case 3: velocity limit sim is not set but velocity limit is set
                                     #   For backwards compatibility, we do not set velocity limit to simulation
                                     #   Thus, both default to USD default value.
-
-                                    # use the USD value
                                     limit = articulation_cfg.spawn.joint_drive_props.max_velocity
                                 else:
                                     # Case 4: only velocity limit sim is set
-                                    #   In this case, the velocity limit is set to the USD default value
-                                    # read the values set into the simulation
+                                    #   In this case, the velocity limit is set to the USD value
                                     limit = vel_limit_sim
 
                                 # check max velocity is what we set

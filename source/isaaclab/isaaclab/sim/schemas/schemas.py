@@ -6,6 +6,8 @@
 # needed to import for allowing type-hinting: Usd.Stage | None
 from __future__ import annotations
 
+import math
+
 import isaacsim.core.utils.stage as stage_utils
 import omni.log
 import omni.physx.scripts.utils as physx_utils
@@ -600,6 +602,21 @@ def modify_joint_drive_properties(
     }
     # convert to dict
     cfg = cfg.to_dict()
+
+    # check if linear drive
+    is_linear_drive = prim.IsA(UsdPhysics.PrismaticJoint)
+    # convert values for angular drives from radians to degrees units
+    if not is_linear_drive:
+        if cfg["max_velocity"] is not None:
+            # rad / s --> deg / s
+            cfg["max_velocity"] = cfg["max_velocity"] * 180.0 / math.pi
+        if cfg["stiffness"] is not None:
+            # N-m/rad --> N-m/deg
+            cfg["stiffness"] = cfg["stiffness"] * math.pi / 180.0
+        if cfg["damping"] is not None:
+            # N-m-s/rad --> N-m-s/deg
+            cfg["damping"] = cfg["damping"] * math.pi / 180.0
+
     # set into PhysX API
     for attr_name in ["max_velocity"]:
         value = cfg.pop(attr_name, None)

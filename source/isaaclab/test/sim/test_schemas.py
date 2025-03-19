@@ -12,6 +12,7 @@ simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows."""
 
+import math
 import unittest
 
 import isaacsim.core.utils.prims as prim_utils
@@ -350,24 +351,42 @@ class TestPhysicsSchema(unittest.TestCase):
                         if attr_name == "func":
                             continue
                         # resolve the drive (linear or angular)
-                        drive_type = "linear" if joint_prim.IsA(UsdPhysics.PrismaticJoint) else "angular"
+                        drive_model = "linear" if joint_prim.IsA(UsdPhysics.PrismaticJoint) else "angular"
 
                         # manually check joint type since it is a string type
                         if attr_name == "drive_type":
-                            prim_attr_name = f"drive:{drive_type}:physics:type"
+                            prim_attr_name = f"drive:{drive_model}:physics:type"
                             # check the value
                             self.assertEqual(attr_value, joint_prim.GetAttribute(prim_attr_name).Get())
                             continue
+
                         # non-string attributes
                         if attr_name == "max_velocity":
                             prim_attr_name = "physxJoint:maxJointVelocity"
                         elif attr_name == "max_effort":
-                            prim_attr_name = f"drive:{drive_type}:physics:maxForce"
+                            prim_attr_name = f"drive:{drive_model}:physics:maxForce"
                         else:
-                            prim_attr_name = f"drive:{drive_type}:physics:{to_camel_case(attr_name, to='cC')}"
+                            prim_attr_name = f"drive:{drive_model}:physics:{to_camel_case(attr_name, to='cC')}"
+
+                        # obtain value from USD API (for angular, these follow degrees unit)
+                        prim_attr_value = joint_prim.GetAttribute(prim_attr_name).Get()
+
+                        # for angular drives, we expect user to set in radians
+                        # the values reported by USD are in degrees
+                        if drive_model == "angular":
+                            if attr_name == "max_velocity":
+                                # deg / s --> rad / s
+                                prim_attr_value = prim_attr_value * math.pi / 180.0
+                            elif attr_name == "stiffness":
+                                # N-m/deg --> N-m/rad
+                                prim_attr_value = prim_attr_value * 180.0 / math.pi
+                            elif attr_name == "damping":
+                                # N-m-s/deg --> N-m-s/rad
+                                prim_attr_value = prim_attr_value * 180.0 / math.pi
+
                         # validate the values
                         self.assertAlmostEqual(
-                            joint_prim.GetAttribute(prim_attr_name).Get(),
+                            prim_attr_value,
                             attr_value,
                             places=5,
                             msg=f"Failed setting for {prim_attr_name}",
