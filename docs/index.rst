@@ -111,6 +111,7 @@ Table of Contents
    source/tutorials/index
    source/how-to/index
    source/deployment/index
+   source/policy_deployment/index
 
 .. toctree::
    :maxdepth: 1
