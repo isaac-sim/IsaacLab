@@ -181,7 +181,7 @@ class RigidObjectData:
         relative to the world.
         """
         if self._root_com_vel_w.timestamp < self._sim_timestamp:
-            self._root_com_vel_w.data = self._root_physx_view.get_velocities().clone()
+            self._root_com_vel_w.data = self._root_physx_view.get_velocities()
             self._root_com_vel_w.timestamp = self._sim_timestamp
 
         return self._root_com_vel_w.data

@@ -439,7 +439,7 @@ class ArticulationData:
         relative to the world.
         """
         if self._root_com_vel_w.timestamp < self._sim_timestamp:
-            self._root_com_vel_w.data = self._root_physx_view.get_root_velocities().clone()
+            self._root_com_vel_w.data = self._root_physx_view.get_root_velocities()
             self._root_com_vel_w.timestamp = self._sim_timestamp
 
         return self._root_com_vel_w.data
@@ -557,7 +557,7 @@ class ArticulationData:
         relative to the world.
         """
         if self._body_com_vel_w.timestamp < self._sim_timestamp:
-            self._body_com_vel_w.data = self._root_physx_view.get_link_velocities().clone()
+            self._body_com_vel_w.data = self._root_physx_view.get_link_velocities()
             self._body_com_vel_w.timestamp = self._sim_timestamp
 
         return self._body_com_vel_w.data
