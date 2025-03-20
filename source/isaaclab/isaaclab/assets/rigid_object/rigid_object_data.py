@@ -556,6 +556,11 @@ class RigidObjectData:
     ##
 
     @property
+    def root_pose_w(self) -> torch.Tensor:
+        """Same as :attr:`root_link_pose_w`."""
+        return self.root_link_pose_w
+
+    @property
     def root_pos_w(self) -> torch.Tensor:
         """Same as :attr:`root_link_pos_w`."""
         return self.root_link_pos_w
@@ -589,6 +594,11 @@ class RigidObjectData:
     def root_ang_vel_b(self) -> torch.Tensor:
         """Same as :attr:`root_com_ang_vel_b`."""
         return self.root_com_ang_vel_b
+
+    @property
+    def body_pose_w(self) -> torch.Tensor:
+        """Same as :attr:`body_link_pose_w`."""
+        return self.body_link_pose_w
 
     @property
     def body_pos_w(self) -> torch.Tensor:
