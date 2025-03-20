@@ -340,9 +340,9 @@ class Articulation(AssetBase):
         self._data.root_link_pose_w[env_ids] = root_pose.clone()
         # update these buffers only if the user is using them. Otherwise this adds to overhead.
         if self._data._root_link_state_w.data is not None:
-            self._data.root_link_state_w[env_ids, :7] = self._data._root_link_pose_w.data[env_ids]
+            self._data.root_link_state_w[env_ids, :7] = self._data.root_link_pose_w[env_ids]
         if self._data._root_state_w.data is not None:
-            self._data.root_state_w[env_ids, :7] = self._data._root_link_pose_w.data[env_ids]
+            self._data.root_state_w[env_ids, :7] = self._data.root_link_pose_w[env_ids]
 
         # convert root quaternion from wxyz to xyzw
         root_poses_xyzw = self._data.root_link_pose_w.clone()
@@ -378,7 +378,7 @@ class Articulation(AssetBase):
         self._data.root_com_pose_w[local_env_ids] = root_pose.clone()
         # update these buffers only if the user is using them. Otherwise this adds to overhead.
         if self._data._root_com_state_w.data is not None:
-            self._data.root_com_state_w[local_env_ids, :7] = self._data._root_com_pose_w.data[local_env_ids]
+            self._data.root_com_state_w[local_env_ids, :7] = self._data.root_com_pose_w[local_env_ids]
 
         # get CoM pose in link frame
         com_pos_b = self.data.body_com_pos_b[local_env_ids, 0, :]
@@ -428,9 +428,9 @@ class Articulation(AssetBase):
         self._data.root_com_vel_w[env_ids] = root_velocity.clone()
         # update these buffers only if the user is using them. Otherwise this adds to overhead.
         if self._data._root_com_state_w.data is not None:
-            self._data.root_com_state_w[env_ids, 7:] = self._data._root_com_vel_w.data[env_ids]
+            self._data.root_com_state_w[env_ids, 7:] = self._data.root_com_vel_w[env_ids]
         if self._data._root_state_w.data is not None:
-            self._data.root_state_w[env_ids, 7:] = self._data._root_com_vel_w.data[env_ids]
+            self._data.root_state_w[env_ids, 7:] = self._data.root_com_vel_w[env_ids]
         # make the acceleration zero to prevent reporting old values
         self._data.body_acc_w[env_ids] = 0.0
 
@@ -457,7 +457,7 @@ class Articulation(AssetBase):
         self._data.root_link_vel_w[local_env_ids] = root_velocity.clone()
         # update these buffers only if the user is using them. Otherwise this adds to overhead.
         if self._data._root_link_state_w.data is not None:
-            self._data.root_link_state_w[local_env_ids, 7:] = self._data._root_link_vel_w.data[local_env_ids]
+            self._data.root_link_state_w[local_env_ids, 7:] = self._data.root_link_vel_w[local_env_ids]
 
         # get CoM pose in link frame
         quat = self.data.root_link_quat_w[local_env_ids]
