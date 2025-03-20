@@ -531,7 +531,7 @@ class TestRigidObjectCollection(unittest.TestCase):
                                         torch.testing.assert_close(-offset, object_link_state_pos_rel_com)
 
                                         # orientation of com will be a constant rotation from link orientation
-                                        com_quat_b = cube_object.data.com_quat_b
+                                        com_quat_b = cube_object.data.body_com_quat_b
                                         com_quat_w = quat_mul(object_link_state_w[..., 3:7], com_quat_b)
                                         torch.testing.assert_close(com_quat_w, object_com_state_w[..., 3:7])
 

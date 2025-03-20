@@ -461,7 +461,7 @@ class Articulation(AssetBase):
 
         # get CoM pose in link frame
         quat = self.data.root_link_quat_w[local_env_ids]
-        com_pos_b = self.data.com_pos_b[local_env_ids, 0, :]
+        com_pos_b = self.data.body_com_pos_b[local_env_ids, 0, :]
         # transform input velocity to center of mass frame
         root_com_velocity = root_velocity.clone()
         root_com_velocity[:, :3] += torch.linalg.cross(
