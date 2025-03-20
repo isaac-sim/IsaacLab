@@ -517,6 +517,33 @@ class RigidObjectCollection(AssetBase):
         self._external_torque_b[env_ids[:, None], object_ids] = torques
 
     """
+    Helper functions.
+    """
+
+    def reshape_view_to_data(self, data: torch.Tensor) -> torch.Tensor:
+        """Reshapes and arranges the data coming from the :attr:`root_physx_view` to
+        (num_instances, num_objects, data_dim).
+
+        Args:
+            data: The data coming from the :attr:`root_physx_view`. Shape is (num_instances * num_objects, data_dim).
+
+        Returns:
+            The reshaped data. Shape is (num_instances, num_objects, data_dim).
+        """
+        return torch.einsum("ijk -> jik", data.reshape(self.num_objects, self.num_instances, -1))
+
+    def reshape_data_to_view(self, data: torch.Tensor) -> torch.Tensor:
+        """Reshapes and arranges the data to the be consistent with data from the :attr:`root_physx_view`.
+
+        Args:
+            data: The data to be reshaped. Shape is (num_instances, num_objects, data_dim).
+
+        Returns:
+            The reshaped data. Shape is (num_instances * num_objects, data_dim).
+        """
+        return torch.einsum("ijk -> jik", data).reshape(self.num_objects * self.num_instances, *data.shape[2:])
+
+    """
     Internal helper.
     """
 
@@ -627,28 +654,6 @@ class RigidObjectCollection(AssetBase):
         # concatenate the default state for each object
         default_object_states = torch.cat(default_object_states, dim=1)
         self._data.default_object_state = default_object_states
-
-    def reshape_view_to_data(self, data: torch.Tensor) -> torch.Tensor:
-        """Reshapes and arranges the data coming from the :attr:`root_physx_view` to (num_instances, num_objects, data_size).
-
-        Args:
-            data: The data coming from the :attr:`root_physx_view`. Shape is (num_instances*num_objects, data_size).
-
-        Returns:
-            The reshaped data. Shape is (num_instances, num_objects, data_size).
-        """
-        return torch.einsum("ijk -> jik", data.reshape(self.num_objects, self.num_instances, -1))
-
-    def reshape_data_to_view(self, data: torch.Tensor) -> torch.Tensor:
-        """Reshapes and arranges the data to the be consistent with data from the :attr:`root_physx_view`.
-
-        Args:
-            data: The data to be reshaped. Shape is (num_instances, num_objects, data_size).
-
-        Returns:
-            The reshaped data. Shape is (num_instances*num_objects, data_size).
-        """
-        return torch.einsum("ijk -> jik", data).reshape(self.num_objects * self.num_instances, *data.shape[2:])
 
     def _env_obj_ids_to_view_ids(
         self, env_ids: torch.Tensor, object_ids: Sequence[int] | slice | torch.Tensor

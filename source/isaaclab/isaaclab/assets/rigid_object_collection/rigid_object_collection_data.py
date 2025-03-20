@@ -253,7 +253,11 @@ class RigidObjectCollectionData:
         The orientation is provided in (w, x, y, z) format.
         """
         if self._object_com_pose_b.timestamp < self._sim_timestamp:
-            self._object_com_pose_b.data = self._reshape_view_to_data(self._root_physx_view.get_coms().to(self.device))
+            # obtain the coms
+            poses = self._root_physx_view.get_coms().to(self.device)
+            poses[:, 3:7] = math_utils.convert_quat(poses[:, 3:7], to="wxyz")
+            # read data from simulation
+            self._object_com_pose_b.data = self._reshape_view_to_data(poses)
             self._object_com_pose_b.timestamp = self._sim_timestamp
 
         return self._object_com_pose_b.data

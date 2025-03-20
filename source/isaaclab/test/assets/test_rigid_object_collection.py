@@ -499,9 +499,7 @@ class TestRigidObjectCollection(unittest.TestCase):
                                 # Simulate physics
                                 for i in range(10):
                                     # spin the object around Z axis (com)
-                                    cube_object.write_object_com_velocity_to_sim(
-                                        spin_twist.repeat(num_envs, num_cubes, 1)
-                                    )
+                                    cube_object.write_object_velocity_to_sim(spin_twist.repeat(num_envs, num_cubes, 1))
                                     # perform rendering
                                     sim.step()
                                     # update object
