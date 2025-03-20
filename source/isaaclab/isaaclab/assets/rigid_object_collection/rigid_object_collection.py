@@ -310,9 +310,9 @@ class RigidObjectCollection(AssetBase):
         # set into internal buffers
         self._data.object_link_pose_w[env_ids[:, None], object_ids] = object_pose.clone()
         # update these buffers only if the user is using them. Otherwise this adds to overhead.
-        if self._data.object_link_state_w.data is not None:
+        if self._data._object_link_state_w.data is not None:
             self._data.object_link_state_w[env_ids[:, None], object_ids, :7] = object_pose.clone()
-        if self._data.object_state_w.data is not None:
+        if self._data._object_state_w.data is not None:
             self._data.object_state_w[env_ids[:, None], object_ids, :7] = object_pose.clone()
 
         # convert the quaternion from wxyz to xyzw
@@ -350,7 +350,7 @@ class RigidObjectCollection(AssetBase):
         # set into internal buffers
         self._data.object_com_pose_w[env_ids[:, None], object_ids] = object_pose.clone()
         # update these buffers only if the user is using them. Otherwise this adds to overhead.
-        if self._data.object_com_state_w.data is not None:
+        if self._data._object_com_state_w.data is not None:
             self._data.object_com_state_w[env_ids[:, None], object_ids, :7] = object_pose.clone()
 
         # get CoM pose in link frame
@@ -408,9 +408,9 @@ class RigidObjectCollection(AssetBase):
         # set into internal buffers
         self._data.object_com_vel_w[env_ids[:, None], object_ids] = object_velocity.clone()
         # update these buffers only if the user is using them. Otherwise this adds to overhead.
-        if self._data.object_com_state_w.data is not None:
+        if self._data._object_com_state_w.data is not None:
             self._data.object_com_state_w[env_ids[:, None], object_ids, 7:] = object_velocity.clone()
-        if self._data.object_state_w.data is not None:
+        if self._data._object_state_w.data is not None:
             self._data.object_state_w[env_ids[:, None], object_ids, 7:] = object_velocity.clone()
         # make the acceleration zero to prevent reporting old values
         self._data.object_com_acc_w[env_ids[:, None], object_ids] = 0.0
@@ -446,7 +446,7 @@ class RigidObjectCollection(AssetBase):
         # set into internal buffers
         self._data.object_link_vel_w[env_ids[:, None], object_ids] = object_velocity.clone()
         # update these buffers only if the user is using them. Otherwise this adds to overhead.
-        if self._data.object_link_state_w.data is not None:
+        if self._data._object_link_state_w.data is not None:
             self._data.object_link_state_w[env_ids[:, None], object_ids, 7:] = object_velocity.clone()
 
         # get CoM pose in link frame
