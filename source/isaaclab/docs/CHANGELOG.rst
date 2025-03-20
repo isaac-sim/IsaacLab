@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.36.3 (2025-03-17)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed default behavior of :class:`~isaaclab.actuators.ImplicitActuator` if no :attr:`effort_limits_sim` or
+  :attr:`effort_limit` is set.
+
+
 0.36.2 (2025-03-12)
 ~~~~~~~~~~~~~~~~~~~
 
