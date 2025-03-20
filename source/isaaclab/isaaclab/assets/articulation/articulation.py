@@ -342,7 +342,7 @@ class Articulation(AssetBase):
         self._data.root_state_w[env_ids, :7] = self._data.root_link_pose_w[env_ids]
 
         # convert root quaternion from wxyz to xyzw
-        root_poses_xyzw = self._data.root_state_w[:, :7].clone()
+        root_poses_xyzw = self._data.root_link_pose_w.clone()
         root_poses_xyzw[:, 3:] = math_utils.convert_quat(root_poses_xyzw[:, 3:], to="xyzw")
 
         # Need to invalidate the buffer to trigger the update with the new root pose.
@@ -427,7 +427,7 @@ class Articulation(AssetBase):
         self._data.body_acc_w[env_ids] = 0.0
 
         # set into simulation
-        self.root_physx_view.set_root_velocities(self._data.root_com_state_w[:, 7:], indices=physx_env_ids)
+        self.root_physx_view.set_root_velocities(self._data.root_com_vel_w, indices=physx_env_ids)
 
     def write_root_link_velocity_to_sim(self, root_velocity: torch.Tensor, env_ids: Sequence[int] | None = None):
         """Set the root link velocity over selected environment indices into the simulation.
