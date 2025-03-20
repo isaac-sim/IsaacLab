@@ -339,7 +339,7 @@ class Articulation(AssetBase):
         # set into internal buffers
         self._data.root_link_pose_w[env_ids] = root_pose.clone()
         self._data.root_link_state_w[env_ids, :7] = self._data.root_link_pose_w[env_ids]
-        self._data.root_state_w[env_ids, :7] = self._data.root_link_state_w[env_ids, :7]
+        self._data.root_state_w[env_ids, :7] = self._data.root_link_pose_w[env_ids]
 
         # convert root quaternion from wxyz to xyzw
         root_poses_xyzw = self._data.root_state_w[:, :7].clone()
