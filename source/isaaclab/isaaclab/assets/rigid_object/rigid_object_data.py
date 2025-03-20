@@ -72,7 +72,7 @@ class RigidObjectData:
         self._root_com_pose_w = TimestampedBuffer()
         self._root_com_vel_w = TimestampedBuffer()
         self._body_com_acc_w = TimestampedBuffer()
-        # -- combination of the above
+        # -- combined state (these are cached as they concatenate)
         self._root_state_w = TimestampedBuffer()
         self._root_link_state_w = TimestampedBuffer()
         self._root_com_state_w = TimestampedBuffer()
@@ -187,6 +187,19 @@ class RigidObjectData:
         return self._root_com_vel_w.data
 
     @property
+    def root_state_w(self) -> torch.Tensor:
+        """Root state ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame. Shape is (num_instances, 13).
+
+        The position and orientation are of the rigid body's actor frame. Meanwhile, the linear and angular
+        velocities are of the rigid body's center of mass frame.
+        """
+        if self._root_state_w.timestamp < self._sim_timestamp:
+            self._root_state_w.data = torch.cat((self.root_link_pose_w, self.root_com_vel_w), dim=-1)
+            self._root_state_w.timestamp = self._sim_timestamp
+
+        return self._root_state_w.data
+
+    @property
     def root_link_state_w(self) -> torch.Tensor:
         """Root state ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame. Shape is (num_instances, 13).
 
@@ -253,6 +266,16 @@ class RigidObjectData:
         relative to the world.
         """
         return self.root_com_vel_w.view(-1, 1, 6)
+
+    @property
+    def body_state_w(self) -> torch.Tensor:
+        """State of all bodies `[pos, quat, lin_vel, ang_vel]` in simulation world frame.
+        Shape is (num_instances, 1, 13).
+
+        The position and orientation are of the rigid bodies' actor frame. Meanwhile, the linear and angular
+        velocities are of the rigid bodies' center of mass frame.
+        """
+        return self.root_state_w.view(-1, 1, 13)
 
     @property
     def body_link_state_w(self) -> torch.Tensor:
@@ -533,28 +556,14 @@ class RigidObjectData:
     ##
 
     @property
-    def root_state_w(self) -> torch.Tensor:
-        """Root state ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame. Shape is (num_instances, 13).
-
-        The position and orientation are of the rigid body's actor frame. Meanwhile, the linear and angular
-        velocities are of the rigid body's center of mass frame.
-        """
-        if self._root_state_w.timestamp < self._sim_timestamp:
-            # set the buffer data and timestamp
-            self._root_state_w.data = torch.cat((self.root_link_pose_w, self.root_com_vel_w), dim=-1)
-            self._root_state_w.timestamp = self._sim_timestamp
-
-        return self._root_state_w.data
-
-    @property
     def root_pos_w(self) -> torch.Tensor:
         """Same as :attr:`root_link_pos_w`."""
-        return self.root_link_pose_w[:, :3]
+        return self.root_link_pos_w
 
     @property
     def root_quat_w(self) -> torch.Tensor:
         """Same as :attr:`root_link_quat_w`."""
-        return self.root_link_pose_w[:, 3:7]
+        return self.root_link_quat_w
 
     @property
     def root_vel_w(self) -> torch.Tensor:
@@ -564,12 +573,12 @@ class RigidObjectData:
     @property
     def root_lin_vel_w(self) -> torch.Tensor:
         """Same as :attr:`root_com_lin_vel_w`."""
-        return self.root_com_vel_w[:, :3]
+        return self.root_com_lin_vel_w
 
     @property
     def root_ang_vel_w(self) -> torch.Tensor:
         """Same as :attr:`root_com_ang_vel_w`."""
-        return self.root_com_vel_w[:, 3:6]
+        return self.root_com_ang_vel_w
 
     @property
     def root_lin_vel_b(self) -> torch.Tensor:
@@ -580,16 +589,6 @@ class RigidObjectData:
     def root_ang_vel_b(self) -> torch.Tensor:
         """Same as :attr:`root_com_ang_vel_b`."""
         return self.root_com_ang_vel_b
-
-    @property
-    def body_state_w(self) -> torch.Tensor:
-        """State of all bodies `[pos, quat, lin_vel, ang_vel]` in simulation world frame.
-        Shape is (num_instances, 1, 13).
-
-        The position and orientation are of the rigid bodies' actor frame. Meanwhile, the linear and angular
-        velocities are of the rigid bodies' center of mass frame.
-        """
-        return self.root_state_w.view(-1, 1, 13)
 
     @property
     def body_pos_w(self) -> torch.Tensor:

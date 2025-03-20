@@ -240,6 +240,10 @@ class RigidObject(AssetBase):
         else:
             local_env_ids = env_ids
 
+        # set into internal buffers
+        self._data.root_com_pose_w[local_env_ids] = root_pose.clone()
+        self._data.root_com_state_w[local_env_ids, :7] = self._data.root_com_pose_w[local_env_ids]
+
         # get CoM pose in link frame
         com_pos_b = self.data.body_com_pos_b[local_env_ids, 0, :]
         com_quat_b = self.data.body_com_quat_b[local_env_ids, 0, :]
@@ -251,10 +255,6 @@ class RigidObject(AssetBase):
             math_utils.quat_inv(com_quat_b),
         )
         root_link_pose = torch.cat((root_link_pos, root_link_quat), dim=-1)
-
-        # set into internal buffers
-        self._data.root_com_pose_w[local_env_ids] = root_pose.clone()
-        self._data.root_com_state_w[local_env_ids, :7] = self._data.root_com_pose_w[local_env_ids]
 
         # write transformed pose in link frame to sim
         self.write_root_link_pose_to_sim(root_link_pose, env_ids=env_ids)
@@ -281,7 +281,6 @@ class RigidObject(AssetBase):
             root_velocity: Root center of mass velocities in simulation world frame. Shape is (len(env_ids), 6).
             env_ids: Environment indices. If None, then all indices are used.
         """
-
         # resolve all indices
         physx_env_ids = env_ids
         if env_ids is None:
@@ -315,6 +314,10 @@ class RigidObject(AssetBase):
         else:
             local_env_ids = env_ids
 
+        # set into internal buffers
+        self._data.root_link_vel_w[local_env_ids] = root_velocity.clone()
+        self._data.root_link_state_w[local_env_ids, 7:] = self._data.root_link_vel_w[local_env_ids]
+
         # get CoM pose in link frame
         quat = self.data.root_link_quat_w[local_env_ids]
         com_pos_b = self.data.body_com_pos_b[local_env_ids, 0, :]
@@ -323,10 +326,6 @@ class RigidObject(AssetBase):
         root_com_velocity[:, :3] += torch.linalg.cross(
             root_com_velocity[:, 3:], math_utils.quat_rotate(quat, com_pos_b), dim=-1
         )
-
-        # set into internal buffers
-        self._data.root_link_vel_w[local_env_ids] = root_velocity.clone()
-        self._data.root_link_state_w[local_env_ids, 7:] = self._data.root_link_vel_w[local_env_ids]
 
         # write transformed velocity in CoM frame to sim
         self.write_root_com_velocity_to_sim(root_com_velocity, env_ids=env_ids)
