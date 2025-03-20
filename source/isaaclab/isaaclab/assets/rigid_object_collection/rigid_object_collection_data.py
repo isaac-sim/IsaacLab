@@ -137,6 +137,7 @@ class RigidObjectCollectionData:
             # set the buffer data and timestamp
             self._object_link_pose_w.data = pose
             self._object_link_pose_w.timestamp = self._sim_timestamp
+
         return self._object_link_pose_w.data
 
     @property
@@ -151,7 +152,7 @@ class RigidObjectCollectionData:
             velocity = self.object_com_vel_w.clone()
             # adjust linear velocity to link from center of mass
             velocity[..., :3] += torch.linalg.cross(
-                velocity[..., 3:], math_utils.quat_rotate(self.object_link_quat_w, -self.body_com_pos_b), dim=-1
+                velocity[..., 3:], math_utils.quat_rotate(self.object_link_quat_w, -self.object_com_pos_b), dim=-1
             )
             # set the buffer data and timestamp
             self._object_link_vel_w.data = velocity
@@ -169,7 +170,7 @@ class RigidObjectCollectionData:
         if self._object_com_pose_w.timestamp < self._sim_timestamp:
             # adjust pose to center of mass
             pos, quat = math_utils.combine_frame_transforms(
-                self.object_link_pos_w, self.object_link_quat_w, self.body_com_pos_b, self.body_com_quat_b
+                self.object_link_pos_w, self.object_link_quat_w, self.object_com_pos_b, self.object_com_quat_b
             )
             # set the buffer data and timestamp
             self._object_com_pose_w.data = torch.cat((pos, quat), dim=-1)
@@ -185,10 +186,7 @@ class RigidObjectCollectionData:
         The linear and angular velocities are of the rigid body's center of mass frame.
         """
         if self._object_com_vel_w.timestamp < self._sim_timestamp:
-            # read data from simulation
-            velocity = self._reshape_view_to_data(self._root_physx_view.get_velocities())
-            # set the buffer data and timestamp
-            self._object_com_vel_w.data = velocity
+            self._object_com_vel_w.data = self._reshape_view_to_data(self._root_physx_view.get_velocities())
             self._object_com_vel_w.timestamp = self._sim_timestamp
 
         return self._object_com_vel_w.data
@@ -248,10 +246,11 @@ class RigidObjectCollectionData:
 
     @property
     def object_com_pose_b(self):
-        """Object center of mass pose ``[pos, quat]`` in simulation world frame.
+        """Object center of mass pose ``[pos, quat]`` in their respective body's link frame.
         Shape is (num_instances, num_objects, 7).
 
         The position and orientation are of the rigid body's center of mass frame.
+        The orientation is provided in (w, x, y, z) format.
         """
         if self._object_com_pose_b.timestamp < self._sim_timestamp:
             self._object_com_pose_b.data = self._reshape_view_to_data(self._root_physx_view.get_coms().to(self.device))
@@ -283,8 +282,8 @@ class RigidObjectCollectionData:
     def object_link_lin_vel_b(self) -> torch.Tensor:
         """Object link linear velocity in base frame. Shape is (num_instances, num_objects, 3).
 
-        This quantity is the linear velocity of the actor frame of the root rigid body frame with respect to the
-        rigid body's actor frame.
+        This quantity is the linear velocity of the actor frame of the root rigid body frame with
+        respect to the rigid body's actor frame.
         """
         return math_utils.quat_rotate_inverse(self.object_link_quat_w, self.object_link_lin_vel_w)
 
@@ -292,8 +291,8 @@ class RigidObjectCollectionData:
     def object_link_ang_vel_b(self) -> torch.Tensor:
         """Object link angular velocity in base world frame. Shape is (num_instances, num_objects, 3).
 
-        This quantity is the angular velocity of the actor frame of the root rigid body frame with respect to the
-        rigid body's actor frame.
+        This quantity is the angular velocity of the actor frame of the root rigid body frame with
+        respect to the rigid body's actor frame.
         """
         return math_utils.quat_rotate_inverse(self.object_link_quat_w, self.object_link_ang_vel_w)
 
@@ -301,8 +300,8 @@ class RigidObjectCollectionData:
     def object_com_lin_vel_b(self) -> torch.Tensor:
         """Object center of mass linear velocity in base frame. Shape is (num_instances, num_objects, 3).
 
-        This quantity is the linear velocity of the center of mass frame of the root rigid body frame with respect to the
-        rigid body's actor frame.
+        This quantity is the linear velocity of the center of mass frame of the root rigid body frame with
+        respect to the rigid body's actor frame.
         """
         return math_utils.quat_rotate_inverse(self.object_link_quat_w, self.object_com_lin_vel_w)
 
@@ -310,8 +309,8 @@ class RigidObjectCollectionData:
     def object_com_ang_vel_b(self) -> torch.Tensor:
         """Object center of mass angular velocity in base world frame. Shape is (num_instances, num_objects, 3).
 
-        This quantity is the angular velocity of the center of mass frame of the root rigid body frame with respect to the
-        rigid body's actor frame.
+        This quantity is the angular velocity of the center of mass frame of the root rigid body frame with
+        respect to the rigid body's actor frame.
         """
         return math_utils.quat_rotate_inverse(self.object_link_quat_w, self.object_com_ang_vel_w)
 
@@ -351,14 +350,13 @@ class RigidObjectCollectionData:
         """
         return self.object_link_vel_w[..., 3:6]
 
-
     @property
     def object_com_pos_w(self) -> torch.Tensor:
         """Object center of mass position in simulation world frame. Shape is (num_instances, num_objects, 3).
 
         This quantity is the position of the center of mass frame of the rigid bodies.
         """
-        return self.object_com_state_w[..., :3]
+        return self.object_com_pose_w[..., :3]
 
     @property
     def object_com_quat_w(self) -> torch.Tensor:
@@ -367,7 +365,7 @@ class RigidObjectCollectionData:
 
         This quantity is the orientation of the center of mass frame of the rigid bodies.
         """
-        return self.object_com_state_w[..., 3:7]
+        return self.object_com_pose_w[..., 3:7]
 
     @property
     def object_com_lin_vel_w(self) -> torch.Tensor:
@@ -404,25 +402,32 @@ class RigidObjectCollectionData:
         return self.object_com_acc_w[..., 3:6]
 
     @property
-    def body_com_pos_b(self) -> torch.Tensor:
-        """Center of mass of all of the bodies in simulation world frame. Shape is (num_instances, num_objects, 3).
+    def object_com_pos_b(self) -> torch.Tensor:
+        """Center of mass of all of the bodies in their respective body's link frame.
+        Shape is (num_instances, num_objects, 3).
 
-        This quantity is the center of mass location relative to its body frame.
+        This quantity is the center of mass location relative to its body link frame.
         """
         return self.object_com_pose_b[..., :3]
 
     @property
-    def body_com_quat_b(self) -> torch.Tensor:
+    def object_com_quat_b(self) -> torch.Tensor:
         """Orientation (w,x,y,z) of the principle axis of inertia of all of the bodies in simulation world frame.
         Shape is (num_instances, num_objects, 4).
 
-        This quantity is the orientation of the principles axes of inertia relative to its body frame.
+        This quantity is the orientation of the principles axes of inertia relative to its body link frame.
+        The orientation is provided in (w, x, y, z) format.
         """
         return self.object_com_pose_b[..., 3:7]
 
     ##
     # Properties for backwards compatibility.
     ##
+
+    @property
+    def object_pose_w(self) -> torch.Tensor:
+        """Same as :attr:`object_link_pose_w`."""
+        return self.object_link_pose_w
 
     @property
     def object_pos_w(self) -> torch.Tensor:
@@ -476,13 +481,13 @@ class RigidObjectCollectionData:
 
     @property
     def com_pos_b(self) -> torch.Tensor:
-        """Same as :attr:`body_com_pos_b`."""
-        return self.body_com_pos_b
+        """Same as :attr:`object_com_pos_b`."""
+        return self.object_com_pos_b
 
     @property
     def com_quat_b(self) -> torch.Tensor:
-        """Same as :attr:`body_com_quat_b`."""
-        return self.body_com_quat_b
+        """Same as :attr:`object_com_quat_b`."""
+        return self.object_com_quat_b
 
     ##
     # Helpers.

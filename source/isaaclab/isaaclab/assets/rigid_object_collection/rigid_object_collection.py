@@ -225,10 +225,8 @@ class RigidObjectCollection(AssetBase):
             env_ids: Environment indices. If None, then all indices are used.
             object_ids: Object indices. If None, then all indices are used.
         """
-
-        # set into simulation
-        self.write_object_pose_to_sim(object_state[..., :7], env_ids=env_ids, object_ids=object_ids)
-        self.write_object_velocity_to_sim(object_state[..., 7:], env_ids=env_ids, object_ids=object_ids)
+        self.write_object_link_pose_to_sim(object_state[..., :7], env_ids=env_ids, object_ids=object_ids)
+        self.write_object_com_velocity_to_sim(object_state[..., 7:], env_ids=env_ids, object_ids=object_ids)
 
     def write_object_com_state_to_sim(
         self,
@@ -237,6 +235,7 @@ class RigidObjectCollection(AssetBase):
         object_ids: slice | torch.Tensor | None = None,
     ):
         """Set the object center of mass state over selected environment indices into the simulation.
+
         The object state comprises of the cartesian position, quaternion orientation in (w, x, y, z), and linear
         and angular velocity. All the quantities are in the simulation frame.
 
@@ -245,7 +244,6 @@ class RigidObjectCollection(AssetBase):
             env_ids: Environment indices. If None, then all indices are used.
             object_ids: Object indices. If None, then all indices are used.
         """
-        # set into simulation
         self.write_object_com_pose_to_sim(object_state[..., :7], env_ids=env_ids, object_ids=object_ids)
         self.write_object_com_velocity_to_sim(object_state[..., 7:], env_ids=env_ids, object_ids=object_ids)
 
@@ -256,6 +254,7 @@ class RigidObjectCollection(AssetBase):
         object_ids: slice | torch.Tensor | None = None,
     ):
         """Set the object link state over selected environment indices into the simulation.
+
         The object state comprises of the cartesian position, quaternion orientation in (w, x, y, z), and linear
         and angular velocity. All the quantities are in the simulation frame.
 
@@ -264,7 +263,6 @@ class RigidObjectCollection(AssetBase):
             env_ids: Environment indices. If None, then all indices are used.
             object_ids: Object indices. If None, then all indices are used.
         """
-        # set into simulation
         self.write_object_link_pose_to_sim(object_state[..., :7], env_ids=env_ids, object_ids=object_ids)
         self.write_object_link_velocity_to_sim(object_state[..., 7:], env_ids=env_ids, object_ids=object_ids)
 
@@ -283,22 +281,7 @@ class RigidObjectCollection(AssetBase):
             env_ids: Environment indices. If None, then all indices are used.
             object_ids: Object indices. If None, then all indices are used.
         """
-        # resolve all indices
-        # -- env_ids
-        if env_ids is None:
-            env_ids = self._ALL_ENV_INDICES
-        # -- object_ids
-        if object_ids is None:
-            object_ids = self._ALL_OBJ_INDICES
-        # note: we need to do this here since tensors are not set into simulation until step.
-        # set into internal buffers
-        self._data.object_state_w[env_ids[:, None], object_ids, :7] = object_pose.clone()
-        # convert the quaternion from wxyz to xyzw
-        poses_xyzw = self._data.object_state_w[..., :7].clone()
-        poses_xyzw[..., 3:] = math_utils.convert_quat(poses_xyzw[..., 3:], to="xyzw")
-        # set into simulation
-        view_ids = self._env_obj_ids_to_view_ids(env_ids, object_ids)
-        self.root_physx_view.set_transforms(self.reshape_data_to_view(poses_xyzw), indices=view_ids)
+        self.write_object_link_pose_to_sim(object_pose, env_ids=env_ids, object_ids=object_ids)
 
     def write_object_link_pose_to_sim(
         self,
@@ -315,7 +298,6 @@ class RigidObjectCollection(AssetBase):
             env_ids: Environment indices. If None, then all indices are used.
             object_ids: Object indices. If None, then all indices are used.
         """
-
         # resolve all indices
         # -- env_ids
         if env_ids is None:
@@ -323,13 +305,20 @@ class RigidObjectCollection(AssetBase):
         # -- object_ids
         if object_ids is None:
             object_ids = self._ALL_OBJ_INDICES
+
         # note: we need to do this here since tensors are not set into simulation until step.
         # set into internal buffers
-        self._data.object_link_state_w[env_ids[:, None], object_ids, :7] = object_pose.clone()
-        self._data.object_state_w[env_ids[:, None], object_ids, :7] = object_pose.clone()
+        self._data.object_link_pose_w[env_ids[:, None], object_ids] = object_pose.clone()
+        # update these buffers only if the user is using them. Otherwise this adds to overhead.
+        if self._data.object_link_state_w.data is not None:
+            self._data.object_link_state_w[env_ids[:, None], object_ids, :7] = object_pose.clone()
+        if self._data.object_state_w.data is not None:
+            self._data.object_state_w[env_ids[:, None], object_ids, :7] = object_pose.clone()
+
         # convert the quaternion from wxyz to xyzw
-        poses_xyzw = self._data.object_link_state_w[..., :7].clone()
+        poses_xyzw = self._data.object_link_pose_w.clone()
         poses_xyzw[..., 3:] = math_utils.convert_quat(poses_xyzw[..., 3:], to="xyzw")
+
         # set into simulation
         view_ids = self._env_obj_ids_to_view_ids(env_ids, object_ids)
         self.root_physx_view.set_transforms(self.reshape_data_to_view(poses_xyzw), indices=view_ids)
@@ -341,36 +330,43 @@ class RigidObjectCollection(AssetBase):
         object_ids: slice | torch.Tensor | None = None,
     ):
         """Set the object center of mass pose over selected environment indices into the simulation.
+
         The object pose comprises of the cartesian position and quaternion orientation in (w, x, y, z).
         The orientation is the orientation of the principle axes of inertia.
+
         Args:
             object_pose: Object poses in simulation frame. Shape is (len(env_ids), len(object_ids), 7).
             env_ids: Environment indices. If None, then all indices are used.
             object_ids: Object indices. If None, then all indices are used.
         """
-
         # resolve all indices
+        # -- env_ids
         if env_ids is None:
-            local_env_ids = slice(env_ids)
-        else:
-            local_env_ids = env_ids
+            env_ids = self._ALL_ENV_INDICES
+        # -- object_ids
         if object_ids is None:
-            local_object_ids = slice(object_ids)
-        else:
-            local_object_ids = object_ids
+            object_ids = self._ALL_OBJ_INDICES
 
-        com_pos = self.data.com_pos_b[local_env_ids][:, local_object_ids, :]
-        com_quat = self.data.com_quat_b[local_env_ids][:, local_object_ids, :]
+        # set into internal buffers
+        self._data.object_com_pose_w[env_ids[:, None], object_ids] = object_pose.clone()
+        # update these buffers only if the user is using them. Otherwise this adds to overhead.
+        if self._data.object_com_state_w.data is not None:
+            self._data.object_com_state_w[env_ids[:, None], object_ids, :7] = object_pose.clone()
 
+        # get CoM pose in link frame
+        com_pos_b = self.data.object_com_pos_b[env_ids[:, None], object_ids]
+        com_quat_b = self.data.object_com_quat_b[env_ids[:, None], object_ids]
+        # transform input CoM pose to link frame
         object_link_pos, object_link_quat = math_utils.combine_frame_transforms(
             object_pose[..., :3],
             object_pose[..., 3:7],
-            math_utils.quat_rotate(math_utils.quat_inv(com_quat), -com_pos),
-            math_utils.quat_inv(com_quat),
+            math_utils.quat_rotate(math_utils.quat_inv(com_quat_b), -com_pos_b),
+            math_utils.quat_inv(com_quat_b),
         )
 
+        # write transformed pose in link frame to sim
         object_link_pose = torch.cat((object_link_pos, object_link_quat), dim=-1)
-        self.write_object_link_pose_to_sim(object_pose=object_link_pose, env_ids=env_ids, object_ids=object_ids)
+        self.write_object_link_pose_to_sim(object_link_pose, env_ids=env_ids, object_ids=object_ids)
 
     def write_object_velocity_to_sim(
         self,
@@ -385,22 +381,7 @@ class RigidObjectCollection(AssetBase):
             env_ids: Environment indices. If None, then all indices are used.
             object_ids: Object indices. If None, then all indices are used.
         """
-        # resolve all indices
-        # -- env_ids
-        if env_ids is None:
-            env_ids = self._ALL_ENV_INDICES
-        # -- object_ids
-        if object_ids is None:
-            object_ids = self._ALL_OBJ_INDICES
-
-        self._data.object_state_w[env_ids[:, None], object_ids, 7:] = object_velocity.clone()
-        self._data.object_acc_w[env_ids[:, None], object_ids] = 0.0
-
-        # set into simulation
-        view_ids = self._env_obj_ids_to_view_ids(env_ids, object_ids)
-        self.root_physx_view.set_velocities(
-            self.reshape_data_to_view(self._data.object_state_w[..., 7:]), indices=view_ids
-        )
+        self.write_object_com_velocity_to_sim(object_velocity, env_ids=env_ids, object_ids=object_ids)
 
     def write_object_com_velocity_to_sim(
         self,
@@ -423,15 +404,20 @@ class RigidObjectCollection(AssetBase):
         if object_ids is None:
             object_ids = self._ALL_OBJ_INDICES
 
-        self._data.object_com_state_w[env_ids[:, None], object_ids, 7:] = object_velocity.clone()
-        self._data.object_state_w[env_ids[:, None], object_ids, 7:] = object_velocity.clone()
-        self._data.object_acc_w[env_ids[:, None], object_ids] = 0.0
+        # note: we need to do this here since tensors are not set into simulation until step.
+        # set into internal buffers
+        self._data.object_com_vel_w[env_ids[:, None], object_ids] = object_velocity.clone()
+        # update these buffers only if the user is using them. Otherwise this adds to overhead.
+        if self._data.object_com_state_w.data is not None:
+            self._data.object_com_state_w[env_ids[:, None], object_ids, 7:] = object_velocity.clone()
+        if self._data.object_state_w.data is not None:
+            self._data.object_state_w[env_ids[:, None], object_ids, 7:] = object_velocity.clone()
+        # make the acceleration zero to prevent reporting old values
+        self._data.object_com_acc_w[env_ids[:, None], object_ids] = 0.0
 
         # set into simulation
         view_ids = self._env_obj_ids_to_view_ids(env_ids, object_ids)
-        self.root_physx_view.set_velocities(
-            self.reshape_data_to_view(self._data.object_com_state_w[..., 7:]), indices=view_ids
-        )
+        self.root_physx_view.set_velocities(self.reshape_data_to_view(self._data.object_com_vel_w), indices=view_ids)
 
     def write_object_link_velocity_to_sim(
         self,
@@ -440,34 +426,40 @@ class RigidObjectCollection(AssetBase):
         object_ids: slice | torch.Tensor | None = None,
     ):
         """Set the object link velocity over selected environment indices into the simulation.
+
         The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
         NOTE: This sets the velocity of the object's frame rather than the objects center of mass.
+
         Args:
             object_velocity: Object velocities in simulation frame. Shape is (len(env_ids), len(object_ids), 6).
             env_ids: Environment indices. If None, then all indices are used.
             object_ids: Object indices. If None, then all indices are used.
         """
         # resolve all indices
+        # -- env_ids
         if env_ids is None:
-            local_env_ids = slice(env_ids)
-        else:
-            local_env_ids = env_ids
+            env_ids = self._ALL_ENV_INDICES
+        # -- object_ids
         if object_ids is None:
-            local_object_ids = slice(object_ids)
-        else:
-            local_object_ids = object_ids
+            object_ids = self._ALL_OBJ_INDICES
 
+        # set into internal buffers
+        self._data.object_link_vel_w[env_ids[:, None], object_ids] = object_velocity.clone()
+        # update these buffers only if the user is using them. Otherwise this adds to overhead.
+        if self._data.object_link_state_w.data is not None:
+            self._data.object_link_state_w[env_ids[:, None], object_ids, 7:] = object_velocity.clone()
+
+        # get CoM pose in link frame
+        quat = self.data.object_link_quat_w[env_ids[:, None], object_ids]
+        com_pos_b = self.data.object_com_pos_b[env_ids[:, None], object_ids]
+        # transform input velocity to center of mass frame
         object_com_velocity = object_velocity.clone()
-        quat = self.data.object_link_state_w[local_env_ids][:, local_object_ids, 3:7]
-        com_pos_b = self.data.com_pos_b[local_env_ids][:, local_object_ids, :]
-        # transform given velocity to center of mass
         object_com_velocity[..., :3] += torch.linalg.cross(
             object_com_velocity[..., 3:], math_utils.quat_rotate(quat, com_pos_b), dim=-1
         )
+
         # write center of mass velocity to sim
-        self.write_object_com_velocity_to_sim(
-            object_velocity=object_com_velocity, env_ids=env_ids, object_ids=object_ids
-        )
+        self.write_object_com_velocity_to_sim(object_com_velocity, env_ids=env_ids, object_ids=object_ids)
 
     """
     Operations - Setters.
