@@ -303,7 +303,6 @@ class randomize_visual_texture_material(ManagerTermBase):
         """
         super().__init__(cfg, env)
 
-        # import replicator
         # we import the module here since we may not always need the replicator
         import omni.replicator.core as rep
 
