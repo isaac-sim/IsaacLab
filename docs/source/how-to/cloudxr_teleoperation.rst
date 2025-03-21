@@ -183,7 +183,7 @@ There are two options to run the CloudXR Runtime Docker container:
              --user $(id -u):$(id -g) \
              --runtime=nvidia \
              -e "ACCEPT_EULA=Y" \
-             -v $(pwd)/openxr:/openxr \
+             --mount type=bind,src=$(pwd)/openxr,dst=/openxr \
              -p 48010:48010 \
              -p 47998:47998/udp \
              -p 47999:47999/udp \
@@ -611,6 +611,16 @@ Known Issues
 
   This error message can be safely ignored. It is caused by a race condition in the exit handler for
   AR Mode.
+
+* ``[omni.usd] TF_PYTHON_EXCEPTION`` when starting/stopping AR Mode
+
+  This error message can be safely ignored. It is caused by a race condition in the enter/exit
+  handler for AR Mode.
+
+* ``Invalid version string in _ParseVersionString``
+
+  This error message can be caused by shader assets authored with older versions of USD, and can
+  typically be ignored.
 
 
 ..
