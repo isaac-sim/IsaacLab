@@ -81,24 +81,10 @@ class ObservationManager(ManagerBase):
         # call the base class constructor (this will parse the terms config)
         super().__init__(cfg, env)
 
-        # compute combined vector for obs group
+        # Compute combined vector for observation group.
         self._group_obs_dim: dict[str, tuple[int, ...] | list[tuple[int, ...]]] = dict()
         for group_name, group_term_dims in self._group_obs_term_dim.items():
-            # if terms are concatenated, compute the combined shape into a single tuple
-            # otherwise, keep the list of shapes as is
-            if self._group_obs_concatenate[group_name]:
-                try:
-                    term_dims = [torch.tensor(dims, device="cpu") for dims in group_term_dims]
-                    self._group_obs_dim[group_name] = tuple(torch.sum(torch.stack(term_dims, dim=0), dim=0).tolist())
-                except RuntimeError:
-                    raise RuntimeError(
-                        f"Unable to concatenate observation terms in group '{group_name}'."
-                        f" The shapes of the terms are: {group_term_dims}."
-                        " Please ensure that the shapes are compatible for concatenation."
-                        " Otherwise, set 'concatenate_terms' to False in the group configuration."
-                    )
-            else:
-                self._group_obs_dim[group_name] = group_term_dims
+            self._group_obs_dim[group_name] = self.combine_group_dims(group_term_dims, group_name)
 
         # Stores the latest observations.
         self._obs_buffer: dict[str, torch.Tensor | dict[str, torch.Tensor]] | None = None
@@ -302,6 +288,11 @@ class ObservationManager(ManagerBase):
         # read attributes for each term
         obs_terms = zip(group_term_names, self._group_obs_term_cfgs[group_name])
 
+        # Extract group-level configuration for clarity.
+        group_history_length = self._group_obs_history_length[group_name]
+        flatten_group_history = self._group_obs_flatten_history_dim[group_name]
+        concatenate_obs = self._group_obs_concatenate[group_name]
+
         # evaluate terms: compute, add noise, clip, scale, custom modifiers
         for term_name, term_cfg in obs_terms:
             # compute term's value
@@ -318,19 +309,27 @@ class ObservationManager(ManagerBase):
                 obs = obs.mul_(term_cfg.scale)
             # Update the history buffer if observation term has history enabled
             if term_cfg.history_length > 0:
-                self._group_obs_term_history_buffer[group_name][term_name].append(obs)
-                if term_cfg.flatten_history_dim:
-                    group_obs[term_name] = self._group_obs_term_history_buffer[group_name][term_name].buffer.reshape(
-                        self._env.num_envs, -1
-                    )
+                # Append the current observation to the term's history buffer.
+                history_buffer = self._group_obs_term_history_buffer[group_name][term_name]
+                history_buffer.append(obs)
+
+                # Decide whether to preserve the full history shape.
+                if group_history_length is not None or not term_cfg.flatten_history_dim:
+                    # Preserve history shape.
+                    group_obs[term_name] = history_buffer.buffer
                 else:
-                    group_obs[term_name] = self._group_obs_term_history_buffer[group_name][term_name].buffer
+                    # Flatten the history: merge all historical steps into the feature dimension.
+                    group_obs[term_name] = history_buffer.buffer.reshape(self._env.num_envs, -1)
             else:
                 group_obs[term_name] = obs
 
-        # concatenate all observations in the group together
-        if self._group_obs_concatenate[group_name]:
-            return torch.cat(list(group_obs.values()), dim=-1)
+        # Concatenate observations if required.
+        if concatenate_obs:
+            concatenated_obs = torch.cat(list(group_obs.values()), dim=-1)
+            # If a group-level history is specified and we want to flatten it, reshape accordingly.
+            if group_history_length is not None and flatten_group_history:
+                return concatenated_obs.reshape(self._env.num_envs, -1)
+            return concatenated_obs
         else:
             return group_obs
 
@@ -347,6 +346,8 @@ class ObservationManager(ManagerBase):
         self._group_obs_term_cfgs: dict[str, list[ObservationTermCfg]] = dict()
         self._group_obs_class_term_cfgs: dict[str, list[ObservationTermCfg]] = dict()
         self._group_obs_concatenate: dict[str, bool] = dict()
+        self._group_obs_history_length: dict[str, int | None] = dict()
+        self._group_obs_flatten_history_dim: dict[str, bool] = dict()
         self._group_obs_term_history_buffer: dict[str, dict] = dict()
         # create a list to store modifiers that are classes
         # we store it as a separate list to only call reset on them and prevent unnecessary calls
@@ -376,6 +377,8 @@ class ObservationManager(ManagerBase):
             group_entry_history_buffer: dict[str, CircularBuffer] = dict()
             # read common config for the group
             self._group_obs_concatenate[group_name] = group_cfg.concatenate_terms
+            self._group_obs_history_length[group_name] = group_cfg.history_length
+            self._group_obs_flatten_history_dim[group_name] = group_cfg.flatten_history_dim
             # check if config is dict already
             if isinstance(group_cfg, dict):
                 group_cfg_items = group_cfg.items()
@@ -384,7 +387,12 @@ class ObservationManager(ManagerBase):
             # iterate over all the terms in each group
             for term_name, term_cfg in group_cfg_items:
                 # skip non-obs settings
-                if term_name in ["enable_corruption", "concatenate_terms", "history_length", "flatten_history_dim"]:
+                if term_name in [
+                    "enable_corruption",
+                    "concatenate_terms",
+                    "history_length",
+                    "flatten_history_dim",
+                ]:
                     continue
                 # check for non config
                 if term_cfg is None:
@@ -412,7 +420,9 @@ class ObservationManager(ManagerBase):
                 # create history buffers and calculate history term dimensions
                 if term_cfg.history_length > 0:
                     group_entry_history_buffer[term_name] = CircularBuffer(
-                        max_len=term_cfg.history_length, batch_size=self._env.num_envs, device=self._env.device
+                        max_len=term_cfg.history_length,
+                        batch_size=self._env.num_envs,
+                        device=self._env.device,
                     )
                     old_dims = list(obs_dims)
                     old_dims.insert(1, term_cfg.history_length)
@@ -452,7 +462,11 @@ class ObservationManager(ManagerBase):
                                         f"Modifier function '{mod_cfg.func}' for observation term '{term_name}'"
                                         f" is not a subclass of 'ModifierBase'. Received: '{type(mod_cfg.func)}'."
                                     )
-                                mod_cfg.func = mod_cfg.func(cfg=mod_cfg, data_dim=obs_dims, device=self._env.device)
+                                mod_cfg.func = mod_cfg.func(
+                                    cfg=mod_cfg,
+                                    data_dim=obs_dims,
+                                    device=self._env.device,
+                                )
 
                                 # add to list of class modifiers
                                 self._group_obs_class_modifiers.append(mod_cfg.func)
@@ -492,3 +506,69 @@ class ObservationManager(ManagerBase):
                     term_cfg.func.reset()
             # add history buffers for each group
             self._group_obs_term_history_buffer[group_name] = group_entry_history_buffer
+
+    def combine_group_dims(
+        self, group_term_dims: list[tuple[int, ...]], group_name: str
+    ) -> tuple[int, ...] | list[tuple[int, ...]]:
+        """
+        Combine observation term dimensions for a given group.
+
+        For unflattened terms (tuples of length >= 2), each dims is expected to be of the form:
+            (H, d1, d2, ..., d_n)
+        This function checks that all terms share the same history (H) and that all trailing dimensions
+        except for the last are identical. It then sums the last dimension across terms.
+
+        For flattened terms (tuples of length 1), it simply sums the single value.
+
+        Raises a RuntimeError if mixed formats are encountered or if dimensions are incompatible.
+        """
+        # Separate flattened and unflattened dimensions.
+        flattened = [dims for dims in group_term_dims if len(dims) == 1]
+        unflattened = [dims for dims in group_term_dims if len(dims) > 1]
+
+        if flattened and unflattened:
+            if self._group_obs_concatenate[group_name]:
+                # Observation shapes should not be mixed if concatenating - raise error.
+                raise RuntimeError(f"In group '{group_name}', mixed dimension formats encountered: {group_term_dims}")
+            else:
+                return group_term_dims
+
+        if unflattened:
+            # Unflattened: dims = (H, d1, d2, ..., d_n)
+            histories = [dims[0] for dims in unflattened]
+            if not all(h == histories[0] for h in histories):
+                raise RuntimeError(
+                    f"In group '{group_name}', not all observation terms have the same history dimension:"
+                    f" {group_term_dims}"
+                )
+            common_history = histories[0]
+
+            trailing_dims = [dims[1:] for dims in unflattened]
+            trailing_rank = len(trailing_dims[0])
+            if not all(len(td) == trailing_rank for td in trailing_dims):
+                raise RuntimeError(
+                    f"In group '{group_name}', observation terms have different trailing ranks: {group_term_dims}"
+                )
+
+            if trailing_rank == 0:
+                combined_trailing = ()
+            else:
+                # All trailing dims except the last must match.
+                base = trailing_dims[0][:-1]
+                if not all(td[:-1] == base for td in trailing_dims):
+                    raise RuntimeError(
+                        f"In group '{group_name}', trailing dimensions except last must be the same: {group_term_dims}"
+                    )
+                # Sum the last dimension across terms.
+                total_last = sum(td[-1] for td in trailing_dims)
+                combined_trailing = base + (total_last,)
+
+            return (common_history,) + combined_trailing
+
+        elif flattened:
+            # Flattened: dims are already 1D (F,)
+            total_feature = sum(d[0] for d in flattened)
+            return (total_feature,)
+
+        else:
+            return None
