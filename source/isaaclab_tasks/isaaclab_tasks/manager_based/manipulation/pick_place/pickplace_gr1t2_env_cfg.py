@@ -216,6 +216,7 @@ class ActionsCfg:
             articulation_name="robot",
             base_link_name="base_link",
             num_hand_joints=22,
+            show_ik_warnings=False,
             variable_input_tasks=[
                 FrameTask(
                     "GR1T2_fourier_hand_6dof_left_hand_roll_link",

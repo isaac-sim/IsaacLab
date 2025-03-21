@@ -57,6 +57,9 @@ import torch
 
 import isaaclab_mimic.envs  # noqa: F401
 
+if args_cli.enable_pinocchio:
+    import isaaclab_mimic.envs.pinocchio_envs  # noqa: F401
+
 # Only enables inputs if this script is NOT headless mode
 if not args_cli.headless and not os.environ.get("HEADLESS", 0):
     from isaaclab.devices import Se3Keyboard
@@ -68,9 +71,6 @@ from isaaclab.utils import configclass
 from isaaclab.utils.datasets import EpisodeData, HDF5DatasetFileHandler
 
 import isaaclab_tasks  # noqa: F401
-
-if args_cli.enable_pinocchio:
-    import isaaclab_tasks.manager_based.manipulation.pick_place  # noqa: F401
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
 
 is_paused = False

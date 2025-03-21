@@ -324,11 +324,24 @@ Optional: Collect and annotate demonstrations
    an Apple Vision Pro, you may skip this step and continue on to the next step: `Generate the dataset`_.
    A pre-recorded annotated dataset is provided in the next step .
 
+.. note::
+   The GR1 scene utilizes the wrist poses from the Apple Vision Pro (AVP) as setpoints for a differential IK controller (Pink-IK).
+   The differential IK controller requires the user's wrist pose to be close to the robot's initial or current pose for optimal performance.
+   Rapid movements of the user's wrist may cause it to deviate significantly from the goal state, which could prevent the IK controller from finding the optimal solution.
+   This may result in a mismatch between the user's wrist and the robot's wrist.
+   You can increase the gain of the all `Pink-IK controller's FrameTasks<https://github.com/isaac-sim/IsaacLab-Internal/blob/devel/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/pick_place/pickplace_gr1t2_env_cfg.py>`__ to track the AVP wrist poses with lower latency.
+   However, this may lead to more jerky motion.
+   Separately, the finger joints of the robot are retargeted to the user's finger joints using the `dex-retargeting <https://github.com/dexsuite/dex-retargeting>`_ library.
+
 Set up the CloudXR Runtime and Apple Vision Pro for teleoperation by following the steps in :ref:`cloudxr-teleoperation`.
 CPU simulation is used in the following steps for better XR performance when running a single environment.
 
 Collect a set of human demonstrations using the command below.
 A success demo requires the object to be placed in the bin and for the robot's right arm to be retracted to the starting position.
+The Isaac Lab Mimic Env GR-1 humanoid robot is set up such that the left hand has a single subtask, while the right hand has two subtasks.
+The first subtask involves the right hand remaining idle while the left hand picks up and moves the object to the position where the right hand will grasp it.
+This setup allows Isaac Lab Mimic to interpolate the right hand's trajectory accurately by using the object's pose, especially when poses are randomized during data generation.
+Therefore, avoid moving the right hand while the left hand picks up the object and brings it to a stable position.
 We recommend 10 successful demonstrations for good data generation results.
 
 .. code:: bash
@@ -345,7 +358,7 @@ We recommend 10 successful demonstrations for good data generation results.
    on the Apple Vision Pro or via voice control by saying "reset". See :ref:`teleoperate-apple-vision-pro` for more details.
 
 Unlike the prior Franka stacking task, the GR-1 pick and place task uses manual annotation to define subtasks.
-Each demo requires a single annotation which denotes when the right robot arm finishes the "idle" subtask and begins to
+Each demo requires a single annotation between the first and second subtask of the right arm. This annotation ("S" button press) should be done when the right robot arm finishes the "idle" subtask and begins to
 move towards the target object. Annotate the demonstrations by running the following command:
 
 .. code:: bash
@@ -372,6 +385,9 @@ move towards the target object. Annotate the demonstrations by running the follo
          Press "S" to annotate subtask signals.
          Press "Q" to skip the episode.
 
+.. note::
+
+   If the object does not get placed in the bin during annotation, you can press "N" to replay the episode and annotate again. Or you can press "Q" to skip the episode and annotate the next one.
 
 Generate the dataset
 ^^^^^^^^^^^^^^^^^^^^

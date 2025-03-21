@@ -54,3 +54,6 @@ class PinkIKControllerCfg:
 
     base_link_name: str = "base_link"
     """The name of the base link in the USD asset."""
+
+    show_ik_warnings: bool = True
+    """Show warning if IK solver fails to find a solution."""

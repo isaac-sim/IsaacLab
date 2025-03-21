@@ -113,7 +113,10 @@ class PinkIKController:
         if Delta_q is None:
             # Print warning and return the current joint positions as the target
             # Not using omni.log since its not available in CI during docs build
-            print("Warning: IK quadratic solver could not find a solution! Did not update the target joint positions.")
+            if self.cfg.show_ik_warnings:
+                print(
+                    "Warning: IK quadratic solver could not find a solution! Did not update the target joint positions."
+                )
             return torch.tensor(curr_joint_pos, device=self.device, dtype=torch.float32)
 
         # Discard the first 6 values (for root and universal joints)

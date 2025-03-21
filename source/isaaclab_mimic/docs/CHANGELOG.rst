@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+1.0.7 (2025-03-19)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Moved the GR1T2 robot task to a separate directory to prevent import of pinocchio when not needed. This allows use of IsaacLab Mimic in windows.
+
+
 1.0.6 (2025-03-10)
 ~~~~~~~~~~~~~~~~~~
 
