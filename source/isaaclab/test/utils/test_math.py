@@ -515,6 +515,7 @@ class TestMathUtilities(unittest.TestCase):
             key_times = [0, 1]
             slerp = scipy_tf.Slerp(key_times, key_rots)
 
+            # Convert the rotation matrices to quaternionsfrom scipy.spatial.transform import Rotation as scipy_R
             for tau in tau_values:
                 expected = slerp(tau).as_quat()  # (x, y, z, w)
                 result = math_utils.quat_slerp(torch.tensor(q1), torch.tensor(q2), tau)
@@ -577,7 +578,7 @@ class TestMathUtilities(unittest.TestCase):
             key_rots = scipy_tf.Rotation.from_matrix(np.array([rmat1, rmat2]))
 
             # Create a Slerp object and interpolate create the interpolated rotation matrices
-            # Minimum 3 required because interpolate_poses returns extra staring and ending pose matrices
+            # Minimum 3 required because interp245:37olate_poses returns extra staring and ending pose matrices
             num_steps = np.random.randint(3, 51)
             key_times = [0, 1]
             slerp = scipy_tf.Slerp(key_times, key_rots)
@@ -597,6 +598,100 @@ class TestMathUtilities(unittest.TestCase):
             # Assert that the result is almost equal to the expected quaternion
             np.testing.assert_array_almost_equal(result_quat, expected_quat, decimal=DECIMAL_PRECISION)
             np.testing.assert_array_almost_equal(result_pos, expected_pos, decimal=DECIMAL_PRECISION)
+
+    def test_matrix_from_quat(self):
+        """test matrix_from_quat against scipy."""
+        for device in ["cpu", "cuda:0"]:
+            # prepare random quaternions and vectors
+            n = 1024
+            q_rand = math_utils.random_orientation(num=n, device=device)
+            rot_mat = math_utils.matrix_from_quat(quaternions=q_rand)
+            rot_mat_scipy = torch.tensor(
+                scipy_tf.Rotation.from_quat(
+                    math_utils.convert_quat(quat=q_rand.to(device="cpu"), to="xyzw")
+                ).as_matrix(),
+                device=device,
+                dtype=torch.float32,
+            )
+            print()
+            torch.testing.assert_close(rot_mat_scipy.to(device=device), rot_mat)
+
+    def test_quat_rotate(self):
+        """Test for quat_rotate against scipy."""
+        for device in ["cpu", "cuda:0"]:
+            # prepare random quaternions and vectors
+            n = 1024
+            q_rand = math_utils.random_orientation(num=n, device=device)
+            Rotation = scipy_tf.Rotation.from_quat(
+                math_utils.convert_quat(quat=q_rand.to(device="cpu").numpy(), to="xyzw")
+            )
+
+            v_rand = math_utils.sample_uniform(-1000, 1000, (n, 3), device=device)
+
+            # compute the result using the new implementation
+            scipy_result = torch.tensor(
+                Rotation.apply(v_rand.to(device="cpu").numpy()), device=device, dtype=torch.float
+            )
+            rot_result = math_utils.quat_rotate(q_rand, v_rand)
+            torch.testing.assert_close(scipy_result.to(device=device), rot_result, atol=2e-4, rtol=2e-4)
+
+    def test_quat_rotate_inverse(self):
+        """Test for quat_rotate against scipy."""
+        for device in ["cpu", "cuda:0"]:
+            # prepare random quaternions and vectors
+            n = 1024
+            q_rand = math_utils.random_orientation(num=n, device=device)
+            Rotation = scipy_tf.Rotation.from_quat(
+                math_utils.convert_quat(quat=q_rand.to(device="cpu").numpy(), to="xyzw")
+            )
+
+            v_rand = math_utils.sample_uniform(-1000, 1000, (n, 3), device=device)
+
+            # compute the result using the new implementation
+            scipy_result = torch.tensor(
+                Rotation.apply(v_rand.to(device="cpu").numpy(), inverse=True), device=device, dtype=torch.float
+            )
+            rot_result = math_utils.quat_rotate_inverse(q_rand, v_rand)
+            torch.testing.assert_close(scipy_result.to(device=device), rot_result, atol=2e-4, rtol=2e-4)
+
+    def test_quat_apply(self):
+        """Test for quat_apply against scipy."""
+        for device in ["cpu", "cuda:0"]:
+            # prepare random quaternions and vectors
+            n = 1024
+            q_rand = math_utils.random_orientation(num=n, device=device)
+            Rotation = scipy_tf.Rotation.from_quat(
+                math_utils.convert_quat(quat=q_rand.to(device="cpu").numpy(), to="xyzw")
+            )
+
+            v_rand = math_utils.sample_uniform(-1000, 1000, (n, 3), device=device)
+
+            # compute the result using the new implementation
+            scipy_result = torch.tensor(
+                Rotation.apply(v_rand.to(device="cpu").numpy()), device=device, dtype=torch.float
+            )
+            apply_result = math_utils.quat_apply(q_rand, v_rand)
+            torch.testing.assert_close(scipy_result.to(device=device), apply_result, atol=2e-4, rtol=2e-4)
+
+    def test_quat_apply_inverse(self):
+        """Test for quat_apply against scipy."""
+
+        for device in ["cpu", "cuda:0"]:
+            # prepare random quaternions and vectors
+            n = 1024
+            q_rand = math_utils.random_orientation(num=n, device=device)
+            Rotation = scipy_tf.Rotation.from_quat(
+                math_utils.convert_quat(quat=q_rand.to(device="cpu").numpy(), to="xyzw")
+            )
+
+            v_rand = math_utils.sample_uniform(-1000, 1000, (n, 3), device=device)
+
+            # compute the result using the new implementation
+            scipy_result = torch.tensor(
+                Rotation.apply(v_rand.to(device="cpu").numpy(), inverse=True), device=device, dtype=torch.float
+            )
+            apply_result = math_utils.quat_apply_inverse(q_rand, v_rand)
+            torch.testing.assert_close(scipy_result.to(device=device), apply_result, atol=2e-4, rtol=2e-4)
 
 
 if __name__ == "__main__":
