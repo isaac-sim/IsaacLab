@@ -43,7 +43,11 @@ For smoother operation and off-axis operation, we recommend using a SpaceMouse a
 
    where ``<#>`` is the device index of the connected SpaceMouse.
 
-   Only compatible with the SpaceMouse Wireless and SpaceMouse Compact models from 3Dconnexion.
+   If you are using the IsaacLab + CloudXR container deployment (:ref:`cloudxr-teleoperation`), you can add the ``devices`` attribute under the ``services -> isaac-lab-base`` section of the
+   ``docker/docker-compose.cloudxr-runtime.patch.yaml`` file.
+
+   Isaac Lab is only compatible with the SpaceMouse Wireless and SpaceMouse Compact models from 3Dconnexion.
+
 
 For tasks that benefit from the use of an extended reality (XR) device with hand tracking, Isaac Lab supports using NVIDIA CloudXR to immersively stream the scene to compatible XR devices for teleoperation.
 
@@ -329,7 +333,7 @@ Optional: Collect and annotate demonstrations
    The differential IK controller requires the user's wrist pose to be close to the robot's initial or current pose for optimal performance.
    Rapid movements of the user's wrist may cause it to deviate significantly from the goal state, which could prevent the IK controller from finding the optimal solution.
    This may result in a mismatch between the user's wrist and the robot's wrist.
-   You can increase the gain of the all `Pink-IK controller's FrameTasks<https://github.com/isaac-sim/IsaacLab-Internal/blob/devel/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/pick_place/pickplace_gr1t2_env_cfg.py>`__ to track the AVP wrist poses with lower latency.
+   You can increase the gain of the all `Pink-IK controller's FrameTasks <https://github.com/isaac-sim/IsaacLab-Internal/blob/devel/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/pick_place/pickplace_gr1t2_env_cfg.py>`__ to track the AVP wrist poses with lower latency.
    However, this may lead to more jerky motion.
    Separately, the finger joints of the robot are retargeted to the user's finger joints using the `dex-retargeting <https://github.com/dexsuite/dex-retargeting>`_ library.
 
@@ -356,6 +360,19 @@ We recommend 10 successful demonstrations for good data generation results.
 .. note::
    If a demo fails during data collection, the environment can be reset using the teleoperation controls panel in the XR teleop client
    on the Apple Vision Pro or via voice control by saying "reset". See :ref:`teleoperate-apple-vision-pro` for more details.
+
+You can replay the collected demonstrations by running the following command:
+
+.. code:: bash
+
+   ./isaaclab.sh -p scripts/tools/replay_demos.py \
+   --device cpu \
+   --task Isaac-PickPlace-GR1T2-Abs-v0 \
+   --dataset_file ./datasets/dataset_gr1.hdf5 --enable_pinocchio
+
+.. note::
+   Non-determinism may be observed during replay as physics in IsaacLab are not determimnistically reproducible when using ``env.reset``.
+
 
 Unlike the prior Franka stacking task, the GR-1 pick and place task uses manual annotation to define subtasks.
 Each demo requires a single annotation between the first and second subtask of the right arm. This annotation ("S" button press) should be done when the right robot arm finishes the "idle" subtask and begins to

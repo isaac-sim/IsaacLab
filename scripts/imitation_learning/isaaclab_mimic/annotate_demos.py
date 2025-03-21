@@ -220,8 +220,7 @@ def main():
             # no need to annotate the last subtask term signal, so remove it from the list
             subtask_term_signal_names[eef_name].pop()
 
-    # reset environment - we do a full simulation reset to achieve full determinism
-    env.sim.reset()
+    # reset environment
     env.reset()
 
     # Only enables inputs if this script is NOT headless mode
