@@ -21,6 +21,7 @@ from typing import TYPE_CHECKING, Literal
 import carb
 import omni.physics.tensors.impl.api as physx
 import omni.usd
+from isaacsim.core.utils.extensions import enable_extension
 from pxr import Gf, Sdf, UsdGeom, Vt
 
 import isaaclab.sim as sim_utils
@@ -302,6 +303,8 @@ class randomize_visual_texture_material(ManagerTermBase):
             env: The environment instance.
         """
         super().__init__(cfg, env)
+
+        enable_extension("omni.replicator.core")
 
         # we import the module here since we may not always need the replicator
         import omni.replicator.core as rep
