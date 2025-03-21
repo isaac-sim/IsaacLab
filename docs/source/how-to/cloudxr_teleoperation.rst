@@ -147,11 +147,9 @@ There are two options to run the CloudXR Runtime Docker container:
       .. code:: bash
 
          ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
-             --xr \
-             --task Isaac-Lift-Cube-Franka-IK-Abs-v0 \
-             --num_envs 1 \
-             --device cpu \
-             --teleop_device handtracking_abs
+             --task Isaac-PickPlace-GR1T2-Abs-v0 \
+             --teleop_device dualhandtracking_abs \
+             --enable_pinocchio
 
    #. You'll want to leave the container running for the next steps. But once you are finished, you can
       stop the containers with:
@@ -210,11 +208,9 @@ There are two options to run the CloudXR Runtime Docker container:
       .. code:: bash
 
          ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
-             --xr \
-             --task Isaac-Lift-Cube-Franka-IK-Abs-v0 \
-             --num_envs 1 \
-             --device cpu \
-             --teleop_device handtracking_abs
+             --task Isaac-PickPlace-GR1T2-Abs-v0 \
+             --teleop_device dualhandtracking_abs \
+             --enable_pinocchio
 
 With Isaac Lab and the CloudXR Runtime running:
 
@@ -286,11 +282,9 @@ On your Isaac Lab workstation:
    .. code-block:: bash
 
       ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
-          --xr \
-          --task Isaac-Lift-Cube-Franka-IK-Abs-v0 \
-          --num_envs 1 \
-          --device cpu \
-          --teleop_device handtracking_abs
+          --task Isaac-PickPlace-GR1T2-Abs-v0 \
+          --teleop_device dualhandtracking_abs \
+          --enable_pinocchio
 
    .. note::
       Recall that the script above should either be run within the Isaac Lab Docker container
@@ -359,6 +353,7 @@ Back on your Apple Vision Pro:
       and build teleoperation and imitation learning workflows with Isaac Lab.
 
 #. When you are finished with the example, click **Disconnect** to disconnect from Isaac Lab.
+
 
 
 .. _develop-xr-isaac-lab:
