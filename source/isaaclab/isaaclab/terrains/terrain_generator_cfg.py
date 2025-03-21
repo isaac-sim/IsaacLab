@@ -189,7 +189,7 @@ class TerrainGeneratorCfg:
     """
 
     use_cache: bool = False
-    """Whether to load the sub-terrain from cache if it exists. Defaults to True.
+    """Whether to load the sub-terrain from cache if it exists. Defaults to False.
 
     If enabled, the generated terrains are stored in the cache directory. When generating terrains, the cache
     is checked to see if the terrain already exists. If it does, the terrain is loaded from the cache. Otherwise,
