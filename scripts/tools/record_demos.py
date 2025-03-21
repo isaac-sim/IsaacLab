@@ -35,9 +35,6 @@ import os
 import time
 import torch
 
-# Omniverse logger
-import omni.log
-
 # Isaac Lab AppLauncher
 from isaaclab.app import AppLauncher
 
@@ -85,6 +82,9 @@ simulation_app = app_launcher.app
 
 if "handtracking" in args_cli.teleop_device.lower():
     from isaacsim.xr.openxr import OpenXRSpec
+
+# Omniverse logger
+import omni.log
 
 # Additional Isaac Lab imports that can only be imported after the simulator is running
 from isaaclab.devices import OpenXRDevice, Se3Keyboard, Se3SpaceMouse
