@@ -3,6 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+import contextlib
 import numpy as np
 import torch
 
@@ -12,7 +13,9 @@ from isaaclab.devices import OpenXRDevice
 from isaaclab.devices.retargeter_base import RetargeterBase
 from isaaclab.markers import VisualizationMarkers, VisualizationMarkersCfg
 
-from .gr1_t2_dex_retargeting_utils import GR1TR2DexRetargeting
+# This import exception is suppressed because gr1_t2_dex_retargeting_utils depends on pinocchio which is not available on windows
+with contextlib.suppress(Exception):
+    from .gr1_t2_dex_retargeting_utils import GR1TR2DexRetargeting
 
 
 class GR1T2Retargeter(RetargeterBase):

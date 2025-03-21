@@ -49,6 +49,9 @@ This guide will walk you through how to:
 * :ref:`develop-xr-isaac-lab`, including how to :ref:`run-isaac-lab-with-xr`,
   :ref:`configure-scene-placement`, and :ref:`optimize-xr-performance`.
 
+* :ref:`control-robot-with-xr`, including the :ref:`openxr-device-architecture`,
+  :ref:`control-robot-with-xr-retargeters`, and how to implement :ref:`control-robot-with-xr-callbacks`.
+
 As well as :ref:`xr-known-issues`.
 
 
@@ -361,7 +364,7 @@ Back on your Apple Vision Pro:
 .. _develop-xr-isaac-lab:
 
 Develop for XR in Isaac Lab
-----------------------------
+---------------------------
 
 This section will walk you through how to develop XR environments in Isaac Lab for building
 teleoperation workflows.
@@ -458,6 +461,144 @@ Optimize XR Performance
    It is currently recommended to try running Isaac Lab teleoperation scripts with the ``--device
    cpu`` flag. This will cause Physics calculations to be done on the CPU, which may be reduce
    latency when only a single environment is present in the simulation.
+
+
+.. _control-robot-with-xr:
+
+Control the Robot with XR Device Inputs
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Isaac Lab provides a flexible architecture for using XR tracking data to control
+simulated robots. This section explains the components of this architecture and how they work together.
+
+.. _openxr-device-architecture:
+
+OpenXR Device
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The :class:`isaaclab.devices.OpenXRDevice` is the core component that enables XR-based teleoperation in Isaac Lab.
+This device interfaces with CloudXR to receive tracking data from the XR headset and transform it into robot control
+commands.
+
+At its heart, XR teleoperation requires mapping (or "retargeting") user inputs, such as hand movements and poses,
+into robot control signals. Isaac Lab makes this straightforward through its OpenXRDevice and Retargeter architecture.
+The OpenXRDevice captures hand tracking data via Isaac Sim's OpenXR API, then passes this data through one or more
+Retargeters that convert it into robot actions.
+
+The OpenXRDevice also integrates with the XR device's user interface when using CloudXR, allowing users to trigger
+simulation events directly from their XR environment.
+
+.. _control-robot-with-xr-retargeters:
+
+Retargeting Architecture
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Retargeters are specialized components that convert raw tracking data into meaningful control signals
+for robots. They implement the :class:`isaaclab.devices.RetargeterBase` interface and are passed to
+the OpenXRDevice during initialization.
+
+Isaac Lab provides three main retargeters for hand tracking:
+
+.. dropdown:: Se3RelRetargeter (:class:`isaaclab.devices.openxr.retargeters.Se3RelRetargeter`)
+
+   * Generates incremental robot commands from relative hand movements
+   * Best for precise manipulation tasks
+
+.. dropdown:: Se3AbsRetargeter (:class:`isaaclab.devices.openxr.retargeters.Se3AbsRetargeter`)
+
+   * Maps hand position directly to robot end-effector position
+   * Enables 1:1 spatial control
+
+.. dropdown:: GripperRetargeter (:class:`isaaclab.devices.openxr.retargeters.GripperRetargeter`)
+
+   * Controls gripper state based on thumb-index finger distance
+   * Used alongside position retargeters for full robot control
+
+.. dropdown:: GR1T2Retargeter (:class:`isaaclab.devices.openxr.retargeters.GR1T2Retargeter`)
+
+   * Retargets OpenXR hand tracking data to GR1T2 hand end-effector commands
+   * Handles both left and right hands, converting hand poses to joint angles for the GR1T2 robot's hands
+   * Supports visualization of tracked hand joints
+
+Retargeters can be combined to control different robot functions simultaneously.
+
+Using Retargeters with Hand Tracking
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Here's an example of setting up hand tracking:
+
+.. code-block:: python
+
+   from isaaclab.devices import OpenXRDevice
+   from isaaclab.devices.openxr.retargeters import Se3AbsRetargeter, GripperRetargeter
+
+   # Create retargeters
+   position_retargeter = Se3AbsRetargeter(
+       zero_out_xy_rotation=True,
+       use_wrist_position=False  # Use pinch position (thumb-index midpoint) instead of wrist
+   )
+   gripper_retargeter = GripperRetargeter()
+
+   # Create OpenXR device with hand tracking and both retargeters
+   device = OpenXRDevice(
+       env_cfg.xr,
+       hand=OpenXRDevice.Hand.RIGHT,
+       retargeters=[position_retargeter, gripper_retargeter],
+   )
+
+   # Main control loop
+   while True:
+       # Get the latest commands from the XR device
+       commands = device.advance()
+       if commands is None:
+           continue
+
+       # Apply the commands to the environment
+       obs, reward, terminated, truncated, info = env.step(commands)
+
+       if terminated or truncated:
+           break
+
+
+Extending the Retargeting System
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The retargeting system is designed to be extensible. You can create custom retargeters by extending
+the :class:`isaaclab.devices.RetargeterBase` class and implementing the ``retarget`` method that
+processes the incoming tracking data:
+
+.. code-block:: python
+
+   from isaaclab.devices.retargeter_base import RetargeterBase
+
+   class MyCustomRetargeter(RetargeterBase):
+       def retarget(self, data: dict[str, np.ndarray]) -> Any:
+           # Process the tracking data
+           # Return control commands in appropriate format
+           ...
+
+As the OpenXR capabilities expand beyond hand tracking to include head tracking and other features,
+additional retargeters can be developed to map this data to various robot control paradigms.
+
+.. _control-robot-with-xr-callbacks:
+
+Adding Callbacks for XR UI Events
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The OpenXRDevice can handle events triggered by user interactions with XR UI elements like buttons and menus.
+When a user interacts with these elements, the device triggers registered callback functions:
+
+.. code-block:: python
+
+   # Register callbacks for teleop control events
+   device.add_callback("RESET", reset_callback)
+   device.add_callback("START", start_callback)
+   device.add_callback("STOP", stop_callback)
+
+When the user interacts with the XR UI, these callbacks will be triggered to control the simulation
+or recording process. You can also add custom messages from the client side using custom keys that will
+trigger these callbacks, allowing for programmatic control of the simulation alongside direct user interaction.
+The custom keys can be any string value that matches the callback registration.
 
 
 .. _xr-known-issues:

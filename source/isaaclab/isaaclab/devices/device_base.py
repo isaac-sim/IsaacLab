@@ -87,8 +87,8 @@ class DeviceBase(ABC):
         2. Override this method completely for custom command processing
 
         Returns:
-            If no retargeters: raw device data in its original format
-            If retargeters are provided: tuple with output from each retargeter
+            Raw device data if no retargeters are configured.
+            When retargeters are configured, returns a tuple containing each retargeter's processed output.
         """
         raw_data = self._get_raw_data()
 

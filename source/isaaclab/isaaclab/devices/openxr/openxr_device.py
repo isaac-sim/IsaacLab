@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""OpenXR-powered device for teleoperation and interaction."""
+
 import contextlib
 import numpy as np
 from collections.abc import Callable
@@ -25,13 +27,6 @@ from isaacsim.core.prims import SingleXFormPrim
 
 
 class OpenXRDevice(DeviceBase):
-    class Hand(Enum):
-        LEFT = 0
-        RIGHT = 1
-        BOTH = 2
-
-    TELEOP_COMMAND_EVENT_TYPE = "teleop_command"
-
     """An OpenXR-powered device for teleoperation and interaction.
 
     This device tracks hand joints using OpenXR and makes them available as:
@@ -54,6 +49,21 @@ class OpenXRDevice(DeviceBase):
     poses are transformed into robot control commands suitable for teleoperation.
     """
 
+    class Hand(Enum):
+        """Enum class specifying which hand(s) to track with OpenXR.
+
+        Attributes:
+            LEFT: Track only the left hand
+            RIGHT: Track only the right hand
+            BOTH: Track both hands simultaneously
+        """
+
+        LEFT = 0
+        RIGHT = 1
+        BOTH = 2
+
+    TELEOP_COMMAND_EVENT_TYPE = "teleop_command"
+
     def __init__(
         self,
         xr_cfg: XrCfg | None,
@@ -63,8 +73,10 @@ class OpenXRDevice(DeviceBase):
         """Initialize the hand tracking device.
 
         Args:
-            hand: Which hand to track (left or right)
-            retargeters: List of retargeters to transform hand tracking data
+            xr_cfg: Configuration object for OpenXR settings. If None, default settings are used.
+            hand: Which hand(s) to track (LEFT, RIGHT, or BOTH)
+            retargeters: List of retargeters to transform hand tracking data into robot commands.
+                        If None or empty list, raw joint poses will be returned.
         """
         super().__init__(retargeters)
         self._openxr = OpenXR()
@@ -152,6 +164,13 @@ class OpenXRDevice(DeviceBase):
         self._previous_joint_poses_right = np.full((26, 7), [0, 0, 0, 1, 0, 0, 0], dtype=np.float32)
 
     def add_callback(self, key: str, func: Callable):
+        """Add additional functions to bind to client messages.
+
+        Args:
+            key: The message type to bind to. Valid values are "START", "STOP", and "RESET".
+            func: The function to call when the message is received. The callback function should not
+                take any arguments.
+        """
         self._additional_callbacks[key] = func
 
     def _get_raw_data(self) -> Any:
