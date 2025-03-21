@@ -1,5 +1,5 @@
-Deploying a Policy Trained in Isaac Lab
-=======================================
+Sim2Real Deployment of Policies Trained in Isaac Lab
+====================================================
 
 Welcome to the Policy Deployment Guide! This section provides examples of training policies in Isaac Lab and deploying them to both simulation and real robots.
 
