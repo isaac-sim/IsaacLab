@@ -29,7 +29,7 @@ class ArticulationRootPropertiesCfg:
     """Solver position iteration counts for the body."""
 
     solver_velocity_iteration_count: int | None = None
-    """Solver position iteration counts for the body."""
+    """Solver velocity iteration counts for the body."""
 
     sleep_threshold: float | None = None
     """Mass-normalized kinetic energy threshold below which an actor may go to sleep."""
