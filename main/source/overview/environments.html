@@ -597,6 +597,7 @@
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#locomotion">Locomotion</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#navigation">Navigation</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#others">Others</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#spaces-showcase">Spaces showcase</a></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#multi-agent">Multi-agent</a><ul class="nav section-nav flex-column">
@@ -958,6 +959,114 @@ The AMP algorithm can be activated by adding the command line input <code class=
 </table>
 </div>
 </section>
+<section id="spaces-showcase">
+<h3>Spaces showcase<a class="headerlink" href="#spaces-showcase" title="Permalink to this heading">#</a></h3>
+<p>The <a class="reference external" href="https://github.com/isaac-sim/IsaacLab/tree/main/source/isaaclab_tasks/isaaclab_tasks/direct/cartpole_showcase">cartpole_showcase</a> folder contains showcase tasks (based on the <em>Cartpole</em> and <em>Cartpole-Camera</em> Direct tasks)
+for the definition/use of the various Gymnasium observation and action spaces supported in Isaac Lab.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Currently, only Isaac Lab’s Direct workflow supports the definition of observation and action spaces other than <code class="docutils literal notranslate"><span class="pre">Box</span></code>.
+See Direct workflow’s <a class="reference internal" href="../api/lab/isaaclab.envs.html#isaaclab.envs.DirectRLEnvCfg.observation_space" title="isaaclab.envs.DirectRLEnvCfg.observation_space"><code class="xref py py-obj docutils literal notranslate"><span class="pre">observation_space</span></code></a> / <a class="reference internal" href="../api/lab/isaaclab.envs.html#isaaclab.envs.DirectRLEnvCfg.action_space" title="isaaclab.envs.DirectRLEnvCfg.action_space"><code class="xref py py-obj docutils literal notranslate"><span class="pre">action_space</span></code></a>
+documentation for more details.</p>
+</div>
+<p>The following tables summarize the different pairs of showcased spaces for the <em>Cartpole</em> and <em>Cartpole-Camera</em> tasks.
+Replace <code class="docutils literal notranslate"><span class="pre">&lt;OBSERVATION&gt;</span></code> and <code class="docutils literal notranslate"><span class="pre">&lt;ACTION&gt;</span></code> with the observation and action spaces to be explored in the task names for training and evaluation.</p>
+<table class="showcase-table">
+<caption>
+  <p>Showcase spaces for the <strong>Cartpole</strong> task</p>
+  <p><code>Isaac-Cartpole-Showcase-&lt;OBSERVATION&gt;-&lt;ACTION&gt;-Direct-v0</code></p>
+</caption>
+<tbody>
+  <tr>
+    <td colspan="2" rowspan="2"></td>
+    <td colspan="5" class="center">action space</td>
+  </tr>
+  <tr>
+    <td><strong>&nbsp;Box</strong></td>
+    <td><strong>&nbsp;Discrete</strong></td>
+    <td><strong>&nbsp;MultiDiscrete</strong></td>
+  </tr>
+  <tr>
+    <td rowspan="5" class="rot90 center"><p>observation</p><p>space</p></td>
+    <td><strong>&nbsp;Box</strong></td>
+    <td class="center">x</td>
+    <td class="center">x</td>
+    <td class="center">x</td>
+  </tr>
+  <tr>
+    <td><strong>&nbsp;Discrete</strong></td>
+    <td class="center">x</td>
+    <td class="center">x</td>
+    <td class="center">x</td>
+  </tr>
+  <tr>
+    <td><strong>&nbsp;MultiDiscrete</strong></td>
+    <td class="center">x</td>
+    <td class="center">x</td>
+    <td class="center">x</td>
+  </tr>
+  <tr>
+    <td><strong>&nbsp;Dict</strong></td>
+    <td class="center">x</td>
+    <td class="center">x</td>
+    <td class="center">x</td>
+  </tr>
+  <tr>
+    <td><strong>&nbsp;Tuple</strong></td>
+    <td class="center">x</td>
+    <td class="center">x</td>
+    <td class="center">x</td>
+  </tr>
+</tbody>
+</table>
+<br>
+<table class="showcase-table">
+<caption>
+    <p>Showcase spaces for the <strong>Cartpole-Camera</strong> task</p>
+    <p><code>Isaac-Cartpole-Camera-Showcase-&lt;OBSERVATION&gt;-&lt;ACTION&gt;-Direct-v0</code></p>
+</caption>
+<tbody>
+  <tr>
+    <td colspan="2" rowspan="2"></td>
+    <td colspan="5" class="center">action space</td>
+  </tr>
+  <tr>
+    <td><strong>&nbsp;Box</strong></td>
+    <td><strong>&nbsp;Discrete</strong></td>
+    <td><strong>&nbsp;MultiDiscrete</strong></td>
+  </tr>
+  <tr>
+    <td rowspan="5" class="rot90 center"><p>observation</p><p>space</p></td>
+    <td><strong>&nbsp;Box</strong></td>
+    <td class="center">x</td>
+    <td class="center">x</td>
+    <td class="center">x</td>
+  </tr>
+  <tr>
+    <td><strong>&nbsp;Discrete</strong></td>
+    <td class="center">-</td>
+    <td class="center">-</td>
+    <td class="center">-</td>
+  </tr>
+  <tr>
+    <td><strong>&nbsp;MultiDiscrete</strong></td>
+    <td class="center">-</td>
+    <td class="center">-</td>
+    <td class="center">-</td>
+  </tr>
+  <tr>
+    <td><strong>&nbsp;Dict</strong></td>
+    <td class="center">x</td>
+    <td class="center">x</td>
+    <td class="center">x</td>
+  </tr>
+  <tr>
+    <td><strong>&nbsp;Tuple</strong></td>
+    <td class="center">x</td>
+    <td class="center">x</td>
+    <td class="center">x</td>
+  </tr>
+</tbody></table></section>
 </section>
 <section id="multi-agent">
 <h2>Multi-agent<a class="headerlink" href="#multi-agent" title="Permalink to this heading">#</a></h2>
@@ -1049,40 +1158,160 @@ If these environments are run with other libraries or without the <cite>IPPO</ci
 <td><p>Direct</p></td>
 <td><p><strong>rl_games</strong> (PPO), <strong>skrl</strong> (IPPO, PPO, MAPPO)</p></td>
 </tr>
-<tr class="row-odd"><td><p>Isaac-Cartpole-Depth-Camera-Direct-v0</p></td>
+<tr class="row-odd"><td><p>Isaac-Cartpole-Camera-Showcase-Box-Box-Direct-v0</p></td>
+<td></td>
+<td><p>Direct</p></td>
+<td><p><strong>skrl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-even"><td><p>Isaac-Cartpole-Camera-Showcase-Box-Discrete-Direct-v0</p></td>
+<td></td>
+<td><p>Direct</p></td>
+<td><p><strong>skrl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-odd"><td><p>Isaac-Cartpole-Camera-Showcase-Box-MultiDiscrete-Direct-v0</p></td>
+<td></td>
+<td><p>Direct</p></td>
+<td><p><strong>skrl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-even"><td><p>Isaac-Cartpole-Camera-Showcase-Dict-Box-Direct-v0</p></td>
+<td></td>
+<td><p>Direct</p></td>
+<td><p><strong>skrl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-odd"><td><p>Isaac-Cartpole-Camera-Showcase-Dict-Discrete-Direct-v0</p></td>
+<td></td>
+<td><p>Direct</p></td>
+<td><p><strong>skrl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-even"><td><p>Isaac-Cartpole-Camera-Showcase-Dict-MultiDiscrete-Direct-v0</p></td>
+<td></td>
+<td><p>Direct</p></td>
+<td><p><strong>skrl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-odd"><td><p>Isaac-Cartpole-Camera-Showcase-Tuple-Box-Direct-v0</p></td>
+<td></td>
+<td><p>Direct</p></td>
+<td><p><strong>skrl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-even"><td><p>Isaac-Cartpole-Camera-Showcase-Tuple-Discrete-Direct-v0</p></td>
+<td></td>
+<td><p>Direct</p></td>
+<td><p><strong>skrl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-odd"><td><p>Isaac-Cartpole-Camera-Showcase-Tuple-MultiDiscrete-Direct-v0</p></td>
+<td></td>
+<td><p>Direct</p></td>
+<td><p><strong>skrl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-even"><td><p>Isaac-Cartpole-Depth-Camera-Direct-v0</p></td>
 <td></td>
 <td><p>Direct</p></td>
 <td><p><strong>rl_games</strong> (PPO), <strong>skrl</strong> (PPO)</p></td>
 </tr>
-<tr class="row-even"><td><p>Isaac-Cartpole-Depth-v0</p></td>
+<tr class="row-odd"><td><p>Isaac-Cartpole-Depth-v0</p></td>
 <td></td>
 <td><p>Manager Based</p></td>
 <td><p><strong>rl_games</strong> (PPO)</p></td>
 </tr>
-<tr class="row-odd"><td><p>Isaac-Cartpole-Direct-v0</p></td>
+<tr class="row-even"><td><p>Isaac-Cartpole-Direct-v0</p></td>
 <td></td>
 <td><p>Direct</p></td>
 <td><p><strong>rl_games</strong> (PPO), <strong>rsl_rl</strong> (PPO), <strong>skrl</strong> (PPO), <strong>sb3</strong> (PPO)</p></td>
 </tr>
-<tr class="row-even"><td><p>Isaac-Cartpole-RGB-Camera-Direct-v0</p></td>
+<tr class="row-odd"><td><p>Isaac-Cartpole-RGB-Camera-Direct-v0</p></td>
 <td></td>
 <td><p>Direct</p></td>
 <td><p><strong>rl_games</strong> (PPO), <strong>skrl</strong> (PPO)</p></td>
 </tr>
-<tr class="row-odd"><td><p>Isaac-Cartpole-RGB-ResNet18-v0</p></td>
+<tr class="row-even"><td><p>Isaac-Cartpole-RGB-ResNet18-v0</p></td>
 <td></td>
 <td><p>Manager Based</p></td>
 <td><p><strong>rl_games</strong> (PPO)</p></td>
 </tr>
-<tr class="row-even"><td><p>Isaac-Cartpole-RGB-TheiaTiny-v0</p></td>
+<tr class="row-odd"><td><p>Isaac-Cartpole-RGB-TheiaTiny-v0</p></td>
 <td></td>
 <td><p>Manager Based</p></td>
 <td><p><strong>rl_games</strong> (PPO)</p></td>
 </tr>
-<tr class="row-odd"><td><p>Isaac-Cartpole-RGB-v0</p></td>
+<tr class="row-even"><td><p>Isaac-Cartpole-RGB-v0</p></td>
 <td></td>
 <td><p>Manager Based</p></td>
 <td><p><strong>rl_games</strong> (PPO)</p></td>
+</tr>
+<tr class="row-odd"><td><p>Isaac-Cartpole-Showcase-Box-Box-Direct-v0</p></td>
+<td></td>
+<td><p>Direct</p></td>
+<td><p><strong>skrl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-even"><td><p>Isaac-Cartpole-Showcase-Box-Discrete-Direct-v0</p></td>
+<td></td>
+<td><p>Direct</p></td>
+<td><p><strong>skrl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-odd"><td><p>Isaac-Cartpole-Showcase-Box-MultiDiscrete-Direct-v0</p></td>
+<td></td>
+<td><p>Direct</p></td>
+<td><p><strong>skrl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-even"><td><p>Isaac-Cartpole-Showcase-Dict-Box-Direct-v0</p></td>
+<td></td>
+<td><p>Direct</p></td>
+<td><p><strong>skrl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-odd"><td><p>Isaac-Cartpole-Showcase-Dict-Discrete-Direct-v0</p></td>
+<td></td>
+<td><p>Direct</p></td>
+<td><p><strong>skrl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-even"><td><p>Isaac-Cartpole-Showcase-Dict-MultiDiscrete-Direct-v0</p></td>
+<td></td>
+<td><p>Direct</p></td>
+<td><p><strong>skrl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-odd"><td><p>Isaac-Cartpole-Showcase-Discrete-Box-Direct-v0</p></td>
+<td></td>
+<td><p>Direct</p></td>
+<td><p><strong>skrl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-even"><td><p>Isaac-Cartpole-Showcase-Discrete-Discrete-Direct-v0</p></td>
+<td></td>
+<td><p>Direct</p></td>
+<td><p><strong>skrl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-odd"><td><p>Isaac-Cartpole-Showcase-Discrete-MultiDiscrete-Direct-v0</p></td>
+<td></td>
+<td><p>Direct</p></td>
+<td><p><strong>skrl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-even"><td><p>Isaac-Cartpole-Showcase-MultiDiscrete-Box-Direct-v0</p></td>
+<td></td>
+<td><p>Direct</p></td>
+<td><p><strong>skrl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-odd"><td><p>Isaac-Cartpole-Showcase-MultiDiscrete-Discrete-Direct-v0</p></td>
+<td></td>
+<td><p>Direct</p></td>
+<td><p><strong>skrl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-even"><td><p>Isaac-Cartpole-Showcase-MultiDiscrete-MultiDiscrete-Direct-v0</p></td>
+<td></td>
+<td><p>Direct</p></td>
+<td><p><strong>skrl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-odd"><td><p>Isaac-Cartpole-Showcase-Tuple-Box-Direct-v0</p></td>
+<td></td>
+<td><p>Direct</p></td>
+<td><p><strong>skrl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-even"><td><p>Isaac-Cartpole-Showcase-Tuple-Discrete-Direct-v0</p></td>
+<td></td>
+<td><p>Direct</p></td>
+<td><p><strong>skrl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-odd"><td><p>Isaac-Cartpole-Showcase-Tuple-MultiDiscrete-Direct-v0</p></td>
+<td></td>
+<td><p>Direct</p></td>
+<td><p><strong>skrl</strong> (PPO)</p></td>
 </tr>
 <tr class="row-even"><td><p>Isaac-Cartpole-v0</p></td>
 <td></td>
@@ -1428,6 +1657,7 @@ If these environments are run with other libraries or without the <cite>IPPO</ci
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#locomotion">Locomotion</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#navigation">Navigation</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#others">Others</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#spaces-showcase">Spaces showcase</a></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#multi-agent">Multi-agent</a><ul class="nav section-nav flex-column">
