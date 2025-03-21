@@ -354,29 +354,6 @@ Replace ``<OBSERVATION>`` and ``<ACTION>`` with the observation and action space
 
 .. raw:: html
 
-    <style type="text/css">
-        .showcase-table {
-            min-width: 75%;
-        }
-        .showcase-table td {
-            border-color: gray;
-            border-style: solid;
-            border-width: 1px;
-        }
-        .showcase-table p {
-            margin: 0;
-            padding: 0;
-        }
-        .rot90 {
-            transform: rotate(-90deg);
-            margin: 0;
-            padding: 0;
-        }
-        .center {
-            text-align: center;
-            vertical-align: middle;
-        }
-    </style>
     <table class="showcase-table">
     <caption>
       <p>Showcase spaces for the <strong>Cartpole</strong> task</p>
