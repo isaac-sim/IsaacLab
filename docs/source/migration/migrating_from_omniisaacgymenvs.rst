@@ -295,13 +295,13 @@ including file path, simulation parameters, actuator properties, and initial sta
        actuators={
            "cart_actuator": ImplicitActuatorCfg(
                joint_names_expr=["slider_to_cart"],
-               effort_limit=400.0,
-               velocity_limit=100.0,
+               effort_limit_sim=400.0,
+               velocity_limit_sim=100.0,
                stiffness=0.0,
                damping=10.0,
            ),
            "pole_actuator": ImplicitActuatorCfg(
-               joint_names_expr=["cart_to_pole"], effort_limit=400.0, velocity_limit=100.0, stiffness=0.0, damping=0.0
+               joint_names_expr=["cart_to_pole"], effort_limit_sim=400.0, velocity_limit_sim=100.0, stiffness=0.0, damping=0.0
            ),
        },
    )
@@ -539,18 +539,18 @@ Task config in Isaac Lab can be split into the main task configuration class and
 |     gpu_max_rigid_patch_count: 81920                            |   actuators={                                                   |
 |     gpu_found_lost_pairs_capacity: 1024                         |     "cart_actuator": ImplicitActuatorCfg(                       |
 |     gpu_found_lost_aggregate_pairs_capacity: 262144             |        joint_names_expr=["slider_to_cart"],                     |
-|     gpu_total_aggregate_pairs_capacity: 1024                    |        effort_limit=400.0,                                      |
-|     gpu_max_soft_body_contacts: 1048576                         |        velocity_limit=100.0,                                    |
+|     gpu_total_aggregate_pairs_capacity: 1024                    |        effort_limit_sim=400.0,                                  |
+|     gpu_max_soft_body_contacts: 1048576                         |        velocity_limit_sim=100.0,                                |
 |     gpu_max_particle_contacts: 1048576                          |        stiffness=0.0,                                           |
 |     gpu_heap_capacity: 67108864                                 |        damping=10.0,                                            |
 |     gpu_temp_buffer_capacity: 16777216                          |     ),                                                          |
 |     gpu_max_num_partitions: 8                                   |     "pole_actuator": ImplicitActuatorCfg(                       |
-|                                                                 |        joint_names_expr=["cart_to_pole"], effort_limit=400.0,   |
-|     Cartpole:                                                   |        velocity_limit=100.0, stiffness=0.0, damping=0.0         |
-|       override_usd_defaults: False                              |     ),                                                          |
-|       enable_self_collisions: False                             |   },                                                            |
-|       enable_gyroscopic_forces: True                            | )                                                               |
-|       solver_position_iteration_count: 4                        |                                                                 |
+|                                                                 |        joint_names_expr=["cart_to_pole"],                       |
+|     Cartpole:                                                   |        effort_limit_sim=400.0, velocity_limit_sim=100.0,        |
+|       override_usd_defaults: False                              |        stiffness=0.0, damping=0.0                               |
+|       enable_self_collisions: False                             |     ),                                                          |
+|       enable_gyroscopic_forces: True                            |   },                                                            |
+|       solver_position_iteration_count: 4                        | )                                                               |
 |       solver_velocity_iteration_count: 0                        |                                                                 |
 |       sleep_threshold: 0.005                                    |                                                                 |
 |       stabilization_threshold: 0.001                            |                                                                 |

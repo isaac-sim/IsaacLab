@@ -108,8 +108,8 @@ to combine them into a single actuator model.
       actuators={
          "all_joints": ImplicitActuatorCfg(
             joint_names_expr=[".*"],
-            effort_limit=400.0,
-            velocity_limit=100.0,
+            effort_limit_sim=400.0,
+            velocity_limit_sim=100.0,
             stiffness={"slider_to_cart": 0.0, "cart_to_pole": 0.0},
             damping={"slider_to_cart": 10.0, "cart_to_pole": 0.0},
          ),
