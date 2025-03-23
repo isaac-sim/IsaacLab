@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.0.2" />
-    <meta name="docbuild:last-update" content="Mar 21, 2025"/>
+    <meta name="docbuild:last-update" content="Mar 23, 2025"/>
   </head>
   
   
@@ -885,18 +885,177 @@
 
     <span class="nd">@property</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">state</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]]]:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Returns the state of the scene entities.</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;A dictionary of the state of the scene entities in the simulation world frame.</span>
 
-<span class="sd">        Returns:</span>
-<span class="sd">            A dictionary of the state of the scene entities.</span>
+<span class="sd">        Please refer to :meth:`get_state` for the format.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_state</span><span class="p">(</span><span class="n">is_relative</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Operations.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+<div class="viewcode-block" id="InteractiveScene.reset"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.scene.html#isaaclab.scene.InteractiveScene.reset">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">reset</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Resets the scene entities.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            env_ids: The indices of the environments to reset.</span>
+<span class="sd">                Defaults to None (all instances).</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># -- assets</span>
+        <span class="k">for</span> <span class="n">articulation</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_articulations</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
+            <span class="n">articulation</span><span class="o">.</span><span class="n">reset</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">deformable_object</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_deformable_objects</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
+            <span class="n">deformable_object</span><span class="o">.</span><span class="n">reset</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">rigid_object</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_rigid_objects</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
+            <span class="n">rigid_object</span><span class="o">.</span><span class="n">reset</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">rigid_object_collection</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_rigid_object_collections</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
+            <span class="n">rigid_object_collection</span><span class="o">.</span><span class="n">reset</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span>
+        <span class="c1"># -- sensors</span>
+        <span class="k">for</span> <span class="n">sensor</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sensors</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
+            <span class="n">sensor</span><span class="o">.</span><span class="n">reset</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="InteractiveScene.write_data_to_sim"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.scene.html#isaaclab.scene.InteractiveScene.write_data_to_sim">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">write_data_to_sim</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Writes the data of the scene entities to the simulation.&quot;&quot;&quot;</span>
+        <span class="c1"># -- assets</span>
+        <span class="k">for</span> <span class="n">articulation</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_articulations</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
+            <span class="n">articulation</span><span class="o">.</span><span class="n">write_data_to_sim</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">deformable_object</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_deformable_objects</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
+            <span class="n">deformable_object</span><span class="o">.</span><span class="n">write_data_to_sim</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">rigid_object</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_rigid_objects</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
+            <span class="n">rigid_object</span><span class="o">.</span><span class="n">write_data_to_sim</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">rigid_object_collection</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_rigid_object_collections</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
+            <span class="n">rigid_object_collection</span><span class="o">.</span><span class="n">write_data_to_sim</span><span class="p">()</span></div>
+
+<div class="viewcode-block" id="InteractiveScene.update"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.scene.html#isaaclab.scene.InteractiveScene.update">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">update</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dt</span><span class="p">:</span> <span class="nb">float</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Update the scene entities.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            dt: The amount of time passed from last :meth:`update` call.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># -- assets</span>
+        <span class="k">for</span> <span class="n">articulation</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_articulations</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
+            <span class="n">articulation</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">dt</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">deformable_object</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_deformable_objects</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
+            <span class="n">deformable_object</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">dt</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">rigid_object</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_rigid_objects</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
+            <span class="n">rigid_object</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">dt</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">rigid_object_collection</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_rigid_object_collections</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
+            <span class="n">rigid_object_collection</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">dt</span><span class="p">)</span>
+        <span class="c1"># -- sensors</span>
+        <span class="k">for</span> <span class="n">sensor</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sensors</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
+            <span class="n">sensor</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">dt</span><span class="p">,</span> <span class="n">force_recompute</span><span class="o">=</span><span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">lazy_sensor_update</span><span class="p">)</span></div>
+
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Operations: Scene State.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+<div class="viewcode-block" id="InteractiveScene.reset_to"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.scene.html#isaaclab.scene.InteractiveScene.reset_to">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">reset_to</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">state</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]]],</span>
+        <span class="n">env_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">is_relative</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Resets the entities in the scene to the provided state.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            state: The state to reset the scene entities to. Please refer to :meth:`get_state` for the format.</span>
+<span class="sd">            env_ids: The indices of the environments to reset. Defaults to None, in which case</span>
+<span class="sd">                all environment instances are reset.</span>
+<span class="sd">            is_relative: If set to True, the state is considered relative to the environment origins.</span>
+<span class="sd">                Defaults to False.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># resolve env_ids</span>
+        <span class="k">if</span> <span class="n">env_ids</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">env_ids</span> <span class="o">=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
+        <span class="c1"># articulations</span>
+        <span class="k">for</span> <span class="n">asset_name</span><span class="p">,</span> <span class="n">articulation</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_articulations</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="n">asset_state</span> <span class="o">=</span> <span class="n">state</span><span class="p">[</span><span class="s2">&quot;articulation&quot;</span><span class="p">][</span><span class="n">asset_name</span><span class="p">]</span>
+            <span class="c1"># root state</span>
+            <span class="n">root_pose</span> <span class="o">=</span> <span class="n">asset_state</span><span class="p">[</span><span class="s2">&quot;root_pose&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+            <span class="k">if</span> <span class="n">is_relative</span><span class="p">:</span>
+                <span class="n">root_pose</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">3</span><span class="p">]</span> <span class="o">+=</span> <span class="bp">self</span><span class="o">.</span><span class="n">env_origins</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span>
+            <span class="n">root_velocity</span> <span class="o">=</span> <span class="n">asset_state</span><span class="p">[</span><span class="s2">&quot;root_velocity&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+            <span class="n">articulation</span><span class="o">.</span><span class="n">write_root_pose_to_sim</span><span class="p">(</span><span class="n">root_pose</span><span class="p">,</span> <span class="n">env_ids</span><span class="o">=</span><span class="n">env_ids</span><span class="p">)</span>
+            <span class="n">articulation</span><span class="o">.</span><span class="n">write_root_velocity_to_sim</span><span class="p">(</span><span class="n">root_velocity</span><span class="p">,</span> <span class="n">env_ids</span><span class="o">=</span><span class="n">env_ids</span><span class="p">)</span>
+            <span class="c1"># joint state</span>
+            <span class="n">joint_position</span> <span class="o">=</span> <span class="n">asset_state</span><span class="p">[</span><span class="s2">&quot;joint_position&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+            <span class="n">joint_velocity</span> <span class="o">=</span> <span class="n">asset_state</span><span class="p">[</span><span class="s2">&quot;joint_velocity&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+            <span class="n">articulation</span><span class="o">.</span><span class="n">write_joint_state_to_sim</span><span class="p">(</span><span class="n">joint_position</span><span class="p">,</span> <span class="n">joint_velocity</span><span class="p">,</span> <span class="n">env_ids</span><span class="o">=</span><span class="n">env_ids</span><span class="p">)</span>
+            <span class="c1"># FIXME: This is not generic as it assumes PD control over the joints.</span>
+            <span class="c1">#   This assumption does not hold for effort controlled joints.</span>
+            <span class="n">articulation</span><span class="o">.</span><span class="n">set_joint_position_target</span><span class="p">(</span><span class="n">joint_position</span><span class="p">,</span> <span class="n">env_ids</span><span class="o">=</span><span class="n">env_ids</span><span class="p">)</span>
+            <span class="n">articulation</span><span class="o">.</span><span class="n">set_joint_velocity_target</span><span class="p">(</span><span class="n">joint_velocity</span><span class="p">,</span> <span class="n">env_ids</span><span class="o">=</span><span class="n">env_ids</span><span class="p">)</span>
+        <span class="c1"># deformable objects</span>
+        <span class="k">for</span> <span class="n">asset_name</span><span class="p">,</span> <span class="n">deformable_object</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_deformable_objects</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="n">asset_state</span> <span class="o">=</span> <span class="n">state</span><span class="p">[</span><span class="s2">&quot;deformable_object&quot;</span><span class="p">][</span><span class="n">asset_name</span><span class="p">]</span>
+            <span class="n">nodal_position</span> <span class="o">=</span> <span class="n">asset_state</span><span class="p">[</span><span class="s2">&quot;nodal_position&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+            <span class="k">if</span> <span class="n">is_relative</span><span class="p">:</span>
+                <span class="n">nodal_position</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">3</span><span class="p">]</span> <span class="o">+=</span> <span class="bp">self</span><span class="o">.</span><span class="n">env_origins</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span>
+            <span class="n">nodal_velocity</span> <span class="o">=</span> <span class="n">asset_state</span><span class="p">[</span><span class="s2">&quot;nodal_velocity&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+            <span class="n">deformable_object</span><span class="o">.</span><span class="n">write_nodal_pos_to_sim</span><span class="p">(</span><span class="n">nodal_position</span><span class="p">,</span> <span class="n">env_ids</span><span class="o">=</span><span class="n">env_ids</span><span class="p">)</span>
+            <span class="n">deformable_object</span><span class="o">.</span><span class="n">write_nodal_velocity_to_sim</span><span class="p">(</span><span class="n">nodal_velocity</span><span class="p">,</span> <span class="n">env_ids</span><span class="o">=</span><span class="n">env_ids</span><span class="p">)</span>
+        <span class="c1"># rigid objects</span>
+        <span class="k">for</span> <span class="n">asset_name</span><span class="p">,</span> <span class="n">rigid_object</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_rigid_objects</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="n">asset_state</span> <span class="o">=</span> <span class="n">state</span><span class="p">[</span><span class="s2">&quot;rigid_object&quot;</span><span class="p">][</span><span class="n">asset_name</span><span class="p">]</span>
+            <span class="n">root_pose</span> <span class="o">=</span> <span class="n">asset_state</span><span class="p">[</span><span class="s2">&quot;root_pose&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+            <span class="k">if</span> <span class="n">is_relative</span><span class="p">:</span>
+                <span class="n">root_pose</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">3</span><span class="p">]</span> <span class="o">+=</span> <span class="bp">self</span><span class="o">.</span><span class="n">env_origins</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span>
+            <span class="n">root_velocity</span> <span class="o">=</span> <span class="n">asset_state</span><span class="p">[</span><span class="s2">&quot;root_velocity&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+            <span class="n">rigid_object</span><span class="o">.</span><span class="n">write_root_pose_to_sim</span><span class="p">(</span><span class="n">root_pose</span><span class="p">,</span> <span class="n">env_ids</span><span class="o">=</span><span class="n">env_ids</span><span class="p">)</span>
+            <span class="n">rigid_object</span><span class="o">.</span><span class="n">write_root_velocity_to_sim</span><span class="p">(</span><span class="n">root_velocity</span><span class="p">,</span> <span class="n">env_ids</span><span class="o">=</span><span class="n">env_ids</span><span class="p">)</span>
+
+        <span class="c1"># write data to simulation to make sure initial state is set</span>
+        <span class="c1"># this propagates the joint targets to the simulation</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">write_data_to_sim</span><span class="p">()</span></div>
 
 <div class="viewcode-block" id="InteractiveScene.get_state"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.scene.html#isaaclab.scene.InteractiveScene.get_state">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">get_state</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">is_relative</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]]]:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Returns the state of the scene entities.</span>
 
+<span class="sd">        Based on the type of the entity, the state comprises of different components.</span>
+
+<span class="sd">        * For an articulation, the state comprises of the root pose, root velocity, and joint position and velocity.</span>
+<span class="sd">        * For a deformable object, the state comprises of the nodal position and velocity.</span>
+<span class="sd">        * For a rigid object, the state comprises of the root pose and root velocity.</span>
+
+<span class="sd">        The returned state is a dictionary with the following format:</span>
+
+<span class="sd">        .. code-block:: python</span>
+
+<span class="sd">            {</span>
+<span class="sd">                &quot;articulation&quot;: {</span>
+<span class="sd">                    &quot;entity_1_name&quot;: {</span>
+<span class="sd">                        &quot;root_pose&quot;: torch.Tensor,</span>
+<span class="sd">                        &quot;root_velocity&quot;: torch.Tensor,</span>
+<span class="sd">                        &quot;joint_position&quot;: torch.Tensor,</span>
+<span class="sd">                        &quot;joint_velocity&quot;: torch.Tensor,</span>
+<span class="sd">                    },</span>
+<span class="sd">                    &quot;entity_2_name&quot;: {</span>
+<span class="sd">                        &quot;root_pose&quot;: torch.Tensor,</span>
+<span class="sd">                        &quot;root_velocity&quot;: torch.Tensor,</span>
+<span class="sd">                        &quot;joint_position&quot;: torch.Tensor,</span>
+<span class="sd">                        &quot;joint_velocity&quot;: torch.Tensor,</span>
+<span class="sd">                    },</span>
+<span class="sd">                },</span>
+<span class="sd">                &quot;deformable_object&quot;: {</span>
+<span class="sd">                    &quot;entity_3_name&quot;: {</span>
+<span class="sd">                        &quot;nodal_position&quot;: torch.Tensor,</span>
+<span class="sd">                        &quot;nodal_velocity&quot;: torch.Tensor,</span>
+<span class="sd">                    }</span>
+<span class="sd">                },</span>
+<span class="sd">                &quot;rigid_object&quot;: {</span>
+<span class="sd">                    &quot;entity_4_name&quot;: {</span>
+<span class="sd">                        &quot;root_pose&quot;: torch.Tensor,</span>
+<span class="sd">                        &quot;root_velocity&quot;: torch.Tensor,</span>
+<span class="sd">                    }</span>
+<span class="sd">                },</span>
+<span class="sd">            }</span>
+
+<span class="sd">        where ``entity_N_name`` is the name of the entity registered in the scene.</span>
+
 <span class="sd">        Args:</span>
 <span class="sd">            is_relative: If set to True, the state is considered relative to the environment origins.</span>
+<span class="sd">                Defaults to False.</span>
 
 <span class="sd">        Returns:</span>
 <span class="sd">            A dictionary of the state of the scene entities.</span>
@@ -932,113 +1091,6 @@
             <span class="n">asset_state</span><span class="p">[</span><span class="s2">&quot;root_velocity&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">rigid_object</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">root_vel_w</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
             <span class="n">state</span><span class="p">[</span><span class="s2">&quot;rigid_object&quot;</span><span class="p">][</span><span class="n">asset_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">asset_state</span>
         <span class="k">return</span> <span class="n">state</span></div>
-
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Operations.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-
-<div class="viewcode-block" id="InteractiveScene.reset"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.scene.html#isaaclab.scene.InteractiveScene.reset">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">reset</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Resets the scene entities.</span>
-
-<span class="sd">        Args:</span>
-<span class="sd">            env_ids: The indices of the environments to reset.</span>
-<span class="sd">                Defaults to None (all instances).</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="c1"># -- assets</span>
-        <span class="k">for</span> <span class="n">articulation</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_articulations</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
-            <span class="n">articulation</span><span class="o">.</span><span class="n">reset</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span>
-        <span class="k">for</span> <span class="n">deformable_object</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_deformable_objects</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
-            <span class="n">deformable_object</span><span class="o">.</span><span class="n">reset</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span>
-        <span class="k">for</span> <span class="n">rigid_object</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_rigid_objects</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
-            <span class="n">rigid_object</span><span class="o">.</span><span class="n">reset</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span>
-        <span class="k">for</span> <span class="n">rigid_object_collection</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_rigid_object_collections</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
-            <span class="n">rigid_object_collection</span><span class="o">.</span><span class="n">reset</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span>
-        <span class="c1"># -- sensors</span>
-        <span class="k">for</span> <span class="n">sensor</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sensors</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
-            <span class="n">sensor</span><span class="o">.</span><span class="n">reset</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span></div>
-
-<div class="viewcode-block" id="InteractiveScene.reset_to"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.scene.html#isaaclab.scene.InteractiveScene.reset_to">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">reset_to</span><span class="p">(</span>
-        <span class="bp">self</span><span class="p">,</span>
-        <span class="n">state</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]]],</span>
-        <span class="n">env_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-        <span class="n">is_relative</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
-    <span class="p">):</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Resets the scene entities to the given state.</span>
-
-<span class="sd">        Args:</span>
-<span class="sd">            state: The state to reset the scene entities to.</span>
-<span class="sd">            env_ids: The indices of the environments to reset.</span>
-<span class="sd">                Defaults to None (all instances).</span>
-<span class="sd">            is_relative: If set to True, the state is considered relative to the environment origins.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">if</span> <span class="n">env_ids</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="n">env_ids</span> <span class="o">=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
-        <span class="c1"># articulations</span>
-        <span class="k">for</span> <span class="n">asset_name</span><span class="p">,</span> <span class="n">articulation</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_articulations</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-            <span class="n">asset_state</span> <span class="o">=</span> <span class="n">state</span><span class="p">[</span><span class="s2">&quot;articulation&quot;</span><span class="p">][</span><span class="n">asset_name</span><span class="p">]</span>
-            <span class="c1"># root state</span>
-            <span class="n">root_pose</span> <span class="o">=</span> <span class="n">asset_state</span><span class="p">[</span><span class="s2">&quot;root_pose&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
-            <span class="k">if</span> <span class="n">is_relative</span><span class="p">:</span>
-                <span class="n">root_pose</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">3</span><span class="p">]</span> <span class="o">+=</span> <span class="bp">self</span><span class="o">.</span><span class="n">env_origins</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span>
-            <span class="n">root_velocity</span> <span class="o">=</span> <span class="n">asset_state</span><span class="p">[</span><span class="s2">&quot;root_velocity&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
-            <span class="n">articulation</span><span class="o">.</span><span class="n">write_root_pose_to_sim</span><span class="p">(</span><span class="n">root_pose</span><span class="p">,</span> <span class="n">env_ids</span><span class="o">=</span><span class="n">env_ids</span><span class="p">)</span>
-            <span class="n">articulation</span><span class="o">.</span><span class="n">write_root_velocity_to_sim</span><span class="p">(</span><span class="n">root_velocity</span><span class="p">,</span> <span class="n">env_ids</span><span class="o">=</span><span class="n">env_ids</span><span class="p">)</span>
-            <span class="c1"># joint state</span>
-            <span class="n">joint_position</span> <span class="o">=</span> <span class="n">asset_state</span><span class="p">[</span><span class="s2">&quot;joint_position&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
-            <span class="n">joint_velocity</span> <span class="o">=</span> <span class="n">asset_state</span><span class="p">[</span><span class="s2">&quot;joint_velocity&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
-            <span class="n">articulation</span><span class="o">.</span><span class="n">write_joint_state_to_sim</span><span class="p">(</span><span class="n">joint_position</span><span class="p">,</span> <span class="n">joint_velocity</span><span class="p">,</span> <span class="n">env_ids</span><span class="o">=</span><span class="n">env_ids</span><span class="p">)</span>
-            <span class="n">articulation</span><span class="o">.</span><span class="n">set_joint_position_target</span><span class="p">(</span><span class="n">joint_position</span><span class="p">,</span> <span class="n">env_ids</span><span class="o">=</span><span class="n">env_ids</span><span class="p">)</span>
-            <span class="n">articulation</span><span class="o">.</span><span class="n">set_joint_velocity_target</span><span class="p">(</span><span class="n">joint_velocity</span><span class="p">,</span> <span class="n">env_ids</span><span class="o">=</span><span class="n">env_ids</span><span class="p">)</span>
-        <span class="c1"># deformable objects</span>
-        <span class="k">for</span> <span class="n">asset_name</span><span class="p">,</span> <span class="n">deformable_object</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_deformable_objects</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-            <span class="n">asset_state</span> <span class="o">=</span> <span class="n">state</span><span class="p">[</span><span class="s2">&quot;deformable_object&quot;</span><span class="p">][</span><span class="n">asset_name</span><span class="p">]</span>
-            <span class="n">nodal_position</span> <span class="o">=</span> <span class="n">asset_state</span><span class="p">[</span><span class="s2">&quot;nodal_position&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
-            <span class="k">if</span> <span class="n">is_relative</span><span class="p">:</span>
-                <span class="n">nodal_position</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">3</span><span class="p">]</span> <span class="o">+=</span> <span class="bp">self</span><span class="o">.</span><span class="n">env_origins</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span>
-            <span class="n">nodal_velocity</span> <span class="o">=</span> <span class="n">asset_state</span><span class="p">[</span><span class="s2">&quot;nodal_velocity&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
-            <span class="n">deformable_object</span><span class="o">.</span><span class="n">write_nodal_pos_to_sim</span><span class="p">(</span><span class="n">nodal_position</span><span class="p">,</span> <span class="n">env_ids</span><span class="o">=</span><span class="n">env_ids</span><span class="p">)</span>
-            <span class="n">deformable_object</span><span class="o">.</span><span class="n">write_nodal_velocity_to_sim</span><span class="p">(</span><span class="n">nodal_velocity</span><span class="p">,</span> <span class="n">env_ids</span><span class="o">=</span><span class="n">env_ids</span><span class="p">)</span>
-        <span class="c1"># rigid objects</span>
-        <span class="k">for</span> <span class="n">asset_name</span><span class="p">,</span> <span class="n">rigid_object</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_rigid_objects</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-            <span class="n">asset_state</span> <span class="o">=</span> <span class="n">state</span><span class="p">[</span><span class="s2">&quot;rigid_object&quot;</span><span class="p">][</span><span class="n">asset_name</span><span class="p">]</span>
-            <span class="n">root_pose</span> <span class="o">=</span> <span class="n">asset_state</span><span class="p">[</span><span class="s2">&quot;root_pose&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
-            <span class="k">if</span> <span class="n">is_relative</span><span class="p">:</span>
-                <span class="n">root_pose</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">3</span><span class="p">]</span> <span class="o">+=</span> <span class="bp">self</span><span class="o">.</span><span class="n">env_origins</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span>
-            <span class="n">root_velocity</span> <span class="o">=</span> <span class="n">asset_state</span><span class="p">[</span><span class="s2">&quot;root_velocity&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
-            <span class="n">rigid_object</span><span class="o">.</span><span class="n">write_root_pose_to_sim</span><span class="p">(</span><span class="n">root_pose</span><span class="p">,</span> <span class="n">env_ids</span><span class="o">=</span><span class="n">env_ids</span><span class="p">)</span>
-            <span class="n">rigid_object</span><span class="o">.</span><span class="n">write_root_velocity_to_sim</span><span class="p">(</span><span class="n">root_velocity</span><span class="p">,</span> <span class="n">env_ids</span><span class="o">=</span><span class="n">env_ids</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">write_data_to_sim</span><span class="p">()</span></div>
-
-<div class="viewcode-block" id="InteractiveScene.write_data_to_sim"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.scene.html#isaaclab.scene.InteractiveScene.write_data_to_sim">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">write_data_to_sim</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Writes the data of the scene entities to the simulation.&quot;&quot;&quot;</span>
-        <span class="c1"># -- assets</span>
-        <span class="k">for</span> <span class="n">articulation</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_articulations</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
-            <span class="n">articulation</span><span class="o">.</span><span class="n">write_data_to_sim</span><span class="p">()</span>
-        <span class="k">for</span> <span class="n">deformable_object</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_deformable_objects</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
-            <span class="n">deformable_object</span><span class="o">.</span><span class="n">write_data_to_sim</span><span class="p">()</span>
-        <span class="k">for</span> <span class="n">rigid_object</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_rigid_objects</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
-            <span class="n">rigid_object</span><span class="o">.</span><span class="n">write_data_to_sim</span><span class="p">()</span>
-        <span class="k">for</span> <span class="n">rigid_object_collection</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_rigid_object_collections</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
-            <span class="n">rigid_object_collection</span><span class="o">.</span><span class="n">write_data_to_sim</span><span class="p">()</span></div>
-
-<div class="viewcode-block" id="InteractiveScene.update"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.scene.html#isaaclab.scene.InteractiveScene.update">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">update</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dt</span><span class="p">:</span> <span class="nb">float</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Update the scene entities.</span>
-
-<span class="sd">        Args:</span>
-<span class="sd">            dt: The amount of time passed from last :meth:`update` call.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="c1"># -- assets</span>
-        <span class="k">for</span> <span class="n">articulation</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_articulations</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
-            <span class="n">articulation</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">dt</span><span class="p">)</span>
-        <span class="k">for</span> <span class="n">deformable_object</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_deformable_objects</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
-            <span class="n">deformable_object</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">dt</span><span class="p">)</span>
-        <span class="k">for</span> <span class="n">rigid_object</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_rigid_objects</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
-            <span class="n">rigid_object</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">dt</span><span class="p">)</span>
-        <span class="k">for</span> <span class="n">rigid_object_collection</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_rigid_object_collections</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
-            <span class="n">rigid_object_collection</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">dt</span><span class="p">)</span>
-        <span class="c1"># -- sensors</span>
-        <span class="k">for</span> <span class="n">sensor</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sensors</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
-            <span class="n">sensor</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">dt</span><span class="p">,</span> <span class="n">force_recompute</span><span class="o">=</span><span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">lazy_sensor_update</span><span class="p">)</span></div>
 
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Operations: Iteration.</span>
@@ -1216,7 +1268,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Mar 21, 2025.
+  Last updated on Mar 23, 2025.
   <br/>
 </p>
   </div>
