@@ -1559,13 +1559,12 @@ class TestArticulation(unittest.TestCase):
                             # check shape
                             self.assertEqual(
                                 articulation.data.body_joint_reaction_wrench_b.shape,
-                                (num_articulations, len(articulation.data.body_names), 6),
+                                (num_articulations, articulation.num_bodies, 6),
                             )
 
                         # calculate expected static
-                        mass = articulation.root_physx_view.get_masses()  # [num_env, num_bodies]
-                        pos_w, quat_w = articulation.root_physx_view.get_link_transforms().split([3, 4], dim=-1)
-                        quat_w = math_utils.convert_quat(quat_w, to="wxyz")
+                        mass = articulation.data.default_mass
+                        pos_w, quat_w = articulation.data.body_state_w[:, :7].split([3, 4], dim=-1)
 
                         mass_link2 = mass[:, 1].view(num_articulations, -1)
                         gravity = (
