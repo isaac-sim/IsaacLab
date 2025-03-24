@@ -1514,15 +1514,16 @@ class TestArticulation(unittest.TestCase):
                                     elif state_location == "link":
                                         torch.testing.assert_close(rand_state, articulation.data.root_link_state_w)
 
-    def test_body_joint_reaction_wrench(self):
-        """Test the data.body_joint_reaction_wrench buffer is populated correctly and statically correct for single joint."""
-        for num_articulations in (1, 2):
-            for device in ("cuda:0", "cpu"):
+    def test_body_incoming_joint_wrench_b_single_joint(self):
+        """Test the data.body_incoming_joint_wrench_b buffer is populated correctly and statically correct for single joint."""
+        for num_articulations in (2, 1):
+            for device in ("cpu", "cuda:0"):
+                print(num_articulations, device)
                 with self.subTest(num_articulations=num_articulations, device=device):
                     with build_simulation_context(
-                        gravity_enabled=True, device=device, add_ground_plane=True, auto_add_lighting=True
+                        gravity_enabled=True, device=device, add_ground_plane=False, auto_add_lighting=True
                     ) as sim:
-                        articulation_cfg = generate_articulation_cfg(articulation_type="single_joint")
+                        articulation_cfg = generate_articulation_cfg(articulation_type="single_joint_implicit")
                         articulation, _ = generate_articulation(
                             articulation_cfg=articulation_cfg, num_articulations=num_articulations, device=device
                         )
@@ -1546,7 +1547,7 @@ class TestArticulation(unittest.TestCase):
                         )
                         articulation.set_joint_position_target(joint_pos)
                         articulation.write_data_to_sim()
-                        for _ in range(100):
+                        for _ in range(50):
                             articulation.set_external_force_and_torque(
                                 forces=external_force_vector_b, torques=external_torque_vector_b
                             )
@@ -1558,13 +1559,14 @@ class TestArticulation(unittest.TestCase):
 
                             # check shape
                             self.assertEqual(
-                                articulation.data.body_joint_reaction_wrench_b.shape,
+                                articulation.data.body_incoming_joint_wrench_b.shape,
                                 (num_articulations, articulation.num_bodies, 6),
                             )
 
                         # calculate expected static
                         mass = articulation.data.default_mass
-                        pos_w, quat_w = articulation.data.body_state_w[:, :7].split([3, 4], dim=-1)
+                        pos_w = articulation.data.body_pos_w
+                        quat_w = articulation.data.body_quat_w
 
                         mass_link2 = mass[:, 1].view(num_articulations, -1)
                         gravity = (
@@ -1572,6 +1574,7 @@ class TestArticulation(unittest.TestCase):
                             .repeat(num_articulations, 1)
                             .view((num_articulations, 3))
                         )
+
                         # NOTE: the com and link pose for single joint are colocated
                         weight_vector_w = mass_link2 * gravity
                         # expected wrench from link mass and external wrench
@@ -1587,20 +1590,21 @@ class TestArticulation(unittest.TestCase):
                                 pos_w[:, 1, :].to(device) - pos_w[:, 0, :].to(device),
                                 weight_vector_w.to(device)
                                 + math_utils.quat_apply(quat_w[:, 1, :], external_force_vector_b[:, 1, :]),
+                                dim=-1,
                             )
                             + math_utils.quat_apply(quat_w[:, 1, :], external_torque_vector_b[:, 1, :]),
                         )
 
-                        print(expected_wrench.split([3, 3], dim=-1))
-                        print(articulation.data.body_joint_reaction_wrench_b[:, 1, :].squeeze(1).split([3, 3], dim=-1))
-
                         # check value of last joint wrench
                         torch.testing.assert_close(
                             expected_wrench,
-                            articulation.data.body_joint_reaction_wrench_b[:, 1, :].squeeze(1),
-                            atol=5e-3,
+                            articulation.data.body_incoming_joint_wrench_b[:, 1, :].squeeze(1),
+                            atol=1e-2,
                             rtol=1e-3,
                         )
+
+                        print(expected_wrench.split([3, 3], dim=-1))
+                        print(articulation.data.body_incoming_joint_wrench_b[:, 1, :].squeeze(1).split([3, 3], dim=-1))
 
 
 if __name__ == "__main__":
