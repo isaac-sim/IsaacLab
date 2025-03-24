@@ -101,7 +101,7 @@ def generate_articulation_cfg(
                 ),
             },
             init_state=ArticulationCfg.InitialStateCfg(
-                pos=(0.0, 0.0, 0.5),
+                pos=(0.0, 0.0, 0.0),
                 joint_pos=({"RevoluteJoint": 1.5708}),
                 rot=(0.7071055, 0.7071081, 0, 0),
             ),
@@ -1523,6 +1523,7 @@ class TestArticulation(unittest.TestCase):
                     with build_simulation_context(
                         gravity_enabled=True, device=device, add_ground_plane=False, auto_add_lighting=True
                     ) as sim:
+                        sim._app_control_on_stop_handle = None
                         articulation_cfg = generate_articulation_cfg(articulation_type="single_joint_implicit")
                         articulation, _ = generate_articulation(
                             articulation_cfg=articulation_cfg, num_articulations=num_articulations, device=device
@@ -1602,9 +1603,6 @@ class TestArticulation(unittest.TestCase):
                             atol=1e-2,
                             rtol=1e-3,
                         )
-
-                        print(expected_wrench.split([3, 3], dim=-1))
-                        print(articulation.data.body_incoming_joint_wrench_b[:, 1, :].squeeze(1).split([3, 3], dim=-1))
 
 
 if __name__ == "__main__":
