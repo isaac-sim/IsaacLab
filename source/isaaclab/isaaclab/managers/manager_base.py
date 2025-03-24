@@ -112,7 +112,7 @@ class ManagerTermBase(ABC):
         Returns:
             The value of the term.
         """
-        raise NotImplementedError
+        raise NotImplementedError("The method '__call__' should be implemented by the subclass.")
 
 
 class ManagerBase(ABC):
@@ -136,10 +136,6 @@ class ManagerBase(ABC):
         self.cfg = copy.deepcopy(cfg)
         self._env = env
 
-        # parse config to create terms information
-        if self.cfg:
-            self._prepare_terms()
-
         # if the simulation is not playing, we use callbacks to trigger the resolution of the scene
         # entities configuration. this is needed for cases where the manager is created after the
         # simulation, but before the simulation is playing.
@@ -156,6 +152,10 @@ class ManagerBase(ABC):
             )
         else:
             self._resolve_terms_handle = None
+
+        # parse config to create terms information
+        if self.cfg:
+            self._prepare_terms()
 
     def __del__(self):
         """Delete the manager."""
@@ -325,10 +325,17 @@ class ManagerBase(ABC):
                     f"Configuration for the term '{term_name}' is not of type ManagerTermBase."
                     f" Received: '{type(term_cfg.func)}'."
                 )
+            func_static = term_cfg.func.__call__
+            min_argc += 1  # forward by 1 to account for 'self' argument
+        else:
+            func_static = term_cfg.func
+        # check if function is callable
+        if not callable(func_static):
+            raise AttributeError(f"The term '{term_name}' is not callable. Received: {term_cfg.func}")
 
         # check statically if the term's arguments are matched by params
         term_params = list(term_cfg.params.keys())
-        args = inspect.signature(term_cfg.func).parameters
+        args = inspect.signature(func_static).parameters
         args_with_defaults = [arg for arg in args if args[arg].default is not inspect.Parameter.empty]
         args_without_defaults = [arg for arg in args if args[arg].default is inspect.Parameter.empty]
         args = args_without_defaults + args_with_defaults
