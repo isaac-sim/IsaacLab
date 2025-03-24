@@ -83,9 +83,15 @@ def image(
             os.makedirs(dir_path, exist_ok=True)
         if images.dtype == torch.uint8:
             images = images.float() / 255.0
+        # Get total successful episodes
+        total_successes = sum(env.recorder_manager._exported_successful_episode_count.values())
+
         for tile in range(images.shape[0]):
             tile_chw = torch.swapaxes(images[tile : tile + 1].unsqueeze(1), 1, -1).squeeze(-1)
-            save_image(tile_chw, f"{image_path}_{data_type}_{tile}_{env.common_step_counter}.png")
+            filename = (
+                f"{image_path}_{data_type}_trial_{total_successes}_tile_{tile}_step_{env.common_step_counter}.png"
+            )
+            save_image(tile_chw, filename)
 
     return images.clone()
 

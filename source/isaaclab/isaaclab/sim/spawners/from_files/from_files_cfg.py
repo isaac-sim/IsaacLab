@@ -43,7 +43,14 @@ class FileCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
     """Properties to apply to the fixed tendons (if any)."""
 
     joint_drive_props: schemas.JointDrivePropertiesCfg | None = None
-    """Properties to apply to a joint."""
+    """Properties to apply to a joint.
+
+    .. note::
+        The joint drive properties set the USD attributes of all the joint drives in the asset.
+        We recommend using this attribute sparingly and only when necessary. Instead, please use the
+        :attr:`~isaaclab.assets.ArticulationCfg.actuators` parameter to set the joint drive properties
+        for specific joints in an articulation.
+    """
 
     visual_material_path: str = "material"
     """Path to the visual material to use for the prim. Defaults to "material".
