@@ -1,7 +1,7 @@
 Changelog
 ---------
 
-0.36.3 (2025-03-14)
+0.36.4 (2025-03-24)
 ~~~~~~~~~~~~~~~~~~~
 
 Changed
@@ -9,6 +9,16 @@ Changed
 
 * Definition of render settings in :class:`~isaaclab.sim.SimulationCfg` is changed to None, which means that
   the default settings will be used from the experience files and the double definition is removed.
+
+
+0.36.3 (2025-03-17)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed default behavior of :class:`~isaaclab.actuators.ImplicitActuator` if no :attr:`effort_limits_sim` or
+  :attr:`effort_limit` is set.
 
 
 0.36.2 (2025-03-12)
