@@ -276,99 +276,6 @@ class randomize_rigid_body_material(ManagerTermBase):
         self.asset.root_physx_view.set_material_properties(materials, env_ids)
 
 
-class randomize_visual_texture_material(ManagerTermBase):
-    """Randomize the visual texture of bodies on an asset using Replicator API.
-
-    This function randomizes the visual texture of the bodies of the asset using the Replicator API.
-    The function samples random textures from the given texture paths and applies them to the bodies
-    of the asset. The textures are projected onto the bodies and rotated by the given angles.
-
-    .. note::
-        The function assumes that the asset follows the prim naming convention as:
-        "{asset_prim_path}/{body_name}/visuals" where the body name is the name of the body to
-        which the texture is applied. This is the default prim ordering when importing assets
-        from the asset converters in Isaac Lab.
-
-    .. note::
-        When randomizing the texture of individual assets, please make sure to set
-        :attr:`isaaclab.scene.InteractiveSceneCfg.replicate_physics` to False. This ensures that physics
-        parser will parse the individual asset properties separately.
-    """
-
-    def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv):
-        """Initialize the term.
-
-        Args:
-            cfg: The configuration of the event term.
-            env: The environment instance.
-        """
-        super().__init__(cfg, env)
-
-        enable_extension("omni.replicator.core")
-
-        # we import the module here since we may not always need the replicator
-        import omni.replicator.core as rep
-
-        # read parameters from the configuration
-        asset_cfg: SceneEntityCfg = cfg.params.get("asset_cfg")
-        texture_paths = cfg.params.get("texture_paths")
-        event_name = cfg.params.get("event_name")
-        texture_rotation = cfg.params.get("texture_rotation", (0.0, 0.0))
-
-        # check to make sure replicate_physics is set to False, else raise warning
-        if env.cfg.scene.replicate_physics:
-            raise ValueError(
-                "Unable to randomize visual texture material - ensure InteractiveSceneCfg's replicate_physics parameter"
-                " is set to False."
-            )
-
-        # convert from radians to degrees
-        texture_rotation = tuple(math.degrees(angle) for angle in texture_rotation)
-
-        # obtain the asset entity
-        asset_entity = env.scene[asset_cfg.name]
-        # join all bodies in the asset
-        body_names = asset_cfg.body_names
-        if isinstance(body_names, str):
-            body_names_regex = body_names
-        elif isinstance(body_names, list):
-            body_names_regex = "|".join(body_names)
-        else:
-            body_names_regex = ".*"
-
-        # Create the omni-graph node for the randomization term
-        def rep_texture_randomization():
-            prims_group = rep.get.prims(path_pattern=f"{asset_entity.cfg.prim_path}/{body_names_regex}/visuals")
-
-            with prims_group:
-                rep.randomizer.texture(
-                    textures=texture_paths, project_uvw=True, texture_rotate=rep.distribution.uniform(*texture_rotation)
-                )
-
-            return prims_group.node
-
-        # Register the event to the replicator
-        with rep.trigger.on_custom_event(event_name=event_name):
-            rep_texture_randomization()
-
-    def __call__(
-        self,
-        env: ManagerBasedEnv,
-        env_ids: torch.Tensor,
-        event_name: str,
-        asset_cfg: SceneEntityCfg,
-        texture_paths: list[str],
-        texture_rotation: tuple[float, float] = (0.0, 0.0),
-    ):
-        # import replicator
-        import omni.replicator.core as rep
-
-        # only send the event to the replicator
-        # note: This triggers the nodes for all the environments.
-        #   We need to investigate how to make it happen only for a subset based on env_ids.
-        rep.utils.send_og_event(event_name)
-
-
 def randomize_rigid_body_mass(
     env: ManagerBasedEnv,
     env_ids: torch.Tensor | None,
@@ -1214,6 +1121,150 @@ def reset_scene_to_default(env: ManagerBasedEnv, env_ids: torch.Tensor):
         # obtain default and set into the physics simulation
         nodal_state = deformable_object.data.default_nodal_state_w[env_ids].clone()
         deformable_object.write_nodal_state_to_sim(nodal_state, env_ids=env_ids)
+
+
+class randomize_visual_texture_material(ManagerTermBase):
+    """Randomize the visual texture of bodies on an asset using Replicator API.
+
+    This function randomizes the visual texture of the bodies of the asset using the Replicator API.
+    The function samples random textures from the given texture paths and applies them to the bodies
+    of the asset. The textures are projected onto the bodies and rotated by the given angles.
+
+    .. note::
+        The function assumes that the asset follows the prim naming convention as:
+        "{asset_prim_path}/{body_name}/visuals" where the body name is the name of the body to
+        which the texture is applied. This is the default prim ordering when importing assets
+        from the asset converters in Isaac Lab.
+
+    .. note::
+        When randomizing the texture of individual assets, please make sure to set
+        :attr:`isaaclab.scene.InteractiveSceneCfg.replicate_physics` to False. This ensures that physics
+        parser will parse the individual asset properties separately.
+    """
+
+    def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv):
+        """Initialize the term.
+
+        Args:
+            cfg: The configuration of the event term.
+            env: The environment instance.
+        """
+        super().__init__(cfg, env)
+
+        # enable replicator extension if not already enabled
+        enable_extension("omni.replicator.core")
+        # we import the module here since we may not always need the replicator
+        import omni.replicator.core as rep
+
+        # read parameters from the configuration
+        asset_cfg: SceneEntityCfg = cfg.params.get("asset_cfg")
+        texture_paths = cfg.params.get("texture_paths")
+        event_name = cfg.params.get("event_name")
+        texture_rotation = cfg.params.get("texture_rotation", (0.0, 0.0))
+
+        # check to make sure replicate_physics is set to False, else raise warning
+        if env.cfg.scene.replicate_physics:
+            raise ValueError(
+                "Unable to randomize visual texture material - ensure InteractiveSceneCfg's replicate_physics parameter"
+                " is set to False."
+            )
+
+        # convert from radians to degrees
+        texture_rotation = tuple(math.degrees(angle) for angle in texture_rotation)
+
+        # obtain the asset entity
+        asset_entity = env.scene[asset_cfg.name]
+        # join all bodies in the asset
+        body_names = asset_cfg.body_names
+        if isinstance(body_names, str):
+            body_names_regex = body_names
+        elif isinstance(body_names, list):
+            body_names_regex = "|".join(body_names)
+        else:
+            body_names_regex = ".*"
+
+        # Create the omni-graph node for the randomization term
+        def rep_texture_randomization():
+            prims_group = rep.get.prims(path_pattern=f"{asset_entity.cfg.prim_path}/{body_names_regex}/visuals")
+
+            with prims_group:
+                rep.randomizer.texture(
+                    textures=texture_paths, project_uvw=True, texture_rotate=rep.distribution.uniform(*texture_rotation)
+                )
+
+            return prims_group.node
+
+        # Register the event to the replicator
+        with rep.trigger.on_custom_event(event_name=event_name):
+            rep_texture_randomization()
+
+    def __call__(
+        self,
+        env: ManagerBasedEnv,
+        env_ids: torch.Tensor,
+        event_name: str,
+        asset_cfg: SceneEntityCfg,
+        texture_paths: list[str],
+        texture_rotation: tuple[float, float] = (0.0, 0.0),
+    ):
+        # import replicator
+        import omni.replicator.core as rep
+
+        # only send the event to the replicator
+        # note: This triggers the nodes for all the environments.
+        #   We need to investigate how to make it happen only for a subset based on env_ids.
+        rep.utils.send_og_event(event_name)
+
+class randomize_visual_color(ManagerTermBase):
+    """Randomize the color in the scene with Replicator omni-graph node."""
+
+    def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv):
+        """Initialize the randomization term."""
+        super().__init__(cfg, env)
+
+        # import replicator
+        import omni.replicator.core as rep
+
+        # read parameters from the configuration
+        asset_cfg: SceneEntityCfg = cfg.params.get("asset_cfg")
+        colors = cfg.params.get("colors")
+        event_name = cfg.params.get("event_name")
+        child_prim_path = cfg.params.get("child_prim_path", "")
+
+        if not child_prim_path.startswith("/"):
+            child_prim_path = "/" + child_prim_path
+
+        # obtain the asset entity
+        asset_entity = env.scene[asset_cfg.name]
+        # TODO: I hack it to make it work for now
+
+        # Create the omni-graph node for the randomization term
+        def rep_texture_randomization():
+            prims_group = rep.get.prims(path_pattern=f"{asset_entity.cfg.prim_path}{child_prim_path}")
+
+            with prims_group:
+                rep.randomizer.color(colors=colors)
+
+            return prims_group.node
+
+        # Register the event to the replicator
+        with rep.trigger.on_custom_event(event_name=event_name):
+            rep_texture_randomization()
+
+    def __call__(
+        self,
+        env: ManagerBasedEnv,
+        env_ids: torch.Tensor,
+        event_name: str,
+        asset_cfg: SceneEntityCfg,
+        colors: list[tuple[float, float, float]],
+        child_prim_path: str = "",
+    ):
+        # import replicator
+        import omni.replicator.core as rep
+
+        # only send the event to the replicator
+        rep.utils.send_og_event(event_name)
 
 
 """
