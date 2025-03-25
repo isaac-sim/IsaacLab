@@ -115,7 +115,7 @@ To collect demonstrations with teleoperation for the environment ``Isaac-Stack-C
 
    The order of the stacked cubes should be blue (bottom), red (middle), green (top).
 
-.. note::
+.. tip::
 
    When using the ``handtracking`` device, we suggest collecting demonstrations with the ``Isaac-Stack-Cube-Frank-IK-Abs-v0`` version of the task, which controls the end effector using the absolute position of the hand.
 
@@ -152,7 +152,7 @@ Isaac Lab Mimic is a feature in Isaac Lab that allows generation of additional d
 In the following example, we will show how to use Isaac Lab Mimic to generate additional demonstrations that can be used to train either a state-based policy
 (using the ``Isaac-Stack-Cube-Franka-IK-Rel-Mimic-v0`` environment) or visuomotor policy (using the ``Isaac-Stack-Cube-Franka-IK-Rel-Visuomotor-Mimic-v0`` environment).
 
-.. note::
+.. important::
 
    All commands in the following sections must keep a consistent policy type. For example, if choosing to use a state-based policy, then all commands used should be from the "State-based policy" tab.
 
@@ -328,7 +328,7 @@ Optional: Collect and annotate demonstrations
    an Apple Vision Pro, you may skip this step and continue on to the next step: `Generate the dataset`_.
    A pre-recorded annotated dataset is provided in the next step .
 
-.. note::
+.. tip::
    The GR1 scene utilizes the wrist poses from the Apple Vision Pro (AVP) as setpoints for a differential IK controller (Pink-IK).
    The differential IK controller requires the user's wrist pose to be close to the robot's initial or current pose for optimal performance.
    Rapid movements of the user's wrist may cause it to deviate significantly from the goal state, which could prevent the IK controller from finding the optimal solution.
@@ -357,9 +357,17 @@ We recommend 10 successful demonstrations for good data generation results.
    --dataset_file ./datasets/dataset_gr1.hdf5 \
    --num_demos 10 --enable_pinocchio
 
-.. note::
+.. tip::
    If a demo fails during data collection, the environment can be reset using the teleoperation controls panel in the XR teleop client
    on the Apple Vision Pro or via voice control by saying "reset". See :ref:`teleoperate-apple-vision-pro` for more details.
+
+   The robot uses simplified collision meshes for physics calculations that differ from the detailed visual meshes displayed in the simulation. Due to this difference, you may occasionally observe visual artifacts where parts of the robot appear to penetrate other objects or itself, even though proper collision handling is occurring in the physics simulation.
+
+.. warning::
+   When first starting the simulation window, you may encounter the following ``Gf.Matrix4d`` error:
+   ``TypeError: No registered converter was able to produce a C++ rvalue of type std::vector<double, std::allocator<double> > from this Python object of type tuple``.
+   This error can be ignored and will not affect the data collection process.
+   The error will be patched in a future release of Isaac Sim.
 
 You can replay the collected demonstrations by running the following command:
 
@@ -402,7 +410,7 @@ move towards the target object. Annotate the demonstrations by running the follo
          Press "S" to annotate subtask signals.
          Press "Q" to skip the episode.
 
-.. note::
+.. tip::
 
    If the object does not get placed in the bin during annotation, you can press "N" to replay the episode and annotate again. Or you can press "Q" to skip the episode and annotate the next one.
 
