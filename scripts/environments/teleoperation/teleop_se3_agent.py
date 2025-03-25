@@ -205,7 +205,6 @@ def main():
         # Create hand tracking device with retargeter
         teleop_interface = OpenXRDevice(
             env_cfg.xr,
-            hand=OpenXRDevice.Hand.BOTH,
             retargeters=[gr1t2_retargeter],
         )
         teleop_interface.add_callback("RESET", reset_recording_instance)
@@ -218,16 +217,19 @@ def main():
     elif "handtracking" in args_cli.teleop_device.lower():
         # Create EE retargeter with desired configuration
         if "_abs" in args_cli.teleop_device.lower():
-            retargeter_device = Se3AbsRetargeter(zero_out_xy_rotation=True)
+            retargeter_device = Se3AbsRetargeter(
+                bound_hand=OpenXRDevice.TrackingTarget.HAND_RIGHT, zero_out_xy_rotation=True
+            )
         else:
-            retargeter_device = Se3RelRetargeter(zero_out_xy_rotation=True)
+            retargeter_device = Se3RelRetargeter(
+                bound_hand=OpenXRDevice.TrackingTarget.HAND_RIGHT, zero_out_xy_rotation=True
+            )
 
-        grip_retargeter = GripperRetargeter()
+        grip_retargeter = GripperRetargeter(bound_hand=OpenXRDevice.TrackingTarget.HAND_RIGHT)
 
         # Create hand tracking device with retargeter (in a list)
         teleop_interface = OpenXRDevice(
             env_cfg.xr,
-            hand=OpenXRDevice.Hand.RIGHT,
             retargeters=[retargeter_device, grip_retargeter],
         )
         teleop_interface.add_callback("RESET", reset_recording_instance)

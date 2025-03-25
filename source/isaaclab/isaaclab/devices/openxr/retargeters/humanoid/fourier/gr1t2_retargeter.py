@@ -60,11 +60,11 @@ class GR1T2Retargeter(RetargeterBase):
             )
             self._markers = VisualizationMarkers(marker_cfg)
 
-    def retarget(self, joint_poses: dict[str, np.ndarray]) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    def retarget(self, data: dict) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Convert hand joint poses to robot end-effector commands.
 
         Args:
-            joint_poses: Dictionary containing hand joint poses
+            data: Dictionary mapping tracking targets to joint data dictionaries.
 
         Returns:
             tuple containing:
@@ -74,8 +74,8 @@ class GR1T2Retargeter(RetargeterBase):
         """
 
         # Access the left and right hand data using the enum key
-        left_hand_poses = joint_poses[OpenXRDevice.Hand.LEFT]
-        right_hand_poses = joint_poses[OpenXRDevice.Hand.RIGHT]
+        left_hand_poses = data[OpenXRDevice.TrackingTarget.HAND_LEFT]
+        right_hand_poses = data[OpenXRDevice.TrackingTarget.HAND_RIGHT]
 
         left_wrist = left_hand_poses.get("wrist")
         right_wrist = right_hand_poses.get("wrist")

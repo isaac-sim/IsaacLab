@@ -6,6 +6,7 @@
 import numpy as np
 from scipy.spatial.transform import Rotation, Slerp
 
+from isaaclab.devices import OpenXRDevice
 from isaaclab.devices.retargeter_base import RetargeterBase
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.markers.config import FRAME_MARKER_CFG
@@ -26,6 +27,7 @@ class Se3AbsRetargeter(RetargeterBase):
 
     def __init__(
         self,
+        bound_hand: OpenXRDevice.TrackingTarget,
         zero_out_xy_rotation: bool = False,
         use_wrist_rotation: bool = False,
         use_wrist_position: bool = False,
@@ -34,11 +36,19 @@ class Se3AbsRetargeter(RetargeterBase):
         """Initialize the retargeter.
 
         Args:
+            bound_hand: The hand to track (OpenXRDevice.TrackingTarget.HAND_LEFT or OpenXRDevice.TrackingTarget.HAND_RIGHT)
             zero_out_xy_rotation: If True, zero out rotation around x and y axes
             use_wrist_rotation: If True, use wrist rotation instead of finger average
             use_wrist_position: If True, use wrist position instead of pinch position
             enable_visualization: If True, visualize the target pose in the scene
         """
+        if bound_hand not in [OpenXRDevice.TrackingTarget.HAND_LEFT, OpenXRDevice.TrackingTarget.HAND_RIGHT]:
+            raise ValueError(
+                "bound_hand must be either OpenXRDevice.TrackingTarget.HAND_LEFT or"
+                " OpenXRDevice.TrackingTarget.HAND_RIGHT"
+            )
+        self.bound_hand = bound_hand
+
         self._zero_out_xy_rotation = zero_out_xy_rotation
         self._use_wrist_rotation = use_wrist_rotation
         self._use_wrist_position = use_wrist_position
@@ -53,21 +63,22 @@ class Se3AbsRetargeter(RetargeterBase):
             self._visualization_pos = np.zeros(3)
             self._visualization_rot = np.array([1.0, 0.0, 0.0, 0.0])
 
-    def retarget(self, data: dict[str, np.ndarray]) -> np.ndarray:
+    def retarget(self, data: dict) -> np.ndarray:
         """Convert hand joint poses to robot end-effector command.
 
         Args:
-            data: Dictionary mapping joint names to their pose data,
-                joint names are defined in isaaclab.devices.openxr.common.HAND_JOINT_NAMES
+            data: Dictionary mapping tracking targets to joint data dictionaries.
+                The joint names are defined in isaaclab.devices.openxr.common.HAND_JOINT_NAMES
 
         Returns:
             np.ndarray: 7D array containing position (xyz) and orientation (quaternion)
                 for the robot end-effector
         """
-        # Extract key joint poses
-        thumb_tip = data.get("thumb_tip")
-        index_tip = data.get("index_tip")
-        wrist = data.get("wrist")
+        # Extract key joint poses from the bound hand
+        hand_data = data[self.bound_hand]
+        thumb_tip = hand_data.get("thumb_tip")
+        index_tip = hand_data.get("index_tip")
+        wrist = hand_data.get("wrist")
 
         ee_command = self._retarget_abs(thumb_tip, index_tip, wrist)
 

@@ -44,44 +44,41 @@ class OpenXRDevice(DeviceBase):
     * "STOP": Pause hand tracking data flow
     * "RESET": Reset the tracking and signal simulation reset
 
-    The device can track either the left hand, right hand, or both hands simultaneously based on
-    the Hand enum value passed to the constructor. When retargeters are provided, the raw joint
-    poses are transformed into robot control commands suitable for teleoperation.
+    The device can track the left hand, right hand, head position, or any combination of these
+    based on the TrackingTarget enum values. When retargeters are provided, the raw tracking
+    data is transformed into robot control commands suitable for teleoperation.
     """
 
-    class Hand(Enum):
-        """Enum class specifying which hand(s) to track with OpenXR.
+    class TrackingTarget(Enum):
+        """Enum class specifying what to track with OpenXR.
 
         Attributes:
-            LEFT: Track only the left hand
-            RIGHT: Track only the right hand
-            BOTH: Track both hands simultaneously
+            HAND_LEFT: Track the left hand (index 0 in _get_raw_data output)
+            HAND_RIGHT: Track the right hand (index 1 in _get_raw_data output)
+            HEAD: Track the head/headset position (index 2 in _get_raw_data output)
         """
 
-        LEFT = 0
-        RIGHT = 1
-        BOTH = 2
+        HAND_LEFT = 0
+        HAND_RIGHT = 1
+        HEAD = 2
 
     TELEOP_COMMAND_EVENT_TYPE = "teleop_command"
 
     def __init__(
         self,
         xr_cfg: XrCfg | None,
-        hand: Hand,
         retargeters: list[RetargeterBase] | None = None,
     ):
-        """Initialize the hand tracking device.
+        """Initialize the OpenXR device.
 
         Args:
             xr_cfg: Configuration object for OpenXR settings. If None, default settings are used.
-            hand: Which hand(s) to track (LEFT, RIGHT, or BOTH)
-            retargeters: List of retargeters to transform hand tracking data into robot commands.
-                        If None or empty list, raw joint poses will be returned.
+            retargeters: List of retargeters to transform tracking data into robot commands.
+                        If None or empty list, raw tracking data will be returned.
         """
         super().__init__(retargeters)
         self._openxr = OpenXR()
         self._xr_cfg = xr_cfg or XrCfg()
-        self._hand = hand
         self._additional_callbacks = dict()
         self._vc_subscription = (
             XRCore.get_singleton()
@@ -92,6 +89,7 @@ class OpenXRDevice(DeviceBase):
         )
         self._previous_joint_poses_left = np.full((26, 7), [0, 0, 0, 1, 0, 0, 0], dtype=np.float32)
         self._previous_joint_poses_right = np.full((26, 7), [0, 0, 0, 1, 0, 0, 0], dtype=np.float32)
+        self._previous_headpose = np.array([0, 0, 0, 1, 0, 0, 0], dtype=np.float32)
 
         # Specify the placement of the simulation when viewed in an XR device using a prim.
         xr_anchor = SingleXFormPrim("/XRAnchor", position=self._xr_cfg.anchor_pos, orientation=self._xr_cfg.anchor_rot)
@@ -118,10 +116,8 @@ class OpenXRDevice(DeviceBase):
         Returns:
             Formatted string with device information
         """
-        hand_str = "Both Hands" if self._hand == self.Hand.BOTH else f"{self._hand.name.title()} Hand"
 
         msg = f"OpenXR Hand Tracking Device: {self.__class__.__name__}\n"
-        msg += f"\tTracking: {hand_str}\n"
         msg += f"\tAnchor Position: {self._xr_cfg.anchor_pos}\n"
         msg += f"\tAnchor Rotation: {self._xr_cfg.anchor_rot}\n"
 
@@ -162,6 +158,7 @@ class OpenXRDevice(DeviceBase):
     def reset(self):
         self._previous_joint_poses_left = np.full((26, 7), [0, 0, 0, 1, 0, 0, 0], dtype=np.float32)
         self._previous_joint_poses_right = np.full((26, 7), [0, 0, 0, 1, 0, 0, 0], dtype=np.float32)
+        self._previous_headpose = np.array([0, 0, 0, 1, 0, 0, 0], dtype=np.float32)
 
     def add_callback(self, key: str, func: Callable):
         """Add additional functions to bind to client messages.
@@ -174,28 +171,28 @@ class OpenXRDevice(DeviceBase):
         self._additional_callbacks[key] = func
 
     def _get_raw_data(self) -> Any:
-        """Get the latest hand tracking data.
+        """Get the latest tracking data from the OpenXR runtime.
 
         Returns:
-            Dictionary of joint poses
+            Dictionary containing tracking data for:
+                - Left hand joint poses (26 joints with position and orientation)
+                - Right hand joint poses (26 joints with position and orientation)
+                - Head pose (position and orientation)
+
+        Each pose is represented as a 7-element array: [x, y, z, qw, qx, qy, qz]
+        where the first 3 elements are position and the last 4 are quaternion orientation.
         """
-        if self._hand == self.Hand.LEFT:
-            hand_joints = self._openxr.locate_hand_joints(OpenXRSpec.XrHandEXT.XR_HAND_LEFT_EXT)
-            return self._calculate_joint_poses(hand_joints, self._previous_joint_poses_left)
-        elif self._hand == self.Hand.RIGHT:
-            hand_joints = self._openxr.locate_hand_joints(OpenXRSpec.XrHandEXT.XR_HAND_RIGHT_EXT)
-            return self._calculate_joint_poses(hand_joints, self._previous_joint_poses_right)
-        else:
-            return {
-                self.Hand.LEFT: self._calculate_joint_poses(
-                    self._openxr.locate_hand_joints(OpenXRSpec.XrHandEXT.XR_HAND_LEFT_EXT),
-                    self._previous_joint_poses_left,
-                ),
-                self.Hand.RIGHT: self._calculate_joint_poses(
-                    self._openxr.locate_hand_joints(OpenXRSpec.XrHandEXT.XR_HAND_RIGHT_EXT),
-                    self._previous_joint_poses_right,
-                ),
-            }
+        return {
+            self.TrackingTarget.HAND_LEFT: self._calculate_joint_poses(
+                self._openxr.locate_hand_joints(OpenXRSpec.XrHandEXT.XR_HAND_LEFT_EXT),
+                self._previous_joint_poses_left,
+            ),
+            self.TrackingTarget.HAND_RIGHT: self._calculate_joint_poses(
+                self._openxr.locate_hand_joints(OpenXRSpec.XrHandEXT.XR_HAND_RIGHT_EXT),
+                self._previous_joint_poses_right,
+            ),
+            self.TrackingTarget.HEAD: self._calculate_headpose(),
+        }
 
     """
     Internal helpers.
@@ -220,6 +217,33 @@ class OpenXRDevice(DeviceBase):
         previous_joint_poses[ori_mask, 3:7] = orientations[ori_mask]
 
         return self._joints_to_dict(previous_joint_poses)
+
+    def _calculate_headpose(self) -> np.ndarray:
+        """Calculate the head pose from OpenXR.
+
+        Returns:
+            numpy.ndarray: 7-element array containing head position (xyz) and orientation (wxyz)
+        """
+        head_device = XRCore.get_singleton().get_input_device("displayDevice")
+        if head_device:
+            hmd = head_device.get_virtual_world_pose("")
+            position = hmd.ExtractTranslation()
+            quat = hmd.ExtractRotationQuat()
+            quati = quat.GetImaginary()
+            quatw = quat.GetReal()
+
+            # Store in w, x, y, z order to match our convention
+            self._previous_headpose = np.array([
+                position[0],
+                position[1],
+                position[2],
+                quatw,
+                quati[0],
+                quati[1],
+                quati[2],
+            ])
+
+        return self._previous_headpose
 
     def _joints_to_dict(self, joint_data: np.ndarray) -> dict[str, np.ndarray]:
         """Convert joint array to dictionary using standard joint names.

@@ -529,15 +529,15 @@ Here's an example of setting up hand tracking:
 
    # Create retargeters
    position_retargeter = Se3AbsRetargeter(
+       bound_hand=OpenXRDevice.TrackingTarget.HAND_RIGHT,
        zero_out_xy_rotation=True,
        use_wrist_position=False  # Use pinch position (thumb-index midpoint) instead of wrist
    )
-   gripper_retargeter = GripperRetargeter()
+   gripper_retargeter = GripperRetargeter(bound_hand=OpenXRDevice.TrackingTarget.HAND_RIGHT)
 
    # Create OpenXR device with hand tracking and both retargeters
    device = OpenXRDevice(
        env_cfg.xr,
-       hand=OpenXRDevice.Hand.RIGHT,
        retargeters=[position_retargeter, gripper_retargeter],
    )
 
@@ -565,9 +565,21 @@ processes the incoming tracking data:
 .. code-block:: python
 
    from isaaclab.devices.retargeter_base import RetargeterBase
+   from isaaclab.devices import OpenXRDevice
 
    class MyCustomRetargeter(RetargeterBase):
-       def retarget(self, data: dict[str, np.ndarray]) -> Any:
+       def retarget(self, data: dict)-> Any:
+           # Access hand tracking data using TrackingTarget enum
+           right_hand_data = data[OpenXRDevice.TrackingTarget.HAND_RIGHT]
+
+           # Extract specific joint positions and orientations
+           wrist_pose = right_hand_data.get("wrist")
+           thumb_tip_pose = right_hand_data.get("thumb_tip")
+           index_tip_pose = right_hand_data.get("index_tip")
+
+           # Access head tracking data
+           head_pose = data[OpenXRDevice.TrackingTarget.HEAD]
+
            # Process the tracking data
            # Return control commands in appropriate format
            ...

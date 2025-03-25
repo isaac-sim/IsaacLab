@@ -6,6 +6,7 @@
 import numpy as np
 from scipy.spatial.transform import Rotation
 
+from isaaclab.devices import OpenXRDevice
 from isaaclab.devices.retargeter_base import RetargeterBase
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.markers.config import FRAME_MARKER_CFG
@@ -27,6 +28,7 @@ class Se3RelRetargeter(RetargeterBase):
 
     def __init__(
         self,
+        bound_hand: OpenXRDevice.TrackingTarget,
         zero_out_xy_rotation: bool = False,
         use_wrist_rotation: bool = False,
         use_wrist_position: bool = True,
@@ -39,6 +41,7 @@ class Se3RelRetargeter(RetargeterBase):
         """Initialize the relative motion retargeter.
 
         Args:
+            bound_hand: The hand to track (OpenXRDevice.TrackingTarget.HAND_LEFT or OpenXRDevice.TrackingTarget.HAND_RIGHT)
             zero_out_xy_rotation: If True, ignore rotations around x and y axes, allowing only z-axis rotation
             use_wrist_rotation: If True, use wrist rotation for control instead of averaging finger orientations
             use_wrist_position: If True, use wrist position instead of pinch position (midpoint between fingers)
@@ -48,6 +51,14 @@ class Se3RelRetargeter(RetargeterBase):
             alpha_rot: Rotation smoothing parameter (0-1); higher values track more closely to input, lower values smooth more
             enable_visualization: If True, show a visual marker representing the target end-effector pose
         """
+        # Store the hand to track
+        if bound_hand not in [OpenXRDevice.TrackingTarget.HAND_LEFT, OpenXRDevice.TrackingTarget.HAND_RIGHT]:
+            raise ValueError(
+                "bound_hand must be either OpenXRDevice.TrackingTarget.HAND_LEFT or"
+                " OpenXRDevice.TrackingTarget.HAND_RIGHT"
+            )
+        self.bound_hand = bound_hand
+
         self._zero_out_xy_rotation = zero_out_xy_rotation
         self._use_wrist_rotation = use_wrist_rotation
         self._use_wrist_position = use_wrist_position
@@ -78,21 +89,22 @@ class Se3RelRetargeter(RetargeterBase):
         self._previous_index_tip = np.array([0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0], dtype=np.float32)
         self._previous_wrist = np.array([0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0], dtype=np.float32)
 
-    def retarget(self, data: dict[str, np.ndarray]) -> np.ndarray:
+    def retarget(self, data: dict) -> np.ndarray:
         """Convert hand joint poses to robot end-effector command.
 
         Args:
-            data: Dictionary mapping joint names to their pose data,
-                joint names are defined in isaaclab.devices.openxr.common.HAND_JOINT_NAMES
+            data: Dictionary mapping tracking targets to joint data dictionaries.
+                The joint names are defined in isaaclab.devices.openxr.common.HAND_JOINT_NAMES
 
         Returns:
             np.ndarray: 6D array containing position (xyz) and rotation vector (rx,ry,rz)
                 for the robot end-effector
         """
-        # Extract key joint poses
-        thumb_tip = data.get("thumb_tip")
-        index_tip = data.get("index_tip")
-        wrist = data.get("wrist")
+        # Extract key joint poses from the bound hand
+        hand_data = data[self.bound_hand]
+        thumb_tip = hand_data.get("thumb_tip")
+        index_tip = hand_data.get("index_tip")
+        wrist = hand_data.get("wrist")
 
         delta_thumb_tip = self._calculate_delta_pose(thumb_tip, self._previous_thumb_tip)
         delta_index_tip = self._calculate_delta_pose(index_tip, self._previous_index_tip)
