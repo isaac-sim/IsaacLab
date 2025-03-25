@@ -224,6 +224,10 @@ class OpenXRDevice(DeviceBase):
         Returns:
             numpy.ndarray: 7-element array containing head position (xyz) and orientation (wxyz)
         """
+
+        """
+        # TODO: This is a temporary fix since get_virtual_world_pose crashes if pinocchio 2.7 is used
+
         head_device = XRCore.get_singleton().get_input_device("displayDevice")
         if head_device:
             hmd = head_device.get_virtual_world_pose("")
@@ -242,6 +246,7 @@ class OpenXRDevice(DeviceBase):
                 quati[1],
                 quati[2],
             ])
+        """
 
         return self._previous_headpose
 
