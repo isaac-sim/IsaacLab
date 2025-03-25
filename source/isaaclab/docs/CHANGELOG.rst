@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.36.4 (2025-03-24)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Definition of render settings in :class:`~isaaclab.sim.SimulationCfg` is changed to None, which means that
+  the default settings will be used from the experience files and the double definition is removed.
+
+
 0.36.3 (2025-03-17)
 ~~~~~~~~~~~~~~~~~~~
 
