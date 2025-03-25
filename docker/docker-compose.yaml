@@ -38,9 +38,6 @@ x-default-isaac-lab-volumes: &default-isaac-lab-volumes
     source: ../source
     target: ${DOCKER_ISAACLAB_PATH}/source
   - type: bind
-    source: ../scripts
-    target: ${DOCKER_ISAACLAB_PATH}/scripts
-  - type: bind
     source: ../docs
     target: ${DOCKER_ISAACLAB_PATH}/docs
   - type: bind
@@ -64,6 +61,7 @@ x-default-isaac-lab-volumes: &default-isaac-lab-volumes
 x-default-isaac-lab-environment: &default-isaac-lab-environment
   - ISAACSIM_PATH=${DOCKER_ISAACLAB_PATH}/_isaac_sim
   - OMNI_KIT_ALLOW_ROOT=1
+  - DISPLAY=:1.0
 
 x-default-isaac-lab-deploy: &default-isaac-lab-deploy
   resources:
@@ -91,10 +89,17 @@ services:
     container_name: isaac-lab-base
     environment: *default-isaac-lab-environment
     volumes: *default-isaac-lab-volumes
-    network_mode: host
+    network_mode: bridge
     deploy: *default-isaac-lab-deploy
+    ports:
+      - "5900:5900"
     # This is the entrypoint for the container
-    entrypoint: bash
+    entrypoint: >
+      bash -c "
+      Xvfb :1 -screen 0 1280x1024x24 -auth /tmp/.Xauthority &
+      x11vnc -display :1 -auth /tmp/.Xauthority -nopw -forever -shared &
+      startlxde &
+      bash"
     stdin_open: true
     tty: true
 
