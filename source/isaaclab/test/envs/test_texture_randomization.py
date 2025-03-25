@@ -21,6 +21,8 @@ import math
 import torch
 import unittest
 
+import omni.usd
+
 import isaaclab.envs.mdp as mdp
 from isaaclab.envs import ManagerBasedEnv, ManagerBasedEnvCfg
 from isaaclab.managers import EventTermCfg as EventTerm
@@ -64,10 +66,12 @@ class ObservationsCfg:
 class EventCfg:
     """Configuration for events."""
 
-    # on reset apply a new set of textures
+    # on prestartup apply a new set of textures
+    # note from @mayank: Changed from 'reset' to 'prestartup' to make test pass.
+    #   The error happens otherwise on Kit thread which is not the main thread.
     cart_texture_randomizer = EventTerm(
         func=mdp.randomize_visual_texture_material,
-        mode="reset",
+        mode="prestartup",
         params={
             "asset_cfg": SceneEntityCfg("robot", body_names=["cart"]),
             "texture_paths": [
@@ -83,6 +87,7 @@ class EventCfg:
         },
     )
 
+    # on reset apply a new set of textures
     pole_texture_randomizer = EventTerm(
         func=mdp.randomize_visual_texture_material,
         mode="reset",
@@ -153,35 +158,47 @@ class TestTextureRandomization(unittest.TestCase):
     """
 
     def test_texture_randomization(self):
-        # set the arguments
-        env_cfg = CartpoleEnvCfg()
-        env_cfg.scene.num_envs = 16
-        env_cfg.scene.replicate_physics = False
+        """Test texture randomization for cartpole environment."""
+        for device in ["cpu", "cuda"]:
+            with self.subTest(device=device):
+                # create a new stage
+                omni.usd.get_context().new_stage()
 
-        # setup base environment
-        env = ManagerBasedEnv(cfg=env_cfg)
+                # set the arguments
+                env_cfg = CartpoleEnvCfg()
+                env_cfg.scene.num_envs = 16
+                env_cfg.scene.replicate_physics = False
+                env_cfg.sim.device = device
 
-        # simulate physics
-        with torch.inference_mode():
-            for count in range(50):
-                # reset every few steps to check nothing breaks
-                if count % 10 == 0:
-                    env.reset()
-                # sample random actions
-                joint_efforts = torch.randn_like(env.action_manager.action)
-                # step the environment
-                env.step(joint_efforts)
+                # setup base environment
+                env = ManagerBasedEnv(cfg=env_cfg)
 
-        env.close()
+                # simulate physics
+                with torch.inference_mode():
+                    for count in range(50):
+                        # reset every few steps to check nothing breaks
+                        if count % 10 == 0:
+                            env.reset()
+                        # sample random actions
+                        joint_efforts = torch.randn_like(env.action_manager.action)
+                        # step the environment
+                        env.step(joint_efforts)
+
+                env.close()
 
     def test_texture_randomization_failure_replicate_physics(self):
-        with self.assertRaises(ValueError):
-            cfg_failure = CartpoleEnvCfg()
-            cfg_failure.scene.num_envs = 16
-            cfg_failure.scene.replicate_physics = True
-            env = ManagerBasedEnv(cfg_failure)
+        """Test texture randomization failure when replicate physics is set to True."""
+        # create a new stage
+        omni.usd.get_context().new_stage()
 
-        env.close()
+        # set the arguments
+        cfg_failure = CartpoleEnvCfg()
+        cfg_failure.scene.num_envs = 16
+        cfg_failure.scene.replicate_physics = True
+
+        with self.assertRaises(RuntimeError):
+            env = ManagerBasedEnv(cfg_failure)
+            env.close()
 
 
 if __name__ == "__main__":
