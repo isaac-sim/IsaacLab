@@ -49,11 +49,11 @@ For smoother operation and off-axis operation, we recommend using a SpaceMouse a
    Isaac Lab is only compatible with the SpaceMouse Wireless and SpaceMouse Compact models from 3Dconnexion.
 
 
-For tasks that benefit from the use of an extended reality (XR) device with hand tracking, Isaac Lab supports using NVIDIA CloudXR to immersively stream the scene to compatible XR devices for teleoperation.
+For tasks that benefit from the use of an extended reality (XR) device with hand tracking, Isaac Lab supports using NVIDIA CloudXR to immersively stream the scene to compatible XR devices for teleoperation. Note that when using hand tracking we recommend using the absolute variant of the task (``Isaac-Stack-Cube-Franka-IK-Abs-v0``), which requires the ``handtracking_abs`` device:
 
 .. code:: bash
 
-   ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py --task Isaac-Stack-Cube-Franka-IK-Abs-v0 --num_envs 1 --teleop_device handtracking --device cpu
+   ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py --task Isaac-Stack-Cube-Franka-IK-Abs-v0 --teleop_device handtracking_abs --device cpu
 
 .. note::
 
@@ -105,7 +105,7 @@ To collect demonstrations with teleoperation for the environment ``Isaac-Stack-C
    # step a: create folder for datasets
    mkdir -p datasets
    # step b: collect data with a selected teleoperation device. Replace <teleop_device> with your preferred input device.
-   # Available options: spacemouse, keyboard, handtracking
+   # Available options: spacemouse, keyboard, handtracking, handtracking_abs, dualhandtracking_abs
    ./isaaclab.sh -p scripts/tools/record_demos.py --task Isaac-Stack-Cube-Franka-IK-Rel-v0 --teleop_device <teleop_device> --dataset_file ./datasets/dataset.hdf5 --num_demos 10
    # step a: replay the collected dataset
    ./isaaclab.sh -p scripts/tools/replay_demos.py --task Isaac-Stack-Cube-Franka-IK-Rel-v0 --dataset_file ./datasets/dataset.hdf5
@@ -117,7 +117,7 @@ To collect demonstrations with teleoperation for the environment ``Isaac-Stack-C
 
 .. tip::
 
-   When using the ``handtracking`` device, we suggest collecting demonstrations with the ``Isaac-Stack-Cube-Frank-IK-Abs-v0`` version of the task, which controls the end effector using the absolute position of the hand.
+   When using an XR device, we suggest collecting demonstrations with the ``Isaac-Stack-Cube-Frank-IK-Abs-v0`` version of the task and ``--teleop_device handtracking_abs``, which controls the end effector using the absolute position of the hand.
 
 About 10 successful demonstrations are required in order for the following steps to succeed.
 
