@@ -33,6 +33,8 @@ ENV DOCKER_USER_HOME=${DOCKER_USER_HOME_ARG}
 # Set environment variables
 ENV LANG=C.UTF-8
 ENV DEBIAN_FRONTEND=noninteractive
+ENV USER=root
+ENV DISPLAY=:1.0
 
 USER root
 
@@ -46,6 +48,23 @@ RUN --mount=type=cache,target=/var/cache/apt \
     ncurses-term && \
     apt -y autoremove && apt clean autoclean && \
     rm -rf /var/lib/apt/lists/*
+
+# VNC dependencies
+RUN apt-get update -y
+RUN apt-get install -y supervisor
+RUN apt-get install -y x11vnc
+RUN apt-get install -y xvfb
+RUN apt-get install -y mesa-utils
+RUN apt-get install -y x11-apps
+RUN apt-get purge -y light-locker
+RUN apt-get install -y lxde
+
+# Set up VNC
+COPY --chown=${USER} docker/supervisord.conf /etc/supervisor/supervisord.conf
+RUN chown -R ${USER}:${USER} /etc/supervisor
+RUN chmod 777 /var/log/supervisor/
+EXPOSE 5900
+CMD ["/usr/bin/supervisord"]
 
 # Copy the Isaac Lab directory (files to exclude are defined in .dockerignore)
 COPY ../ ${ISAACLAB_PATH}
