@@ -29,3 +29,9 @@ class XrCfg:
 
     This quantity is only effective if :attr:`xr_anchor_pos` is set.
     """
+
+    near_plane: float = 0.15
+    """Specifies the near plane distance for the XR device.
+
+    This value determines the closest distance at which objects will be rendered in the XR device.
+    """

@@ -93,6 +93,7 @@ class OpenXRDevice(DeviceBase):
 
         # Specify the placement of the simulation when viewed in an XR device using a prim.
         xr_anchor = SingleXFormPrim("/XRAnchor", position=self._xr_cfg.anchor_pos, orientation=self._xr_cfg.anchor_rot)
+        carb.settings.get_settings().set_float("/persistent/xr/profile/ar/render/nearPlane", self._xr_cfg.near_plane)
         carb.settings.get_settings().set_string("/persistent/xr/profile/ar/anchorMode", "custom anchor")
         carb.settings.get_settings().set_string("/xrstage/profile/ar/customAnchor", xr_anchor.prim_path)
 
