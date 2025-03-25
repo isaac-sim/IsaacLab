@@ -44,8 +44,8 @@ class TestEnvironments(unittest.TestCase):
         # TODO: fix these tests!!
         cls.problematic_tasks = [
             #"Isaac-Stack-Cube-Franka-IK-Rel-Blueprint-v0",
-            "Isaac-Stack-Cube-Instance-Randomize-Franka-IK-Rel-v0",
-            "Isaac-Stack-Cube-Instance-Randomize-Franka-v0",
+            # "Isaac-Stack-Cube-Instance-Randomize-Franka-IK-Rel-v0",
+            # "Isaac-Stack-Cube-Instance-Randomize-Franka-v0",
             "Isaac-Repose-Cube-Allegro-v0",
             "Isaac-Repose-Cube-Allegro-NoVelObs-v0",
         ]
