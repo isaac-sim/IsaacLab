@@ -103,6 +103,10 @@ for the direct workflow: by defining an ``InteractiveSceneCfg`` containing the a
     :lines: 101 - 158
 
 
+.. note::
+
+      You may see a warning that not all actuators are configured! This is expected because we don't handle the gripper for this tutorial.
+
 .. figure:: ../../_static/tutorials/tutorial_add_new_robot_result.jpg
     :align: center
     :figwidth: 100%
