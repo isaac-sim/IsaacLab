@@ -578,7 +578,7 @@ class TestMathUtilities(unittest.TestCase):
             key_rots = scipy_tf.Rotation.from_matrix(np.array([rmat1, rmat2]))
 
             # Create a Slerp object and interpolate create the interpolated rotation matrices
-            # Minimum 3 required because interp245:37olate_poses returns extra staring and ending pose matrices
+            # Minimum 3 required because interpolate_poses returns extra staring and ending pose matrices
             num_steps = np.random.randint(3, 51)
             key_times = [0, 1]
             slerp = scipy_tf.Slerp(key_times, key_rots)
