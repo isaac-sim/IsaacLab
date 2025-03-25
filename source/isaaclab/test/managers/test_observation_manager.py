@@ -48,6 +48,31 @@ def grilled_chicken_image(env, bland: float, channel: int = 1):
     return bland * torch.ones(env.num_envs, 128, 256, channel, device=env.device)
 
 
+class grilled_chicken_freerange(ManagerTermBase):
+    """A ManagerTermBase designed to test history storage.
+
+    Returns a default arange measurement (to distinguish along dims), and increments
+    the measurement each time the manager is called (resets to zero when reset).
+    """
+
+    def __init__(self, cfg: ObservationTermCfg, env: object):
+        self.cfg = cfg
+        self.env = env
+        self._execs = torch.zeros(env.num_envs, device=env.device)
+        self._default_obs = torch.arange(4, device=env.device).reshape(1, 4).expand(env.num_envs, 4)
+
+    def reset(self, env_ids: torch.Tensor | None = None):
+        if env_ids is None:
+            env_ids = slice(None)
+        self._execs[env_ids] = 0.0
+
+    def __call__(self, env: object) -> torch.Tensor:
+        obs = self._execs[:, None] + self._default_obs
+        self._execs = self._execs + 1
+
+        return obs
+
+
 class complex_function_class(ManagerTermBase):
     def __init__(self, cfg: ObservationTermCfg, env: object):
         self.cfg = cfg
@@ -77,7 +102,6 @@ class non_callable_complex_function_class(ManagerTermBase):
 
 
 class MyDataClass:
-
     def __init__(self, num_envs: int, device: str):
         self.pos_w = torch.rand((num_envs, 3), device=device)
         self.lin_vel_w = torch.rand((num_envs, 3), device=device)
@@ -121,10 +145,14 @@ class TestObservationManager(unittest.TestCase):
                 term_2 = ObservationTermCfg(func=grilled_chicken, scale=2)
                 term_3 = ObservationTermCfg(func=grilled_chicken_with_bbq, scale=5, params={"bbq": True})
                 term_4 = ObservationTermCfg(
-                    func=grilled_chicken_with_yoghurt, scale=1.0, params={"hot": False, "bland": 2.0}
+                    func=grilled_chicken_with_yoghurt,
+                    scale=1.0,
+                    params={"hot": False, "bland": 2.0},
                 )
                 term_5 = ObservationTermCfg(
-                    func=grilled_chicken_with_yoghurt_and_bbq, scale=1.0, params={"hot": False, "bland": 2.0}
+                    func=grilled_chicken_with_yoghurt_and_bbq,
+                    scale=1.0,
+                    params={"hot": False, "bland": 2.0},
                 )
 
             policy: ObservationGroupCfg = SampleGroupCfg()
@@ -155,14 +183,22 @@ class TestObservationManager(unittest.TestCase):
             class SampleGroupCfg(ObservationGroupCfg):
                 """Test config class for policy observation group."""
 
-                term_1 = ObservationTermCfg(func="__main__:grilled_chicken", scale=10, history_length=TERM_1_HISTORY)
+                term_1 = ObservationTermCfg(
+                    func="__main__:grilled_chicken",
+                    scale=10,
+                    history_length=TERM_1_HISTORY,
+                )
                 term_2 = ObservationTermCfg(func=grilled_chicken, scale=2)
                 term_3 = ObservationTermCfg(func=grilled_chicken_with_bbq, scale=5, params={"bbq": True})
                 term_4 = ObservationTermCfg(
-                    func=grilled_chicken_with_yoghurt, scale=1.0, params={"hot": False, "bland": 2.0}
+                    func=grilled_chicken_with_yoghurt,
+                    scale=1.0,
+                    params={"hot": False, "bland": 2.0},
                 )
                 term_5 = ObservationTermCfg(
-                    func=grilled_chicken_with_yoghurt_and_bbq, scale=1.0, params={"hot": False, "bland": 2.0}
+                    func=grilled_chicken_with_yoghurt_and_bbq,
+                    scale=1.0,
+                    params={"hot": False, "bland": 2.0},
                 )
 
             policy: ObservationGroupCfg = SampleGroupCfg()
@@ -196,7 +232,9 @@ class TestObservationManager(unittest.TestCase):
                 his_term = ObservationTermCfg(func=grilled_chicken, scale=2)
                 my_term = ObservationTermCfg(func=grilled_chicken_with_bbq, scale=5, params={"bbq": True})
                 her_term = ObservationTermCfg(
-                    func=grilled_chicken_with_yoghurt, scale=1.0, params={"hot": False, "bland": 2.0}
+                    func=grilled_chicken_with_yoghurt,
+                    scale=1.0,
+                    params={"hot": False, "bland": 2.0},
                 )
 
             policy = SampleGroupCfg()
@@ -220,7 +258,9 @@ class TestObservationManager(unittest.TestCase):
                     func=grilled_chicken_with_bbq, scale=5, params={"bbq": True}
                 )
                 her_term: ObservationTermCfg = ObservationTermCfg(
-                    func=grilled_chicken_with_yoghurt, scale=1.0, params={"hot": False, "bland": 2.0}
+                    func=grilled_chicken_with_yoghurt,
+                    scale=1.0,
+                    params={"hot": False, "bland": 2.0},
                 )
 
             policy: ObservationGroupCfg = SampleGroupCfg()
@@ -232,11 +272,20 @@ class TestObservationManager(unittest.TestCase):
         # check equivalence
         # parsed terms
         self.assertEqual(obs_man_from_cfg.active_terms, obs_man_from_annotated_cfg.active_terms)
-        self.assertEqual(obs_man_from_cfg.group_obs_term_dim, obs_man_from_annotated_cfg.group_obs_term_dim)
+        self.assertEqual(
+            obs_man_from_cfg.group_obs_term_dim,
+            obs_man_from_annotated_cfg.group_obs_term_dim,
+        )
         self.assertEqual(obs_man_from_cfg.group_obs_dim, obs_man_from_annotated_cfg.group_obs_dim)
         # parsed term configs
-        self.assertEqual(obs_man_from_cfg._group_obs_term_cfgs, obs_man_from_annotated_cfg._group_obs_term_cfgs)
-        self.assertEqual(obs_man_from_cfg._group_obs_concatenate, obs_man_from_annotated_cfg._group_obs_concatenate)
+        self.assertEqual(
+            obs_man_from_cfg._group_obs_term_cfgs,
+            obs_man_from_annotated_cfg._group_obs_term_cfgs,
+        )
+        self.assertEqual(
+            obs_man_from_cfg._group_obs_concatenate,
+            obs_man_from_annotated_cfg._group_obs_concatenate,
+        )
 
     def test_config_terms(self):
         """Test the number of terms in the observation manager."""
@@ -262,9 +311,16 @@ class TestObservationManager(unittest.TestCase):
 
             @configclass
             class SampleImageGroupCfg(ObservationGroupCfg):
-
-                term_1 = ObservationTermCfg(func=grilled_chicken_image, scale=1.5, params={"bland": 0.5, "channel": 1})
-                term_2 = ObservationTermCfg(func=grilled_chicken_image, scale=0.5, params={"bland": 0.1, "channel": 3})
+                term_1 = ObservationTermCfg(
+                    func=grilled_chicken_image,
+                    scale=1.5,
+                    params={"bland": 0.5, "channel": 1},
+                )
+                term_2 = ObservationTermCfg(
+                    func=grilled_chicken_image,
+                    scale=0.5,
+                    params={"bland": 0.1, "channel": 3},
+                )
 
             policy: ObservationGroupCfg = SampleGroupCfg()
             critic: ObservationGroupCfg = SampleGroupCfg(term_2=None)
@@ -314,9 +370,16 @@ class TestObservationManager(unittest.TestCase):
 
             @configclass
             class ImageCfg(ObservationGroupCfg):
-
-                term_1 = ObservationTermCfg(func=grilled_chicken_image, scale=1.5, params={"bland": 0.5, "channel": 1})
-                term_2 = ObservationTermCfg(func=grilled_chicken_image, scale=0.5, params={"bland": 0.1, "channel": 3})
+                term_1 = ObservationTermCfg(
+                    func=grilled_chicken_image,
+                    scale=1.5,
+                    params={"bland": 0.5, "channel": 1},
+                )
+                term_2 = ObservationTermCfg(
+                    func=grilled_chicken_image,
+                    scale=0.5,
+                    params={"bland": 0.1, "channel": 3},
+                )
 
             policy: ObservationGroupCfg = PolicyCfg()
             critic: ObservationGroupCfg = CriticCfg()
@@ -339,7 +402,8 @@ class TestObservationManager(unittest.TestCase):
         self.assertEqual((self.env.num_envs, 128, 256, 4), obs_image.shape)
         # check that the scales are applied correctly
         torch.testing.assert_close(
-            self.env.data.pos_w * torch.tensor(pos_scale_tuple, device=self.env.device), obs_critic[:, :3]
+            self.env.data.pos_w * torch.tensor(pos_scale_tuple, device=self.env.device),
+            obs_critic[:, :3],
         )
         torch.testing.assert_close(self.env.data.lin_vel_w * 1.5, obs_critic[:, 3:6])
         # make sure that the data are the same for same terms
@@ -414,7 +478,9 @@ class TestObservationManager(unittest.TestCase):
                 """Test config class for policy observation group."""
 
                 term_1 = ObservationTermCfg(
-                    func=grilled_chicken_image, params={"bland": 1.0, "channel": 1}, history_length=HISTORY_LENGTH
+                    func=grilled_chicken_image,
+                    params={"bland": 1.0, "channel": 1},
+                    history_length=HISTORY_LENGTH,
                 )
                 # total observation size: term_dim (128, 256) * history_len (5) = 163840
 
@@ -459,8 +525,10 @@ class TestObservationManager(unittest.TestCase):
                 """Test config class for policy observation group."""
 
                 history_length = GROUP_HISTORY_LENGTH
-                # group level history length will override all terms
-                term_1 = ObservationTermCfg(func=grilled_chicken, history_length=TERM_HISTORY_LENGTH)
+                # group level history length will override all terms.
+                # uses the freerange test to check history is stored correctly +
+                # not shuffled across dimensions.
+                term_1 = ObservationTermCfg(func=grilled_chicken_freerange, history_length=TERM_HISTORY_LENGTH)
                 # total observation size: term_dim (4) * history_len (5) = 20
                 # with override total obs size: term_dim (4) * history_len (10) = 40
                 term_2 = ObservationTermCfg(func=lin_vel_w_data)
@@ -478,24 +546,46 @@ class TestObservationManager(unittest.TestCase):
         obs_policy: torch.Tensor = observations["policy"]
         # check the total observation shape
         self.assertEqual((self.env.num_envs, 70), obs_policy.shape)
+
         # check the observation data is initialized properly
-        expected_obs_term_1_data = torch.ones(self.env.num_envs, 4 * GROUP_HISTORY_LENGTH, device=self.env.device)
-        expected_obs_term_2_data = lin_vel_w_data(self.env).repeat(1, GROUP_HISTORY_LENGTH)
-        expected_obs_data_t0 = torch.concat((expected_obs_term_1_data, expected_obs_term_2_data), dim=-1)
+        expected_obs_term_1_data = (
+            torch.arange(4, device=self.env.device).reshape(1, 1, 4).expand(self.env.num_envs, GROUP_HISTORY_LENGTH, 4)
+        )
+
+        expected_obs_term_2_data = (
+            lin_vel_w_data(self.env).reshape(self.env.num_envs, 1, -1).expand(-1, GROUP_HISTORY_LENGTH, -1)
+        )
+
+        expected_obs_data_t0 = torch.concat((expected_obs_term_1_data, expected_obs_term_2_data), dim=-1).reshape(
+            self.env.num_envs, -1
+        )
+
         self.assertTrue(torch.equal(expected_obs_data_t0, obs_policy))
+
         # test that the history buffer holds previous data
-        for _ in range(GROUP_HISTORY_LENGTH):
+        for _ in range(GROUP_HISTORY_LENGTH - 1):
             observations = self.obs_man.compute()
             obs_policy = observations["policy"]
-        expected_obs_term_1_data = torch.ones(self.env.num_envs, 4 * GROUP_HISTORY_LENGTH, device=self.env.device)
-        expected_obs_term_2_data = lin_vel_w_data(self.env).repeat(1, GROUP_HISTORY_LENGTH)
-        expected_obs_data_t10 = torch.concat((expected_obs_term_1_data, expected_obs_term_2_data), dim=-1)
+
+        # compute the increments that the freerange obs manager would add
+        # over the full history.
+        increments = torch.arange(GROUP_HISTORY_LENGTH, device=self.env.device).reshape(1, -1, 1)
+
+        expected_obs_term_1_data = expected_obs_term_1_data + increments
+        # expected_obs_term_2_data same as before since it's constant.
+
+        expected_obs_data_t10 = torch.concat((expected_obs_term_1_data, expected_obs_term_2_data), dim=-1).reshape(
+            self.env.num_envs, -1
+        )
+
         self.assertTrue(torch.equal(expected_obs_data_t10, obs_policy))
+
         # test reset
         self.obs_man.reset()
         observations = self.obs_man.compute()
         obs_policy = observations["policy"]
         self.assertTrue(torch.equal(expected_obs_data_t0, obs_policy))
+
         # test reset of specific env ids
         reset_env_ids = [2, 4, 16]
         self.obs_man.reset(reset_env_ids)
