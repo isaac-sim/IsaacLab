@@ -85,7 +85,7 @@ class DigitRewards:
         weight=-0.1,
     )
     no_jumps = RewardTermCfg(
-        func=mdp.desired_contacts_all,
+        func=mdp.desired_contacts,
         weight=-0.5,
         params={"sensor_cfg": SceneEntityCfg("contact_forces", body_names=[".*_leg_toe_roll"])},
     )
