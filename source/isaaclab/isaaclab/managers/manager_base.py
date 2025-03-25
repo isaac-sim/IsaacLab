@@ -391,4 +391,5 @@ class ManagerBase(ABC):
 
         # initialize the term if it is a class
         if inspect.isclass(term_cfg.func):
+            omni.log.info(f"Initializing term '{term_name}' with class '{term_cfg.func.__name__}'.")
             term_cfg.func = term_cfg.func(cfg=term_cfg, env=self._env)
