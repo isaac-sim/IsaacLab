@@ -804,99 +804,6 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">asset</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">set_material_properties</span><span class="p">(</span><span class="n">materials</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">)</span></div>
 
 
-<div class="viewcode-block" id="randomize_visual_texture_material"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.events.randomize_visual_texture_material">[docs]</a><span class="k">class</span><span class="w"> </span><span class="nc">randomize_visual_texture_material</span><span class="p">(</span><span class="n">ManagerTermBase</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Randomize the visual texture of bodies on an asset using Replicator API.</span>
-
-<span class="sd">    This function randomizes the visual texture of the bodies of the asset using the Replicator API.</span>
-<span class="sd">    The function samples random textures from the given texture paths and applies them to the bodies</span>
-<span class="sd">    of the asset. The textures are projected onto the bodies and rotated by the given angles.</span>
-
-<span class="sd">    .. note::</span>
-<span class="sd">        The function assumes that the asset follows the prim naming convention as:</span>
-<span class="sd">        &quot;{asset_prim_path}/{body_name}/visuals&quot; where the body name is the name of the body to</span>
-<span class="sd">        which the texture is applied. This is the default prim ordering when importing assets</span>
-<span class="sd">        from the asset converters in Isaac Lab.</span>
-
-<span class="sd">    .. note::</span>
-<span class="sd">        When randomizing the texture of individual assets, please make sure to set</span>
-<span class="sd">        :attr:`isaaclab.scene.InteractiveSceneCfg.replicate_physics` to False. This ensures that physics</span>
-<span class="sd">        parser will parse the individual asset properties separately.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-
-<div class="viewcode-block" id="randomize_visual_texture_material.__init__"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.events.randomize_visual_texture_material.__init__">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">EventTermCfg</span><span class="p">,</span> <span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedEnv</span><span class="p">):</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Initialize the term.</span>
-
-<span class="sd">        Args:</span>
-<span class="sd">            cfg: The configuration of the event term.</span>
-<span class="sd">            env: The environment instance.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="n">env</span><span class="p">)</span>
-
-        <span class="n">enable_extension</span><span class="p">(</span><span class="s2">&quot;omni.replicator.core&quot;</span><span class="p">)</span>
-
-        <span class="c1"># we import the module here since we may not always need the replicator</span>
-        <span class="kn">import</span><span class="w"> </span><span class="nn">omni.replicator.core</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">rep</span>
-
-        <span class="c1"># read parameters from the configuration</span>
-        <span class="n">asset_cfg</span><span class="p">:</span> <span class="n">SceneEntityCfg</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">params</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;asset_cfg&quot;</span><span class="p">)</span>
-        <span class="n">texture_paths</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">params</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;texture_paths&quot;</span><span class="p">)</span>
-        <span class="n">event_name</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">params</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;event_name&quot;</span><span class="p">)</span>
-        <span class="n">texture_rotation</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">params</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;texture_rotation&quot;</span><span class="p">,</span> <span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">))</span>
-
-        <span class="c1"># check to make sure replicate_physics is set to False, else raise warning</span>
-        <span class="k">if</span> <span class="n">env</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">replicate_physics</span><span class="p">:</span>
-            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
-                <span class="s2">&quot;Unable to randomize visual texture material - ensure InteractiveSceneCfg&#39;s replicate_physics parameter&quot;</span>
-                <span class="s2">&quot; is set to False.&quot;</span>
-            <span class="p">)</span>
-
-        <span class="c1"># convert from radians to degrees</span>
-        <span class="n">texture_rotation</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">math</span><span class="o">.</span><span class="n">degrees</span><span class="p">(</span><span class="n">angle</span><span class="p">)</span> <span class="k">for</span> <span class="n">angle</span> <span class="ow">in</span> <span class="n">texture_rotation</span><span class="p">)</span>
-
-        <span class="c1"># obtain the asset entity</span>
-        <span class="n">asset_entity</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">scene</span><span class="p">[</span><span class="n">asset_cfg</span><span class="o">.</span><span class="n">name</span><span class="p">]</span>
-        <span class="c1"># join all bodies in the asset</span>
-        <span class="n">body_names</span> <span class="o">=</span> <span class="n">asset_cfg</span><span class="o">.</span><span class="n">body_names</span>
-        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">body_names</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
-            <span class="n">body_names_regex</span> <span class="o">=</span> <span class="n">body_names</span>
-        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">body_names</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
-            <span class="n">body_names_regex</span> <span class="o">=</span> <span class="s2">&quot;|&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">body_names</span><span class="p">)</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="n">body_names_regex</span> <span class="o">=</span> <span class="s2">&quot;.*&quot;</span>
-
-        <span class="c1"># Create the omni-graph node for the randomization term</span>
-        <span class="k">def</span><span class="w"> </span><span class="nf">rep_texture_randomization</span><span class="p">():</span>
-            <span class="n">prims_group</span> <span class="o">=</span> <span class="n">rep</span><span class="o">.</span><span class="n">get</span><span class="o">.</span><span class="n">prims</span><span class="p">(</span><span class="n">path_pattern</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">asset_entity</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">prim_path</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="n">body_names_regex</span><span class="si">}</span><span class="s2">/visuals&quot;</span><span class="p">)</span>
-
-            <span class="k">with</span> <span class="n">prims_group</span><span class="p">:</span>
-                <span class="n">rep</span><span class="o">.</span><span class="n">randomizer</span><span class="o">.</span><span class="n">texture</span><span class="p">(</span>
-                    <span class="n">textures</span><span class="o">=</span><span class="n">texture_paths</span><span class="p">,</span> <span class="n">project_uvw</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">texture_rotate</span><span class="o">=</span><span class="n">rep</span><span class="o">.</span><span class="n">distribution</span><span class="o">.</span><span class="n">uniform</span><span class="p">(</span><span class="o">*</span><span class="n">texture_rotation</span><span class="p">)</span>
-                <span class="p">)</span>
-
-            <span class="k">return</span> <span class="n">prims_group</span><span class="o">.</span><span class="n">node</span>
-
-        <span class="c1"># Register the event to the replicator</span>
-        <span class="k">with</span> <span class="n">rep</span><span class="o">.</span><span class="n">trigger</span><span class="o">.</span><span class="n">on_custom_event</span><span class="p">(</span><span class="n">event_name</span><span class="o">=</span><span class="n">event_name</span><span class="p">):</span>
-            <span class="n">rep_texture_randomization</span><span class="p">()</span></div>
-
-    <span class="k">def</span><span class="w"> </span><span class="fm">__call__</span><span class="p">(</span>
-        <span class="bp">self</span><span class="p">,</span>
-        <span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedEnv</span><span class="p">,</span>
-        <span class="n">env_ids</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
-        <span class="n">event_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
-        <span class="n">asset_cfg</span><span class="p">:</span> <span class="n">SceneEntityCfg</span><span class="p">,</span>
-        <span class="n">texture_paths</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span>
-        <span class="n">texture_rotation</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">),</span>
-    <span class="p">):</span>
-        <span class="c1"># import replicator</span>
-        <span class="kn">import</span><span class="w"> </span><span class="nn">omni.replicator.core</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">rep</span>
-
-        <span class="c1"># only send the event to the replicator</span>
-        <span class="c1"># note: This triggers the nodes for all the environments.</span>
-        <span class="c1">#   We need to investigate how to make it happen only for a subset based on env_ids.</span>
-        <span class="n">rep</span><span class="o">.</span><span class="n">utils</span><span class="o">.</span><span class="n">send_og_event</span><span class="p">(</span><span class="n">event_name</span><span class="p">)</span></div>
-
-
 <div class="viewcode-block" id="randomize_rigid_body_mass"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.events.randomize_rigid_body_mass">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">randomize_rigid_body_mass</span><span class="p">(</span>
     <span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedEnv</span><span class="p">,</span>
     <span class="n">env_ids</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
@@ -1742,6 +1649,198 @@
         <span class="c1"># obtain default and set into the physics simulation</span>
         <span class="n">nodal_state</span> <span class="o">=</span> <span class="n">deformable_object</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_nodal_state_w</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
         <span class="n">deformable_object</span><span class="o">.</span><span class="n">write_nodal_state_to_sim</span><span class="p">(</span><span class="n">nodal_state</span><span class="p">,</span> <span class="n">env_ids</span><span class="o">=</span><span class="n">env_ids</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="randomize_visual_texture_material"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.events.randomize_visual_texture_material">[docs]</a><span class="k">class</span><span class="w"> </span><span class="nc">randomize_visual_texture_material</span><span class="p">(</span><span class="n">ManagerTermBase</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Randomize the visual texture of bodies on an asset using Replicator API.</span>
+
+<span class="sd">    This function randomizes the visual texture of the bodies of the asset using the Replicator API.</span>
+<span class="sd">    The function samples random textures from the given texture paths and applies them to the bodies</span>
+<span class="sd">    of the asset. The textures are projected onto the bodies and rotated by the given angles.</span>
+
+<span class="sd">    .. note::</span>
+<span class="sd">        The function assumes that the asset follows the prim naming convention as:</span>
+<span class="sd">        &quot;{asset_prim_path}/{body_name}/visuals&quot; where the body name is the name of the body to</span>
+<span class="sd">        which the texture is applied. This is the default prim ordering when importing assets</span>
+<span class="sd">        from the asset converters in Isaac Lab.</span>
+
+<span class="sd">    .. note::</span>
+<span class="sd">        When randomizing the texture of individual assets, please make sure to set</span>
+<span class="sd">        :attr:`isaaclab.scene.InteractiveSceneCfg.replicate_physics` to False. This ensures that physics</span>
+<span class="sd">        parser will parse the individual asset properties separately.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+<div class="viewcode-block" id="randomize_visual_texture_material.__init__"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.events.randomize_visual_texture_material.__init__">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">EventTermCfg</span><span class="p">,</span> <span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedEnv</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Initialize the term.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            cfg: The configuration of the event term.</span>
+<span class="sd">            env: The environment instance.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="n">env</span><span class="p">)</span>
+
+        <span class="c1"># enable replicator extension if not already enabled</span>
+        <span class="n">enable_extension</span><span class="p">(</span><span class="s2">&quot;omni.replicator.core&quot;</span><span class="p">)</span>
+        <span class="c1"># we import the module here since we may not always need the replicator</span>
+        <span class="kn">import</span><span class="w"> </span><span class="nn">omni.replicator.core</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">rep</span>
+
+        <span class="c1"># read parameters from the configuration</span>
+        <span class="n">asset_cfg</span><span class="p">:</span> <span class="n">SceneEntityCfg</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">params</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;asset_cfg&quot;</span><span class="p">)</span>
+        <span class="n">texture_paths</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">params</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;texture_paths&quot;</span><span class="p">)</span>
+        <span class="n">event_name</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">params</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;event_name&quot;</span><span class="p">)</span>
+        <span class="n">texture_rotation</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">params</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;texture_rotation&quot;</span><span class="p">,</span> <span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">))</span>
+
+        <span class="c1"># check to make sure replicate_physics is set to False, else raise warning</span>
+        <span class="k">if</span> <span class="n">env</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">replicate_physics</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span>
+                <span class="s2">&quot;Unable to randomize visual texture material with scene replication enabled.&quot;</span>
+                <span class="s2">&quot; For stable USD-level randomization, please disable scene replication&quot;</span>
+                <span class="s2">&quot; by setting &#39;replicate_physics&#39; to False in &#39;InteractiveSceneCfg&#39;.&quot;</span>
+            <span class="p">)</span>
+
+        <span class="c1"># convert from radians to degrees</span>
+        <span class="n">texture_rotation</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">math</span><span class="o">.</span><span class="n">degrees</span><span class="p">(</span><span class="n">angle</span><span class="p">)</span> <span class="k">for</span> <span class="n">angle</span> <span class="ow">in</span> <span class="n">texture_rotation</span><span class="p">)</span>
+
+        <span class="c1"># obtain the asset entity</span>
+        <span class="n">asset</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">scene</span><span class="p">[</span><span class="n">asset_cfg</span><span class="o">.</span><span class="n">name</span><span class="p">]</span>
+
+        <span class="c1"># join all bodies in the asset</span>
+        <span class="n">body_names</span> <span class="o">=</span> <span class="n">asset_cfg</span><span class="o">.</span><span class="n">body_names</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">body_names</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+            <span class="n">body_names_regex</span> <span class="o">=</span> <span class="n">body_names</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">body_names</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
+            <span class="n">body_names_regex</span> <span class="o">=</span> <span class="s2">&quot;|&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">body_names</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">body_names_regex</span> <span class="o">=</span> <span class="s2">&quot;.*&quot;</span>
+
+        <span class="c1"># create the affected prim path</span>
+        <span class="c1"># TODO: Remove the hard-coded &quot;/visuals&quot; part.</span>
+        <span class="n">prim_path</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">asset</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">prim_path</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="n">body_names_regex</span><span class="si">}</span><span class="s2">/visuals&quot;</span>
+
+        <span class="c1"># Create the omni-graph node for the randomization term</span>
+        <span class="k">def</span><span class="w"> </span><span class="nf">rep_texture_randomization</span><span class="p">():</span>
+            <span class="n">prims_group</span> <span class="o">=</span> <span class="n">rep</span><span class="o">.</span><span class="n">get</span><span class="o">.</span><span class="n">prims</span><span class="p">(</span><span class="n">path_pattern</span><span class="o">=</span><span class="n">prim_path</span><span class="p">)</span>
+
+            <span class="k">with</span> <span class="n">prims_group</span><span class="p">:</span>
+                <span class="n">rep</span><span class="o">.</span><span class="n">randomizer</span><span class="o">.</span><span class="n">texture</span><span class="p">(</span>
+                    <span class="n">textures</span><span class="o">=</span><span class="n">texture_paths</span><span class="p">,</span> <span class="n">project_uvw</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">texture_rotate</span><span class="o">=</span><span class="n">rep</span><span class="o">.</span><span class="n">distribution</span><span class="o">.</span><span class="n">uniform</span><span class="p">(</span><span class="o">*</span><span class="n">texture_rotation</span><span class="p">)</span>
+                <span class="p">)</span>
+
+            <span class="k">return</span> <span class="n">prims_group</span><span class="o">.</span><span class="n">node</span>
+
+        <span class="c1"># Register the event to the replicator</span>
+        <span class="k">with</span> <span class="n">rep</span><span class="o">.</span><span class="n">trigger</span><span class="o">.</span><span class="n">on_custom_event</span><span class="p">(</span><span class="n">event_name</span><span class="o">=</span><span class="n">event_name</span><span class="p">):</span>
+            <span class="n">rep_texture_randomization</span><span class="p">()</span></div>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__call__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedEnv</span><span class="p">,</span>
+        <span class="n">env_ids</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+        <span class="n">event_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">asset_cfg</span><span class="p">:</span> <span class="n">SceneEntityCfg</span><span class="p">,</span>
+        <span class="n">texture_paths</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span>
+        <span class="n">texture_rotation</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">),</span>
+    <span class="p">):</span>
+        <span class="c1"># import replicator</span>
+        <span class="kn">import</span><span class="w"> </span><span class="nn">omni.replicator.core</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">rep</span>
+
+        <span class="c1"># only send the event to the replicator</span>
+        <span class="c1"># note: This triggers the nodes for all the environments.</span>
+        <span class="c1">#   We need to investigate how to make it happen only for a subset based on env_ids.</span>
+        <span class="n">rep</span><span class="o">.</span><span class="n">utils</span><span class="o">.</span><span class="n">send_og_event</span><span class="p">(</span><span class="n">event_name</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="randomize_visual_color"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.events.randomize_visual_color">[docs]</a><span class="k">class</span><span class="w"> </span><span class="nc">randomize_visual_color</span><span class="p">(</span><span class="n">ManagerTermBase</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Randomize the visual color of bodies on an asset using Replicator API.</span>
+
+<span class="sd">    This function randomizes the visual color of the bodies of the asset using the Replicator API.</span>
+<span class="sd">    The function samples random colors from the given colors and applies them to the bodies</span>
+<span class="sd">    of the asset.</span>
+
+<span class="sd">    The function assumes that the asset follows the prim naming convention as:</span>
+<span class="sd">    &quot;{asset_prim_path}/{mesh_name}&quot; where the mesh name is the name of the mesh to</span>
+<span class="sd">    which the color is applied. For instance, if the asset has a prim path &quot;/World/asset&quot;</span>
+<span class="sd">    and a mesh named &quot;body_0/mesh&quot;, the prim path for the mesh would be</span>
+<span class="sd">    &quot;/World/asset/body_0/mesh&quot;.</span>
+
+<span class="sd">    The colors can be specified as a list of tuples of the form ``(r, g, b)`` or as a dictionary</span>
+<span class="sd">    with the keys ``r``, ``g``, ``b`` and values as tuples of the form ``(low, high)``.</span>
+<span class="sd">    If a dictionary is used, the function will sample random colors from the given ranges.</span>
+
+<span class="sd">    .. note::</span>
+<span class="sd">        When randomizing the color of individual assets, please make sure to set</span>
+<span class="sd">        :attr:`isaaclab.scene.InteractiveSceneCfg.replicate_physics` to False. This ensures that physics</span>
+<span class="sd">        parser will parse the individual asset properties separately.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+<div class="viewcode-block" id="randomize_visual_color.__init__"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.events.randomize_visual_color.__init__">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">EventTermCfg</span><span class="p">,</span> <span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedEnv</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Initialize the randomization term.&quot;&quot;&quot;</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="n">env</span><span class="p">)</span>
+
+        <span class="c1"># enable replicator extension if not already enabled</span>
+        <span class="n">enable_extension</span><span class="p">(</span><span class="s2">&quot;omni.replicator.core&quot;</span><span class="p">)</span>
+        <span class="c1"># we import the module here since we may not always need the replicator</span>
+        <span class="kn">import</span><span class="w"> </span><span class="nn">omni.replicator.core</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">rep</span>
+
+        <span class="c1"># read parameters from the configuration</span>
+        <span class="n">asset_cfg</span><span class="p">:</span> <span class="n">SceneEntityCfg</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">params</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;asset_cfg&quot;</span><span class="p">)</span>
+        <span class="n">colors</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">params</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;colors&quot;</span><span class="p">)</span>
+        <span class="n">event_name</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">params</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;event_name&quot;</span><span class="p">)</span>
+        <span class="n">mesh_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">params</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;mesh_name&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">)</span>  <span class="c1"># type: ignore</span>
+
+        <span class="c1"># check to make sure replicate_physics is set to False, else raise warning</span>
+        <span class="k">if</span> <span class="n">env</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">replicate_physics</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span>
+                <span class="s2">&quot;Unable to randomize visual color with scene replication enabled.&quot;</span>
+                <span class="s2">&quot; For stable USD-level randomization, please disable scene replication&quot;</span>
+                <span class="s2">&quot; by setting &#39;replicate_physics&#39; to False in &#39;InteractiveSceneCfg&#39;.&quot;</span>
+            <span class="p">)</span>
+
+        <span class="c1"># obtain the asset entity</span>
+        <span class="n">asset</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">scene</span><span class="p">[</span><span class="n">asset_cfg</span><span class="o">.</span><span class="n">name</span><span class="p">]</span>
+
+        <span class="c1"># create the affected prim path</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">mesh_name</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">&quot;/&quot;</span><span class="p">):</span>
+            <span class="n">mesh_name</span> <span class="o">=</span> <span class="s2">&quot;/&quot;</span> <span class="o">+</span> <span class="n">mesh_name</span>
+        <span class="n">mesh_prim_path</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">asset</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">prim_path</span><span class="si">}{</span><span class="n">mesh_name</span><span class="si">}</span><span class="s2">&quot;</span>
+        <span class="c1"># TODO: Need to make it work for multiple meshes.</span>
+
+        <span class="c1"># parse the colors into replicator format</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">colors</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+            <span class="c1"># (r, g, b) - low, high --&gt; (low_r, low_g, low_b) and (high_r, high_g, high_b)</span>
+            <span class="n">color_low</span> <span class="o">=</span> <span class="p">[</span><span class="n">colors</span><span class="p">[</span><span class="n">key</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="p">[</span><span class="s2">&quot;r&quot;</span><span class="p">,</span> <span class="s2">&quot;g&quot;</span><span class="p">,</span> <span class="s2">&quot;b&quot;</span><span class="p">]]</span>
+            <span class="n">color_high</span> <span class="o">=</span> <span class="p">[</span><span class="n">colors</span><span class="p">[</span><span class="n">key</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span> <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="p">[</span><span class="s2">&quot;r&quot;</span><span class="p">,</span> <span class="s2">&quot;g&quot;</span><span class="p">,</span> <span class="s2">&quot;b&quot;</span><span class="p">]]</span>
+            <span class="n">colors</span> <span class="o">=</span> <span class="n">rep</span><span class="o">.</span><span class="n">distribution</span><span class="o">.</span><span class="n">uniform</span><span class="p">(</span><span class="n">color_low</span><span class="p">,</span> <span class="n">color_high</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">colors</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">colors</span><span class="p">)</span>
+
+        <span class="c1"># Create the omni-graph node for the randomization term</span>
+        <span class="k">def</span><span class="w"> </span><span class="nf">rep_texture_randomization</span><span class="p">():</span>
+            <span class="n">prims_group</span> <span class="o">=</span> <span class="n">rep</span><span class="o">.</span><span class="n">get</span><span class="o">.</span><span class="n">prims</span><span class="p">(</span><span class="n">path_pattern</span><span class="o">=</span><span class="n">mesh_prim_path</span><span class="p">)</span>
+
+            <span class="k">with</span> <span class="n">prims_group</span><span class="p">:</span>
+                <span class="n">rep</span><span class="o">.</span><span class="n">randomizer</span><span class="o">.</span><span class="n">color</span><span class="p">(</span><span class="n">colors</span><span class="o">=</span><span class="n">colors</span><span class="p">)</span>
+
+            <span class="k">return</span> <span class="n">prims_group</span><span class="o">.</span><span class="n">node</span>
+
+        <span class="c1"># Register the event to the replicator</span>
+        <span class="k">with</span> <span class="n">rep</span><span class="o">.</span><span class="n">trigger</span><span class="o">.</span><span class="n">on_custom_event</span><span class="p">(</span><span class="n">event_name</span><span class="o">=</span><span class="n">event_name</span><span class="p">):</span>
+            <span class="n">rep_texture_randomization</span><span class="p">()</span></div>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__call__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedEnv</span><span class="p">,</span>
+        <span class="n">env_ids</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+        <span class="n">event_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">asset_cfg</span><span class="p">:</span> <span class="n">SceneEntityCfg</span><span class="p">,</span>
+        <span class="n">colors</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]]</span> <span class="o">|</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]],</span>
+        <span class="n">mesh_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span><span class="p">,</span>
+    <span class="p">):</span>
+        <span class="c1"># import replicator</span>
+        <span class="kn">import</span><span class="w"> </span><span class="nn">omni.replicator.core</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">rep</span>
+
+        <span class="c1"># only send the event to the replicator</span>
+        <span class="n">rep</span><span class="o">.</span><span class="n">utils</span><span class="o">.</span><span class="n">send_og_event</span><span class="p">(</span><span class="n">event_name</span><span class="p">)</span></div>
 
 
 <span class="sd">&quot;&quot;&quot;</span>
