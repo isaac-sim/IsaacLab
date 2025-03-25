@@ -58,6 +58,9 @@ class TestEnvironments(unittest.TestCase):
         device = "cuda"
         # iterate over all registered environments
         for task_name in self.registered_tasks:
+            # skip this environment as it cannot be run with 32 environments within reasonable VRAM
+            if task_name == "Isaac-Stack-Cube-Franka-IK-Rel-Blueprint-v0":
+                continue
             with self.subTest(task_name=task_name):
                 print(f">>> Running test for environment: {task_name}")
                 # check environment
