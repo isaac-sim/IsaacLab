@@ -250,6 +250,10 @@ class TiledCamera(Camera):
         # Increment frame count
         self._frame[env_ids] += 1
 
+        # pose
+        if self.cfg.return_latest_camera_pose:
+            self._update_poses(env_ids)
+
         # Extract the flattened image buffer
         for data_type, annotator in self._annotators.items():
             # check whether returned data is a dict (used for segmentation)
