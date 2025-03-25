@@ -1235,6 +1235,10 @@ class randomize_visual_color(ManagerTermBase):
     and a mesh named "body_0/mesh", the prim path for the mesh would be
     "/World/asset/body_0/mesh".
 
+    The colors can be specified as a list of tuples of the form ``(r, g, b)`` or as a dictionary
+    with the keys ``r``, ``g``, ``b`` and values as tuples of the form ``(low, high)``.
+    If a dictionary is used, the function will sample random colors from the given ranges.
+
     .. note::
         When randomizing the color of individual assets, please make sure to set
         :attr:`isaaclab.scene.InteractiveSceneCfg.replicate_physics` to False. This ensures that physics
@@ -1273,6 +1277,15 @@ class randomize_visual_color(ManagerTermBase):
         mesh_prim_path = f"{asset.cfg.prim_path}{mesh_name}"
         # TODO: Need to make it work for multiple meshes.
 
+        # parse the colors into replicator format
+        if isinstance(colors, dict):
+            # (r, g, b) - low, high --> (low_r, low_g, low_b) and (high_r, high_g, high_b)
+            color_low = [colors[key][0] for key in ["r", "g", "b"]]
+            color_high = [colors[key][1] for key in ["r", "g", "b"]]
+            colors = rep.distribution.uniform(color_low, color_high)
+        else:
+            colors = list(colors)
+
         # Create the omni-graph node for the randomization term
         def rep_texture_randomization():
             prims_group = rep.get.prims(path_pattern=mesh_prim_path)
@@ -1292,8 +1305,8 @@ class randomize_visual_color(ManagerTermBase):
         env_ids: torch.Tensor,
         event_name: str,
         asset_cfg: SceneEntityCfg,
-        colors: list[tuple[float, float, float]],
-        child_prim_path: str = "",
+        colors: list[tuple[float, float, float]] | dict[str, tuple[float, float]],
+        mesh_name: str = "",
     ):
         # import replicator
         import omni.replicator.core as rep
