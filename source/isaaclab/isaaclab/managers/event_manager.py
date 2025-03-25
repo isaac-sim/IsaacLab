@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import inspect
 import torch
 from collections.abc import Sequence
 from prettytable import PrettyTable
@@ -188,11 +189,11 @@ class EventManager(ManagerBase):
             return
         # check if mode is pre-startup and scene replication is enabled
         if mode == "prestartup" and self._env.scene.cfg.replicate_physics:
-            omni.log.warn(
+            raise RuntimeError(
                 "Scene replication is enabled, which may affect USD-level randomization."
                 " When assets are replicated, their properties are shared across instances,"
                 " potentially leading to unintended behavior."
-                " For stable USD-level randomization, consider disabling scene replication"
+                " For stable USD-level randomization, please disable scene replication"
                 " by setting 'replicate_physics' to False in 'InteractiveSceneCfg'."
             )
 
@@ -363,6 +364,12 @@ class EventManager(ManagerBase):
 
             # resolve common parameters
             self._resolve_common_term_cfg(term_name, term_cfg, min_argc=2)
+
+            # for event terms with mode "prestartup", we assume a callable class term
+            # can be initialized before the simulation starts.
+            if inspect.isclass(term_cfg.func) and term_cfg.mode == "prestartup":
+                term_cfg.func = term_cfg.func(cfg=term_cfg, env=self._env)
+
             # check if mode is a new mode
             if term_cfg.mode not in self._mode_term_names:
                 # add new mode

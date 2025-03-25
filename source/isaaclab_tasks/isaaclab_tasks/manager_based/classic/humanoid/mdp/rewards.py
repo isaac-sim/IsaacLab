@@ -95,7 +95,11 @@ class joint_pos_limits_penalty_ratio(ManagerTermBase):
         self.gear_ratio_scaled = self.gear_ratio / torch.max(self.gear_ratio)
 
     def __call__(
-        self, env: ManagerBasedRLEnv, threshold: float, gear_ratio: dict[str, float], asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
+        self,
+        env: ManagerBasedRLEnv,
+        threshold: float,
+        gear_ratio: dict[str, float],
+        asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
     ) -> torch.Tensor:
         # extract the used quantities (to enable type-hinting)
         asset: Articulation = env.scene[asset_cfg.name]
@@ -131,8 +135,8 @@ class power_consumption(ManagerTermBase):
         self.gear_ratio_scaled = self.gear_ratio / torch.max(self.gear_ratio)
 
     def __call__(
-            self, env: ManagerBasedRLEnv, gear_ratio: dict[str, float], asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
-        ) -> torch.Tensor:
+        self, env: ManagerBasedRLEnv, gear_ratio: dict[str, float], asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
+    ) -> torch.Tensor:
         # extract the used quantities (to enable type-hinting)
         asset: Articulation = env.scene[asset_cfg.name]
         # return power = torque * velocity (here actions: joint torques)

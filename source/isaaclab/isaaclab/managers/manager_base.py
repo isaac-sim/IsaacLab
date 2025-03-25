@@ -139,6 +139,8 @@ class ManagerBase(ABC):
         # if the simulation is not playing, we use callbacks to trigger the resolution of the scene
         # entities configuration. this is needed for cases where the manager is created after the
         # simulation, but before the simulation is playing.
+        # FIXME: Once Isaac Sim supports storing this information as USD schema, we can remove this
+        #   callback and resolve the scene entities directly inside `_prepare_terms`.
         if not self._env.sim.is_playing():
             # note: Use weakref on all callbacks to ensure that this object can be deleted when its destructor
             # is called
