@@ -776,6 +776,10 @@
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.mdp.events.randomize_rigid_body_material.__init__"><code class="docutils literal notranslate"><span class="pre">randomize_rigid_body_material.__init__()</span></code></a></li>
 </ul>
 </li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.mdp.events.randomize_visual_texture_material"><code class="docutils literal notranslate"><span class="pre">randomize_visual_texture_material</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.mdp.events.randomize_visual_texture_material.__init__"><code class="docutils literal notranslate"><span class="pre">randomize_visual_texture_material.__init__()</span></code></a></li>
+</ul>
+</li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.mdp.events.randomize_rigid_body_mass"><code class="docutils literal notranslate"><span class="pre">randomize_rigid_body_mass()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.mdp.events.randomize_rigid_body_collider_offsets"><code class="docutils literal notranslate"><span class="pre">randomize_rigid_body_collider_offsets()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.mdp.events.randomize_physics_scene_gravity"><code class="docutils literal notranslate"><span class="pre">randomize_physics_scene_gravity()</span></code></a></li>
@@ -2655,6 +2659,9 @@ the event introduced by the function.</p>
 <tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.envs.mdp.events.randomize_rigid_body_material" title="isaaclab.envs.mdp.events.randomize_rigid_body_material"><code class="xref py py-obj docutils literal notranslate"><span class="pre">randomize_rigid_body_material</span></code></a></p></td>
 <td><p>Randomize the physics materials on all geometries of the asset.</p></td>
 </tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.envs.mdp.events.randomize_visual_texture_material" title="isaaclab.envs.mdp.events.randomize_visual_texture_material"><code class="xref py py-obj docutils literal notranslate"><span class="pre">randomize_visual_texture_material</span></code></a></p></td>
+<td><p>Randomize the visual texture of bodies on an asset using Replicator API.</p></td>
+</tr>
 </tbody>
 </table>
 </div>
@@ -2734,6 +2741,51 @@ Afterwards, these materials are randomly assigned to the geometries of the asset
 </dd>
 <dt class="field-even">Raises<span class="colon">:</span></dt>
 <dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.13)"><strong>ValueError</strong></a> – If the asset is not a RigidObject or an Articulation.</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="isaaclab.envs.mdp.events.randomize_visual_texture_material">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">isaaclab.envs.mdp.events.</span></span><span class="sig-name descname"><span class="pre">randomize_visual_texture_material</span></span><a class="reference internal" href="../../../_modules/isaaclab/envs/mdp/events.html#randomize_visual_texture_material"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.envs.mdp.events.randomize_visual_texture_material" title="Permalink to this definition">#</a></dt>
+<dd><p>Randomize the visual texture of bodies on an asset using Replicator API.</p>
+<p>This function randomizes the visual texture of the bodies of the asset using the Replicator API.
+The function samples random textures from the given texture paths and applies them to the bodies
+of the asset. The textures are projected onto the bodies and rotated by the given angles.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The function assumes that the asset follows the prim naming convention as:
+“{asset_prim_path}/{body_name}/visuals” where the body name is the name of the body to
+which the texture is applied. This is the default prim ordering when importing assets
+from the asset converters in Isaac Lab.</p>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>When randomizing the texture of individual assets, please make sure to set
+<a class="reference internal" href="isaaclab.scene.html#isaaclab.scene.InteractiveSceneCfg.replicate_physics" title="isaaclab.scene.InteractiveSceneCfg.replicate_physics"><code class="xref py py-attr docutils literal notranslate"><span class="pre">isaaclab.scene.InteractiveSceneCfg.replicate_physics</span></code></a> to False. This ensures that physics
+parser will parse the individual asset properties separately.</p>
+</div>
+<p><strong>Methods:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.envs.mdp.events.randomize_visual_texture_material.__init__" title="isaaclab.envs.mdp.events.randomize_visual_texture_material.__init__"><code class="xref py py-obj docutils literal notranslate"><span class="pre">__init__</span></code></a>(cfg, env)</p></td>
+<td><p>Initialize the term.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<dl class="py method">
+<dt class="sig sig-object py" id="isaaclab.envs.mdp.events.randomize_visual_texture_material.__init__">
+<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cfg</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="isaaclab.managers.html#isaaclab.managers.EventTermCfg" title="isaaclab.managers.EventTermCfg"><span class="pre">EventTermCfg</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">env</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="isaaclab.envs.html#isaaclab.envs.ManagerBasedEnv" title="isaaclab.envs.ManagerBasedEnv"><span class="pre">ManagerBasedEnv</span></a></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/isaaclab/envs/mdp/events.html#randomize_visual_texture_material.__init__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.envs.mdp.events.randomize_visual_texture_material.__init__" title="Permalink to this definition">#</a></dt>
+<dd><p>Initialize the term.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>cfg</strong> – The configuration of the event term.</p></li>
+<li><p><strong>env</strong> – The environment instance.</p></li>
+</ul>
 </dd>
 </dl>
 </dd></dl>
@@ -4379,6 +4431,10 @@ the curriculum introduced by the function.</p>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.mdp.events.randomize_rigid_body_scale"><code class="docutils literal notranslate"><span class="pre">randomize_rigid_body_scale()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.mdp.events.randomize_rigid_body_material"><code class="docutils literal notranslate"><span class="pre">randomize_rigid_body_material</span></code></a><ul class="nav section-nav flex-column">
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.mdp.events.randomize_rigid_body_material.__init__"><code class="docutils literal notranslate"><span class="pre">randomize_rigid_body_material.__init__()</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.mdp.events.randomize_visual_texture_material"><code class="docutils literal notranslate"><span class="pre">randomize_visual_texture_material</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.mdp.events.randomize_visual_texture_material.__init__"><code class="docutils literal notranslate"><span class="pre">randomize_visual_texture_material.__init__()</span></code></a></li>
 </ul>
 </li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.mdp.events.randomize_rigid_body_mass"><code class="docutils literal notranslate"><span class="pre">randomize_rigid_body_mass()</span></code></a></li>
