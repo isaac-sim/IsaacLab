@@ -1164,16 +1164,18 @@ class randomize_visual_texture_material(ManagerTermBase):
 
         # check to make sure replicate_physics is set to False, else raise warning
         if env.cfg.scene.replicate_physics:
-            raise ValueError(
-                "Unable to randomize visual texture material - ensure InteractiveSceneCfg's replicate_physics parameter"
-                " is set to False."
+            raise RuntimeError(
+                "Unable to randomize visual texture material with scene replication enabled."
+                " For stable USD-level randomization, please disable scene replication"
+                " by setting 'replicate_physics' to False in 'InteractiveSceneCfg'."
             )
 
         # convert from radians to degrees
         texture_rotation = tuple(math.degrees(angle) for angle in texture_rotation)
 
         # obtain the asset entity
-        asset_entity = env.scene[asset_cfg.name]
+        asset = env.scene[asset_cfg.name]
+
         # join all bodies in the asset
         body_names = asset_cfg.body_names
         if isinstance(body_names, str):
@@ -1183,9 +1185,13 @@ class randomize_visual_texture_material(ManagerTermBase):
         else:
             body_names_regex = ".*"
 
+        # create the affected prim path
+        # TODO: Remove the hard-coded "/visuals" part.
+        prim_path = f"{asset.cfg.prim_path}/{body_names_regex}/visuals"
+
         # Create the omni-graph node for the randomization term
         def rep_texture_randomization():
-            prims_group = rep.get.prims(path_pattern=f"{asset_entity.cfg.prim_path}/{body_names_regex}/visuals")
+            prims_group = rep.get.prims(path_pattern=prim_path)
 
             with prims_group:
                 rep.randomizer.texture(
@@ -1215,32 +1221,61 @@ class randomize_visual_texture_material(ManagerTermBase):
         #   We need to investigate how to make it happen only for a subset based on env_ids.
         rep.utils.send_og_event(event_name)
 
+
 class randomize_visual_color(ManagerTermBase):
-    """Randomize the color in the scene with Replicator omni-graph node."""
+    """Randomize the visual color of bodies on an asset using Replicator API.
+
+    This function randomizes the visual color of the bodies of the asset using the Replicator API.
+    The function samples random colors from the given colors and applies them to the bodies
+    of the asset.
+
+    The function assumes that the asset follows the prim naming convention as:
+    "{asset_prim_path}/{mesh_name}" where the mesh name is the name of the mesh to
+    which the color is applied. For instance, if the asset has a prim path "/World/asset"
+    and a mesh named "body_0/mesh", the prim path for the mesh would be
+    "/World/asset/body_0/mesh".
+
+    .. note::
+        When randomizing the color of individual assets, please make sure to set
+        :attr:`isaaclab.scene.InteractiveSceneCfg.replicate_physics` to False. This ensures that physics
+        parser will parse the individual asset properties separately.
+    """
 
     def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv):
         """Initialize the randomization term."""
         super().__init__(cfg, env)
 
-        # import replicator
+        # enable replicator extension if not already enabled
+        enable_extension("omni.replicator.core")
+        # we import the module here since we may not always need the replicator
         import omni.replicator.core as rep
 
         # read parameters from the configuration
         asset_cfg: SceneEntityCfg = cfg.params.get("asset_cfg")
         colors = cfg.params.get("colors")
         event_name = cfg.params.get("event_name")
-        child_prim_path = cfg.params.get("child_prim_path", "")
+        mesh_name: str = cfg.params.get("mesh_name", "")  # type: ignore
 
-        if not child_prim_path.startswith("/"):
-            child_prim_path = "/" + child_prim_path
+        # check to make sure replicate_physics is set to False, else raise warning
+        if env.cfg.scene.replicate_physics:
+            raise RuntimeError(
+                "Unable to randomize visual color with scene replication enabled."
+                " For stable USD-level randomization, please disable scene replication"
+                " by setting 'replicate_physics' to False in 'InteractiveSceneCfg'."
+            )
 
         # obtain the asset entity
-        asset_entity = env.scene[asset_cfg.name]
-        # TODO: I hack it to make it work for now
+        asset = env.scene[asset_cfg.name]
+
+        # create the affected prim path
+        if not mesh_name.startswith("/"):
+            mesh_name = "/" + mesh_name
+        mesh_prim_path = f"{asset.cfg.prim_path}{mesh_name}"
+        # TODO: Need to make it work for multiple meshes.
 
         # Create the omni-graph node for the randomization term
         def rep_texture_randomization():
-            prims_group = rep.get.prims(path_pattern=f"{asset_entity.cfg.prim_path}{child_prim_path}")
+            prims_group = rep.get.prims(path_pattern=mesh_prim_path)
 
             with prims_group:
                 rep.randomizer.color(colors=colors)
