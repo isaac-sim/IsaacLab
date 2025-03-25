@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.10.27 (2025-03-25)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed environment test failure for ``Isaac-Stack-Cube-Franka-IK-Rel-Blueprint-v0``.
+
+
 0.10.26 (2025-03-18)
 ~~~~~~~~~~~~~~~~~~~~
 
