@@ -305,10 +305,9 @@ class SimulationContext(_SimulationContext):
             preset_dict = dict(flatdict.FlatDict(preset_dict, delimiter="."))
 
             # set presets
-            carb_setting = carb.settings.get_settings()
             for key, value in preset_dict.items():
                 key = "/" + key.replace(".", "/")  # convert to carb setting format
-                set_carb_setting(carb_setting, key, value)
+                set_carb_setting(self.carb_settings, key, value)
 
         # set user-friendly named settings
         for key, value in vars(self.cfg.render).items():

@@ -317,7 +317,6 @@ class AppLauncher:
             "--rendering_mode",
             type=str,
             action=ExplicitAction,
-            default="balanced",
             choices={"performance", "balanced", "quality", "xr"},
             help=(
                 "Sets the rendering mode. Preset settings files can be found in apps/rendering_modes."
@@ -850,7 +849,15 @@ class AppLauncher:
         import carb
         from isaacsim.core.utils.carb import set_carb_setting
 
-        rendering_mode = launcher_args.get("rendering_mode", "balanced")
+        rendering_mode = launcher_args.get("rendering_mode")
+
+        # use default kit rendering settings if cameras are disabled and a rendering mode is not selected
+        if not self._enable_cameras and rendering_mode is None:
+            return
+
+        # default to balanced mode
+        if rendering_mode is None:
+            rendering_mode = "balanced"
 
         rendering_mode_explicitly_passed = launcher_args.pop("rendering_mode_explicit", False)
         if self._xr and not rendering_mode_explicitly_passed:

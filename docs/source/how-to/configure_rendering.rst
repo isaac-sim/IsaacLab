@@ -1,7 +1,7 @@
 Configuring Rendering Settings
 ==============================
 
-Isaac Lab offers 3 preset rendering modes: performance, balanced, and quality.
+Isaac Lab offers 4 preset rendering modes: performance, balanced, quality, and xr.
 You can select a mode via a command line argument or from within a script, and customize settings as needed.
 Adjust and fine-tune rendering to achieve the ideal balance for your workflow.
 
@@ -23,6 +23,10 @@ Rendering modes can be selected in 2 ways.
      # for an example of how this can be used, checkout the tutorial script
      # scripts/tutorials/00_sim/set_rendering_mode.py
      render_cfg = sim_utils.RenderCfg(rendering_mode="performance")
+
+Note, the ``rendering_mode`` defaults to ``balanced``.
+However, in the case where the launcher argument ``--enable_cameras`` is not set, then
+the default ``rendering_mode`` is not applied and, instead, the default kit rendering settings are used.
 
 Example renders from the ``set_rendering_mode.py`` script.
 To help assess rendering, the example scene includes some reflections, translucency, direct and ambient lighting, and several material types.

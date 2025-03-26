@@ -1,7 +1,7 @@
 Changelog
 ---------
 
-0.36.17 (2025-04-09)
+0.36.18 (2025-04-09)
 ~~~~~~~~~~~~~~~~~~~~
 
 Changed
@@ -12,13 +12,22 @@ Changed
   the cuda device, which results in NCCL errors on distributed setups.
 
 
-0.36.16 (2025-04-01)
+0.36.17 (2025-04-01)
 ~~~~~~~~~~~~~~~~~~~~
 
 Fixed
 ^^^^^
 
 * Added check in RecorderManager to ensure that the success indicator is only set if the termination manager is present.
+
+
+0.36.16 (2025-03-25)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Modified rendering mode default behavior when the launcher arg :attr:`enable_cameras` is not set.
 
 
 0.36.15 (2025-03-25)
