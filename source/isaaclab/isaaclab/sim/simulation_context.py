@@ -188,12 +188,13 @@ class SimulationContext(_SimulationContext):
         if self.cfg.render.enable_ambient_occlusion is not None:
             carb_settings_iface.set_bool("/rtx/ambientOcclusion/enabled", self.cfg.render.enable_ambient_occlusion)
         # set denoiser mode
-        try:
-            import omni.replicator.core as rep
+        if self.cfg.render.antialiasing_mode is not None:
+            try:
+                import omni.replicator.core as rep
 
-            rep.settings.set_render_rtx_realtime(antialiasing=self.cfg.render.antialiasing_mode)
-        except Exception:
-            pass
+                rep.settings.set_render_rtx_realtime(antialiasing=self.cfg.render.antialiasing_mode)
+            except Exception:
+                pass
 
         # store the default render mode
         if not self._has_gui and not self._offscreen_render:
