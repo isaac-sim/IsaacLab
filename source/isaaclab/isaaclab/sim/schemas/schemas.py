@@ -6,6 +6,8 @@
 # needed to import for allowing type-hinting: Usd.Stage | None
 from __future__ import annotations
 
+import math
+
 import isaacsim.core.utils.stage as stage_utils
 import omni.log
 import omni.physx.scripts.utils as physx_utils
@@ -529,7 +531,7 @@ Joint drive properties.
 
 @apply_nested
 def modify_joint_drive_properties(
-    prim_path: str, drive_props: schemas_cfg.JointDrivePropertiesCfg, stage: Usd.Stage | None = None
+    prim_path: str, cfg: schemas_cfg.JointDrivePropertiesCfg, stage: Usd.Stage | None = None
 ) -> bool:
     """Modify PhysX parameters for a joint prim.
 
@@ -552,7 +554,7 @@ def modify_joint_drive_properties(
 
     Args:
         prim_path: The prim path where to apply the joint drive schema.
-        drive_props: The configuration for the joint drive.
+        cfg: The configuration for the joint drive.
         stage: The stage where to find the prim. Defaults to None, in which case the
             current stage is used.
 
@@ -587,10 +589,43 @@ def modify_joint_drive_properties(
     usd_drive_api = UsdPhysics.DriveAPI(prim, drive_api_name)
     if not usd_drive_api:
         usd_drive_api = UsdPhysics.DriveAPI.Apply(prim, drive_api_name)
+    # check if prim has Physx joint drive applied on it
+    physx_joint_api = PhysxSchema.PhysxJointAPI(prim)
+    if not physx_joint_api:
+        physx_joint_api = PhysxSchema.PhysxJointAPI.Apply(prim)
 
-    # change the drive type to input
-    if drive_props.drive_type is not None:
-        usd_drive_api.CreateTypeAttr().Set(drive_props.drive_type)
+    # mapping from configuration name to USD attribute name
+    cfg_to_usd_map = {
+        "max_velocity": "max_joint_velocity",
+        "max_effort": "max_force",
+        "drive_type": "type",
+    }
+    # convert to dict
+    cfg = cfg.to_dict()
+
+    # check if linear drive
+    is_linear_drive = prim.IsA(UsdPhysics.PrismaticJoint)
+    # convert values for angular drives from radians to degrees units
+    if not is_linear_drive:
+        if cfg["max_velocity"] is not None:
+            # rad / s --> deg / s
+            cfg["max_velocity"] = cfg["max_velocity"] * 180.0 / math.pi
+        if cfg["stiffness"] is not None:
+            # N-m/rad --> N-m/deg
+            cfg["stiffness"] = cfg["stiffness"] * math.pi / 180.0
+        if cfg["damping"] is not None:
+            # N-m-s/rad --> N-m-s/deg
+            cfg["damping"] = cfg["damping"] * math.pi / 180.0
+
+    # set into PhysX API
+    for attr_name in ["max_velocity"]:
+        value = cfg.pop(attr_name, None)
+        attr_name = cfg_to_usd_map[attr_name]
+        safe_set_attribute_on_usd_schema(physx_joint_api, attr_name, value, camel_case=True)
+    # set into USD API
+    for attr_name, attr_value in cfg.items():
+        attr_name = cfg_to_usd_map.get(attr_name, attr_name)
+        safe_set_attribute_on_usd_schema(usd_drive_api, attr_name, attr_value, camel_case=True)
 
     return True
 

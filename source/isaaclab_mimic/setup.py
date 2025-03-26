@@ -20,6 +20,8 @@ EXTENSION_TOML_DATA = toml.load(os.path.join(EXTENSION_PATH, "config", "extensio
 # Minimum dependencies required prior to installation
 INSTALL_REQUIRES = [
     "tomli",
+    # jupyter notebook
+    "ipywidgets==8.1.5",
 ]
 
 # Extra dependencies for IL agents

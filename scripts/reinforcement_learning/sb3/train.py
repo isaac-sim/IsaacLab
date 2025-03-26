@@ -64,9 +64,13 @@ from isaaclab.envs import (
 from isaaclab.utils.dict import print_dict
 from isaaclab.utils.io import dump_pickle, dump_yaml
 
+from isaaclab_rl.sb3 import Sb3VecEnvWrapper, process_sb3_cfg
+
 import isaaclab_tasks  # noqa: F401
 from isaaclab_rl.sb3 import Sb3VecEnvWrapper, process_sb3_cfg
 from isaaclab_rl.utils.hydra import hydra_task_config
+
+# PLACEHOLDER: Extension template (do not remove this comment)
 
 
 @hydra_task_config(args_cli.task, "sb3_cfg_entry_point")

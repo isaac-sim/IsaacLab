@@ -45,8 +45,10 @@ The following wrappers are available in the ``isaaclab_rl`` extension:
 
 .. currentmodule:: isaaclab_rl
 
-.. autosummary::
-   :toctree: lab_rl
+.. toctree::
+   :maxdepth: 2
+
+   lab_rl/isaaclab_rl
 
    wrappers
    utils

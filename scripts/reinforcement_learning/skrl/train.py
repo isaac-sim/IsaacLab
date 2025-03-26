@@ -71,7 +71,7 @@ import skrl
 from packaging import version
 
 # check for minimum supported skrl version
-SKRL_VERSION = "1.4.1"
+SKRL_VERSION = "1.4.2"
 if version.parse(skrl.__version__) < version.parse(SKRL_VERSION):
     skrl.logger.error(
         f"Unsupported skrl version: {skrl.__version__}. "
@@ -95,9 +95,13 @@ from isaaclab.utils.assets import retrieve_file_path
 from isaaclab.utils.dict import print_dict
 from isaaclab.utils.io import dump_pickle, dump_yaml
 
+from isaaclab_rl.skrl import SkrlVecEnvWrapper
+
 import isaaclab_tasks  # noqa: F401
 from isaaclab_rl.skrl import SkrlVecEnvWrapper
 from isaaclab_rl.utils.hydra import hydra_task_config
+
+# PLACEHOLDER: Extension template (do not remove this comment)
 
 # config shortcuts
 algorithm = args_cli.algorithm.lower()

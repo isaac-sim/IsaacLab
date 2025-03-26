@@ -1,5 +1,5 @@
 Welcome to Isaac Lab!
-==========================
+=====================
 
 .. figure:: source/_static/isaaclab.jpg
    :width: 100%
@@ -38,7 +38,7 @@ The platform is also designed so that you can add your own robots! please refer 
 
 For more information about the framework, please refer to the `paper <https://arxiv.org/abs/2301.04195>`_
 :cite:`mittal2023orbit`. For clarifications on NVIDIA Isaac ecosystem, please check out the
-:doc:`/source/setup/faq` section.
+:ref:`isaac-lab-ecosystem` section.
 
 .. figure:: source/_static/tasks.jpg
    :width: 100%
@@ -79,7 +79,6 @@ Table of Contents
    source/setup/ecosystem
    source/setup/installation/index
    source/setup/installation/cloud_installation
-   source/setup/faq
 
 .. toctree::
    :maxdepth: 3
@@ -88,7 +87,6 @@ Table of Contents
 
    source/overview/developer-guide/index
    source/overview/core-concepts/index
-   source/overview/sensors/index
    source/overview/environments
    source/overview/reinforcement-learning/index
    source/overview/teleop_imitation
@@ -101,7 +99,7 @@ Table of Contents
 
    source/features/hydra
    source/features/multi_gpu
-   Tiled Rendering</source/overview/sensors/camera>
+   Tiled Rendering</source/overview/core-concepts/sensors/camera>
    source/features/ray
    source/features/reproducibility
 

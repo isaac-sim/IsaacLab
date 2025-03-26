@@ -59,9 +59,13 @@ from isaaclab.envs import DirectMARLEnv, multi_agent_to_single_agent
 from isaaclab.utils.dict import print_dict
 from isaaclab.utils.pretrained_checkpoint import get_published_pretrained_checkpoint
 
+from isaaclab_rl.sb3 import Sb3VecEnvWrapper, process_sb3_cfg
+
 import isaaclab_tasks  # noqa: F401
 from isaaclab_rl.sb3 import Sb3VecEnvWrapper, process_sb3_cfg
 from isaaclab_rl.utils.parse_cfg import get_checkpoint_path, load_cfg_from_registry, parse_env_cfg
+
+# PLACEHOLDER: Extension template (do not remove this comment)
 
 
 def main():

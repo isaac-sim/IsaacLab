@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import json
 import numpy as np
 import re
 import torch
@@ -118,7 +119,7 @@ class Camera(SensorBase):
         # spawn the asset
         if self.cfg.spawn is not None:
             # compute the rotation offset
-            rot = torch.tensor(self.cfg.offset.rot, dtype=torch.float32).unsqueeze(0)
+            rot = torch.tensor(self.cfg.offset.rot, dtype=torch.float32, device="cpu").unsqueeze(0)
             rot_offset = convert_camera_frame_orientation_convention(
                 rot, origin=self.cfg.offset.convention, target="opengl"
             )
@@ -455,7 +456,10 @@ class Camera(SensorBase):
                 #   if colorize is true, the data is mapped to colors and a uint8 4 channel image is returned.
                 #   if colorize is false, the data is returned as a uint32 image with ids as values.
                 if name == "semantic_segmentation":
-                    init_params = {"colorize": self.cfg.colorize_semantic_segmentation}
+                    init_params = {
+                        "colorize": self.cfg.colorize_semantic_segmentation,
+                        "mapping": json.dumps(self.cfg.semantic_segmentation_mapping),
+                    }
                 elif name == "instance_segmentation_fast":
                     init_params = {"colorize": self.cfg.colorize_instance_segmentation}
                 elif name == "instance_id_segmentation_fast":

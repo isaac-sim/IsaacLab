@@ -69,7 +69,7 @@ import skrl
 from packaging import version
 
 # check for minimum supported skrl version
-SKRL_VERSION = "1.4.1"
+SKRL_VERSION = "1.4.2"
 if version.parse(skrl.__version__) < version.parse(SKRL_VERSION):
     skrl.logger.error(
         f"Unsupported skrl version: {skrl.__version__}. "
@@ -86,9 +86,13 @@ from isaaclab.envs import DirectMARLEnv, multi_agent_to_single_agent
 from isaaclab.utils.dict import print_dict
 from isaaclab.utils.pretrained_checkpoint import get_published_pretrained_checkpoint
 
+from isaaclab_rl.skrl import SkrlVecEnvWrapper
+
 import isaaclab_tasks  # noqa: F401
 from isaaclab_rl.skrl import SkrlVecEnvWrapper
 from isaaclab_rl.utils import get_checkpoint_path, load_cfg_from_registry, parse_env_cfg
+
+# PLACEHOLDER: Extension template (do not remove this comment)
 
 # config shortcuts
 algorithm = args_cli.algorithm.lower()

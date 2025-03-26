@@ -1,6 +1,24 @@
 Changelog
 ---------
 
+0.10.26 (2025-03-18)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added Gymnasium spaces showcase tasks (``Isaac-Cartpole-Showcase-*-Direct-v0``, and ``Isaac-Cartpole-Camera-Showcase-*-Direct-v0``).
+
+
+0.10.25 (2025-03-10)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``Isaac-Stack-Cube-Franka-IK-Rel-Blueprint-v0`` stacking environment with camera inputs.
+
+
 0.10.24 (2025-02-13)
 ~~~~~~~~~~~~~~~~~~~~
 

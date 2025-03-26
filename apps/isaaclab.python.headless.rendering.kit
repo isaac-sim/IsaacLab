@@ -9,7 +9,7 @@
 [package]
 title = "Isaac Lab Python Headless Camera"
 description = "An app for running Isaac Lab headlessly with rendering enabled"
-version = "2.0.1"
+version = "2.0.2"
 
 # That makes it browsable in UI with "experience" filter
 keywords = ["experience", "app", "isaaclab", "python", "camera", "minimal"]
@@ -47,25 +47,10 @@ rtx.translucency.enabled = false
 rtx.reflections.enabled = false
 rtx.indirectDiffuse.enabled = false
 rtx-transient.dlssg.enabled = false
+rtx.directLighting.sampledLighting.enabled = true
+rtx.directLighting.sampledLighting.samplesPerPixel = 1
 rtx.sceneDb.ambientLightIntensity = 1.0
 # rtx.shadows.enabled = false
-
-# Optimized denoiser flags for better rendering performance
-rtx-transient.dldenoiser.enabled = false
-rtx.indirectDiffuse.denoiser.enabled = false
-rtx.directLighting.sampledLighting.denoisingTechnique = 0
-rtx.reflections.denoiser.enabled = false
-
-# this approximate dome lighting, almost like an ambient light
-# for better lighting, enable ambient occlusion at a small cost
-rtx.domeLight.upperLowerStrategy=4
-rtx.directLighting.sampledLighting.enabled = false
-rtx.ambientOcclusion.enabled = false
-rtx.ambientOcclusion.denoiserMode = 0
-rtx.raytracing.subpixel.mode=1
-rtx.raytracing.cached.enabled = false
-# Set the DLSS model
-rtx.post.dlss.execMode = 2 # can be 0 (Performance), 1 (Balanced), 2 (Quality), or 3 (Auto)
 
 # Avoids replicator warning
 rtx.pathtracing.maxSamplesPerLaunch = 1000000
@@ -74,6 +59,13 @@ rtx.viewTile.limit = 1000000
 
 # Disable present thread to improve performance
 exts."omni.renderer.core".present.enabled=false
+
+# Disabling these settings reduces renderer VRAM usage and improves rendering performance, but at some quality cost
+rtx.raytracing.cached.enabled = false
+rtx.ambientOcclusion.enabled = false
+
+# Set the DLSS model
+rtx.post.dlss.execMode = 0 # can be 0 (Performance), 1 (Balanced), 2 (Quality), or 3 (Auto)
 
 # Avoids unnecessary GPU context initialization
 renderer.multiGpu.maxGpuCount=1

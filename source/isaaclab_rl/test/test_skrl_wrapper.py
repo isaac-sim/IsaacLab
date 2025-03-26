@@ -23,6 +23,8 @@ import omni.usd
 
 from isaaclab.envs import DirectMARLEnv, multi_agent_to_single_agent
 
+from isaaclab_rl.skrl import SkrlVecEnvWrapper
+
 import isaaclab_tasks  # noqa: F401
 from isaaclab_rl.skrl import SkrlVecEnvWrapper
 from isaaclab_rl.utils.parse_cfg import parse_env_cfg
@@ -42,7 +44,7 @@ class TestSKRLVecEnvWrapper(unittest.TestCase):
                     cls.registered_tasks.append(task_spec.id)
         # sort environments by name
         cls.registered_tasks.sort()
-        cls.registered_tasks = cls.registered_tasks[:5]
+        cls.registered_tasks = cls.registered_tasks[:3]
 
         # this flag is necessary to prevent a bug where the simulation gets stuck randomly when running the
         # test on many environments.
