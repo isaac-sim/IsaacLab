@@ -59,13 +59,13 @@ To learn about how to set up your own project on top of Isaac Lab, see :ref:`tem
 
          .. code-block:: bash
 
-            pip install torch==2.5.1 --index-url https://download.pytorch.org/whl/cu118
+            pip install torch==2.5.1 torchvision==0.20.1 --index-url https://download.pytorch.org/whl/cu118
 
       .. tab-item:: CUDA 12
 
          .. code-block:: bash
 
-            pip install torch==2.5.1 --index-url https://download.pytorch.org/whl/cu121
+            pip install torch==2.5.1 torchvision==0.20.1 --index-url https://download.pytorch.org/whl/cu121
 
 
 -  Before installing Isaac Lab, ensure the latest pip version is installed. To update pip, run
