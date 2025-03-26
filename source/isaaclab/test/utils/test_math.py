@@ -367,7 +367,6 @@ class TestMathUtilities(unittest.TestCase):
             key_times = [0, 1]
             slerp = scipy_tf.Slerp(key_times, key_rots)
 
-            # Convert the rotation matrices to quaternionsfrom scipy.spatial.transform import Rotation as scipy_R
             for tau in tau_values:
                 expected = slerp(tau).as_quat()  # (x, y, z, w)
                 result = math_utils.quat_slerp(torch.tensor(q1), torch.tensor(q2), tau)
