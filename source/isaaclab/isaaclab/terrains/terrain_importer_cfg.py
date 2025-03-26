@@ -69,7 +69,7 @@ class TerrainImporterCfg:
     """
 
     visual_material: sim_utils.VisualMaterialCfg | None = sim_utils.PreviewSurfaceCfg(
-        diffuse_color=(0.065, 0.0725, 0.080)
+        diffuse_color=(0.0, 0.0, 0.0)
     )
     """The visual material of the terrain. Defaults to a dark gray color material.
 
