@@ -304,6 +304,7 @@ class CubeEnvCfg(ManagerBasedEnvCfg):
         self.sim.dt = 0.01
         self.sim.physics_material = self.scene.terrain.physics_material
         self.sim.render_interval = 2  # render interval should be a multiple of decimation
+        self.sim.device = args_cli.device
         # viewer settings
         self.viewer.eye = (5.0, 5.0, 5.0)
         self.viewer.lookat = (0.0, 0.0, 2.0)
