@@ -39,7 +39,7 @@ class ContainerInterface:
                 which case a new configuration object is created by reading the configuration file at the path
                 ``context_dir/.container.cfg``.
             docker_name_suffix: Optional docker image and container name suffix.  If None is passed, the docker name
-                suffix is set to the empty string. For example, if 'base' is passed to profile, and "-custom" is
+                suffix is set to the empty string. For example, if "base" is passed to profile, and "-custom" is
                 passed to docker_name_suffix, then the produced docker image and container will be named
                 ``isaac-lab-base-custom``.  Defaults to None.
         """

@@ -52,8 +52,9 @@ def parse_cli_args() -> argparse.Namespace:
         default=None,
         help=(
             "Optional docker image and container name suffix.  If None is passed, the docker name suffix is set to the"
-            " empty string. For example, if 'base' is passed to profile, and '-custom' is passed to docker-name-suffix,"
-            " then the produced image and container will be named 'isaac-lab-base-custom'. Defaults to None."
+            ' empty string. For example, if "base" is passed to profile, and "-custom" is passed to'
+            ' docker-name-suffix, then the produced image and container will be named "isaac-lab-base-custom".'
+            " Defaults to None."
         ),
     )
 
