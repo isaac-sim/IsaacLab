@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.0.2" />
-    <meta name="docbuild:last-update" content="Mar 25, 2025"/>
+    <meta name="docbuild:last-update" content="Mar 26, 2025"/>
   </head>
   
   
@@ -640,7 +640,7 @@
 <span class="sd">        Returns:</span>
 <span class="sd">            The value of the term.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">raise</span> <span class="ne">NotImplementedError</span></div>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s2">&quot;The method &#39;__call__&#39; should be implemented by the subclass.&quot;</span><span class="p">)</span></div>
 
 
 <div class="viewcode-block" id="ManagerBase"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.managers.html#isaaclab.managers.ManagerBase">[docs]</a><span class="k">class</span><span class="w"> </span><span class="nc">ManagerBase</span><span class="p">(</span><span class="n">ABC</span><span class="p">):</span>
@@ -664,32 +664,34 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span> <span class="o">=</span> <span class="n">copy</span><span class="o">.</span><span class="n">deepcopy</span><span class="p">(</span><span class="n">cfg</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_env</span> <span class="o">=</span> <span class="n">env</span>
 
-        <span class="c1"># parse config to create terms information</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_prepare_terms</span><span class="p">()</span>
-
         <span class="c1"># if the simulation is not playing, we use callbacks to trigger the resolution of the scene</span>
         <span class="c1"># entities configuration. this is needed for cases where the manager is created after the</span>
         <span class="c1"># simulation, but before the simulation is playing.</span>
+        <span class="c1"># FIXME: Once Isaac Sim supports storing this information as USD schema, we can remove this</span>
+        <span class="c1">#   callback and resolve the scene entities directly inside `_prepare_terms`.</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_env</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">is_playing</span><span class="p">():</span>
             <span class="c1"># note: Use weakref on all callbacks to ensure that this object can be deleted when its destructor</span>
             <span class="c1"># is called</span>
             <span class="c1"># The order is set to 20 to allow asset/sensor initialization to complete before the scene entities</span>
             <span class="c1"># are resolved. Those have the order 10.</span>
             <span class="n">timeline_event_stream</span> <span class="o">=</span> <span class="n">omni</span><span class="o">.</span><span class="n">timeline</span><span class="o">.</span><span class="n">get_timeline_interface</span><span class="p">()</span><span class="o">.</span><span class="n">get_timeline_event_stream</span><span class="p">()</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_scene_entities_handle</span> <span class="o">=</span> <span class="n">timeline_event_stream</span><span class="o">.</span><span class="n">create_subscription_to_pop_by_type</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_terms_handle</span> <span class="o">=</span> <span class="n">timeline_event_stream</span><span class="o">.</span><span class="n">create_subscription_to_pop_by_type</span><span class="p">(</span>
                 <span class="nb">int</span><span class="p">(</span><span class="n">omni</span><span class="o">.</span><span class="n">timeline</span><span class="o">.</span><span class="n">TimelineEventType</span><span class="o">.</span><span class="n">PLAY</span><span class="p">),</span>
-                <span class="k">lambda</span> <span class="n">event</span><span class="p">,</span> <span class="n">obj</span><span class="o">=</span><span class="n">weakref</span><span class="o">.</span><span class="n">proxy</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span> <span class="n">obj</span><span class="o">.</span><span class="n">_resolve_scene_entities_callback</span><span class="p">(</span><span class="n">event</span><span class="p">),</span>
+                <span class="k">lambda</span> <span class="n">event</span><span class="p">,</span> <span class="n">obj</span><span class="o">=</span><span class="n">weakref</span><span class="o">.</span><span class="n">proxy</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span> <span class="n">obj</span><span class="o">.</span><span class="n">_resolve_terms_callback</span><span class="p">(</span><span class="n">event</span><span class="p">),</span>
                 <span class="n">order</span><span class="o">=</span><span class="mi">20</span><span class="p">,</span>
             <span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_scene_entities_handle</span> <span class="o">=</span> <span class="kc">None</span></div>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_terms_handle</span> <span class="o">=</span> <span class="kc">None</span>
+
+        <span class="c1"># parse config to create terms information</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_prepare_terms</span><span class="p">()</span></div>
 
     <span class="k">def</span><span class="w"> </span><span class="fm">__del__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Delete the manager.&quot;&quot;&quot;</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_scene_entities_handle</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_scene_entities_handle</span><span class="o">.</span><span class="n">unsubscribe</span><span class="p">()</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_scene_entities_handle</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_terms_handle</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_terms_handle</span><span class="o">.</span><span class="n">unsubscribe</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_terms_handle</span> <span class="o">=</span> <span class="kc">None</span>
 
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Properties.</span>
@@ -734,7 +736,7 @@
 <span class="sd">        specified as regular expressions or a list of regular expressions. The search is</span>
 <span class="sd">        performed on the active terms in the manager.</span>
 
-<span class="sd">        Please check the :meth:`isaaclab.utils.string_utils.resolve_matching_names` function for more</span>
+<span class="sd">        Please check the :meth:`~isaaclab.utils.string_utils.resolve_matching_names` function for more</span>
 <span class="sd">        information on the name matching.</span>
 
 <span class="sd">        Args:</span>
@@ -777,11 +779,10 @@
 <span class="sd">    Internal callbacks.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="k">def</span><span class="w"> </span><span class="nf">_resolve_scene_entities_callback</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">event</span><span class="p">):</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Resolve the scene entities configuration.</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_resolve_terms_callback</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">event</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Resolve configurations of terms once the simulation starts.</span>
 
-<span class="sd">        This callback is called when the simulation starts. It is used to resolve the</span>
-<span class="sd">        scene entities configuration for the terms.</span>
+<span class="sd">        Please check the :meth:`_process_term_cfg_at_play` method for more information.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="c1"># check if config is dict already</span>
         <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
@@ -794,17 +795,26 @@
             <span class="c1"># check for non config</span>
             <span class="k">if</span> <span class="n">term_cfg</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
                 <span class="k">continue</span>
-            <span class="c1"># resolve the scene entity configuration</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_scene_entity_cfg</span><span class="p">(</span><span class="n">term_name</span><span class="p">,</span> <span class="n">term_cfg</span><span class="p">)</span>
+            <span class="c1"># process attributes at runtime</span>
+            <span class="c1"># these properties are only resolvable once the simulation starts playing</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_process_term_cfg_at_play</span><span class="p">(</span><span class="n">term_name</span><span class="p">,</span> <span class="n">term_cfg</span><span class="p">)</span>
 
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Helper functions.</span>
+<span class="sd">    Internal functions.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_resolve_common_term_cfg</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">term_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">term_cfg</span><span class="p">:</span> <span class="n">ManagerTermBaseCfg</span><span class="p">,</span> <span class="n">min_argc</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span><span class="p">):</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Resolve common term configuration.</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Resolve common attributes of the term configuration.</span>
 
-<span class="sd">        Usually, called by the :meth:`_prepare_terms` method to resolve common term configuration.</span>
+<span class="sd">        Usually, called by the :meth:`_prepare_terms` method to resolve common attributes of the term</span>
+<span class="sd">        configuration. These include:</span>
+
+<span class="sd">        * Resolving the term function and checking if it is callable.</span>
+<span class="sd">        * Checking if the term function&#39;s arguments are matched by the parameters.</span>
+<span class="sd">        * Resolving special attributes of the term configuration like ``asset_cfg``, ``sensor_cfg``, etc.</span>
+<span class="sd">        * Initializing the term if it is a class.</span>
+
+<span class="sd">        The last two steps are only possible once the simulation starts playing.</span>
 
 <span class="sd">        By default, all term functions are expected to have at least one argument, which is the</span>
 <span class="sd">        environment object. Some other managers may expect functions to take more arguments, for</span>
@@ -831,29 +841,31 @@
                 <span class="sa">f</span><span class="s2">&quot; Received: &#39;</span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">term_cfg</span><span class="p">)</span><span class="si">}</span><span class="s2">&#39;.&quot;</span>
             <span class="p">)</span>
 
-        <span class="c1"># iterate over all the entities and parse the joint and body names</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_env</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">is_playing</span><span class="p">():</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_scene_entity_cfg</span><span class="p">(</span><span class="n">term_name</span><span class="p">,</span> <span class="n">term_cfg</span><span class="p">)</span>
-
         <span class="c1"># get the corresponding function or functional class</span>
         <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">term_cfg</span><span class="o">.</span><span class="n">func</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
             <span class="n">term_cfg</span><span class="o">.</span><span class="n">func</span> <span class="o">=</span> <span class="n">string_to_callable</span><span class="p">(</span><span class="n">term_cfg</span><span class="o">.</span><span class="n">func</span><span class="p">)</span>
+        <span class="c1"># check if function is callable</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">callable</span><span class="p">(</span><span class="n">term_cfg</span><span class="o">.</span><span class="n">func</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">AttributeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;The term &#39;</span><span class="si">{</span><span class="n">term_name</span><span class="si">}</span><span class="s2">&#39; is not callable. Received: </span><span class="si">{</span><span class="n">term_cfg</span><span class="o">.</span><span class="n">func</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 
-        <span class="c1"># initialize the term if it is a class</span>
+        <span class="c1"># check if the term is a class of valid type</span>
         <span class="k">if</span> <span class="n">inspect</span><span class="o">.</span><span class="n">isclass</span><span class="p">(</span><span class="n">term_cfg</span><span class="o">.</span><span class="n">func</span><span class="p">):</span>
             <span class="k">if</span> <span class="ow">not</span> <span class="nb">issubclass</span><span class="p">(</span><span class="n">term_cfg</span><span class="o">.</span><span class="n">func</span><span class="p">,</span> <span class="n">ManagerTermBase</span><span class="p">):</span>
                 <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span>
                     <span class="sa">f</span><span class="s2">&quot;Configuration for the term &#39;</span><span class="si">{</span><span class="n">term_name</span><span class="si">}</span><span class="s2">&#39; is not of type ManagerTermBase.&quot;</span>
                     <span class="sa">f</span><span class="s2">&quot; Received: &#39;</span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">term_cfg</span><span class="o">.</span><span class="n">func</span><span class="p">)</span><span class="si">}</span><span class="s2">&#39;.&quot;</span>
                 <span class="p">)</span>
-            <span class="n">term_cfg</span><span class="o">.</span><span class="n">func</span> <span class="o">=</span> <span class="n">term_cfg</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="n">cfg</span><span class="o">=</span><span class="n">term_cfg</span><span class="p">,</span> <span class="n">env</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_env</span><span class="p">)</span>
+            <span class="n">func_static</span> <span class="o">=</span> <span class="n">term_cfg</span><span class="o">.</span><span class="n">func</span><span class="o">.</span><span class="fm">__call__</span>
+            <span class="n">min_argc</span> <span class="o">+=</span> <span class="mi">1</span>  <span class="c1"># forward by 1 to account for &#39;self&#39; argument</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">func_static</span> <span class="o">=</span> <span class="n">term_cfg</span><span class="o">.</span><span class="n">func</span>
         <span class="c1"># check if function is callable</span>
-        <span class="k">if</span> <span class="ow">not</span> <span class="nb">callable</span><span class="p">(</span><span class="n">term_cfg</span><span class="o">.</span><span class="n">func</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">callable</span><span class="p">(</span><span class="n">func_static</span><span class="p">):</span>
             <span class="k">raise</span> <span class="ne">AttributeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;The term &#39;</span><span class="si">{</span><span class="n">term_name</span><span class="si">}</span><span class="s2">&#39; is not callable. Received: </span><span class="si">{</span><span class="n">term_cfg</span><span class="o">.</span><span class="n">func</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 
-        <span class="c1"># check if term&#39;s arguments are matched by params</span>
+        <span class="c1"># check statically if the term&#39;s arguments are matched by params</span>
         <span class="n">term_params</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">term_cfg</span><span class="o">.</span><span class="n">params</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
-        <span class="n">args</span> <span class="o">=</span> <span class="n">inspect</span><span class="o">.</span><span class="n">signature</span><span class="p">(</span><span class="n">term_cfg</span><span class="o">.</span><span class="n">func</span><span class="p">)</span><span class="o">.</span><span class="n">parameters</span>
+        <span class="n">args</span> <span class="o">=</span> <span class="n">inspect</span><span class="o">.</span><span class="n">signature</span><span class="p">(</span><span class="n">func_static</span><span class="p">)</span><span class="o">.</span><span class="n">parameters</span>
         <span class="n">args_with_defaults</span> <span class="o">=</span> <span class="p">[</span><span class="n">arg</span> <span class="k">for</span> <span class="n">arg</span> <span class="ow">in</span> <span class="n">args</span> <span class="k">if</span> <span class="n">args</span><span class="p">[</span><span class="n">arg</span><span class="p">]</span><span class="o">.</span><span class="n">default</span> <span class="ow">is</span> <span class="ow">not</span> <span class="n">inspect</span><span class="o">.</span><span class="n">Parameter</span><span class="o">.</span><span class="n">empty</span><span class="p">]</span>
         <span class="n">args_without_defaults</span> <span class="o">=</span> <span class="p">[</span><span class="n">arg</span> <span class="k">for</span> <span class="n">arg</span> <span class="ow">in</span> <span class="n">args</span> <span class="k">if</span> <span class="n">args</span><span class="p">[</span><span class="n">arg</span><span class="p">]</span><span class="o">.</span><span class="n">default</span> <span class="ow">is</span> <span class="n">inspect</span><span class="o">.</span><span class="n">Parameter</span><span class="o">.</span><span class="n">empty</span><span class="p">]</span>
         <span class="n">args</span> <span class="o">=</span> <span class="n">args_without_defaults</span> <span class="o">+</span> <span class="n">args_with_defaults</span>
@@ -866,8 +878,22 @@
                     <span class="sa">f</span><span class="s2">&quot; and optional parameters: </span><span class="si">{</span><span class="n">args_with_defaults</span><span class="si">}</span><span class="s2">, but received: </span><span class="si">{</span><span class="n">term_params</span><span class="si">}</span><span class="s2">.&quot;</span>
                 <span class="p">)</span>
 
-    <span class="k">def</span><span class="w"> </span><span class="nf">_resolve_scene_entity_cfg</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">term_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">term_cfg</span><span class="p">:</span> <span class="n">ManagerTermBaseCfg</span><span class="p">):</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Resolve the scene entity configuration for the term.</span>
+        <span class="c1"># process attributes at runtime</span>
+        <span class="c1"># these properties are only resolvable once the simulation starts playing</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_env</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">is_playing</span><span class="p">():</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_process_term_cfg_at_play</span><span class="p">(</span><span class="n">term_name</span><span class="p">,</span> <span class="n">term_cfg</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_process_term_cfg_at_play</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">term_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">term_cfg</span><span class="p">:</span> <span class="n">ManagerTermBaseCfg</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Process the term configuration at runtime.</span>
+
+<span class="sd">        This function is called when the simulation starts playing. It is used to process the term</span>
+<span class="sd">        configuration at runtime. This includes:</span>
+
+<span class="sd">        * Resolving the scene entity configuration for the term.</span>
+<span class="sd">        * Initializing the term if it is a class.</span>
+
+<span class="sd">        Since the above steps rely on PhysX to parse over the simulation scene, they are deferred</span>
+<span class="sd">        until the simulation starts playing.</span>
 
 <span class="sd">        Args:</span>
 <span class="sd">            term_name: The name of the term.</span>
@@ -889,7 +915,12 @@
                 <span class="c1"># print the information</span>
                 <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
             <span class="c1"># store the entity</span>
-            <span class="n">term_cfg</span><span class="o">.</span><span class="n">params</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">value</span></div>
+            <span class="n">term_cfg</span><span class="o">.</span><span class="n">params</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">value</span>
+
+        <span class="c1"># initialize the term if it is a class</span>
+        <span class="k">if</span> <span class="n">inspect</span><span class="o">.</span><span class="n">isclass</span><span class="p">(</span><span class="n">term_cfg</span><span class="o">.</span><span class="n">func</span><span class="p">):</span>
+            <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Initializing term &#39;</span><span class="si">{</span><span class="n">term_name</span><span class="si">}</span><span class="s2">&#39; with class &#39;</span><span class="si">{</span><span class="n">term_cfg</span><span class="o">.</span><span class="n">func</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">&#39;.&quot;</span><span class="p">)</span>
+            <span class="n">term_cfg</span><span class="o">.</span><span class="n">func</span> <span class="o">=</span> <span class="n">term_cfg</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="n">cfg</span><span class="o">=</span><span class="n">term_cfg</span><span class="p">,</span> <span class="n">env</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_env</span><span class="p">)</span></div>
 </pre></div>
 
                 </article>
@@ -937,7 +968,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Mar 25, 2025.
+  Last updated on Mar 26, 2025.
   <br/>
 </p>
   </div>

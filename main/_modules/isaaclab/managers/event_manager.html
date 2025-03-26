@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.0.2" />
-    <meta name="docbuild:last-update" content="Mar 25, 2025"/>
+    <meta name="docbuild:last-update" content="Mar 26, 2025"/>
   </head>
   
   
@@ -535,6 +535,7 @@
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
 
+<span class="kn">import</span><span class="w"> </span><span class="nn">inspect</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Sequence</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">prettytable</span><span class="w"> </span><span class="kn">import</span> <span class="n">PrettyTable</span>
@@ -714,15 +715,6 @@
         <span class="k">if</span> <span class="n">mode</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_mode_term_names</span><span class="p">:</span>
             <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Event mode &#39;</span><span class="si">{</span><span class="n">mode</span><span class="si">}</span><span class="s2">&#39; is not defined. Skipping event.&quot;</span><span class="p">)</span>
             <span class="k">return</span>
-        <span class="c1"># check if mode is pre-startup and scene replication is enabled</span>
-        <span class="k">if</span> <span class="n">mode</span> <span class="o">==</span> <span class="s2">&quot;prestartup&quot;</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">_env</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">replicate_physics</span><span class="p">:</span>
-            <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
-                <span class="s2">&quot;Scene replication is enabled, which may affect USD-level randomization.&quot;</span>
-                <span class="s2">&quot; When assets are replicated, their properties are shared across instances,&quot;</span>
-                <span class="s2">&quot; potentially leading to unintended behavior.&quot;</span>
-                <span class="s2">&quot; For stable USD-level randomization, consider disabling scene replication&quot;</span>
-                <span class="s2">&quot; by setting &#39;replicate_physics&#39; to False in &#39;InteractiveSceneCfg&#39;.&quot;</span>
-            <span class="p">)</span>
 
         <span class="c1"># check if mode is interval and dt is not provided</span>
         <span class="k">if</span> <span class="n">mode</span> <span class="o">==</span> <span class="s2">&quot;interval&quot;</span> <span class="ow">and</span> <span class="n">dt</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
@@ -891,6 +883,24 @@
 
             <span class="c1"># resolve common parameters</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_common_term_cfg</span><span class="p">(</span><span class="n">term_name</span><span class="p">,</span> <span class="n">term_cfg</span><span class="p">,</span> <span class="n">min_argc</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+
+            <span class="c1"># check if mode is pre-startup and scene replication is enabled</span>
+            <span class="k">if</span> <span class="n">term_cfg</span><span class="o">.</span><span class="n">mode</span> <span class="o">==</span> <span class="s2">&quot;prestartup&quot;</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">_env</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">replicate_physics</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span>
+                    <span class="s2">&quot;Scene replication is enabled, which may affect USD-level randomization.&quot;</span>
+                    <span class="s2">&quot; When assets are replicated, their properties are shared across instances,&quot;</span>
+                    <span class="s2">&quot; potentially leading to unintended behavior.&quot;</span>
+                    <span class="s2">&quot; For stable USD-level randomization, please disable scene replication&quot;</span>
+                    <span class="s2">&quot; by setting &#39;replicate_physics&#39; to False in &#39;InteractiveSceneCfg&#39;.&quot;</span>
+                <span class="p">)</span>
+
+            <span class="c1"># for event terms with mode &quot;prestartup&quot;, we assume a callable class term</span>
+            <span class="c1"># can be initialized before the simulation starts.</span>
+            <span class="c1"># this is done to ensure that the USD-level randomization is possible before the simulation starts.</span>
+            <span class="k">if</span> <span class="n">inspect</span><span class="o">.</span><span class="n">isclass</span><span class="p">(</span><span class="n">term_cfg</span><span class="o">.</span><span class="n">func</span><span class="p">)</span> <span class="ow">and</span> <span class="n">term_cfg</span><span class="o">.</span><span class="n">mode</span> <span class="o">==</span> <span class="s2">&quot;prestartup&quot;</span><span class="p">:</span>
+                <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Initializing term &#39;</span><span class="si">{</span><span class="n">term_name</span><span class="si">}</span><span class="s2">&#39; with class &#39;</span><span class="si">{</span><span class="n">term_cfg</span><span class="o">.</span><span class="n">func</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">&#39;.&quot;</span><span class="p">)</span>
+                <span class="n">term_cfg</span><span class="o">.</span><span class="n">func</span> <span class="o">=</span> <span class="n">term_cfg</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="n">cfg</span><span class="o">=</span><span class="n">term_cfg</span><span class="p">,</span> <span class="n">env</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_env</span><span class="p">)</span>
+
             <span class="c1"># check if mode is a new mode</span>
             <span class="k">if</span> <span class="n">term_cfg</span><span class="o">.</span><span class="n">mode</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_mode_term_names</span><span class="p">:</span>
                 <span class="c1"># add new mode</span>
@@ -984,7 +994,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Mar 25, 2025.
+  Last updated on Mar 26, 2025.
   <br/>
 </p>
   </div>

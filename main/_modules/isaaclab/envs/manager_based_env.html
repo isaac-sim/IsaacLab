@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.0.2" />
-    <meta name="docbuild:last-update" content="Mar 25, 2025"/>
+    <meta name="docbuild:last-update" content="Mar 26, 2025"/>
   </head>
   
   
@@ -668,7 +668,6 @@
         <span class="c1"># note: this is needed here (rather than after simulation play) to allow USD-related randomization events</span>
         <span class="c1">#   that must happen before the simulation starts. Example: randomizing mesh scale</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">event_manager</span> <span class="o">=</span> <span class="n">EventManager</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">events</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span>
-        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[INFO] Event Manager: &quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">event_manager</span><span class="p">)</span>
 
         <span class="c1"># apply USD-related randomization events</span>
         <span class="k">if</span> <span class="s2">&quot;prestartup&quot;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">event_manager</span><span class="o">.</span><span class="n">available_modes</span><span class="p">:</span>
@@ -760,6 +759,8 @@
 
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="c1"># prepare the managers</span>
+        <span class="c1"># -- event manager (we print it here to make the logging consistent)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[INFO] Event Manager: &quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">event_manager</span><span class="p">)</span>
         <span class="c1"># -- recorder manager</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">recorder_manager</span> <span class="o">=</span> <span class="n">RecorderManager</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">recorders</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span>
         <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[INFO] Recorder Manager: &quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">recorder_manager</span><span class="p">)</span>
@@ -1069,7 +1070,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Mar 25, 2025.
+  Last updated on Mar 26, 2025.
   <br/>
 </p>
   </div>

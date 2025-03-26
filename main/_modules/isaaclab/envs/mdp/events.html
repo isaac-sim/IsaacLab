@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.0.2" />
-    <meta name="docbuild:last-update" content="Mar 25, 2025"/>
+    <meta name="docbuild:last-update" content="Mar 26, 2025"/>
   </head>
   
   
@@ -1690,7 +1690,9 @@
         <span class="n">event_name</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">params</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;event_name&quot;</span><span class="p">)</span>
         <span class="n">texture_rotation</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">params</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;texture_rotation&quot;</span><span class="p">,</span> <span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">))</span>
 
-        <span class="c1"># check to make sure replicate_physics is set to False, else raise warning</span>
+        <span class="c1"># check to make sure replicate_physics is set to False, else raise error</span>
+        <span class="c1"># note: We add an explicit check here since texture randomization can happen outside of &#39;prestartup&#39; mode</span>
+        <span class="c1">#   and the event manager doesn&#39;t check in that case.</span>
         <span class="k">if</span> <span class="n">env</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">replicate_physics</span><span class="p">:</span>
             <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span>
                 <span class="s2">&quot;Unable to randomize visual texture material with scene replication enabled.&quot;</span>
@@ -1788,7 +1790,9 @@
         <span class="n">event_name</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">params</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;event_name&quot;</span><span class="p">)</span>
         <span class="n">mesh_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">params</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;mesh_name&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">)</span>  <span class="c1"># type: ignore</span>
 
-        <span class="c1"># check to make sure replicate_physics is set to False, else raise warning</span>
+        <span class="c1"># check to make sure replicate_physics is set to False, else raise error</span>
+        <span class="c1"># note: We add an explicit check here since texture randomization can happen outside of &#39;prestartup&#39; mode</span>
+        <span class="c1">#   and the event manager doesn&#39;t check in that case.</span>
         <span class="k">if</span> <span class="n">env</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">replicate_physics</span><span class="p">:</span>
             <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span>
                 <span class="s2">&quot;Unable to randomize visual color with scene replication enabled.&quot;</span>
@@ -1958,7 +1962,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Mar 25, 2025.
+  Last updated on Mar 26, 2025.
   <br/>
 </p>
   </div>

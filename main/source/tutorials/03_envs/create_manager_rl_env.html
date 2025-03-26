@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.0.2" />
-    <meta name="docbuild:last-update" content="Mar 25, 2025"/>
+    <meta name="docbuild:last-update" content="Mar 26, 2025"/>
   </head>
   
   
@@ -872,37 +872,38 @@ curriculum and commands.</p>
 <span class="linenos">45</span>    <span class="c1"># create environment configuration</span>
 <span class="linenos">46</span>    <span class="n">env_cfg</span> <span class="o">=</span> <span class="n">CartpoleEnvCfg</span><span class="p">()</span>
 <span class="linenos">47</span>    <span class="n">env_cfg</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">num_envs</span> <span class="o">=</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">num_envs</span>
-<span class="linenos">48</span>    <span class="c1"># setup RL environment</span>
-<span class="linenos">49</span>    <span class="n">env</span> <span class="o">=</span> <span class="n">ManagerBasedRLEnv</span><span class="p">(</span><span class="n">cfg</span><span class="o">=</span><span class="n">env_cfg</span><span class="p">)</span>
-<span class="linenos">50</span>
-<span class="linenos">51</span>    <span class="c1"># simulate physics</span>
-<span class="linenos">52</span>    <span class="n">count</span> <span class="o">=</span> <span class="mi">0</span>
-<span class="linenos">53</span>    <span class="k">while</span> <span class="n">simulation_app</span><span class="o">.</span><span class="n">is_running</span><span class="p">():</span>
-<span class="linenos">54</span>        <span class="k">with</span> <span class="n">torch</span><span class="o">.</span><span class="n">inference_mode</span><span class="p">():</span>
-<span class="linenos">55</span>            <span class="c1"># reset</span>
-<span class="hll"><span class="linenos">56</span>            <span class="k">if</span> <span class="n">count</span> <span class="o">%</span> <span class="mi">300</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
-</span><span class="hll"><span class="linenos">57</span>                <span class="n">count</span> <span class="o">=</span> <span class="mi">0</span>
-</span><span class="linenos">58</span>                <span class="n">env</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
-<span class="linenos">59</span>                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;-&quot;</span> <span class="o">*</span> <span class="mi">80</span><span class="p">)</span>
-<span class="linenos">60</span>                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[INFO]: Resetting environment...&quot;</span><span class="p">)</span>
-<span class="linenos">61</span>            <span class="c1"># sample random actions</span>
-<span class="linenos">62</span>            <span class="n">joint_efforts</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">randn_like</span><span class="p">(</span><span class="n">env</span><span class="o">.</span><span class="n">action_manager</span><span class="o">.</span><span class="n">action</span><span class="p">)</span>
-<span class="linenos">63</span>            <span class="c1"># step the environment</span>
-<span class="linenos">64</span>            <span class="n">obs</span><span class="p">,</span> <span class="n">rew</span><span class="p">,</span> <span class="n">terminated</span><span class="p">,</span> <span class="n">truncated</span><span class="p">,</span> <span class="n">info</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">step</span><span class="p">(</span><span class="n">joint_efforts</span><span class="p">)</span>
-<span class="linenos">65</span>            <span class="c1"># print current orientation of pole</span>
-<span class="linenos">66</span>            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[Env 0]: Pole joint: &quot;</span><span class="p">,</span> <span class="n">obs</span><span class="p">[</span><span class="s2">&quot;policy&quot;</span><span class="p">][</span><span class="mi">0</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">item</span><span class="p">())</span>
-<span class="linenos">67</span>            <span class="c1"># update counter</span>
-<span class="linenos">68</span>            <span class="n">count</span> <span class="o">+=</span> <span class="mi">1</span>
-<span class="linenos">69</span>
-<span class="linenos">70</span>    <span class="c1"># close the environment</span>
-<span class="linenos">71</span>    <span class="n">env</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
-<span class="linenos">72</span>
+<span class="linenos">48</span>    <span class="n">env_cfg</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">device</span> <span class="o">=</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">device</span>
+<span class="linenos">49</span>    <span class="c1"># setup RL environment</span>
+<span class="linenos">50</span>    <span class="n">env</span> <span class="o">=</span> <span class="n">ManagerBasedRLEnv</span><span class="p">(</span><span class="n">cfg</span><span class="o">=</span><span class="n">env_cfg</span><span class="p">)</span>
+<span class="linenos">51</span>
+<span class="linenos">52</span>    <span class="c1"># simulate physics</span>
+<span class="linenos">53</span>    <span class="n">count</span> <span class="o">=</span> <span class="mi">0</span>
+<span class="linenos">54</span>    <span class="k">while</span> <span class="n">simulation_app</span><span class="o">.</span><span class="n">is_running</span><span class="p">():</span>
+<span class="linenos">55</span>        <span class="k">with</span> <span class="n">torch</span><span class="o">.</span><span class="n">inference_mode</span><span class="p">():</span>
+<span class="hll"><span class="linenos">56</span>            <span class="c1"># reset</span>
+</span><span class="hll"><span class="linenos">57</span>            <span class="k">if</span> <span class="n">count</span> <span class="o">%</span> <span class="mi">300</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+</span><span class="linenos">58</span>                <span class="n">count</span> <span class="o">=</span> <span class="mi">0</span>
+<span class="linenos">59</span>                <span class="n">env</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
+<span class="linenos">60</span>                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;-&quot;</span> <span class="o">*</span> <span class="mi">80</span><span class="p">)</span>
+<span class="linenos">61</span>                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[INFO]: Resetting environment...&quot;</span><span class="p">)</span>
+<span class="linenos">62</span>            <span class="c1"># sample random actions</span>
+<span class="linenos">63</span>            <span class="n">joint_efforts</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">randn_like</span><span class="p">(</span><span class="n">env</span><span class="o">.</span><span class="n">action_manager</span><span class="o">.</span><span class="n">action</span><span class="p">)</span>
+<span class="linenos">64</span>            <span class="c1"># step the environment</span>
+<span class="linenos">65</span>            <span class="n">obs</span><span class="p">,</span> <span class="n">rew</span><span class="p">,</span> <span class="n">terminated</span><span class="p">,</span> <span class="n">truncated</span><span class="p">,</span> <span class="n">info</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">step</span><span class="p">(</span><span class="n">joint_efforts</span><span class="p">)</span>
+<span class="linenos">66</span>            <span class="c1"># print current orientation of pole</span>
+<span class="linenos">67</span>            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[Env 0]: Pole joint: &quot;</span><span class="p">,</span> <span class="n">obs</span><span class="p">[</span><span class="s2">&quot;policy&quot;</span><span class="p">][</span><span class="mi">0</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">item</span><span class="p">())</span>
+<span class="linenos">68</span>            <span class="c1"># update counter</span>
+<span class="linenos">69</span>            <span class="n">count</span> <span class="o">+=</span> <span class="mi">1</span>
+<span class="linenos">70</span>
+<span class="linenos">71</span>    <span class="c1"># close the environment</span>
+<span class="linenos">72</span>    <span class="n">env</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
 <span class="linenos">73</span>
-<span class="linenos">74</span><span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
-<span class="linenos">75</span>    <span class="c1"># run the main function</span>
-<span class="linenos">76</span>    <span class="n">main</span><span class="p">()</span>
-<span class="linenos">77</span>    <span class="c1"># close sim app</span>
-<span class="linenos">78</span>    <span class="n">simulation_app</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+<span class="linenos">74</span>
+<span class="linenos">75</span><span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
+<span class="linenos">76</span>    <span class="c1"># run the main function</span>
+<span class="linenos">77</span>    <span class="n">main</span><span class="p">()</span>
+<span class="linenos">78</span>    <span class="c1"># close sim app</span>
+<span class="linenos">79</span>    <span class="n">simulation_app</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
 </pre></div>
 </div>
 </div>
@@ -1050,6 +1051,7 @@ such as the reward contribution from individual terms, the termination status of
     <span class="c1"># create environment configuration</span>
     <span class="n">env_cfg</span> <span class="o">=</span> <span class="n">CartpoleEnvCfg</span><span class="p">()</span>
     <span class="n">env_cfg</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">num_envs</span> <span class="o">=</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">num_envs</span>
+    <span class="n">env_cfg</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">device</span> <span class="o">=</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">device</span>
     <span class="c1"># setup RL environment</span>
     <span class="n">env</span> <span class="o">=</span> <span class="n">ManagerBasedRLEnv</span><span class="p">(</span><span class="n">cfg</span><span class="o">=</span><span class="n">env_cfg</span><span class="p">)</span>
 
@@ -1194,7 +1196,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Mar 25, 2025.
+  Last updated on Mar 26, 2025.
   <br/>
 </p>
   </div>

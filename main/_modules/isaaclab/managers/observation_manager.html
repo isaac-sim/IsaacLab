@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.0.2" />
-    <meta name="docbuild:last-update" content="Mar 25, 2025"/>
+    <meta name="docbuild:last-update" content="Mar 26, 2025"/>
   </head>
   
   
@@ -880,6 +880,14 @@
         <span class="c1"># we store it as a separate list to only call reset on them and prevent unnecessary calls</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_group_obs_class_modifiers</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">modifiers</span><span class="o">.</span><span class="n">ModifierBase</span><span class="p">]</span> <span class="o">=</span> <span class="nb">list</span><span class="p">()</span>
 
+        <span class="c1"># make sure the simulation is playing since we compute obs dims which needs asset quantities</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_env</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">is_playing</span><span class="p">():</span>
+            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span>
+                <span class="s2">&quot;Simulation is not playing. Observation manager requires the simulation to be playing&quot;</span>
+                <span class="s2">&quot; to compute observation dimensions. Please start the simulation before using the&quot;</span>
+                <span class="s2">&quot; observation manager.&quot;</span>
+            <span class="p">)</span>
+
         <span class="c1"># check if config is dict already</span>
         <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
             <span class="n">group_cfg_items</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
@@ -935,8 +943,10 @@
                 <span class="c1"># add term config to list to list</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">_group_obs_term_names</span><span class="p">[</span><span class="n">group_name</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">term_name</span><span class="p">)</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">_group_obs_term_cfgs</span><span class="p">[</span><span class="n">group_name</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">term_cfg</span><span class="p">)</span>
+
                 <span class="c1"># call function the first time to fill up dimensions</span>
                 <span class="n">obs_dims</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">term_cfg</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_env</span><span class="p">,</span> <span class="o">**</span><span class="n">term_cfg</span><span class="o">.</span><span class="n">params</span><span class="p">)</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+
                 <span class="c1"># create history buffers and calculate history term dimensions</span>
                 <span class="k">if</span> <span class="n">term_cfg</span><span class="o">.</span><span class="n">history_length</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
                     <span class="n">group_entry_history_buffer</span><span class="p">[</span><span class="n">term_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">CircularBuffer</span><span class="p">(</span>
@@ -1067,7 +1077,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Mar 25, 2025.
+  Last updated on Mar 26, 2025.
   <br/>
 </p>
   </div>
