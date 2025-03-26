@@ -14,6 +14,8 @@ import torch
 import torch.nn.functional
 from typing import Literal
 
+import omni.log
+
 """
 General
 """
@@ -601,7 +603,6 @@ def quat_apply_yaw(quat: torch.Tensor, vec: torch.Tensor) -> torch.Tensor:
     return quat_apply(quat_yaw, vec)
 
 
-@torch.jit.script
 def quat_rotate(q: torch.Tensor, v: torch.Tensor) -> torch.Tensor:
     """Rotate a vector by a quaternion along the last dimension of q and v.
 
@@ -612,19 +613,11 @@ def quat_rotate(q: torch.Tensor, v: torch.Tensor) -> torch.Tensor:
     Returns:
         The rotated vector in (x, y, z). Shape is (..., 3).
     """
-    q_w = q[..., 0]
-    q_vec = q[..., 1:]
-    a = v * (2.0 * q_w**2 - 1.0).unsqueeze(-1)
-    b = torch.cross(q_vec, v, dim=-1) * q_w.unsqueeze(-1) * 2.0
-    # for two-dimensional tensors, bmm is faster than einsum
-    if q_vec.dim() == 2:
-        c = q_vec * torch.bmm(q_vec.view(q.shape[0], 1, 3), v.view(q.shape[0], 3, 1)).squeeze(-1) * 2.0
-    else:
-        c = q_vec * torch.einsum("...i,...i->...", q_vec, v).unsqueeze(-1) * 2.0
-    return a + b + c
+    # deprecation
+    omni.log.warn("quat_rotate will be deprecated in a future release. Please use quat_apply.")
+    return quat_apply(q, v)
 
 
-@torch.jit.script
 def quat_rotate_inverse(q: torch.Tensor, v: torch.Tensor) -> torch.Tensor:
     """Rotate a vector by the inverse of a quaternion along the last dimension of q and v.
 
@@ -635,16 +628,8 @@ def quat_rotate_inverse(q: torch.Tensor, v: torch.Tensor) -> torch.Tensor:
     Returns:
         The rotated vector in (x, y, z). Shape is (..., 3).
     """
-    q_w = q[..., 0]
-    q_vec = q[..., 1:]
-    a = v * (2.0 * q_w**2 - 1.0).unsqueeze(-1)
-    b = torch.cross(q_vec, v, dim=-1) * q_w.unsqueeze(-1) * 2.0
-    # for two-dimensional tensors, bmm is faster than einsum
-    if q_vec.dim() == 2:
-        c = q_vec * torch.bmm(q_vec.view(q.shape[0], 1, 3), v.view(q.shape[0], 3, 1)).squeeze(-1) * 2.0
-    else:
-        c = q_vec * torch.einsum("...i,...i->...", q_vec, v).unsqueeze(-1) * 2.0
-    return a - b + c
+    omni.log.warn("quat_rotate_inverse will be deprecated in a future release. Please use quat_apply_inverse.")
+    return quat_apply_inverse(q, v)
 
 
 @torch.jit.script
