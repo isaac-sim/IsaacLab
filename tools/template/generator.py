@@ -11,7 +11,7 @@ import sys
 from datetime import datetime
 
 import jinja2
-from common import ROOT_DIR, TASKS_DIR, TEMPLATE_DIR
+from common import MULTI_AGENT_ALGORITHMS, ROOT_DIR, SINGLE_AGENT_ALGORITHMS, TASKS_DIR, TEMPLATE_DIR
 
 jinja_env = jinja2.Environment(
     loader=jinja2.FileSystemLoader(TEMPLATE_DIR),
@@ -258,6 +258,28 @@ def _external(specification: dict) -> None:
     print(f"Project '{name}' generated successfully in {project_dir} path.")
     print(f"See {project_dir}/README.md to get started!")
     print("-" * 80)
+
+
+def get_algorithms_per_rl_library(single_agent: bool = True, multi_agent: bool = True):
+    assert single_agent or multi_agent, "At least one of 'single_agent' or 'multi_agent' must be True"
+    data = {"rl_games": [], "rsl_rl": [], "skrl": [], "sb3": []}
+    # get algorithms
+    for file in glob.glob(os.path.join(TEMPLATE_DIR, "agents", "*_cfg")):
+        for rl_library in data.keys():
+            basename = os.path.basename(file).replace("_cfg", "")
+            if basename.startswith(f"{rl_library}_"):
+                algorithm = basename.replace(f"{rl_library}_", "").upper()
+                assert (
+                    algorithm in SINGLE_AGENT_ALGORITHMS or algorithm in MULTI_AGENT_ALGORITHMS
+                ), f"{algorithm} algorithm is not listed in the supported algorithms"
+                if single_agent and algorithm in SINGLE_AGENT_ALGORITHMS:
+                    data[rl_library].append(algorithm)
+                if multi_agent and algorithm in MULTI_AGENT_ALGORITHMS:
+                    data[rl_library].append(algorithm)
+    # remove duplicates and sort
+    for rl_library in data.keys():
+        data[rl_library] = sorted(list(set(data[rl_library])))
+    return data
 
 
 def generate(specification: dict) -> None:
