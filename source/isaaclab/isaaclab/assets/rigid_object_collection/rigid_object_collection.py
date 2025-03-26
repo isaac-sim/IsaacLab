@@ -15,7 +15,7 @@ import omni.kit.app
 import omni.log
 import omni.physics.tensors.impl.api as physx
 import omni.timeline
-from isaacsim.core.simulation_manager import SimulationManager
+from isaacsim.core.simulation_manager import IsaacEvents, SimulationManager
 from pxr import UsdPhysics
 
 import isaaclab.sim as sim_utils
@@ -106,7 +106,9 @@ class RigidObjectCollection(AssetBase):
             lambda event, obj=weakref.proxy(self): obj._invalidate_initialize_callback(event),
             order=10,
         )
-
+        self._prim_deletion_callback_id = SimulationManager.register_callback(
+            self._on_prim_deletion, event=IsaacEvents.PRIM_DELETION
+        )
         self._debug_vis_handle = None
 
     """
