@@ -122,10 +122,17 @@ services:
     container_name: isaac-lab-ros2
     environment: *default-isaac-lab-environment
     volumes: *default-isaac-lab-volumes
-    network_mode: host
+    network_mode: bridge
     deploy: *default-isaac-lab-deploy
+    ports:
+      - "5900:5900"
     # This is the entrypoint for the container
-    entrypoint: bash
+    entrypoint: >
+      bash -c "
+      Xvfb :1 -screen 0 1280x1024x24 -auth /tmp/.Xauthority &
+      x11vnc -display :1 -auth /tmp/.Xauthority -nopw -forever -shared &
+      startlxde &
+      bash"
     stdin_open: true
     tty: true
 
