@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+0.36.5 (2025-03-26)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Added an optional docker-name-suffix argument parameter to the docker ``container.py`` script so that users
+  can add a custom suffix to the built docker image and container name.  Defaults to the empty string.
+
+
+
 0.36.4 (2025-03-24)
 ~~~~~~~~~~~~~~~~~~~
 
