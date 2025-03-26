@@ -46,6 +46,16 @@ def parse_cli_args() -> argparse.Namespace:
             " '.env.base' in their provided order."
         ),
     )
+    parent_parser.add_argument(
+        "--docker-name-suffix",
+        nargs="?",
+        default=None,
+        help=(
+            "Optional docker image and container name suffix.  If None is passed, the docker name suffix is set to the"
+            " empty string. For example, if 'base' is passed to profile, and '-custom' is passed to docker-name-suffix,"
+            " then the produced image and container will be named 'isaac-lab-base-custom'. Defaults to None."
+        ),
+    )
 
     # Actual command definition begins here
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -90,7 +100,11 @@ def main(args: argparse.Namespace):
 
     # creating container interface
     ci = ContainerInterface(
-        context_dir=Path(__file__).resolve().parent, profile=args.profile, yamls=args.files, envs=args.env_files
+        context_dir=Path(__file__).resolve().parent,
+        profile=args.profile,
+        yamls=args.files,
+        envs=args.env_files,
+        docker_name_suffix=args.docker_name_suffix,
     )
 
     print(f"[INFO] Using container profile: {ci.profile}")

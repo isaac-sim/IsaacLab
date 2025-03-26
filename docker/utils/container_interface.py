@@ -24,6 +24,7 @@ class ContainerInterface:
         yamls: list[str] | None = None,
         envs: list[str] | None = None,
         statefile: StateFile | None = None,
+        docker_name_suffix: str | None = None,
     ):
         """Initialize the container interface with the given parameters.
 
@@ -37,6 +38,10 @@ class ContainerInterface:
             statefile: An instance of the :class:`Statefile` class to manage state variables. Defaults to None, in
                 which case a new configuration object is created by reading the configuration file at the path
                 ``context_dir/.container.cfg``.
+            docker_name_suffix: Optional docker image and container name suffix.  If None is passed, the docker name
+                suffix is set to the empty string. For example, if 'base' is passed to profile, and "-custom" is
+                passed to docker_name_suffix, then the produced docker image and container will be named
+                ``isaac-lab-base-custom``.  Defaults to None.
         """
         # set the context directory
         self.context_dir = context_dir
@@ -55,11 +60,20 @@ class ContainerInterface:
             # but not a real profile
             self.profile = "base"
 
-        self.container_name = f"isaac-lab-{self.profile}"
-        self.image_name = f"isaac-lab-{self.profile}:latest"
+        # set the docker image and container name suffix
+        if docker_name_suffix is None:
+            # if no name suffix is given, default to the empty string as the name suffix
+            self.docker_name_suffix = ""
+        else:
+            self.docker_name_suffix = docker_name_suffix
 
-        # keep the environment variables from the current environment
-        self.environ = os.environ
+        self.container_name = f"isaac-lab-{self.profile}{self.docker_name_suffix}"
+        self.image_name = f"isaac-lab-{self.profile}{self.docker_name_suffix}:latest"
+
+        # keep the environment variables from the current environment,
+        # except make sure that the docker name suffix is set from the script
+        self.environ = os.environ.copy()
+        self.environ["DOCKER_NAME_SUFFIX"] = self.docker_name_suffix
 
         # resolve the image extension through the passed yamls and envs
         self._resolve_image_extension(yamls, envs)
@@ -100,22 +114,23 @@ class ContainerInterface:
             " background...\n"
         )
 
-        # build the image for the base profile
-        subprocess.run(
-            [
-                "docker",
-                "compose",
-                "--file",
-                "docker-compose.yaml",
-                "--env-file",
-                ".env.base",
-                "build",
-                "isaac-lab-base",
-            ],
-            check=False,
-            cwd=self.context_dir,
-            env=self.environ,
-        )
+        # build the image for the base profile if not running base (up will build base already if profile is base)
+        if self.profile != "base":
+            subprocess.run(
+                [
+                    "docker",
+                    "compose",
+                    "--file",
+                    "docker-compose.yaml",
+                    "--env-file",
+                    ".env.base",
+                    "build",
+                    "isaac-lab-base",
+                ],
+                check=False,
+                cwd=self.context_dir,
+                env=self.environ,
+            )
 
         # build the image for the profile
         subprocess.run(
@@ -206,7 +221,7 @@ class ContainerInterface:
                     [
                         "docker",
                         "cp",
-                        f"isaac-lab-{self.profile}:{container_path}/",
+                        f"isaac-lab-{self.docker_name_suffix}:{container_path}/",
                         f"{host_path}",
                     ],
                     check=False,

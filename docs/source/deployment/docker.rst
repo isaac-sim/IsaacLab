@@ -213,8 +213,10 @@ Isaac Lab Image Extensions
 The produced image depends on the arguments passed to ``container.py start`` and ``container.py stop``. These
 commands accept an image extension parameter as an additional argument. If no argument is passed, then this
 parameter defaults to ``base``. Currently, the only valid values are (``base``, ``ros2``).
-Only one image extension can be passed at a time. The produced container will be named ``isaac-lab-${profile}``,
-where ``${profile}`` is the image extension name.
+Only one image extension can be passed at a time. The produced image and container will be named
+``isaac-lab-${profile}${docker_name_suffix}``, where ``${profile}`` is the image extension name and
+``${docker_name_suffix}`` is an optional string argument to ``container.py `` that specifies a docker image and
+container name suffix. By default ``${docker_name_suffix}`` is the empty string.
 
 .. code:: bash
 
@@ -226,6 +228,14 @@ where ``${profile}`` is the image extension name.
     ./docker/container.py start ros2
     # stop ros2 container
     ./docker/container.py stop ros2
+    # start base container named "isaac-lab-base-custom"
+    ./docker/container.py start base --docker-name-suffix="-custom"
+    # stop base container named "isaac-lab-base-custom"
+    ./docker/container.py stop base --docker-name-suffix="-custom"
+    # start ros2 container named "isaac-lab-ros2-custom"
+    ./docker/container.py start ros2 --docker-name-suffix="-custom"
+    # stop ros2 container named "isaac-lab-ros2-custom"
+    ./docker/container.py stop ros2 --docker-name-suffix="-custom"
 
 The passed image extension argument will build the image defined in ``Dockerfile.${image_extension}``,
 with the corresponding `profile`_ in the ``docker-compose.yaml`` and the envars from ``.env.${image_extension}``
