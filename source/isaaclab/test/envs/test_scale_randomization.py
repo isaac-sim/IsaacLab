@@ -4,53 +4,26 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 """
-This script creates a simple environment with a floating cube. The cube is controlled by a PD
-controller to track an arbitrary target position.
-
-While going through this tutorial, we recommend you to pay attention to how a custom action term
-is defined. The action term is responsible for processing the raw actions and applying them to the
-scene entities.
-
-We also define an event term called 'randomize_scale' that randomizes the scale of
-the cube. This event term has the mode 'prestartup', which means that it is applied on the USD stage
-before the simulation starts. Additionally, the flag 'replicate_physics' is set to False,
-which means that the cube is not replicated across multiple environments but rather each
-environment gets its own cube instance.
-
-The rest of the environment is similar to the previous tutorials.
-
-.. code-block:: bash
-
-    # Run the script
-    ./isaaclab.sh -p scripts/tutorials/03_envs/create_cube_base_env.py --num_envs 32
-
+This script checks the functionality of scale randomization.
 """
 
 from __future__ import annotations
 
 """Launch Isaac Sim Simulator first."""
 
-
-import argparse
-
-from isaaclab.app import AppLauncher
-
-# add argparse arguments
-parser = argparse.ArgumentParser(description="Tutorial on creating a floating cube environment.")
-parser.add_argument("--num_envs", type=int, default=64, help="Number of environments to spawn.")
-
-# append AppLauncher cli args
-AppLauncher.add_app_launcher_args(parser)
-# parse the arguments
-args_cli = parser.parse_args()
+from isaaclab.app import AppLauncher, run_tests
 
 # launch omniverse app
-app_launcher = AppLauncher(args_cli)
+app_launcher = AppLauncher(headless=True, enable_cameras=True)
 simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
 import torch
+import unittest
+
+import omni.usd
+from pxr import Sdf
 
 import isaaclab.envs.mdp as mdp
 import isaaclab.sim as sim_utils
@@ -176,15 +149,28 @@ class MySceneCfg(InteractiveSceneCfg):
     # add terrain
     terrain = TerrainImporterCfg(prim_path="/World/ground", terrain_type="plane", debug_vis=False)
 
-    # add cube
-    cube: RigidObjectCfg = RigidObjectCfg(
-        prim_path="{ENV_REGEX_NS}/cube",
+    # add cube for scale randomization
+    cube1: RigidObjectCfg = RigidObjectCfg(
+        prim_path="{ENV_REGEX_NS}/cube1",
         spawn=sim_utils.CuboidCfg(
             size=(0.2, 0.2, 0.2),
             rigid_props=sim_utils.RigidBodyPropertiesCfg(max_depenetration_velocity=1.0, disable_gravity=True),
             mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
             physics_material=sim_utils.RigidBodyMaterialCfg(),
-            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.5, 0.0, 0.0)),
+            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 0.0)),
+        ),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 5)),
+    )
+
+    # add cube for static scale values
+    cube2: RigidObjectCfg = RigidObjectCfg(
+        prim_path="{ENV_REGEX_NS}/cube2",
+        spawn=sim_utils.CuboidCfg(
+            size=(0.2, 0.2, 0.2),
+            rigid_props=sim_utils.RigidBodyPropertiesCfg(max_depenetration_velocity=1.0, disable_gravity=True),
+            mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+            physics_material=sim_utils.RigidBodyMaterialCfg(),
+            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 0.0)),
         ),
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 5)),
     )
@@ -192,7 +178,7 @@ class MySceneCfg(InteractiveSceneCfg):
     # lights
     light = AssetBaseCfg(
         prim_path="/World/light",
-        spawn=sim_utils.DomeLightCfg(color=(0.75, 0.75, 0.75), intensity=2000.0),
+        spawn=sim_utils.DistantLightCfg(color=(0.75, 0.75, 0.75), intensity=3000.0),
     )
 
 
@@ -205,7 +191,7 @@ class MySceneCfg(InteractiveSceneCfg):
 class ActionsCfg:
     """Action specifications for the MDP."""
 
-    joint_pos = CubeActionTermCfg(asset_name="cube")
+    joint_pos = CubeActionTermCfg(asset_name="cube1")
 
 
 @configclass
@@ -217,7 +203,7 @@ class ObservationsCfg:
         """Observations for policy group."""
 
         # cube velocity
-        position = ObsTerm(func=base_position, params={"asset_cfg": SceneEntityCfg("cube")})
+        position = ObsTerm(func=base_position, params={"asset_cfg": SceneEntityCfg("cube1")})
 
         def __post_init__(self):
             self.enable_corruption = True
@@ -231,9 +217,6 @@ class ObservationsCfg:
 class EventCfg:
     """Configuration for events."""
 
-    # This event term resets the base position of the cube.
-    # The mode is set to 'reset', which means that the base position is reset whenever
-    # the environment instance is reset (because of terminations defined in 'TerminationCfg').
     reset_base = EventTerm(
         func=mdp.reset_root_state_uniform,
         mode="reset",
@@ -244,34 +227,27 @@ class EventCfg:
                 "y": (-0.5, 0.5),
                 "z": (-0.5, 0.5),
             },
-            "asset_cfg": SceneEntityCfg("cube"),
+            "asset_cfg": SceneEntityCfg("cube1"),
         },
     )
 
-    # This event term randomizes the scale of the cube.
-    # The mode is set to 'prestartup', which means that the scale is randomize on the USD stage before the
-    # simulation starts.
-    # Note: USD-level randomizations require the flag 'replicate_physics' to be set to False.
-    randomize_scale = EventTerm(
+    # Scale randomization as intended
+    randomize_cube1__scale = EventTerm(
         func=mdp.randomize_rigid_body_scale,
         mode="prestartup",
         params={
             "scale_range": {"x": (0.5, 1.5), "y": (0.5, 1.5), "z": (0.5, 1.5)},
-            "asset_cfg": SceneEntityCfg("cube"),
+            "asset_cfg": SceneEntityCfg("cube1"),
         },
     )
 
-    # This event term randomizes the visual color of the cube.
-    # Similar to the scale randomization, this is also a USD-level randomization and requires the flag
-    # 'replicate_physics' to be set to False.
-    randomize_color = EventTerm(
-        func=mdp.randomize_visual_color,
+    # Static scale values
+    randomize_cube2__scale = EventTerm(
+        func=mdp.randomize_rigid_body_scale,
         mode="prestartup",
         params={
-            "colors": {"r": (0.0, 1.0), "g": (0.0, 1.0), "b": (0.0, 1.0)},
-            "asset_cfg": SceneEntityCfg("cube"),
-            "mesh_name": "geometry/mesh",
-            "event_name": "rep_cube_randomize_color",
+            "scale_range": {"x": (1.0, 1.0), "y": (1.0, 1.0), "z": (1.0, 1.0)},
+            "asset_cfg": SceneEntityCfg("cube2"),
         },
     )
 
@@ -286,11 +262,7 @@ class CubeEnvCfg(ManagerBasedEnvCfg):
     """Configuration for the locomotion velocity-tracking environment."""
 
     # Scene settings
-    # The flag 'replicate_physics' is set to False, which means that the cube is not replicated
-    # across multiple environments but rather each environment gets its own cube instance.
-    # This allows modifying the cube's properties independently for each environment.
-    scene: MySceneCfg = MySceneCfg(num_envs=args_cli.num_envs, env_spacing=2.5, replicate_physics=False)
-
+    scene: MySceneCfg = MySceneCfg(num_envs=10, env_spacing=2.5, replicate_physics=False)
     # Basic settings
     observations: ObservationsCfg = ObservationsCfg()
     actions: ActionsCfg = ActionsCfg()
@@ -303,50 +275,87 @@ class CubeEnvCfg(ManagerBasedEnvCfg):
         # simulation settings
         self.sim.dt = 0.01
         self.sim.physics_material = self.scene.terrain.physics_material
-        self.sim.render_interval = 2  # render interval should be a multiple of decimation
-        self.sim.device = args_cli.device
-        # viewer settings
-        self.viewer.eye = (5.0, 5.0, 5.0)
-        self.viewer.lookat = (0.0, 0.0, 2.0)
+        self.sim.render_interval = self.decimation
 
 
-def main():
-    """Main function."""
+class TestScaleRandomization(unittest.TestCase):
+    """Test for scale randomization."""
 
-    # setup base environment
-    env = ManagerBasedEnv(cfg=CubeEnvCfg())
+    """
+    Tests
+    """
 
-    # setup target position commands
-    target_position = torch.rand(env.num_envs, 3, device=env.device) * 2
-    target_position[:, 2] += 2.0
-    # offset all targets so that they move to the world origin
-    target_position -= env.scene.env_origins
+    def test_scale_randomization(self):
+        """Test scale randomization for cube environment."""
+        for device in ["cpu", "cuda"]:
+            with self.subTest(device=device):
+                # create a new stage
+                omni.usd.get_context().new_stage()
 
-    # simulate physics
-    count = 0
-    obs, _ = env.reset()
-    while simulation_app.is_running():
-        with torch.inference_mode():
-            # reset
-            if count % 300 == 0:
-                count = 0
-                obs, _ = env.reset()
-                print("-" * 80)
-                print("[INFO]: Resetting environment...")
-            # step env
-            obs, _ = env.step(target_position)
-            # print mean squared position error between target and current position
-            error = torch.norm(obs["policy"] - target_position).mean().item()
-            print(f"[Step: {count:04d}]: Mean position error: {error:.4f}")
-            # update counter
-            count += 1
+                # set the device
+                env_cfg = CubeEnvCfg()
+                env_cfg.sim.device = device
 
-    # close the environment
-    env.close()
+                # setup base environment
+                env = ManagerBasedEnv(cfg=env_cfg)
+                # setup target position commands
+                target_position = torch.rand(env.num_envs, 3, device=env.device) * 2
+                target_position[:, 2] += 2.0
+                # offset all targets so that they move to the world origin
+                target_position -= env.scene.env_origins
+
+                # test to make sure all assets in the scene are created
+                all_prim_paths = sim_utils.find_matching_prim_paths("/World/envs/env_.*/cube.*/.*")
+                self.assertEqual(len(all_prim_paths), (env.num_envs * 2))
+
+                # test to make sure randomized values are truly random
+                applied_scaling_randomization = set()
+                prim_paths = sim_utils.find_matching_prim_paths("/World/envs/env_.*/cube1")
+
+                # get the stage
+                stage = omni.usd.get_context().get_stage()
+
+                # check if the scale values are truly random
+                for i in range(3):
+                    prim_spec = Sdf.CreatePrimInLayer(stage.GetRootLayer(), prim_paths[i])
+                    scale_spec = prim_spec.GetAttributeAtPath(prim_paths[i] + ".xformOp:scale")
+                    if scale_spec.default in applied_scaling_randomization:
+                        raise ValueError(
+                            "Detected repeat in applied scale values - indication scaling randomization is not working."
+                        )
+                    applied_scaling_randomization.add(scale_spec.default)
+
+                # test to make sure that fixed values are assigned correctly
+                prim_paths = sim_utils.find_matching_prim_paths("/World/envs/env_.*/cube2")
+                for i in range(3):
+                    prim_spec = Sdf.CreatePrimInLayer(stage.GetRootLayer(), prim_paths[i])
+                    scale_spec = prim_spec.GetAttributeAtPath(prim_paths[i] + ".xformOp:scale")
+                    self.assertEqual(tuple(scale_spec.default), (1.0, 1.0, 1.0))
+
+                # simulate physics
+                with torch.inference_mode():
+                    for count in range(200):
+                        # reset every few steps to check nothing breaks
+                        if count % 100 == 0:
+                            env.reset()
+                        # step the environment
+                        env.step(target_position)
+
+                env.close()
+
+    def test_scale_randomization_failure_replicate_physics(self):
+        """Test scale randomization failure when replicate physics is set to True."""
+        # create a new stage
+        omni.usd.get_context().new_stage()
+        # set the arguments
+        cfg_failure = CubeEnvCfg()
+        cfg_failure.scene.replicate_physics = True
+
+        # run the test
+        with self.assertRaises(RuntimeError):
+            env = ManagerBasedEnv(cfg_failure)
+            env.close()
 
 
 if __name__ == "__main__":
-    # run the main function
-    main()
-    # close sim app
-    simulation_app.close()
+    run_tests()
