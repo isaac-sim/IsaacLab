@@ -1162,7 +1162,9 @@ class randomize_visual_texture_material(ManagerTermBase):
         event_name = cfg.params.get("event_name")
         texture_rotation = cfg.params.get("texture_rotation", (0.0, 0.0))
 
-        # check to make sure replicate_physics is set to False, else raise warning
+        # check to make sure replicate_physics is set to False, else raise error
+        # note: We add an explicit check here since texture randomization can happen outside of 'prestartup' mode
+        #   and the event manager doesn't check in that case.
         if env.cfg.scene.replicate_physics:
             raise RuntimeError(
                 "Unable to randomize visual texture material with scene replication enabled."
@@ -1260,7 +1262,9 @@ class randomize_visual_color(ManagerTermBase):
         event_name = cfg.params.get("event_name")
         mesh_name: str = cfg.params.get("mesh_name", "")  # type: ignore
 
-        # check to make sure replicate_physics is set to False, else raise warning
+        # check to make sure replicate_physics is set to False, else raise error
+        # note: We add an explicit check here since texture randomization can happen outside of 'prestartup' mode
+        #   and the event manager doesn't check in that case.
         if env.cfg.scene.replicate_physics:
             raise RuntimeError(
                 "Unable to randomize visual color with scene replication enabled."
