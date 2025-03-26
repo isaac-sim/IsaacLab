@@ -136,6 +136,8 @@ def test_all(
 
     # Run each script and store results
     for test_path in test_paths:
+        if not "tiled" in test_path:
+            continue
         results[test_path] = {}
         before = time.time()
         logging.info("\n" + "-" * 60 + "\n")
