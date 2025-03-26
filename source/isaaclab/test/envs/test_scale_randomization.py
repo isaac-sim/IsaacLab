@@ -275,70 +275,86 @@ class CubeEnvCfg(ManagerBasedEnvCfg):
         # simulation settings
         self.sim.dt = 0.01
         self.sim.physics_material = self.scene.terrain.physics_material
+        self.sim.render_interval = self.decimation
 
 
 class TestScaleRandomization(unittest.TestCase):
-    """Test for texture randomization"""
+    """Test for scale randomization."""
 
     """
     Tests
     """
 
     def test_scale_randomization(self):
-        """Main function."""
+        """Test scale randomization for cube environment."""
+        for device in ["cpu", "cuda"]:
+            with self.subTest(device=device):
+                # create a new stage
+                omni.usd.get_context().new_stage()
 
-        # setup base environment
-        env = ManagerBasedEnv(cfg=CubeEnvCfg())
-        # setup target position commands
-        target_position = torch.rand(env.num_envs, 3, device=env.device) * 2
-        target_position[:, 2] += 2.0
-        # offset all targets so that they move to the world origin
-        target_position -= env.scene.env_origins
+                # set the device
+                env_cfg = CubeEnvCfg()
+                env_cfg.sim.device = device
 
-        stage = omni.usd.get_context().get_stage()
+                # setup base environment
+                env = ManagerBasedEnv(cfg=env_cfg)
+                # setup target position commands
+                target_position = torch.rand(env.num_envs, 3, device=env.device) * 2
+                target_position[:, 2] += 2.0
+                # offset all targets so that they move to the world origin
+                target_position -= env.scene.env_origins
 
-        # test to make sure all assets in the scene are created
-        all_prim_paths = sim_utils.find_matching_prim_paths("/World/envs/env_.*/cube.*/.*")
-        self.assertEqual(len(all_prim_paths), (env.num_envs * 2))
+                # test to make sure all assets in the scene are created
+                all_prim_paths = sim_utils.find_matching_prim_paths("/World/envs/env_.*/cube.*/.*")
+                self.assertEqual(len(all_prim_paths), (env.num_envs * 2))
 
-        # test to make sure randomized values are truly random
-        applied_scaling_randomization = set()
-        prim_paths = sim_utils.find_matching_prim_paths("/World/envs/env_.*/cube1")
+                # test to make sure randomized values are truly random
+                applied_scaling_randomization = set()
+                prim_paths = sim_utils.find_matching_prim_paths("/World/envs/env_.*/cube1")
 
-        for i in range(3):
-            prim_spec = Sdf.CreatePrimInLayer(stage.GetRootLayer(), prim_paths[i])
-            scale_spec = prim_spec.GetAttributeAtPath(prim_paths[i] + ".xformOp:scale")
-            if scale_spec.default in applied_scaling_randomization:
-                raise ValueError(
-                    "Detected repeat in applied scale values - indication scaling randomization is not working."
-                )
-            applied_scaling_randomization.add(scale_spec.default)
+                # get the stage
+                stage = omni.usd.get_context().get_stage()
 
-        # test to make sure that fixed values are assigned correctly
-        prim_paths = sim_utils.find_matching_prim_paths("/World/envs/env_.*/cube2")
-        for i in range(3):
-            prim_spec = Sdf.CreatePrimInLayer(stage.GetRootLayer(), prim_paths[i])
-            scale_spec = prim_spec.GetAttributeAtPath(prim_paths[i] + ".xformOp:scale")
-            self.assertEqual(tuple(scale_spec.default), (1.0, 1.0, 1.0))
+                # check if the scale values are truly random
+                for i in range(3):
+                    prim_spec = Sdf.CreatePrimInLayer(stage.GetRootLayer(), prim_paths[i])
+                    scale_spec = prim_spec.GetAttributeAtPath(prim_paths[i] + ".xformOp:scale")
+                    if scale_spec.default in applied_scaling_randomization:
+                        raise ValueError(
+                            "Detected repeat in applied scale values - indication scaling randomization is not working."
+                        )
+                    applied_scaling_randomization.add(scale_spec.default)
 
-        # simulate physics
-        with torch.inference_mode():
-            for count in range(200):
-                # reset every few steps to check nothing breaks
-                if count % 100 == 0:
-                    env.reset()
-                # step the environment
-                env.step(target_position)
+                # test to make sure that fixed values are assigned correctly
+                prim_paths = sim_utils.find_matching_prim_paths("/World/envs/env_.*/cube2")
+                for i in range(3):
+                    prim_spec = Sdf.CreatePrimInLayer(stage.GetRootLayer(), prim_paths[i])
+                    scale_spec = prim_spec.GetAttributeAtPath(prim_paths[i] + ".xformOp:scale")
+                    self.assertEqual(tuple(scale_spec.default), (1.0, 1.0, 1.0))
 
-        env.close()
+                # simulate physics
+                with torch.inference_mode():
+                    for count in range(200):
+                        # reset every few steps to check nothing breaks
+                        if count % 100 == 0:
+                            env.reset()
+                        # step the environment
+                        env.step(target_position)
+
+                env.close()
 
     def test_scale_randomization_failure_replicate_physics(self):
-        with self.assertRaises(ValueError):
-            cfg_failure = CubeEnvCfg()
-            cfg_failure.scene.replicate_physics = True
-            env = ManagerBasedEnv(cfg_failure)
+        """Test scale randomization failure when replicate physics is set to True."""
+        # create a new stage
+        omni.usd.get_context().new_stage()
+        # set the arguments
+        cfg_failure = CubeEnvCfg()
+        cfg_failure.scene.replicate_physics = True
 
-        env.close()
+        # run the test
+        with self.assertRaises(RuntimeError):
+            env = ManagerBasedEnv(cfg_failure)
+            env.close()
 
 
 if __name__ == "__main__":
