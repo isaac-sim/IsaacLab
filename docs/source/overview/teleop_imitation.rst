@@ -363,6 +363,21 @@ We recommend 10 successful demonstrations for good data generation results.
 
    The robot uses simplified collision meshes for physics calculations that differ from the detailed visual meshes displayed in the simulation. Due to this difference, you may occasionally observe visual artifacts where parts of the robot appear to penetrate other objects or itself, even though proper collision handling is occurring in the physics simulation.
 
+.. warning::
+   When first starting the simulation window, you may encounter the following ``DeprecationWarning`` and ``UserWarning`` error:
+
+   .. code-block:: text
+
+      DeprecationWarning: get_prim_path is deprecated and will be removed
+      in a future release. Use get_path.
+      UserWarning: Sum of faceVertexCounts (25608) does not equal sum of
+      length of GeomSubset indices (840) for prim
+      '/GR1T2_fourier_hand_6dof/waist_pitch_link/visuals/waist_pitch_link/mesh'.
+      Material mtl files will not be created.
+
+   This error can be ignored and will not affect the data collection process.
+   The error will be patched in a future release of Isaac Sim.
+
 You can replay the collected demonstrations by running the following command:
 
 .. code:: bash
