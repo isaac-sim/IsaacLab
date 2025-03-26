@@ -363,12 +363,6 @@ We recommend 10 successful demonstrations for good data generation results.
 
    The robot uses simplified collision meshes for physics calculations that differ from the detailed visual meshes displayed in the simulation. Due to this difference, you may occasionally observe visual artifacts where parts of the robot appear to penetrate other objects or itself, even though proper collision handling is occurring in the physics simulation.
 
-.. warning::
-   When first starting the simulation window, you may encounter the following ``Gf.Matrix4d`` error:
-   ``TypeError: No registered converter was able to produce a C++ rvalue of type std::vector<double, std::allocator<double> > from this Python object of type tuple``.
-   This error can be ignored and will not affect the data collection process.
-   The error will be patched in a future release of Isaac Sim.
-
 You can replay the collected demonstrations by running the following command:
 
 .. code:: bash

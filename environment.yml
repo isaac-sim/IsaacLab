@@ -4,4 +4,3 @@ channels:
 dependencies:
   - python=3.10
   - importlib_metadata
-  - pinocchio=3.4.0  # pip install of pinocchio==3.4.0(required by isaac sim extensions) does not work with numpy<2

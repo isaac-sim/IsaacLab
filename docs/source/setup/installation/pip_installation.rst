@@ -47,7 +47,7 @@ If you encounter any issues, please report them to the
 
          .. code-block:: bash
 
-            conda env create -n env_isaaclab -f environment.yml python=3.10
+            conda create -n env_isaaclab python=3.10
             conda activate env_isaaclab
 
       .. tab-item:: venv environment
