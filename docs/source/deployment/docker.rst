@@ -215,7 +215,7 @@ commands accept an image extension parameter as an additional argument. If no ar
 parameter defaults to ``base``. Currently, the only valid values are (``base``, ``ros2``).
 Only one image extension can be passed at a time. The produced image and container will be named
 ``isaac-lab-${profile}${docker_name_suffix}``, where ``${profile}`` is the image extension name and
-``${docker_name_suffix}`` is an optional string argument to ``container.py `` that specifies a docker image and
+``${docker_name_suffix}`` is an optional string argument to ``container.py`` that specifies a docker image and
 container name suffix. By default ``${docker_name_suffix}`` is the empty string.
 
 .. code:: bash
