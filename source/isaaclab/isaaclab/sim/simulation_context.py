@@ -211,7 +211,11 @@ class SimulationContext(_SimulationContext):
         #   you can reproduce the issue by commenting out this line and running the test `test_articulation.py`.
         self._gravity_tensor = torch.tensor(self.cfg.gravity, dtype=torch.float32, device=self.cfg.device)
 
-        # add a callback to keep rendering when a stop is triggered through different GUI commands like (save as)
+        # define a global variable to store the exceptions raised in the callback stack
+        builtins.ISAACLAB_CALLBACK_EXCEPTION = None
+
+        # add callback to deal the simulation app when simulation is stopped.
+        # this is needed because physics views go invalid once we stop the simulation
         if not builtins.ISAAC_LAUNCHED_FROM_TERMINAL:
             timeline_event_stream = omni.timeline.get_timeline_interface().get_timeline_event_stream()
             self._app_control_on_stop_handle = timeline_event_stream.create_subscription_to_pop_by_type(
@@ -513,6 +517,11 @@ class SimulationContext(_SimulationContext):
 
     def reset(self, soft: bool = False):
         self._disable_app_control_on_stop_handle = True
+        # check if we need to raise an exception that was raised in a callback
+        if builtins.ISAACLAB_CALLBACK_EXCEPTION is not None:
+            exception_to_raise = builtins.ISAACLAB_CALLBACK_EXCEPTION
+            builtins.ISAACLAB_CALLBACK_EXCEPTION = None
+            raise exception_to_raise
         super().reset(soft=soft)
         # app.update() may be changing the cuda device in reset, so we force it back to our desired device here
         if "cuda" in self.device:
@@ -537,6 +546,11 @@ class SimulationContext(_SimulationContext):
             render: Whether to render the scene after stepping the physics simulation.
                     If set to False, the scene is not rendered and only the physics simulation is stepped.
         """
+        # check if we need to raise an exception that was raised in a callback
+        if builtins.ISAACLAB_CALLBACK_EXCEPTION is not None:
+            exception_to_raise = builtins.ISAACLAB_CALLBACK_EXCEPTION
+            builtins.ISAACLAB_CALLBACK_EXCEPTION = None
+            raise exception_to_raise
         # check if the simulation timeline is paused. in that case keep stepping until it is playing
         if not self.is_playing():
             # step the simulator (but not the physics) to have UI still active
@@ -570,6 +584,11 @@ class SimulationContext(_SimulationContext):
         Args:
             mode: The rendering mode. Defaults to None, in which case the current rendering mode is used.
         """
+        # check if we need to raise an exception that was raised in a callback
+        if builtins.ISAACLAB_CALLBACK_EXCEPTION is not None:
+            exception_to_raise = builtins.ISAACLAB_CALLBACK_EXCEPTION
+            builtins.ISAACLAB_CALLBACK_EXCEPTION = None
+            raise exception_to_raise
         # check if we need to change the render mode
         if mode is not None:
             self.set_render_mode(mode)
@@ -840,3 +859,8 @@ def build_simulation_context(
         # Clear the stage
         sim.clear_all_callbacks()
         sim.clear_instance()
+        # check if we need to raise an exception that was raised in a callback
+        if builtins.ISAACLAB_CALLBACK_EXCEPTION is not None:
+            exception_to_raise = builtins.ISAACLAB_CALLBACK_EXCEPTION
+            builtins.ISAACLAB_CALLBACK_EXCEPTION = None
+            raise exception_to_raise

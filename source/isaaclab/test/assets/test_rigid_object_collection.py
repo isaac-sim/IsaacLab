@@ -203,10 +203,8 @@ def test_initialization_with_no_rigid_body(sim, num_cubes, device):
     assert ctypes.c_long.from_address(id(object_collection)).value == 1
 
     # Play sim
-    sim.reset()
-
-    # Check if object is initialized
-    assert not object_collection.is_initialized
+    with pytest.raises(RuntimeError):
+        sim.reset()
 
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
