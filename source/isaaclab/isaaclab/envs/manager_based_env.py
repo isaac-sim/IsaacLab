@@ -140,7 +140,6 @@ class ManagerBasedEnv:
         # note: this is needed here (rather than after simulation play) to allow USD-related randomization events
         #   that must happen before the simulation starts. Example: randomizing mesh scale
         self.event_manager = EventManager(self.cfg.events, self)
-        print("[INFO] Event Manager: ", self.event_manager)
 
         # apply USD-related randomization events
         if "prestartup" in self.event_manager.available_modes:
@@ -232,6 +231,8 @@ class ManagerBasedEnv:
 
         """
         # prepare the managers
+        # -- event manager (we print it here to make the logging consistent)
+        print("[INFO] Event Manager: ", self.event_manager)
         # -- recorder manager
         self.recorder_manager = RecorderManager(self.cfg.recorders, self)
         print("[INFO] Recorder Manager: ", self.recorder_manager)
