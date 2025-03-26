@@ -207,6 +207,8 @@ class NonHolonomicActionCfg(ActionTermCfg):
     """Scale factor for the action. Defaults to (1.0, 1.0)."""
     offset: tuple[float, float] = (0.0, 0.0)
     """Offset factor for the action. Defaults to (0.0, 0.0)."""
+    clip: dict[str, tuple[float, float]] | None = None
+    """Clip range for the action, the expected keys of the dictionary are ``"v"`` and ``"yaw"``. Defaults to None."""
 
 
 ##
@@ -248,6 +250,8 @@ class DifferentialInverseKinematicsActionCfg(ActionTermCfg):
     """Scale factor for the action. Defaults to 1.0."""
     controller: DifferentialIKControllerCfg = MISSING
     """The configuration for the differential IK controller."""
+    clip: dict[str, tuple[float, float]] | None = None
+    """Clip range for the action, the expected keys of the dictionary are ``"x"``, ``"y"``, ``"z"``. Defaults to None."""
 
 
 @configclass
