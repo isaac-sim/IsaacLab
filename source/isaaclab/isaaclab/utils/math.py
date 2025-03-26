@@ -567,9 +567,11 @@ def quat_apply(quat: torch.Tensor, vec: torch.Tensor) -> torch.Tensor:
 @torch.jit.script
 def quat_apply_inverse(quat: torch.Tensor, vec: torch.Tensor) -> torch.Tensor:
     """Apply an inverse quaternion rotation to a vector.
+    
     Args:
         quat: The quaternion in (w, x, y, z). Shape is (..., 4).
         vec: The vector in (x, y, z). Shape is (..., 3).
+    
     Returns:
         The rotated vector in (x, y, z). Shape is (..., 3).
     """
