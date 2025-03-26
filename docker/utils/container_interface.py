@@ -221,7 +221,7 @@ class ContainerInterface:
                     [
                         "docker",
                         "cp",
-                        f"isaac-lab-{self.docker_name_suffix}:{container_path}/",
+                        f"isaac-lab-{self.profile}{self.docker_name_suffix}:{container_path}/",
                         f"{host_path}",
                     ],
                     check=False,
