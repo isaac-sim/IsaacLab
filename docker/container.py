@@ -47,14 +47,14 @@ def parse_cli_args() -> argparse.Namespace:
         ),
     )
     parent_parser.add_argument(
-        "--docker-name-suffix",
+        "--suffix",
         nargs="?",
         default=None,
         help=(
-            "Optional docker image and container name suffix.  If None is passed, the docker name suffix is set to the"
-            ' empty string. For example, if "base" is passed to profile, and "-custom" is passed to'
-            ' docker-name-suffix, then the produced image and container will be named "isaac-lab-base-custom".'
-            " Defaults to None."
+            "Optional docker image and container name suffix.  Defaults to None, in which case, the docker name"
+            " suffix is set to the empty string. A hyphen is inserted in between the profile and the suffix if"
+            ' the suffix is a nonempty string.  For example, if "base" is passed to profile, and "custom" is'
+            " passed to suffix, then the produced docker image and container will be named ``isaac-lab-base-custom``."
         ),
     )
 
@@ -105,7 +105,7 @@ def main(args: argparse.Namespace):
         profile=args.profile,
         yamls=args.files,
         envs=args.env_files,
-        docker_name_suffix=args.docker_name_suffix,
+        suffix=args.suffix,
     )
 
     print(f"[INFO] Using container profile: {ci.profile}")
