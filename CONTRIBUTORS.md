@@ -76,6 +76,7 @@ Guidelines for modifications:
 * Michael Noseworthy
 * Muhong Guo
 * Nicola Loi
+* Nuoyan Chen (Alvin)
 * Nuralem Abizov
 * Ori Gadot
 * Oyindamola Omotuyi

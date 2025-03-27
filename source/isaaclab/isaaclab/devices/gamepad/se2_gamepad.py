@@ -87,7 +87,7 @@ class Se2Gamepad(DeviceBase):
 
     def __del__(self):
         """Unsubscribe from gamepad events."""
-        self._input.unsubscribe_from_gamepad_events(self._gamepad, self._gamepad_sub)
+        self._input.unsubscribe_to_gamepad_events(self._gamepad, self._gamepad_sub)
         self._gamepad_sub = None
 
     def __str__(self) -> str:
