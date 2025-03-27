@@ -22,6 +22,7 @@ import math
 import numpy as np
 import scipy.spatial.transform as scipy_tf
 import torch
+import torch.utils.benchmark as benchmark
 from math import pi as PI
 
 import isaaclab.utils.math as math_utils
@@ -505,6 +506,224 @@ class TestMathUtilities(unittest.TestCase):
             )
             apply_result = math_utils.quat_apply_inverse(q_rand, v_rand)
             torch.testing.assert_close(scipy_result.to(device=device), apply_result, atol=2e-4, rtol=2e-4)
+
+    def test_quat_apply_benchmarks(self):
+        """Test for quat_apply and quat_apply_inverse methods compared to old methods using torch.bmm and torch.einsum.
+        The new implementation uses :meth:`torch.einsum` instead of `torch.bmm` which allows
+        for more flexibility in the input dimensions and is faster than `torch.bmm`.
+        """
+
+        # define old implementation for quat_rotate and quat_rotate_inverse
+        # Based on commit: cdfa954fcc4394ca8daf432f61994e25a7b8e9e2
+
+        @torch.jit.script
+        def bmm_quat_rotate(q: torch.Tensor, v: torch.Tensor) -> torch.Tensor:
+            shape = q.shape
+            q_w = q[:, 0]
+            q_vec = q[:, 1:]
+            a = v * (2.0 * q_w**2 - 1.0).unsqueeze(-1)
+            b = torch.cross(q_vec, v, dim=-1) * q_w.unsqueeze(-1) * 2.0
+            c = q_vec * torch.bmm(q_vec.view(shape[0], 1, 3), v.view(shape[0], 3, 1)).squeeze(-1) * 2.0
+            return a + b + c
+
+        @torch.jit.script
+        def bmm_quat_rotate_inverse(q: torch.Tensor, v: torch.Tensor) -> torch.Tensor:
+            shape = q.shape
+            q_w = q[:, 0]
+            q_vec = q[:, 1:]
+            a = v * (2.0 * q_w**2 - 1.0).unsqueeze(-1)
+            b = torch.cross(q_vec, v, dim=-1) * q_w.unsqueeze(-1) * 2.0
+            c = q_vec * torch.bmm(q_vec.view(shape[0], 1, 3), v.view(shape[0], 3, 1)).squeeze(-1) * 2.0
+            return a - b + c
+
+        @torch.jit.script
+        def einsum_quat_rotate(q: torch.Tensor, v: torch.Tensor) -> torch.Tensor:
+            q_w = q[..., 0]
+            q_vec = q[..., 1:]
+            a = v * (2.0 * q_w**2 - 1.0).unsqueeze(-1)
+            b = torch.cross(q_vec, v, dim=-1) * q_w.unsqueeze(-1) * 2.0
+            c = q_vec * torch.einsum("...i,...i->...", q_vec, v).unsqueeze(-1) * 2.0
+            return a + b + c
+
+        @torch.jit.script
+        def einsum_quat_rotate_inverse(q: torch.Tensor, v: torch.Tensor) -> torch.Tensor:
+            q_w = q[..., 0]
+            q_vec = q[..., 1:]
+            a = v * (2.0 * q_w**2 - 1.0).unsqueeze(-1)
+            b = torch.cross(q_vec, v, dim=-1) * q_w.unsqueeze(-1) * 2.0
+            c = q_vec * torch.einsum("...i,...i->...", q_vec, v).unsqueeze(-1) * 2.0
+            return a - b + c
+
+        # check that implementation produces the same result as the new implementation
+        for device in ["cpu", "cuda:0"]:
+            # prepare random quaternions and vectors
+            q_rand = math_utils.random_orientation(num=1024, device=device)
+            v_rand = math_utils.sample_uniform(-1000, 1000, (1024, 3), device=device)
+
+            # compute the result using the old implementation
+            bmm_result = bmm_quat_rotate(q_rand, v_rand)
+            bmm_result_inv = bmm_quat_rotate_inverse(q_rand, v_rand)
+
+            # compute the result using the old implementation
+            einsum_result = einsum_quat_rotate(q_rand, v_rand)
+            einsum_result_inv = einsum_quat_rotate_inverse(q_rand, v_rand)
+
+            # compute the result using the new implementation
+            new_result = math_utils.quat_apply(q_rand, v_rand)
+            new_result_inv = math_utils.quat_apply_inverse(q_rand, v_rand)
+
+            # check that the result is close to the expected value
+            torch.testing.assert_close(bmm_result, new_result, atol=1e-3, rtol=1e-3)
+            torch.testing.assert_close(bmm_result_inv, new_result_inv, atol=1e-3, rtol=1e-3)
+            torch.testing.assert_close(einsum_result, new_result, atol=1e-3, rtol=1e-3)
+            torch.testing.assert_close(einsum_result_inv, new_result_inv, atol=1e-3, rtol=1e-3)
+
+        # check the performance of the new implementation
+        for device in ["cpu", "cuda:0"]:
+            # prepare random quaternions and vectors
+            # new implementation supports batched inputs
+            q_shape = (1024, 2, 5, 4)
+            v_shape = (1024, 2, 5, 3)
+            # sample random quaternions and vectors
+            num_quats = math.prod(q_shape[:-1])
+            q_rand = math_utils.random_orientation(num=num_quats, device=device).reshape(q_shape)
+            v_rand = math_utils.sample_uniform(-1000, 1000, v_shape, device=device)
+
+            # create functions to test
+            def iter_quat_apply(q: torch.Tensor, v: torch.Tensor) -> torch.Tensor:
+                """Iterative implementation of new quat_apply."""
+                out = torch.empty_like(v)
+                for i in range(q.shape[1]):
+                    for j in range(q.shape[2]):
+                        out[:, i, j] = math_utils.quat_apply(q_rand[:, i, j], v_rand[:, i, j])
+                return out
+
+            def iter_quat_apply_inverse(q: torch.Tensor, v: torch.Tensor) -> torch.Tensor:
+                """Iterative implementation of new quat_apply_inverse."""
+                out = torch.empty_like(v)
+                for i in range(q.shape[1]):
+                    for j in range(q.shape[2]):
+                        out[:, i, j] = math_utils.quat_apply_inverse(q_rand[:, i, j], v_rand[:, i, j])
+                return out
+
+            def iter_bmm_quat_rotate(q: torch.Tensor, v: torch.Tensor) -> torch.Tensor:
+                """Iterative implementation of old quat_rotate using torch.bmm."""
+                out = torch.empty_like(v)
+                for i in range(q.shape[1]):
+                    for j in range(q.shape[2]):
+                        out[:, i, j] = bmm_quat_rotate(q_rand[:, i, j], v_rand[:, i, j])
+                return out
+
+            def iter_bmm_quat_rotate_inverse(q: torch.Tensor, v: torch.Tensor) -> torch.Tensor:
+                """Iterative implementation of old quat_rotate_inverse using torch.bmm."""
+                out = torch.empty_like(v)
+                for i in range(q.shape[1]):
+                    for j in range(q.shape[2]):
+                        out[:, i, j] = bmm_quat_rotate_inverse(q_rand[:, i, j], v_rand[:, i, j])
+                return out
+
+            def iter_einsum_quat_rotate(q: torch.Tensor, v: torch.Tensor) -> torch.Tensor:
+                """Iterative implementation of old quat_rotate using torch.einsum."""
+                out = torch.empty_like(v)
+                for i in range(q.shape[1]):
+                    for j in range(q.shape[2]):
+                        out[:, i, j] = einsum_quat_rotate(q_rand[:, i, j], v_rand[:, i, j])
+                return out
+
+            def iter_einsum_quat_rotate_inverse(q: torch.Tensor, v: torch.Tensor) -> torch.Tensor:
+                """Iterative implementation of old quat_rotate_inverse using torch.einsum."""
+                out = torch.empty_like(v)
+                for i in range(q.shape[1]):
+                    for j in range(q.shape[2]):
+                        out[:, i, j] = einsum_quat_rotate_inverse(q_rand[:, i, j], v_rand[:, i, j])
+                return out
+
+            # benchmarks for iterative calls
+            timer_iter_quat_apply = benchmark.Timer(
+                stmt="iter_quat_apply(q_rand, v_rand)",
+                globals={"iter_quat_apply": iter_quat_apply, "q_rand": q_rand, "v_rand": v_rand},
+            )
+            timer_iter_quat_apply_inverse = benchmark.Timer(
+                stmt="iter_quat_apply_inverse(q_rand, v_rand)",
+                globals={"iter_quat_apply_inverse": iter_quat_apply_inverse, "q_rand": q_rand, "v_rand": v_rand},
+            )
+
+            timer_iter_bmm_quat_rotate = benchmark.Timer(
+                stmt="iter_bmm_quat_rotate(q_rand, v_rand)",
+                globals={"iter_bmm_quat_rotate": iter_bmm_quat_rotate, "q_rand": q_rand, "v_rand": v_rand},
+            )
+            timer_iter_bmm_quat_rotate_inverse = benchmark.Timer(
+                stmt="iter_bmm_quat_rotate_inverse(q_rand, v_rand)",
+                globals={
+                    "iter_bmm_quat_rotate_inverse": iter_bmm_quat_rotate_inverse,
+                    "q_rand": q_rand,
+                    "v_rand": v_rand,
+                },
+            )
+
+            timer_iter_einsum_quat_rotate = benchmark.Timer(
+                stmt="iter_einsum_quat_rotate(q_rand, v_rand)",
+                globals={"iter_einsum_quat_rotate": iter_einsum_quat_rotate, "q_rand": q_rand, "v_rand": v_rand},
+            )
+            timer_iter_einsum_quat_rotate_inverse = benchmark.Timer(
+                stmt="iter_einsum_quat_rotate_inverse(q_rand, v_rand)",
+                globals={
+                    "iter_einsum_quat_rotate_inverse": iter_einsum_quat_rotate_inverse,
+                    "q_rand": q_rand,
+                    "v_rand": v_rand,
+                },
+            )
+
+            # create benchmaks for size independent calls
+            timer_quat_apply = benchmark.Timer(
+                stmt="math_utils.quat_apply(q_rand, v_rand)",
+                globals={"math_utils": math_utils, "q_rand": q_rand, "v_rand": v_rand},
+            )
+            timer_quat_apply_inverse = benchmark.Timer(
+                stmt="math_utils.quat_apply_inverse(q_rand, v_rand)",
+                globals={"math_utils": math_utils, "q_rand": q_rand, "v_rand": v_rand},
+            )
+            timer_einsum_quat_rotate = benchmark.Timer(
+                stmt="einsum_quat_rotate(q_rand, v_rand)",
+                globals={"einsum_quat_rotate": einsum_quat_rotate, "q_rand": q_rand, "v_rand": v_rand},
+            )
+            timer_einsum_quat_rotate_inverse = benchmark.Timer(
+                stmt="einsum_quat_rotate_inverse(q_rand, v_rand)",
+                globals={"einsum_quat_rotate_inverse": einsum_quat_rotate_inverse, "q_rand": q_rand, "v_rand": v_rand},
+            )
+
+            # run the benchmark
+            print("--------------------------------")
+            print(f"Device: {device}")
+            print("Time for quat_apply:", timer_quat_apply.timeit(number=1000))
+            print("Time for einsum_quat_rotate:", timer_einsum_quat_rotate.timeit(number=1000))
+            print("Time for iter_quat_apply:", timer_iter_quat_apply.timeit(number=1000))
+            print("Time for iter_bmm_quat_rotate:", timer_iter_bmm_quat_rotate.timeit(number=1000))
+            print("Time for iter_einsum_quat_rotate:", timer_iter_einsum_quat_rotate.timeit(number=1000))
+            print("--------------------------------")
+            print("Time for quat_apply_inverse:", timer_quat_apply_inverse.timeit(number=1000))
+            print("Time for einsum_quat_rotate_inverse:", timer_einsum_quat_rotate_inverse.timeit(number=1000))
+            print("Time for iter_quat_apply_inverse:", timer_iter_quat_apply_inverse.timeit(number=1000))
+            print("Time for iter_bmm_quat_rotate_inverse:", timer_iter_bmm_quat_rotate_inverse.timeit(number=1000))
+            print(
+                "Time for iter_einsum_quat_rotate_inverse:", timer_iter_einsum_quat_rotate_inverse.timeit(number=1000)
+            )
+            print("--------------------------------")
+
+            # check output values are the same
+            torch.testing.assert_close(math_utils.quat_apply(q_rand, v_rand), iter_quat_apply(q_rand, v_rand))
+            torch.testing.assert_close(
+                math_utils.quat_apply(q_rand, v_rand), iter_bmm_quat_rotate(q_rand, v_rand), atol=1e-3, rtol=1e-3
+            )
+            torch.testing.assert_close(
+                math_utils.quat_apply_inverse(q_rand, v_rand), iter_quat_apply_inverse(q_rand, v_rand)
+            )
+            torch.testing.assert_close(
+                math_utils.quat_apply_inverse(q_rand, v_rand),
+                iter_bmm_quat_rotate_inverse(q_rand, v_rand),
+                atol=1e-3,
+                rtol=1e-3,
+            )
 
 
 if __name__ == "__main__":
