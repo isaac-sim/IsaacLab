@@ -24,7 +24,11 @@ class RslRlRndCfg:
 
     @configclass
     class LinearWeightScheduleCfg(WeightScheduleCfg):
-        """Configuration for the linear weight schedule."""
+        """Configuration for the linear weight schedule.
+
+        This schedule decays the weight linearly from the initial value to the final value
+        between :attr:`initial_step` and before :attr:`final_step`.
+        """
 
         mode: str = "linear"
 
@@ -34,33 +38,32 @@ class RslRlRndCfg:
         initial_step: int = MISSING
         """The initial step of the weight schedule.
 
-        For steps before this step, the weight is the initial value.
+        For steps before this step, the weight is the initial value specified in :attr:`RslRlRndCfg.weight`.
         """
 
         final_step: int = MISSING
         """The final step of the weight schedule.
 
-        For steps after this step, the weight is the final value.
+        For steps after this step, the weight is the final value specified in :attr:`final_value`.
         """
 
     @configclass
     class StepWeightScheduleCfg(WeightScheduleCfg):
-        """Configuration for the step weight schedule."""
+        """Configuration for the step weight schedule.
+
+        This schedule sets the weight to the value specified in :attr:`final_value` at step :attr:`final_step`.
+        """
 
         mode: str = "step"
 
         final_step: int = MISSING
         """The final step of the weight schedule.
 
-        For steps after this step, the weight is the final value.
+        For steps after this step, the weight is the value specified in :attr:`final_value`.
         """
 
         final_value: float = MISSING
-        """The final value of the weight parameter.
-
-        Used for the weight schedule of type "step".
-        If the mode is "constant", this value is ignored.
-        """
+        """The final value of the weight parameter."""
 
     weight: float = 0.0
     """The weight for the RND reward (also known as intrinsic reward). Default is 0.0.
@@ -69,7 +72,7 @@ class RslRlRndCfg:
     """
 
     weight_schedule: WeightScheduleCfg | None = None
-    """The weight schedule for the RND reward. Default is None."""
+    """The weight schedule for the RND reward. Default is None, which means the weight is constant."""
 
     reward_normalization: bool = False
     """Whether to normalize the RND reward. Default is False."""
