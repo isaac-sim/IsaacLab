@@ -101,7 +101,7 @@ For the master node, use the following command, where ``--nproc_per_node`` repre
         .. code-block:: shell
 
             python -m torch.distributed.run --nproc_per_node=2 --nnodes=2 --node_rank=0 --rdzv_id=123 --rdzv_backend=c10d --rdzv_endpoint=localhost:5555 scripts/reinforcement_learning/rl_games/train.py --task=Isaac-Cartpole-v0 --headless --distributed
-    
+
     .. tab-item:: rsl_rl
         :sync: rsl_rl
 
