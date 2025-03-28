@@ -12,6 +12,16 @@ from isaaclab.utils import configclass
 class RslRlSymmetryCfg:
     """Configuration for the symmetry-augmentation in the training.
 
+    When :meth:`use_data_augmentation` is True, the :meth:`data_augmentation_func` is used to generate
+    augmented observations and actions. These are then used to train the model.
+
+    When :meth:`use_mirror_loss` is True, the :meth:`mirror_loss_coeff` is used to weight the
+    symmetry-mirror loss. This loss is directly added to the agent's loss function.
+
+    If both :meth:`use_data_augmentation` and :meth:`use_mirror_loss` are False, then no symmetry-based
+    training is enabled. However, the :meth:`data_augmentation_func` is called to compute and log
+    symmetry metrics. This is useful for performing ablations.
+
     For more information, please check the work from :cite:`mittal2024symmetry`.
     """
 
