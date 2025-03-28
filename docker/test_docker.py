@@ -10,9 +10,9 @@ from pathlib import Path
 
 
 class TestDocker(unittest.TestCase):
-    """Test starting and stopping of the docker with both currently supported profiles and with and without a suffix.
-    This assumes that docker is installed and configured correctly so that the user can use the docker commands
-    from the current shell."""
+    """Test starting and stopping of the docker container with both currently supported profiles and with and without
+    a suffix.  This assumes that docker is installed and configured correctly so that the user can use the docker
+    commands from the current shell."""
 
     def start_stop_docker(self, profile, suffix):
         """Test starting and stopping docker profile with suffix."""
