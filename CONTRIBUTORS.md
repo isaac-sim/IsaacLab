@@ -90,6 +90,7 @@ Guidelines for modifications:
 * Shafeef Omar
 * Shundo Kishi
 * Stephan Pleines
+* Victor Khaustov
 * Vladimir Fokow
 * Wei Yang
 * Xavier Nal
