@@ -224,22 +224,22 @@ the name. ``suffix`` should not be used with cluster deployments.
 
 .. code:: bash
 
-    # start base by default
+    # start base by default, named isaac-lab-base
     ./docker/container.py start
-    # stop base explicitly
+    # stop base explicitly, named isaac-lab-base
     ./docker/container.py stop base
-    # start ros2 container
+    # start ros2 container named isaac-lab-ros2
     ./docker/container.py start ros2
-    # stop ros2 container
+    # stop ros2 container named isaac-lab-ros2
     ./docker/container.py stop ros2
-    # start base container named "isaac-lab-base-custom"
-    ./docker/container.py start base --suffix="custom"
-    # stop base container named "isaac-lab-base-custom"
-    ./docker/container.py stop base --suffix="custom"
-    # start ros2 container named "isaac-lab-ros2-custom"
-    ./docker/container.py start ros2 --suffix="custom"
-    # stop ros2 container named "isaac-lab-ros2-custom"
-    ./docker/container.py stop ros2 --suffix="custom"
+    # start base container named isaac-lab-base-custom
+    ./docker/container.py start base --suffix custom
+    # stop base container named isaac-lab-base-custom
+    ./docker/container.py stop base --suffix custom
+    # start ros2 container named isaac-lab-ros2-custom
+    ./docker/container.py start ros2 --suffix custom
+    # stop ros2 container named isaac-lab-ros2-custom
+    ./docker/container.py stop ros2 --suffix custom
 
 The passed image extension argument will build the image defined in ``Dockerfile.${image_extension}``,
 with the corresponding `profile`_ in the ``docker-compose.yaml`` and the envars from ``.env.${image_extension}``
