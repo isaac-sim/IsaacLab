@@ -27,67 +27,29 @@ class TestDocker(unittest.TestCase):
             container_name = f"isaac-lab-{profile}"
             suffix_args = []
 
+        run_kwargs = {
+            "check": False,
+            "capture_output": True,
+            "text": True,
+            "cwd": context_dir,
+            "env": environ,
+        }
+
         # start the container
-        docker_start = subprocess.run(
-            [
-                "python",
-                "container.py",
-                "start",
-                profile,
-            ]
-            + suffix_args,
-            check=False,
-            capture_output=True,
-            text=True,
-            cwd=context_dir,
-            env=environ,
-        )
+        docker_start = subprocess.run(["python", "container.py", "start", profile] + suffix_args, **run_kwargs)
         self.assertEqual(docker_start.returncode, 0)
 
         # verify that the container is running
-        docker_running_true = subprocess.run(
-            [
-                "docker",
-                "ps",
-            ],
-            check=False,
-            capture_output=True,
-            text=True,
-            cwd=context_dir,
-            env=environ,
-        )
+        docker_running_true = subprocess.run(["docker", "ps"], **run_kwargs)
         self.assertEqual(docker_running_true.returncode, 0)
         self.assertIn(container_name, docker_running_true.stdout)
 
         # stop the container
-        docker_stop = subprocess.run(
-            [
-                "python",
-                "container.py",
-                "stop",
-                profile,
-            ]
-            + suffix_args,
-            check=False,
-            capture_output=True,
-            text=True,
-            cwd=context_dir,
-            env=environ,
-        )
+        docker_stop = subprocess.run(["python", "container.py", "stop", profile] + suffix_args, **run_kwargs)
         self.assertEqual(docker_stop.returncode, 0)
 
         # verify that the container has stopped
-        docker_running_false = subprocess.run(
-            [
-                "docker",
-                "ps",
-            ],
-            check=False,
-            capture_output=True,
-            text=True,
-            cwd=context_dir,
-            env=environ,
-        )
+        docker_running_false = subprocess.run(["docker", "ps"], **run_kwargs)
         self.assertEqual(docker_running_false.returncode, 0)
         self.assertNotIn(container_name, docker_running_false.stdout)
 
