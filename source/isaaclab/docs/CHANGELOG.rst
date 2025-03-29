@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.36.5 (2025-03-26)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^^^
+
+* Fixed the issue of incorrect clipping of the action in :class:`~isaaclab.envs.mdp.actions.task_space_actions.DifferentialInverseKinematicsAction`
+  and :class:`~isaaclab.envs.mdp.actions.non_holonomic_actions.NonHolonomicAction`.
+* Task space action terms now supports specific clipping action keys.
+
 0.36.4 (2025-03-24)
 ~~~~~~~~~~~~~~~~~~~
 
