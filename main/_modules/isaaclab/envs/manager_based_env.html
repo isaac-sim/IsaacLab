@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.0.2" />
-    <meta name="docbuild:last-update" content="Mar 26, 2025"/>
+    <meta name="docbuild:last-update" content="Mar 29, 2025"/>
   </head>
   
   
@@ -650,6 +650,9 @@
         <span class="c1"># counter for simulation steps</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_sim_step_counter</span> <span class="o">=</span> <span class="mi">0</span>
 
+        <span class="c1"># allocate dictionary to store metrics</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">extras</span> <span class="o">=</span> <span class="p">{}</span>
+
         <span class="c1"># generate scene</span>
         <span class="k">with</span> <span class="n">Timer</span><span class="p">(</span><span class="s2">&quot;[INFO]: Time taken for scene creation&quot;</span><span class="p">,</span> <span class="s2">&quot;scene_creation&quot;</span><span class="p">):</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">scene</span> <span class="o">=</span> <span class="n">InteractiveScene</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">scene</span><span class="p">)</span>
@@ -697,9 +700,6 @@
         <span class="k">else</span><span class="p">:</span>
             <span class="c1"># if no window, then we don&#39;t need to store the window</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_window</span> <span class="o">=</span> <span class="kc">None</span>
-
-        <span class="c1"># allocate dictionary to store metrics</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">extras</span> <span class="o">=</span> <span class="p">{}</span>
 
         <span class="c1"># initialize observation buffers</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">obs_buf</span> <span class="o">=</span> <span class="p">{}</span></div>
@@ -1070,7 +1070,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Mar 26, 2025.
+  Last updated on Mar 29, 2025.
   <br/>
 </p>
   </div>
