@@ -31,7 +31,7 @@ import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObjectCfg, RigidObjectCollection, RigidObjectCollectionCfg
 from isaaclab.sim import build_simulation_context
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
-from isaaclab.utils.math import default_orientation, quat_mul, quat_rotate_inverse, random_orientation
+from isaaclab.utils.math import default_orientation, quat_apply_inverse, quat_mul, random_orientation
 
 
 def generate_cubes_scene(
@@ -523,7 +523,7 @@ class TestRigidObjectCollection(unittest.TestCase):
                                         torch.testing.assert_close(init_com, object_com_state_w[..., :3])
 
                                         # link position will be moving but should stay constant away from center of mass
-                                        object_link_state_pos_rel_com = quat_rotate_inverse(
+                                        object_link_state_pos_rel_com = quat_apply_inverse(
                                             object_link_state_w[..., 3:7],
                                             object_link_state_w[..., :3] - object_com_state_w[..., :3],
                                         )
@@ -548,7 +548,7 @@ class TestRigidObjectCollection(unittest.TestCase):
                                         )
 
                                         # link frame will be moving, and should be equal to input angular velocity cross offset
-                                        lin_vel_rel_object_gt = quat_rotate_inverse(
+                                        lin_vel_rel_object_gt = quat_apply_inverse(
                                             object_link_state_w[..., 3:7], object_link_state_w[..., 7:10]
                                         )
                                         lin_vel_rel_gt = torch.linalg.cross(
