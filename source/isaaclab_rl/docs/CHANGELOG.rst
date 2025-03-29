@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.1.2 (2025-03-28)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added symmetry and curiosity-based exploration configurations for RSL-RL wrapper.
+
+
 0.1.1 (2025-03-10)
 ~~~~~~~~~~~~~~~~~~
 
