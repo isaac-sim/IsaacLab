@@ -586,9 +586,6 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">device</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">unwrapped</span><span class="o">.</span><span class="n">device</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">max_episode_length</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">unwrapped</span><span class="o">.</span><span class="n">max_episode_length</span>
 
-        <span class="c1"># modify the action space to the clip range</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_modify_action_space</span><span class="p">()</span>
-
         <span class="c1"># obtain dimensions of the environment</span>
         <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">unwrapped</span><span class="p">,</span> <span class="s2">&quot;action_manager&quot;</span><span class="p">):</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">num_actions</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">unwrapped</span><span class="o">.</span><span class="n">action_manager</span><span class="o">.</span><span class="n">total_action_dim</span>
@@ -608,6 +605,9 @@
             <span class="bp">self</span><span class="o">.</span><span class="n">num_privileged_obs</span> <span class="o">=</span> <span class="n">gym</span><span class="o">.</span><span class="n">spaces</span><span class="o">.</span><span class="n">flatdim</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">unwrapped</span><span class="o">.</span><span class="n">single_observation_space</span><span class="p">[</span><span class="s2">&quot;critic&quot;</span><span class="p">])</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">num_privileged_obs</span> <span class="o">=</span> <span class="mi">0</span>
+
+        <span class="c1"># modify the action space to the clip range</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_modify_action_space</span><span class="p">()</span>
 
         <span class="c1"># reset at the start since the RSL-RL runner does not call reset</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">env</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span></div>
