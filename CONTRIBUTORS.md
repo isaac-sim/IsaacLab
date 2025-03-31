@@ -68,6 +68,7 @@ Guidelines for modifications:
 * Johnson Sun
 * Kaixi Bao
 * Kourosh Darvish
+* Kousheek Chakraborty
 * Lionel Gulich
 * Louis Le Lay
 * Lorenz Wellhausen
