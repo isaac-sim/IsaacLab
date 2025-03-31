@@ -53,11 +53,15 @@ class RayCaster(SensorBase):
     meshes: ClassVar[dict[str, wp.Mesh]] = {}
     """A dictionary to store warp meshes for raycasting, shared across all instances.
     
-    The keys correspond to the prim path for the meshes, and values are the corresponding warp Mesh objects."""
+    The keys correspond to the prim path for the meshes, and values are the corresponding warp Mesh objects.
+    """
+    
     mesh_views: ClassVar[dict[str, XFormPrim | physx.ArticulationView | physx.RigidBodyView]] = {}
     """A dictionary to store mesh views for raycasting, shared across all instances.
     
-    The keys correspond to the prim path for the mesh views, and values are the corresponding view objects."""
+    The keys correspond to the prim path for the mesh views, and values are the corresponding view objects.
+    """
+    
     _instance_count: ClassVar[int] = 0
     """A counter to track the number of RayCaster instances, used to manage class variable lifecycle."""
 
