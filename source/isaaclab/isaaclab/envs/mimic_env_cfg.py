@@ -131,6 +131,12 @@ class SubTaskConfig:
     apply_noise_during_interpolation: bool = False
     """Whether to apply noise during interpolation."""
 
+    description: str = ""
+    """Description of the subtask"""
+
+    next_subtask_description: str = ""
+    """Instructions for the next subtask"""
+
 
 class SubTaskConstraintType(enum.IntEnum):
     """Enum for subtask constraint types."""

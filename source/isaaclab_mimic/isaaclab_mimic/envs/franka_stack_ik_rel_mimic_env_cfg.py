@@ -58,6 +58,8 @@ class FrankaCubeStackIKRelMimicEnvCfg(FrankaCubeStackEnvCfg, MimicEnvCfg):
                 num_fixed_steps=0,
                 # If True, apply action noise during the interpolation phase and execution
                 apply_noise_during_interpolation=False,
+                description="Grasp red cube",
+                next_subtask_description="Stack red cube on top of blue cube",
             )
         )
         subtask_configs.append(
@@ -80,6 +82,7 @@ class FrankaCubeStackIKRelMimicEnvCfg(FrankaCubeStackEnvCfg, MimicEnvCfg):
                 num_fixed_steps=0,
                 # If True, apply action noise during the interpolation phase and execution
                 apply_noise_during_interpolation=False,
+                next_subtask_description="Grasp green cube",
             )
         )
         subtask_configs.append(
@@ -102,6 +105,7 @@ class FrankaCubeStackIKRelMimicEnvCfg(FrankaCubeStackEnvCfg, MimicEnvCfg):
                 num_fixed_steps=0,
                 # If True, apply action noise during the interpolation phase and execution
                 apply_noise_during_interpolation=False,
+                next_subtask_description="Stack green cube on top of red cube",
             )
         )
         subtask_configs.append(

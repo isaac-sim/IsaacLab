@@ -1,7 +1,7 @@
 Changelog
 ---------
 
-0.36.19 (2025-04-09)
+0.36.20 (2025-04-09)
 ~~~~~~~~~~~~~~~~~~~~
 
 Changed
@@ -12,13 +12,23 @@ Changed
   the cuda device, which results in NCCL errors on distributed setups.
 
 
-0.36.18 (2025-04-01)
+0.36.19 (2025-04-01)
 ~~~~~~~~~~~~~~~~~~~~
 
 Fixed
 ^^^^^
 
 * Added check in RecorderManager to ensure that the success indicator is only set if the termination manager is present.
+
+
+0.36.18 (2025-03-26)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added a dynamic text instruction widget that provides real-time feedback
+  on the number of successful recordings during demonstration sessions.
 
 
 0.36.17 (2025-03-26)

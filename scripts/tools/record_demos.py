@@ -85,15 +85,21 @@ if "handtracking" in args_cli.teleop_device.lower():
 
 # Omniverse logger
 import omni.log
+import omni.ui as ui
 
 # Additional Isaac Lab imports that can only be imported after the simulator is running
 from isaaclab.devices import OpenXRDevice, Se3Keyboard, Se3SpaceMouse
 
+import isaaclab_mimic.envs  # noqa: F401
+from isaaclab_mimic.ui.instruction_display import InstructionDisplay, show_subtask_instructions
+
 if args_cli.enable_pinocchio:
     from isaaclab.devices.openxr.retargeters.humanoid.fourier.gr1t2_retargeter import GR1T2Retargeter
     import isaaclab_tasks.manager_based.manipulation.pick_place  # noqa: F401
+
 from isaaclab.devices.openxr.retargeters.manipulator import GripperRetargeter, Se3AbsRetargeter, Se3RelRetargeter
 from isaaclab.envs.mdp.recorders.recorders_cfg import ActionStateRecorderManagerCfg
+from isaaclab.envs.ui import EmptyWindow
 from isaaclab.managers import DatasetExportMode
 
 import isaaclab_tasks  # noqa: F401
@@ -351,6 +357,19 @@ def main():
     # simulate environment -- run everything in inference mode
     current_recorded_demo_count = 0
     success_step_count = 0
+
+    label_text = f"Recorded {current_recorded_demo_count} successful demonstrations."
+
+    instruction_display = InstructionDisplay(args_cli.teleop_device)
+    if args_cli.teleop_device.lower() != "handtracking":
+        window = EmptyWindow(env, "Instruction")
+        with window.ui_window_elements["main_vstack"]:
+            demo_label = ui.Label(label_text)
+            subtask_label = ui.Label("")
+            instruction_display.set_labels(subtask_label, demo_label)
+
+    subtasks = {}
+
     with contextlib.suppress(KeyboardInterrupt) and torch.inference_mode():
         while simulation_app.is_running():
             # get data from teleop device
@@ -360,7 +379,12 @@ def main():
             if running_recording_instance:
                 # compute actions based on environment
                 actions = pre_process_actions(teleop_data, env.num_envs, env.device)
-                env.step(actions)
+                obv = env.step(actions)
+                if subtasks is not None:
+                    if subtasks == {}:
+                        subtasks = obv[0].get("subtask_terms")
+                    elif subtasks:
+                        show_subtask_instructions(instruction_display, subtasks, obv, env.cfg)
             else:
                 env.sim.render()
 
@@ -377,17 +401,19 @@ def main():
                 else:
                     success_step_count = 0
 
+            # print out the current demo count if it has changed
+            if env.recorder_manager.exported_successful_episode_count > current_recorded_demo_count:
+                current_recorded_demo_count = env.recorder_manager.exported_successful_episode_count
+                label_text = f"Recorded {current_recorded_demo_count} successful demonstrations."
+                print(label_text)
+
             if should_reset_recording_instance:
                 env.sim.reset()
                 env.recorder_manager.reset()
                 env.reset()
                 should_reset_recording_instance = False
                 success_step_count = 0
-
-            # print out the current demo count if it has changed
-            if env.recorder_manager.exported_successful_episode_count > current_recorded_demo_count:
-                current_recorded_demo_count = env.recorder_manager.exported_successful_episode_count
-                print(f"Recorded {current_recorded_demo_count} successful demonstrations.")
+                instruction_display.show_demo(label_text)
 
             if args_cli.num_demos > 0 and env.recorder_manager.exported_successful_episode_count >= args_cli.num_demos:
                 print(f"All {args_cli.num_demos} demonstrations recorded. Exiting the app.")
