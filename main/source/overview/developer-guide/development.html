@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.0.2" />
-    <meta name="docbuild:last-update" content="Mar 29, 2025"/>
+    <meta name="docbuild:last-update" content="Mar 31, 2025"/>
   </head>
   
   
@@ -606,7 +606,7 @@
                   
   <section id="extension-development">
 <h1>Extension Development<a class="headerlink" href="#extension-development" title="Permalink to this heading">#</a></h1>
-<p>Everything in Omniverse is either an extension, or a collection of extensions (an application). They are
+<p>Everything in Omniverse is either an extension or a collection of extensions (an application). They are
 modularized packages that form the atoms of the Omniverse ecosystem. Each extension
 provides a set of functionalities that can be used by other extensions or
 standalone applications. A folder is recognized as an extension if it contains
@@ -633,11 +633,11 @@ by the Omniverse API to load the extension. The <code class="docutils literal no
 for the extension with more detailed information about the extension and a CHANGELOG
 file that contains the changes made to the extension in each version.</p>
 <p>The <code class="docutils literal notranslate"><span class="pre">&lt;extension-name&gt;</span></code> directory contains the main python package for the extension.
-It may also contains the <code class="docutils literal notranslate"><span class="pre">scripts</span></code> directory for keeping python-based applications
-that are loaded into Omniverse when then extension is enabled using the
+It may also contain the <code class="docutils literal notranslate"><span class="pre">scripts</span></code> directory for keeping python-based applications
+that are loaded into Omniverse when the extension is enabled using the
 <a class="reference external" href="https://docs.omniverse.nvidia.com/kit/docs/kit-manual/latest/guide/extensions_basic.html">Extension Manager</a>.</p>
 <p>More specifically, when an extension is enabled, the python module specified in the
-<code class="docutils literal notranslate"><span class="pre">config/extension.toml</span></code> file is loaded and scripts that contains children of the
+<code class="docutils literal notranslate"><span class="pre">config/extension.toml</span></code> file is loaded and scripts that contain children of the
 <code class="xref py py-class docutils literal notranslate"><span class="pre">omni.ext.IExt</span></code> class are executed.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">omni.ext</span>
 
@@ -658,7 +658,7 @@ that are loaded into Omniverse when then extension is enabled using the
 </div>
 <p>While loading extensions into Omniverse happens automatically, using the python package
 in standalone applications requires additional steps. To simplify the build process and
-avoiding the need to understand the <a class="reference external" href="https://premake.github.io/">premake</a>
+avoid the need to understand the <a class="reference external" href="https://premake.github.io/">premake</a>
 build system used by Omniverse, we directly use the <a class="reference external" href="https://setuptools.readthedocs.io/en/latest/">setuptools</a>
 python package to build the python module provided by the extensions. This is done by the
 <code class="docutils literal notranslate"><span class="pre">setup.py</span></code> file in the extension directory.</p>
@@ -839,7 +839,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Mar 29, 2025.
+  Last updated on Mar 31, 2025.
   <br/>
 </p>
   </div>

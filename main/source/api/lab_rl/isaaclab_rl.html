@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.0.2" />
-    <meta name="docbuild:last-update" content="Mar 29, 2025"/>
+    <meta name="docbuild:last-update" content="Mar 31, 2025"/>
   </head>
   
   
@@ -639,6 +639,7 @@
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlPpoActorCriticCfg"><code class="docutils literal notranslate"><span class="pre">RslRlPpoActorCriticCfg</span></code></a><ul class="nav section-nav flex-column">
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlPpoActorCriticCfg.class_name"><code class="docutils literal notranslate"><span class="pre">RslRlPpoActorCriticCfg.class_name</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlPpoActorCriticCfg.init_noise_std"><code class="docutils literal notranslate"><span class="pre">RslRlPpoActorCriticCfg.init_noise_std</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlPpoActorCriticCfg.noise_std_type"><code class="docutils literal notranslate"><span class="pre">RslRlPpoActorCriticCfg.noise_std_type</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlPpoActorCriticCfg.actor_hidden_dims"><code class="docutils literal notranslate"><span class="pre">RslRlPpoActorCriticCfg.actor_hidden_dims</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlPpoActorCriticCfg.critic_hidden_dims"><code class="docutils literal notranslate"><span class="pre">RslRlPpoActorCriticCfg.critic_hidden_dims</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlPpoActorCriticCfg.activation"><code class="docutils literal notranslate"><span class="pre">RslRlPpoActorCriticCfg.activation</span></code></a></li>
@@ -659,7 +660,50 @@
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlPpoAlgorithmCfg.lam"><code class="docutils literal notranslate"><span class="pre">RslRlPpoAlgorithmCfg.lam</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlPpoAlgorithmCfg.desired_kl"><code class="docutils literal notranslate"><span class="pre">RslRlPpoAlgorithmCfg.desired_kl</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlPpoAlgorithmCfg.max_grad_norm"><code class="docutils literal notranslate"><span class="pre">RslRlPpoAlgorithmCfg.max_grad_norm</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlPpoAlgorithmCfg.normalize_advantage_per_mini_batch"><code class="docutils literal notranslate"><span class="pre">RslRlPpoAlgorithmCfg.normalize_advantage_per_mini_batch</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlPpoAlgorithmCfg.__init__"><code class="docutils literal notranslate"><span class="pre">RslRlPpoAlgorithmCfg.__init__()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlPpoAlgorithmCfg.symmetry_cfg"><code class="docutils literal notranslate"><span class="pre">RslRlPpoAlgorithmCfg.symmetry_cfg</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlPpoAlgorithmCfg.rnd_cfg"><code class="docutils literal notranslate"><span class="pre">RslRlPpoAlgorithmCfg.rnd_cfg</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlRndCfg"><code class="docutils literal notranslate"><span class="pre">RslRlRndCfg</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.WeightScheduleCfg"><code class="docutils literal notranslate"><span class="pre">RslRlRndCfg.WeightScheduleCfg</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.WeightScheduleCfg.mode"><code class="docutils literal notranslate"><span class="pre">RslRlRndCfg.WeightScheduleCfg.mode</span></code></a></li>
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.WeightScheduleCfg.__init__"><code class="docutils literal notranslate"><span class="pre">RslRlRndCfg.WeightScheduleCfg.__init__()</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.LinearWeightScheduleCfg"><code class="docutils literal notranslate"><span class="pre">RslRlRndCfg.LinearWeightScheduleCfg</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.LinearWeightScheduleCfg.mode"><code class="docutils literal notranslate"><span class="pre">RslRlRndCfg.LinearWeightScheduleCfg.mode</span></code></a></li>
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.LinearWeightScheduleCfg.final_value"><code class="docutils literal notranslate"><span class="pre">RslRlRndCfg.LinearWeightScheduleCfg.final_value</span></code></a></li>
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.LinearWeightScheduleCfg.initial_step"><code class="docutils literal notranslate"><span class="pre">RslRlRndCfg.LinearWeightScheduleCfg.initial_step</span></code></a></li>
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.LinearWeightScheduleCfg.final_step"><code class="docutils literal notranslate"><span class="pre">RslRlRndCfg.LinearWeightScheduleCfg.final_step</span></code></a></li>
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.LinearWeightScheduleCfg.__init__"><code class="docutils literal notranslate"><span class="pre">RslRlRndCfg.LinearWeightScheduleCfg.__init__()</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.StepWeightScheduleCfg"><code class="docutils literal notranslate"><span class="pre">RslRlRndCfg.StepWeightScheduleCfg</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.StepWeightScheduleCfg.mode"><code class="docutils literal notranslate"><span class="pre">RslRlRndCfg.StepWeightScheduleCfg.mode</span></code></a></li>
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.StepWeightScheduleCfg.final_step"><code class="docutils literal notranslate"><span class="pre">RslRlRndCfg.StepWeightScheduleCfg.final_step</span></code></a></li>
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.StepWeightScheduleCfg.final_value"><code class="docutils literal notranslate"><span class="pre">RslRlRndCfg.StepWeightScheduleCfg.final_value</span></code></a></li>
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.StepWeightScheduleCfg.__init__"><code class="docutils literal notranslate"><span class="pre">RslRlRndCfg.StepWeightScheduleCfg.__init__()</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.weight"><code class="docutils literal notranslate"><span class="pre">RslRlRndCfg.weight</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.__init__"><code class="docutils literal notranslate"><span class="pre">RslRlRndCfg.__init__()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.weight_schedule"><code class="docutils literal notranslate"><span class="pre">RslRlRndCfg.weight_schedule</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.reward_normalization"><code class="docutils literal notranslate"><span class="pre">RslRlRndCfg.reward_normalization</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.state_normalization"><code class="docutils literal notranslate"><span class="pre">RslRlRndCfg.state_normalization</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.learning_rate"><code class="docutils literal notranslate"><span class="pre">RslRlRndCfg.learning_rate</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.num_outputs"><code class="docutils literal notranslate"><span class="pre">RslRlRndCfg.num_outputs</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.predictor_hidden_dims"><code class="docutils literal notranslate"><span class="pre">RslRlRndCfg.predictor_hidden_dims</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.target_hidden_dims"><code class="docutils literal notranslate"><span class="pre">RslRlRndCfg.target_hidden_dims</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlSymmetryCfg"><code class="docutils literal notranslate"><span class="pre">RslRlSymmetryCfg</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlSymmetryCfg.use_data_augmentation"><code class="docutils literal notranslate"><span class="pre">RslRlSymmetryCfg.use_data_augmentation</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlSymmetryCfg.use_mirror_loss"><code class="docutils literal notranslate"><span class="pre">RslRlSymmetryCfg.use_mirror_loss</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlSymmetryCfg.__init__"><code class="docutils literal notranslate"><span class="pre">RslRlSymmetryCfg.__init__()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlSymmetryCfg.data_augmentation_func"><code class="docutils literal notranslate"><span class="pre">RslRlSymmetryCfg.data_augmentation_func</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlSymmetryCfg.mirror_loss_coeff"><code class="docutils literal notranslate"><span class="pre">RslRlSymmetryCfg.mirror_loss_coeff</span></code></a></li>
 </ul>
 </li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlVecEnvWrapper"><code class="docutils literal notranslate"><span class="pre">RslRlVecEnvWrapper</span></code></a><ul class="nav section-nav flex-column">
@@ -1004,6 +1048,12 @@ wrapper.</p>
 <tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_rl.rsl_rl.RslRlPpoAlgorithmCfg" title="isaaclab_rl.rsl_rl.RslRlPpoAlgorithmCfg"><code class="xref py py-obj docutils literal notranslate"><span class="pre">RslRlPpoAlgorithmCfg</span></code></a></p></td>
 <td><p>Configuration for the PPO algorithm.</p></td>
 </tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_rl.rsl_rl.RslRlRndCfg" title="isaaclab_rl.rsl_rl.RslRlRndCfg"><code class="xref py py-obj docutils literal notranslate"><span class="pre">RslRlRndCfg</span></code></a></p></td>
+<td><p>Configuration for the Random Network Distillation (RND) module.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_rl.rsl_rl.RslRlSymmetryCfg" title="isaaclab_rl.rsl_rl.RslRlSymmetryCfg"><code class="xref py py-obj docutils literal notranslate"><span class="pre">RslRlSymmetryCfg</span></code></a></p></td>
+<td><p>Configuration for the symmetry-augmentation in the training.</p></td>
+</tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_rl.rsl_rl.RslRlVecEnvWrapper" title="isaaclab_rl.rsl_rl.RslRlVecEnvWrapper"><code class="xref py py-obj docutils literal notranslate"><span class="pre">RslRlVecEnvWrapper</span></code></a></p></td>
 <td><p>Wraps around Isaac Lab environment for RSL-RL library</p></td>
 </tr>
@@ -1175,6 +1225,10 @@ wrapper.</p>
 <dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlOnPolicyRunnerCfg.clip_actions">
 <span class="sig-name descname"><span class="pre">clip_actions</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlOnPolicyRunnerCfg.clip_actions" title="Permalink to this definition">#</a></dt>
 <dd><p>The clipping value for actions. If <code class="docutils literal notranslate"><span class="pre">None</span></code>, then no clipping is done.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>This clipping is performed inside the <a class="reference internal" href="#isaaclab_rl.rsl_rl.RslRlVecEnvWrapper" title="isaaclab_rl.rsl_rl.RslRlVecEnvWrapper"><code class="xref py py-class docutils literal notranslate"><span class="pre">RslRlVecEnvWrapper</span></code></a> wrapper.</p>
+</div>
 </dd></dl>
 
 <dl class="py attribute">
@@ -1252,13 +1306,16 @@ then it is appended to the run directory’s name, i.e. the logging directory’
 <tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_rl.rsl_rl.RslRlPpoActorCriticCfg.init_noise_std" title="isaaclab_rl.rsl_rl.RslRlPpoActorCriticCfg.init_noise_std"><code class="xref py py-obj docutils literal notranslate"><span class="pre">init_noise_std</span></code></a></p></td>
 <td><p>The initial noise standard deviation for the policy.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_rl.rsl_rl.RslRlPpoActorCriticCfg.actor_hidden_dims" title="isaaclab_rl.rsl_rl.RslRlPpoActorCriticCfg.actor_hidden_dims"><code class="xref py py-obj docutils literal notranslate"><span class="pre">actor_hidden_dims</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_rl.rsl_rl.RslRlPpoActorCriticCfg.noise_std_type" title="isaaclab_rl.rsl_rl.RslRlPpoActorCriticCfg.noise_std_type"><code class="xref py py-obj docutils literal notranslate"><span class="pre">noise_std_type</span></code></a></p></td>
+<td><p>The type of noise standard deviation for the policy.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_rl.rsl_rl.RslRlPpoActorCriticCfg.actor_hidden_dims" title="isaaclab_rl.rsl_rl.RslRlPpoActorCriticCfg.actor_hidden_dims"><code class="xref py py-obj docutils literal notranslate"><span class="pre">actor_hidden_dims</span></code></a></p></td>
 <td><p>The hidden dimensions of the actor network.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_rl.rsl_rl.RslRlPpoActorCriticCfg.critic_hidden_dims" title="isaaclab_rl.rsl_rl.RslRlPpoActorCriticCfg.critic_hidden_dims"><code class="xref py py-obj docutils literal notranslate"><span class="pre">critic_hidden_dims</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_rl.rsl_rl.RslRlPpoActorCriticCfg.critic_hidden_dims" title="isaaclab_rl.rsl_rl.RslRlPpoActorCriticCfg.critic_hidden_dims"><code class="xref py py-obj docutils literal notranslate"><span class="pre">critic_hidden_dims</span></code></a></p></td>
 <td><p>The hidden dimensions of the critic network.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_rl.rsl_rl.RslRlPpoActorCriticCfg.activation" title="isaaclab_rl.rsl_rl.RslRlPpoActorCriticCfg.activation"><code class="xref py py-obj docutils literal notranslate"><span class="pre">activation</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_rl.rsl_rl.RslRlPpoActorCriticCfg.activation" title="isaaclab_rl.rsl_rl.RslRlPpoActorCriticCfg.activation"><code class="xref py py-obj docutils literal notranslate"><span class="pre">activation</span></code></a></p></td>
 <td><p>The activation function for the actor and critic networks.</p></td>
 </tr>
 </tbody>
@@ -1286,6 +1343,12 @@ then it is appended to the run directory’s name, i.e. the logging directory’
 </dd></dl>
 
 <dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlPpoActorCriticCfg.noise_std_type">
+<span class="sig-name descname"><span class="pre">noise_std_type</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Literal" title="(in Python v3.13)"><span class="pre">Literal</span></a><span class="p"><span class="pre">[</span></span><span class="s"><span class="pre">'scalar'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'log'</span></span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlPpoActorCriticCfg.noise_std_type" title="Permalink to this definition">#</a></dt>
+<dd><p>The type of noise standard deviation for the policy. Default is scalar.</p>
+</dd></dl>
+
+<dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlPpoActorCriticCfg.actor_hidden_dims">
 <span class="sig-name descname"><span class="pre">actor_hidden_dims</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.13)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><span class="pre">int</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlPpoActorCriticCfg.actor_hidden_dims" title="Permalink to this definition">#</a></dt>
 <dd><p>The hidden dimensions of the actor network.</p>
@@ -1305,7 +1368,7 @@ then it is appended to the run directory’s name, i.e. the logging directory’
 
 <dl class="py method">
 <dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlPpoActorCriticCfg.__init__">
-<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">class_name:</span> <span class="pre">str</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">init_noise_std:</span> <span class="pre">float</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">actor_hidden_dims:</span> <span class="pre">list[int]</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">critic_hidden_dims:</span> <span class="pre">list[int]</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">activation:</span> <span class="pre">str</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></span></span><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlPpoActorCriticCfg.__init__" title="Permalink to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">class_name:</span> <span class="pre">str</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">init_noise_std:</span> <span class="pre">float</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">noise_std_type:</span> <span class="pre">~typing.Literal['scalar'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">'log']</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">actor_hidden_dims:</span> <span class="pre">list[int]</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">critic_hidden_dims:</span> <span class="pre">list[int]</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">activation:</span> <span class="pre">str</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></span></span><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlPpoActorCriticCfg.__init__" title="Permalink to this definition">#</a></dt>
 <dd></dd></dl>
 
 </dd></dl>
@@ -1356,6 +1419,15 @@ then it is appended to the run directory’s name, i.e. the logging directory’
 </tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_rl.rsl_rl.RslRlPpoAlgorithmCfg.max_grad_norm" title="isaaclab_rl.rsl_rl.RslRlPpoAlgorithmCfg.max_grad_norm"><code class="xref py py-obj docutils literal notranslate"><span class="pre">max_grad_norm</span></code></a></p></td>
 <td><p>The maximum gradient norm.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_rl.rsl_rl.RslRlPpoAlgorithmCfg.normalize_advantage_per_mini_batch" title="isaaclab_rl.rsl_rl.RslRlPpoAlgorithmCfg.normalize_advantage_per_mini_batch"><code class="xref py py-obj docutils literal notranslate"><span class="pre">normalize_advantage_per_mini_batch</span></code></a></p></td>
+<td><p>Whether to normalize the advantage per mini-batch.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_rl.rsl_rl.RslRlPpoAlgorithmCfg.symmetry_cfg" title="isaaclab_rl.rsl_rl.RslRlPpoAlgorithmCfg.symmetry_cfg"><code class="xref py py-obj docutils literal notranslate"><span class="pre">symmetry_cfg</span></code></a></p></td>
+<td><p>The symmetry configuration.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_rl.rsl_rl.RslRlPpoAlgorithmCfg.rnd_cfg" title="isaaclab_rl.rsl_rl.RslRlPpoAlgorithmCfg.rnd_cfg"><code class="xref py py-obj docutils literal notranslate"><span class="pre">rnd_cfg</span></code></a></p></td>
+<td><p>The configuration for the Random Network Distillation (RND) module.</p></td>
 </tr>
 </tbody>
 </table>
@@ -1447,10 +1519,395 @@ then it is appended to the run directory’s name, i.e. the logging directory’
 <dd><p>The maximum gradient norm.</p>
 </dd></dl>
 
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlPpoAlgorithmCfg.normalize_advantage_per_mini_batch">
+<span class="sig-name descname"><span class="pre">normalize_advantage_per_mini_batch</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlPpoAlgorithmCfg.normalize_advantage_per_mini_batch" title="Permalink to this definition">#</a></dt>
+<dd><p>Whether to normalize the advantage per mini-batch. Default is False.</p>
+<p>If True, the advantage is normalized over the entire collected trajectories.
+Otherwise, the advantage is normalized over the mini-batches only.</p>
+</dd></dl>
+
 <dl class="py method">
 <dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlPpoAlgorithmCfg.__init__">
-<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">class_name:</span> <span class="pre">str</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">value_loss_coef:</span> <span class="pre">float</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">use_clipped_value_loss:</span> <span class="pre">bool</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">clip_param:</span> <span class="pre">float</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">entropy_coef:</span> <span class="pre">float</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">num_learning_epochs:</span> <span class="pre">int</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">num_mini_batches:</span> <span class="pre">int</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">learning_rate:</span> <span class="pre">float</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">schedule:</span> <span class="pre">str</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gamma:</span> <span class="pre">float</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">lam:</span> <span class="pre">float</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">desired_kl:</span> <span class="pre">float</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_grad_norm:</span> <span class="pre">float</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></span></span><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlPpoAlgorithmCfg.__init__" title="Permalink to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">class_name:</span> <span class="pre">str</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">value_loss_coef:</span> <span class="pre">float</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">use_clipped_value_loss:</span> <span class="pre">bool</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">clip_param:</span> <span class="pre">float</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">entropy_coef:</span> <span class="pre">float</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">num_learning_epochs:</span> <span class="pre">int</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">num_mini_batches:</span> <span class="pre">int</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">learning_rate:</span> <span class="pre">float</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">schedule:</span> <span class="pre">str</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gamma:</span> <span class="pre">float</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">lam:</span> <span class="pre">float</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">desired_kl:</span> <span class="pre">float</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_grad_norm:</span> <span class="pre">float</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">normalize_advantage_per_mini_batch:</span> <span class="pre">bool</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">symmetry_cfg:</span> <span class="pre">~isaaclab_rl.rsl_rl.symmetry_cfg.RslRlSymmetryCfg</span> <span class="pre">|</span> <span class="pre">None</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rnd_cfg:</span> <span class="pre">~isaaclab_rl.rsl_rl.rnd_cfg.RslRlRndCfg</span> <span class="pre">|</span> <span class="pre">None</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></span></span><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlPpoAlgorithmCfg.__init__" title="Permalink to this definition">#</a></dt>
 <dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlPpoAlgorithmCfg.symmetry_cfg">
+<span class="sig-name descname"><span class="pre">symmetry_cfg</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="#isaaclab_rl.rsl_rl.RslRlSymmetryCfg" title="isaaclab_rl.rsl_rl.symmetry_cfg.RslRlSymmetryCfg"><span class="pre">RslRlSymmetryCfg</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlPpoAlgorithmCfg.symmetry_cfg" title="Permalink to this definition">#</a></dt>
+<dd><p>The symmetry configuration. Default is None, in which case symmetry is not used.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlPpoAlgorithmCfg.rnd_cfg">
+<span class="sig-name descname"><span class="pre">rnd_cfg</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="#isaaclab_rl.rsl_rl.RslRlRndCfg" title="isaaclab_rl.rsl_rl.rnd_cfg.RslRlRndCfg"><span class="pre">RslRlRndCfg</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlPpoAlgorithmCfg.rnd_cfg" title="Permalink to this definition">#</a></dt>
+<dd><p>The configuration for the Random Network Distillation (RND) module. Default is None,
+in which case RND is not used.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlRndCfg">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">isaaclab_rl.rsl_rl.</span></span><span class="sig-name descname"><span class="pre">RslRlRndCfg</span></span><a class="reference internal" href="../../../_modules/isaaclab_rl/rsl_rl/rnd_cfg.html#RslRlRndCfg"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlRndCfg" title="Permalink to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
+<p>Configuration for the Random Network Distillation (RND) module.</p>
+<p>For more information, please check the work from <span id="id1">[<a class="reference internal" href="../../refs/bibliography.html#id19" title="Clemens Schwarke, Victor Klemm, Matthijs van der Boon, Marko Bjelonic, and Marco Hutter. Curiosity-driven learning of joint locomotion and manipulation tasks. In Proceedings of The 7th Conference on Robot Learning, volume 229 of Proceedings of Machine Learning Research, 2594–2610. PMLR, 2023. URL: https://proceedings.mlr.press/v229/schwarke23a.html.">SKB+23</a>]</span>.</p>
+<p><strong>Classes:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.WeightScheduleCfg" title="isaaclab_rl.rsl_rl.RslRlRndCfg.WeightScheduleCfg"><code class="xref py py-obj docutils literal notranslate"><span class="pre">WeightScheduleCfg</span></code></a></p></td>
+<td><p>Configuration for the weight schedule.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.LinearWeightScheduleCfg" title="isaaclab_rl.rsl_rl.RslRlRndCfg.LinearWeightScheduleCfg"><code class="xref py py-obj docutils literal notranslate"><span class="pre">LinearWeightScheduleCfg</span></code></a></p></td>
+<td><p>Configuration for the linear weight schedule.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.StepWeightScheduleCfg" title="isaaclab_rl.rsl_rl.RslRlRndCfg.StepWeightScheduleCfg"><code class="xref py py-obj docutils literal notranslate"><span class="pre">StepWeightScheduleCfg</span></code></a></p></td>
+<td><p>Configuration for the step weight schedule.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Attributes:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.weight" title="isaaclab_rl.rsl_rl.RslRlRndCfg.weight"><code class="xref py py-obj docutils literal notranslate"><span class="pre">weight</span></code></a></p></td>
+<td><p>The weight for the RND reward (also known as intrinsic reward).</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.weight_schedule" title="isaaclab_rl.rsl_rl.RslRlRndCfg.weight_schedule"><code class="xref py py-obj docutils literal notranslate"><span class="pre">weight_schedule</span></code></a></p></td>
+<td><p>The weight schedule for the RND reward.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.reward_normalization" title="isaaclab_rl.rsl_rl.RslRlRndCfg.reward_normalization"><code class="xref py py-obj docutils literal notranslate"><span class="pre">reward_normalization</span></code></a></p></td>
+<td><p>Whether to normalize the RND reward.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.state_normalization" title="isaaclab_rl.rsl_rl.RslRlRndCfg.state_normalization"><code class="xref py py-obj docutils literal notranslate"><span class="pre">state_normalization</span></code></a></p></td>
+<td><p>Whether to normalize the RND state.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.learning_rate" title="isaaclab_rl.rsl_rl.RslRlRndCfg.learning_rate"><code class="xref py py-obj docutils literal notranslate"><span class="pre">learning_rate</span></code></a></p></td>
+<td><p>The learning rate for the RND module.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.num_outputs" title="isaaclab_rl.rsl_rl.RslRlRndCfg.num_outputs"><code class="xref py py-obj docutils literal notranslate"><span class="pre">num_outputs</span></code></a></p></td>
+<td><p>The number of outputs for the RND module.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.predictor_hidden_dims" title="isaaclab_rl.rsl_rl.RslRlRndCfg.predictor_hidden_dims"><code class="xref py py-obj docutils literal notranslate"><span class="pre">predictor_hidden_dims</span></code></a></p></td>
+<td><p>The hidden dimensions for the RND predictor network.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.target_hidden_dims" title="isaaclab_rl.rsl_rl.RslRlRndCfg.target_hidden_dims"><code class="xref py py-obj docutils literal notranslate"><span class="pre">target_hidden_dims</span></code></a></p></td>
+<td><p>The hidden dimensions for the RND target network.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Methods:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.__init__" title="isaaclab_rl.rsl_rl.RslRlRndCfg.__init__"><code class="xref py py-obj docutils literal notranslate"><span class="pre">__init__</span></code></a>([weight, weight_schedule, ...])</p></td>
+<td><p></p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<dl class="py class">
+<dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlRndCfg.WeightScheduleCfg">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">WeightScheduleCfg</span></span><a class="reference internal" href="../../../_modules/isaaclab_rl/rsl_rl/rnd_cfg.html#RslRlRndCfg.WeightScheduleCfg"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.WeightScheduleCfg" title="Permalink to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
+<p>Configuration for the weight schedule.</p>
+<p><strong>Attributes:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.WeightScheduleCfg.mode" title="isaaclab_rl.rsl_rl.RslRlRndCfg.WeightScheduleCfg.mode"><code class="xref py py-obj docutils literal notranslate"><span class="pre">mode</span></code></a></p></td>
+<td><p>The type of weight schedule.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Methods:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.WeightScheduleCfg.__init__" title="isaaclab_rl.rsl_rl.RslRlRndCfg.WeightScheduleCfg.__init__"><code class="xref py py-obj docutils literal notranslate"><span class="pre">__init__</span></code></a>([mode])</p></td>
+<td><p></p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlRndCfg.WeightScheduleCfg.mode">
+<span class="sig-name descname"><span class="pre">mode</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.WeightScheduleCfg.mode" title="Permalink to this definition">#</a></dt>
+<dd><p>The type of weight schedule. Default is “constant”.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlRndCfg.WeightScheduleCfg.__init__">
+<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">mode:</span> <span class="pre">str</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></span></span><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.WeightScheduleCfg.__init__" title="Permalink to this definition">#</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlRndCfg.LinearWeightScheduleCfg">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">LinearWeightScheduleCfg</span></span><a class="reference internal" href="../../../_modules/isaaclab_rl/rsl_rl/rnd_cfg.html#RslRlRndCfg.LinearWeightScheduleCfg"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.LinearWeightScheduleCfg" title="Permalink to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.WeightScheduleCfg" title="isaaclab_rl.rsl_rl.rnd_cfg.RslRlRndCfg.WeightScheduleCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">WeightScheduleCfg</span></code></a></p>
+<p>Configuration for the linear weight schedule.</p>
+<p>This schedule decays the weight linearly from the initial value to the final value
+between <a class="reference internal" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.LinearWeightScheduleCfg.initial_step" title="isaaclab_rl.rsl_rl.RslRlRndCfg.LinearWeightScheduleCfg.initial_step"><code class="xref py py-attr docutils literal notranslate"><span class="pre">initial_step</span></code></a> and before <a class="reference internal" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.LinearWeightScheduleCfg.final_step" title="isaaclab_rl.rsl_rl.RslRlRndCfg.LinearWeightScheduleCfg.final_step"><code class="xref py py-attr docutils literal notranslate"><span class="pre">final_step</span></code></a>.</p>
+<p><strong>Attributes:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.LinearWeightScheduleCfg.mode" title="isaaclab_rl.rsl_rl.RslRlRndCfg.LinearWeightScheduleCfg.mode"><code class="xref py py-obj docutils literal notranslate"><span class="pre">mode</span></code></a></p></td>
+<td><p>The type of weight schedule.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.LinearWeightScheduleCfg.final_value" title="isaaclab_rl.rsl_rl.RslRlRndCfg.LinearWeightScheduleCfg.final_value"><code class="xref py py-obj docutils literal notranslate"><span class="pre">final_value</span></code></a></p></td>
+<td><p>The final value of the weight parameter.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.LinearWeightScheduleCfg.initial_step" title="isaaclab_rl.rsl_rl.RslRlRndCfg.LinearWeightScheduleCfg.initial_step"><code class="xref py py-obj docutils literal notranslate"><span class="pre">initial_step</span></code></a></p></td>
+<td><p>The initial step of the weight schedule.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.LinearWeightScheduleCfg.final_step" title="isaaclab_rl.rsl_rl.RslRlRndCfg.LinearWeightScheduleCfg.final_step"><code class="xref py py-obj docutils literal notranslate"><span class="pre">final_step</span></code></a></p></td>
+<td><p>The final step of the weight schedule.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Methods:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.LinearWeightScheduleCfg.__init__" title="isaaclab_rl.rsl_rl.RslRlRndCfg.LinearWeightScheduleCfg.__init__"><code class="xref py py-obj docutils literal notranslate"><span class="pre">__init__</span></code></a>([mode, final_value, initial_step, ...])</p></td>
+<td><p></p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlRndCfg.LinearWeightScheduleCfg.mode">
+<span class="sig-name descname"><span class="pre">mode</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.LinearWeightScheduleCfg.mode" title="Permalink to this definition">#</a></dt>
+<dd><p>The type of weight schedule. Default is “constant”.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlRndCfg.LinearWeightScheduleCfg.final_value">
+<span class="sig-name descname"><span class="pre">final_value</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.LinearWeightScheduleCfg.final_value" title="Permalink to this definition">#</a></dt>
+<dd><p>The final value of the weight parameter.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlRndCfg.LinearWeightScheduleCfg.initial_step">
+<span class="sig-name descname"><span class="pre">initial_step</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><span class="pre">int</span></a></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.LinearWeightScheduleCfg.initial_step" title="Permalink to this definition">#</a></dt>
+<dd><p>The initial step of the weight schedule.</p>
+<p>For steps before this step, the weight is the initial value specified in <a class="reference internal" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.weight" title="isaaclab_rl.rsl_rl.RslRlRndCfg.weight"><code class="xref py py-attr docutils literal notranslate"><span class="pre">RslRlRndCfg.weight</span></code></a>.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlRndCfg.LinearWeightScheduleCfg.final_step">
+<span class="sig-name descname"><span class="pre">final_step</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><span class="pre">int</span></a></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.LinearWeightScheduleCfg.final_step" title="Permalink to this definition">#</a></dt>
+<dd><p>The final step of the weight schedule.</p>
+<p>For steps after this step, the weight is the final value specified in <a class="reference internal" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.LinearWeightScheduleCfg.final_value" title="isaaclab_rl.rsl_rl.RslRlRndCfg.LinearWeightScheduleCfg.final_value"><code class="xref py py-attr docutils literal notranslate"><span class="pre">final_value</span></code></a>.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlRndCfg.LinearWeightScheduleCfg.__init__">
+<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">mode:</span> <span class="pre">str</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">final_value:</span> <span class="pre">float</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">initial_step:</span> <span class="pre">int</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">final_step:</span> <span class="pre">int</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></span></span><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.LinearWeightScheduleCfg.__init__" title="Permalink to this definition">#</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlRndCfg.StepWeightScheduleCfg">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">StepWeightScheduleCfg</span></span><a class="reference internal" href="../../../_modules/isaaclab_rl/rsl_rl/rnd_cfg.html#RslRlRndCfg.StepWeightScheduleCfg"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.StepWeightScheduleCfg" title="Permalink to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.WeightScheduleCfg" title="isaaclab_rl.rsl_rl.rnd_cfg.RslRlRndCfg.WeightScheduleCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">WeightScheduleCfg</span></code></a></p>
+<p>Configuration for the step weight schedule.</p>
+<p>This schedule sets the weight to the value specified in <a class="reference internal" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.StepWeightScheduleCfg.final_value" title="isaaclab_rl.rsl_rl.RslRlRndCfg.StepWeightScheduleCfg.final_value"><code class="xref py py-attr docutils literal notranslate"><span class="pre">final_value</span></code></a> at step <a class="reference internal" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.StepWeightScheduleCfg.final_step" title="isaaclab_rl.rsl_rl.RslRlRndCfg.StepWeightScheduleCfg.final_step"><code class="xref py py-attr docutils literal notranslate"><span class="pre">final_step</span></code></a>.</p>
+<p><strong>Attributes:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.StepWeightScheduleCfg.mode" title="isaaclab_rl.rsl_rl.RslRlRndCfg.StepWeightScheduleCfg.mode"><code class="xref py py-obj docutils literal notranslate"><span class="pre">mode</span></code></a></p></td>
+<td><p>The type of weight schedule.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.StepWeightScheduleCfg.final_step" title="isaaclab_rl.rsl_rl.RslRlRndCfg.StepWeightScheduleCfg.final_step"><code class="xref py py-obj docutils literal notranslate"><span class="pre">final_step</span></code></a></p></td>
+<td><p>The final step of the weight schedule.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.StepWeightScheduleCfg.final_value" title="isaaclab_rl.rsl_rl.RslRlRndCfg.StepWeightScheduleCfg.final_value"><code class="xref py py-obj docutils literal notranslate"><span class="pre">final_value</span></code></a></p></td>
+<td><p>The final value of the weight parameter.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Methods:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.StepWeightScheduleCfg.__init__" title="isaaclab_rl.rsl_rl.RslRlRndCfg.StepWeightScheduleCfg.__init__"><code class="xref py py-obj docutils literal notranslate"><span class="pre">__init__</span></code></a>([mode, final_step, final_value])</p></td>
+<td><p></p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlRndCfg.StepWeightScheduleCfg.mode">
+<span class="sig-name descname"><span class="pre">mode</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.StepWeightScheduleCfg.mode" title="Permalink to this definition">#</a></dt>
+<dd><p>The type of weight schedule. Default is “constant”.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlRndCfg.StepWeightScheduleCfg.final_step">
+<span class="sig-name descname"><span class="pre">final_step</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><span class="pre">int</span></a></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.StepWeightScheduleCfg.final_step" title="Permalink to this definition">#</a></dt>
+<dd><p>The final step of the weight schedule.</p>
+<p>For steps after this step, the weight is the value specified in <a class="reference internal" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.StepWeightScheduleCfg.final_value" title="isaaclab_rl.rsl_rl.RslRlRndCfg.StepWeightScheduleCfg.final_value"><code class="xref py py-attr docutils literal notranslate"><span class="pre">final_value</span></code></a>.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlRndCfg.StepWeightScheduleCfg.final_value">
+<span class="sig-name descname"><span class="pre">final_value</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.StepWeightScheduleCfg.final_value" title="Permalink to this definition">#</a></dt>
+<dd><p>The final value of the weight parameter.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlRndCfg.StepWeightScheduleCfg.__init__">
+<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">mode:</span> <span class="pre">str</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">final_step:</span> <span class="pre">int</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">final_value:</span> <span class="pre">float</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></span></span><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.StepWeightScheduleCfg.__init__" title="Permalink to this definition">#</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlRndCfg.weight">
+<span class="sig-name descname"><span class="pre">weight</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.weight" title="Permalink to this definition">#</a></dt>
+<dd><p>The weight for the RND reward (also known as intrinsic reward). Default is 0.0.</p>
+<p>Similar to other reward terms, the RND reward is scaled by this weight.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlRndCfg.__init__">
+<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">weight:</span> <span class="pre">float</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">weight_schedule:</span> <span class="pre">~isaaclab_rl.rsl_rl.rnd_cfg.RslRlRndCfg.WeightScheduleCfg</span> <span class="pre">|</span> <span class="pre">None</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">reward_normalization:</span> <span class="pre">bool</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">state_normalization:</span> <span class="pre">bool</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">learning_rate:</span> <span class="pre">float</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">num_outputs:</span> <span class="pre">int</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">predictor_hidden_dims:</span> <span class="pre">list[int]</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">target_hidden_dims:</span> <span class="pre">list[int]</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></span></span><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.__init__" title="Permalink to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlRndCfg.weight_schedule">
+<span class="sig-name descname"><span class="pre">weight_schedule</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.WeightScheduleCfg" title="isaaclab_rl.rsl_rl.rnd_cfg.RslRlRndCfg.WeightScheduleCfg"><span class="pre">WeightScheduleCfg</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.weight_schedule" title="Permalink to this definition">#</a></dt>
+<dd><p>The weight schedule for the RND reward. Default is None, which means the weight is constant.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlRndCfg.reward_normalization">
+<span class="sig-name descname"><span class="pre">reward_normalization</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.reward_normalization" title="Permalink to this definition">#</a></dt>
+<dd><p>Whether to normalize the RND reward. Default is False.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlRndCfg.state_normalization">
+<span class="sig-name descname"><span class="pre">state_normalization</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.state_normalization" title="Permalink to this definition">#</a></dt>
+<dd><p>Whether to normalize the RND state. Default is False.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlRndCfg.learning_rate">
+<span class="sig-name descname"><span class="pre">learning_rate</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.learning_rate" title="Permalink to this definition">#</a></dt>
+<dd><p>The learning rate for the RND module. Default is 1e-3.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlRndCfg.num_outputs">
+<span class="sig-name descname"><span class="pre">num_outputs</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><span class="pre">int</span></a></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.num_outputs" title="Permalink to this definition">#</a></dt>
+<dd><p>The number of outputs for the RND module. Default is 1.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlRndCfg.predictor_hidden_dims">
+<span class="sig-name descname"><span class="pre">predictor_hidden_dims</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.13)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><span class="pre">int</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.predictor_hidden_dims" title="Permalink to this definition">#</a></dt>
+<dd><p>The hidden dimensions for the RND predictor network. Default is [-1].</p>
+<p>If the list contains -1, then the hidden dimensions are the same as the input dimensions.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlRndCfg.target_hidden_dims">
+<span class="sig-name descname"><span class="pre">target_hidden_dims</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.13)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><span class="pre">int</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.target_hidden_dims" title="Permalink to this definition">#</a></dt>
+<dd><p>The hidden dimensions for the RND target network. Default is [-1].</p>
+<p>If the list contains -1, then the hidden dimensions are the same as the input dimensions.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlSymmetryCfg">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">isaaclab_rl.rsl_rl.</span></span><span class="sig-name descname"><span class="pre">RslRlSymmetryCfg</span></span><a class="reference internal" href="../../../_modules/isaaclab_rl/rsl_rl/symmetry_cfg.html#RslRlSymmetryCfg"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlSymmetryCfg" title="Permalink to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
+<p>Configuration for the symmetry-augmentation in the training.</p>
+<p>When <a class="reference internal" href="#isaaclab_rl.rsl_rl.RslRlSymmetryCfg.use_data_augmentation" title="isaaclab_rl.rsl_rl.RslRlSymmetryCfg.use_data_augmentation"><code class="xref py py-meth docutils literal notranslate"><span class="pre">use_data_augmentation()</span></code></a> is True, the <a class="reference internal" href="#isaaclab_rl.rsl_rl.RslRlSymmetryCfg.data_augmentation_func" title="isaaclab_rl.rsl_rl.RslRlSymmetryCfg.data_augmentation_func"><code class="xref py py-meth docutils literal notranslate"><span class="pre">data_augmentation_func()</span></code></a> is used to generate
+augmented observations and actions. These are then used to train the model.</p>
+<p>When <a class="reference internal" href="#isaaclab_rl.rsl_rl.RslRlSymmetryCfg.use_mirror_loss" title="isaaclab_rl.rsl_rl.RslRlSymmetryCfg.use_mirror_loss"><code class="xref py py-meth docutils literal notranslate"><span class="pre">use_mirror_loss()</span></code></a> is True, the <a class="reference internal" href="#isaaclab_rl.rsl_rl.RslRlSymmetryCfg.mirror_loss_coeff" title="isaaclab_rl.rsl_rl.RslRlSymmetryCfg.mirror_loss_coeff"><code class="xref py py-meth docutils literal notranslate"><span class="pre">mirror_loss_coeff()</span></code></a> is used to weight the
+symmetry-mirror loss. This loss is directly added to the agent’s loss function.</p>
+<p>If both <a class="reference internal" href="#isaaclab_rl.rsl_rl.RslRlSymmetryCfg.use_data_augmentation" title="isaaclab_rl.rsl_rl.RslRlSymmetryCfg.use_data_augmentation"><code class="xref py py-meth docutils literal notranslate"><span class="pre">use_data_augmentation()</span></code></a> and <a class="reference internal" href="#isaaclab_rl.rsl_rl.RslRlSymmetryCfg.use_mirror_loss" title="isaaclab_rl.rsl_rl.RslRlSymmetryCfg.use_mirror_loss"><code class="xref py py-meth docutils literal notranslate"><span class="pre">use_mirror_loss()</span></code></a> are False, then no symmetry-based
+training is enabled. However, the <a class="reference internal" href="#isaaclab_rl.rsl_rl.RslRlSymmetryCfg.data_augmentation_func" title="isaaclab_rl.rsl_rl.RslRlSymmetryCfg.data_augmentation_func"><code class="xref py py-meth docutils literal notranslate"><span class="pre">data_augmentation_func()</span></code></a> is called to compute and log
+symmetry metrics. This is useful for performing ablations.</p>
+<p>For more information, please check the work from <span id="id2">[<a class="reference internal" href="../../refs/bibliography.html#id20" title="Mayank Mittal, Nikita Rudin, Victor Klemm, Arthur Allshire, and Marco Hutter. Symmetry considerations for learning task symmetric robot policies. In 2024 IEEE International Conference on Robotics and Automation (ICRA), 7433-7439. 2024. doi:10.1109/ICRA57147.2024.10611493.">MRK+24</a>]</span>.</p>
+<p><strong>Attributes:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_rl.rsl_rl.RslRlSymmetryCfg.use_data_augmentation" title="isaaclab_rl.rsl_rl.RslRlSymmetryCfg.use_data_augmentation"><code class="xref py py-obj docutils literal notranslate"><span class="pre">use_data_augmentation</span></code></a></p></td>
+<td><p>Whether to use symmetry-based data augmentation.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_rl.rsl_rl.RslRlSymmetryCfg.use_mirror_loss" title="isaaclab_rl.rsl_rl.RslRlSymmetryCfg.use_mirror_loss"><code class="xref py py-obj docutils literal notranslate"><span class="pre">use_mirror_loss</span></code></a></p></td>
+<td><p>Whether to use the symmetry-augmentation loss.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_rl.rsl_rl.RslRlSymmetryCfg.data_augmentation_func" title="isaaclab_rl.rsl_rl.RslRlSymmetryCfg.data_augmentation_func"><code class="xref py py-obj docutils literal notranslate"><span class="pre">data_augmentation_func</span></code></a></p></td>
+<td><p>The symmetry data augmentation function.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_rl.rsl_rl.RslRlSymmetryCfg.mirror_loss_coeff" title="isaaclab_rl.rsl_rl.RslRlSymmetryCfg.mirror_loss_coeff"><code class="xref py py-obj docutils literal notranslate"><span class="pre">mirror_loss_coeff</span></code></a></p></td>
+<td><p>The weight for the symmetry-mirror loss.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Methods:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_rl.rsl_rl.RslRlSymmetryCfg.__init__" title="isaaclab_rl.rsl_rl.RslRlSymmetryCfg.__init__"><code class="xref py py-obj docutils literal notranslate"><span class="pre">__init__</span></code></a>([use_data_augmentation, ...])</p></td>
+<td><p></p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlSymmetryCfg.use_data_augmentation">
+<span class="sig-name descname"><span class="pre">use_data_augmentation</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlSymmetryCfg.use_data_augmentation" title="Permalink to this definition">#</a></dt>
+<dd><p>Whether to use symmetry-based data augmentation. Default is False.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlSymmetryCfg.use_mirror_loss">
+<span class="sig-name descname"><span class="pre">use_mirror_loss</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlSymmetryCfg.use_mirror_loss" title="Permalink to this definition">#</a></dt>
+<dd><p>Whether to use the symmetry-augmentation loss. Default is False.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlSymmetryCfg.__init__">
+<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">use_data_augmentation:</span> <span class="pre">bool</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">use_mirror_loss:</span> <span class="pre">bool</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">data_augmentation_func:</span> <span class="pre">callable</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mirror_loss_coeff:</span> <span class="pre">float</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></span></span><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlSymmetryCfg.__init__" title="Permalink to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlSymmetryCfg.data_augmentation_func">
+<span class="sig-name descname"><span class="pre">data_augmentation_func</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">callable</span></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlSymmetryCfg.data_augmentation_func" title="Permalink to this definition">#</a></dt>
+<dd><p>The symmetry data augmentation function.</p>
+<p>The function signature should be as follows:</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>env</strong> (<em>VecEnv</em>) – The environment object. This is used to access the environment’s properties.</p></li>
+<li><p><strong>obs</strong> (<a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.6)"><em>torch.Tensor</em></a><em> | </em><em>None</em>) – The observation tensor. If None, the observation is not used.</p></li>
+<li><p><strong>action</strong> (<a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.6)"><em>torch.Tensor</em></a><em> | </em><em>None</em>) – The action tensor. If None, the action is not used.</p></li>
+<li><p><strong>obs_type</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><em>str</em></a>) – The name of the observation type. Defaults to “policy”.
+This is useful when handling augmentation for different observation groups.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A tuple containing the augmented observation and action tensors. The tensors can be None,
+if their respective inputs are None.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlSymmetryCfg.mirror_loss_coeff">
+<span class="sig-name descname"><span class="pre">mirror_loss_coeff</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlSymmetryCfg.mirror_loss_coeff" title="Permalink to this definition">#</a></dt>
+<dd><p>The weight for the symmetry-mirror loss. Default is 0.0.</p>
+</dd></dl>
 
 </dd></dl>
 
@@ -1898,6 +2355,7 @@ wrapper.</p>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlPpoActorCriticCfg"><code class="docutils literal notranslate"><span class="pre">RslRlPpoActorCriticCfg</span></code></a><ul class="nav section-nav flex-column">
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlPpoActorCriticCfg.class_name"><code class="docutils literal notranslate"><span class="pre">RslRlPpoActorCriticCfg.class_name</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlPpoActorCriticCfg.init_noise_std"><code class="docutils literal notranslate"><span class="pre">RslRlPpoActorCriticCfg.init_noise_std</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlPpoActorCriticCfg.noise_std_type"><code class="docutils literal notranslate"><span class="pre">RslRlPpoActorCriticCfg.noise_std_type</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlPpoActorCriticCfg.actor_hidden_dims"><code class="docutils literal notranslate"><span class="pre">RslRlPpoActorCriticCfg.actor_hidden_dims</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlPpoActorCriticCfg.critic_hidden_dims"><code class="docutils literal notranslate"><span class="pre">RslRlPpoActorCriticCfg.critic_hidden_dims</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlPpoActorCriticCfg.activation"><code class="docutils literal notranslate"><span class="pre">RslRlPpoActorCriticCfg.activation</span></code></a></li>
@@ -1918,7 +2376,50 @@ wrapper.</p>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlPpoAlgorithmCfg.lam"><code class="docutils literal notranslate"><span class="pre">RslRlPpoAlgorithmCfg.lam</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlPpoAlgorithmCfg.desired_kl"><code class="docutils literal notranslate"><span class="pre">RslRlPpoAlgorithmCfg.desired_kl</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlPpoAlgorithmCfg.max_grad_norm"><code class="docutils literal notranslate"><span class="pre">RslRlPpoAlgorithmCfg.max_grad_norm</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlPpoAlgorithmCfg.normalize_advantage_per_mini_batch"><code class="docutils literal notranslate"><span class="pre">RslRlPpoAlgorithmCfg.normalize_advantage_per_mini_batch</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlPpoAlgorithmCfg.__init__"><code class="docutils literal notranslate"><span class="pre">RslRlPpoAlgorithmCfg.__init__()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlPpoAlgorithmCfg.symmetry_cfg"><code class="docutils literal notranslate"><span class="pre">RslRlPpoAlgorithmCfg.symmetry_cfg</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlPpoAlgorithmCfg.rnd_cfg"><code class="docutils literal notranslate"><span class="pre">RslRlPpoAlgorithmCfg.rnd_cfg</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlRndCfg"><code class="docutils literal notranslate"><span class="pre">RslRlRndCfg</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.WeightScheduleCfg"><code class="docutils literal notranslate"><span class="pre">RslRlRndCfg.WeightScheduleCfg</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.WeightScheduleCfg.mode"><code class="docutils literal notranslate"><span class="pre">RslRlRndCfg.WeightScheduleCfg.mode</span></code></a></li>
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.WeightScheduleCfg.__init__"><code class="docutils literal notranslate"><span class="pre">RslRlRndCfg.WeightScheduleCfg.__init__()</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.LinearWeightScheduleCfg"><code class="docutils literal notranslate"><span class="pre">RslRlRndCfg.LinearWeightScheduleCfg</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.LinearWeightScheduleCfg.mode"><code class="docutils literal notranslate"><span class="pre">RslRlRndCfg.LinearWeightScheduleCfg.mode</span></code></a></li>
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.LinearWeightScheduleCfg.final_value"><code class="docutils literal notranslate"><span class="pre">RslRlRndCfg.LinearWeightScheduleCfg.final_value</span></code></a></li>
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.LinearWeightScheduleCfg.initial_step"><code class="docutils literal notranslate"><span class="pre">RslRlRndCfg.LinearWeightScheduleCfg.initial_step</span></code></a></li>
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.LinearWeightScheduleCfg.final_step"><code class="docutils literal notranslate"><span class="pre">RslRlRndCfg.LinearWeightScheduleCfg.final_step</span></code></a></li>
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.LinearWeightScheduleCfg.__init__"><code class="docutils literal notranslate"><span class="pre">RslRlRndCfg.LinearWeightScheduleCfg.__init__()</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.StepWeightScheduleCfg"><code class="docutils literal notranslate"><span class="pre">RslRlRndCfg.StepWeightScheduleCfg</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.StepWeightScheduleCfg.mode"><code class="docutils literal notranslate"><span class="pre">RslRlRndCfg.StepWeightScheduleCfg.mode</span></code></a></li>
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.StepWeightScheduleCfg.final_step"><code class="docutils literal notranslate"><span class="pre">RslRlRndCfg.StepWeightScheduleCfg.final_step</span></code></a></li>
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.StepWeightScheduleCfg.final_value"><code class="docutils literal notranslate"><span class="pre">RslRlRndCfg.StepWeightScheduleCfg.final_value</span></code></a></li>
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.StepWeightScheduleCfg.__init__"><code class="docutils literal notranslate"><span class="pre">RslRlRndCfg.StepWeightScheduleCfg.__init__()</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.weight"><code class="docutils literal notranslate"><span class="pre">RslRlRndCfg.weight</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.__init__"><code class="docutils literal notranslate"><span class="pre">RslRlRndCfg.__init__()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.weight_schedule"><code class="docutils literal notranslate"><span class="pre">RslRlRndCfg.weight_schedule</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.reward_normalization"><code class="docutils literal notranslate"><span class="pre">RslRlRndCfg.reward_normalization</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.state_normalization"><code class="docutils literal notranslate"><span class="pre">RslRlRndCfg.state_normalization</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.learning_rate"><code class="docutils literal notranslate"><span class="pre">RslRlRndCfg.learning_rate</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.num_outputs"><code class="docutils literal notranslate"><span class="pre">RslRlRndCfg.num_outputs</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.predictor_hidden_dims"><code class="docutils literal notranslate"><span class="pre">RslRlRndCfg.predictor_hidden_dims</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.target_hidden_dims"><code class="docutils literal notranslate"><span class="pre">RslRlRndCfg.target_hidden_dims</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlSymmetryCfg"><code class="docutils literal notranslate"><span class="pre">RslRlSymmetryCfg</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlSymmetryCfg.use_data_augmentation"><code class="docutils literal notranslate"><span class="pre">RslRlSymmetryCfg.use_data_augmentation</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlSymmetryCfg.use_mirror_loss"><code class="docutils literal notranslate"><span class="pre">RslRlSymmetryCfg.use_mirror_loss</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlSymmetryCfg.__init__"><code class="docutils literal notranslate"><span class="pre">RslRlSymmetryCfg.__init__()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlSymmetryCfg.data_augmentation_func"><code class="docutils literal notranslate"><span class="pre">RslRlSymmetryCfg.data_augmentation_func</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlSymmetryCfg.mirror_loss_coeff"><code class="docutils literal notranslate"><span class="pre">RslRlSymmetryCfg.mirror_loss_coeff</span></code></a></li>
 </ul>
 </li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlVecEnvWrapper"><code class="docutils literal notranslate"><span class="pre">RslRlVecEnvWrapper</span></code></a><ul class="nav section-nav flex-column">
@@ -1984,7 +2485,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Mar 29, 2025.
+  Last updated on Mar 31, 2025.
   <br/>
 </p>
   </div>

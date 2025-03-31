@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.0.2" />
-    <meta name="docbuild:last-update" content="Mar 29, 2025"/>
+    <meta name="docbuild:last-update" content="Mar 31, 2025"/>
   </head>
   
   
@@ -536,6 +536,9 @@
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">configclass</span>
 
+<span class="kn">from</span><span class="w"> </span><span class="nn">.rnd_cfg</span><span class="w"> </span><span class="kn">import</span> <span class="n">RslRlRndCfg</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.symmetry_cfg</span><span class="w"> </span><span class="kn">import</span> <span class="n">RslRlSymmetryCfg</span>
+
 
 <div class="viewcode-block" id="RslRlPpoActorCriticCfg"><a class="viewcode-back" href="../../../source/api/lab_rl/isaaclab_rl.html#isaaclab_rl.rsl_rl.RslRlPpoActorCriticCfg">[docs]</a><span class="nd">@configclass</span>
 <span class="k">class</span><span class="w"> </span><span class="nc">RslRlPpoActorCriticCfg</span><span class="p">:</span>
@@ -546,6 +549,9 @@
 
     <span class="n">init_noise_std</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">MISSING</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The initial noise standard deviation for the policy.&quot;&quot;&quot;</span>
+
+    <span class="n">noise_std_type</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;scalar&quot;</span><span class="p">,</span> <span class="s2">&quot;log&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;scalar&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The type of noise standard deviation for the policy. Default is scalar.&quot;&quot;&quot;</span>
 
     <span class="n">actor_hidden_dims</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="n">MISSING</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The hidden dimensions of the actor network.&quot;&quot;&quot;</span>
@@ -598,7 +604,22 @@
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The desired KL divergence.&quot;&quot;&quot;</span>
 
     <span class="n">max_grad_norm</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">MISSING</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;The maximum gradient norm.&quot;&quot;&quot;</span></div>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The maximum gradient norm.&quot;&quot;&quot;</span>
+
+    <span class="n">normalize_advantage_per_mini_batch</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Whether to normalize the advantage per mini-batch. Default is False.</span>
+
+<span class="sd">    If True, the advantage is normalized over the entire collected trajectories.</span>
+<span class="sd">    Otherwise, the advantage is normalized over the mini-batches only.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">symmetry_cfg</span><span class="p">:</span> <span class="n">RslRlSymmetryCfg</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The symmetry configuration. Default is None, in which case symmetry is not used.&quot;&quot;&quot;</span>
+
+    <span class="n">rnd_cfg</span><span class="p">:</span> <span class="n">RslRlRndCfg</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The configuration for the Random Network Distillation (RND) module. Default is None,</span>
+<span class="sd">    in which case RND is not used.</span>
+<span class="sd">    &quot;&quot;&quot;</span></div>
 
 
 <div class="viewcode-block" id="RslRlOnPolicyRunnerCfg"><a class="viewcode-back" href="../../../source/api/lab_rl/isaaclab_rl.html#isaaclab_rl.rsl_rl.RslRlOnPolicyRunnerCfg">[docs]</a><span class="nd">@configclass</span>
@@ -627,7 +648,11 @@
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The algorithm configuration.&quot;&quot;&quot;</span>
 
     <span class="n">clip_actions</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;The clipping value for actions. If ``None``, then no clipping is done.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The clipping value for actions. If ``None``, then no clipping is done.</span>
+
+<span class="sd">    .. note::</span>
+<span class="sd">        This clipping is performed inside the :class:`RslRlVecEnvWrapper` wrapper.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="c1">##</span>
     <span class="c1"># Checkpointing parameters</span>
@@ -725,7 +750,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Mar 29, 2025.
+  Last updated on Mar 31, 2025.
   <br/>
 </p>
   </div>
