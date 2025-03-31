@@ -7,7 +7,9 @@ Changelog
 Fixed
 ^^^^^
 
-* Fixed the location of :meth:`isaaclab_rl.rsl_rl.RslRlOnPolicyRunnerCfg._modify_action_space` to be called only after retrieving the dimensions of the environment, preventing errors related to accessing uninitialized attributes.
+* Fixed the location of :meth:`isaaclab_rl.rsl_rl.RslRlOnPolicyRunnerCfg._modify_action_space`
+  to be called only after retrieving the dimensions of the environment, preventing errors
+  related to accessing uninitialized attributes.
 
 
 0.1.1 (2025-03-10)
