@@ -219,14 +219,14 @@ class ActionsCfg:
             show_ik_warnings=False,
             variable_input_tasks=[
                 FrameTask(
-                    "GR1T2_fourier_hand_6dof_left_hand_roll_link",
+                    "GR1T2_fourier_hand_6dof_left_hand_pitch_link",
                     position_cost=1.0,  # [cost] / [m]
                     orientation_cost=1.0,  # [cost] / [rad]
                     lm_damping=10,  # dampening for solver for step jumps
                     gain=0.1,
                 ),
                 FrameTask(
-                    "GR1T2_fourier_hand_6dof_right_hand_roll_link",
+                    "GR1T2_fourier_hand_6dof_right_hand_pitch_link",
                     position_cost=1.0,  # [cost] / [m]
                     orientation_cost=1.0,  # [cost] / [rad]
                     lm_damping=10,  # dampening for solver for step jumps
