@@ -164,7 +164,6 @@ class RslRlPpoAlgorithmCfg:
     in which case RND is not used.
     """
 
-
 @configclass
 class RslRlDistillationAlgorithmCfg:
     """Configuration for the distillation algorithm."""
