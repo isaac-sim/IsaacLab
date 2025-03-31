@@ -49,6 +49,7 @@ Guidelines for modifications:
 * CY (Chien-Ying) Chen
 * David Yang
 * Dorsa Rohani
+* Felipe Mohr
 * Felix Yu
 * Gary Lvov
 * Giulio Romualdi
