@@ -71,7 +71,6 @@ class RayCaster(SensorBase):
         Args:
             cfg: The configuration parameters.
         """
-        RayCaster._instance_count += 1
         # check if sensor path is valid
         # note: currently we do not handle environment indices if there is a regex pattern in the leaf
         #   For example, if the prim path is "/World/Sensor_[1,2]".
@@ -86,6 +85,9 @@ class RayCaster(SensorBase):
         super().__init__(cfg)
         # Create empty variables for storing output data
         self._data = RayCasterData()
+
+        # increment the instance count
+        RayCaster._instance_count += 1
 
     def __str__(self) -> str:
         """Returns: A string containing information about the instance."""
