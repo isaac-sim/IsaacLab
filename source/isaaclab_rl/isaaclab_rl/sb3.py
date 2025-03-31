@@ -30,29 +30,7 @@ from stable_baselines3.common.vec_env.base_vec_env import VecEnv, VecEnvObs, Vec
 
 from isaaclab.envs import DirectRLEnv, ManagerBasedRLEnv
 
-# Callback to log data every n steps instead of every n iterations or episodes
-try:
-    from stable_baselines3.common.callbacks import LogEveryNTimesteps
-except ImportError:
-    from stable_baselines3.common.callbacks import ConvertCallback, EveryNTimesteps
-
-    # Implement for SB3 < v2.6.0
-    class LogEveryNTimesteps(EveryNTimesteps):
-        """
-        Log data every ``n_steps`` timesteps
-
-        :param n_steps: Number of timesteps between two trigger.
-        """
-
-        def __init__(self, n_steps: int):
-            super().__init__(n_steps, callback=ConvertCallback(self._log_data))
-
-        def _log_data(self, _locals: dict[str, Any], _globals: dict[str, Any]) -> bool:
-            self.model._dump_logs()
-            return True
-
-
-# Remove SB3 warnings because PPO with bigger net actually benefits from GPU
+# remove SB3 warnings because PPO with bigger net actually benefits from GPU
 warnings.filterwarnings("ignore", message="You are trying to run PPO on the GPU")
 
 """
@@ -86,7 +64,7 @@ def process_sb3_cfg(cfg: dict) -> dict:
                         initial_value = float(initial_value)
                         hyperparams[key] = lambda progress_remaining: progress_remaining * initial_value
                     elif isinstance(value, (float, int)):
-                        # Negative value: ignore (ex: for clipping)
+                        # negative value: ignore (ex: for clipping)
                         if value < 0:
                             continue
                         hyperparams[key] = constant_fn(float(value))
@@ -309,9 +287,8 @@ class Sb3VecEnvWrapper(VecEnv):
             return env_method(*method_args, indices=indices, **method_kwargs)
 
     def env_is_wrapped(self, wrapper_class, indices=None):  # noqa: D102
-        # Fake implementation to be able to use `evaluate_policy()` helper
+        # fake implementation to be able to use `evaluate_policy()` helper
         return [False]
-        # raise NotImplementedError("Checking if environment is wrapped is not supported.")
 
     def get_images(self):  # noqa: D102
         raise NotImplementedError("Getting images is not supported.")
@@ -338,8 +315,7 @@ class Sb3VecEnvWrapper(VecEnv):
         self, obs: np.ndarray, terminated: np.ndarray, truncated: np.ndarray, extras: dict, reset_ids: np.ndarray
     ) -> list[dict[str, Any]]:
         """Convert miscellaneous information into dictionary for each sub-environment."""
-        # Faster version
-        # Only process env that terminated and add bootstrapping info
+        # faster version: only process env that terminated and add bootstrapping info
         if self.fast_variant:
             infos = [{} for _ in range(self.num_envs)]
 

@@ -34,7 +34,7 @@ parser.add_argument(
     "--keep_all_info",
     action="store_true",
     default=False,
-    help="Use a 3x slower SB3 wrapper but keep all the extra training info.",
+    help="Use a slower SB3 wrapper but keep all the extra training info.",
 )
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
@@ -66,7 +66,7 @@ def cleanup_pbar(*args):
     raise KeyboardInterrupt
 
 
-# Disable KeyboardInterrupt override
+# disable KeyboardInterrupt override
 signal.signal(signal.SIGINT, cleanup_pbar)
 
 """Rest everything follows."""
@@ -78,7 +78,7 @@ import random
 from datetime import datetime
 
 from stable_baselines3 import PPO
-from stable_baselines3.common.callbacks import CheckpointCallback
+from stable_baselines3.common.callbacks import CheckpointCallback, LogEveryNTimesteps
 from stable_baselines3.common.vec_env import VecNormalize
 
 from isaaclab.envs import (
@@ -91,7 +91,7 @@ from isaaclab.envs import (
 from isaaclab.utils.dict import print_dict
 from isaaclab.utils.io import dump_pickle, dump_yaml
 
-from isaaclab_rl.sb3 import LogEveryNTimesteps, Sb3VecEnvWrapper, process_sb3_cfg
+from isaaclab_rl.sb3 import Sb3VecEnvWrapper, process_sb3_cfg
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.hydra import hydra_task_config
@@ -130,7 +130,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     dump_pickle(os.path.join(log_dir, "params", "env.pkl"), env_cfg)
     dump_pickle(os.path.join(log_dir, "params", "agent.pkl"), agent_cfg)
 
-    # Save command used to run the script
+    # save command used to run the script
     command = " ".join(sys.orig_argv)
     (Path(log_dir) / "command.txt").write_text(command)
 

@@ -37,7 +37,7 @@ parser.add_argument(
     "--keep_all_info",
     action="store_true",
     default=False,
-    help="Use a 3x slower SB3 wrapper but keep all the extra training info.",
+    help="Use a slower SB3 wrapper but keep all the extra training info.",
 )
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)

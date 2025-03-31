@@ -1,12 +1,13 @@
 Changelog
 ---------
 
-0.2.0 (2025-03-05)
+0.1.2 (2025-03-31)
 ~~~~~~~~~~~~~~~~~~
 
 Changed
 ^^^^^^^
-- Optimized Stable-Baselines3 wrapper ``Sb3VecEnvWrapper`` (now 4x faster) by using Numpy buffers and only logging episode and truncation information by default.
+* Optimized Stable-Baselines3 wrapper ``Sb3VecEnvWrapper`` (now 4x faster) by using Numpy buffers and only logging episode and truncation information by default.
+* Upgraded minimum SB3 version to 2.6.0 and added optional dependencies for progress bar
 
 0.1.1 (2025-03-10)
 ~~~~~~~~~~~~~~~~~~
