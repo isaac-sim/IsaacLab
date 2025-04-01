@@ -1,13 +1,24 @@
 Changelog
 ---------
 
-0.1.3 (2025-03-31)
+0.1.4 (2025-04-01)
 ~~~~~~~~~~~~~~~~~~
 
 Changed
 ^^^^^^^
 * Optimized Stable-Baselines3 wrapper ``Sb3VecEnvWrapper`` (now 4x faster) by using Numpy buffers and only logging episode and truncation information by default.
 * Upgraded minimum SB3 version to 2.6.0 and added optional dependencies for progress bar
+
+0.1.3 (2025-03-31)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the location of :meth:`isaaclab_rl.rsl_rl.RslRlOnPolicyRunnerCfg._modify_action_space`
+  to be called only after retrieving the dimensions of the environment, preventing errors
+  related to accessing uninitialized attributes.
+
 
 0.1.2 (2025-03-28)
 ~~~~~~~~~~~~~~~~~~
