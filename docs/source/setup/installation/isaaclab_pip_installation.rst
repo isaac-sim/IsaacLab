@@ -7,7 +7,7 @@ that are built on top of Isaac Lab. Isaac Lab pip packages **do not** include an
 training, inferencing, or running standalone workflows such as demos and examples. Therefore, users are required
 to define your own runner scripts when installing Isaac Lab from pip.
 
-To learn about how to set up your own extension project on top of Isaac Lab, visit `Extension Template <../../overview/developer-guide/template.html>`_.
+To learn about how to set up your own project on top of Isaac Lab, see :ref:`template-generator`.
 
 .. note::
 
@@ -59,13 +59,13 @@ To learn about how to set up your own extension project on top of Isaac Lab, vis
 
          .. code-block:: bash
 
-            pip install torch==2.5.1 --index-url https://download.pytorch.org/whl/cu118
+            pip install torch==2.5.1 torchvision==0.20.1 --index-url https://download.pytorch.org/whl/cu118
 
       .. tab-item:: CUDA 12
 
          .. code-block:: bash
 
-            pip install torch==2.5.1 --index-url https://download.pytorch.org/whl/cu121
+            pip install torch==2.5.1 torchvision==0.20.1 --index-url https://download.pytorch.org/whl/cu121
 
 
 -  Before installing Isaac Lab, ensure the latest pip version is installed. To update pip, run

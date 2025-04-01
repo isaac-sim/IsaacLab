@@ -1,6 +1,103 @@
 Changelog
 ---------
 
+0.36.4 (2025-03-24)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Definition of render settings in :class:`~isaaclab.sim.SimulationCfg` is changed to None, which means that
+  the default settings will be used from the experience files and the double definition is removed.
+
+
+0.36.3 (2025-03-17)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed default behavior of :class:`~isaaclab.actuators.ImplicitActuator` if no :attr:`effort_limits_sim` or
+  :attr:`effort_limit` is set.
+
+
+0.36.2 (2025-03-12)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added a new event mode called "prestartup", which gets called right after the scene design is complete
+  and before the simulation is played.
+* Added a callback to resolve the scene entity configurations separately once the simulation plays,
+  since the scene entities cannot be resolved before the simulation starts playing
+  (as we currently rely on PhysX to provide us with the joint/body ordering)
+
+
+0.36.1 (2025-03-10)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :attr:`semantic_segmentation_mapping` for camera configs to allow specifying colors for semantics.
+
+
+0.36.0 (2025-03-07)
+~~~~~~~~~~~~~~~~~~~
+
+Removed
+^^^^^^^
+
+* Removed the storage of tri-meshes and warp meshes inside the :class:`~isaaclab.terrains.TerrainImporter` class.
+  Initially these meshes were added for ray-casting purposes. However, since the ray-caster reads the terrains
+  directly from the USD files, these meshes are no longer needed.
+* Deprecated the :attr:`warp_meshes` and :attr:`meshes` attributes from the
+  :class:`~isaaclab.terrains.TerrainImporter` class. These attributes now return an empty dictionary
+  with a deprecation warning.
+
+Changed
+^^^^^^^
+
+* Changed the prim path of the "plane" terrain inside the :class:`~isaaclab.terrains.TerrainImporter` class.
+  Earlier, the terrain was imported directly as the importer's prim path. Now, the terrain is imported as
+  ``{importer_prim_path}/{name}``, where ``name`` is the name of the terrain.
+
+
+0.35.0 (2025-03-07)
+~~~~~~~~~~~~~~~~~~~
+
+* Improved documentation of various attributes in the :class:`~isaaclab.assets.ArticulationData` class to make
+  it clearer which values represent the simulation and internal class values. In the new convention,
+  the ``default_xxx`` attributes are whatever the user configured from their configuration of the articulation
+  class, while the ``xxx`` attributes are the values from the simulation.
+* Updated the soft joint position limits inside the :meth:`~isaaclab.assets.Articulation.write_joint_pos_limits_to_sim`
+  method to use the new limits passed to the function.
+* Added setting of :attr:`~isaaclab.assets.ArticulationData.default_joint_armature` and
+  :attr:`~isaaclab.assets.ArticulationData.default_joint_friction` attributes in the
+  :class:`~isaaclab.assets.Articulation` class based on user configuration.
+
+Changed
+^^^^^^^
+
+* Removed unnecessary buffer creation operations inside the :class:`~isaaclab.assets.Articulation` class.
+  Earlier, the class initialized a variety of buffer data with zeros and in the next function assigned
+  them the value from PhysX. This made the code bulkier and more complex for no reason.
+* Renamed parameters for a consistent nomenclature. These changes are backwards compatible with previous releases
+  with a deprecation warning for the old names.
+
+  * ``joint_velocity_limits`` → ``joint_vel_limits`` (to match attribute ``joint_vel`` and ``joint_vel_limits``)
+  * ``joint_limits`` → ``joint_pos_limits`` (to match attribute ``joint_pos`` and ``soft_joint_pos_limits``)
+  * ``default_joint_limits`` → ``default_joint_pos_limits``
+  * ``write_joint_limits_to_sim`` → ``write_joint_position_limit_to_sim``
+  * ``joint_friction`` → ``joint_friction_coeff``
+  * ``default_joint_friction`` → ``default_joint_friction_coeff``
+  * ``write_joint_friction_to_sim`` → ``write_joint_friction_coefficient_to_sim``
+  * ``fixed_tendon_limit`` → ``fixed_tendon_pos_limits``
+  * ``default_fixed_tendon_limit`` → ``default_fixed_tendon_pos_limits``
+  * ``set_fixed_tendon_limit`` → ``set_fixed_tendon_position_limit``
+
+
 0.34.9 (2025-03-04)
 ~~~~~~~~~~~~~~~~~~~
 

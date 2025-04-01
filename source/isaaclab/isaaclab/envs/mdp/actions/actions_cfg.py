@@ -103,7 +103,7 @@ class JointEffortActionCfg(JointActionCfg):
 class JointPositionToLimitsActionCfg(ActionTermCfg):
     """Configuration for the bounded joint position action term.
 
-    See :class:`JointPositionWithinLimitsAction` for more details.
+    See :class:`JointPositionToLimitsAction` for more details.
     """
 
     class_type: type[ActionTerm] = joint_actions_to_limits.JointPositionToLimitsAction

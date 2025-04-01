@@ -30,7 +30,7 @@ class RslRlVecEnvWrapper(VecEnv):
         https://github.com/leggedrobotics/rsl_rl/blob/master/rsl_rl/env/vec_env.py
     """
 
-    def __init__(self, env: ManagerBasedRLEnv | DirectRLEnv):
+    def __init__(self, env: ManagerBasedRLEnv | DirectRLEnv, clip_actions: float | None = None):
         """Initializes the wrapper.
 
         Note:
@@ -38,6 +38,7 @@ class RslRlVecEnvWrapper(VecEnv):
 
         Args:
             env: The environment to wrap around.
+            clip_actions: The clipping value for actions. If ``None``, then no clipping is done.
 
         Raises:
             ValueError: When the environment is not an instance of :class:`ManagerBasedRLEnv` or :class:`DirectRLEnv`.
@@ -50,10 +51,14 @@ class RslRlVecEnvWrapper(VecEnv):
             )
         # initialize the wrapper
         self.env = env
+        self.clip_actions = clip_actions
+
         # store information required by wrapper
         self.num_envs = self.unwrapped.num_envs
         self.device = self.unwrapped.device
         self.max_episode_length = self.unwrapped.max_episode_length
+
+        # obtain dimensions of the environment
         if hasattr(self.unwrapped, "action_manager"):
             self.num_actions = self.unwrapped.action_manager.total_action_dim
         else:
@@ -72,6 +77,10 @@ class RslRlVecEnvWrapper(VecEnv):
             self.num_privileged_obs = gym.spaces.flatdim(self.unwrapped.single_observation_space["critic"])
         else:
             self.num_privileged_obs = 0
+
+        # modify the action space to the clip range
+        self._modify_action_space()
+
         # reset at the start since the RSL-RL runner does not call reset
         self.env.reset()
 
@@ -160,6 +169,9 @@ class RslRlVecEnvWrapper(VecEnv):
         return obs_dict["policy"], {"observations": obs_dict}
 
     def step(self, actions: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, dict]:
+        # clip actions
+        if self.clip_actions is not None:
+            actions = torch.clamp(actions, -self.clip_actions, self.clip_actions)
         # record step information
         obs_dict, rew, terminated, truncated, extras = self.env.step(actions)
         # compute dones for compatibility with RSL-RL
@@ -177,3 +189,21 @@ class RslRlVecEnvWrapper(VecEnv):
 
     def close(self):  # noqa: D102
         return self.env.close()
+
+    """
+    Helper functions
+    """
+
+    def _modify_action_space(self):
+        """Modifies the action space to the clip range."""
+        if self.clip_actions is None:
+            return
+
+        # modify the action space to the clip range
+        # note: this is only possible for the box action space. we need to change it in the future for other action spaces.
+        self.env.unwrapped.single_action_space = gym.spaces.Box(
+            low=-self.clip_actions, high=self.clip_actions, shape=(self.num_actions,)
+        )
+        self.env.unwrapped.action_space = gym.vector.utils.batch_space(
+            self.env.unwrapped.single_action_space, self.num_envs
+        )
