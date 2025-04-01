@@ -97,57 +97,56 @@ def root_ang_vel_w(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntity
 
 
 """
-Link state
+Body state
 """
 
 
-def link_pose(
+def body_pose_w(
     env: ManagerBasedEnv,
     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
-    link_name: str | None = None,
+    body_name: str | None = None,
 ) -> torch.Tensor:
-    """The link pose of the asset w.r.t the env.scene.origin.
+    """The body pose of the asset w.r.t the env.scene.origin.
 
     Args:
         env: The environment.
         asset_cfg: The SceneEntity associated with this observation.
-        link_name: The specific name of the link in the asset to extract, defaults to base link of Articulation.
+        body_name: The specific name of the body in the asset to extract, defaults to base body of Articulation.
 
     Returns:
-        The pose of link_name with shape [num_env, 7]. Output order is [x,y,z,qw,qx,qy,qz].
+        The pose of body_name with shape [num_env, 7]. Output order is [x,y,z,qw,qx,qy,qz].
     """
     # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
 
-    if link_name is None:
-        link_name = asset.body_names[0]  # set body name as the base link
-    link_id = asset.body_names.index(link_name)
-    pose = asset.data.body_state_w[:, link_id, :7]
+    if body_name is None:
+        body_name = asset.body_names[0]
+    body_id = asset.body_names.index(body_name)
+    pose = asset.data.body_state_w[:, body_id, :7]
     pose[:, :3] = pose[:, :3] - env.scene.env_origins
     return pose
 
 
-def link_projected_gravity(
+def body_projected_gravity_b(
     env: ManagerBasedEnv,
     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
-    link_name: str | None = None,
+    body_name: str | None = None,
 ) -> torch.Tensor:
-    """The direction of gravity projected on to link_name of an Articulation defined in asset_cfg.
+    """The direction of gravity projected on to body_name of an Articulation defined in asset_cfg.
 
     Args:
         env: The environment.
         asset_cfg: The Articulation associated with this observation.
-        link_name: The specific name of the link in the asset to extract, defaults to base link of Articulation.
+        body_name: The specific name of the body in the asset to extract, defaults to base body of Articulation.
 
     Returns:
-        The unit vector direction of gravity projected onto link_name's frame.
+        The unit vector direction of gravity projected onto body_name's frame.
     """
     # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
-    if link_name is not None:
-        body_id = asset.body_names.index(link_name)
+    if body_name is not None:
+        body_id = asset.body_names.index(body_name)
     else:
-        # default to 0th link, which is the base link
         body_id = 0
     body_quat = asset.data.body_quat_w[:, body_id]
     gravity_dir = asset.data.GRAVITY_VEC_W
