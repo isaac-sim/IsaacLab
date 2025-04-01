@@ -72,7 +72,7 @@ if args_cli.enable_pinocchio:
 from isaaclab_tasks.utils import parse_env_cfg
 
 
-def rollout(policy, env, horizon, device):
+def rollout(policy, env, success_term, horizon, device):
     """Perform a single rollout of the policy in the environment.
 
     Args:
@@ -128,9 +128,10 @@ def rollout(policy, env, horizon, device):
         traj["actions"].append(actions.tolist())
         traj["next_obs"].append(obs)
 
-        if terminated:
+        # Check if rollout was successful
+        if bool(success_term.func(env, **success_term.params)[0]):
             return True, traj
-        elif truncated:
+        elif terminated or truncated:
             return False, traj
 
     return False, traj
@@ -150,6 +151,10 @@ def main():
     # Disable recorder
     env_cfg.recorders = None
 
+    # Extract success checking function
+    success_term = env_cfg.terminations.success
+    env_cfg.terminations.success = None
+
     # Create environment
     env = gym.make(args_cli.task, cfg=env_cfg).unwrapped
 
@@ -167,7 +172,7 @@ def main():
     results = []
     for trial in range(args_cli.num_rollouts):
         print(f"[INFO] Starting trial {trial}")
-        terminated, traj = rollout(policy, env, args_cli.horizon, device)
+        terminated, traj = rollout(policy, env, success_term, args_cli.horizon, device)
         results.append(terminated)
         print(f"[INFO] Trial {trial}: {terminated}\n")
 
