@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.37.0 (2025-04-01)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :meth:`~isaaclab.envs.mdp.observations.link_pose`
+* Added :meth:`~isaaclab.envs.mdp.observations.link_projected_gravity`
+
+
 0.36.4 (2025-03-24)
 ~~~~~~~~~~~~~~~~~~~
 
