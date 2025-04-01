@@ -47,7 +47,7 @@ class AssetBaseCfg:
     """
 
     prim_path: str = MISSING
-    """Prim path (or expression) to the asset.
+    """Prim path (or expression) at which the asset will be spawned in the scene.
 
     .. note::
         The expression can contain the environment namespace regex ``{ENV_REGEX_NS}`` which

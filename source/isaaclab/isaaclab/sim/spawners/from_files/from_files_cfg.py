@@ -98,6 +98,12 @@ class UsdFileCfg(FileCfg):
     usd_path: str = MISSING
     """Path to the USD file to spawn asset from."""
 
+    prim_path: str | None = None
+    """Path to the prim in the USD file that will be spawned.
+
+    Defaults to None, in which case the default prim from the USD file will be used.
+    """
+
     variants: object | dict[str, str] | None = None
     """Variants to select from in the input USD file. Defaults to None, in which case no variants are applied.
 

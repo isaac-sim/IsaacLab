@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+import isaacsim.core.prims as prims
 import isaacsim.core.utils.prims as prim_utils
 import isaacsim.core.utils.stage as stage_utils
 import omni.kit.commands
@@ -57,7 +58,14 @@ def spawn_from_usd(
         FileNotFoundError: If the USD file does not exist at the given path.
     """
     # spawn asset from the given usd file
-    return _spawn_from_usd_file(prim_path, cfg.usd_path, cfg, translation, orientation)
+    return _spawn_from_usd_file(
+        prim_path_in_created_stage=prim_path,
+        usd_path=cfg.usd_path,
+        prim_path_in_usd=cfg.prim_path,
+        cfg=cfg,
+        translation=translation,
+        orientation=orientation,
+    )
 
 
 @clone
@@ -99,7 +107,13 @@ def spawn_from_urdf(
     # urdf loader to convert urdf to usd
     urdf_loader = converters.UrdfConverter(cfg)
     # spawn asset from the generated usd file
-    return _spawn_from_usd_file(prim_path, urdf_loader.usd_path, cfg, translation, orientation)
+    return _spawn_from_usd_file(
+        prim_path_in_created_stage=prim_path,
+        usd_path=urdf_loader.usd_path,
+        cfg=cfg,
+        translation=translation,
+        orientation=orientation,
+    )
 
 
 def spawn_ground_plane(
@@ -182,10 +196,86 @@ Helper functions.
 """
 
 
+def _create_prim(
+    prim_path_in_created_stage: str,
+    usd_path: str,
+    prim_path_in_usd: str | None = None,
+    prim_type: str = "Xform",
+    translation: tuple[float, float, float] | None = None,
+    orientation: tuple[float, float, float, float] | None = None,
+    scale: tuple[float, float, float] | None = None,
+) -> Usd.Prim | None:
+    """Create a prim into current USD stage.
+
+    This is similar to `omni.isaac.utils.prims.create_prim` with the addition
+    that it allows to use a specific prim path from the USD file.
+
+    Args:
+        prim_path: The path of the new prim.
+        prim_type: Prim type name
+        position: prim position (applied last)
+        translation: prim translation (applied last)
+        orientation: prim rotation as quaternion
+        scale: scaling factor in x, y, z.
+        usd_path: Path to the USD that this prim will reference.
+
+    Returns:
+        The prim of the spawned asset.
+
+    Raises:
+        FileNotFoundError: If the USD file does not exist at the given path.
+    """
+    # Create prim in stage.
+    prim = prim_utils.define_prim(prim_path=prim_path_in_created_stage, prim_type=prim_type)
+    if not prim:
+        return None
+
+    # Add reference to USD file.
+    if usd_path is not None:
+        omni.log.info(f"Loading Asset from path {usd_path}.")
+
+        if prim_path_in_usd is not None:
+            # Check that the prim path in the usd file is valid. Unfortunately
+            # `AddReference` does not raise an error if the prim path is invalid
+            # so we have to manually check this here. This means that the USD is
+            # loaded twice.
+            stage = Usd.Stage.Open(usd_path)
+            target_prim = stage.GetPrimAtPath(prim_path_in_usd)
+            if not target_prim.IsValid():
+                raise ValueError(f"The prim path {prim_path_in_usd} does not exist in the USD file {usd_path}.")
+            success_bool = prim.GetReferences().AddReference(usd_path, primPath=Sdf.Path(prim_path_in_usd))
+        else:
+            success_bool = prim.GetReferences().AddReference(usd_path)
+        if not success_bool:
+            raise FileNotFoundError(f"The usd file at path {usd_path} provided wasn't found")
+
+    # Get used device.
+    from isaacsim.core.api.simulation_context.simulation_context import SimulationContext
+
+    if SimulationContext.instance() is None:
+        import isaacsim.core.utils.numpy as backend_utils
+
+        device = "cpu"
+    else:
+        backend_utils = SimulationContext.instance().backend_utils
+        device = SimulationContext.instance().device
+
+    # Apply the transformations.
+    if translation is not None:
+        translation = backend_utils.expand_dims(backend_utils.convert(translation, device), 0)
+    if orientation is not None:
+        orientation = backend_utils.expand_dims(backend_utils.convert(orientation, device), 0)
+    if scale is not None:
+        scale = backend_utils.expand_dims(backend_utils.convert(scale, device), 0)
+    prims.XFormPrim(prim_path_in_created_stage, translations=translation, orientations=orientation, scales=scale)
+    return prim
+
+
 def _spawn_from_usd_file(
-    prim_path: str,
+    prim_path_in_created_stage: str,
     usd_path: str,
     cfg: from_files_cfg.FileCfg,
+    prim_path_in_usd: str | None = None,
     translation: tuple[float, float, float] | None = None,
     orientation: tuple[float, float, float, float] | None = None,
 ) -> Usd.Prim:
@@ -216,58 +306,59 @@ def _spawn_from_usd_file(
     if not stage.ResolveIdentifierToEditTarget(usd_path):
         raise FileNotFoundError(f"USD file not found at path: '{usd_path}'.")
     # spawn asset if it doesn't exist.
-    if not prim_utils.is_prim_path_valid(prim_path):
+    if not prim_utils.is_prim_path_valid(prim_path_in_created_stage):
         # add prim as reference to stage
-        prim_utils.create_prim(
-            prim_path,
+        _create_prim(
+            prim_path_in_created_stage=prim_path_in_created_stage,
             usd_path=usd_path,
+            prim_path_in_usd=prim_path_in_usd,
             translation=translation,
             orientation=orientation,
             scale=cfg.scale,
         )
     else:
-        omni.log.warn(f"A prim already exists at prim path: '{prim_path}'.")
+        omni.log.warn(f"A prim already exists at prim path: '{prim_path_in_created_stage}'.")
 
     # modify variants
     if hasattr(cfg, "variants") and cfg.variants is not None:
-        select_usd_variants(prim_path, cfg.variants)
+        select_usd_variants(prim_path_in_created_stage, cfg.variants)
 
     # modify rigid body properties
     if cfg.rigid_props is not None:
-        schemas.modify_rigid_body_properties(prim_path, cfg.rigid_props)
+        schemas.modify_rigid_body_properties(prim_path_in_created_stage, cfg.rigid_props)
     # modify collision properties
     if cfg.collision_props is not None:
-        schemas.modify_collision_properties(prim_path, cfg.collision_props)
+        schemas.modify_collision_properties(prim_path_in_created_stage, cfg.collision_props)
     # modify mass properties
     if cfg.mass_props is not None:
-        schemas.modify_mass_properties(prim_path, cfg.mass_props)
+        schemas.modify_mass_properties(prim_path_in_created_stage, cfg.mass_props)
 
     # modify articulation root properties
     if cfg.articulation_props is not None:
-        schemas.modify_articulation_root_properties(prim_path, cfg.articulation_props)
+        schemas.modify_articulation_root_properties(prim_path_in_created_stage, cfg.articulation_props)
     # modify tendon properties
     if cfg.fixed_tendons_props is not None:
-        schemas.modify_fixed_tendon_properties(prim_path, cfg.fixed_tendons_props)
+        schemas.modify_fixed_tendon_properties(prim_path_in_created_stage, cfg.fixed_tendons_props)
     # define drive API on the joints
     # note: these are only for setting low-level simulation properties. all others should be set or are
     #  and overridden by the articulation/actuator properties.
     if cfg.joint_drive_props is not None:
-        schemas.modify_joint_drive_properties(prim_path, cfg.joint_drive_props)
+        schemas.modify_joint_drive_properties(prim_path_in_created_stage, cfg.joint_drive_props)
 
     # modify deformable body properties
     if cfg.deformable_props is not None:
-        schemas.modify_deformable_body_properties(prim_path, cfg.deformable_props)
+        schemas.modify_deformable_body_properties(prim_path_in_created_stage, cfg.deformable_props)
 
     # apply visual material
     if cfg.visual_material is not None:
         if not cfg.visual_material_path.startswith("/"):
-            material_path = f"{prim_path}/{cfg.visual_material_path}"
+            material_path = f"{prim_path_in_created_stage}/{cfg.visual_material_path}"
         else:
             material_path = cfg.visual_material_path
         # create material
         cfg.visual_material.func(material_path, cfg.visual_material)
         # apply material
-        bind_visual_material(prim_path, material_path)
+        bind_visual_material(prim_path_in_created_stage, material_path)
 
     # return the prim
-    return prim_utils.get_prim_at_path(prim_path)
+    return prim_utils.get_prim_at_path(prim_path_in_created_stage)
