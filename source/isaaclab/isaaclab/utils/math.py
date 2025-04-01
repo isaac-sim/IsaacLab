@@ -500,25 +500,6 @@ def quat_mul(q1: torch.Tensor, q2: torch.Tensor) -> torch.Tensor:
 
 
 @torch.jit.script
-def quat_box_minus(q1: torch.Tensor, q2: torch.Tensor) -> torch.Tensor:
-    """The box-minus operator (quaternion difference) between two quaternions.
-
-    Args:
-        q1: The first quaternion in (w, x, y, z). Shape is (N, 4).
-        q2: The second quaternion in (w, x, y, z). Shape is (N, 4).
-
-    Returns:
-        The difference between the two quaternions. Shape is (N, 3).
-    """
-    quat_diff = quat_mul(q1, quat_conjugate(q2))  # q1 * q2^-1
-    re = quat_diff[:, 0]  # real part, q = [w, x, y, z] = [re, im]
-    im = quat_diff[:, 1:]  # imaginary part
-    norm_im = torch.norm(im, dim=1)
-    scale = 2.0 * torch.where(norm_im > 1.0e-7, torch.atan2(norm_im, re) / norm_im, torch.sign(re))
-    return scale.unsqueeze(-1) * im
-
-
-@torch.jit.script
 def yaw_quat(quat: torch.Tensor) -> torch.Tensor:
     """Extract the yaw component of a quaternion.
 
@@ -540,6 +521,46 @@ def yaw_quat(quat: torch.Tensor) -> torch.Tensor:
     quat_yaw[:, 0] = torch.cos(yaw / 2)
     quat_yaw = normalize(quat_yaw)
     return quat_yaw.view(shape)
+
+
+@torch.jit.script
+def quat_box_minus(q1: torch.Tensor, q2: torch.Tensor) -> torch.Tensor:
+    """The box-minus operator (quaternion difference) between two quaternions.
+
+    Args:
+        q1: The first quaternion in (w, x, y, z). Shape is (N, 4).
+        q2: The second quaternion in (w, x, y, z). Shape is (N, 4).
+
+    Returns:
+        The difference between the two quaternions. Shape is (N, 3).
+
+    Reference:
+        https://github.com/ANYbotics/kindr/blob/master/doc/cheatsheet/cheatsheet_latest.pdf
+    """
+    quat_diff = quat_mul(q1, quat_conjugate(q2))  # q1 * q2^-1
+    return axis_angle_from_quat(quat_diff)  # log(qd)
+
+
+@torch.jit.script
+def quat_box_plus(q: torch.Tensor, delta: torch.Tensor, eps: float = 1.0e-6) -> torch.Tensor:
+    """The box-plus operator (quaternion update) to apply an increment to a quaternion.
+
+    Args:
+        q: The initial quaternion in (w, x, y, z). Shape is (N, 4).
+        delta: The axis-angle perturbation. Shape is (N, 3).
+
+    eps: A small value to avoid division by zero. Defaults to 1e-6.
+
+    Returns:
+        The updated quaternion after applying the perturbation. Shape is (N, 4).
+
+    Reference:
+        https://github.com/ANYbotics/kindr/blob/master/doc/cheatsheet/cheatsheet_latest.pdf
+    """
+    delta_norm = torch.clamp_min(torch.linalg.norm(delta, dim=-1, keepdim=True), min=eps)
+    delta_quat = quat_from_angle_axis(delta_norm.squeeze(-1), delta / delta_norm)  # exp(dq)
+    new_quat = quat_mul(delta_quat, q)  # Apply perturbation
+    return quat_unique(new_quat)
 
 
 @torch.jit.script
@@ -685,8 +706,8 @@ def quat_error_magnitude(q1: torch.Tensor, q2: torch.Tensor) -> torch.Tensor:
     Returns:
         Angular error between input quaternions in radians.
     """
-    quat_diff = quat_mul(q1, quat_conjugate(q2))
-    return torch.norm(axis_angle_from_quat(quat_diff), dim=-1)
+    axis_angle_error = quat_box_minus(q1, q2)
+    return torch.norm(axis_angle_error, dim=-1)
 
 
 @torch.jit.script
@@ -779,6 +800,37 @@ def combine_frame_transforms(
         t02 = t01
 
     return t02, q02
+
+
+def rigid_body_twist_transform(
+    v0: torch.Tensor, w0: torch.Tensor, t01: torch.Tensor, q01: torch.Tensor
+) -> tuple[torch.Tensor, torch.Tensor]:
+    r"""Transform the linear and angular velocity of a rigid body between reference frames.
+
+    Given the twist of 0 relative to frame 0, this function computes the twist of 1 relative to frame 1 from the position and orientation of frame 1 relative to frame 0. The transformation follows the equations:
+    .. math::
+        w_11 = R_{10} w_00 = R_{01}^{-1} w_00
+        v_11 = R_{10} v_00 + R_{10} (w_00 \times t_01) = R_{01}^{-1} (v_00 + (w_00 \times t_01))
+    where:
+        - :math:`R_{01}` is the rotation matrix from frame 0 to frame 1 derived from quaternion :math:`q_{01}`
+        - :math:`t_{01}` is the position of frame 1 relative to frame 0 expressed in frame 0
+        - :math:`w_0` is the angular velocity of 0 in frame 0
+        - :math:`v_0` is the linear velocity of 0 in frame 0
+
+    Args:
+        v0: Linear velocity of 0 in frame 0. Shape is (N, 3).
+        w0: Angular velocity of 0 in frame 0. Shape is (N, 3).
+        t01: Position of frame 1 w.r.t. frame 0. Shape is (N, 3).
+        q01: Quaternion orientation of frame 1 w.r.t. frame 0 in (w, x, y, z). Shape is (N, 4).
+
+    Returns:
+        A tuple containing:
+        - The transformed linear velocity in frame 1. Shape is (N, 3).
+        - The transformed angular velocity in frame 1. Shape is (N, 3).
+    """
+    w1 = quat_rotate_inverse(q01, w0)
+    v1 = quat_rotate_inverse(q01, v0 + torch.cross(w0, t01, dim=-1))
+    return v1, w1
 
 
 # @torch.jit.script
