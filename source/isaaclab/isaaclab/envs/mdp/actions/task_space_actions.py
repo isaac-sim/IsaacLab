@@ -53,7 +53,6 @@ class DifferentialInverseKinematicsAction(ActionTerm):
     def __init__(self, cfg: actions_cfg.DifferentialInverseKinematicsActionCfg, env: ManagerBasedEnv):
         # initialize the action term
         super().__init__(cfg, env)
-
         # resolve the joints over which the action term is applied
         self._joint_ids, self._joint_names = self._asset.find_joints(self.cfg.joint_names)
         self._num_joints = len(self._joint_ids)
@@ -111,10 +110,18 @@ class DifferentialInverseKinematicsAction(ActionTerm):
         # parse clip
         if self.cfg.clip is not None:
             if isinstance(cfg.clip, dict):
+                clipping_action_keys = ["x", "y", "z"]
+                for action_key in cfg.clip.keys():
+                    if action_key not in clipping_action_keys:
+                        raise ValueError(
+                            f"Unsupported clip key: {action_key}. Supported keys are {clipping_action_keys}."
+                        )
                 self._clip = torch.tensor([[-float("inf"), float("inf")]], device=self.device).repeat(
                     self.num_envs, self.action_dim, 1
                 )
-                index_list, _, value_list = string_utils.resolve_matching_names_values(self.cfg.clip, self._joint_names)
+                index_list, _, value_list = string_utils.resolve_matching_names_values(
+                    self.cfg.clip, clipping_action_keys
+                )
                 self._clip[:, index_list] = torch.tensor(value_list, device=self.device)
             else:
                 raise ValueError(f"Unsupported clip type: {type(cfg.clip)}. Supported types are dict.")
