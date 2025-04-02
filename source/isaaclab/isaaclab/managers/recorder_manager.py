@@ -223,6 +223,8 @@ class RecorderManager(ManagerBase):
         Returns:
             The number of successful episodes.
         """
+        if not hasattr(self, "_exported_successful_episode_count"):
+            return 0
         if env_id is not None:
             return self._exported_successful_episode_count.get(env_id, 0)
         return sum(self._exported_successful_episode_count.values())
@@ -237,6 +239,8 @@ class RecorderManager(ManagerBase):
         Returns:
             The number of failed episodes.
         """
+        if not hasattr(self, "_exported_failed_episode_count"):
+            return 0
         if env_id is not None:
             return self._exported_failed_episode_count.get(env_id, 0)
         return sum(self._exported_failed_episode_count.values())
