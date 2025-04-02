@@ -104,27 +104,21 @@ Body state
 def body_pose_w(
     env: ManagerBasedEnv,
     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
-    body_name: str | None = None,
 ) -> torch.Tensor:
-    """The body pose of the asset w.r.t the env.scene.origin.
+    """The flattened body poses of the asset w.r.t the env.scene.origin.
 
     Args:
         env: The environment.
         asset_cfg: The SceneEntity associated with this observation.
-        body_name: The specific name of the body in the asset to extract, defaults to base body of Articulation.
 
     Returns:
-        The pose of body_name with shape [num_env, 7]. Output order is [x,y,z,qw,qx,qy,qz].
+        The poses of bodies in articualtion [num_env, 7*num_bodies]. Output order is [x,y,z,qw,qx,qy,qz] per body.
     """
     # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
-
-    if body_name is None:
-        body_name = asset.body_names[0]
-    body_id = asset.body_names.index(body_name)
-    pose = asset.data.body_state_w[:, body_id, :7]
-    pose[:, :3] = pose[:, :3] - env.scene.env_origins
-    return pose
+    pose = asset.data.body_state_w[:, asset_cfg.body_ids, :7]
+    pose[..., :3] = pose[..., :3] - env.scene.env_origins.unsqueeze(1)
+    return pose.reshape(env.num_envs, -1)
 
 
 def body_projected_gravity_b(
