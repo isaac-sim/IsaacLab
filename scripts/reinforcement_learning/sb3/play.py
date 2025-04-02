@@ -134,7 +134,7 @@ def main():
     print(f"Loading checkpoint from: {checkpoint_path}")
     agent = PPO.load(checkpoint_path, env, print_system_info=True)
 
-    dt = env.unwrapped.physics_dt
+    dt = env.unwrapped.step_dt
 
     # reset environment
     obs = env.reset()

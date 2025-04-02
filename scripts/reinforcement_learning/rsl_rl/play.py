@@ -127,7 +127,7 @@ def main():
         ppo_runner.alg.actor_critic, normalizer=ppo_runner.obs_normalizer, path=export_model_dir, filename="policy.onnx"
     )
 
-    dt = env.unwrapped.physics_dt
+    dt = env.unwrapped.step_dt
 
     # reset environment
     obs, _ = env.get_observations()
