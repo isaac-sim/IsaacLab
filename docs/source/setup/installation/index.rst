@@ -28,6 +28,7 @@ Local Installation
 .. note::
 
     We recommend system requirements with at least 32GB RAM and 16GB VRAM for Isaac Lab.
+    For workflows with rendering enabled, additional VRAM may be required.
     For the full list of system requirements for Isaac Sim, please refer to the
     `Isaac Sim system requirements <https://docs.isaacsim.omniverse.nvidia.com/latest/installation/requirements.html#system-requirements>`_.
 
