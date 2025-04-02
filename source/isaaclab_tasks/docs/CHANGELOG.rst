@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.10.31 (2025-04-02)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Adds an idle action parameter to the ``Isaac-PickPlace-GR1T2-Abs-v0`` environment configuration.
+
+
 0.10.30 (2025-03-25)
 ~~~~~~~~~~~~~~~~~~~~
 

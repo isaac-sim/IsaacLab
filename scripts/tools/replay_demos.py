@@ -162,6 +162,12 @@ def main():
     elif args_cli.validate_states and num_envs > 1:
         print("Warning: State validation is only supported with a single environment. Skipping state validation.")
 
+    # Get idle action (idle actions are applied to envs without next action)
+    if hasattr(env_cfg, "idle_action"):
+        idle_action = env_cfg.idle_action.repeat(num_envs, 1)
+    else:
+        idle_action = torch.zeros(env.action_space.shape)
+
     # reset before starting
     env.reset()
     teleop_interface.reset()
@@ -175,8 +181,8 @@ def main():
             first_loop = True
             has_next_action = True
             while has_next_action:
-                # initialize actions with zeros so those without next action will not move
-                actions = torch.zeros(env.action_space.shape)
+                # initialize actions with idle action so those without next action will not move
+                actions = idle_action
                 has_next_action = False
                 for env_id in range(num_envs):
                     env_next_action = env_episode_data_map[env_id].get_next_action()
