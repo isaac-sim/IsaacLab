@@ -7,8 +7,8 @@ Changelog
 Added
 ^^^^^
 
-* Added :meth:`~isaaclab.envs.mdp.observations.link_pose`
-* Added :meth:`~isaaclab.envs.mdp.observations.link_projected_gravity`
+* Added :meth:`~isaaclab.envs.mdp.observations.body_pose_w`
+* Added :meth:`~isaaclab.envs.mdp.observations.body_projected_gravity_b`
 
 
 0.36.4 (2025-03-24)
