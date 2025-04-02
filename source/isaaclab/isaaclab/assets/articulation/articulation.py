@@ -1147,7 +1147,6 @@ class Articulation(AssetBase):
     def _initialize_impl(self):
         # obtain global simulation view
         self._physics_sim_view = SimulationManager.get_physics_sim_view()
-        self._physics_sim_view.set_subspace_roots("/")
 
         if self.cfg.articulation_root_prim_path is not None:
             # The articulation root prim path is specified explicitly, so we can just use this.
