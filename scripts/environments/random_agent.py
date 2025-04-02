@@ -37,6 +37,7 @@ from isaaclab_tasks.utils import parse_env_cfg
 
 # PLACEHOLDER: Extension template (do not remove this comment)
 
+
 def main():
     """Random actions agent with Isaac Lab environment."""
     # create environment configuration
