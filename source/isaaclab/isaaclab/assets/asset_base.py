@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import builtins
 import inspect
 import re
 import weakref
@@ -254,17 +255,23 @@ class AssetBase(ABC):
             PhysX handles are only enabled once the simulator starts playing. Hence, this function needs to be
             called whenever the simulator "plays" from a "stop" state.
         """
-        if not self._is_initialized:
-            # obtain simulation related information
-            sim = sim_utils.SimulationContext.instance()
-            if sim is None:
-                raise RuntimeError("SimulationContext is not initialized! Please initialize SimulationContext first.")
-            self._backend = sim.backend
-            self._device = sim.device
-            # initialize the asset
-            self._initialize_impl()
-            # set flag
-            self._is_initialized = True
+        try:
+            if not self._is_initialized:
+                # obtain simulation related information
+                sim = sim_utils.SimulationContext.instance()
+                if sim is None:
+                    raise RuntimeError(
+                        "SimulationContext is not initialized! Please initialize SimulationContext first."
+                    )
+                self._backend = sim.backend
+                self._device = sim.device
+                # initialize the asset
+                self._initialize_impl()
+                # set flag
+                self._is_initialized = True
+        except Exception as e:
+            if builtins.ISAACLAB_CALLBACK_EXCEPTION is None:
+                builtins.ISAACLAB_CALLBACK_EXCEPTION = e
 
     def _invalidate_initialize_callback(self, event):
         """Invalidates the scene elements."""

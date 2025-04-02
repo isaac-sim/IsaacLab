@@ -611,9 +611,7 @@ class TestArticulation(unittest.TestCase):
                         self.assertEqual(ctypes.c_long.from_address(id(articulation)).value, 1)
 
                         # Play sim
-                        sim.reset()
-                        # Check if articulation is initialized
-                        self.assertFalse(articulation._is_initialized)
+                        self.assertRaises(ValueError, sim.reset)
 
     def test_out_of_range_default_joint_vel(self):
         """Test that the default joint velocity from configuration is out of range."""
@@ -631,9 +629,7 @@ class TestArticulation(unittest.TestCase):
             self.assertEqual(ctypes.c_long.from_address(id(articulation)).value, 1)
 
             # Play sim
-            sim.reset()
-            # Check if articulation is initialized
-            self.assertFalse(articulation._is_initialized)
+            self.assertRaises(ValueError, sim.reset)
 
     def test_joint_pos_limits(self):
         """Test write_joint_position_limit_to_sim API and when default position falls outside of the new limits."""

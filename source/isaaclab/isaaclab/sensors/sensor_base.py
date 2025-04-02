@@ -11,6 +11,7 @@ Each sensor class should inherit from this class and implement the abstract meth
 
 from __future__ import annotations
 
+import builtins
 import inspect
 import torch
 import weakref
@@ -269,9 +270,13 @@ class SensorBase(ABC):
             PhysX handles are only enabled once the simulator starts playing. Hence, this function needs to be
             called whenever the simulator "plays" from a "stop" state.
         """
-        if not self._is_initialized:
-            self._initialize_impl()
-            self._is_initialized = True
+        try:
+            if not self._is_initialized:
+                self._initialize_impl()
+                self._is_initialized = True
+        except Exception as e:
+            if builtins.ISAACLAB_CALLBACK_EXCEPTION is None:
+                builtins.ISAACLAB_CALLBACK_EXCEPTION = e
 
     def _invalidate_initialize_callback(self, event):
         """Invalidates the scene elements."""
