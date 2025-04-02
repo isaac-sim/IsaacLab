@@ -385,8 +385,9 @@ class RecorderManager(ManagerBase):
         # Set task success values for the relevant episodes
         success_results = torch.zeros(len(env_ids), dtype=bool, device=self._env.device)
         # Check success indicator from termination terms
-        if "success" in self._env.termination_manager.active_terms:
-            success_results |= self._env.termination_manager.get_term("success")[env_ids]
+        if hasattr(self._env, "termination_manager"):
+            if "success" in self._env.termination_manager.active_terms:
+                success_results |= self._env.termination_manager.get_term("success")[env_ids]
         self.set_success_to_episodes(env_ids, success_results)
 
         if force_export_or_skip or (force_export_or_skip is None and self.cfg.export_in_record_pre_reset):
