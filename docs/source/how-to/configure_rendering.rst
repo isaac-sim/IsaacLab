@@ -1,7 +1,7 @@
 Configuring Rendering Settings
 ==============================
 
-Isaac Lab offers 4 preset rendering modes: performance, balanced, quality, and xr.
+Isaac Lab offers 3 preset rendering modes: performance, balanced, and quality.
 You can select a mode via a command line argument or from within a script, and customize settings as needed.
 Adjust and fine-tune rendering to achieve the ideal balance for your workflow.
 
@@ -10,13 +10,7 @@ Selecting a Rendering Mode
 
 Rendering modes can be selected in 2 ways.
 
-1. using the ``--rendering_mode`` command line argument
-
-   .. code-block:: bash
-
-     ./isaaclab.sh -p scripts/tutorials/00_sim/set_rendering_mode.py --rendering_mode {performance/balanced/quality}
-
-2. using the ``rendering_mode`` input class argument in :class:`~sim.RenderCfg`.
+1. using the ``rendering_mode`` input class argument in :class:`~sim.RenderCfg`
 
    .. code-block:: python
 
@@ -24,9 +18,21 @@ Rendering modes can be selected in 2 ways.
      # scripts/tutorials/00_sim/set_rendering_mode.py
      render_cfg = sim_utils.RenderCfg(rendering_mode="performance")
 
+2. using the ``--rendering_mode`` CLI argument and not passing ``rendering_mode`` to :class:`~sim.RenderCfg`, since :class:`~sim.RenderCfg` takes precedence.
+
+   .. code-block:: bash
+
+     ./isaaclab.sh -p scripts/tutorials/00_sim/set_rendering_mode.py --rendering_mode {performance/balanced/quality}
+
+   .. code-block:: bash
+
+     # in the tutorial script example, remove the rendering_mode passed to RenderCfg
+     render_cfg = sim_utils.RenderCfg()
+
 Note, the ``rendering_mode`` defaults to ``balanced``.
 However, in the case where the launcher argument ``--enable_cameras`` is not set, then
 the default ``rendering_mode`` is not applied and, instead, the default kit rendering settings are used.
+
 
 Example renders from the ``set_rendering_mode.py`` script.
 To help assess rendering, the example scene includes some reflections, translucency, direct and ambient lighting, and several material types.
@@ -120,9 +126,10 @@ There are 2 ways to provide settings that overwrite presets.
 2. For more control, :class:`~sim.RenderCfg` allows you to overwrite any RTX setting by using the ``carb_settings`` argument.
 
    Examples of RTX settings can be found from within the repo, in the render mode preset files located in ``apps/rendering_modes``.
-   An example usage of ``carb_settings.``
 
    In addition, the RTX documentation can be found here - https://docs.omniverse.nvidia.com/materials-and-rendering/latest/rtx-renderer.html.
+
+   An example usage of ``carb_settings``.
 
    .. code-block:: python
 
