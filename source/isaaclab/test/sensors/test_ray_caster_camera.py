@@ -844,6 +844,7 @@ def test_output_equal_to_usd_camera_intrinsics(setup_sim, focal_length):
     if DEBUG_PLOTS:
         # plot both images next to each other plus their difference in a 1x3 grid figure
         import matplotlib.pyplot as plt
+
         fig, axs = plt.subplots(1, 3, figsize=(15, 5))
         usd_plt = axs[0].imshow(cam_usd_output[0].cpu().numpy())
         fig.colorbar(usd_plt, ax=axs[0])
@@ -856,7 +857,9 @@ def test_output_equal_to_usd_camera_intrinsics(setup_sim, focal_length):
         axs[2].set_title("Difference")
         # save figure
         plt.tight_layout()
-        plt.savefig(f"{os.path.dirname(os.path.abspath(__file__))}/output/test_output_equal_to_usd_camera_intrinsics_{focal_length}.png")
+        plt.savefig(
+            f"{os.path.dirname(os.path.abspath(__file__))}/output/test_output_equal_to_usd_camera_intrinsics_{focal_length}.png"
+        )
         plt.close()
 
     # check image data
@@ -869,6 +872,7 @@ def test_output_equal_to_usd_camera_intrinsics(setup_sim, focal_length):
 
     del camera_warp, camera_usd
 
+
 @pytest.mark.parametrize("focal_length_aperture", [(0.193, 0.20955), (1.93, 2.0955), (19.3, 20.955), (0.193, 20.955)])
 def test_output_equal_to_usd_camera_when_intrinsics_set(setup_sim, focal_length_aperture):
     """
@@ -877,7 +881,7 @@ def test_output_equal_to_usd_camera_when_intrinsics_set(setup_sim, focal_length_
     """
     # unpack focal length and aperture
     focal_length, aperture = focal_length_aperture
-    
+
     sim, camera_cfg, dt = setup_sim
     camera_pattern_cfg = patterns.PinholeCameraPatternCfg(
         focal_length=focal_length,
@@ -944,6 +948,7 @@ def test_output_equal_to_usd_camera_when_intrinsics_set(setup_sim, focal_length_
     if DEBUG_PLOTS:
         # plot both images next to each other plus their difference in a 1x3 grid figure
         import matplotlib.pyplot as plt
+
         fig, axs = plt.subplots(1, 3, figsize=(15, 5))
         usd_plt = axs[0].imshow(camera_usd.data.output["distance_to_camera"][0].cpu().numpy())
         fig.colorbar(usd_plt, ax=axs[0])
@@ -951,12 +956,18 @@ def test_output_equal_to_usd_camera_when_intrinsics_set(setup_sim, focal_length_
         warp_plt = axs[1].imshow(camera_warp.data.output["distance_to_camera"][0].cpu().numpy())
         fig.colorbar(warp_plt, ax=axs[1])
         axs[1].set_title("WARP")
-        diff_plt = axs[2].imshow(torch.abs(camera_usd.data.output["distance_to_camera"] - camera_warp.data.output["distance_to_camera"])[0].cpu().numpy())
+        diff_plt = axs[2].imshow(
+            torch.abs(camera_usd.data.output["distance_to_camera"] - camera_warp.data.output["distance_to_camera"])[0]
+            .cpu()
+            .numpy()
+        )
         fig.colorbar(diff_plt, ax=axs[2])
         axs[2].set_title("Difference")
         # save figure
         plt.tight_layout()
-        plt.savefig(f"{os.path.dirname(os.path.abspath(__file__))}/output/test_output_equal_to_usd_camera_when_intrinsics_set_{focal_length}_{aperture}.png")
+        plt.savefig(
+            f"{os.path.dirname(os.path.abspath(__file__))}/output/test_output_equal_to_usd_camera_when_intrinsics_set_{focal_length}_{aperture}.png"
+        )
         plt.close()
 
     # check image data
