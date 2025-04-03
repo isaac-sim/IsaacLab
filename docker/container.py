@@ -26,6 +26,12 @@ def parse_cli_args() -> argparse.Namespace:
     # We have to create separate parent parsers for common options to our subparsers
     parent_parser = argparse.ArgumentParser(add_help=False)
     parent_parser.add_argument(
+        "--project", 
+        nargs="?",
+        default="isaac-lab",
+        help="Optional project name to be used for the container.",
+    )
+    parent_parser.add_argument(
         "profile", nargs="?", default="base", help="Optional container profile specification. Example: 'base' or 'ros'."
     )
     parent_parser.add_argument(
@@ -90,7 +96,11 @@ def main(args: argparse.Namespace):
 
     # creating container interface
     ci = ContainerInterface(
-        context_dir=Path(__file__).resolve().parent, profile=args.profile, yamls=args.files, envs=args.env_files
+        context_dir=Path(__file__).resolve().parent,
+        profile=args.profile,
+        project_name=args.project,
+        yamls=args.files,
+        envs=args.env_files,
     )
 
     print(f"[INFO] Using container profile: {ci.profile}")
