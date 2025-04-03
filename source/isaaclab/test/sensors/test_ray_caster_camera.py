@@ -45,6 +45,8 @@ QUAT_ROS = [-0.17591989, 0.33985114, 0.82047325, -0.42470819]
 QUAT_OPENGL = [0.33985113, 0.17591988, 0.42470818, 0.82047324]
 QUAT_WORLD = [-0.3647052, -0.27984815, -0.1159169, 0.88047623]
 
+DEBUG_PLOTS = False
+
 
 def setup() -> tuple[sim_utils.SimulationContext, RayCasterCameraCfg, float]:
     # Create a blank new stage
@@ -752,7 +754,8 @@ def test_output_equal_to_usdcamera_prim_offset(setup_sim):
     )
 
 
-def test_output_equal_to_usd_camera_intrinsics(setup_sim):
+@pytest.mark.parametrize("focal_length", [0.193, 1.93, 19.3])
+def test_output_equal_to_usd_camera_intrinsics(setup_sim, focal_length):
     """
     Test that the output of the ray caster camera and usd camera are the same when both are
     initialized with the same intrinsic matrix.
@@ -762,7 +765,7 @@ def test_output_equal_to_usd_camera_intrinsics(setup_sim):
     # create cameras
     offset_rot = [-0.1251, 0.3617, 0.8731, -0.3020]
     offset_pos = (2.5, 2.5, 4.0)
-    intrinsics = [380.0831, 0.0, 467.7916, 0.0, 380.0831, 262.0532, 0.0, 0.0, 1.0]
+    intrinsics = [380.0831, 0.0, 480.0, 0.0, 380.0831, 270.0, 0.0, 0.0, 1.0]
     prim_utils.create_prim("/World/Camera_warp", "Xform")
     # get camera cfgs
     camera_warp_cfg = RayCasterCameraCfg(
@@ -774,8 +777,9 @@ def test_output_equal_to_usd_camera_intrinsics(setup_sim):
             intrinsic_matrix=intrinsics,
             height=540,
             width=960,
-            focal_length=38.0,
+            focal_length=focal_length,
         ),
+        depth_clipping_behavior="max",
         max_distance=20.0,
         data_types=["distance_to_image_plane"],
     )
@@ -787,10 +791,11 @@ def test_output_equal_to_usd_camera_intrinsics(setup_sim):
             height=540,
             width=960,
             clipping_range=(0.01, 20),
-            focal_length=38.0,
+            focal_length=focal_length,
         ),
         height=540,
         width=960,
+        depth_clipping_behavior="max",
         data_types=["distance_to_image_plane"],
     )
 
@@ -836,6 +841,24 @@ def test_output_equal_to_usd_camera_intrinsics(setup_sim):
         camera_warp_cfg.pattern_cfg.vertical_aperture,
     )
 
+    if DEBUG_PLOTS:
+        # plot both images next to each other plus their difference in a 1x3 grid figure
+        import matplotlib.pyplot as plt
+        fig, axs = plt.subplots(1, 3, figsize=(15, 5))
+        usd_plt = axs[0].imshow(cam_usd_output[0].cpu().numpy())
+        fig.colorbar(usd_plt, ax=axs[0])
+        axs[0].set_title("USD")
+        warp_plt = axs[1].imshow(cam_warp_output[0].cpu().numpy())
+        fig.colorbar(warp_plt, ax=axs[1])
+        axs[1].set_title("WARP")
+        diff_plt = axs[2].imshow(torch.abs(cam_usd_output - cam_warp_output)[0].cpu().numpy())
+        fig.colorbar(diff_plt, ax=axs[2])
+        axs[2].set_title("Difference")
+        # save figure
+        plt.tight_layout()
+        plt.savefig(f"{os.path.dirname(os.path.abspath(__file__))}/output/test_output_equal_to_usd_camera_intrinsics_{focal_length}.png")
+        plt.close()
+
     # check image data
     torch.testing.assert_close(
         cam_warp_output,
@@ -844,17 +867,21 @@ def test_output_equal_to_usd_camera_intrinsics(setup_sim):
         rtol=5e-6,
     )
 
+    del camera_warp, camera_usd
 
-def test_output_equal_to_usd_camera_when_intrinsics_set(setup_sim):
+@pytest.mark.parametrize("focal_length_aperture", [(0.193, 0.20955), (1.93, 2.0955), (19.3, 20.955), (0.193, 20.955)])
+def test_output_equal_to_usd_camera_when_intrinsics_set(setup_sim, focal_length_aperture):
     """
     Test that the output of the ray caster camera is equal to the output of the usd camera when both are placed
     under an XForm prim and an intrinsic matrix is set.
     """
-
+    # unpack focal length and aperture
+    focal_length, aperture = focal_length_aperture
+    
     sim, camera_cfg, dt = setup_sim
     camera_pattern_cfg = patterns.PinholeCameraPatternCfg(
-        focal_length=24.0,
-        horizontal_aperture=20.955,
+        focal_length=focal_length,
+        horizontal_aperture=aperture,
         height=540,
         width=960,
     )
@@ -878,7 +905,7 @@ def test_output_equal_to_usd_camera_when_intrinsics_set(setup_sim):
         update_period=0,
         data_types=["distance_to_camera"],
         spawn=PinholeCameraCfg(
-            focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(1e-4, 1.0e5)
+            focal_length=focal_length, focus_distance=400.0, horizontal_aperture=aperture, clipping_range=(1e-4, 1.0e5)
         ),
     )
     camera_usd = Camera(camera_cfg_usd)
@@ -889,12 +916,12 @@ def test_output_equal_to_usd_camera_when_intrinsics_set(setup_sim):
 
     # set intrinsic matrix
     # NOTE: extend the test to cover aperture offsets once supported by the usd camera
-    intrinsic_matrix = torch.tensor(
-        [[380.0831, 0.0, camera_cfg_usd.width / 2, 0.0, 380.0831, camera_cfg_usd.height / 2, 0.0, 0.0, 1.0]],
-        device=camera_warp.device,
-    ).reshape(1, 3, 3)
-    camera_warp.set_intrinsic_matrices(intrinsic_matrix, focal_length=10)
-    camera_usd.set_intrinsic_matrices(intrinsic_matrix, focal_length=10)
+    # intrinsic_matrix = torch.tensor(
+    #     [[380.0831, 0.0, camera_cfg_usd.width / 2, 0.0, 380.0831, camera_cfg_usd.height / 2, 0.0, 0.0, 1.0]],
+    #     device=camera_warp.device,
+    # ).reshape(1, 3, 3)
+    # camera_warp.set_intrinsic_matrices(intrinsic_matrix, focal_length=10)
+    # camera_usd.set_intrinsic_matrices(intrinsic_matrix, focal_length=10)
 
     # set camera position
     camera_warp.set_world_poses_from_view(
@@ -914,6 +941,24 @@ def test_output_equal_to_usd_camera_when_intrinsics_set(setup_sim):
     camera_usd.update(dt)
     camera_warp.update(dt)
 
+    if DEBUG_PLOTS:
+        # plot both images next to each other plus their difference in a 1x3 grid figure
+        import matplotlib.pyplot as plt
+        fig, axs = plt.subplots(1, 3, figsize=(15, 5))
+        usd_plt = axs[0].imshow(camera_usd.data.output["distance_to_camera"][0].cpu().numpy())
+        fig.colorbar(usd_plt, ax=axs[0])
+        axs[0].set_title("USD")
+        warp_plt = axs[1].imshow(camera_warp.data.output["distance_to_camera"][0].cpu().numpy())
+        fig.colorbar(warp_plt, ax=axs[1])
+        axs[1].set_title("WARP")
+        diff_plt = axs[2].imshow(torch.abs(camera_usd.data.output["distance_to_camera"] - camera_warp.data.output["distance_to_camera"])[0].cpu().numpy())
+        fig.colorbar(diff_plt, ax=axs[2])
+        axs[2].set_title("Difference")
+        # save figure
+        plt.tight_layout()
+        plt.savefig(f"{os.path.dirname(os.path.abspath(__file__))}/output/test_output_equal_to_usd_camera_when_intrinsics_set_{focal_length}_{aperture}.png")
+        plt.close()
+
     # check image data
     torch.testing.assert_close(
         camera_usd.data.output["distance_to_camera"],
@@ -921,6 +966,8 @@ def test_output_equal_to_usd_camera_when_intrinsics_set(setup_sim):
         rtol=5e-3,
         atol=1e-4,
     )
+
+    del camera_warp, camera_usd
 
 
 def test_sensor_print(setup_sim):
