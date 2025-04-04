@@ -358,6 +358,14 @@ class ActionManager(ManagerBase):
         """
         return self._terms[name]
 
+    def serialize(self) -> dict:
+        """Serialize the action manager configuration.
+
+        Returns:
+            A dictionary of serialized action term configurations.
+        """
+        return {term_name: term.serialize() for term_name, term in self._terms.items()}
+
     """
     Helper functions.
     """
