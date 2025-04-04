@@ -951,6 +951,7 @@ def modify_deformable_body_properties(
     # success
     return True
 
+
 """
 Collision mesh properties.
 """
@@ -1052,11 +1053,6 @@ def modify_mesh_collision_properties(
     prim = stage.GetPrimAtPath(prim_path)
 
     api_func, custom_attrs = extract_mesh_collision_api_and_attrs(cfg=cfg)
-
-    # check if prim has mesh collision api applied on it
-    if not api_func(prim):
-        print("****")
-        # return False
 
     # retrieve the mesh collision API
     mesh_collision_api = api_func(prim)
