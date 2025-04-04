@@ -195,6 +195,15 @@ def _external(specification: dict) -> None:
         src=os.path.join(ROOT_DIR, "scripts", "environments", "list_envs.py"),
         dst=os.path.join(dir, "list_envs.py"),
     )
+    for script in ["zero_agent.py", "random_agent.py"]:
+        _replace_in_file(
+            [(
+                "# PLACEHOLDER: Extension template (do not remove this comment)",
+                f"import {name}.tasks  # noqa: F401",
+            )],
+            src=os.path.join(ROOT_DIR, "scripts", "environments", script),
+            dst=os.path.join(dir, script),
+        )
     # # docker files
     # print("  |-- Copying docker files...")
     # dir = os.path.join(project_dir, "docker")
