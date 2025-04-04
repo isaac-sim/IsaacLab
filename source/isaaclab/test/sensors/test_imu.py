@@ -289,7 +289,7 @@ class TestImu(unittest.TestCase):
             # check the imu data
             torch.testing.assert_close(
                 self.scene.sensors["imu_ball"].data.lin_acc_b,
-                math_utils.quat_rotate_inverse(
+                math_utils.quat_apply_inverse(
                     self.scene.rigid_objects["balls"].data.root_quat_w,
                     torch.tensor([[0.1, 0.0, 0.0]], dtype=torch.float32, device=self.scene.device).repeat(
                         self.scene.num_envs, 1
@@ -334,12 +334,12 @@ class TestImu(unittest.TestCase):
             base_data = self.scene.sensors["imu_pendulum_base"].data
 
             # extract imu_link imu_sensor dynamics
-            lin_vel_w_imu_link = math_utils.quat_rotate(imu_data.quat_w, imu_data.lin_vel_b)
-            lin_acc_w_imu_link = math_utils.quat_rotate(imu_data.quat_w, imu_data.lin_acc_b)
+            lin_vel_w_imu_link = math_utils.quat_apply(imu_data.quat_w, imu_data.lin_vel_b)
+            lin_acc_w_imu_link = math_utils.quat_apply(imu_data.quat_w, imu_data.lin_acc_b)
 
             # calculate the joint dynamics from the imu_sensor (y axis of imu_link is parallel to joint axis of pendulum)
-            joint_vel_imu = math_utils.quat_rotate(imu_data.quat_w, imu_data.ang_vel_b)[..., 1].unsqueeze(-1)
-            joint_acc_imu = math_utils.quat_rotate(imu_data.quat_w, imu_data.ang_acc_b)[..., 1].unsqueeze(-1)
+            joint_vel_imu = math_utils.quat_apply(imu_data.quat_w, imu_data.ang_vel_b)[..., 1].unsqueeze(-1)
+            joint_acc_imu = math_utils.quat_apply(imu_data.quat_w, imu_data.ang_acc_b)[..., 1].unsqueeze(-1)
 
             # calculate analytical solution
             vx = -joint_vel * pend_length * torch.sin(joint_pos)
