@@ -49,9 +49,8 @@ class TestSpawningFromFiles(unittest.TestCase):
     Basic spawning.
     """
 
-    def test_spawn_usd(self):
+    def test_spawn_usd_default_prim_path(self):
         """Test loading prim from Usd file."""
-        # Spawn cone
         cfg = sim_utils.UsdFileCfg(usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/panda_instanceable.usd")
         prim = cfg.func("/World/Franka", cfg)
         # Check validity
@@ -59,12 +58,32 @@ class TestSpawningFromFiles(unittest.TestCase):
         self.assertTrue(prim_utils.is_prim_path_valid("/World/Franka"))
         self.assertEqual(prim.GetPrimTypeInfo().GetTypeName(), "Xform")
 
-    def test_spawn_usd_fails(self):
+    def test_spawn_usd_specific_prim_path(self):
+        """Test loading prim from Usd file with a specific prim path."""
+        cfg = sim_utils.UsdFileCfg(
+            usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/panda_instanceable.usd",
+            prim_path="/panda",
+        )
+        prim = cfg.func("/World/Franka", cfg)
+        # Check validity
+        self.assertTrue(prim.IsValid())
+        self.assertTrue(prim_utils.is_prim_path_valid("/World/Franka"))
+        self.assertEqual(prim.GetPrimTypeInfo().GetTypeName(), "Xform")
+
+    def test_spawn_usd_fails_invalid_usd_path(self):
         """Test loading prim from Usd file fails when asset usd path is invalid."""
-        # Spawn cone
         cfg = sim_utils.UsdFileCfg(usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/panda2_instanceable.usd")
 
         with self.assertRaises(FileNotFoundError):
+            cfg.func("/World/Franka", cfg)
+
+    def test_spawn_usd_fails_invalid_prim_path(self):
+        cfg = sim_utils.UsdFileCfg(
+            usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/panda_instanceable.usd",
+            prim_path="/non_existing_prim_path",
+        )
+
+        with self.assertRaises(ValueError):
             cfg.func("/World/Franka", cfg)
 
     def test_spawn_urdf(self):

@@ -1,5 +1,16 @@
-Changelog
+
 ---------
+
+
+0.36.5 (2025-04-02)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added new option :attr:`prim_path` to the :class:`~isaaclab.sim.spawners.from_files.from_files_cfg.UsdFileCfg`
+  class to allow loading a different prim than the default prim in the USD.
+
 
 0.36.4 (2025-03-24)
 ~~~~~~~~~~~~~~~~~~~
