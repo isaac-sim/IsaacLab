@@ -97,6 +97,58 @@ def root_ang_vel_w(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntity
 
 
 """
+Body state
+"""
+
+
+def body_pose_w(
+    env: ManagerBasedEnv,
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+) -> torch.Tensor:
+    """The flattened body poses of the asset w.r.t the env.scene.origin.
+
+    Note: Only the bodies configured in :attr:`asset_cfg.body_ids` will have their poses returned.
+
+    Args:
+        env: The environment.
+        asset_cfg: The SceneEntity associated with this observation.
+
+    Returns:
+        The poses of bodies in articulation [num_env, 7*num_bodies]. Pose order is [x,y,z,qw,qx,qy,qz]. Output is
+            stacked horizontally per body.
+    """
+    # extract the used quantities (to enable type-hinting)
+    asset: Articulation = env.scene[asset_cfg.name]
+    pose = asset.data.body_state_w[:, asset_cfg.body_ids, :7]
+    pose[..., :3] = pose[..., :3] - env.scene.env_origins.unsqueeze(1)
+    return pose.reshape(env.num_envs, -1)
+
+
+def body_projected_gravity_b(
+    env: ManagerBasedEnv,
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+) -> torch.Tensor:
+    """The direction of gravity projected on to bodies of an Articulation.
+
+    Note: Only the bodies configured in :attr:`asset_cfg.body_ids` will have their poses returned.
+
+    Args:
+        env: The environment.
+        asset_cfg: The Articulation associated with this observation.
+
+    Returns:
+        The unit vector direction of gravity projected onto body_name's frame. Gravity projection vector order is
+            [x,y,z]. Output is stacked horizontally per body.
+    """
+    # extract the used quantities (to enable type-hinting)
+    asset: Articulation = env.scene[asset_cfg.name]
+
+    body_quat = asset.data.body_quat_w[:, asset_cfg.body_ids]
+    gravity_dir = asset.data.GRAVITY_VEC_W.unsqueeze(1)
+    return math_utils.quat_rotate_inverse(body_quat, gravity_dir).view(env.num_envs, -1)
+
+
+"""
 Joint state.
 """
 
