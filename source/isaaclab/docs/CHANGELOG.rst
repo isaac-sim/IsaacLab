@@ -1,6 +1,21 @@
 Changelog
 ---------
 
+0.37.0 (2025-04-01)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the implementation of :meth:`~isaaclab.utils.math.quat_box_minus`
+
+Added
+^^^^^
+
+* Added :meth:`~isaaclab.utils.math.quat_box_minus`
+* Added :meth:`~isaaclab.utils.math.rigid_body_twist_transform`
+
+
 0.36.4 (2025-03-24)
 ~~~~~~~~~~~~~~~~~~~
 
