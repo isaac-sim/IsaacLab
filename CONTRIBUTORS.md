@@ -86,6 +86,7 @@ Guidelines for modifications:
 * Peter Du
 * Qian Wan
 * Qinxi Yu
+* Renaud Poncelet
 * René Zurbrügg
 * Ritvik Singh
 * Rosario Scalise
