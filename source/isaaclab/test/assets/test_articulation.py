@@ -1509,6 +1509,42 @@ class TestArticulation(unittest.TestCase):
                                     elif state_location == "link":
                                         torch.testing.assert_close(rand_state, articulation.data.root_link_state_w)
 
+    def test_setting_articulation_root_prim_path(self):
+        """Test that the articulation root prim path can be set explicitly."""
+        with build_simulation_context(device="cuda:0", add_ground_plane=False, auto_add_lighting=True) as sim:
+            sim._app_control_on_stop_handle = None
+            # Create articulation
+            articulation_cfg = generate_articulation_cfg(articulation_type="humanoid")
+            print(articulation_cfg.spawn.usd_path)
+            articulation_cfg.articulation_root_prim_path = "/torso"
+            articulation, _ = generate_articulation(articulation_cfg, 1, "cuda:0")
+
+            # Check that boundedness of articulation is correct
+            self.assertEqual(ctypes.c_long.from_address(id(articulation)).value, 1)
+
+            # Play sim
+            sim.reset()
+            # Check if articulation is initialized
+            self.assertTrue(articulation._is_initialized)
+
+    def test_setting_invalid_articulation_root_prim_path(self):
+        """Test that the articulation root prim path can be set explicitly."""
+        with build_simulation_context(device="cuda:0", add_ground_plane=False, auto_add_lighting=True) as sim:
+            sim._app_control_on_stop_handle = None
+            # Create articulation
+            articulation_cfg = generate_articulation_cfg(articulation_type="humanoid")
+            print(articulation_cfg.spawn.usd_path)
+            articulation_cfg.articulation_root_prim_path = "/non_existing_prim_path"
+            articulation, _ = generate_articulation(articulation_cfg, 1, "cuda:0")
+
+            # Check that boundedness of articulation is correct
+            self.assertEqual(ctypes.c_long.from_address(id(articulation)).value, 1)
+
+            # Play sim
+            sim.reset()
+            # Check if articulation is initialized
+            self.assertFalse(articulation._is_initialized)
+
 
 if __name__ == "__main__":
     run_tests()
