@@ -37,3 +37,12 @@ class MeshConverterCfg(AssetConverterBaseCfg):
     Note:
         If None, then no mesh approximation properties will be added.
     """
+
+    translation: tuple[float, float, float] = (0.0, 0.0, 0.0)
+    """The translation of the mesh to the origin. Defaults to (0.0, 0.0, 0.0)."""
+
+    rotation: tuple[float, float, float, float] = (1.0, 0.0, 0.0, 0.0)
+    """The rotation of the mesh in quaternion format (w, x, y, z). Defaults to (1.0, 0.0, 0.0, 0.0)."""
+
+    scale: tuple[float, float, float] = (1.0, 1.0, 1.0)
+    """The scale of the mesh. Defaults to (1.0, 1.0, 1.0)."""
