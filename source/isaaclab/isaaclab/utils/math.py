@@ -529,13 +529,13 @@ def yaw_quat(quat: torch.Tensor) -> torch.Tensor:
         A quaternion with only yaw component.
     """
     shape = quat.shape
-    quat_yaw = quat.clone().view(-1, 4)
+    quat_yaw = quat.view(-1, 4)
     qw = quat_yaw[:, 0]
     qx = quat_yaw[:, 1]
     qy = quat_yaw[:, 2]
     qz = quat_yaw[:, 3]
     yaw = torch.atan2(2 * (qw * qz + qx * qy), 1 - 2 * (qy * qy + qz * qz))
-    quat_yaw[:] = 0.0
+    quat_yaw = torch.zeros_like(quat_yaw)
     quat_yaw[:, 3] = torch.sin(yaw / 2)
     quat_yaw[:, 0] = torch.cos(yaw / 2)
     quat_yaw = normalize(quat_yaw)
