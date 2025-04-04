@@ -274,10 +274,10 @@ Breaking Changes
 .. attention::
 
 	We have identified a breaking feature for semantic segmentation and instance segmentation when using
-	``TiledCamera`` with instanceable assets. Since the Isaac Sim 4.5 / Isaac Lab 2.0 release, semantic and instance
+	``Camera`` and ``TiledCamera`` with instanceable assets. Since the Isaac Sim 4.5 / Isaac Lab 2.0 release, semantic and instance
 	segmentation outputs only render the first tile correctly and produces blank outputs for the remaining tiles.
 	We will be introducing a workaround for this fix to remove scene instancing if semantic segmentation or instance
-	segmentation is required for ``TiledCamera`` until we receive a proper fix from Omniverse as part of the next Isaac Sim release.
+	segmentation is required for ``Camera`` and ``TiledCamera`` until we receive a proper fix from Omniverse as part of the next Isaac Sim release.
 
 Migration Guide
 ---------------
