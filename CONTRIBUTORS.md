@@ -46,6 +46,7 @@ Guidelines for modifications:
 * Calvin Yu
 * Cheng-Rong Lai
 * Chenyu Yang
+* Clemens Schwarke
 * CY (Chien-Ying) Chen
 * David Yang
 * Dorsa Rohani
