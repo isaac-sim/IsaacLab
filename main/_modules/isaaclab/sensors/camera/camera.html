@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.0.2" />
-    <meta name="docbuild:last-update" content="Apr 04, 2025"/>
+    <meta name="docbuild:last-update" content="Apr 06, 2025"/>
   </head>
   
   
@@ -545,7 +545,8 @@
 <span class="kn">import</span><span class="w"> </span><span class="nn">omni.kit.commands</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">omni.usd</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaacsim.core.prims</span><span class="w"> </span><span class="kn">import</span> <span class="n">XFormPrim</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">pxr</span><span class="w"> </span><span class="kn">import</span> <span class="n">UsdGeom</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaacsim.core.version</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_version</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pxr</span><span class="w"> </span><span class="kn">import</span> <span class="n">Sdf</span><span class="p">,</span> <span class="n">UsdGeom</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab.sim</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">sim_utils</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">to_camel_case</span>
@@ -667,7 +668,23 @@
         <span class="c1"># UsdGeom Camera prim for the sensor</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_sensor_prims</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">UsdGeom</span><span class="o">.</span><span class="n">Camera</span><span class="p">]</span> <span class="o">=</span> <span class="nb">list</span><span class="p">()</span>
         <span class="c1"># Create empty variables for storing output data</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_data</span> <span class="o">=</span> <span class="n">CameraData</span><span class="p">()</span></div>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_data</span> <span class="o">=</span> <span class="n">CameraData</span><span class="p">()</span>
+
+        <span class="c1"># HACK: we need to disable instancing for semantic_segmentation and instance_segmentation_fast to work</span>
+        <span class="n">isaac_sim_version</span> <span class="o">=</span> <span class="n">get_version</span><span class="p">()</span>
+        <span class="c1"># checks for Isaac Sim v4.5 as this issue exists there</span>
+        <span class="k">if</span> <span class="nb">int</span><span class="p">(</span><span class="n">isaac_sim_version</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span> <span class="o">==</span> <span class="mi">4</span> <span class="ow">and</span> <span class="nb">int</span><span class="p">(</span><span class="n">isaac_sim_version</span><span class="p">[</span><span class="mi">3</span><span class="p">])</span> <span class="o">==</span> <span class="mi">5</span><span class="p">:</span>
+            <span class="k">if</span> <span class="s2">&quot;semantic_segmentation&quot;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">data_types</span> <span class="ow">or</span> <span class="s2">&quot;instance_segmentation_fast&quot;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">data_types</span><span class="p">:</span>
+                <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
+                    <span class="s2">&quot;Isaac Sim 4.5 introduced a bug in Camera and TiledCamera when outputting instance and semantic&quot;</span>
+                    <span class="s2">&quot; segmentation outputs for instanceable assets. As a workaround, the instanceable flag on assets&quot;</span>
+                    <span class="s2">&quot; will be disabled in the current workflow and may lead to longer load times and increased memory&quot;</span>
+                    <span class="s2">&quot; usage.&quot;</span>
+                <span class="p">)</span>
+                <span class="n">stage</span> <span class="o">=</span> <span class="n">omni</span><span class="o">.</span><span class="n">usd</span><span class="o">.</span><span class="n">get_context</span><span class="p">()</span><span class="o">.</span><span class="n">get_stage</span><span class="p">()</span>
+                <span class="k">with</span> <span class="n">Sdf</span><span class="o">.</span><span class="n">ChangeBlock</span><span class="p">():</span>
+                    <span class="k">for</span> <span class="n">prim</span> <span class="ow">in</span> <span class="n">stage</span><span class="o">.</span><span class="n">Traverse</span><span class="p">():</span>
+                        <span class="n">prim</span><span class="o">.</span><span class="n">SetInstanceable</span><span class="p">(</span><span class="kc">False</span><span class="p">)</span></div>
 
     <span class="k">def</span><span class="w"> </span><span class="fm">__del__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Unsubscribes from callbacks and detach from the replicator registry.&quot;&quot;&quot;</span>
@@ -1291,7 +1308,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Apr 04, 2025.
+  Last updated on Apr 06, 2025.
   <br/>
 </p>
   </div>

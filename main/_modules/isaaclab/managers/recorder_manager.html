@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.0.2" />
-    <meta name="docbuild:last-update" content="Apr 04, 2025"/>
+    <meta name="docbuild:last-update" content="Apr 06, 2025"/>
   </head>
   
   
@@ -913,8 +913,9 @@
         <span class="c1"># Set task success values for the relevant episodes</span>
         <span class="n">success_results</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">env_ids</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">bool</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_env</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
         <span class="c1"># Check success indicator from termination terms</span>
-        <span class="k">if</span> <span class="s2">&quot;success&quot;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_env</span><span class="o">.</span><span class="n">termination_manager</span><span class="o">.</span><span class="n">active_terms</span><span class="p">:</span>
-            <span class="n">success_results</span> <span class="o">|=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_env</span><span class="o">.</span><span class="n">termination_manager</span><span class="o">.</span><span class="n">get_term</span><span class="p">(</span><span class="s2">&quot;success&quot;</span><span class="p">)[</span><span class="n">env_ids</span><span class="p">]</span>
+        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_env</span><span class="p">,</span> <span class="s2">&quot;termination_manager&quot;</span><span class="p">):</span>
+            <span class="k">if</span> <span class="s2">&quot;success&quot;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_env</span><span class="o">.</span><span class="n">termination_manager</span><span class="o">.</span><span class="n">active_terms</span><span class="p">:</span>
+                <span class="n">success_results</span> <span class="o">|=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_env</span><span class="o">.</span><span class="n">termination_manager</span><span class="o">.</span><span class="n">get_term</span><span class="p">(</span><span class="s2">&quot;success&quot;</span><span class="p">)[</span><span class="n">env_ids</span><span class="p">]</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">set_success_to_episodes</span><span class="p">(</span><span class="n">env_ids</span><span class="p">,</span> <span class="n">success_results</span><span class="p">)</span>
 
         <span class="k">if</span> <span class="n">force_export_or_skip</span> <span class="ow">or</span> <span class="p">(</span><span class="n">force_export_or_skip</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">export_in_record_pre_reset</span><span class="p">):</span>
@@ -1069,7 +1070,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Apr 04, 2025.
+  Last updated on Apr 06, 2025.
   <br/>
 </p>
   </div>

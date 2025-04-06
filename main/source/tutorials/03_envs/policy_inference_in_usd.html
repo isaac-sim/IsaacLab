@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.0.2" />
-    <meta name="docbuild:last-update" content="Apr 04, 2025"/>
+    <meta name="docbuild:last-update" content="Apr 06, 2025"/>
   </head>
   
   
@@ -674,7 +674,7 @@ following changes to the config before passing it to the <code class="docutils l
 <span class="linenos">56</span>    <span class="n">policy_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">abspath</span><span class="p">(</span><span class="n">args_cli</span><span class="o">.</span><span class="n">checkpoint</span><span class="p">)</span>
 <span class="linenos">57</span>    <span class="n">file_content</span> <span class="o">=</span> <span class="n">omni</span><span class="o">.</span><span class="n">client</span><span class="o">.</span><span class="n">read_file</span><span class="p">(</span><span class="n">policy_path</span><span class="p">)[</span><span class="mi">2</span><span class="p">]</span>
 <span class="linenos">58</span>    <span class="n">file</span> <span class="o">=</span> <span class="n">io</span><span class="o">.</span><span class="n">BytesIO</span><span class="p">(</span><span class="nb">memoryview</span><span class="p">(</span><span class="n">file_content</span><span class="p">)</span><span class="o">.</span><span class="n">tobytes</span><span class="p">())</span>
-<span class="linenos">59</span>    <span class="n">policy</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">jit</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">file</span><span class="p">)</span>
+<span class="linenos">59</span>    <span class="n">policy</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">jit</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">file</span><span class="p">,</span> <span class="n">map_location</span><span class="o">=</span><span class="n">args_cli</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
 <span class="hll"><span class="linenos">60</span>
 </span><span class="hll"><span class="linenos">61</span>    <span class="c1"># setup environment</span>
 </span><span class="hll"><span class="linenos">62</span>    <span class="n">env_cfg</span> <span class="o">=</span> <span class="n">H1RoughEnvCfg_PLAY</span><span class="p">()</span>
@@ -817,7 +817,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Apr 04, 2025.
+  Last updated on Apr 06, 2025.
   <br/>
 </p>
   </div>
