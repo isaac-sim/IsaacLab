@@ -31,7 +31,13 @@ For smoother operation and off-axis operation, we recommend using a SpaceMouse a
    Identify the device corresponding to the SpaceMouse by running ``cat /sys/class/hidraw/hidraw<#>/device/uevent`` on each of the devices listed
    from the prior step.
 
+   If you are running Isaac Lab in a container, you need to add the following snippet to your ``docker-compose.yaml`` file under the ``isaac-lab-base`` service to allow access to the SpaceMouse:
+   .. code:: yaml
+      devices :
+      - /dev/hidraw<#>:/dev/hidraw<#> # where <#> corresponds to the device index of the connected SpaceMouse. It can be found with the previous commands, run outside of the container
+
    Only compatible with the SpaceMouse Wireless and SpaceMouse Compact models from 3Dconnexion.
+
 
 The script prints the teleoperation events configured. For keyboard,
 these are as follows:

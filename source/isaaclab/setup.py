@@ -24,7 +24,7 @@ INSTALL_REQUIRES = [
     "prettytable==3.3.0",
     "toml",
     # devices
-    "hidapi==0.14.0.post2",
+    "pyspacemouse==1.1.3",
     # reinforcement learning
     "gymnasium",
     # procedural-generation
