@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.36.5 (2025-04-01)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Adds check in RecorderManager to ensure that the success indicator is only set if the termination manager is present.
+
+
 0.36.4 (2025-03-24)
 ~~~~~~~~~~~~~~~~~~~
 
