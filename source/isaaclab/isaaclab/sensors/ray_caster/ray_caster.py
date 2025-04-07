@@ -49,17 +49,11 @@ class RayCaster(SensorBase):
     cfg: RayCasterCfg
     """The configuration parameters."""
 
-    # Class variables to share meshes and mesh_views across instances
+    # Class variables to share meshes across instances
     meshes: ClassVar[dict[str, wp.Mesh]] = {}
     """A dictionary to store warp meshes for raycasting, shared across all instances.
     
     The keys correspond to the prim path for the meshes, and values are the corresponding warp Mesh objects.
-    """
-    
-    mesh_views: ClassVar[dict[str, XFormPrim | physx.ArticulationView | physx.RigidBodyView]] = {}
-    """A dictionary to store mesh views for raycasting, shared across all instances.
-    
-    The keys correspond to the prim path for the mesh views, and values are the corresponding view objects.
     """
     
     _instance_count: ClassVar[int] = 0
@@ -315,4 +309,3 @@ class RayCaster(SensorBase):
         RayCaster._instance_count -= 1
         if RayCaster._instance_count == 0:
             RayCaster.meshes.clear()
-            RayCaster.mesh_views.clear()
