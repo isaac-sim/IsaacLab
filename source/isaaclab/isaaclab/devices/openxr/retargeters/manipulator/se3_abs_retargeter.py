@@ -109,7 +109,7 @@ class Se3AbsRetargeter(RetargeterBase):
         # Get rotation
         if self._use_wrist_rotation:
             # wrist is w,x,y,z but scipy expects x,y,z,w
-            base_rot = Rotation.from_quat([wrist[4:], wrist[3]])
+            base_rot = Rotation.from_quat([*wrist[4:], wrist[3]])
         else:
             # Average the orientations of thumb and index using SLERP
             # thumb_tip is w,x,y,z but scipy expects x,y,z,w
