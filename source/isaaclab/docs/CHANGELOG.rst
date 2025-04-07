@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.36.5 (2025-04-01)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Adds check in RecorderManager to ensure that the success indicator is only set if the termination manager is present.
+
+
 0.36.4 (2025-03-24)
 ~~~~~~~~~~~~~~~~~~~
 
@@ -104,7 +113,7 @@ Changed
 Fixed
 ^^^^^
 
-* Fixed issue in :class:`~isaaclab.sensors.TiledCamera` where segmentation outputs only display the first tile
+* Fixed issue in :class:`~isaaclab.sensors.TiledCamera` and :class:`~isaaclab.sensors.Camera` where segmentation outputs only display the first tile
   when scene instancing is enabled. A workaround is added for now to disable instancing when segmentation
   outputs are requested.
 
