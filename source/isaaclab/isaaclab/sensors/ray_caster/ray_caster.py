@@ -52,10 +52,10 @@ class RayCaster(SensorBase):
     # Class variables to share meshes across instances
     meshes: ClassVar[dict[str, wp.Mesh]] = {}
     """A dictionary to store warp meshes for raycasting, shared across all instances.
-    
+
     The keys correspond to the prim path for the meshes, and values are the corresponding warp Mesh objects.
     """
-    
+
     _instance_count: ClassVar[int] = 0
     """A counter to track the number of RayCaster instances, used to manage class variable lifecycle."""
 
@@ -171,7 +171,7 @@ class RayCaster(SensorBase):
             # check if mesh already casted into warp mesh
             if mesh_prim_path in RayCaster.meshes:
                 continue
-            
+
             # check if the prim is a plane - handle PhysX plane as a special case
             # if a plane exists then we need to create an infinite mesh that is a plane
             mesh_prim = sim_utils.get_first_matching_child_prim(

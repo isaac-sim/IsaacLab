@@ -18,22 +18,24 @@ from isaaclab.app import AppLauncher
 #     app_launcher = AppLauncher.instance()
 #     simulation_app = app_launcher.app
 
-app_launcher = AppLauncher(headless=False)
+app_launcher = AppLauncher(headless=True)
 simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
-import isaacsim.core.utils.stage as stage_utils
-import pytest
 import torch
 
+import isaacsim.core.utils.stage as stage_utils
+import pytest
+
 import isaaclab.sim as sim_utils
-from isaaclab.assets import RigidObjectCfg
+import isaaclab.terrains as terrain_gen
+import isaaclab.utils.math as math_utils
+from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors import RayCaster, RayCasterCfg, patterns
 from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils import configclass
-import isaaclab.terrains as terrain_gen
 
 ##
 # Pre-defined configs
@@ -41,10 +43,11 @@ import isaaclab.terrains as terrain_gen
 from isaaclab_assets.robots.anymal import ANYMAL_C_CFG  # isort: skip
 
 NUM_ENVS = 2
+BOX_HEIGHT = 1.0
+BOX_WIDTH = 0.82
 # sample camera poses
 POSITION = [2.5, 2.5, 2.5]
 QUAT_WORLD = [-0.3647052, -0.27984815, -0.1159169, 0.88047623]
-
 
 
 BOX_TERRAIN_CFG = terrain_gen.TerrainGeneratorCfg(
@@ -58,7 +61,8 @@ BOX_TERRAIN_CFG = terrain_gen.TerrainGeneratorCfg(
     use_cache=True,
     sub_terrains={
         "boxes": terrain_gen.MeshBoxTerrainCfg(
-            box_height_range=(1.0, 1.0)
+            box_height_range=(BOX_HEIGHT, BOX_HEIGHT),
+            platform_width=BOX_WIDTH,
         ),
     },
 )
@@ -128,6 +132,13 @@ class MySceneCfg(InteractiveSceneCfg):
         attach_yaw_only=True,
     )
 
+    # add light
+    light = AssetBaseCfg(
+        prim_path="/World/light",
+        spawn=sim_utils.DistantLightCfg(color=(0.75, 0.75, 0.75), intensity=3000.0),
+    )
+
+
 @pytest.fixture
 def setup_sim():
     """Create a simulation context and scene."""
@@ -146,9 +157,10 @@ def setup_sim():
     assert RayCaster.meshes == {}
     assert RayCaster._instance_count == 0
 
+
 def test_ray_caster_init_articulation(setup_sim):
     sim, scene_cfg = setup_sim
-    
+
     # pop other than the articulation raycaster
     scene_cfg.ray_caster_rigid_object = None
     scene_cfg.ray_caster_xform = None
@@ -170,7 +182,15 @@ def test_ray_caster_init_articulation(setup_sim):
     # check that buffers exists and have the expected shapes
     assert scene.sensors["ray_caster_articulation"].data.pos_w.shape == (NUM_ENVS, 3)
     assert scene.sensors["ray_caster_articulation"].data.quat_w.shape == (NUM_ENVS, 4)
-    num_rays = (scene.sensors["ray_caster_articulation"].cfg.pattern_cfg.size[0] / scene.sensors["ray_caster_articulation"].cfg.pattern_cfg.resolution + 1) * (scene.sensors["ray_caster_articulation"].cfg.pattern_cfg.size[1] / scene.sensors["ray_caster_articulation"].cfg.pattern_cfg.resolution + 1)
+    num_rays = (
+        scene.sensors["ray_caster_articulation"].cfg.pattern_cfg.size[0]
+        / scene.sensors["ray_caster_articulation"].cfg.pattern_cfg.resolution
+        + 1
+    ) * (
+        scene.sensors["ray_caster_articulation"].cfg.pattern_cfg.size[1]
+        / scene.sensors["ray_caster_articulation"].cfg.pattern_cfg.resolution
+        + 1
+    )
     assert scene.sensors["ray_caster_articulation"].data.ray_hits_w.shape == (NUM_ENVS, num_rays, 3)
 
     # check placement equal to articulation
@@ -186,6 +206,9 @@ def test_ray_caster_init_articulation(setup_sim):
         atol=1e-5,
         rtol=1e-3,
     )
+
+    del scene
+
 
 def test_ray_caster_init_rigid_object(setup_sim):
     sim, scene_cfg = setup_sim
@@ -211,7 +234,15 @@ def test_ray_caster_init_rigid_object(setup_sim):
     # check that buffers exists and have the expected shapes
     assert scene.sensors["ray_caster_rigid_object"].data.pos_w.shape == (NUM_ENVS, 3)
     assert scene.sensors["ray_caster_rigid_object"].data.quat_w.shape == (NUM_ENVS, 4)
-    num_rays = (scene.sensors["ray_caster_rigid_object"].cfg.pattern_cfg.size[0] / scene.sensors["ray_caster_rigid_object"].cfg.pattern_cfg.resolution + 1) * (scene.sensors["ray_caster_rigid_object"].cfg.pattern_cfg.size[1] / scene.sensors["ray_caster_rigid_object"].cfg.pattern_cfg.resolution + 1)
+    num_rays = (
+        scene.sensors["ray_caster_rigid_object"].cfg.pattern_cfg.size[0]
+        / scene.sensors["ray_caster_rigid_object"].cfg.pattern_cfg.resolution
+        + 1
+    ) * (
+        scene.sensors["ray_caster_rigid_object"].cfg.pattern_cfg.size[1]
+        / scene.sensors["ray_caster_rigid_object"].cfg.pattern_cfg.resolution
+        + 1
+    )
     assert scene.sensors["ray_caster_rigid_object"].data.ray_hits_w.shape == (NUM_ENVS, num_rays, 3)
 
     # check placement equal to rigid object
@@ -226,7 +257,10 @@ def test_ray_caster_init_rigid_object(setup_sim):
         scene.sensors["ray_caster_rigid_object"].data.quat_w,
         atol=1e-5,
         rtol=1e-3,
-    )    
+    )
+
+    del scene
+
 
 def test_ray_caster_init_xform(setup_sim):
     sim, scene_cfg = setup_sim
@@ -252,8 +286,19 @@ def test_ray_caster_init_xform(setup_sim):
     # check that buffers exists and have the expected shapes
     assert scene.sensors["ray_caster_xform"].data.pos_w.shape == (NUM_ENVS, 3)
     assert scene.sensors["ray_caster_xform"].data.quat_w.shape == (NUM_ENVS, 4)
-    num_rays = (scene.sensors["ray_caster_xform"].cfg.pattern_cfg.size[0] / scene.sensors["ray_caster_xform"].cfg.pattern_cfg.resolution + 1) * (scene.sensors["ray_caster_xform"].cfg.pattern_cfg.size[1] / scene.sensors["ray_caster_xform"].cfg.pattern_cfg.resolution + 1)
+    num_rays = (
+        scene.sensors["ray_caster_xform"].cfg.pattern_cfg.size[0]
+        / scene.sensors["ray_caster_xform"].cfg.pattern_cfg.resolution
+        + 1
+    ) * (
+        scene.sensors["ray_caster_xform"].cfg.pattern_cfg.size[1]
+        / scene.sensors["ray_caster_xform"].cfg.pattern_cfg.resolution
+        + 1
+    )
     assert scene.sensors["ray_caster_xform"].data.ray_hits_w.shape == (NUM_ENVS, num_rays, 3)
+
+    del scene
+
 
 def test_ray_caster_multi_init(setup_sim):
     sim, scene_cfg = setup_sim
@@ -283,25 +328,80 @@ def test_ray_caster_multi_init(setup_sim):
     assert scene.sensors["ray_caster_articulation"].data.quat_w.shape == (NUM_ENVS, 4)
     assert scene.sensors["ray_caster_rigid_object"].data.quat_w.shape == (NUM_ENVS, 4)
     assert scene.sensors["ray_caster_xform"].data.quat_w.shape == (NUM_ENVS, 4)
-    num_rays = (scene.sensors["ray_caster_articulation"].cfg.pattern_cfg.size[0] / scene.sensors["ray_caster_articulation"].cfg.pattern_cfg.resolution + 1) * (scene.sensors["ray_caster_articulation"].cfg.pattern_cfg.size[1] / scene.sensors["ray_caster_articulation"].cfg.pattern_cfg.resolution + 1)
+    num_rays = (
+        scene.sensors["ray_caster_articulation"].cfg.pattern_cfg.size[0]
+        / scene.sensors["ray_caster_articulation"].cfg.pattern_cfg.resolution
+        + 1
+    ) * (
+        scene.sensors["ray_caster_articulation"].cfg.pattern_cfg.size[1]
+        / scene.sensors["ray_caster_articulation"].cfg.pattern_cfg.resolution
+        + 1
+    )
     assert scene.sensors["ray_caster_articulation"].data.ray_hits_w.shape == (NUM_ENVS, num_rays, 3)
-    num_rays = (scene.sensors["ray_caster_rigid_object"].cfg.pattern_cfg.size[0] / scene.sensors["ray_caster_rigid_object"].cfg.pattern_cfg.resolution + 1) * (scene.sensors["ray_caster_rigid_object"].cfg.pattern_cfg.size[1] / scene.sensors["ray_caster_rigid_object"].cfg.pattern_cfg.resolution + 1)
+    num_rays = (
+        scene.sensors["ray_caster_rigid_object"].cfg.pattern_cfg.size[0]
+        / scene.sensors["ray_caster_rigid_object"].cfg.pattern_cfg.resolution
+        + 1
+    ) * (
+        scene.sensors["ray_caster_rigid_object"].cfg.pattern_cfg.size[1]
+        / scene.sensors["ray_caster_rigid_object"].cfg.pattern_cfg.resolution
+        + 1
+    )
     assert scene.sensors["ray_caster_rigid_object"].data.ray_hits_w.shape == (NUM_ENVS, num_rays, 3)
-    num_rays = (scene.sensors["ray_caster_xform"].cfg.pattern_cfg.size[0] / scene.sensors["ray_caster_xform"].cfg.pattern_cfg.resolution + 1) * (scene.sensors["ray_caster_xform"].cfg.pattern_cfg.size[1] / scene.sensors["ray_caster_xform"].cfg.pattern_cfg.resolution + 1)
+    num_rays = (
+        scene.sensors["ray_caster_xform"].cfg.pattern_cfg.size[0]
+        / scene.sensors["ray_caster_xform"].cfg.pattern_cfg.resolution
+        + 1
+    ) * (
+        scene.sensors["ray_caster_xform"].cfg.pattern_cfg.size[1]
+        / scene.sensors["ray_caster_xform"].cfg.pattern_cfg.resolution
+        + 1
+    )
     assert scene.sensors["ray_caster_xform"].data.ray_hits_w.shape == (NUM_ENVS, num_rays, 3)
+
+    del scene
+
 
 def test_ray_hits_w(setup_sim):
     sim, scene_cfg = setup_sim
+    # reduce number of environments to 1, s.t. they are on top of the box
+    scene_cfg.num_envs = 1
+    scene_cfg.robot.init_state.pos = (0.0, 0.0, BOX_HEIGHT + 0.5)
+    scene_cfg.balls.init_state.pos = (0.0, 0.0, BOX_HEIGHT + 0.5)
 
     # create scene and reset sim
     scene = InteractiveScene(scene_cfg)
     sim.reset()
 
     # get the ray hits
-    ray_hits_w = scene.sensors["ray_caster_articulation"].data.ray_hits_w
+    ray_hits_w_articulation = scene.sensors["ray_caster_articulation"].data.ray_hits_w
     ray_hits_w_rigid_object = scene.sensors["ray_caster_rigid_object"].data.ray_hits_w
-    ray_hits_w_xform = scene.sensors["ray_caster_xform"].data.ray_hits_w
 
+    # check that all rays within +- BOX_WDITH / 2 are BOX_HEIGHT, else 0
+    on_box_idx = torch.all(torch.abs(ray_hits_w_articulation[..., :2]) <= BOX_WIDTH / 2, dim=-1)[0]
+    torch.testing.assert_close(
+        ray_hits_w_articulation[0, on_box_idx, 2],
+        torch.full_like(ray_hits_w_articulation[0, on_box_idx, 2], BOX_HEIGHT),
+        rtol=1e-3,
+        atol=1e-5,
+    )
+    torch.testing.assert_close(
+        ray_hits_w_articulation[0, ~on_box_idx, 2],
+        torch.zeros_like(ray_hits_w_articulation[0, ~on_box_idx, 2]),
+        rtol=1e-3,
+        atol=1e-5,
+    )
+
+    # check that the other two follow the same behavior
+    torch.testing.assert_close(
+        scene.sensors["ray_caster_rigid_object"].ray_starts,
+        scene.sensors["ray_caster_articulation"].ray_starts,
+        rtol=1e-3,
+        atol=1e-5,
+    )
+    torch.testing.assert_close(ray_hits_w_articulation[..., 2], ray_hits_w_rigid_object[..., 2], rtol=1e-3, atol=1e-5)
+
+    del scene
 
 
 def test_ray_caster_offset(setup_sim):
@@ -313,11 +413,44 @@ def test_ray_caster_offset(setup_sim):
     # create scene and reset sim
     scene = InteractiveScene(scene_cfg)
     sim.reset()
-    
+
+    # get original pattern
+    ray_starts, ray_directions = scene.sensors["ray_caster_articulation"].cfg.pattern_cfg.func(
+        scene.sensors["ray_caster_articulation"].cfg.pattern_cfg, scene.sensors["ray_caster_articulation"]._device
+    )
+
     # check offset is correctly applied to rays
     torch.testing.assert_close(
-        scene.sensors["ray_caster_articulation"].ray_origins,
-        scene.sensors["ray_caster_rigid_object"].ray_origins,
+        scene.sensors["ray_caster_articulation"].ray_starts,
+        (ray_starts + torch.tensor(POSITION, device=scene.sensors["ray_caster_articulation"]._device))[
+            None, ...
+        ].repeat(NUM_ENVS, 1, 1),
         atol=1e-5,
         rtol=1e-3,
     )
+    torch.testing.assert_close(
+        scene.sensors["ray_caster_articulation"].ray_directions,
+        (
+            math_utils.quat_apply(
+                torch.tensor(QUAT_WORLD, device=scene.sensors["ray_caster_articulation"]._device), ray_directions
+            )
+        )[None, ...].repeat(NUM_ENVS, 1, 1),
+        atol=1e-5,
+        rtol=1e-3,
+    )
+
+    # test that is the same between the two raycasters
+    torch.testing.assert_close(
+        scene.sensors["ray_caster_articulation"].ray_starts,
+        scene.sensors["ray_caster_rigid_object"].ray_starts,
+        atol=1e-5,
+        rtol=1e-3,
+    )
+    torch.testing.assert_close(
+        scene.sensors["ray_caster_articulation"].ray_directions,
+        scene.sensors["ray_caster_rigid_object"].ray_directions,
+        atol=1e-5,
+        rtol=1e-3,
+    )
+
+    del scene
