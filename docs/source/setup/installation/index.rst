@@ -1,3 +1,5 @@
+.. _isaaclab-installation-root:
+
 Local Installation
 ==================
 
