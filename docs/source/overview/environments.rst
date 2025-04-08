@@ -54,7 +54,7 @@ Classic environments that are based on IsaacGymEnvs implementation of MuJoCo-sty
     |                  | |cartpole-direct-link|      |                                                                         |
     +------------------+-----------------------------+-------------------------------------------------------------------------+
     | |cartpole|       | |cartpole-rgb-link|         | Move the cart to keep the pole upwards in the classic cartpole control  |
-    |                  |                             | and perceptive inputs                                                   |
+    |                  |                             | and perceptive inputs. Requires running with ``--enable_cameras``.      |
     |                  | |cartpole-depth-link|       |                                                                         |
     |                  |                             |                                                                         |
     |                  | |cartpole-rgb-direct-link|  |                                                                         |
@@ -63,7 +63,7 @@ Classic environments that are based on IsaacGymEnvs implementation of MuJoCo-sty
     +------------------+-----------------------------+-------------------------------------------------------------------------+
     | |cartpole|       | |cartpole-resnet-link|      | Move the cart to keep the pole upwards in the classic cartpole control  |
     |                  |                             | based off of features extracted from perceptive inputs with pre-trained |
-    |                  | |cartpole-theia-link|       | frozen vision encoders                                                  |
+    |                  | |cartpole-theia-link|       | frozen vision encoders. Requires running with ``--enable_cameras``.     |
     +------------------+-----------------------------+-------------------------------------------------------------------------+
 
 .. |humanoid| image:: ../_static/tasks/classic/humanoid.jpg
@@ -127,7 +127,8 @@ for the lift-cube environment:
     |                    |                         |                                                                             |
     |                    | |cube-shadow-lstm-link| |                                                                             |
     +--------------------+-------------------------+-----------------------------------------------------------------------------+
-    | |cube-shadow|      | |cube-shadow-vis-link|  | In-hand reorientation of a cube using Shadow hand using perceptive inputs   |
+    | |cube-shadow|      | |cube-shadow-vis-link|  | In-hand reorientation of a cube using Shadow hand using perceptive inputs.  |
+    |                    |                         | Requires running with ``--enable_cameras``.                                 |
     +--------------------+-------------------------+-----------------------------------------------------------------------------+
     | |gr1_pick_place|   | |gr1_pick_place-link|   | Pick up and place an object in a basket with a GR-1 humanoid robot          |
     +--------------------+-------------------------+-----------------------------------------------------------------------------+
