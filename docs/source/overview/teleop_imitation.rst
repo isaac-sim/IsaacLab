@@ -310,11 +310,6 @@ By inferencing using the generated model, we can visualize the results of the po
 Demo: Data Generation and Policy Training for a Humanoid Robot
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. figure:: ../_static/tasks/manipulation/gr-1_pick_place.gif
-   :width: 100%
-   :align: center
-   :alt: GR-1 humanoid robot performing a pick and place task
-
 
 Isaac Lab Mimic supports data generation for robots with multiple end effectors. In the following demonstration, we will show how to generate data
 to train a Fourier GR-1 humanoid robot to perform a pick and place task.
@@ -346,7 +341,14 @@ The Isaac Lab Mimic Env GR-1 humanoid robot is set up such that the left hand ha
 The first subtask involves the right hand remaining idle while the left hand picks up and moves the object to the position where the right hand will grasp it.
 This setup allows Isaac Lab Mimic to interpolate the right hand's trajectory accurately by using the object's pose, especially when poses are randomized during data generation.
 Therefore, avoid moving the right hand while the left hand picks up the object and brings it to a stable position.
-We recommend 10 successful demonstrations for good data generation results.
+We recommend 10 successful demonstrations for good data generation results. An example of a successful demonstration is shown below:
+
+.. figure:: ../_static/tasks/manipulation/gr-1_pick_place.gif
+   :width: 100%
+   :align: center
+   :alt: GR-1 humanoid robot performing a pick and place task
+
+Collect demonstrations by running the following command:
 
 .. code:: bash
 
@@ -393,7 +395,13 @@ You can replay the collected demonstrations by running the following command:
 
 Unlike the prior Franka stacking task, the GR-1 pick and place task uses manual annotation to define subtasks.
 Each demo requires a single annotation between the first and second subtask of the right arm. This annotation ("S" button press) should be done when the right robot arm finishes the "idle" subtask and begins to
-move towards the target object. Annotate the demonstrations by running the following command:
+move towards the target object. An example of a correct annotation is shown below:
+
+.. figure:: ../_static/tasks/manipulation/gr-1_pick_place_annotation.jpg
+   :width: 100%
+   :align: center
+
+Annotate the demonstrations by running the following command:
 
 .. code:: bash
 
