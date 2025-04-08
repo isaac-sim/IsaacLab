@@ -317,6 +317,8 @@ to train a Fourier GR-1 humanoid robot to perform a pick and place task.
 Optional: Collect and annotate demonstrations
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Collect human demonstrations
+""""""""""""""""""""""""""""
 .. note::
 
    Data collection for the GR-1 humanoid robot environment requires use of an Apple Vision Pro headset. If you do not have access to
@@ -393,6 +395,9 @@ You can replay the collected demonstrations by running the following command:
    Non-determinism may be observed during replay as physics in IsaacLab are not determimnistically reproducible when using ``env.reset``.
 
 
+Annotate the demonstrations
+"""""""""""""""""""""""""""
+
 Unlike the prior Franka stacking task, the GR-1 pick and place task uses manual annotation to define subtasks.
 Each demo requires a single annotation between the first and second subtask of the right arm. This annotation ("S" button press) should be done when the right robot arm finishes the "idle" subtask and begins to
 move towards the target object. An example of a correct annotation is shown below:
@@ -434,7 +439,7 @@ Annotate the demonstrations by running the following command:
 Generate the dataset
 ^^^^^^^^^^^^^^^^^^^^
 
-If you skipped the prior step, download the pre-recorded annotated dataset ``dataset_annotated_gr1.hdf5`` from
+If you skipped the prior collection and annotation step, download the pre-recorded annotated dataset ``dataset_annotated_gr1.hdf5`` from
 `here <https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/4.5/Isaac/IsaacLab/Mimic/dataset_annotated_gr1.hdf5>`_.
 Place the file under ``IsaacLab/datasets`` and run the following command to generate a new dataset with 1000 demonstrations.
 
