@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -24,17 +24,7 @@ from isaaclab.sim import build_simulation_context
 def sim(request):
     """Create simulation context with the specified device."""
     device = request.getfixturevalue("device")
-    if "gravity_enabled" in request.fixturenames:
-        gravity_enabled = request.getfixturevalue("gravity_enabled")
-    else:
-        gravity_enabled = True  # default to gravity enabled
-    if "add_ground_plane" in request.fixturenames:
-        add_ground_plane = request.getfixturevalue("add_ground_plane")
-    else:
-        add_ground_plane = False  # default to no ground plane
-    with build_simulation_context(
-        device=device, auto_add_lighting=True, gravity_enabled=gravity_enabled, add_ground_plane=add_ground_plane
-    ) as sim:
+    with build_simulation_context(device=device) as sim:
         sim._app_control_on_stop_handle = None
         yield sim
 
@@ -155,35 +145,31 @@ def test_implicit_actuator_init_effort_limits(sim, num_envs, num_joints, device,
         )
         if effort_lim is not None and effort_lim_sim is None:
             assert actuator.cfg.effort_limit_sim == actuator.cfg.effort_limit
-            torch.testing.assert_close(
-                actuator.effort_limit, effort_lim * torch.ones(num_envs, num_joints, device=device)
-            )
-            torch.testing.assert_close(
-                actuator.effort_limit_sim, effort_lim * torch.ones(num_envs, num_joints, device=device)
-            )
+            effort_lim_expected = effort_lim
+            effort_lim_sim_expected = effort_lim
+
         elif effort_lim is None and effort_lim_sim is not None:
             assert actuator.cfg.effort_limit_sim == actuator.cfg.effort_limit
-            torch.testing.assert_close(
-                actuator.effort_limit, effort_lim_sim * torch.ones(num_envs, num_joints, device=device)
-            )
-            torch.testing.assert_close(
-                actuator.effort_limit_sim, effort_lim_sim * torch.ones(num_envs, num_joints, device=device)
-            )
+            effort_lim_expected = effort_lim_sim
+            effort_lim_sim_expected = effort_lim_sim
+
         elif effort_lim is None and effort_lim_sim is None:
             assert actuator.cfg.effort_limit_sim is None
             assert actuator.cfg.effort_limit is None
-            torch.testing.assert_close(
-                actuator.effort_limit, effort_limit_default * torch.ones(num_envs, num_joints, device=device)
-            )
-            torch.testing.assert_close(
-                actuator.effort_limit_sim, effort_limit_default * torch.ones(num_envs, num_joints, device=device)
-            )
+            effort_lim_expected = effort_limit_default
+            effort_lim_sim_expected = effort_limit_default
 
         elif effort_lim is not None and effort_lim_sim is not None:
             assert actuator.cfg.effort_limit_sim == actuator.cfg.effort_limit
-            torch.testing.assert_close(
-                actuator.effort_limit, effort_lim * torch.ones(num_envs, num_joints, device=device)
-            )
+            effort_lim_expected = effort_lim
+            effort_lim_sim_expected = effort_lim_sim
+
+        torch.testing.assert_close(
+            actuator.effort_limit, effort_lim_expected * torch.ones(num_envs, num_joints, device=device)
+        )
+        torch.testing.assert_close(
+            actuator.effort_limit_sim, effort_lim_sim_expected * torch.ones(num_envs, num_joints, device=device)
+        )
 
 
 @pytest.mark.parametrize("num_envs", [1, 2])
@@ -233,23 +219,23 @@ def test_implicit_actuator_init_velocity_limits(sim, num_envs, num_joints, devic
         )
         if velocity_lim is not None and velocity_lim_sim is None:
             assert actuator.cfg.velocity_limit is None
-            expected_limit = velocity_limit_default
+            vel_lim_expected = velocity_limit_default
         elif velocity_lim is None and velocity_lim_sim is not None:
             assert actuator.cfg.velocity_limit == actuator.cfg.velocity_limit_sim
-            expected_limit = velocity_lim_sim
+            vel_lim_expected = velocity_lim_sim
         elif velocity_lim is None and velocity_lim_sim is None:
             assert actuator.cfg.velocity_limit is None
             assert actuator.cfg.velocity_limit_sim is None
-            expected_limit = velocity_limit_default
+            vel_lim_expected = velocity_limit_default
         else:
             assert actuator.cfg.velocity_limit == actuator.cfg.velocity_limit_sim
-            expected_limit = velocity_lim_sim
+            vel_lim_expected = velocity_lim_sim
 
         torch.testing.assert_close(
-            actuator.velocity_limit, expected_limit * torch.ones(num_envs, num_joints, device=device)
+            actuator.velocity_limit, vel_lim_expected * torch.ones(num_envs, num_joints, device=device)
         )
         torch.testing.assert_close(
-            actuator.velocity_limit_sim, expected_limit * torch.ones(num_envs, num_joints, device=device)
+            actuator.velocity_limit_sim, vel_lim_expected * torch.ones(num_envs, num_joints, device=device)
         )
 
 
