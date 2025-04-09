@@ -187,7 +187,6 @@ class AppLauncher:
             AppLauncher._initialized = False
             # clear the instance
         AppLauncher._instance = None
-        return
 
     """
     Properties.

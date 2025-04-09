@@ -54,7 +54,7 @@ def test_action_state_recorder_terms(temp_dir, task_name, device, num_envs):
     # parse configuration
     env_cfg = parse_env_cfg(task_name, device=device, num_envs=num_envs)
     env_cfg.wait_for_textures = False
-    
+
     # create environment
     env = gym.make(task_name, cfg=env_cfg)
 
