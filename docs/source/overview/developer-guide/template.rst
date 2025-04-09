@@ -201,7 +201,7 @@ Here are some general commands to get started with it:
 
           .. code-block:: batch
 
-            python scripts/zero_agent.py --task=<Task-Name>
+            python scripts\zero_agent.py --task=<Task-Name>
 
   * Random-action agent
 
@@ -220,4 +220,4 @@ Here are some general commands to get started with it:
 
           .. code-block:: batch
 
-            python scripts/random_agent.py --task=<Task-Name>
+            python scripts\random_agent.py --task=<Task-Name>
