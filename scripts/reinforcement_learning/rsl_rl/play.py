@@ -5,6 +5,21 @@
 
 """Script to play a checkpoint if an RL agent from RSL-RL."""
 
+import platform
+from importlib.metadata import version
+
+if version("rsl-rl-lib") != "2.3.0":
+    if platform.system() == "Windows":
+        cmd = [r".\isaaclab.bat", "-p", "-m", "pip", "install", "rsl-rl-lib==2.3.0"]
+    else:
+        cmd = ["./isaaclab.sh", "-p", "-m", "pip", "install", "rsl-rl-lib==2.3.0"]
+    print(
+        f"Please install the correct version of RSL-RL.\nExisting version is: '{version('rsl-rl-lib')}'"
+        " and required version is: '2.3.0'.\nTo install the correct version, run:"
+        f"\n\n\t{' '.join(cmd)}\n"
+    )
+    exit(1)
+
 """Launch Isaac Sim Simulator first."""
 
 import argparse
@@ -120,14 +135,12 @@ def main():
 
     # export policy to onnx/jit
     export_model_dir = os.path.join(os.path.dirname(resume_path), "exported")
-    export_policy_as_jit(
-        ppo_runner.alg.actor_critic, ppo_runner.obs_normalizer, path=export_model_dir, filename="policy.pt"
-    )
+    export_policy_as_jit(ppo_runner.alg.policy, ppo_runner.obs_normalizer, path=export_model_dir, filename="policy.pt")
     export_policy_as_onnx(
-        ppo_runner.alg.actor_critic, normalizer=ppo_runner.obs_normalizer, path=export_model_dir, filename="policy.onnx"
+        ppo_runner.alg.policy, normalizer=ppo_runner.obs_normalizer, path=export_model_dir, filename="policy.onnx"
     )
 
-    dt = env.unwrapped.physics_dt
+    dt = env.unwrapped.step_dt
 
     # reset environment
     obs, _ = env.get_observations()

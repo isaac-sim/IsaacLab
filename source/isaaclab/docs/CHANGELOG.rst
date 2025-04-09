@@ -1,15 +1,13 @@
 Changelog
 ---------
 
-0.36.5 (2025-03-26)
+0.36.5 (2025-04-01)
 ~~~~~~~~~~~~~~~~~~~
 
-Changed
-^^^^^^^
+Fixed
+^^^^^
 
-* Added an optional suffix argument parameter to the docker ``container.py`` script so that users
-  can add a custom suffix to the built docker image and container name.  Defaults to the empty string.
-
+* Added check in RecorderManager to ensure that the success indicator is only set if the termination manager is present.
 
 
 0.36.4 (2025-03-24)
@@ -18,7 +16,7 @@ Changed
 Changed
 ^^^^^^^
 
-* Definition of render settings in :class:`~isaaclab.sim.SimulationCfg` is changed to None, which means that
+* Changed default render settings in :class:`~isaaclab.sim.SimulationCfg` to None, which means that
   the default settings will be used from the experience files and the double definition is removed.
 
 
@@ -115,7 +113,7 @@ Changed
 Fixed
 ^^^^^
 
-* Fixed issue in :class:`~isaaclab.sensors.TiledCamera` where segmentation outputs only display the first tile
+* Fixed issue in :class:`~isaaclab.sensors.TiledCamera` and :class:`~isaaclab.sensors.Camera` where segmentation outputs only display the first tile
   when scene instancing is enabled. A workaround is added for now to disable instancing when segmentation
   outputs are requested.
 

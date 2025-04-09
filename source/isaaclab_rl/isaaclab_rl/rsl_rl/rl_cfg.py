@@ -8,6 +8,9 @@ from typing import Literal
 
 from isaaclab.utils import configclass
 
+from .rnd_cfg import RslRlRndCfg
+from .symmetry_cfg import RslRlSymmetryCfg
+
 
 @configclass
 class RslRlPpoActorCriticCfg:
@@ -18,6 +21,9 @@ class RslRlPpoActorCriticCfg:
 
     init_noise_std: float = MISSING
     """The initial noise standard deviation for the policy."""
+
+    noise_std_type: Literal["scalar", "log"] = "scalar"
+    """The type of noise standard deviation for the policy. Default is scalar."""
 
     actor_hidden_dims: list[int] = MISSING
     """The hidden dimensions of the actor network."""
@@ -72,6 +78,21 @@ class RslRlPpoAlgorithmCfg:
     max_grad_norm: float = MISSING
     """The maximum gradient norm."""
 
+    normalize_advantage_per_mini_batch: bool = False
+    """Whether to normalize the advantage per mini-batch. Default is False.
+
+    If True, the advantage is normalized over the entire collected trajectories.
+    Otherwise, the advantage is normalized over the mini-batches only.
+    """
+
+    symmetry_cfg: RslRlSymmetryCfg | None = None
+    """The symmetry configuration. Default is None, in which case symmetry is not used."""
+
+    rnd_cfg: RslRlRndCfg | None = None
+    """The configuration for the Random Network Distillation (RND) module. Default is None,
+    in which case RND is not used.
+    """
+
 
 @configclass
 class RslRlOnPolicyRunnerCfg:
@@ -99,7 +120,11 @@ class RslRlOnPolicyRunnerCfg:
     """The algorithm configuration."""
 
     clip_actions: float | None = None
-    """The clipping value for actions. If ``None``, then no clipping is done."""
+    """The clipping value for actions. If ``None``, then no clipping is done.
+
+    .. note::
+        This clipping is performed inside the :class:`RslRlVecEnvWrapper` wrapper.
+    """
 
     ##
     # Checkpointing parameters
