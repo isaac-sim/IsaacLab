@@ -35,7 +35,7 @@ import isaaclab.sim as sim_utils
 from isaaclab.sensors.camera import TiledCamera, TiledCameraCfg
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture()
 def setup_camera():
     """Create a blank new stage for each test."""
     camera_cfg = TiledCameraCfg(
