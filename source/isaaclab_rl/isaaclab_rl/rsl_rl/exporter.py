@@ -49,21 +49,20 @@ class _TorchPolicyExporter(torch.nn.Module):
 
     def __init__(self, policy, normalizer=None):
         super().__init__()
-        # infer policy type
+        self.is_recurrent = policy.is_recurrent
+        # copy policy parameters
         if hasattr(policy, "actor"):
             self.actor = copy.deepcopy(policy.actor)
+            if self.is_recurrent:
+                self.rnn = copy.deepcopy(policy.memory_a.rnn)
         elif hasattr(policy, "student"):
             self.actor = copy.deepcopy(policy.student)
+            if self.is_recurrent:
+                self.rnn = copy.deepcopy(policy.memory_s.rnn)
         else:
             raise ValueError("Policy does not have an actor/student module.")
-        self.is_recurrent = policy.is_recurrent
+        # set up recurrent network
         if self.is_recurrent:
-            if hasattr(policy, "memory_a"):
-                self.rnn = copy.deepcopy(policy.memory_a.rnn)
-            elif hasattr(policy, "memory_s"):
-                self.rnn = copy.deepcopy(policy.memory_s.rnn)
-            else:
-                raise ValueError("Policy does not have a memory module.")
             self.rnn.cpu()
             self.register_buffer("hidden_state", torch.zeros(self.rnn.num_layers, 1, self.rnn.hidden_size))
             self.register_buffer("cell_state", torch.zeros(self.rnn.num_layers, 1, self.rnn.hidden_size))
@@ -108,21 +107,20 @@ class _OnnxPolicyExporter(torch.nn.Module):
     def __init__(self, policy, normalizer=None, verbose=False):
         super().__init__()
         self.verbose = verbose
-        # infer policy type
+        self.is_recurrent = policy.is_recurrent
+        # copy policy parameters
         if hasattr(policy, "actor"):
             self.actor = copy.deepcopy(policy.actor)
+            if self.is_recurrent:
+                self.rnn = copy.deepcopy(policy.memory_a.rnn)
         elif hasattr(policy, "student"):
             self.actor = copy.deepcopy(policy.student)
+            if self.is_recurrent:
+                self.rnn = copy.deepcopy(policy.memory_s.rnn)
         else:
             raise ValueError("Policy does not have an actor/student module.")
-        self.is_recurrent = policy.is_recurrent
+        # set up recurrent network
         if self.is_recurrent:
-            if hasattr(policy, "memory_a"):
-                self.rnn = copy.deepcopy(policy.memory_a.rnn)
-            elif hasattr(policy, "memory_s"):
-                self.rnn = copy.deepcopy(policy.memory_s.rnn)
-            else:
-                raise ValueError("Policy does not have a memory module.")
             self.rnn.cpu()
             self.forward = self.forward_lstm
         # copy normalizer if exists
