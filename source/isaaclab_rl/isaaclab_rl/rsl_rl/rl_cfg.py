@@ -10,6 +10,7 @@ from typing import Literal
 
 from isaaclab.utils import configclass
 
+from .distillation_cfg import RslRlDistillationAlgorithmCfg, RslRlDistillationStudentTeacherCfg
 from .rnd_cfg import RslRlRndCfg
 from .symmetry_cfg import RslRlSymmetryCfg
 
@@ -56,49 +57,6 @@ class RslRlPpoActorCriticRecurrentCfg(RslRlPpoActorCriticCfg):
 
     rnn_num_layers: int = MISSING
     """The number of RNN layers."""
-
-
-@configclass
-class RslRlDistillationStudentTeacherCfg:
-    """Configuration for the distillation student-teacher networks."""
-
-    class_name: str = "StudentTeacher"
-    """The policy class name. Default is StudentTeacher."""
-
-    init_noise_std: float = MISSING
-    """The initial noise standard deviation for the student policy."""
-
-    noise_std_type: Literal["scalar", "log"] = "scalar"
-    """The type of noise standard deviation for the policy. Default is scalar."""
-
-    student_hidden_dims: list[int] = MISSING
-    """The hidden dimensions of the student network."""
-
-    teacher_hidden_dims: list[int] = MISSING
-    """The hidden dimensions of the teacher network."""
-
-    activation: str = MISSING
-    """The activation function for the student and teacher networks."""
-
-
-@configclass
-class RslRlDistillationStudentTeacherRecurrentCfg(RslRlDistillationStudentTeacherCfg):
-    """Configuration for the distillation student-teacher recurrent networks."""
-
-    class_name: str = "StudentTeacherRecurrent"
-    """The policy class name. Default is StudentTeacherRecurrent."""
-
-    rnn_type: str = MISSING
-    """The type of the RNN network. Either "lstm" or "gru"."""
-
-    rnn_hidden_dim: int = MISSING
-    """The hidden dimension of the RNN network."""
-
-    rnn_num_layers: int = MISSING
-    """The number of layers of the RNN network."""
-
-    teacher_recurrent: bool = MISSING
-    """Whether the teacher network is recurrent too."""
 
 
 ############################
@@ -164,22 +122,6 @@ class RslRlPpoAlgorithmCfg:
     in which case RND is not used.
     """
 
-@configclass
-class RslRlDistillationAlgorithmCfg:
-    """Configuration for the distillation algorithm."""
-
-    class_name: str = "Distillation"
-    """The algorithm class name. Default is Distillation."""
-
-    num_learning_epochs: int = MISSING
-    """The number of updates performed with each sample."""
-
-    learning_rate: float = MISSING
-    """The learning rate for the student policy."""
-
-    gradient_length: float = MISSING
-    """The number of environment steps the gradient flows back."""
-
 
 #########################
 # Runner configurations #
@@ -218,10 +160,6 @@ class RslRlOnPolicyRunnerCfg:
         This clipping is performed inside the :class:`RslRlVecEnvWrapper` wrapper.
     """
 
-    ##
-    # Checkpointing parameters
-    ##
-
     save_interval: int = MISSING
     """The number of iterations between saves."""
 
@@ -236,10 +174,6 @@ class RslRlOnPolicyRunnerCfg:
     ``{time-stamp}_{run_name}``.
     """
 
-    ##
-    # Logging parameters
-    ##
-
     logger: Literal["tensorboard", "neptune", "wandb"] = "tensorboard"
     """The logger to use. Default is tensorboard."""
 
@@ -248,10 +182,6 @@ class RslRlOnPolicyRunnerCfg:
 
     wandb_project: str = "isaaclab"
     """The wandb project name. Default is "isaaclab"."""
-
-    ##
-    # Loading parameters
-    ##
 
     resume: bool = False
     """Whether to resume. Default is False."""
