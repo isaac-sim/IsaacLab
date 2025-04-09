@@ -137,7 +137,7 @@ def parse_env_cfg(
 
 
 def get_checkpoint_path(
-    log_path: str, run_dir: str | None, checkpoint: str = ".*", other_dirs: list[str] = None, sort_alpha: bool = True
+    log_path: str, run_dir: str = ".*", checkpoint: str = ".*", other_dirs: list[str] = None, sort_alpha: bool = True
 ) -> str:
     """Get path to the model checkpoint in input directory.
 
@@ -164,12 +164,8 @@ def get_checkpoint_path(
     Raises:
         ValueError: When no runs are found in the input directory.
         ValueError: When no checkpoints are found in the input directory.
+
     """
-
-    # select the most recent run directory if run_dir is none
-    if run_dir is None:
-        run_dir = ".*"
-
     # check if runs present in directory
     try:
         # find all runs in the directory that math the regex expression

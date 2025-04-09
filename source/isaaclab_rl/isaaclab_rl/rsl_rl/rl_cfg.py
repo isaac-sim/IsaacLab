@@ -253,10 +253,13 @@ class RslRlOnPolicyRunnerCfg:
     # Loading parameters
     ##
 
-    load_run: None | str = None
-    """The run directory to load. Default is None.
+    resume: bool = False
+    """Whether to resume. Default is False."""
 
-    If regex expression, the latest (alphabetical order) matching run will be loaded, e.g, ".*" (all).
+    load_run: str = ".*"
+    """The run directory to load. Default is ".*" (all).
+
+    If regex expression, the latest (alphabetical order) matching run will be loaded.
     """
 
     load_checkpoint: str = "model_.*.pt"
