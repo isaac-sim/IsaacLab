@@ -452,6 +452,9 @@ class SimulationContext(_SimulationContext):
 
     def reset(self, soft: bool = False):
         super().reset(soft=soft)
+        # app.update() may be changing the cuda device in reset, so we force it back to our desired device here
+        if "cuda" in self.device:
+            torch.cuda.set_device(self.device)
         # enable kinematic rendering with fabric
         if self.physics_sim_view:
             self.physics_sim_view._backend.initialize_kinematic_bodies()
@@ -487,6 +490,10 @@ class SimulationContext(_SimulationContext):
 
         # step the simulation
         super().step(render=render)
+
+        # app.update() may be changing the cuda device in step, so we force it back to our desired device here
+        if "cuda" in self.device:
+            torch.cuda.set_device(self.device)
 
     def render(self, mode: RenderMode | None = None):
         """Refreshes the rendering components including UI elements and view-ports depending on the render mode.
@@ -526,6 +533,10 @@ class SimulationContext(_SimulationContext):
             self.set_setting("/app/player/playSimulations", False)
             self._app.update()
             self.set_setting("/app/player/playSimulations", True)
+
+        # app.update() may be changing the cuda device, so we force it back to our desired device here
+        if "cuda" in self.device:
+            torch.cuda.set_device(self.device)
 
     """
     Operations - Override (extension)
