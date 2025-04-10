@@ -62,7 +62,7 @@ class AssetBase(ABC):
         # check that the config is valid
         cfg.validate()
         # store inputs
-        self.cfg = cfg
+        self.cfg = cfg.copy()
         # flag for whether the asset is initialized
         self._is_initialized = False
 
@@ -269,3 +269,6 @@ class AssetBase(ABC):
     def _invalidate_initialize_callback(self, event):
         """Invalidates the scene elements."""
         self._is_initialized = False
+        if self._debug_vis_handle is not None:
+            self._debug_vis_handle.unsubscribe()
+            self._debug_vis_handle = None

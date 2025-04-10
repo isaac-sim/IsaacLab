@@ -7,6 +7,7 @@ import os
 
 from . import (
     agents,
+    stack_ik_rel_blueprint_env_cfg,
     stack_ik_rel_env_cfg,
     stack_ik_rel_instance_randomize_env_cfg,
     stack_joint_pos_env_cfg,
@@ -59,6 +60,15 @@ gym.register(
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     kwargs={
         "env_cfg_entry_point": stack_ik_rel_instance_randomize_env_cfg.FrankaCubeStackInstanceRandomizeEnvCfg,
+    },
+    disable_env_checker=True,
+)
+
+gym.register(
+    id="Isaac-Stack-Cube-Franka-IK-Rel-Blueprint-v0",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    kwargs={
+        "env_cfg_entry_point": stack_ik_rel_blueprint_env_cfg.FrankaCubeStackBlueprintEnvCfg,
     },
     disable_env_checker=True,
 )

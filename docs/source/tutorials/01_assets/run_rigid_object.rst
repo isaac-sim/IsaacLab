@@ -56,7 +56,7 @@ when the simulation is played.
 
 As an example on spawning the rigid object prim multiple times, we create its parent Xform prims,
 ``/World/Origin{i}``, that correspond to different spawn locations. When the regex expression
-``/World/Origin*/Cone`` is passed to the :class:`assets.RigidObject` class, it spawns the rigid object prim at
+``/World/Origin.*/Cone`` is passed to the :class:`assets.RigidObject` class, it spawns the rigid object prim at
 each of the ``/World/Origin{i}`` locations. For instance, if ``/World/Origin1`` and ``/World/Origin2`` are
 present in the scene, the rigid object prims are spawned at the locations ``/World/Origin1/Cone`` and
 ``/World/Origin2/Cone`` respectively.

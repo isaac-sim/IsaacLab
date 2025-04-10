@@ -1,13 +1,263 @@
 Changelog
 ---------
 
+0.36.6 (2025-04-09)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Added call to set cuda device after each ``app.update()`` call in :class:`~isaaclab.sim.SimulationContext`.
+  This is now required for multi-GPU workflows because some underlying logic in ``app.update()`` is modifying
+  the cuda device, which results in NCCL errors on distributed setups.
+
+
+0.36.5 (2025-04-01)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Adds check in RecorderManager to ensure that the success indicator is only set if the termination manager is present.
+
+
+0.36.4 (2025-03-24)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Definition of render settings in :class:`~isaaclab.sim.SimulationCfg` is changed to None, which means that
+  the default settings will be used from the experience files and the double definition is removed.
+
+
+0.36.3 (2025-03-17)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed default behavior of :class:`~isaaclab.actuators.ImplicitActuator` if no :attr:`effort_limits_sim` or
+  :attr:`effort_limit` is set.
+
+
+0.36.2 (2025-03-12)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added a new event mode called "prestartup", which gets called right after the scene design is complete
+  and before the simulation is played.
+* Added a callback to resolve the scene entity configurations separately once the simulation plays,
+  since the scene entities cannot be resolved before the simulation starts playing
+  (as we currently rely on PhysX to provide us with the joint/body ordering)
+
+
+0.36.1 (2025-03-10)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :attr:`semantic_segmentation_mapping` for camera configs to allow specifying colors for semantics.
+
+
+0.36.0 (2025-03-07)
+~~~~~~~~~~~~~~~~~~~
+
+Removed
+^^^^^^^
+
+* Removed the storage of tri-meshes and warp meshes inside the :class:`~isaaclab.terrains.TerrainImporter` class.
+  Initially these meshes were added for ray-casting purposes. However, since the ray-caster reads the terrains
+  directly from the USD files, these meshes are no longer needed.
+* Deprecated the :attr:`warp_meshes` and :attr:`meshes` attributes from the
+  :class:`~isaaclab.terrains.TerrainImporter` class. These attributes now return an empty dictionary
+  with a deprecation warning.
+
+Changed
+^^^^^^^
+
+* Changed the prim path of the "plane" terrain inside the :class:`~isaaclab.terrains.TerrainImporter` class.
+  Earlier, the terrain was imported directly as the importer's prim path. Now, the terrain is imported as
+  ``{importer_prim_path}/{name}``, where ``name`` is the name of the terrain.
+
+
+0.35.0 (2025-03-07)
+~~~~~~~~~~~~~~~~~~~
+
+* Improved documentation of various attributes in the :class:`~isaaclab.assets.ArticulationData` class to make
+  it clearer which values represent the simulation and internal class values. In the new convention,
+  the ``default_xxx`` attributes are whatever the user configured from their configuration of the articulation
+  class, while the ``xxx`` attributes are the values from the simulation.
+* Updated the soft joint position limits inside the :meth:`~isaaclab.assets.Articulation.write_joint_pos_limits_to_sim`
+  method to use the new limits passed to the function.
+* Added setting of :attr:`~isaaclab.assets.ArticulationData.default_joint_armature` and
+  :attr:`~isaaclab.assets.ArticulationData.default_joint_friction` attributes in the
+  :class:`~isaaclab.assets.Articulation` class based on user configuration.
+
+Changed
+^^^^^^^
+
+* Removed unnecessary buffer creation operations inside the :class:`~isaaclab.assets.Articulation` class.
+  Earlier, the class initialized a variety of buffer data with zeros and in the next function assigned
+  them the value from PhysX. This made the code bulkier and more complex for no reason.
+* Renamed parameters for a consistent nomenclature. These changes are backwards compatible with previous releases
+  with a deprecation warning for the old names.
+
+  * ``joint_velocity_limits`` → ``joint_vel_limits`` (to match attribute ``joint_vel`` and ``joint_vel_limits``)
+  * ``joint_limits`` → ``joint_pos_limits`` (to match attribute ``joint_pos`` and ``soft_joint_pos_limits``)
+  * ``default_joint_limits`` → ``default_joint_pos_limits``
+  * ``write_joint_limits_to_sim`` → ``write_joint_position_limit_to_sim``
+  * ``joint_friction`` → ``joint_friction_coeff``
+  * ``default_joint_friction`` → ``default_joint_friction_coeff``
+  * ``write_joint_friction_to_sim`` → ``write_joint_friction_coefficient_to_sim``
+  * ``fixed_tendon_limit`` → ``fixed_tendon_pos_limits``
+  * ``default_fixed_tendon_limit`` → ``default_fixed_tendon_pos_limits``
+  * ``set_fixed_tendon_limit`` → ``set_fixed_tendon_position_limit``
+
+
+0.34.9 (2025-03-04)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed issue in :class:`~isaaclab.sensors.TiledCamera` and :class:`~isaaclab.sensors.Camera` where segmentation outputs only display the first tile
+  when scene instancing is enabled. A workaround is added for now to disable instancing when segmentation
+  outputs are requested.
+
+
+0.34.8 (2025-03-04)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the issue of misalignment in the motion vectors from the :class:`TiledCamera`
+  with other modalities such as RGBA and depth.
+
+
+0.34.7 (2025-03-04)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added methods inside the :class:`omni.isaac.lab.assets.Articulation` class to set the joint
+  position and velocity for the articulation. Previously, the joint position and velocity could
+  only be set using the :meth:`omni.isaac.lab.assets.Articulation.write_joint_state_to_sim` method,
+  which didn't allow setting the joint position and velocity separately.
+
+
+0.34.6 (2025-03-02)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the propagation of the :attr:`activate_contact_sensors` attribute to the
+  :class:`~isaaclab.sim.spawners.wrappers.wrappers_cfg.MultiAssetSpawnerCfg` class. Previously, this value
+  was always set to False, which led to incorrect contact sensor settings for the spawned assets.
+
+
+0.34.5 (2025-03-02)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Enabled the physics flag for disabling contact processing in the :class:`~isaaclab.sim.SimulationContact`
+  class. This means that by default, no contact reporting is done by the physics engine, which should provide
+  a performance boost in simulations with no contact processing requirements.
+* Disabled the physics flag for disabling contact processing in the :class:`~isaaclab.sensors.ContactSensor`
+  class when the sensor is created to allow contact reporting for the sensor.
+
+Removed
+^^^^^^^
+
+* Removed the attribute ``disable_contact_processing`` from :class:`~isaaclab.sim.SimulationContact`.
+
+
+0.34.4 (2025-03-01)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added a new attribute :attr:`is_implicit_model` to the :class:`isaaclab.actuators.ActuatorBase` class to
+  indicate if the actuator model is implicit or explicit. This helps checking that the correct model type
+  is being used when initializing the actuator models.
+
+Fixed
+^^^^^
+
+* Added copy of configurations to :class:`~isaaclab.assets.AssetBase` and :class:`~isaaclab.sensors.SensorBase`
+  to prevent modifications of the configurations from leaking outside of the classes.
+* Fixed the case where setting velocity/effort limits for the simulation in the
+  :class:`~isaaclab.actuators.ActuatorBaseCfg` class was not being used to update the actuator-specific
+  velocity/effort limits.
+
+Changed
+^^^^^^^
+
+* Moved warnings and checks for implicit actuator models to the :class:`~isaaclab.actuators.ImplicitActuator` class.
+* Reverted to IsaacLab v1.3 behavior where :attr:`isaaclab.actuators.ImplicitActuatorCfg.velocity_limit`
+  attribute was not used for setting the velocity limits in the simulation. This makes it possible to deploy
+  policies from previous release without any changes. If users want to set the velocity limits for the simulation,
+  they should use the :attr:`isaaclab.actuators.ImplicitActuatorCfg.velocity_limit_sim` attribute instead.
+
+
+0.34.3 (2025-02-28)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added IP address support for WebRTC livestream to allow specifying IP address to stream across networks.
+  This feature requires an updated livestream extension, which is current only available in the pre-built Isaac Lab 2.0.1 docker image.
+  Support for other Isaac Sim builds will become available in Isaac Sim 5.0.
+
+
+0.34.2 (2025-02-21)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed setting of root velocities inside the event term :meth:`reset_root_state_from_terrain`. Earlier, the indexing
+  based on the environment IDs was missing.
+
+
+0.34.1 (2025-02-17)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Ensured that the loaded torch JIT models inside actuator networks are correctly set to eval mode
+  to prevent any unexpected behavior during inference.
+
+
+0.34.0 (2025-02-14)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Added attributes :attr:`velocity_limits_sim` and :attr:`effort_limits_sim` to the
+  :class:`isaaclab.actuators.ActuatorBaseCfg` class to separate solver limits from actuator limits.
+
+
 0.33.17 (2025-02-13)
 ~~~~~~~~~~~~~~~~~~~~
 
 Fixed
 ^^^^^
 
-* Fixed Imu sensor based observations at first step by updating scene during :meth:`~isaaclab.envs.ManagerBasedEnv.init`
+* Fixed Imu sensor based observations at first step by updating scene during initialization for
+  :class:`~isaaclab.envs.ManagerBasedEnv`, :class:`~isaaclab.envs.DirectRLEnv`, and :class:`~isaaclab.envs.DirectMARLEnv`
 
 
 0.33.16 (2025-02-09)
@@ -65,7 +315,8 @@ Added
 Changed
 ^^^^^^^
 
-* Automatic collision filtering now happens as part of the replicate_physics call. When replicate_physics is not enabled, we call the previous ``filter_collisions`` API to mask collisions between environments.
+* Automatic collision filtering now happens as part of the replicate_physics call. When replicate_physics is not enabled, we call the previous
+  ``filter_collisions`` API to mask collisions between environments.
 
 
 0.33.10 (2025-01-22)
@@ -74,7 +325,11 @@ Changed
 Changed
 ^^^^^^^
 
-* In :meth:`isaaclab.assets.Articulation.write_joint_limits_to_sim`, we previously added a check for if default joint positions exceed the new limits being set. When this is True, we log a warning message to indicate that the default joint positions will be clipped to be within the range of the new limits. However, the warning message can become overly verbose in a randomization setting where this API is called on every environment reset. We now default to only writing the message to info level logging if called within randomization, and expose a parameter that can be used to choose the logging level desired.
+* In :meth:`isaaclab.assets.Articulation.write_joint_limits_to_sim`, we previously added a check for if default joint positions exceed the
+  new limits being set. When this is True, we log a warning message to indicate that the default joint positions will be clipped to be within
+  the range of the new limits. However, the warning message can become overly verbose in a randomization setting where this API is called on
+  every environment reset. We now default to only writing the message to info level logging if called within randomization, and expose a
+  parameter that can be used to choose the logging level desired.
 
 
 0.33.9 (2025-01-22)
@@ -122,7 +377,9 @@ Fixed
 Fixed
 ^^^^^
 
-* Fixed the respawn of only wrong object samples in :func:`repeated_objects_terrain` of :mod:`isaaclab.terrains.trimesh` module. Previously, the function was respawning all objects in the scene instead of only the wrong object samples, which in worst case could lead to infinite respawn loop.
+* Fixed the respawn of only wrong object samples in :func:`repeated_objects_terrain` of :mod:`isaaclab.terrains.trimesh` module.
+  Previously, the function was respawning all objects in the scene instead of only the wrong object samples, which in worst case
+  could lead to infinite respawn loop.
 
 
 0.33.6 (2025-01-16)
@@ -243,7 +500,8 @@ Added
 Fixed
 ^^^^^
 
-* Fixed ordering of logging and resamping in the command manager, where we were logging the metrics after resampling the commands. This leads to incorrect logging of metrics when inside the resample call, the metrics tensors get reset.
+* Fixed ordering of logging and resamping in the command manager, where we were logging the metrics after resampling the commands.
+  This leads to incorrect logging of metrics when inside the resample call, the metrics tensors get reset.
 
 
 0.30.2 (2024-12-16)
@@ -269,7 +527,8 @@ Added
 Changed
 ^^^^^^^
 
-* Added call to update articulation kinematics after reset to ensure states are updated for non-rendering sensors. Previously, some changes in reset such as modifying joint states would not be reflected in the rigid body states immediately after reset.
+* Added call to update articulation kinematics after reset to ensure states are updated for non-rendering sensors. Previously, some changes
+  in reset such as modifying joint states would not be reflected in the rigid body states immediately after reset.
 
 
 0.30.0 (2024-12-15)
@@ -280,9 +539,12 @@ Added
 
 * Added UI interface to the Managers in the ManagerBasedEnv and MangerBasedRLEnv classes.
 * Added UI widgets for :class:`LiveLinePlot` and :class:`ImagePlot`.
-* Added ``ManagerLiveVisualizer/Cfg``: Given a ManagerBase (i.e. action_manager, observation_manager, etc) and a config file this class creates the the interface between managers and the UI.
-* Added :class:`EnvLiveVisualizer`: A 'manager' of ManagerLiveVisualizer. This is added to the ManagerBasedEnv but is only called during the initialization of the managers in load_managers
-* Added ``get_active_iterable_terms`` implementation methods to ActionManager, ObservationManager, CommandsManager, CurriculumManager, RewardManager, and TerminationManager. This method exports the active term data and labels for each manager and is called by ManagerLiveVisualizer.
+* Added ``ManagerLiveVisualizer/Cfg``: Given a ManagerBase (i.e. action_manager, observation_manager, etc) and a config file this class creates
+  the the interface between managers and the UI.
+* Added :class:`EnvLiveVisualizer`: A 'manager' of ManagerLiveVisualizer. This is added to the ManagerBasedEnv but is only called during
+  the initialization of the managers in load_managers
+* Added ``get_active_iterable_terms`` implementation methods to ActionManager, ObservationManager, CommandsManager, CurriculumManager,
+  RewardManager, and TerminationManager. This method exports the active term data and labels for each manager and is called by ManagerLiveVisualizer.
 * Additions to :class:`BaseEnvWindow` and :class:`RLEnvWindow` to register ManagerLiveVisualizer UI interfaces for the chosen managers.
 
 
@@ -322,7 +584,9 @@ Changed
 Fixed
 ^^^^^
 
-* Fixed the shape of ``quat_w`` in the ``apply_actions`` method of :attr:`~isaaclab.env.mdp.NonHolonomicAction` (previously (N,B,4), now (N,4) since the number of root bodies B is required to be 1). Previously ``apply_actions`` errored because ``euler_xyz_from_quat`` requires inputs of shape (N,4).
+* Fixed the shape of ``quat_w`` in the ``apply_actions`` method of :attr:`~isaaclab.env.mdp.NonHolonomicAction`
+  (previously (N,B,4), now (N,4) since the number of root bodies B is required to be 1). Previously ``apply_actions`` errored
+  because ``euler_xyz_from_quat`` requires inputs of shape (N,4).
 
 
 0.28.1 (2024-12-13)
@@ -2062,7 +2326,8 @@ Added
 Fixed
 ^^^^^
 
-* Fixes the order of size arguments in :meth:`isaaclab.terrains.height_field.random_uniform_terrain`. Previously, the function would crash if the size along x and y were not the same.
+* Fixes the order of size arguments in :meth:`isaaclab.terrains.height_field.random_uniform_terrain`. Previously, the function
+  would crash if the size along x and y were not the same.
 
 
 0.10.22 (2024-02-14)

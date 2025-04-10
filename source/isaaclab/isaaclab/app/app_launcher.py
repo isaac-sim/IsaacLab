@@ -163,7 +163,7 @@ class AppLauncher:
 
           - ``0``: Disabled
           - ``1``: `Native [DEPRECATED] <https://docs.isaacsim.omniverse.nvidia.com/latest/installation/manual_livestream_clients.html#omniverse-streaming-client-deprecated>`_
-          - ``2``: `WebRTC https://docs.isaacsim.omniverse.nvidia.com/latest/installation/manual_livestream_clients.html#isaac-sim-short-webrtc-streaming-client>`_
+          - ``2``: `WebRTC <https://docs.isaacsim.omniverse.nvidia.com/latest/installation/manual_livestream_clients.html#isaac-sim-short-webrtc-streaming-client>`_
 
         * ``enable_cameras`` (bool): If True, the app will enable camera sensors and render them, even when in
           headless mode. This flag must be set to True if the environments contains any camera sensors.
@@ -574,6 +574,9 @@ class AppLauncher:
                 " The file does not exist."
             )
 
+        # Set public IP address of a remote instance
+        public_ip_env = os.environ.get("PUBLIC_IP", "127.0.0.1")
+
         # Process livestream here before launching kit because some of the extensions only work when launched with the kit file
         self._livestream_args = []
         if self._livestream >= 1:
@@ -594,9 +597,10 @@ class AppLauncher:
                 ]
             elif self._livestream == 2:
                 self._livestream_args += [
-                    "--/app/livestream/allowResize=false",
+                    f"--/app/livestream/publicEndpointAddress={public_ip_env}",
+                    "--/app/livestream/port=49100",
                     "--enable",
-                    "omni.kit.livestream.webrtc",
+                    "omni.services.livestream.nvcf",
                 ]
             else:
                 raise ValueError(f"Invalid value for livestream: {self._livestream}. Expected: 1, 2 .")

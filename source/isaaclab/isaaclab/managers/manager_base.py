@@ -7,11 +7,13 @@ from __future__ import annotations
 
 import copy
 import inspect
+import weakref
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
 import omni.log
+import omni.timeline
 
 import isaaclab.utils.string as string_utils
 from isaaclab.utils import string_to_callable
@@ -110,7 +112,7 @@ class ManagerTermBase(ABC):
         Returns:
             The value of the term.
         """
-        raise NotImplementedError
+        raise NotImplementedError("The method '__call__' should be implemented by the subclass.")
 
 
 class ManagerBase(ABC):
@@ -119,6 +121,13 @@ class ManagerBase(ABC):
     def __init__(self, cfg: object, env: ManagerBasedEnv):
         """Initialize the manager.
 
+        This function is responsible for parsing the configuration object and creating the terms.
+
+        If the simulation is not playing, the scene entities are not resolved immediately.
+        Instead, the resolution is deferred until the simulation starts. This is done to ensure
+        that the scene entities are resolved even if the manager is created after the simulation
+        has already started.
+
         Args:
             cfg: The configuration object. If None, the manager is initialized without any terms.
             env: The environment instance.
@@ -126,9 +135,35 @@ class ManagerBase(ABC):
         # store the inputs
         self.cfg = copy.deepcopy(cfg)
         self._env = env
+
+        # if the simulation is not playing, we use callbacks to trigger the resolution of the scene
+        # entities configuration. this is needed for cases where the manager is created after the
+        # simulation, but before the simulation is playing.
+        # FIXME: Once Isaac Sim supports storing this information as USD schema, we can remove this
+        #   callback and resolve the scene entities directly inside `_prepare_terms`.
+        if not self._env.sim.is_playing():
+            # note: Use weakref on all callbacks to ensure that this object can be deleted when its destructor
+            # is called
+            # The order is set to 20 to allow asset/sensor initialization to complete before the scene entities
+            # are resolved. Those have the order 10.
+            timeline_event_stream = omni.timeline.get_timeline_interface().get_timeline_event_stream()
+            self._resolve_terms_handle = timeline_event_stream.create_subscription_to_pop_by_type(
+                int(omni.timeline.TimelineEventType.PLAY),
+                lambda event, obj=weakref.proxy(self): obj._resolve_terms_callback(event),
+                order=20,
+            )
+        else:
+            self._resolve_terms_handle = None
+
         # parse config to create terms information
         if self.cfg:
             self._prepare_terms()
+
+    def __del__(self):
+        """Delete the manager."""
+        if self._resolve_terms_handle:
+            self._resolve_terms_handle.unsubscribe()
+            self._resolve_terms_handle = None
 
     """
     Properties.
@@ -173,7 +208,7 @@ class ManagerBase(ABC):
         specified as regular expressions or a list of regular expressions. The search is
         performed on the active terms in the manager.
 
-        Please check the :meth:`isaaclab.utils.string_utils.resolve_matching_names` function for more
+        Please check the :meth:`~isaaclab.utils.string_utils.resolve_matching_names` function for more
         information on the name matching.
 
         Args:
@@ -213,20 +248,51 @@ class ManagerBase(ABC):
         raise NotImplementedError
 
     """
-    Helper functions.
+    Internal callbacks.
+    """
+
+    def _resolve_terms_callback(self, event):
+        """Resolve configurations of terms once the simulation starts.
+
+        Please check the :meth:`_process_term_cfg_at_play` method for more information.
+        """
+        # check if config is dict already
+        if isinstance(self.cfg, dict):
+            cfg_items = self.cfg.items()
+        else:
+            cfg_items = self.cfg.__dict__.items()
+
+        # iterate over all the terms
+        for term_name, term_cfg in cfg_items:
+            # check for non config
+            if term_cfg is None:
+                continue
+            # process attributes at runtime
+            # these properties are only resolvable once the simulation starts playing
+            self._process_term_cfg_at_play(term_name, term_cfg)
+
+    """
+    Internal functions.
     """
 
     def _resolve_common_term_cfg(self, term_name: str, term_cfg: ManagerTermBaseCfg, min_argc: int = 1):
-        """Resolve common term configuration.
+        """Resolve common attributes of the term configuration.
 
-        Usually, called by the :meth:`_prepare_terms` method to resolve common term configuration.
+        Usually, called by the :meth:`_prepare_terms` method to resolve common attributes of the term
+        configuration. These include:
 
-        Note:
-            By default, all term functions are expected to have at least one argument, which is the
-            environment object. Some other managers may expect functions to take more arguments, for
-            instance, the environment indices as the second argument. In such cases, the
-            ``min_argc`` argument can be used to specify the minimum number of arguments
-            required by the term function to be called correctly by the manager.
+        * Resolving the term function and checking if it is callable.
+        * Checking if the term function's arguments are matched by the parameters.
+        * Resolving special attributes of the term configuration like ``asset_cfg``, ``sensor_cfg``, etc.
+        * Initializing the term if it is a class.
+
+        The last two steps are only possible once the simulation starts playing.
+
+        By default, all term functions are expected to have at least one argument, which is the
+        environment object. Some other managers may expect functions to take more arguments, for
+        instance, the environment indices as the second argument. In such cases, the
+        ``min_argc`` argument can be used to specify the minimum number of arguments
+        required by the term function to be called correctly by the manager.
 
         Args:
             term_name: The name of the term.
@@ -246,9 +312,66 @@ class ManagerBase(ABC):
                 f"Configuration for the term '{term_name}' is not of type ManagerTermBaseCfg."
                 f" Received: '{type(term_cfg)}'."
             )
-        # iterate over all the entities and parse the joint and body names
+
+        # get the corresponding function or functional class
+        if isinstance(term_cfg.func, str):
+            term_cfg.func = string_to_callable(term_cfg.func)
+        # check if function is callable
+        if not callable(term_cfg.func):
+            raise AttributeError(f"The term '{term_name}' is not callable. Received: {term_cfg.func}")
+
+        # check if the term is a class of valid type
+        if inspect.isclass(term_cfg.func):
+            if not issubclass(term_cfg.func, ManagerTermBase):
+                raise TypeError(
+                    f"Configuration for the term '{term_name}' is not of type ManagerTermBase."
+                    f" Received: '{type(term_cfg.func)}'."
+                )
+            func_static = term_cfg.func.__call__
+            min_argc += 1  # forward by 1 to account for 'self' argument
+        else:
+            func_static = term_cfg.func
+        # check if function is callable
+        if not callable(func_static):
+            raise AttributeError(f"The term '{term_name}' is not callable. Received: {term_cfg.func}")
+
+        # check statically if the term's arguments are matched by params
+        term_params = list(term_cfg.params.keys())
+        args = inspect.signature(func_static).parameters
+        args_with_defaults = [arg for arg in args if args[arg].default is not inspect.Parameter.empty]
+        args_without_defaults = [arg for arg in args if args[arg].default is inspect.Parameter.empty]
+        args = args_without_defaults + args_with_defaults
+        # ignore first two arguments for env and env_ids
+        # Think: Check for cases when kwargs are set inside the function?
+        if len(args) > min_argc:
+            if set(args[min_argc:]) != set(term_params + args_with_defaults):
+                raise ValueError(
+                    f"The term '{term_name}' expects mandatory parameters: {args_without_defaults[min_argc:]}"
+                    f" and optional parameters: {args_with_defaults}, but received: {term_params}."
+                )
+
+        # process attributes at runtime
+        # these properties are only resolvable once the simulation starts playing
+        if self._env.sim.is_playing():
+            self._process_term_cfg_at_play(term_name, term_cfg)
+
+    def _process_term_cfg_at_play(self, term_name: str, term_cfg: ManagerTermBaseCfg):
+        """Process the term configuration at runtime.
+
+        This function is called when the simulation starts playing. It is used to process the term
+        configuration at runtime. This includes:
+
+        * Resolving the scene entity configuration for the term.
+        * Initializing the term if it is a class.
+
+        Since the above steps rely on PhysX to parse over the simulation scene, they are deferred
+        until the simulation starts playing.
+
+        Args:
+            term_name: The name of the term.
+            term_cfg: The term configuration.
+        """
         for key, value in term_cfg.params.items():
-            # deal with string
             if isinstance(value, SceneEntityCfg):
                 # load the entity
                 try:
@@ -266,33 +389,7 @@ class ManagerBase(ABC):
             # store the entity
             term_cfg.params[key] = value
 
-        # get the corresponding function or functional class
-        if isinstance(term_cfg.func, str):
-            term_cfg.func = string_to_callable(term_cfg.func)
-
         # initialize the term if it is a class
         if inspect.isclass(term_cfg.func):
-            if not issubclass(term_cfg.func, ManagerTermBase):
-                raise TypeError(
-                    f"Configuration for the term '{term_name}' is not of type ManagerTermBase."
-                    f" Received: '{type(term_cfg.func)}'."
-                )
+            omni.log.info(f"Initializing term '{term_name}' with class '{term_cfg.func.__name__}'.")
             term_cfg.func = term_cfg.func(cfg=term_cfg, env=self._env)
-        # check if function is callable
-        if not callable(term_cfg.func):
-            raise AttributeError(f"The term '{term_name}' is not callable. Received: {term_cfg.func}")
-
-        # check if term's arguments are matched by params
-        term_params = list(term_cfg.params.keys())
-        args = inspect.signature(term_cfg.func).parameters
-        args_with_defaults = [arg for arg in args if args[arg].default is not inspect.Parameter.empty]
-        args_without_defaults = [arg for arg in args if args[arg].default is inspect.Parameter.empty]
-        args = args_without_defaults + args_with_defaults
-        # ignore first two arguments for env and env_ids
-        # Think: Check for cases when kwargs are set inside the function?
-        if len(args) > min_argc:
-            if set(args[min_argc:]) != set(term_params + args_with_defaults):
-                raise ValueError(
-                    f"The term '{term_name}' expects mandatory parameters: {args_without_defaults[min_argc:]}"
-                    f" and optional parameters: {args_with_defaults}, but received: {term_params}."
-                )

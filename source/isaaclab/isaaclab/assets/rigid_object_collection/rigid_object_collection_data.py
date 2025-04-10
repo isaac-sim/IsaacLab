@@ -94,10 +94,11 @@ class RigidObjectCollectionData:
     ##
 
     default_object_state: torch.Tensor = None
-    """Default object state ``[pos, quat, lin_vel, ang_vel]`` in local environment frame. Shape is (num_instances, num_objects, 13).
+    """Default object state ``[pos, quat, lin_vel, ang_vel]`` in local environment frame.
+    Shape is (num_instances, num_objects, 13).
 
-    The position and quaternion are of each object's rigid body's actor frame. Meanwhile, the linear and angular velocities are
-    of the center of mass frame.
+    The position and quaternion are of each object's rigid body's actor frame. Meanwhile, the linear and
+    angular velocities are of the center of mass frame.
     """
 
     default_mass: torch.Tensor = None
@@ -116,7 +117,8 @@ class RigidObjectCollectionData:
 
     @property
     def object_state_w(self):
-        """Object state ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame. Shape is (num_instances, num_objects, 13).
+        """Object state ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame.
+        Shape is (num_instances, num_objects, 13).
 
         The position and orientation are of the rigid body's actor frame. Meanwhile, the linear and angular
         velocities are of the rigid body's center of mass frame.
@@ -134,7 +136,8 @@ class RigidObjectCollectionData:
 
     @property
     def object_link_state_w(self):
-        """Object center of mass state ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame. Shape is (num_instances, num_objects, 13).
+        """Object center of mass state ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame.
+        Shape is (num_instances, num_objects, 13).
 
         The position, quaternion, and linear/angular velocity are of the rigid body root frame relative to the
         world.
@@ -157,7 +160,8 @@ class RigidObjectCollectionData:
 
     @property
     def object_com_state_w(self):
-        """Object state ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame. Shape is (num_instances, num_objects, 13).
+        """Object state ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame.
+        Shape is (num_instances, num_objects, 13).
 
         The position, quaternion, and linear/angular velocity are of the rigid body's center of mass frame
         relative to the world. Center of mass frame is the orientation principle axes of inertia.
@@ -449,7 +453,7 @@ class RigidObjectCollectionData:
         """Reshapes and arranges the data from the physics view to (num_instances, num_objects, data_size).
 
         Args:
-            data: The data from the physics view. Shape is (num_instances*num_objects, data_size).
+            data: The data from the physics view. Shape is (num_instances * num_objects, data_size).
 
         Returns:
             The reshaped data. Shape is (num_objects, num_instances, data_size).

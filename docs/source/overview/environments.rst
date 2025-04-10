@@ -335,6 +335,121 @@ Others
 .. |quadcopter| image:: ../_static/tasks/others/quadcopter.jpg
 .. |humanoid_amp| image:: ../_static/tasks/others/humanoid_amp.jpg
 
+Spaces showcase
+~~~~~~~~~~~~~~~
+
+The |cartpole_showcase| folder contains showcase tasks (based on the *Cartpole* and *Cartpole-Camera* Direct tasks)
+for the definition/use of the various Gymnasium observation and action spaces supported in Isaac Lab.
+
+.. |cartpole_showcase| replace:: `cartpole_showcase <https://github.com/isaac-sim/IsaacLab/tree/main/source/isaaclab_tasks/isaaclab_tasks/direct/cartpole_showcase>`__
+
+.. note::
+
+    Currently, only Isaac Lab's Direct workflow supports the definition of observation and action spaces other than ``Box``.
+    See Direct workflow's :py:obj:`~isaaclab.envs.DirectRLEnvCfg.observation_space` / :py:obj:`~isaaclab.envs.DirectRLEnvCfg.action_space`
+    documentation for more details.
+
+The following tables summarize the different pairs of showcased spaces for the *Cartpole* and *Cartpole-Camera* tasks.
+Replace ``<OBSERVATION>`` and ``<ACTION>`` with the observation and action spaces to be explored in the task names for training and evaluation.
+
+.. raw:: html
+
+    <table class="showcase-table">
+    <caption>
+      <p>Showcase spaces for the <strong>Cartpole</strong> task</p>
+      <p><code>Isaac-Cartpole-Showcase-&lt;OBSERVATION&gt;-&lt;ACTION&gt;-Direct-v0</code></p>
+    </caption>
+    <tbody>
+      <tr>
+        <td colspan="2" rowspan="2"></td>
+        <td colspan="5" class="center">action space</td>
+      </tr>
+      <tr>
+        <td><strong>&nbsp;Box</strong></td>
+        <td><strong>&nbsp;Discrete</strong></td>
+        <td><strong>&nbsp;MultiDiscrete</strong></td>
+      </tr>
+      <tr>
+        <td rowspan="5" class="rot90 center"><p>observation</p><p>space</p></td>
+        <td><strong>&nbsp;Box</strong></td>
+        <td class="center">x</td>
+        <td class="center">x</td>
+        <td class="center">x</td>
+      </tr>
+      <tr>
+        <td><strong>&nbsp;Discrete</strong></td>
+        <td class="center">x</td>
+        <td class="center">x</td>
+        <td class="center">x</td>
+      </tr>
+      <tr>
+        <td><strong>&nbsp;MultiDiscrete</strong></td>
+        <td class="center">x</td>
+        <td class="center">x</td>
+        <td class="center">x</td>
+      </tr>
+      <tr>
+        <td><strong>&nbsp;Dict</strong></td>
+        <td class="center">x</td>
+        <td class="center">x</td>
+        <td class="center">x</td>
+      </tr>
+      <tr>
+        <td><strong>&nbsp;Tuple</strong></td>
+        <td class="center">x</td>
+        <td class="center">x</td>
+        <td class="center">x</td>
+      </tr>
+    </tbody>
+    </table>
+    <br>
+    <table class="showcase-table">
+    <caption>
+        <p>Showcase spaces for the <strong>Cartpole-Camera</strong> task</p>
+        <p><code>Isaac-Cartpole-Camera-Showcase-&lt;OBSERVATION&gt;-&lt;ACTION&gt;-Direct-v0</code></p>
+    </caption>
+    <tbody>
+      <tr>
+        <td colspan="2" rowspan="2"></td>
+        <td colspan="5" class="center">action space</td>
+      </tr>
+      <tr>
+        <td><strong>&nbsp;Box</strong></td>
+        <td><strong>&nbsp;Discrete</strong></td>
+        <td><strong>&nbsp;MultiDiscrete</strong></td>
+      </tr>
+      <tr>
+        <td rowspan="5" class="rot90 center"><p>observation</p><p>space</p></td>
+        <td><strong>&nbsp;Box</strong></td>
+        <td class="center">x</td>
+        <td class="center">x</td>
+        <td class="center">x</td>
+      </tr>
+      <tr>
+        <td><strong>&nbsp;Discrete</strong></td>
+        <td class="center">-</td>
+        <td class="center">-</td>
+        <td class="center">-</td>
+      </tr>
+      <tr>
+        <td><strong>&nbsp;MultiDiscrete</strong></td>
+        <td class="center">-</td>
+        <td class="center">-</td>
+        <td class="center">-</td>
+      </tr>
+      <tr>
+        <td><strong>&nbsp;Dict</strong></td>
+        <td class="center">x</td>
+        <td class="center">x</td>
+        <td class="center">x</td>
+      </tr>
+      <tr>
+        <td><strong>&nbsp;Tuple</strong></td>
+        <td class="center">x</td>
+        <td class="center">x</td>
+        <td class="center">x</td>
+      </tr>
+    </tbody></table>
 
 Multi-agent
 ------------
@@ -404,6 +519,42 @@ Comprehensive List of Environments
       -
       - Direct
       - **rl_games** (PPO), **skrl** (IPPO, PPO, MAPPO)
+    * - Isaac-Cartpole-Camera-Showcase-Box-Box-Direct-v0
+      -
+      - Direct
+      - **skrl** (PPO)
+    * - Isaac-Cartpole-Camera-Showcase-Box-Discrete-Direct-v0
+      -
+      - Direct
+      - **skrl** (PPO)
+    * - Isaac-Cartpole-Camera-Showcase-Box-MultiDiscrete-Direct-v0
+      -
+      - Direct
+      - **skrl** (PPO)
+    * - Isaac-Cartpole-Camera-Showcase-Dict-Box-Direct-v0
+      -
+      - Direct
+      - **skrl** (PPO)
+    * - Isaac-Cartpole-Camera-Showcase-Dict-Discrete-Direct-v0
+      -
+      - Direct
+      - **skrl** (PPO)
+    * - Isaac-Cartpole-Camera-Showcase-Dict-MultiDiscrete-Direct-v0
+      -
+      - Direct
+      - **skrl** (PPO)
+    * - Isaac-Cartpole-Camera-Showcase-Tuple-Box-Direct-v0
+      -
+      - Direct
+      - **skrl** (PPO)
+    * - Isaac-Cartpole-Camera-Showcase-Tuple-Discrete-Direct-v0
+      -
+      - Direct
+      - **skrl** (PPO)
+    * - Isaac-Cartpole-Camera-Showcase-Tuple-MultiDiscrete-Direct-v0
+      -
+      - Direct
+      - **skrl** (PPO)
     * - Isaac-Cartpole-Depth-Camera-Direct-v0
       -
       - Direct
@@ -432,6 +583,66 @@ Comprehensive List of Environments
       -
       - Manager Based
       - **rl_games** (PPO)
+    * - Isaac-Cartpole-Showcase-Box-Box-Direct-v0
+      -
+      - Direct
+      - **skrl** (PPO)
+    * - Isaac-Cartpole-Showcase-Box-Discrete-Direct-v0
+      -
+      - Direct
+      - **skrl** (PPO)
+    * - Isaac-Cartpole-Showcase-Box-MultiDiscrete-Direct-v0
+      -
+      - Direct
+      - **skrl** (PPO)
+    * - Isaac-Cartpole-Showcase-Dict-Box-Direct-v0
+      -
+      - Direct
+      - **skrl** (PPO)
+    * - Isaac-Cartpole-Showcase-Dict-Discrete-Direct-v0
+      -
+      - Direct
+      - **skrl** (PPO)
+    * - Isaac-Cartpole-Showcase-Dict-MultiDiscrete-Direct-v0
+      -
+      - Direct
+      - **skrl** (PPO)
+    * - Isaac-Cartpole-Showcase-Discrete-Box-Direct-v0
+      -
+      - Direct
+      - **skrl** (PPO)
+    * - Isaac-Cartpole-Showcase-Discrete-Discrete-Direct-v0
+      -
+      - Direct
+      - **skrl** (PPO)
+    * - Isaac-Cartpole-Showcase-Discrete-MultiDiscrete-Direct-v0
+      -
+      - Direct
+      - **skrl** (PPO)
+    * - Isaac-Cartpole-Showcase-MultiDiscrete-Box-Direct-v0
+      -
+      - Direct
+      - **skrl** (PPO)
+    * - Isaac-Cartpole-Showcase-MultiDiscrete-Discrete-Direct-v0
+      -
+      - Direct
+      - **skrl** (PPO)
+    * - Isaac-Cartpole-Showcase-MultiDiscrete-MultiDiscrete-Direct-v0
+      -
+      - Direct
+      - **skrl** (PPO)
+    * - Isaac-Cartpole-Showcase-Tuple-Box-Direct-v0
+      -
+      - Direct
+      - **skrl** (PPO)
+    * - Isaac-Cartpole-Showcase-Tuple-Discrete-Direct-v0
+      -
+      - Direct
+      - **skrl** (PPO)
+    * - Isaac-Cartpole-Showcase-Tuple-MultiDiscrete-Direct-v0
+      -
+      - Direct
+      - **skrl** (PPO)
     * - Isaac-Cartpole-v0
       -
       - Manager Based

@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import json
 import math
 import numpy as np
 import torch
@@ -209,7 +210,10 @@ class TiledCamera(Camera):
             else:
                 init_params = None
                 if annotator_type == "semantic_segmentation":
-                    init_params = {"colorize": self.cfg.colorize_semantic_segmentation}
+                    init_params = {
+                        "colorize": self.cfg.colorize_semantic_segmentation,
+                        "mapping": json.dumps(self.cfg.semantic_segmentation_mapping),
+                    }
                 elif annotator_type == "instance_segmentation_fast":
                     init_params = {"colorize": self.cfg.colorize_instance_segmentation}
                 elif annotator_type == "instance_id_segmentation_fast":
@@ -258,6 +262,11 @@ class TiledCamera(Camera):
                 tiled_data_buffer = wp.array(
                     ptr=tiled_data_buffer.ptr, shape=(*tiled_data_buffer.shape, 4), dtype=wp.uint8, device=self.device
                 )
+
+            # For motion vectors, we only require the first two channels of the tiled buffer
+            # Note: Not doing this breaks the alignment of the data (check: https://github.com/isaac-sim/IsaacLab/issues/2003)
+            if data_type == "motion_vectors":
+                tiled_data_buffer = tiled_data_buffer[:, :, :2].contiguous()
 
             wp.launch(
                 kernel=reshape_tiled_image,

@@ -20,6 +20,8 @@ import unittest
 from dataclasses import MISSING
 from enum import Enum
 
+import carb
+
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObject, RigidObjectCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
@@ -224,14 +226,25 @@ class TestContactSensor(unittest.TestCase):
         cls.durations = [cls.sim_dt, cls.sim_dt * 2, cls.sim_dt * 32, cls.sim_dt * 128]
         cls.terrains = [FLAT_TERRAIN_CFG, COBBLESTONE_TERRAIN_CFG]
         cls.devices = ["cuda:0", "cpu"]
+        cls.carb_settings_iface = carb.settings.get_settings()
 
     def test_cube_contact_time(self):
         """Checks contact sensor values for contact time and air time for a cube collision primitive."""
-        self._run_contact_sensor_test(shape_cfg=CUBE_CFG)
+        # check for both contact processing enabled and disabled
+        # internally, the contact sensor should enable contact processing so it should always work.
+        for disable_contact_processing in [True, False]:
+            with self.subTest(disable_contact_processing=disable_contact_processing):
+                self.carb_settings_iface.set_bool("/physics/disableContactProcessing", disable_contact_processing)
+                self._run_contact_sensor_test(shape_cfg=CUBE_CFG)
 
     def test_sphere_contact_time(self):
         """Checks contact sensor values for contact time and air time for a sphere collision primitive."""
-        self._run_contact_sensor_test(shape_cfg=SPHERE_CFG)
+        # check for both contact processing enabled and disabled
+        # internally, the contact sensor should enable contact processing so it should always work.
+        for disable_contact_processing in [True, False]:
+            with self.subTest(disable_contact_processing=disable_contact_processing):
+                self.carb_settings_iface.set_bool("/physics/disableContactProcessing", disable_contact_processing)
+                self._run_contact_sensor_test(shape_cfg=SPHERE_CFG)
 
     def test_cube_stack_contact_filtering(self):
         """Checks contact sensor reporting for filtering stacked cube prims."""
@@ -271,6 +284,9 @@ class TestContactSensor(unittest.TestCase):
                         self.sim = sim
                         self.scene = scene
 
+                        # Check that contact processing is enabled
+                        self.assertFalse(self.carb_settings_iface.get("/physics/disableContactProcessing"))
+
                         # Play the simulation
                         self.sim.reset()
 
@@ -284,16 +300,86 @@ class TestContactSensor(unittest.TestCase):
                         # Reset the contact sensors
                         self.scene.reset()
                         # Let the scene come to a rest
-                        for _ in range(20):
+                        for _ in range(500):
                             self._perform_sim_step()
 
-                        # Check values for cube 2
+                        # Check values for cube 2 --> cube 1 is the only collision for cube 2
                         torch.testing.assert_close(
                             contact_sensor_2.data.force_matrix_w[:, :, 0], contact_sensor_2.data.net_forces_w
                         )
+                        # Check that forces are opposite and equal
                         torch.testing.assert_close(
-                            contact_sensor_2.data.force_matrix_w[:, :, 0], contact_sensor.data.force_matrix_w[:, :, 0]
+                            contact_sensor_2.data.force_matrix_w[:, :, 0], -contact_sensor.data.force_matrix_w[:, :, 0]
                         )
+                        # Check values are non-zero (contacts are happening and are getting reported)
+                        self.assertGreater(contact_sensor_2.data.net_forces_w.sum().item(), 0.0)
+                        self.assertGreater(contact_sensor.data.net_forces_w.sum().item(), 0.0)
+
+    def test_no_contact_reporting(self):
+        """Test that forcing the disable of contact processing results in no contact reporting.
+
+        We borrow the test :func:`test_cube_stack_contact_filtering` to test this and force disable contact processing.
+        """
+        # TODO: This test only works on CPU. For GPU, it seems the contact processing is not disabled.
+        for device in ["cpu"]:
+            with self.subTest(device=device):
+                with build_simulation_context(device=device, dt=self.sim_dt, add_lighting=True) as sim:
+                    sim._app_control_on_stop_handle = None
+                    # Instance new scene for the current terrain and contact prim.
+                    scene_cfg = ContactSensorSceneCfg(num_envs=32, env_spacing=1.0, lazy_sensor_update=False)
+                    scene_cfg.terrain = FLAT_TERRAIN_CFG.replace(prim_path="/World/ground")
+                    # -- cube 1
+                    scene_cfg.shape = CUBE_CFG.replace(prim_path="{ENV_REGEX_NS}/Cube_1")
+                    scene_cfg.shape.init_state.pos = (0, -1.0, 1.0)
+                    # -- cube 2 (on top of cube 1)
+                    scene_cfg.shape_2 = CUBE_CFG.replace(prim_path="{ENV_REGEX_NS}/Cube_2")
+                    scene_cfg.shape_2.init_state.pos = (0, -1.0, 1.525)
+                    # -- contact sensor 1
+                    scene_cfg.contact_sensor = ContactSensorCfg(
+                        prim_path="{ENV_REGEX_NS}/Cube_1",
+                        track_pose=True,
+                        debug_vis=False,
+                        update_period=0.0,
+                        filter_prim_paths_expr=["{ENV_REGEX_NS}/Cube_2"],
+                    )
+                    # -- contact sensor 2
+                    scene_cfg.contact_sensor_2 = ContactSensorCfg(
+                        prim_path="{ENV_REGEX_NS}/Cube_2",
+                        track_pose=True,
+                        debug_vis=False,
+                        update_period=0.0,
+                        filter_prim_paths_expr=["{ENV_REGEX_NS}/Cube_1"],
+                    )
+                    scene = InteractiveScene(scene_cfg)
+
+                    # Force disable contact processing
+                    self.carb_settings_iface.set_bool("/physics/disableContactProcessing", True)
+
+                    # Set variables internally for reference
+                    self.sim = sim
+                    self.scene = scene
+
+                    # Play the simulation
+                    self.sim.reset()
+
+                    # Extract from scene for type hinting
+                    contact_sensor: ContactSensor = self.scene["contact_sensor"]
+                    contact_sensor_2: ContactSensor = self.scene["contact_sensor_2"]
+                    # Check buffers have the right size
+                    self.assertEqual(contact_sensor.contact_physx_view.filter_count, 1)
+                    self.assertEqual(contact_sensor_2.contact_physx_view.filter_count, 1)
+
+                    # Reset the contact sensors
+                    self.scene.reset()
+                    # Let the scene come to a rest
+                    for _ in range(500):
+                        self._perform_sim_step()
+
+                    # check values are zero (contacts are happening but not reported)
+                    self.assertEqual(contact_sensor.data.net_forces_w.sum().item(), 0.0)
+                    self.assertEqual(contact_sensor.data.force_matrix_w.sum().item(), 0.0)
+                    self.assertEqual(contact_sensor_2.data.net_forces_w.sum().item(), 0.0)
+                    self.assertEqual(contact_sensor_2.data.force_matrix_w.sum().item(), 0.0)
 
     def test_sensor_print(self):
         """Test sensor print is working correctly."""
@@ -352,6 +438,9 @@ class TestContactSensor(unittest.TestCase):
                         # Set variables internally for reference
                         self.sim = sim
                         self.scene = scene
+
+                        # Check that contact processing is enabled
+                        self.assertFalse(self.carb_settings_iface.get("/physics/disableContactProcessing"))
 
                         # Play the simulation
                         self.sim.reset()
