@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.36.5 (2025-04-10)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^^^
+
+* Added unit tests for :class:`~isaaclab.actuator.ImplicitActuator`, :class:`~isaaclab.actuator.IdealPDActuator`,
+  and :class:`~isaaclab.actuator.DCMotor` independent of :class:`~isaaclab.assets.Articulation`
+
+
 0.36.4 (2025-03-24)
 ~~~~~~~~~~~~~~~~~~~
 
