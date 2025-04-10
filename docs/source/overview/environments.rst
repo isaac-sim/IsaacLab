@@ -527,47 +527,47 @@ Comprehensive List of Environments
       -
       - Direct
       - **rl_games** (PPO), **skrl** (IPPO, PPO, MAPPO)
-    * - Isaac-Cartpole-Camera-Showcase-Box-Box-Direct-v0
+    * - Isaac-Cartpole-Camera-Showcase-Box-Box-Direct-v0 (Requires running with ``--enable_cameras``)
       -
       - Direct
       - **skrl** (PPO)
-    * - Isaac-Cartpole-Camera-Showcase-Box-Discrete-Direct-v0
+    * - Isaac-Cartpole-Camera-Showcase-Box-Discrete-Direct-v0 (Requires running with ``--enable_cameras``)
       -
       - Direct
       - **skrl** (PPO)
-    * - Isaac-Cartpole-Camera-Showcase-Box-MultiDiscrete-Direct-v0
+    * - Isaac-Cartpole-Camera-Showcase-Box-MultiDiscrete-Direct-v0 (Requires running with ``--enable_cameras``)
       -
       - Direct
       - **skrl** (PPO)
-    * - Isaac-Cartpole-Camera-Showcase-Dict-Box-Direct-v0
+    * - Isaac-Cartpole-Camera-Showcase-Dict-Box-Direct-v0 (Requires running with ``--enable_cameras``)
       -
       - Direct
       - **skrl** (PPO)
-    * - Isaac-Cartpole-Camera-Showcase-Dict-Discrete-Direct-v0
+    * - Isaac-Cartpole-Camera-Showcase-Dict-Discrete-Direct-v0 (Requires running with ``--enable_cameras``)
       -
       - Direct
       - **skrl** (PPO)
-    * - Isaac-Cartpole-Camera-Showcase-Dict-MultiDiscrete-Direct-v0
+    * - Isaac-Cartpole-Camera-Showcase-Dict-MultiDiscrete-Direct-v0 (Requires running with ``--enable_cameras``)
       -
       - Direct
       - **skrl** (PPO)
-    * - Isaac-Cartpole-Camera-Showcase-Tuple-Box-Direct-v0
+    * - Isaac-Cartpole-Camera-Showcase-Tuple-Box-Direct-v0 (Requires running with ``--enable_cameras``)
       -
       - Direct
       - **skrl** (PPO)
-    * - Isaac-Cartpole-Camera-Showcase-Tuple-Discrete-Direct-v0
+    * - Isaac-Cartpole-Camera-Showcase-Tuple-Discrete-Direct-v0 (Requires running with ``--enable_cameras``)
       -
       - Direct
       - **skrl** (PPO)
-    * - Isaac-Cartpole-Camera-Showcase-Tuple-MultiDiscrete-Direct-v0
+    * - Isaac-Cartpole-Camera-Showcase-Tuple-MultiDiscrete-Direct-v0 (Requires running with ``--enable_cameras``)
       -
       - Direct
       - **skrl** (PPO)
-    * - Isaac-Cartpole-Depth-Camera-Direct-v0
+    * - Isaac-Cartpole-Depth-Camera-Direct-v0 (Requires running with ``--enable_cameras``)
       -
       - Direct
       - **rl_games** (PPO), **skrl** (PPO)
-    * - Isaac-Cartpole-Depth-v0
+    * - Isaac-Cartpole-Depth-v0 (Requires running with ``--enable_cameras``)
       -
       - Manager Based
       - **rl_games** (PPO)
@@ -575,19 +575,19 @@ Comprehensive List of Environments
       -
       - Direct
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO), **sb3** (PPO)
-    * - Isaac-Cartpole-RGB-Camera-Direct-v0
+    * - Isaac-Cartpole-RGB-Camera-Direct-v0 (Requires running with ``--enable_cameras``)
       -
       - Direct
       - **rl_games** (PPO), **skrl** (PPO)
-    * - Isaac-Cartpole-RGB-ResNet18-v0
+    * - Isaac-Cartpole-RGB-ResNet18-v0 (Requires running with ``--enable_cameras``)
       -
       - Manager Based
       - **rl_games** (PPO)
-    * - Isaac-Cartpole-RGB-TheiaTiny-v0
+    * - Isaac-Cartpole-RGB-TheiaTiny-v0 (Requires running with ``--enable_cameras``)
       -
       - Manager Based
       - **rl_games** (PPO)
-    * - Isaac-Cartpole-RGB-v0
+    * - Isaac-Cartpole-RGB-v0 (Requires running with ``--enable_cameras``)
       -
       - Manager Based
       - **rl_games** (PPO)
@@ -771,8 +771,8 @@ Comprehensive List of Environments
       -
       - Direct
       - **rl_games** (LSTM)
-    * - Isaac-Repose-Cube-Shadow-Vision-Direct-v0
-      - Isaac-Repose-Cube-Shadow-Vision-Direct-Play-v0
+    * - Isaac-Repose-Cube-Shadow-Vision-Direct-v0 (Requires running with ``--enable_cameras``)
+      - Isaac-Repose-Cube-Shadow-Vision-Direct-Play-v0 (Requires running with ``--enable_cameras``)
       - Direct
       - **rsl_rl** (PPO), **rl_games** (VISION)
     * - Isaac-Shadow-Hand-Over-Direct-v0
@@ -787,11 +787,11 @@ Comprehensive List of Environments
       -
       - Manager Based
       -
-    * - Isaac-Stack-Cube-Instance-Randomize-Franka-IK-Rel-v0
+    * - Isaac-Stack-Cube-Instance-Randomize-Franka-IK-Rel-v0 (Requires running with ``--enable_cameras``)
       -
       - Manager Based
       -
-    * - Isaac-Stack-Cube-Instance-Randomize-Franka-v0
+    * - Isaac-Stack-Cube-Instance-Randomize-Franka-v0 (Requires running with ``--enable_cameras``)
       -
       - Manager Based
       -
