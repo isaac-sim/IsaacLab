@@ -284,11 +284,9 @@ def test_ideal_pd_compute(sim, num_envs, num_joints, device, effort_lim):
 @pytest.mark.parametrize("num_envs", [1, 2])
 @pytest.mark.parametrize("num_joints", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
-@pytest.mark.parametrize("effort_lim", [None, 60])
-@pytest.mark.parametrize("saturation_effort", [None, 100])
-@pytest.mark.parametrize("mirror_t_s", [1.0, -1.0])
-@pytest.mark.parametrize("test_point", range(4))
-def test_dc_motor_clip(sim, num_envs, num_joints, device, effort_lim, saturation_effort, mirror_t_s, test_point):
+@pytest.mark.parametrize("negate_t_s", [1.0, -1.0])
+@pytest.mark.parametrize("test_point", range(9))
+def test_dc_motor_clip(sim, num_envs, num_joints, device, negate_t_s, test_point):
     r"""Test the computation of the dc motor actuator 4 quadrant torque speed curve.
 
     torque_speed_pairs of interest:
@@ -299,49 +297,56 @@ def test_dc_motor_clip(sim, num_envs, num_joints, device, effort_lim, saturation
     4 - less than effort limit but outside torque speed curve (quadrant 2)
     5 - fully inside torque speed curve and effort limit (quadrant 2)
     6 - fully outside torque speed curve and -effort limit (quadrant 2)
+    7 - fully inside torque speed curve, outside -effort limit, and inside corner velocity (quadrant 2)
+    8 - fully inside torque speed curves, outside -effort limit, and outside corner velocity (quadrant2)
 
     e - effort_limit
     s - saturation_effort
     v - velocity_limit
+    c - corner velocity
     \ - torque-speed linear boundary between v and s
 
     each torque_speed_point will be tested in quadrant 3 and 4
 
-    ===========Speed==============
-    |\  6  |     |     |         |
-    |  \   |     |     |         |
-    |    \ |     |     |         |
-    |      \  4  |     |         |
-    |  Q2  | \   |     |     Q1  |
-    |      |   \ |  3  |         |
-    |      |     v     |         |
-    |      |     | \   | 2       |
-    |      |     |   \ |         |
-    |      |     |     \         |
-    |\     |  5  |  0  |1\       |
-    |--s---e-----o-----e---s-----| Torque
-    |    \ |     |     |     \   |
-    |      \     |     |       \ |
-    |      | \   |     |         |
-    |  Q3  |   \ |     |     Q4  |
-    |      |     v     |         |
-    |      |     | \   |         |
-    ==============================
+    =============Speed===============
+    |   \  6  |     |     |         |
+    |  8  \   |     |     |         |
+    |       \ |     |     |         |
+    |         c  4  |     |         |
+    |     Q2  | \   |     |     Q1  |
+    |         |   \ |  3  |         |
+    |      7  |     v     |         |
+    |         |     | \   | 2       |
+    |         |     |   \ |         |
+    | \       |     |     \         |
+    |   \     |  5  |  0  |1\       |
+    |-----s---e-----o-----e---s-----| Torque
+    |       \ |     |     |     \   |
+    |         \     |     |       \ |
+    |         | \   |     |         |
+    |     Q3  |   \ |     |     Q4  |
+    |         |     v     |         |
+    |         |     | \   |         |
+    =================================
     """
     torque_speed_pairs = [
-        (30.0, 10.0),
-        (70.0, 10.0),
-        (80.0, 40.0),
-        (30.0, 40.0),
-        (-20.0, 90.0),
-        (-30.0, 10.0),
-        (-80.0, 110.0),
+        (30.0, 10.0),  # 0
+        (70.0, 10.0),  # 1
+        (80.0, 40.0),  # 2
+        (30.0, 40.0),  # 3
+        (-20.0, 90.0),  # 4
+        (-30.0, 10.0),  # 5
+        (-80.0, 110.0),  # 6
+        (-80.0, 50.0),  # 7
+        (-120.0, 90.0),  # 8
     ]
 
     joint_names = [f"joint_{d}" for d in range(num_joints)]
     joint_ids = [d for d in range(num_joints)]
     stiffness = 200
     damping = 10
+    effort_lim = 60
+    saturation_effort = 100.0
     velocity_limit = 50
     actuator_cfg = DCMotorCfg(
         joint_names_expr=joint_names,
@@ -364,47 +369,20 @@ def test_dc_motor_clip(sim, num_envs, num_joints, device, effort_lim, saturation
 
     i = test_point
     ts = torque_speed_pairs[test_point]
-    torque = ts[0] * mirror_t_s
-    speed = ts[1] * mirror_t_s
+    torque = ts[0] * negate_t_s
+    speed = ts[1] * negate_t_s
     actuator._joint_vel[:] = speed * torch.ones(num_envs, num_joints, device=device)
     effort = torque * torch.ones(num_envs, num_joints, device=device)
     clipped_effort = actuator._clip_effort(effort)
 
-    if saturation_effort is not None:
-        torque_speed_curve = saturation_effort * (mirror_t_s * 1 - speed / velocity_limit)
+    torque_speed_curve = saturation_effort * (negate_t_s * 1 - speed / velocity_limit)
 
-    if i == 0 or i == 5:
+    if i in [0, 5]:
         expected_clipped_effort = torque
-    elif i == 1:
-        expected_clipped_effort = math.copysign(effort_lim, torque) if effort_lim is not None else torque
-    elif i == 2:
-        if saturation_effort is not None:
-            expected_clipped_effort = torque_speed_curve
-        elif effort_lim is not None:
-            expected_clipped_effort = math.copysign(effort_lim, torque)
-        else:
-            expected_clipped_effort = torque
-    elif i == 3:
-        if saturation_effort is not None:
-            expected_clipped_effort = torque_speed_curve
-        else:
-            expected_clipped_effort = torque
-    elif i == 4:
-        if effort_lim is not None:
-            expected_clipped_effort = math.copysign(effort_lim, torque)
-        elif saturation_effort is not None:
-            expected_clipped_effort = torque_speed_curve
-        else:
-            expected_clipped_effort = torque
-        print("expected: ", expected_clipped_effort)
-        print("clipped:", clipped_effort)
-    elif i == 6:
-        if effort_lim is not None:
-            expected_clipped_effort = math.copysign(effort_lim, torque)
-        elif saturation_effort is not None:
-            expected_clipped_effort = torque_speed_curve
-        else:
-            expected_clipped_effort = torque
+    elif i in [1, 7]:
+        expected_clipped_effort = math.copysign(effort_lim, torque)
+    elif i in [2, 3, 4, 6, 8]:
+        expected_clipped_effort = torque_speed_curve
 
     torch.testing.assert_close(
         expected_clipped_effort * torch.ones(num_envs, num_joints, device=device), clipped_effort

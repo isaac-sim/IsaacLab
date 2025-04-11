@@ -201,8 +201,8 @@ class IdealPDActuator(ActuatorBase):
 class DCMotor(IdealPDActuator):
     r"""Direct control (DC) motor actuator model with velocity-based saturation model.
 
-    It uses the same model as the :class:`IdealActuator` for computing the torques from input commands.
-    However, it implements a saturation model defined by DC motor characteristics.
+    It uses the same model as the :class:`IdealPDActuator` for computing the torques from input commands.
+    However, it implements a saturation model defined by a linear four quadrant DC motor torque-speed curve.
 
     A DC motor is a type of electric motor that is powered by direct current electricity. In most cases,
     the motor is connected to a constant source of voltage supply, and the current is controlled by a rheostat.
@@ -211,17 +211,17 @@ class DCMotor(IdealPDActuator):
 
     A DC motor characteristics are defined by the following parameters:
 
-    * Continuous-rated speed (:math:`\dot{q}_{motor, max}`) : The maximum-rated speed of the motor.
-    * Continuous-stall torque (:math:`\tau_{motor, max}`): The maximum-rated torque produced at 0 speed.
-    * Saturation torque (:math:`\tau_{motor, sat}`): The maximum torque that can be outputted for a short period.
+    * No-load speed (:math:`\dot{q}_{motor, max}`) : The maximum-rated speed of the motor at 0 Torque.
+    * Stall torque (:math:`\tau_{motor, max}`): The maximum-rated torque produced at 0 speed.
+    * Continuous torque (:math:`\tau_{motor, con}`): The maximum torque that can be outputted for a short period.
 
     Based on these parameters, the instantaneous minimum and maximum torques are defined as follows:
 
     .. math::
 
-        \tau_{j, max}(\dot{q}) & = clip \left (\tau_{j, sat} \times \left(1 -
+        \tau_{j, max}(\dot{q}) & = clip \left (\tau_{j, con} \times \left(1 -
             \frac{\dot{q}}{\dot{q}_{j, max}}\right), 0.0, \tau_{j, max} \right) \\
-        \tau_{j, min}(\dot{q}) & = clip \left (\tau_{j, sat} \times \left( -1 -
+        \tau_{j, min}(\dot{q}) & = clip \left (\tau_{j, con} \times \left( -1 -
             \frac{\dot{q}}{\dot{q}_{j, max}}\right), - \tau_{j, max}, 0.0 \right)
 
     where :math:`\gamma` is the gear ratio of the gear box connecting the motor and the actuated joint ends,
@@ -245,10 +245,11 @@ class DCMotor(IdealPDActuator):
     def __init__(self, cfg: DCMotorCfg, *args, **kwargs):
         super().__init__(cfg, *args, **kwargs)
         # parse configuration
-        if self.cfg.saturation_effort is not None:
-            self._saturation_effort = self.cfg.saturation_effort
-        else:
-            self._saturation_effort = torch.inf
+        if self.cfg.saturation_effort is None:
+            raise ValueError("The saturation_effort must be provided for the DC motor actuator model.")
+        self._saturation_effort = self.cfg.saturation_effort
+        # find the velocity on the torque-speed curve that intersects effort_limit
+        self._vel_at_effort_lim = self.velocity_limit * (1 + self.effort_limit / self._saturation_effort)
         # prepare joint vel buffer for max effort computation
         self._joint_vel = torch.zeros_like(self.computed_effort)
         # create buffer for zeros effort
@@ -275,15 +276,22 @@ class DCMotor(IdealPDActuator):
 
     def _clip_effort(self, effort: torch.Tensor) -> torch.Tensor:
         # compute torque limits
-        # -- max limit
-        max_effort = self._saturation_effort * (1.0 - self._joint_vel / self.velocity_limit)
-        max_effort = torch.clip(max_effort, min=self._zeros_effort, max=self.effort_limit)
-        # -- min limit
-        min_effort = self._saturation_effort * (-1.0 - self._joint_vel / self.velocity_limit)
-        min_effort = torch.clip(min_effort, min=-self.effort_limit, max=self._zeros_effort)
 
+        torque_speed_top = self._saturation_effort * (1.0 - self._joint_vel / self.velocity_limit)
+        torque_speed_bottom = self._saturation_effort * (-1.0 - self._joint_vel / self.velocity_limit)
+
+        # -- max limit
+        max_effort = torch.clip(torque_speed_top, max=self.effort_limit)
+        # -- min limit
+        min_effort = torch.clip(torque_speed_bottom, min=-self.effort_limit)
         # clip the torques based on the motor limits
-        return torch.clip(effort, min=min_effort, max=max_effort)
+        clamped = torch.clip(effort, min=min_effort, max=max_effort)
+        gl_vel_at_effort_lim = self._joint_vel > self._vel_at_effort_lim
+        ls_vel_at_neg_effort_lim = self._joint_vel < -self._vel_at_effort_lim
+        clamped[gl_vel_at_effort_lim] = torque_speed_top[gl_vel_at_effort_lim]
+        clamped[ls_vel_at_neg_effort_lim] = torque_speed_bottom[ls_vel_at_neg_effort_lim]
+
+        return clamped
 
 
 class DelayedPDActuator(IdealPDActuator):
