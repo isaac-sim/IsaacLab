@@ -133,6 +133,8 @@ Joint penalties.
 """
 
 
+
+
 def joint_torques_l2(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
     """Penalize joint torques applied on the articulation using L2 squared kernel.
 
@@ -195,6 +197,22 @@ def joint_pos_limits(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEn
     ).clip(min=0.0)
     return torch.sum(out_of_limits, dim=1)
 
+
+def track_velocity(env: ManagerBasedRLEnv, command_name: str, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
+    """1. 명령 양수 & 조인트 각도 움직임 양수 -> 보상
+    2. 명령 음수 & 조인트 각도 움직임 음수 -> 보상
+    3. 명령과 조인트 각도 부호가 반대일 경우 -> 패널티"""
+
+    asset: Articulation = env.scene[asset_cfg.name]
+    joint_angles = asset.data.joint_pos[:, asset_cfg.joint_ids]
+    joint_angle_changed = joint_angles - asset.data.default_joint_pos[:, asset_cfg.joint_ids]
+    commanded_velocity = env.command_manager.get_command(command_name)[:, 0]
+    
+    # Calculate reward based on joint angle direction
+    reward = commanded_velocity * joint_angle_changed
+    print(reward)
+    
+    return reward
 
 def joint_vel_limits(
     env: ManagerBasedRLEnv, soft_ratio: float, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
@@ -307,3 +325,171 @@ def track_ang_vel_z_exp(
     # compute the error
     ang_vel_error = torch.square(env.command_manager.get_command(command_name)[:, 2] - asset.data.root_ang_vel_b[:, 2])
     return torch.exp(-ang_vel_error / std**2)
+
+def track_lin_vel_x_exp(
+    env: ManagerBasedRLEnv, std: float, command_name: str, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
+) -> torch.Tensor:
+    """Reward tracking of linear velocity command (x-axis only) using exponential kernel."""
+
+    asset: RigidObject = env.scene[asset_cfg.name]
+    target_vx = env.command_manager.get_command(command_name)[:, 0]
+    current_vx = asset.data.root_com_lin_vel_b[:, 0]
+    lin_vel_error = torch.square(target_vx - current_vx)
+    return 1.1 * torch.exp(-lin_vel_error / std**2) - 0.1
+
+def quaternion_to_euler(quaternion: torch.Tensor) -> torch.Tensor:
+    """Convert quaternion to euler angles (pitch only).
+    Args:
+        quaternion: [..., 4] tensor with quaternions in [w, x, y, z] order
+    Returns:
+        pitch angle in radians
+    """
+    # pitch (y-axis rotation) = arcsin(2(w*y - z*x))
+    return torch.asin(2 * (quaternion[:, 0] * quaternion[:, 2] - quaternion[:, 3] * quaternion[:, 1]))
+
+def joint_pos_pitch_exp(
+    env: ManagerBasedRLEnv, std: float, command_name: str, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
+) -> torch.Tensor:
+    """Reward tracking of joint position command (pitch) using exponential kernel."""
+    asset: Articulation = env.scene[asset_cfg.name]
+    target_pitch = quaternion_to_euler(env.command_manager.get_command(command_name)[:, 3:7])
+   #  print(target_pitch)
+    joint_ids = asset_cfg.joint_ids
+    if isinstance(joint_ids, int):  # 단일 값이면 리스트로 변환
+        joint_ids = [joint_ids]
+
+    current_pitch = asset.data.joint_pos[:, joint_ids]
+    
+    if current_pitch.ndim == 1 or current_pitch.shape[1] == 1:
+        current_pitch = current_pitch.squeeze(-1)  # 차원 축소
+
+    joint_pos_error = target_pitch - current_pitch
+    #print("target_pitch, current_pitch", target_pitch, current_pitch)
+    #print("joint_pos_error", joint_pos_error)
+
+    reward = 1.1 * torch.exp(-1 * abs(joint_pos_error) / std**2) - 0.5
+    #print("reward", reward)
+    
+    return reward
+
+def lin_vel_z(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+                sensor_cfg: SceneEntityCfg | None = None) -> torch.Tensor:
+    """Penalize z-axis base linear velocity using L2 squared kernel."""
+    # extract the used quantities (to enable type-hinting)
+    asset: RigidObject = env.scene[asset_cfg.name]
+    sensor: RayCaster = env.scene[sensor_cfg.name]
+    z_values = sensor.data.ray_hits_w[..., 2]
+        # 두 센서의 z축 값 분리
+    sensor1_z = z_values[:, 0]
+    sensor2_z = z_values[:, 1]
+        # 두 센서 간의 z축 차이 계산
+    z_difference = torch.abs(sensor1_z - sensor2_z)
+    if torch.all(z_difference <= 0.02):
+        return 0
+    return torch.square(asset.data.root_com_lin_vel_b[:, 2])
+
+def base_height(
+    env: ManagerBasedRLEnv,
+    target_height: float,
+    asset_cfg: SceneEntityCfg,
+    sensor_cfg: SceneEntityCfg | None = None,
+) -> torch.Tensor:
+    """점프 동작을 유도하는 reward 함수
+    
+    Rewards:
+    1. z_difference가 0.02보다 클 때만 보상 계산 (점프 유도)
+    2. 현재 높이 + target_height에 가까울수록 큰 보상
+    """
+    asset: RigidObject = env.scene[asset_cfg.name]
+    if sensor_cfg is not None:
+        sensor: RayCaster = env.scene[sensor_cfg.name]
+        z_values = sensor.data.ray_hits_w[..., 2]
+
+        # 두 센서의 z축 값 분리
+        sensor1_z = z_values[:, 0]
+        sensor2_z = z_values[:, 1]
+
+        # 두 센서 간의 z축 차이 계산
+        z_difference = torch.abs(sensor1_z - sensor2_z)
+
+        # terrain_height와 current_height 계산
+        terrain_height = torch.max(sensor.data.ray_hits_w[..., 2], dim=1)[0]
+        current_height = asset.data.root_pos_w[:, 2]
+        
+        # z_difference가 0.02보다 작으면 0 반환 (점프 유도)
+        zero_reward = torch.zeros_like(current_height)
+        if torch.all(z_difference <= 0.02):
+            return zero_reward
+        
+        # 목표 높이 계산: 현재 높이 + target_height
+        desired_height = current_height + target_height
+        
+        # 실제 높이와 목표 높이의 차이에 따른 보상 계산
+        height_diff = torch.abs(current_height - desired_height)
+        reward = torch.exp(-height_diff)  # 차이가 작을수록 큰 보상 (최대 1)
+        
+        return reward
+    else:
+        # flat terrain의 경우
+        current_height = asset.data.root_link_pos_w[:, 2]
+        height_diff = torch.abs(current_height - target_height)
+        return torch.exp(-height_diff)
+
+def penalize_opposite_direction(
+    env: ManagerBasedRLEnv, 
+    command_name: str, 
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
+) -> torch.Tensor:
+    """If the robot moves in the opposite direction of the command, apply a penalty."""
+    
+    # 로봇 객체 가져오기
+    asset: RigidObject = env.scene[asset_cfg.name]
+
+    # 목표 x축 속도 (vx)
+    target_vx = env.command_manager.get_command(command_name)[:, 0]  # x 방향 속도
+
+    # 실제 x축 속도 (vx)
+    current_vx = asset.data.root_com_lin_vel_b[:, 0]  # x 방향 속도
+
+   # 목표 속도와 실제 속도의 부호가 다르면 패널티 적용
+    penalty = torch.where(
+        (target_vx * current_vx) < 0,  # 부호가 다르면 True
+        torch.abs(target_vx - current_vx),  # 패널티 부여
+        torch.zeros_like(target_vx)  # 부호가 같으면 0
+    )
+
+    return penalty
+
+def feet_air_time2(env: ManagerBasedRLEnv, command_name: str, sensor_cfg: SceneEntityCfg, threshold_min: float,
+                  threshold_max: float, sensor_cfg2: SceneEntityCfg) -> torch.Tensor:
+    """Reward long steps taken by the feet using L2-kernel.
+
+    This function rewards the agent for taking steps that are longer than a threshold. This helps ensure
+    that the robot lifts its feet off the ground and takes steps. The reward is computed as the sum of
+    the time for which the feet are in the air.
+
+    If the commands are small (i.e. the agent is not supposed to take a step), then the reward is zero.
+    """
+    # extract the used quantities (to enable type-hinting)
+    contact_sensor: ContactSensor = env.scene[sensor_cfg.name]
+    height_scanner: RayCaster = env.scene[sensor_cfg2.name]
+    z_values = height_scanner.data.ray_hits_w[..., 2]
+    sensor1_z = z_values[:, 0]
+    sensor2_z = z_values[:, 1]
+
+        # 두 센서 간의 z축 차이 계산
+    z_difference = torch.abs(sensor1_z - sensor2_z)
+    if torch.all(z_difference < 0.02):
+        return 0
+    # compute the reward
+    first_contact = contact_sensor.compute_first_contact(env.step_dt)[:, sensor_cfg.body_ids]
+    last_air_time = contact_sensor.data.last_air_time[:, sensor_cfg.body_ids]
+    # negative reward for small steps
+    air_time = (last_air_time - threshold_min) * first_contact
+    # no reward for large steps
+    air_time = torch.clamp(air_time, max=threshold_max - threshold_min)
+    reward = torch.sum(air_time, dim=1)
+    # no reward for zero command
+    reward *= torch.norm(env.command_manager.get_command(command_name)[:, :2], dim=1) > 0.1
+    return reward
+

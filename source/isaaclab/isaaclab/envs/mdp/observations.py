@@ -109,6 +109,17 @@ def joint_pos(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("
     # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
     return asset.data.joint_pos[:, asset_cfg.joint_ids]
+def joint_leg_pos(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
+    """Returns only the Upper Leg joint positions."""
+    asset: Articulation = env.scene[asset_cfg.name]
+    
+    # Upper Leg 조인트만 필터링 (정확한 joint_id 사용 필요)
+    upper_leg_joint_ids = [jid for jid, name in enumerate(asset.data.joint_names) if "upper_leg" in name]
+
+    if not upper_leg_joint_ids:
+        raise ValueError("No Upper Leg joints found. Check joint_names in the configuration.")
+
+    return asset.data.joint_pos[:, upper_leg_joint_ids]
 
 
 def joint_pos_rel(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
