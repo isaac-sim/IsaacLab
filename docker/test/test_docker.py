@@ -17,7 +17,7 @@ class TestDocker(unittest.TestCase):
     def start_stop_docker(self, profile, suffix):
         """Test starting and stopping docker profile with suffix."""
         environ = os.environ
-        context_dir = Path(__file__).resolve().parent
+        context_dir = Path(__file__).resolve().parent.parent
 
         # generate parameters for the arguments
         if suffix != "":
