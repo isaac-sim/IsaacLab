@@ -125,7 +125,9 @@ class ActionsCfg:
 class ObservationsCfg:
     """Observation specifications for the MDP."""
 
-    class DLP(ObsGroup):
+    class MLP(ObsGroup):
+        "MLP"
+        pass
     @configclass
     class PolicyCfg(ObsGroup):
         """Observations for policy group."""
