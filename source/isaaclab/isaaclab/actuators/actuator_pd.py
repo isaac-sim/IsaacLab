@@ -211,18 +211,21 @@ class DCMotor(IdealPDActuator):
 
     A DC motor characteristics are defined by the following parameters:
 
-    * No-load speed (:math:`\dot{q}_{motor, max}`) : The maximum-rated speed of the motor at 0 Torque.
-    * Stall torque (:math:`\tau_{motor, max}`): The maximum-rated torque produced at 0 speed.
-    * Continuous torque (:math:`\tau_{motor, con}`): The maximum torque that can be outputted for a short period.
+    * No-load speed (:math:`\dot{q}_{motor, max}`) : The maximum-rated speed of the motor at 0 Torque (:attr:`velocity_limit`).
+    * Stall torque (:math:`\tau_{motor, max}`): The maximum-rated torque produced at 0 speed (:attr:`saturation_effort`).
+    * Continuous torque (:math:`\tau_{motor, con}`): The maximum torque that can be outputted for a short period. This
+      is often enforced on the current drives for a DC motor to limit overheating, prevent mechanical damage, or
+      enforced by electrical limitations.(:attr:`effort_limit`).
 
-    Based on these parameters, the instantaneous minimum and maximum torques are defined as follows:
+    Based on these parameters, the instantaneous minimum and maximum torques for velocities between corner velocities
+    (where torque-speed curve intersects with continuous torque) are defined as follows:
 
     .. math::
 
         \tau_{j, max}(\dot{q}) & = clip \left (\tau_{j, con} \times \left(1 -
-            \frac{\dot{q}}{\dot{q}_{j, max}}\right), 0.0, \tau_{j, max} \right) \\
+            \frac{\dot{q}}{\dot{q}_{j, max}}\right), inf, \tau_{j, max} \right) \\
         \tau_{j, min}(\dot{q}) & = clip \left (\tau_{j, con} \times \left( -1 -
-            \frac{\dot{q}}{\dot{q}_{j, max}}\right), - \tau_{j, max}, 0.0 \right)
+            \frac{\dot{q}}{\dot{q}_{j, max}}\right), - \tau_{j, max}, inf \right)
 
     where :math:`\gamma` is the gear ratio of the gear box connecting the motor and the actuated joint ends,
     :math:`\dot{q}_{j, max} = \gamma^{-1} \times  \dot{q}_{motor, max}`, :math:`\tau_{j, max} =
@@ -237,6 +240,7 @@ class DCMotor(IdealPDActuator):
 
         \tau_{j, applied} = clip(\tau_{computed}, \tau_{j, min}(\dot{q}), \tau_{j, max}(\dot{q}))
 
+    The figure below demonstrates the clipping action for example (velocity,torque) pairs.
     """
 
     cfg: DCMotorCfg
