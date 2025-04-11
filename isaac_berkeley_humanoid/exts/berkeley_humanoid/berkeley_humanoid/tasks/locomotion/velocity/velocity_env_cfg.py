@@ -127,7 +127,7 @@ class ObservationsCfg:
 
     class MLP(ObsGroup):
         "MLP"
-        pass
+        print("Sex")
     @configclass
     class PolicyCfg(ObsGroup):
         """Observations for policy group."""
