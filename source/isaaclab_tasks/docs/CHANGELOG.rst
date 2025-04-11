@@ -1,6 +1,14 @@
 Changelog
 ---------
 
+0.10.28 (2025-04-07)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added Franka Peg In Hole task (``Isaac-Peg-In-Hole-Cube-Franka-v0``).
+
 0.10.27 (2025-03-25)
 ~~~~~~~~~~~~~~~~~~~~
 
