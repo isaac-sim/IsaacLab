@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+0.36.6 (2025-04-09)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Added call to set cuda device after each ``app.update()`` call in :class:`~isaaclab.sim.SimulationContext`.
+  This is now required for multi-GPU workflows because some underlying logic in ``app.update()`` is modifying
+  the cuda device, which results in NCCL errors on distributed setups.
+
+
 0.36.5 (2025-04-01)
 ~~~~~~~~~~~~~~~~~~~
 

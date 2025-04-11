@@ -47,6 +47,7 @@ Guidelines for modifications:
 * Calvin Yu
 * Cheng-Rong Lai
 * Chenyu Yang
+* Clemens Schwarke
 * CY (Chien-Ying) Chen
 * David Yang
 * Dorsa Rohani
@@ -94,6 +95,7 @@ Guidelines for modifications:
 * Shafeef Omar
 * Shundo Kishi
 * Stephan Pleines
+* Tyler Lum
 * Victor Khaustov
 * Vladimir Fokow
 * Wei Yang
