@@ -103,6 +103,7 @@ Guidelines for modifications:
 * Yujian Zhang
 * Zhengyu Zhang
 * Ziqi Fan
+* Zoe McCarthy
 
 ## Acknowledgements
 
