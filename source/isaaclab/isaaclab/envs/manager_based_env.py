@@ -122,6 +122,9 @@ class ManagerBasedEnv:
         # counter for simulation steps
         self._sim_step_counter = 0
 
+        # allocate dictionary to store metrics
+        self.extras = {}
+
         # generate scene
         with Timer("[INFO]: Time taken for scene creation", "scene_creation"):
             self.scene = InteractiveScene(self.cfg.scene)
@@ -140,7 +143,6 @@ class ManagerBasedEnv:
         # note: this is needed here (rather than after simulation play) to allow USD-related randomization events
         #   that must happen before the simulation starts. Example: randomizing mesh scale
         self.event_manager = EventManager(self.cfg.events, self)
-        print("[INFO] Event Manager: ", self.event_manager)
 
         # apply USD-related randomization events
         if "prestartup" in self.event_manager.available_modes:
@@ -170,9 +172,6 @@ class ManagerBasedEnv:
         else:
             # if no window, then we don't need to store the window
             self._window = None
-
-        # allocate dictionary to store metrics
-        self.extras = {}
 
         # initialize observation buffers
         self.obs_buf = {}
@@ -232,6 +231,8 @@ class ManagerBasedEnv:
 
         """
         # prepare the managers
+        # -- event manager (we print it here to make the logging consistent)
+        print("[INFO] Event Manager: ", self.event_manager)
         # -- recorder manager
         self.recorder_manager = RecorderManager(self.cfg.recorders, self)
         print("[INFO] Recorder Manager: ", self.recorder_manager)

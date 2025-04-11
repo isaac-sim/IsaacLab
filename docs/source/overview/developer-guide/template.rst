@@ -68,9 +68,22 @@ Here are some general commands to get started with it:
 
 * Install the project (in editable mode).
 
-  .. code:: bash
+  .. tab-set::
+    :sync-group: os
 
-    python -m pip install -e source/<given-project-name>
+    .. tab-item:: :icon:`fa-brands fa-linux` Linux
+        :sync: linux
+
+        .. code-block:: bash
+
+          python -m pip install -e source/<given-project-name>
+
+    .. tab-item:: :icon:`fa-brands fa-windows` Windows
+        :sync: windows
+
+        .. code-block:: batch
+
+          python -m pip install -e source\<given-project-name>
 
 * List the tasks available in the project.
 
@@ -79,14 +92,132 @@ Here are some general commands to get started with it:
     If the task names change, it may be necessary to update the search pattern ``"Template-"``
     (in the ``scripts/list_envs.py`` file) so that they can be listed.
 
-  .. code:: bash
+  .. tab-set::
+    :sync-group: os
 
-    python scripts/list_envs.py
+    .. tab-item:: :icon:`fa-brands fa-linux` Linux
+        :sync: linux
+
+        .. code-block:: bash
+
+          python scripts/list_envs.py
+
+    .. tab-item:: :icon:`fa-brands fa-windows` Windows
+        :sync: windows
+
+        .. code-block:: batch
+
+          python scripts\list_envs.py
 
 * Run a task.
 
-  .. code:: bash
+  .. tab-set::
+    :sync-group: os
 
-    python scripts/<specific-rl-library>/train.py --task=<Task-Name>
+    .. tab-item:: :icon:`fa-brands fa-linux` Linux
+        :sync: linux
+
+        .. code-block:: bash
+
+          python scripts/<specific-rl-library>/train.py --task=<Task-Name>
+
+    .. tab-item:: :icon:`fa-brands fa-windows` Windows
+        :sync: windows
+
+        .. code-block:: batch
+
+          python scripts\<specific-rl-library>\train.py --task=<Task-Name>
 
 For more details, please follow the instructions in the generated project's ``README.md`` file.
+
+Internal task usage (once generated)
+---------------------------------------
+
+Once the internal task is generated, it will be available along with the rest of the Isaac Lab tasks.
+
+Here are some general commands to get started with it:
+
+.. note::
+
+  If Isaac Lab is not installed in a conda environment or in a (virtual) Python environment, use ``./isaaclab.sh -p``
+  (or ``isaaclab.bat -p`` on Windows) instead of ``python`` to run the commands below.
+
+* List the tasks available in Isaac Lab.
+
+  .. tab-set::
+    :sync-group: os
+
+    .. tab-item:: :icon:`fa-brands fa-linux` Linux
+        :sync: linux
+
+        .. code-block:: bash
+
+          python scripts/environments/list_envs.py
+
+    .. tab-item:: :icon:`fa-brands fa-windows` Windows
+        :sync: windows
+
+        .. code-block:: batch
+
+          python scripts\environments\list_envs.py
+
+* Run a task.
+
+  .. tab-set::
+    :sync-group: os
+
+    .. tab-item:: :icon:`fa-brands fa-linux` Linux
+        :sync: linux
+
+        .. code-block:: bash
+
+          python scripts/reinforcement_learning/<specific-rl-library>/train.py --task=<Task-Name>
+
+    .. tab-item:: :icon:`fa-brands fa-windows` Windows
+        :sync: windows
+
+        .. code-block:: batch
+
+          python scripts\reinforcement_learning\<specific-rl-library>\train.py --task=<Task-Name>
+
+* Run a task with dummy agents.
+
+  These include dummy agents that output zero or random agents. They are useful to ensure that the environments are configured correctly.
+
+  * Zero-action agent
+
+    .. tab-set::
+      :sync-group: os
+
+      .. tab-item:: :icon:`fa-brands fa-linux` Linux
+          :sync: linux
+
+          .. code-block:: bash
+
+            python scripts/zero_agent.py --task=<Task-Name>
+
+      .. tab-item:: :icon:`fa-brands fa-windows` Windows
+          :sync: windows
+
+          .. code-block:: batch
+
+            python scripts\zero_agent.py --task=<Task-Name>
+
+  * Random-action agent
+
+    .. tab-set::
+      :sync-group: os
+
+      .. tab-item:: :icon:`fa-brands fa-linux` Linux
+          :sync: linux
+
+          .. code-block:: bash
+
+            python scripts/random_agent.py --task=<Task-Name>
+
+      .. tab-item:: :icon:`fa-brands fa-windows` Windows
+          :sync: windows
+
+          .. code-block:: batch
+
+            python scripts\random_agent.py --task=<Task-Name>

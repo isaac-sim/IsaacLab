@@ -46,9 +46,11 @@ Guidelines for modifications:
 * Calvin Yu
 * Cheng-Rong Lai
 * Chenyu Yang
+* Clemens Schwarke
 * CY (Chien-Ying) Chen
 * David Yang
 * Dorsa Rohani
+* Felipe Mohr
 * Felix Yu
 * Gary Lvov
 * Giulio Romualdi
@@ -67,6 +69,7 @@ Guidelines for modifications:
 * Johnson Sun
 * Kaixi Bao
 * Kourosh Darvish
+* Kousheek Chakraborty
 * Lionel Gulich
 * Louis Le Lay
 * Lorenz Wellhausen
@@ -76,6 +79,7 @@ Guidelines for modifications:
 * Michael Noseworthy
 * Muhong Guo
 * Nicola Loi
+* Nuoyan Chen (Alvin)
 * Nuralem Abizov
 * Ori Gadot
 * Oyindamola Omotuyi
@@ -90,6 +94,8 @@ Guidelines for modifications:
 * Shafeef Omar
 * Shundo Kishi
 * Stephan Pleines
+* Tyler Lum
+* Victor Khaustov
 * Vladimir Fokow
 * Wei Yang
 * Xavier Nal
