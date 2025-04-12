@@ -9,7 +9,7 @@ from typing import Literal
 from isaaclab.sim import SpawnerCfg
 from isaaclab.utils import configclass
 
-from .asset_base import AssetBase
+from .asset_base import AssetBase   
 
 
 @configclass
