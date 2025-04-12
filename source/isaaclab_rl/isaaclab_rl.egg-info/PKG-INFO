@@ -1,0 +1,50 @@
+Metadata-Version: 2.2
+Name: isaaclab_rl
+Version: 0.1.0
+Summary: Extension containing collection of wrappers for reinforcement learning.
+Home-page: https://github.com/isaac-sim/IsaacLab
+Author: Isaac Lab Project Developers
+Maintainer: Isaac Lab Project Developers
+Keywords: robotics,rl,wrappers,learning
+Classifier: Natural Language :: English
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Isaac Sim :: 4.5.0
+Requires-Python: >=3.10
+Requires-Dist: numpy
+Requires-Dist: torch==2.5.1
+Requires-Dist: torchvision>=0.14.1
+Requires-Dist: protobuf<5.0.0,>=3.20.2
+Requires-Dist: hydra-core
+Requires-Dist: h5py
+Requires-Dist: tensorboard
+Requires-Dist: moviepy
+Requires-Dist: pillow==11.0.0
+Provides-Extra: sb3
+Requires-Dist: stable-baselines3>=2.1; extra == "sb3"
+Provides-Extra: skrl
+Requires-Dist: skrl>=1.4.1; extra == "skrl"
+Provides-Extra: rl-games
+Requires-Dist: rl-games==1.6.1; extra == "rl-games"
+Requires-Dist: gym; extra == "rl-games"
+Provides-Extra: rsl-rl
+Requires-Dist: rsl-rl-lib>=2.1.1; extra == "rsl-rl"
+Provides-Extra: rl-games
+Requires-Dist: rl-games==1.6.1; extra == "rl-games"
+Requires-Dist: gym; extra == "rl-games"
+Provides-Extra: rsl-rl
+Requires-Dist: rsl-rl-lib>=2.1.1; extra == "rsl-rl"
+Provides-Extra: all
+Requires-Dist: stable-baselines3>=2.1; extra == "all"
+Requires-Dist: rl-games==1.6.1; extra == "all"
+Requires-Dist: skrl>=1.4.1; extra == "all"
+Requires-Dist: rsl-rl-lib>=2.1.1; extra == "all"
+Requires-Dist: gym; extra == "all"
+Dynamic: author
+Dynamic: classifier
+Dynamic: home-page
+Dynamic: keywords
+Dynamic: maintainer
+Dynamic: provides-extra
+Dynamic: requires-dist
+Dynamic: requires-python
+Dynamic: summary

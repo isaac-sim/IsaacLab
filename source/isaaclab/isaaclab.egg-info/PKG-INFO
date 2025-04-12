@@ -1,0 +1,36 @@
+Metadata-Version: 2.2
+Name: isaaclab
+Version: 0.34.3
+Summary: Extension providing main framework interfaces and abstractions for robot learning.
+Home-page: https://github.com/isaac-sim/IsaacLab
+Author: Isaac Lab Project Developers
+Maintainer: Isaac Lab Project Developers
+License: BSD-3-Clause
+Keywords: kit,robotics,learning,ai
+Classifier: Natural Language :: English
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Isaac Sim :: 4.5.0
+Requires-Python: >=3.10
+Requires-Dist: numpy<2
+Requires-Dist: torch==2.5.1
+Requires-Dist: onnx==1.16.1
+Requires-Dist: prettytable==3.3.0
+Requires-Dist: toml
+Requires-Dist: hidapi==0.14.0.post2
+Requires-Dist: gymnasium
+Requires-Dist: trimesh
+Requires-Dist: pyglet<2
+Requires-Dist: transformers
+Requires-Dist: einops
+Requires-Dist: warp-lang
+Requires-Dist: pillow==11.0.0
+Requires-Dist: starlette==0.46.0
+Dynamic: author
+Dynamic: classifier
+Dynamic: home-page
+Dynamic: keywords
+Dynamic: license
+Dynamic: maintainer
+Dynamic: requires-dist
+Dynamic: requires-python
+Dynamic: summary

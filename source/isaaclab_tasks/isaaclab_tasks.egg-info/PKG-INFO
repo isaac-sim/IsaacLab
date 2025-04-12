@@ -1,0 +1,25 @@
+Metadata-Version: 2.2
+Name: isaaclab_tasks
+Version: 0.10.24
+Summary: Extension containing suite of environments for robot learning.
+Home-page: https://github.com/isaac-sim/IsaacLab
+Author: Isaac Lab Project Developers
+Maintainer: Isaac Lab Project Developers
+Keywords: robotics,rl,il,learning
+Classifier: Natural Language :: English
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Isaac Sim :: 4.5.0
+Requires-Python: >=3.10
+Requires-Dist: numpy
+Requires-Dist: torch==2.5.1
+Requires-Dist: torchvision>=0.14.1
+Requires-Dist: protobuf<5.0.0,>=3.20.2
+Requires-Dist: tensorboard
+Dynamic: author
+Dynamic: classifier
+Dynamic: home-page
+Dynamic: keywords
+Dynamic: maintainer
+Dynamic: requires-dist
+Dynamic: requires-python
+Dynamic: summary

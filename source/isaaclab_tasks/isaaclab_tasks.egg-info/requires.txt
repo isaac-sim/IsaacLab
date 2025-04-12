@@ -1,0 +1,5 @@
+numpy
+torch==2.5.1
+torchvision>=0.14.1
+protobuf<5.0.0,>=3.20.2
+tensorboard

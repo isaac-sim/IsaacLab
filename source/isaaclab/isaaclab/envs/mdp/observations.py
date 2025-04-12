@@ -5,7 +5,7 @@
 
 """Common functions that can be used to create observation terms.
 
-The functions can be passed to the :class:`isaaclab.managers.ObservationTermCfg` object to enable
+The functions can be passed to the :class:isaaclab.managers.ObservationTermCfg object to enable
 the observation introduced by the function.
 """
 
@@ -24,10 +24,132 @@ from isaaclab.sensors import Camera, Imu, RayCaster, RayCasterCamera, TiledCamer
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv, ManagerBasedRLEnv
 
+from isaaclab.envs.mdp.env_encoder import EnvEncoderMLP
+from collections import namedtuple
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+class ExtrinsicsMLP(EnvEncoderMLP):
+    def __init__(self):
+        super().__init__()
+        # 특징 추출 MLP
+
+    def process(self, observation_dict):
+        # observation_dict에서 extrinsics_obs를 가져옵니다.
+        obs = observation_dict["extrinsics_obs"]   # shape: (B, obs_dim)
+
+        x = torch.cat([obs], dim=-1)
+        self.forward(x)
+        
+        return {"extrinsics_feature": x}
+
+from isaaclab.managers import SceneEntityCfg
 
 """
 Root state.
 """
+def extrinsics_info(env, asset_cfg=None) -> torch.Tensor:
+    """
+    환경으로부터 extrinsics 정보를 추출하여 9차원 벡터로 반환합니다.
+    구성:
+      - 마찰계수: 1d
+      - upper_leg 조인트 damping: 1d
+      - wheel 조인트 damping: 1d
+      - upper_leg 조인트 stiffness: 1d
+      - wheel 조인트 stiffness: 1d
+      - motor input (예: 평균 액션 값): 1d
+      - Center of Mass (COM): 3d
+    """
+    if asset_cfg is None:
+        asset_cfg = SceneEntityCfg("robot")
+    device = env.device if hasattr(env, "device") else "cpu"
+    asset = env.scene[asset_cfg.name]
+    num_envs = env.num_envs
+
+    def ensure_tensor(val, expected_shape=None, name=""):
+        # print(f"[DEBUG] {name} type: {type(val)}")
+        if isinstance(val, (tuple, list)):
+            t_val = torch.tensor(val, device=device)
+            # print(f"[DEBUG] Converted {name} to tensor with shape: {t_val.shape}")
+        elif isinstance(val, torch.Tensor):
+            t_val = val.to(device)
+        else:
+            t_val = torch.tensor(val, device=device)
+            # print(f"[DEBUG] {name} converted from scalar to tensor with shape: {t_val.shape}")
+        if expected_shape is not None:
+            if t_val.shape != expected_shape:
+                print(f"[WARNING] {name} shape {t_val.shape} does not match expected {expected_shape}")
+            else:
+                print(f"[DEBUG] {name} shape is as expected: {t_val.shape}")
+        return t_val
+
+    # 1. 마찰계수: asset.data.ground_friction 존재 여부 확인
+    if hasattr(asset.data, "ground_friction"):
+        friction_val = asset.data.ground_friction
+        friction = ensure_tensor(friction_val, name="ground_friction").unsqueeze(1)
+    else:
+        friction = 0.5 * torch.ones(num_envs, 1, device=device)
+        # print("[DEBUG] ground_friction not found; using default tensor with shape:", friction.shape)
+
+    # 2. 조인트 damping: upper_leg와 wheel에 대한 평균
+    joint_names = asset.data.joint_names
+    upper_leg_ids = [jid for jid, name in enumerate(joint_names) if "upper_leg" in name]
+    wheel_ids = [jid for jid, name in enumerate(joint_names) if "wheel" in name]
+
+    if hasattr(asset.data, "joint_damping"):
+        damping_data = ensure_tensor(asset.data.joint_damping, name="joint_damping")
+        damping_upper = damping_data[:, upper_leg_ids].mean(dim=1, keepdim=True)
+        damping_wheel = damping_data[:, wheel_ids].mean(dim=1, keepdim=True)
+    else:
+        damping_upper = torch.zeros(num_envs, 1, device=device)
+        damping_wheel = torch.zeros(num_envs, 1, device=device)
+        #print("[DEBUG] joint_damping not found; using zeros.")
+
+    # 3. 조인트 stiffness: upper_leg와 wheel에 대한 평균
+    if hasattr(asset.data, "joint_stiffness"):
+        stiffness_data = ensure_tensor(asset.data.joint_stiffness, name="joint_stiffness")
+        stiffness_upper = stiffness_data[:, upper_leg_ids].mean(dim=1, keepdim=True)
+        stiffness_wheel = stiffness_data[:, wheel_ids].mean(dim=1, keepdim=True)
+    else:
+        stiffness_upper = torch.zeros(num_envs, 1, device=device)
+        stiffness_wheel = torch.zeros(num_envs, 1, device=device)
+        #print("[DEBUG] joint_stiffness not found; using zeros.")
+
+    # 4. 모터 입력값: env.action_manager.action 평균
+    if hasattr(env, "action_manager") and hasattr(env.action_manager, "action"):
+        action_data = ensure_tensor(env.action_manager.action, name="action_manager.action")
+        motor_input = action_data.mean(dim=1, keepdim=True)
+    else:
+        motor_input = torch.zeros(num_envs, 1, device=device)
+        # print("[DEBUG] action_manager.action not found; using zeros.")
+
+    # 5. Center of Mass (COM)
+    if hasattr(asset.data, "center_of_mass"):
+        com = ensure_tensor(asset.data.center_of_mass, expected_shape=(num_envs, 3), name="center_of_mass")
+    else:
+        com = torch.zeros(num_envs, 3, device=device)
+    #     print("[DEBUG] center_of_mass not found; using zeros with shape:", com.shape)
+
+    # print("[DEBUG] friction shape:", friction.shape)
+    # print("[DEBUG] damping_upper shape:", damping_upper.shape)
+    # print("[DEBUG] damping_wheel shape:", damping_wheel.shape)
+    # print("[DEBUG] stiffness_upper shape:", stiffness_upper.shape)
+    # print("[DEBUG] stiffness_wheel shape:", stiffness_wheel.shape)
+    # print("[DEBUG] motor_input shape:", motor_input.shape)
+    # print("[DEBUG] com shape:", com.shape)
+
+    extrinsics = torch.cat([
+        friction, damping_upper, damping_wheel,
+        stiffness_upper, stiffness_wheel, motor_input, com
+    ], dim=1)
+    observation = {"extrinsics_obs": extrinsics}
+    # ExtrinsicsMLP를 통해 특징 벡터로 변환
+    mlp = ExtrinsicsMLP().to(device)
+    features_dict = mlp.process(observation)
+    features = features_dict["extrinsics_feature"]
+    # print(f"[DEBUG] Final extrinsics feature shape: {features.shape}")
+    return extrinsics
+
 
 
 def base_pos_z(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
@@ -109,6 +231,17 @@ def joint_pos(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("
     # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
     return asset.data.joint_pos[:, asset_cfg.joint_ids]
+def joint_leg_pos(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
+    """Returns only the Upper Leg joint positions."""
+    asset: Articulation = env.scene[asset_cfg.name]
+    
+    # Upper Leg 조인트만 필터링 (정확한 joint_id 사용 필요)
+    upper_leg_joint_ids = [jid for jid, name in enumerate(asset.data.joint_names) if "upper_leg" in name]
+
+    if not upper_leg_joint_ids:
+        raise ValueError("No Upper Leg joints found. Check joint_names in the configuration.")
+
+    return asset.data.joint_pos[:, upper_leg_joint_ids]
 
 
 def joint_pos_rel(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
@@ -511,6 +644,17 @@ Actions.
 
 def last_action(env: ManagerBasedEnv, action_name: str | None = None) -> torch.Tensor:
     """The last input action to the environment.
+
+    The name of the action term for which the action is required. If None, the
+    entire action tensor is returned.
+    """
+    if action_name is None:
+        return env.action_manager.action
+    else:
+        return env.action_manager.get_term(action_name).raw_actions
+
+def adaption_last_action(env: ManagerBasedEnv, action_name: str | None = None) -> torch.Tensor:
+    """The last 50 input action to the environment.
 
     The name of the action term for which the action is required. If None, the
     entire action tensor is returned.

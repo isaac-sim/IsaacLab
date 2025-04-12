@@ -1,0 +1,9 @@
+pyproject.toml
+setup.py
+isaaclab_assets/__init__.py
+isaaclab_assets.egg-info/PKG-INFO
+isaaclab_assets.egg-info/SOURCES.txt
+isaaclab_assets.egg-info/dependency_links.txt
+isaaclab_assets.egg-info/not-zip-safe
+isaaclab_assets.egg-info/top_level.txt
+test/test_valid_configs.py

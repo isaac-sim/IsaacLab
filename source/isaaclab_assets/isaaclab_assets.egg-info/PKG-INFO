@@ -1,0 +1,19 @@
+Metadata-Version: 2.2
+Name: isaaclab_assets
+Version: 0.2.1
+Summary: Extension containing configuration instances of different assets and sensors
+Home-page: https://github.com/isaac-sim/IsaacLab
+Author: Isaac Lab Project Developers
+Maintainer: Isaac Lab Project Developers
+Keywords: kit,robotics,assets,isaaclab
+Classifier: Natural Language :: English
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Isaac Sim :: 4.5.0
+Requires-Python: >=3.10
+Dynamic: author
+Dynamic: classifier
+Dynamic: home-page
+Dynamic: keywords
+Dynamic: maintainer
+Dynamic: requires-python
+Dynamic: summary

@@ -1,0 +1,14 @@
+numpy<2
+torch==2.5.1
+onnx==1.16.1
+prettytable==3.3.0
+toml
+hidapi==0.14.0.post2
+gymnasium
+trimesh
+pyglet<2
+transformers
+einops
+warp-lang
+pillow==11.0.0
+starlette==0.46.0
