@@ -11,7 +11,7 @@
 from isaaclab.app import AppLauncher, run_tests
 
 # launch omniverse app
-app_launcher = AppLauncher(headless=True, enable_cameras=True)
+app_launcher = AppLauncher(headless=False, enable_cameras=True)
 simulation_app = app_launcher.app
 
 import copy
@@ -33,8 +33,9 @@ from isaaclab.terrains.trimesh.utils import make_border, make_plane
 from isaaclab.terrains.utils import create_prim_from_mesh
 from isaaclab.utils.math import convert_quat
 
-POSITION = (0.0, 0.0, 0.5)
+POSITION = (0.0, 0.0, 0.1)
 QUATERNION = (0.0, 0.3461835, 0.0, 0.9381668)
+# QUATERNION = (0.0, 0.0,0.0,1.0)
 
 # load example json
 EXAMPLE_ROTARY_PATH = os.path.abspath(
@@ -61,7 +62,7 @@ class TestRtxLidar(unittest.TestCase):
         # Simulation time-step
         self.dt = 0.01
         # Load kit helper
-        sim_cfg = sim_utils.SimulationCfg(dt=self.dt, device="cuda")
+        sim_cfg = sim_utils.SimulationCfg(dt=self.dt, device="cpu")
         self.sim: sim_utils.SimulationContext = sim_utils.SimulationContext(sim_cfg)
 
         # configure lidar
@@ -137,18 +138,20 @@ class TestRtxLidar(unittest.TestCase):
             for data_key, data_value in lidar.data.output.items():
                 if data_key in self.lidar_cfg.optional_data_types:
                     self.assertTrue(data_value.shape[1] > 0)
+        del lidar
 
     def test_lidar_init_offset(self):
         """Test lidar offset configuration."""
         lidar_cfg_offset = copy.deepcopy(self.lidar_cfg)
         lidar_cfg_offset.offset = RtxLidarCfg.OffsetCfg(pos=POSITION, rot=QUATERNION)
         lidar_cfg_offset.prim_path = "/World/LidarOffset"
-        lidar_offset = RtxLidar(lidar_cfg_offset)
+        lidar = RtxLidar(lidar_cfg_offset)
+
         # Play sim
         self.sim.reset()
 
         # Retrieve lidar pose using USD API
-        prim_tf = lidar_offset._sensor_prims[0].ComputeLocalToWorldTransform(Usd.TimeCode.Default())
+        prim_tf = lidar._sensor_prims[0].ComputeLocalToWorldTransform(Usd.TimeCode.Default())
         prim_tf = np.transpose(prim_tf)
 
         # check that transform is set correctly
@@ -159,6 +162,14 @@ class TestRtxLidar(unittest.TestCase):
             rtol=1e-5,
             atol=1e-5,
         )
+
+        # Simulate for a few steps
+        # note: This is a workaround to ensure that the textures are loaded.
+        #   Check "Known Issues" section in the documentation for more details.
+        for _ in range(5):
+            self.sim.step()
+
+        del lidar
 
     def test_multi_lidar_init(self):
         """Test multiple lidar initialization and check info and data outputs."""
@@ -183,8 +194,8 @@ class TestRtxLidar(unittest.TestCase):
             # perform rendering
             self.sim.step()
             # update lidar
-            lidar_1.update(self.dt, force_recompute=True)
-            lidar_2.update(self.dt, force_recompute=True)
+            lidar_1.update(self.dt)
+            lidar_2.update(self.dt)
             # check lidar info
             for lidar_info_key in lidar_1.data.info[0].keys():
                 info1 = lidar_1.data.info[0][lidar_info_key]
@@ -200,7 +211,12 @@ class TestRtxLidar(unittest.TestCase):
             for lidar_data_key in lidar_1.data.output.keys():
                 data1 = lidar_1.data.output[lidar_data_key]
                 data2 = lidar_2.data.output[lidar_data_key]
-                self.assertTrue(data1.shape == data2.shape)
+                self.assertTrue(
+                    data1.shape == data2.shape, f"Key: {lidar_data_key}, Shape 1: {data1.shape}, Shape 2: {data2.shape}"
+                )
+
+        del lidar_1
+        del lidar_2
 
     def test_custom_lidar_config(self):
         """Test custom lidar initialization, data population, and cleanup."""

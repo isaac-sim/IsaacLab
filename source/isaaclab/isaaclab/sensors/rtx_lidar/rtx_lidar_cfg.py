@@ -47,7 +47,8 @@ class RtxLidarCfg(SensorBaseCfg):
     data_frame: Literal["world", "sensor"] = "world"
     """The frame to represent the output.data.
 
-    If 'world' the output.data will be in the world frame. If 'sensor' the output.data will be in the sensor frame."""
+    If 'world' the output.data will be in the world frame. If 'sensor' the output.data will be in the sensor frame.
+    """
     spawn: LidarCfg = MISSING
     """Spawn configuration for the asset.
 
