@@ -18,7 +18,7 @@ keywords = ["experience", "app", "isaaclab", "python", "camera", "minimal"]
 # Isaac Lab minimal app
 "isaaclab.python" = {}
 "omni.replicator.core" = {}
-"isaacsim.sensor" = {}
+"isaacsim.sensors.rtx" = {}
 
 # PhysX
 "omni.kit.property.physx" = {}
@@ -88,7 +88,7 @@ exts."omni.replicator.core".Orchestrator.enabled = false
 
 # move the default lidar config file paths
 app.sensors.nv.lidar.profileBaseFolder.'++' = [
-    "${app}/../isaaclab/sensors/rtx_lidar/"]
+    "${app}/../source/isaaclab/sensors/rtx_lidar/"]
 
 [settings.physics]
 updateToUsd = false
