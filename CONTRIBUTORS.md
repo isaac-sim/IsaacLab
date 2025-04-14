@@ -49,6 +49,7 @@ Guidelines for modifications:
 * Clemens Schwarke
 * CY (Chien-Ying) Chen
 * David Yang
+* Dhananjay Shendre
 * Dorsa Rohani
 * Felipe Mohr
 * Felix Yu
