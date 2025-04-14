@@ -70,8 +70,6 @@ def main():
     # Now we are ready!
     print("[INFO]: Setup complete...")
 
-    sim.play()
-
     # Run simulation and view scene
     while simulation_app.is_running():
         sim.step()

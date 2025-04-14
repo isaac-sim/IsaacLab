@@ -3,7 +3,8 @@ rtx.translucency.enabled = false
 rtx.reflections.enabled = false
 rtx.reflections.denoiser.enabled = true
 
-rtx.directLighting.sampledLighting.denoisingTechnique = 5
+# this will be ignored when RR (dldenoiser) is enabled
+# rtx.directLighting.sampledLighting.denoisingTechnique = 0
 rtx.directLighting.sampledLighting.enabled = true
 
 rtx.sceneDb.ambientLightIntensity = 1.0
@@ -13,7 +14,7 @@ rtx.shadows.enabled = true
 rtx.indirectDiffuse.enabled = false
 rtx.indirectDiffuse.denoiser.enabled = true
 
-rtx.domeLight.upperLowerStrategy = 3
+# rtx.domeLight.upperLowerStrategy = 3
 
 rtx.ambientOcclusion.enabled = false
 rtx.ambientOcclusion.denoiserMode = 1
@@ -23,10 +24,10 @@ rtx.raytracing.cached.enabled = true
 
 # DLSS frame gen does not yet support tiled camera well
 rtx-transient.dlssg.enabled = false
-rtx-transient.dldenoiser.enabled = false
+rtx-transient.dldenoiser.enabled = true
 
 # Set the DLSS model
-rtx.post.dlss.execMode = 2 # can be 0 (Performance), 1 (Balanced), 2 (Quality), or 3 (Auto)
+rtx.post.dlss.execMode = 1 # can be 0 (Performance), 1 (Balanced), 2 (Quality), or 3 (Auto)
 
 # Avoids replicator warning
 rtx.pathtracing.maxSamplesPerLaunch = 1000000

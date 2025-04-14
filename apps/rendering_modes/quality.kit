@@ -3,7 +3,8 @@ rtx.translucency.enabled = true
 rtx.reflections.enabled = true
 rtx.reflections.denoiser.enabled = true
 
-rtx.directLighting.sampledLighting.denoisingTechnique = 5
+# this will be ignored when RR (dldenoiser) is enabled
+# rtx.directLighting.sampledLighting.denoisingTechnique = 0
 rtx.directLighting.sampledLighting.enabled = true
 
 rtx.sceneDb.ambientLightIntensity = 1.0
@@ -13,7 +14,7 @@ rtx.shadows.enabled = true
 rtx.indirectDiffuse.enabled = true
 rtx.indirectDiffuse.denoiser.enabled = true
 
-rtx.domeLight.upperLowerStrategy = 4
+# rtx.domeLight.upperLowerStrategy = 4
 
 rtx.ambientOcclusion.enabled = true
 rtx.ambientOcclusion.denoiserMode = 0
