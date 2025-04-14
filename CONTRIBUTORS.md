@@ -103,6 +103,9 @@ Guidelines for modifications:
 * Yujian Zhang
 * Zhengyu Zhang
 * Ziqi Fan
+* Qian Wan
+* Wei Yang
+* Ziwen Zhuang
 
 ## Acknowledgements
 
