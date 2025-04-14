@@ -34,9 +34,8 @@ class RtxLidar(SensorBase):
 
     This implementation utilizes the "RtxSensorCpuIsaacCreateRTXLidarScanBuffer" annotator.
 
-    .. RTX lidar: <https://docs.omniverse.nvidia.com/isaacsim/latest/features/sensors_simulation/isaac_sim_sensors_rtx_based_lidar.html>
-    .. LiDAR config files: <https://docs.omniverse.nvidia.com/kit/docs/omni.sensors.nv.lidar/latest/lidar_extension.html>
-    .. RTX lidar Annotators: <https://docs.omniverse.nvidia.com/isaacsim/latest/features/sensors_simulation/isaac_sim_sensors_rtx_based_lidar/annotator_descriptions.html>
+    .. RTX lidar: <https://docs.isaacsim.omniverse.nvidia.com/latest/sensors/isaacsim_sensors_rtx_lidar.html#how-they-work>
+    .. RTX lidar Annotators: <https://docs.isaacsim.omniverse.nvidia.com/latest/sensors/isaacsim_sensors_rtx_lidar/annotator_descriptions.html>
     """
 
     cfg: RtxLidarCfg
