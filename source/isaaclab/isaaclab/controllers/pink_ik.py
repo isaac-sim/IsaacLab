@@ -12,8 +12,7 @@ Pink is a differentiable inverse kinematics solver framework that provides task-
 import numpy as np
 import torch
 
-import qpsolvers
-from pink import build_ik
+from pink import solve_ik
 from pink.configuration import Configuration
 from pinocchio.robot_wrapper import RobotWrapper
 
@@ -44,11 +43,6 @@ class PinkIKController:
             task.set_target_from_configuration(self.pink_configuration)
         for task in cfg.fixed_input_tasks:
             task.set_target_from_configuration(self.pink_configuration)
-
-        # Select the solver for the inverse kinematics
-        self.solver = qpsolvers.available_solvers[0]
-        if "quadprog" in qpsolvers.available_solvers:
-            self.solver = "quadprog"
 
         # Map joint names from Isaac Lab to Pink's joint conventions
         pink_joint_names = self.robot_wrapper.model.names.tolist()[1:]  # Skip the root and universal joints
@@ -106,11 +100,13 @@ class PinkIKController:
         # Update Pink's robot configuration with the current joint positions
         self.pink_configuration.update(joint_positions_pink)
 
-        problem = build_ik(self.pink_configuration, self.cfg.variable_input_tasks + self.cfg.fixed_input_tasks, dt)
-        result = qpsolvers.solve_problem(problem, solver=self.solver)
-        Delta_q = result.x
-        # Delta_q being None means the solver could not find a solution
-        if Delta_q is None:
+        # pink.solve_ik can raise an exception if the solver fails
+        try:
+            velocity = solve_ik(
+                self.pink_configuration, self.cfg.variable_input_tasks + self.cfg.fixed_input_tasks, dt, solver="osqp"
+            )
+            Delta_q = velocity * dt
+        except (AssertionError, Exception):
             # Print warning and return the current joint positions as the target
             # Not using omni.log since its not available in CI during docs build
             if self.cfg.show_ik_warnings:

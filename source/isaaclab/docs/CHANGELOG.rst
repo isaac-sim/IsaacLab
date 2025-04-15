@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.36.21 (2025-04-15)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Removed direct call of qpsovlers library from pink_ik controller and changed solver from quadprog to osqp.
+
+
 0.36.20 (2025-04-09)
 ~~~~~~~~~~~~~~~~~~~~
 

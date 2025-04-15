@@ -178,7 +178,6 @@ autodoc_mock_imports = [
     "tensordict",
     "trimesh",
     "toml",
-    "qpsolvers",
     "pink",
     "pinocchio",
     "nvidia.srl",
