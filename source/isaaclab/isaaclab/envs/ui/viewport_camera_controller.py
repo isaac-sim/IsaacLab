@@ -10,6 +10,7 @@ import numpy as np
 import torch
 import weakref
 from collections.abc import Sequence
+from scipy.spatial.transform import Rotation as R
 from typing import TYPE_CHECKING
 
 import omni.kit.app
@@ -52,8 +53,8 @@ class ViewportCameraController:
         self._env = env
         self._cfg = copy.deepcopy(cfg)
         # cast viewer eye and look-at to numpy arrays
-        self.default_cam_eye = np.array(self._cfg.eye)
-        self.default_cam_lookat = np.array(self._cfg.lookat)
+        self.default_cam_eye = np.array(self._cfg.eye) if not callable(self._cfg.eye) else np.zeros(3)
+        self.default_cam_lookat = np.array(self._cfg.lookat) if not callable(self._cfg.lookat) else np.zeros(3)
 
         # set the camera origins
         if self.cfg.origin_type == "env":
@@ -162,8 +163,22 @@ class ViewportCameraController:
         self.cfg.origin_type = "asset_root"
         # update the camera origins
         self.viewer_origin = self._env.scene[self.cfg.asset_name].data.root_pos_w[self.cfg.env_index]
+
+        from omni.isaac.lab.envs import ManagerBasedRLEnv  # import required later, otherwise circular import
+
+        # get rollout time index
+        if isinstance(self._env, ManagerBasedRLEnv):
+            if hasattr(self._env, "episode_length_buf"):
+                time_idx = int(self._env.episode_length_buf[self.cfg.env_index].detach().cpu().item())
+            else:
+                time_idx = 0  # episode_length_buf does not exist during the initialization of ManagerBasedRLEnv
+        else:
+            time_idx = int(self._env.sim.current_time_step_index.cpu().item())
+
         # update the camera view
-        self.update_view_location()
+        eye = self.cfg.eye(time_idx) if callable(self.cfg.eye) else None
+        lookat = self.cfg.lookat(time_idx) if callable(self.cfg.lookat) else None
+        self.update_view_location(eye, lookat)
 
     def update_view_to_asset_body(self, asset_name: str, body_name: str):
         """Updates the viewer's origin based upon the body of an asset in the scene.
@@ -212,11 +227,71 @@ class ViewportCameraController:
             self.default_cam_lookat = np.asarray(lookat)
         # set the camera locations
         viewer_origin = self.viewer_origin.detach().cpu().numpy()
-        cam_eye = viewer_origin + self.default_cam_eye
-        cam_target = viewer_origin + self.default_cam_lookat
+
+        if self.cfg.viewer_origin_tracking is not None:
+            cam_eye, cam_target = self.track_viewer_origin(viewer_origin)
+        else:
+            cam_eye = viewer_origin + self.default_cam_eye
+            cam_target = viewer_origin + self.default_cam_lookat
 
         # set the camera view
         self._env.sim.set_camera_view(eye=cam_eye, target=cam_target)
+
+    def track_viewer_origin(self, viewer_origin: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        """
+        Computes the filtered camera eye and target positions based on the viewer origin and asset orientation.
+
+        This method:
+        - Applies axis-wise filtering on the viewer origin translation.
+        - Extracts the asset's orientation as a quaternion, converts it to Euler angles,
+        and filters each angle according to the tracking configuration.
+        - Converts the filtered orientation back to a quaternion and applies it to the default eye and lookat vectors.
+
+        Args:
+            viewer_origin: The 3D position (x, y, z) of the viewer's origin.
+
+        Returns:
+            cam_eye: The transformed camera eye position.
+            cam_target: The transformed camera target (lookat) position.
+        """
+        # Apply filtered translation
+        translation = np.array([
+            viewer_origin[0] if self.cfg.viewer_origin_tracking.x else 0.0,
+            viewer_origin[1] if self.cfg.viewer_origin_tracking.y else 0.0,
+            viewer_origin[2] if self.cfg.viewer_origin_tracking.z else 0.0,
+        ])
+
+        # Extract and convert asset orientation
+        quat = self._env.scene[self.cfg.asset_name].data.root_quat_w[self.cfg.env_index].detach().cpu().numpy()
+        rot = R.from_quat([quat[1], quat[2], quat[3], quat[0]])  # (x, y, z, w)
+
+        # Extract Euler angles with gimbal lock protection
+        try:
+            euler = rot.as_euler("xyz", degrees=False)
+        except ValueError:
+            euler = np.zeros(3)
+
+        # Warn and clamp pitch angle near singularities
+        if self.cfg.viewer_origin_tracking.pitch and np.abs(euler[1]) > (np.pi / 2 - 1e-3):
+            print(
+                "[ViewportCameraController] Warning: pitch angle near gimbal lock "
+                f"(pitch = {np.degrees(euler[1]):.2f} deg). Filtering may become unstable."
+            )
+            euler[1] = np.clip(euler[1], -np.pi / 2 + 1e-3, np.pi / 2 - 1e-3)
+
+        # Apply tracking filter
+        euler_filtered = np.array([
+            euler[0] if self.cfg.viewer_origin_tracking.roll else 0.0,
+            euler[1] if self.cfg.viewer_origin_tracking.pitch else 0.0,
+            euler[2] if self.cfg.viewer_origin_tracking.yaw else 0.0,
+        ])
+
+        # Convert filtered Euler to Rotation and apply directly
+        rot_filtered = R.from_euler("xyz", euler_filtered)
+        cam_eye = translation + rot_filtered.apply(self.default_cam_eye)
+        cam_target = translation + rot_filtered.apply(self.default_cam_lookat)
+
+        return cam_eye, cam_target
 
     """
     Private Functions
