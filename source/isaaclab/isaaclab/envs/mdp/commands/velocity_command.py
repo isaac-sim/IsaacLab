@@ -185,7 +185,7 @@ class UniformVelocityCommand(CommandTerm):
         # get marker location
         # -- base state
         base_pos_w = self.robot.data.root_pos_w.clone()
-        base_pos_w[:, 2] += 0.5
+        base_pos_w[:, 2] += self.cfg.debug_vis_z
         # -- resolve the scales and quaternions
         vel_des_arrow_scale, vel_des_arrow_quat = self._resolve_xy_velocity_to_arrow(self.command[:, :2])
         vel_arrow_scale, vel_arrow_quat = self._resolve_xy_velocity_to_arrow(self.robot.data.root_lin_vel_b[:, :2])
