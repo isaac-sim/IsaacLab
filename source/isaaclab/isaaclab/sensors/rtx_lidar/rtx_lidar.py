@@ -106,7 +106,7 @@ class RtxLidar(SensorBase):
 
     @property
     def num_instances(self) -> int:
-        return 1
+        return self._view.count
 
     @property
     def data(self) -> RtxLidarData:

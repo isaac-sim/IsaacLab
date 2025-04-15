@@ -11,7 +11,7 @@
 from isaaclab.app import AppLauncher, run_tests
 
 # launch omniverse app
-app_launcher = AppLauncher(headless=False, enable_cameras=True)
+app_launcher = AppLauncher(headless=True, enable_cameras=True)
 simulation_app = app_launcher.app
 
 import copy
@@ -33,7 +33,7 @@ from isaaclab.terrains.trimesh.utils import make_border, make_plane
 from isaaclab.terrains.utils import create_prim_from_mesh
 from isaaclab.utils.math import convert_quat
 
-POSITION = (0.0, 0.0, 0.1)
+POSITION = (0.0, 0.0, 0.3)
 QUATERNION = (0.0, 0.3461835, 0.0, 0.9381668)
 # QUATERNION = (0.0, 0.0,0.0,1.0)
 
@@ -62,7 +62,7 @@ class TestRtxLidar(unittest.TestCase):
         # Simulation time-step
         self.dt = 0.01
         # Load kit helper
-        sim_cfg = sim_utils.SimulationCfg(dt=self.dt, device="cpu")
+        sim_cfg = sim_utils.SimulationCfg(dt=self.dt, device="cuda")
         self.sim: sim_utils.SimulationContext = sim_utils.SimulationContext(sim_cfg)
 
         # configure lidar
@@ -138,7 +138,6 @@ class TestRtxLidar(unittest.TestCase):
             for data_key, data_value in lidar.data.output.items():
                 if data_key in self.lidar_cfg.optional_data_types:
                     self.assertTrue(data_value.shape[1] > 0)
-        del lidar
 
     def test_lidar_init_offset(self):
         """Test lidar offset configuration."""
@@ -169,10 +168,12 @@ class TestRtxLidar(unittest.TestCase):
         for _ in range(5):
             self.sim.step()
 
-        del lidar
+        lidar.update(self.dt)
 
-    def test_multi_lidar_init(self):
+    def test_lidar_init_multiple(self):
         """Test multiple lidar initialization and check info and data outputs."""
+
+        self.sim._app_control_on_stop_handle = None
         lidar_cfg_1 = copy.deepcopy(self.lidar_cfg)
         lidar_cfg_1.prim_path = "/World/Lidar1"
         lidar_1 = RtxLidar(lidar_cfg_1)
@@ -211,14 +212,14 @@ class TestRtxLidar(unittest.TestCase):
             for lidar_data_key in lidar_1.data.output.keys():
                 data1 = lidar_1.data.output[lidar_data_key]
                 data2 = lidar_2.data.output[lidar_data_key]
+                # print(i,"Frame1: ",lidar_1.frame)
+                # print(i,"Frame2: ",lidar_2.frame)
+                # print(i,f"Key: {lidar_data_key}, Shape 1: {data1.shape}, Shape 2: {data2.shape}")
                 self.assertTrue(
                     data1.shape == data2.shape, f"Key: {lidar_data_key}, Shape 1: {data1.shape}, Shape 2: {data2.shape}"
                 )
 
-        del lidar_1
-        del lidar_2
-
-    def test_custom_lidar_config(self):
+    def test_lidar_init_custom(self):
         """Test custom lidar initialization, data population, and cleanup."""
         # Create custom lidar profile dictionary
         with open(EXAMPLE_ROTARY_PATH) as json_file:
