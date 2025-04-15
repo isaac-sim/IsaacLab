@@ -279,7 +279,7 @@ def _external(specification: dict) -> None:
                     with open(usd_path, "w") as f:
                         f.write("# Placeholder for your custom robot USD file.\n")
 
-        # copy and modify robot wrappers
+        # copy and modify asset configuration files
         robot_py_dir = os.path.join(project_dir, "source", name, name, "robots")
         os.makedirs(robot_py_dir, exist_ok=True)
 
