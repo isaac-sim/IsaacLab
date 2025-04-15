@@ -9,6 +9,7 @@ import shutil
 import subprocess
 import sys
 from datetime import datetime
+import urllib.request
 
 import jinja2
 from common import MULTI_AGENT_ALGORITHMS, ROOT_DIR, SINGLE_AGENT_ALGORITHMS, TASKS_DIR, TEMPLATE_DIR
@@ -244,6 +245,112 @@ def _external(specification: dict) -> None:
             os.path.join(TEMPLATE_DIR, "extension", "__init__workflow"),
             os.path.join(dir, workflow["name"].replace("-", "_"), "__init__.py"),
         )
+
+
+
+
+
+    # Optional: create custom robot structure
+    if specification.get("custom_usd", False):
+        print("  |-- Creating custom robot folder structure...")
+
+        # Download and save cartpole USD to mimic custom robot
+        ISAACLAB_NUCLEUS_DIR = "http://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/4.5/Isaac/IsaacLab"
+        usd_files_to_download = [
+            ("Robots/Classic/Cartpole", "cartpole.usd"),
+            ("Robots/Classic/Cartpole/Props", "instanceable_meshes.usd"),
+            ("Robots/Classic/CartDoublePendulum", "cart_double_pendulum.usd"),
+            ("Robots/Classic/CartDoublePendulum/Props", "instanceable_meshes.usd"),
+        ]
+
+        for subfolder, filename in usd_files_to_download:
+            target_dir = os.path.join(project_dir, "source", name, "data", subfolder)
+            os.makedirs(target_dir, exist_ok=True)
+
+            usd_url = f"{ISAACLAB_NUCLEUS_DIR}/{subfolder}/{filename}"
+            usd_path = os.path.join(target_dir, filename)
+
+            try:
+                urllib.request.urlretrieve(usd_url, usd_path)
+                print(f"  |    |-- Downloaded USD to {usd_path}")
+            except Exception as e:
+                print(f"  |    |-- Failed to download {filename}: {e}")
+                with open(usd_path, "w") as f:
+                    f.write("# Placeholder for your custom robot USD file.\n")
+
+        # Robot Python wrapper directory
+        robot_py_dir = os.path.join(project_dir, "source", name, name, "robots")
+        os.makedirs(robot_py_dir, exist_ok=True)
+
+        # Copy cartpole.py as base
+        src_cartpole_py = os.path.join(ROOT_DIR, "source", "isaaclab_assets", "isaaclab_assets", "robots", "cartpole.py")
+        dst_robot_py = os.path.join(robot_py_dir, "cartpole.py")
+        shutil.copyfile(src_cartpole_py, dst_robot_py)
+        _replace_in_file([
+            ("from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR", 
+            'from pathlib import Path\n\nTEMPLATE_ASSETS_DATA_DIR = Path(__file__).resolve().parent.parent.parent / "data"'),
+            ('usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/Classic/Cartpole/cartpole.usd"',
+            'usd_path=f"{TEMPLATE_ASSETS_DATA_DIR}/Robots/Classic/Cartpole/cartpole.usd"')
+        ], dst=dst_robot_py, src=dst_robot_py)
+
+        # Copy cart_double_pendulum.py as base
+        src_cartpole_py = os.path.join(ROOT_DIR, "source", "isaaclab_assets", "isaaclab_assets", "robots", "cart_double_pendulum.py")
+        dst_robot_py = os.path.join(robot_py_dir, "cart_double_pendulum.py")
+        shutil.copyfile(src_cartpole_py, dst_robot_py)
+        _replace_in_file([
+            ("from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR", 
+            'from pathlib import Path\n\nTEMPLATE_ASSETS_DATA_DIR = Path(__file__).resolve().parent.parent.parent / "data"'),
+            ('usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/Classic/CartDoublePendulum/cart_double_pendulum.usd"',
+            'usd_path=f"{TEMPLATE_ASSETS_DATA_DIR}/Robots/Classic/CartDoublePendulum/cart_double_pendulum.usd"')
+        ], dst=dst_robot_py, src=dst_robot_py)
+        # Cleaned __init__.py with only cartpole
+        init_path = os.path.join(robot_py_dir, "__init__.py")
+        with open(init_path, "w") as f:
+            f.write("""# Copyright (c) 2022-2025, The Isaac Lab Project Developers.\n# All rights reserved.\n#\n# SPDX-License-Identifier: BSD-3-Clause\n\nfrom .cartpole import *\nfrom .cart_double_pendulum import *\n""")
+
+        # replace the import of isaaclab_assets
+        task_dir = os.path.join(project_dir, "source", name, name, "tasks")
+        task_subpaths = [
+            os.path.join(task_dir, "direct", name, f"{name}_env_cfg.py"),
+            os.path.join(task_dir, "manager_based", name, f"{name}_env_cfg.py"),
+            os.path.join(task_dir, "direct", f"{name}_marl", f"{name}_marl_env_cfg.py"),
+        ]
+        for env_cfg_path in task_subpaths:
+            if os.path.exists(env_cfg_path):
+                _replace_in_file([
+                    ("from isaaclab_assets.robots.cartpole import CARTPOLE_CFG", f"from {name}.robots.cartpole import CARTPOLE_CFG"),
+                    ("from isaaclab_assets.robots.cart_double_pendulum import CART_DOUBLE_PENDULUM_CFG", f"from {name}.robots.cart_double_pendulum import CART_DOUBLE_PENDULUM_CFG"),
+                ], src=env_cfg_path)
+
+
+
+
+        # Remove usd from being git ignored
+        gitignore_path = os.path.join(project_dir, ".gitignore")
+        with open(gitignore_path, "r") as f:
+            lines = f.readlines()
+
+        filtered_lines = []
+        skipping_usd_section = False
+        for line in lines:
+            if "# No USD files allowed in the repo" in line:
+                skipping_usd_section = True
+                continue
+            if skipping_usd_section and (line.startswith("**/*.usd") or line.startswith("**/*.usd")):
+                continue
+            if skipping_usd_section and line.strip() == "":
+                skipping_usd_section = False
+                continue
+            if not skipping_usd_section:
+                filtered_lines.append(line)
+
+        with open(gitignore_path, "w") as f:
+            f.writelines(filtered_lines)
+
+        print("  |-- Updated .gitignore to allow USD files (custom_usd=True)")
+
+
+
     # - other files
     dir = os.path.join(project_dir, "source", name, name)
     template = jinja_env.get_template("extension/ui_extension_example.py")
