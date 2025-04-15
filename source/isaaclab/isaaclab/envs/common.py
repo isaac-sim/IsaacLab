@@ -92,7 +92,7 @@ class ViewerCfg:
 
     This quantity is only effective if :attr:`origin` is set to "asset_body".
     """
-    
+
     viewer_origin_tracking: ViewerOriginTracking | None = None
     """Follow specific DoF of asset's root. Default is None.
 
