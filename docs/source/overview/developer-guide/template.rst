@@ -64,11 +64,11 @@ To add your own robot:
 
 1. Place your USD file in::
 
-     data/Robots/<your_robot_name>/<your_robot_name>.usd
+     FULL_PATH_TO_PROJECT/<given-project-name>/source/<given-project-name>/data/Robots/<your_robot_name>/<your_robot_name>.usd
 
 2. Create a corresponding configuration file in::
 
-     source/<your_project>/<your_project>/robots/<your_robot_name>.py
+     FULL_PATH_TO_PROJECT/<given-project-name>/source/<given-project-name>/<given-project-name>/robots/<your_robot_name>.py
 
    following the format described in the :ref:`how-to-write-articulation-config`.
 
