@@ -53,6 +53,28 @@ The generator will guide you in setting up the project/task for your needs by as
 * Isaac Lab workflows (see :ref:`feature-workflows`).
 * Reinforcement learning libraries (see :ref:`rl-frameworks`), and algorithms (if the selected libraries support multiple algorithms).
 
+Optional: Include Custom USD Assets (external project only)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+If your project involves custom robots or environments with their own USD files, the template generator supports this directly.
+
+This is especially useful if you want to keep everything self-contained in a single, isolated directory — without having your tasks in the external project and your custom assets elsewhere (e.g., in the main Isaac Lab repository structure).
+
+To add your own robot:
+
+1. Place your USD file in::
+
+     data/Robots/<your_robot_name>/<your_robot_name>.usd
+
+2. Create a corresponding configuration file in::
+
+     source/<your_project>/<your_project>/robots/<your_robot_name>.py
+
+   following the format described in the :ref:`how-to-write-articulation-config`.
+
+3. Import your robot config in your environment configuration file (e.g., ``*_env_cfg.py``), just like in the Cartpole examples provided by the generated template.
+
+
 External project usage (once generated)
 ---------------------------------------
 
