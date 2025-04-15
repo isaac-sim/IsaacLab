@@ -72,7 +72,11 @@ To add your own robot:
 
    following the format described in the :ref:`how-to-write-articulation-config`.
 
-3. Import your robot config in your environment configuration file (e.g., ``*_env_cfg.py``), just like in the Cartpole examples provided by the generated template.
+3. Import your asset configuration in the following file::
+
+     FULL_PATH_TO_PROJECT/<given-project-name>/source/<given-project-name>/<given-project-name>/robots/__init__.py
+
+4. Import your robot config in your environment configuration file (e.g., ``*_env_cfg.py``), just like in the Cartpole examples provided by the generated template.
 
 
 External project usage (once generated)
