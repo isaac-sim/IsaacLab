@@ -247,4 +247,3 @@ Here are some general commands to get started with it:
         .. code-block:: batch
 
           python scripts\reinforcement_learning\<specific-rl-library>\train.py --task=<Task-Name>
-
