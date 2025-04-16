@@ -8,7 +8,7 @@
 
 """Launch Isaac Sim Simulator first."""
 
-from isaaclab.app import AppLauncher, run_tests
+from isaaclab.app import AppLauncher
 
 # launch omniverse app
 app_launcher = AppLauncher(headless=True, enable_cameras=True)
@@ -20,15 +20,15 @@ import numpy as np
 import os
 import scipy.spatial.transform as tf
 import torch
-import unittest
 
 import isaacsim.core.utils.stage as stage_utils
-import omni.replicator.core as rep
+import pytest
 from isaacsim.core.utils.extensions import get_extension_path_from_name
 from pxr import Usd, UsdGeom
 
 import isaaclab.sim as sim_utils
 from isaaclab.sensors.rtx_lidar import RTX_LIDAR_INFO_FIELDS, RtxLidar, RtxLidarCfg
+from isaaclab.sim import build_simulation_context
 from isaaclab.terrains.trimesh.utils import make_border, make_plane
 from isaaclab.terrains.utils import create_prim_from_mesh
 from isaaclab.utils.math import convert_quat
@@ -46,42 +46,12 @@ EXAMPLE_ROTARY_PATH = os.path.abspath(
 )
 
 
-class TestRtxLidar(unittest.TestCase):
-    """Test for isaaclab rtx lidar"""
-
-    """
-    Test Setup and Teardown
-    """
-
-    def setUp(self):
-        """Create a blank new stage for each test."""
-
-        # Create a new stage
-        stage_utils.create_new_stage()
-
-        # Simulation time-step
-        self.dt = 0.01
-        # Load kit helper
-        sim_cfg = sim_utils.SimulationCfg(dt=self.dt, device="cuda")
-        self.sim: sim_utils.SimulationContext = sim_utils.SimulationContext(sim_cfg)
-
-        # configure lidar
-        self.lidar_cfg = RtxLidarCfg(
-            prim_path="/World/Lidar",
-            debug_vis=not app_launcher._headless,
-            optional_data_types=[
-                "azimuth",
-                "elevation",
-                "emitterId",
-                "index",
-                "materialId",
-                "normal",
-                "objectId",
-                "velocity",
-            ],
-            spawn=sim_utils.LidarCfg(lidar_type=sim_utils.LidarCfg.LidarType.EXAMPLE_ROTARY),
-        )
-
+@pytest.fixture
+def sim(request):
+    """Create simulation context with the specified device."""
+    device = request.getfixturevalue("device")
+    with build_simulation_context(device=device, dt=0.01) as sim:
+        sim._app_control_on_stop_handle = None
         # Ground-plane
         mesh = make_plane(size=(10, 10), height=0.0, center_zero=True)
         border = make_border(size=(10, 10), inner_size=(5, 5), height=2.0, position=(0.0, 0.0, 0.0))
@@ -91,187 +61,198 @@ class TestRtxLidar(unittest.TestCase):
             create_prim_from_mesh(f"/World/defaultBoarder{i}", box)
         # load stage
         stage_utils.update_stage()
+        yield sim
 
-    def tearDown(self):
-        """Stops simulator after each test."""
-        # close all the opened viewport from before.
-        rep.vp_manager.destroy_hydra_textures("Replicator")
-        # stop simulation
-        # note: cannot use self.sim.stop() since it does one render step after stopping!! This doesn't make sense :(
-        self.sim._timeline.stop()
-        # clear the stage
-        self.sim.clear_all_callbacks()
-        self.sim.clear_instance()
 
-    def test_lidar_init(self):
-        """Test lidar initialization and data population."""
-        # Create lidar
-        lidar = RtxLidar(cfg=self.lidar_cfg)
-        # Check simulation parameter is set correctly
-        self.assertTrue(self.sim.has_rtx_sensors())
-        # Play sim
-        self.sim.reset()
-        # Check if lidar is initialized
-        self.assertTrue(lidar.is_initialized)
-        # Check if lidar prim is set correctly and that it is a camera prim
-        self.assertEqual(lidar._sensor_prims[0].GetPath().pathString, self.lidar_cfg.prim_path)
-        self.assertIsInstance(lidar._sensor_prims[0], UsdGeom.Camera)
+@pytest.fixture
+def lidar_cfg(request):
+    # configure lidar
+    return RtxLidarCfg(
+        prim_path="/World/Lidar",
+        debug_vis=not app_launcher._headless,
+        optional_data_types=[
+            "azimuth",
+            "elevation",
+            "emitterId",
+            "index",
+            "materialId",
+            "normal",
+            "objectId",
+            "velocity",
+        ],
+        spawn=sim_utils.LidarCfg(lidar_type=sim_utils.LidarCfg.LidarType.EXAMPLE_ROTARY),
+    )
 
-        # Simulate for a few steps
-        # note: This is a workaround to ensure that the textures are loaded.
-        #   Check "Known Issues" section in the documentation for more details.
-        for _ in range(5):
-            self.sim.step()
 
-        # Simulate physics
-        for _ in range(10):
-            # perform rendering
-            self.sim.step()
-            # update camera
-            lidar.update(self.dt, force_recompute=True)
-            # check info data
-            for info_key, info_value in lidar.data.info[0].items():
-                self.assertTrue(info_key in RTX_LIDAR_INFO_FIELDS.keys())
-                self.assertTrue(isinstance(info_value, RTX_LIDAR_INFO_FIELDS[info_key]))
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+def test_lidar_init(sim, device, lidar_cfg):
+    """Test lidar initialization and data population."""
+    # Create lidar
+    lidar = RtxLidar(cfg=lidar_cfg)
+    # Check simulation parameter is set correctly
+    assert sim.has_rtx_sensors()
+    # Play sim
+    sim.reset()
+    # Check if lidar is initialized
+    assert lidar.is_initialized
+    # Check if lidar prim is set correctly and that it is a camera prim
+    assert lidar._sensor_prims[0].GetPath().pathString == lidar_cfg.prim_path
+    assert isinstance(lidar._sensor_prims[0], UsdGeom.Camera)
 
-            # check lidar data
-            for data_key, data_value in lidar.data.output.items():
-                if data_key in self.lidar_cfg.optional_data_types:
-                    self.assertTrue(data_value.shape[1] > 0)
+    # Simulate for a few steps
+    # note: This is a workaround to ensure that the textures are loaded.
+    #   Check "Known Issues" section in the documentation for more details.
+    for _ in range(5):
+        sim.step()
 
-    def test_lidar_init_offset(self):
-        """Test lidar offset configuration."""
-        lidar_cfg_offset = copy.deepcopy(self.lidar_cfg)
-        lidar_cfg_offset.offset = RtxLidarCfg.OffsetCfg(pos=POSITION, rot=QUATERNION)
-        lidar_cfg_offset.prim_path = "/World/LidarOffset"
-        lidar = RtxLidar(lidar_cfg_offset)
+    # Simulate physics
+    for _ in range(10):
+        # perform rendering
+        sim.step()
+        # update camera
+        lidar.update(sim.get_physics_dt(), force_recompute=True)
+        # check info data
+        for info_key, info_value in lidar.data.info[0].items():
+            assert info_key in RTX_LIDAR_INFO_FIELDS.keys()
+            assert isinstance(info_value, RTX_LIDAR_INFO_FIELDS[info_key])
 
-        # Play sim
-        self.sim.reset()
+        # check lidar data
+        for data_key, data_value in lidar.data.output.items():
+            if data_key in lidar_cfg.optional_data_types:
+                assert data_value.shape[1] > 0
 
-        # Retrieve lidar pose using USD API
-        prim_tf = lidar._sensor_prims[0].ComputeLocalToWorldTransform(Usd.TimeCode.Default())
-        prim_tf = np.transpose(prim_tf)
 
-        # check that transform is set correctly
-        np.testing.assert_allclose(prim_tf[0:3, 3], lidar_cfg_offset.offset.pos)
-        np.testing.assert_allclose(
-            convert_quat(tf.Rotation.from_matrix(prim_tf[:3, :3]).as_quat(), "wxyz"),
-            lidar_cfg_offset.offset.rot,
-            rtol=1e-5,
-            atol=1e-5,
-        )
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+def test_offset_lidar_init(sim, device, lidar_cfg):
+    """Test lidar offset configuration."""
+    lidar_cfg_offset = copy.deepcopy(lidar_cfg)
+    lidar_cfg_offset.offset = RtxLidarCfg.OffsetCfg(pos=POSITION, rot=QUATERNION)
+    lidar_cfg_offset.prim_path = "/World/LidarOffset"
+    lidar = RtxLidar(lidar_cfg_offset)
 
-        # Simulate for a few steps
-        # note: This is a workaround to ensure that the textures are loaded.
-        #   Check "Known Issues" section in the documentation for more details.
-        for _ in range(5):
-            self.sim.step()
+    # Play sim
+    sim.reset()
 
-        lidar.update(self.dt)
+    # Retrieve lidar pose using USD API
+    prim_tf = lidar._sensor_prims[0].ComputeLocalToWorldTransform(Usd.TimeCode.Default())
+    prim_tf = np.transpose(prim_tf)
 
-    def test_lidar_init_multiple(self):
-        """Test multiple lidar initialization and check info and data outputs."""
+    # check that transform is set correctly
+    np.testing.assert_allclose(prim_tf[0:3, 3], lidar_cfg_offset.offset.pos)
+    np.testing.assert_allclose(
+        convert_quat(tf.Rotation.from_matrix(prim_tf[:3, :3]).as_quat(), "wxyz"),
+        lidar_cfg_offset.offset.rot,
+        rtol=1e-5,
+        atol=1e-5,
+    )
 
-        self.sim._app_control_on_stop_handle = None
-        lidar_cfg_1 = copy.deepcopy(self.lidar_cfg)
-        lidar_cfg_1.prim_path = "/World/Lidar1"
-        lidar_1 = RtxLidar(lidar_cfg_1)
+    # Simulate for a few steps
+    # note: This is a workaround to ensure that the textures are loaded.
+    #   Check "Known Issues" section in the documentation for more details.
+    for _ in range(5):
+        sim.step()
 
-        lidar_cfg_2 = copy.deepcopy(self.lidar_cfg)
-        lidar_cfg_2.prim_path = "/World/Lidar2"
-        lidar_2 = RtxLidar(lidar_cfg_2)
+    lidar.update(sim.get_physics_dt())
 
-        # play sim
-        self.sim.reset()
 
-        # Simulate for a few steps
-        # note: This is a workaround to ensure that the textures are loaded.
-        #   Check "Known Issues" section in the documentation for more details.
-        for _ in range(5):
-            self.sim.step()
-        # Simulate physics
-        for i in range(10):
-            # perform rendering
-            self.sim.step()
-            # update lidar
-            lidar_1.update(self.dt)
-            lidar_2.update(self.dt)
-            # check lidar info
-            for lidar_info_key in lidar_1.data.info[0].keys():
-                info1 = lidar_1.data.info[0][lidar_info_key]
-                info2 = lidar_2.data.info[0][lidar_info_key]
-                if isinstance(info1, torch.Tensor):
-                    torch.testing.assert_close(info1, info2)
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+def test_multiple_lidar_init(sim, device, lidar_cfg):
+    """Test multiple lidar initialization and check info and data outputs."""
+
+    sim._app_control_on_stop_handle = None
+    lidar_cfg_1 = copy.deepcopy(lidar_cfg)
+    lidar_cfg_1.prim_path = "/World/Lidar1"
+    lidar_1 = RtxLidar(lidar_cfg_1)
+
+    lidar_cfg_2 = copy.deepcopy(lidar_cfg)
+    lidar_cfg_2.prim_path = "/World/Lidar2"
+    lidar_2 = RtxLidar(lidar_cfg_2)
+
+    # play sim
+    sim.reset()
+
+    # Simulate for a few steps
+    # note: This is a workaround to ensure that the textures are loaded.
+    #   Check "Known Issues" section in the documentation for more details.
+    for _ in range(5):
+        sim.step()
+    # Simulate physics
+    for i in range(10):
+        # perform rendering
+        sim.step()
+        # update lidar
+        lidar_1.update(sim.get_physics_dt())
+        lidar_2.update(sim.get_physics_dt())
+        # check lidar info
+        for lidar_info_key in lidar_1.data.info[0].keys():
+            info1 = lidar_1.data.info[0][lidar_info_key]
+            info2 = lidar_2.data.info[0][lidar_info_key]
+            if isinstance(info1, torch.Tensor):
+                torch.testing.assert_close(info1, info2)
+            else:
+                if lidar_info_key == "renderProductPath":
+                    assert info1 == info2.split("_")[0]
                 else:
-                    if lidar_info_key == "renderProductPath":
-                        self.assertTrue(info1 == info2.split("_")[0])
-                    else:
-                        self.assertTrue(info1 == info2)
-            # check lidar data shape
-            for lidar_data_key in lidar_1.data.output.keys():
-                data1 = lidar_1.data.output[lidar_data_key]
-                data2 = lidar_2.data.output[lidar_data_key]
-                # print(i,"Frame1: ",lidar_1.frame)
-                # print(i,"Frame2: ",lidar_2.frame)
-                # print(i,f"Key: {lidar_data_key}, Shape 1: {data1.shape}, Shape 2: {data2.shape}")
-                self.assertTrue(
-                    data1.shape == data2.shape, f"Key: {lidar_data_key}, Shape 1: {data1.shape}, Shape 2: {data2.shape}"
-                )
+                    assert info1 == info2
+        # check lidar data shape both instances should produce the same amount of data
+        for lidar_data_key in lidar_1.data.output.keys():
+            data1 = lidar_1.data.output[lidar_data_key]
+            data2 = lidar_2.data.output[lidar_data_key]
+            assert data1.shape == data2.shape
 
-    def test_lidar_init_custom(self):
-        """Test custom lidar initialization, data population, and cleanup."""
-        # Create custom lidar profile dictionary
-        with open(EXAMPLE_ROTARY_PATH) as json_file:
-            sensor_profile = json.load(json_file)
 
-        custom_lidar_cfg = copy.deepcopy(self.lidar_cfg)
-        custom_lidar_cfg.spawn = sim_utils.LidarCfg(lidar_type="Custom", sensor_profile=sensor_profile)
-        # Create custom lidar
-        lidar = RtxLidar(cfg=custom_lidar_cfg)
-        # Check simulation parameter is set correctly
-        self.assertTrue(self.sim.has_rtx_sensors())
-        # Play sim
-        self.sim.reset()
-        # Check if lidar is initialized
-        self.assertTrue(lidar.is_initialized)
-        # Check if lidar prim is set correctly and that it is a camera prim
-        self.assertEqual(lidar._sensor_prims[0].GetPath().pathString, self.lidar_cfg.prim_path)
-        self.assertIsInstance(lidar._sensor_prims[0], UsdGeom.Camera)
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+def test_custom_lidar_init(sim, device, lidar_cfg):
+    """Test custom lidar initialization, data population, and cleanup."""
+    # Create custom lidar profile dictionary
+    with open(EXAMPLE_ROTARY_PATH) as json_file:
+        sensor_profile = json.load(json_file)
 
-        # Simulate for a few steps
-        # note: This is a workaround to ensure that the textures are loaded.
-        #   Check "Known Issues" section in the documentation for more details.
-        for _ in range(5):
-            self.sim.step()
+    custom_lidar_cfg = copy.deepcopy(lidar_cfg)
+    custom_lidar_cfg.spawn = sim_utils.LidarCfg(lidar_type="Custom", sensor_profile=sensor_profile)
+    # Create custom lidar
+    lidar = RtxLidar(cfg=custom_lidar_cfg)
+    # Check simulation parameter is set correctly
+    assert sim.has_rtx_sensors()
+    # Play sim
+    sim.reset()
+    # Check if lidar is initialized
+    assert lidar.is_initialized
+    # Check if lidar prim is set correctly and that it is a camera prim
+    assert lidar._sensor_prims[0].GetPath().pathString == lidar_cfg.prim_path
+    assert isinstance(lidar._sensor_prims[0], UsdGeom.Camera)
 
-        # Simulate physics
-        for _ in range(10):
-            # perform rendering
-            self.sim.step()
-            # update camera
-            lidar.update(self.dt, force_recompute=True)
-            # check info data
-            for info_key, info_value in lidar.data.info[0].items():
-                self.assertTrue(info_key in RTX_LIDAR_INFO_FIELDS.keys())
-                self.assertTrue(isinstance(info_value, RTX_LIDAR_INFO_FIELDS[info_key]))
+    # Simulate for a few steps
+    # note: This is a workaround to ensure that the textures are loaded.
+    #   Check "Known Issues" section in the documentation for more details.
+    for _ in range(5):
+        sim.step()
 
-            # check lidar data
-            for data_key, data_value in lidar.data.output.items():
-                if data_key in self.lidar_cfg.optional_data_types:
-                    self.assertTrue(data_value.shape[1] > 0)
+    # Simulate physics
+    for _ in range(10):
+        # perform rendering
+        sim.step()
+        # update camera
+        lidar.update(sim.get_physics_dt(), force_recompute=True)
+        # check info data
+        for info_key, info_value in lidar.data.info[0].items():
+            assert info_key in RTX_LIDAR_INFO_FIELDS.keys()
+            assert isinstance(info_value, RTX_LIDAR_INFO_FIELDS[info_key])
 
-        del lidar
+        # check lidar data
+        for data_key, data_value in lidar.data.output.items():
+            if data_key in lidar_cfg.optional_data_types:
+                assert data_value.shape[1] > 0
 
-        # check proper file cleanup
-        custom_profile_name = self.lidar_cfg.spawn.sensor_profile_temp_prefix
-        custom_profile_dir = self.lidar_cfg.spawn.sensor_profile_temp_dir
-        files = os.listdir(custom_profile_dir)
-        for file in files:
-            self.assertTrue(
-                custom_profile_name not in file, msg=f"{custom_profile_name} found in {custom_profile_dir}/{file}"
-            )
+    del lidar
+
+    # check proper file cleanup
+    custom_profile_name = lidar_cfg.spawn.sensor_profile_temp_prefix
+    custom_profile_dir = lidar_cfg.spawn.sensor_profile_temp_dir
+    files = os.listdir(custom_profile_dir)
+    for file in files:
+        assert custom_profile_name not in file
 
 
 if __name__ == "__main__":
-    run_tests()
+    pytest.main([__file__, "-v", "--maxfail=1"])
