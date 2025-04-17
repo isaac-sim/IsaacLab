@@ -42,6 +42,10 @@ QUAT_ROS = [-0.17591989, 0.33985114, 0.82047325, -0.42470819]
 QUAT_OPENGL = [0.33985113, 0.17591988, 0.42470818, 0.82047324]
 QUAT_WORLD = [-0.3647052, -0.27984815, -0.1159169, 0.88047623]
 
+# resolutions
+HEIGHT = 240
+WIDTH = 320
+
 
 class TestCamera(unittest.TestCase):
     """Test for USD Camera sensor."""
@@ -49,8 +53,8 @@ class TestCamera(unittest.TestCase):
     def setUp(self):
         """Create a blank new stage for each test."""
         self.camera_cfg = CameraCfg(
-            height=128,
-            width=128,
+            height=HEIGHT,
+            width=WIDTH,
             prim_path="/World/Camera",
             update_period=0,
             data_types=["distance_to_image_plane"],
@@ -271,23 +275,23 @@ class TestCamera(unittest.TestCase):
         # get intrinsic matrix
         self.sim.reset()
         intrinsic_matrix = camera_1.data.intrinsic_matrices[0].cpu().flatten().tolist()
+
         self.tearDown()
         # reinit the first camera
         self.setUp()
         camera_1 = Camera(cfg=self.camera_cfg)
+
         # initialize from intrinsic matrix
         intrinsic_camera_cfg = CameraCfg(
-            height=128,
-            width=128,
+            height=HEIGHT,
+            width=WIDTH,
             prim_path="/World/Camera_2",
             update_period=0,
             data_types=["distance_to_image_plane"],
             spawn=sim_utils.PinholeCameraCfg.from_intrinsic_matrix(
                 intrinsic_matrix=intrinsic_matrix,
-                width=128,
-                height=128,
-                focal_length=24.0,
-                focus_distance=400.0,
+                width=WIDTH,
+                height=HEIGHT,
                 clipping_range=(0.1, 1.0e5),
             ),
         )
@@ -369,7 +373,7 @@ class TestCamera(unittest.TestCase):
         # play sim
         self.sim.reset()
         # Desired properties (obtained from realsense camera at 320x240 resolution)
-        rs_intrinsic_matrix = [229.31640625, 0.0, 164.810546875, 0.0, 229.826171875, 122.1650390625, 0.0, 0.0, 1.0]
+        rs_intrinsic_matrix = [229.8, 0.0, 160.0, 0.0, 229.8, 120.0, 0.0, 0.0, 1.0]
         rs_intrinsic_matrix = torch.tensor(rs_intrinsic_matrix, device=camera.device).reshape(3, 3).unsqueeze(0)
         # Set matrix into simulator
         camera.set_intrinsic_matrices(rs_intrinsic_matrix.clone())
@@ -387,11 +391,10 @@ class TestCamera(unittest.TestCase):
             # update camera
             camera.update(self.dt)
             # Check that matrix is correct
-            # TODO: This is not correctly setting all values in the matrix since the
-            #       vertical aperture and aperture offsets are not being set correctly
-            #       This is a bug in the simulator.
             torch.testing.assert_close(rs_intrinsic_matrix[0, 0, 0], camera.data.intrinsic_matrices[0, 0, 0])
-            # torch.testing.assert_close(rs_intrinsic_matrix[0, 1, 1], camera.data.intrinsic_matrices[0, 1, 1])
+            torch.testing.assert_close(rs_intrinsic_matrix[0, 1, 1], camera.data.intrinsic_matrices[0, 1, 1])
+            torch.testing.assert_close(rs_intrinsic_matrix[0, 0, 2], camera.data.intrinsic_matrices[0, 0, 2])
+            torch.testing.assert_close(rs_intrinsic_matrix[0, 1, 2], camera.data.intrinsic_matrices[0, 1, 2])
 
     def test_depth_clipping(self):
         """Test depth clipping.
