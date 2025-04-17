@@ -13,7 +13,8 @@ Fixed
   parameters from being used to calculate :attr:`omni.isaac.lab.sensors.camera.CameraData.intrinsic_matrices`
 * Fixed :meth:`omni.isaac.lab.spawners.sensors.sensors_cfg.PinholeCameraCfg.from_intrinsic_matrix` preventing setting of
   unused USD camera parameters.
-  
+
+
 0.36.6 (2025-04-09)
 ~~~~~~~~~~~~~~~~~~~
 
