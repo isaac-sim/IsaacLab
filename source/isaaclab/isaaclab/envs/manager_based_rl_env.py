@@ -82,6 +82,9 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
 
         # initialize data and constants
         # -- init buffers
+        # TODO: this may be redundant since self.episode_length_buf is now initialized in load_managers() to make it
+        # available for use in mdp functions (e.g., in the "time" observation functions). Left it in place for now in
+        # case there are other situations where it is needed without calling load_managers(). Remove if appropriate.
         self.episode_length_buf = torch.zeros(self.num_envs, device=self.device, dtype=torch.long)
         # -- set the framerate of the gym video recorder wrapper so that the playback speed of the produced video matches the simulation
         self.metadata["render_fps"] = 1 / self.step_dt
@@ -107,6 +110,10 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
     """
 
     def load_managers(self):
+
+        # initialize the episode length buffer BEFORE loading the managers so it is available for use by mdp functions.
+        self.episode_length_buf = torch.zeros(self.num_envs, device=self.device, dtype=torch.long)
+
         # note: this order is important since observation manager needs to know the command and action managers
         # and the reward manager needs to know the termination manager
         # -- command manager
