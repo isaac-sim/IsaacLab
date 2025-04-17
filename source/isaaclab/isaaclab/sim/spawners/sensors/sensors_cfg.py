@@ -8,7 +8,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Literal
 
-from isaaclab.utils.sensors as sensor_utils
+import isaaclab.utils.sensors as sensor_utils
 from isaaclab.sim.spawners.spawner_cfg import SpawnerCfg
 from isaaclab.utils import configclass
 
