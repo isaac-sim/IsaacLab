@@ -1,6 +1,21 @@
 Changelog
 ---------
 
+0.36.7 (2025-04-17)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added initialization of ``episode_length_buf`` in :meth:`load_managers()` of :class:`~isaaclab.envs.ManagerBasedRLEnv`
+  to make it available for use in mdp funtions. Note: existing initialization in :meth:`__init__` left in place in case
+  it is needed for other use cases. 
+* Added :attr:`~isaaclab.envs.ManagerBasedRLEnv.curr_episode_length` to :class:`~isaaclab.envs.ManagerBasedRLEnv` which
+  returns reshaped ``episode_length_buf`` so it is visible as an attribute in the documentation.
+* Added time observation functions to `~isaaclab.envs.mdp.observations` module, 
+  :func:`~isaaclab.envs.mdp.observations.current_time_s` and :func:`~isaaclab.envs.mdp.observations.remaining_time_s`.
+
+
 0.36.6 (2025-04-09)
 ~~~~~~~~~~~~~~~~~~~
 
