@@ -510,7 +510,8 @@ class Camera(SensorBase):
         # Increment frame count
         self._frame[env_ids] += 1
         # -- pose
-        self._update_poses(env_ids)
+        if self.cfg.update_latest_camera_pose:
+            self._update_poses(env_ids)
         # -- read the data from annotator registry
         # check if buffer is called for the first time. If so then, allocate the memory
         if len(self._data.output) == 0:
