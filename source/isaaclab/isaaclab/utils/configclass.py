@@ -47,7 +47,7 @@ def configclass(cls, **kwargs):
 
         from dataclasses import MISSING
 
-        from isaaclabz.utils.configclass import configclass
+        from isaaclab.utils.configclass import configclass
 
 
         @configclass
