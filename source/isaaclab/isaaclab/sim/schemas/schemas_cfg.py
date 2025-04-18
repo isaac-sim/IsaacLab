@@ -437,7 +437,7 @@ class MeshCollisionPropertiesCfg:
     See :meth:`set_mesh_collision_properties` for more information.
 
     .. note::
-        If the values are None, they are not modified. This is useful when you want to set only a subset of
+        If the values are MISSING, they are not modified. This is useful when you want to set only a subset of
         the properties and leave the rest as-is.
     """
 
