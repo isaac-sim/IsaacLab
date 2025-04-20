@@ -9,33 +9,44 @@ Humanoid locomotion environment.
 
 import gymnasium as gym
 
-from . import agents
-from .h1_env import H1Env, H1EnvCfg
+from ..humanoid import agents
+from .nao_env import NaoEnv, NaoEnvCfg
+from .nao_envb import NaoEnvb, NaoEnvbCfg
+from .nao_envc import NaoEnvc, NaoEnvcCfg
 
 ##
 # Register Gym environments.
 ##
-
 gym.register(
-    id="Isaac-Humanoid-Direct-v0",
-    entry_point=f"{__name__}.humanoid_env:HumanoidEnv",
+    id="Nao",
+    entry_point="isaaclab_tasks.direct.nao:NaoEnv",
     disable_env_checker=True,
     kwargs={
-        "env_cfg_entry_point": f"{__name__}.humanoid_env:HumanoidEnvCfg",
+        "env_cfg_entry_point": NaoEnvCfg,
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_ppo_cfg.yaml",
         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:HumanoidPPORunnerCfg",
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_ppo_cfg.yaml",
     },
 )
 gym.register(
-    id="Isaac-H1-Direct-v0",
-    entry_point="isaaclab_tasks.direct.humanoid:H1Env",
+    id="Isaac-Nao-Direct-v0",
+    entry_point="isaaclab_tasks.direct.nao:NaoEnvb",
     disable_env_checker=True,
     kwargs={
-        "env_cfg_entry_point": H1EnvCfg,
+        "env_cfg_entry_point": NaoEnvbCfg,
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_ppo_cfg.yaml",
         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:HumanoidPPORunnerCfg",
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_ppo_cfg.yaml",
     },
 )
-
+gym.register(
+    id="Isaac-Nao-Direct-v1",
+    entry_point="isaaclab_tasks.direct.nao:NaoEnvc",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": NaoEnvcCfg,
+        "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_ppo_cfg.yaml",
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:HumanoidPPORunnerCfg",
+        "skrl_cfg_entry_point": f"{agents.__name__}:skrl_ppo_cfg.yaml",
+    },
+)
