@@ -6,7 +6,7 @@ import argparse
 import importlib.util
 import os
 import sys
-from time import sleep
+from time import sleep, time
 
 import ray
 import util
@@ -70,6 +70,8 @@ class IsaacLabTuneTrainable(tune.Trainable):
     def setup(self, config: dict) -> None:
         """Get the invocation command, return quick for easy scheduling."""
         self.data = None
+        self.data_freeze_duration = 0.0
+        self._DATA_FREEZE_DURATION_THRESHOLD = 180.0
         self.invoke_cmd = util.get_invocation_command_from_cfg(cfg=config, python_cmd=PYTHON_EXEC, workflow=WORKFLOW)
         print(f"[INFO]: Recovered invocation with {self.invoke_cmd}")
         self.experiment = None
@@ -109,11 +111,33 @@ class IsaacLabTuneTrainable(tune.Trainable):
 
             while data is None:
                 data = util.load_tensorboard_logs(self.tensorboard_logdir)
+                proc_status = self.proc.poll()
+                if proc_status is not None:
+                    break
                 sleep(2)  # Lazy report metrics to avoid performance overhead
 
             if self.data is not None:
-                while util._dicts_equal(data, self.data):
+                data_ = {k: v for k, v in data.items() if k != "done"}
+                self_data_ = {k: v for k, v in self.data.items() if k != "done"}
+                data_freeze_start_time = time()
+                while util._dicts_equal(data_, self_data_):
+                    self.data_freeze_duration = time() - data_freeze_start_time
                     data = util.load_tensorboard_logs(self.tensorboard_logdir)
+                    data_ = {k: v for k, v in data.items() if k != "done"}
+                    proc_status = self.proc.poll()
+                    if proc_status is not None:
+                        break
+                    if self.data_freeze_duration > self._DATA_FREEZE_DURATION_THRESHOLD: #  If the data is not updated for this long, terminate the process
+                        self.data_freeze_duration = 0.0
+                        self.proc.terminate()
+                        try:
+                            retcode = self.proc.wait(timeout=20)
+                            print("[INFO]: Process return code after terminate():", retcode)
+                        except Exception as e:
+                            raise RuntimeError(f"The frozen process did not terminate within timeout duration: {e}")
+                        self.data = data
+                        self.data["done"] = True
+                        return self.data
                     sleep(2)  # Lazy report metrics to avoid performance overhead
 
             self.data = data
