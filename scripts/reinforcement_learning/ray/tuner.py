@@ -129,7 +129,7 @@ class IsaacLabTuneTrainable(tune.Trainable):
                         break
                     if (
                         self.data_freeze_duration > self._DATA_FREEZE_DURATION_THRESHOLD
-                    ):  #  If the data is not updated for this long, terminate the process
+                    ):  # If the data is not updated for this long, terminate the process
                         self.data_freeze_duration = 0.0
                         self.proc.terminate()
                         try:
