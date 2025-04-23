@@ -1,6 +1,14 @@
 Changelog
 ---------
 
+0.36.7 (2025-04-23)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^^^
+
+* Adds correct type check for ManagerTermBase class in event_manager.py.
+
 0.36.6 (2025-04-09)
 ~~~~~~~~~~~~~~~~~~~
 
