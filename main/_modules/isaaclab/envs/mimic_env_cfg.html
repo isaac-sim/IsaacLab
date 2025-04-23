@@ -32,7 +32,7 @@
 
     <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css" />
     <link rel="stylesheet" href="../../../_static/styles/sphinx-book-theme.css?digest=14f4ca6b54d191a8c7657f6c759bf11a5fb86285" type="text/css" />
-    <link rel="stylesheet" type="text/css" href="/opt/hostedtoolcache/Python/3.10.16/x64/lib/python3.10/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/css/all.min.css" />
+    <link rel="stylesheet" type="text/css" href="/opt/hostedtoolcache/Python/3.10.17/x64/lib/python3.10/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/css/all.min.css" />
     <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css" />
     <link rel="stylesheet" type="text/css" href="../../../_static/custom.css" />
     <link rel="stylesheet" type="text/css" href="../../../_static/sphinx-design.4cbf315f70debaebd550c87a6162cf0f.min.css" />
@@ -46,7 +46,7 @@
     <script data-url_root="../../../" id="documentation_options" src="../../../_static/documentation_options.js"></script>
     <script src="../../../_static/doctools.js"></script>
     <script src="../../../_static/sphinx_highlight.js"></script>
-    <script src="/opt/hostedtoolcache/Python/3.10.16/x64/lib/python3.10/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/js/all.min.js"></script>
+    <script src="/opt/hostedtoolcache/Python/3.10.17/x64/lib/python3.10/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/js/all.min.js"></script>
     <script src="../../../_static/clipboard.min.js"></script>
     <script src="../../../_static/copybutton.js"></script>
     <script src="../../../_static/scripts/sphinx-book-theme.js?digest=5a5c038af52cf7bc1a1ec88eea08e6366ee68824"></script>
@@ -57,8 +57,8 @@
     <link rel="search" title="Search" href="../../../search.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-  <meta name="docsearch:version" content="2.0.2" />
-    <meta name="docbuild:last-update" content="Apr 11, 2025"/>
+  <meta name="docsearch:version" content="2.1.0" />
+    <meta name="docbuild:last-update" content="Apr 23, 2025"/>
   </head>
   
   
@@ -229,6 +229,7 @@
         <p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="../../../source/setup/ecosystem.html">Isaac Lab Ecosystem</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../source/setup/quickstart.html">Quickstart Guide</a></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../../source/setup/installation/index.html">Local Installation</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/setup/installation/pip_installation.html">Pip installation (recommended for Ubuntu 22.04 and Windows)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/setup/installation/binaries_installation.html">Binary installation (recommended for Ubuntu 20.04)</a></li>
@@ -289,6 +290,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../../../source/tutorials/00_sim/create_empty.html">Creating an empty scene</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/tutorials/00_sim/spawn_prims.html">Spawning prims into the scene</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/tutorials/00_sim/launch_app.html">Deep-dive into AppLauncher</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/tutorials/01_assets/add_new_robot.html">Adding a New Robot to Isaac Lab</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/tutorials/01_assets/run_rigid_object.html">Interacting with a rigid object</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/tutorials/01_assets/run_articulation.html">Interacting with an articulation</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/tutorials/01_assets/run_deformable_object.html">Interacting with a deformable object</a></li>
@@ -312,18 +314,24 @@
 <li class="toctree-l2"><a class="reference internal" href="../../../source/how-to/multi_asset_spawning.html">Spawning Multiple Assets</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/how-to/save_camera_output.html">Saving rendered images and 3D re-projection</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/how-to/estimate_how_many_cameras_can_run.html">Find How Many/What Cameras You Should Train With</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/how-to/configure_rendering.html">Configuring Rendering Settings</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/how-to/draw_markers.html">Creating Visualization Markers</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/how-to/wrap_rl_env.html">Wrapping environments</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/how-to/add_own_library.html">Adding your own learning library</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/how-to/record_animation.html">Recording Animations of Simulations</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/how-to/record_video.html">Recording video clips during training</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/how-to/master_omniverse.html">Mastering Omniverse for Robotics</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/how-to/cloudxr_teleoperation.html">Setting up CloudXR Teleoperation</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../../source/deployment/index.html">Container Deployment</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/deployment/docker.html">Docker Guide</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/deployment/cluster.html">Cluster Guide</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/deployment/run_docker_example.html">Running an example with Docker</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../source/policy_deployment/index.html">Sim2Real Deployment of Policies Trained in Isaac Lab</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/policy_deployment/00_hover/hover_policy.html">Training &amp; Deploying HOVER Policy</a></li>
 </ul>
 </details></li>
 </ul>
@@ -537,6 +545,8 @@
 <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">Base MimicEnvCfg object for Isaac Lab Mimic data generation.</span>
 <span class="sd">&quot;&quot;&quot;</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">enum</span>
+
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">configclass</span>
 
 
@@ -544,119 +554,267 @@
 <span class="k">class</span><span class="w"> </span><span class="nc">DataGenConfig</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration settings for data generation processes within the Isaac Lab Mimic environment.&quot;&quot;&quot;</span>
 
-    <span class="c1"># The name of the datageneration, default is &quot;demo&quot;</span>
     <span class="n">name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;demo&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The name of the data generation process. Defaults to &quot;demo&quot;.&quot;&quot;&quot;</span>
 
-    <span class="c1"># If set to True, generation will be retried until</span>
-    <span class="c1"># generation_num_trials successful demos have been generated.</span>
-    <span class="c1"># If set to False, generation will stop after generation_num_trails,</span>
-    <span class="c1"># independent of whether they were all successful or not.</span>
     <span class="n">generation_guarantee</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Whether to retry generation until generation_num_trials successful demos have been generated.</span>
 
-    <span class="c1">##############################################################</span>
-    <span class="c1"># Debugging parameters, which can help determining low success</span>
-    <span class="c1"># rates.</span>
-
-    <span class="c1"># Whether to keep failed generation trials. Keeping failed</span>
-    <span class="c1"># demonstrations is useful for visualizing and debugging low</span>
-    <span class="c1"># success rates.</span>
-    <span class="n">generation_keep_failed</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
-
-    <span class="c1"># Maximum number of failures allowed before stopping generation</span>
-    <span class="n">max_num_failures</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">50</span>
-
-    <span class="c1"># Seed for randomization to ensure reproducibility</span>
-    <span class="n">seed</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span>
-
-    <span class="c1">##############################################################</span>
-    <span class="c1"># The following values can be changed on the command line, and</span>
-    <span class="c1"># only serve as defaults.</span>
-
-    <span class="c1"># Path to the source dataset for mimic generation</span>
-    <span class="n">source_dataset_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span>
-
-    <span class="c1"># Path where the generated data will be saved</span>
-    <span class="n">generation_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span>
-
-    <span class="c1"># Number of trial to be generated</span>
-    <span class="n">generation_num_trials</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">10</span>
-
-    <span class="c1"># Name of the task being configured</span>
-    <span class="n">task_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span>
-
-    <span class="c1">##############################################################</span>
-    <span class="c1"># Advanced configuration, does not usually need to be changed</span>
-
-    <span class="c1"># Whether to select source data per subtask</span>
-    <span class="c1"># Note: this requires subtasks to be properly temporally</span>
-    <span class="c1">#       constrained, and may require additional subtasks to allow</span>
-    <span class="c1">#       for time synchronization.</span>
-    <span class="n">generation_select_src_per_subtask</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
-
-    <span class="c1"># Whether to transform the first robot pose during generation</span>
-    <span class="n">generation_transform_first_robot_pose</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
-
-    <span class="c1"># Whether to interpolate from last target pose</span>
-    <span class="n">generation_interpolate_from_last_target_pose</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
-
-
-<span class="nd">@configclass</span>
-<span class="k">class</span><span class="w"> </span><span class="nc">SubTaskConfig</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Configuration settings specific to the management of individual</span>
-<span class="sd">    subtasks.</span>
+<span class="sd">    If True, generation will be retried until generation_num_trials successful demos are created.</span>
+<span class="sd">    If False, generation will stop after generation_num_trails, regardless of success.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="c1">##############################################################</span>
-    <span class="c1"># Mandatory options that should be defined for every subtask</span>
+    <span class="n">generation_keep_failed</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Whether to keep failed generation trials.</span>
 
-    <span class="c1"># Reference to the object involved in this subtask, None if no</span>
-    <span class="c1"># object is involved (this is rarely the case).</span>
+<span class="sd">    Keeping failed demonstrations is useful for visualizing and debugging low success rates.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">max_num_failures</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">50</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Maximum number of failures allowed before stopping generation.&quot;&quot;&quot;</span>
+
+    <span class="n">seed</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Seed for randomization to ensure reproducibility.&quot;&quot;&quot;</span>
+
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The following configuration values can be changed on the command line, and only serve as defaults.&quot;&quot;&quot;</span>
+
+    <span class="n">source_dataset_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Path to the source dataset for mimic generation.&quot;&quot;&quot;</span>
+
+    <span class="n">generation_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Path where the generated data will be saved.&quot;&quot;&quot;</span>
+
+    <span class="n">generation_num_trials</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">10</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Number of trials to be generated.&quot;&quot;&quot;</span>
+
+    <span class="n">task_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Name of the task being configured.&quot;&quot;&quot;</span>
+
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The following configurations are advanced and do not usually need to be changed.&quot;&quot;&quot;</span>
+
+    <span class="n">generation_select_src_per_subtask</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Whether to select source data per subtask.</span>
+
+<span class="sd">    Note:</span>
+<span class="sd">        This requires subtasks to be properly temporally constrained, and may require</span>
+<span class="sd">        additional subtasks to allow for time synchronization.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">generation_select_src_per_arm</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Whether to select source data per arm.&quot;&quot;&quot;</span>
+
+    <span class="n">generation_transform_first_robot_pose</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Whether to transform the first robot pose during generation.&quot;&quot;&quot;</span>
+
+    <span class="n">generation_interpolate_from_last_target_pose</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Whether to interpolate from last target pose.&quot;&quot;&quot;</span>
+
+
+<div class="viewcode-block" id="SubTaskConfig"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.envs.html#isaaclab.envs.SubTaskConfig">[docs]</a><span class="nd">@configclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">SubTaskConfig</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Configuration settings for specifying subtasks used in Mimic environments.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Mandatory options that should be defined for every subtask.&quot;&quot;&quot;</span>
+
     <span class="n">object_ref</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Reference to the object involved in this subtask.</span>
 
-    <span class="c1"># Signal for subtask termination</span>
+<span class="sd">    Set to None if no object is involved (this is rarely the case).</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
     <span class="n">subtask_term_signal</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Subtask termination signal name.&quot;&quot;&quot;</span>
 
-    <span class="c1">##############################################################</span>
-    <span class="c1"># Advanced options for tuning the generation results</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Advanced options for tuning the generation results.&quot;&quot;&quot;</span>
 
-    <span class="c1"># Strategy on how to select a subtask segment. Can be either</span>
-    <span class="c1"># &#39;random&#39;, &#39;nearest_neighbor_object&#39; or</span>
-    <span class="c1"># &#39;nearest_neighbor_robot_distance&#39;. Details can be found in</span>
-    <span class="c1"># source/isaaclab_mimic/isaaclab_mimic/datagen/selection_strategy.py</span>
-    <span class="c1">#</span>
-    <span class="c1"># Note: for &#39;nearest_neighbor_object&#39; and</span>
-    <span class="c1">#       &#39;nearest_neighbor_robot_distance&#39;, the subtask needs to have</span>
-    <span class="c1">#       &#39;object_ref&#39; set to a value other than &#39;None&#39; above. At the</span>
-    <span class="c1">#       same time, if &#39;object_ref&#39; is not &#39;None&#39;, then either of</span>
-    <span class="c1">#       those strategies will usually yield higher success rates</span>
-    <span class="c1">#       than the default &#39;random&#39; strategy.</span>
     <span class="n">selection_strategy</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;random&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Strategy for selecting a subtask segment.</span>
 
-    <span class="c1"># Additional arguments to the selected strategy. See details on</span>
-    <span class="c1"># each strategy in</span>
-    <span class="c1"># source/isaaclab_mimic/isaaclab_mimic/datagen/selection_strategy.py</span>
-    <span class="c1"># Arguments will be passed through to the `select_source_demo`</span>
-    <span class="c1"># method.</span>
+<span class="sd">    Can be one of:</span>
+<span class="sd">        * &#39;random&#39;</span>
+<span class="sd">        * &#39;nearest_neighbor_object&#39;</span>
+<span class="sd">        * &#39;nearest_neighbor_robot_distance&#39;</span>
+
+<span class="sd">    Note:</span>
+<span class="sd">        For &#39;nearest_neighbor_object&#39; and &#39;nearest_neighbor_robot_distance&#39;, the subtask needs</span>
+<span class="sd">        to have &#39;object_ref&#39; set to a value other than &#39;None&#39;. These strategies typically yield</span>
+<span class="sd">        higher success rates than the default &#39;random&#39; strategy when object_ref is set.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
     <span class="n">selection_strategy_kwargs</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">=</span> <span class="p">{}</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Additional arguments to the selected strategy. See details on each strategy in</span>
+<span class="sd">    source/isaaclab_mimic/isaaclab_mimic/datagen/selection_strategy.py</span>
+<span class="sd">    Arguments will be passed through to the `select_source_demo` method.&quot;&quot;&quot;</span>
 
-    <span class="c1"># Range for start offset of the first subtask</span>
     <span class="n">first_subtask_start_offset_range</span><span class="p">:</span> <span class="nb">tuple</span> <span class="o">=</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Range for start offset of the first subtask.&quot;&quot;&quot;</span>
 
-    <span class="c1"># Range for offsetting subtask termination</span>
     <span class="n">subtask_term_offset_range</span><span class="p">:</span> <span class="nb">tuple</span> <span class="o">=</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Range for offsetting subtask termination.&quot;&quot;&quot;</span>
 
-    <span class="c1"># Amplitude of action noise applied</span>
     <span class="n">action_noise</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.03</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Amplitude of action noise applied.&quot;&quot;&quot;</span>
 
-    <span class="c1"># Number of steps for interpolation between waypoints</span>
     <span class="n">num_interpolation_steps</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">5</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Number of steps for interpolation between waypoints.&quot;&quot;&quot;</span>
 
-    <span class="c1"># Number of fixed steps for the subtask</span>
     <span class="n">num_fixed_steps</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Number of fixed steps for the subtask.&quot;&quot;&quot;</span>
 
-    <span class="c1"># Whether to apply noise during interpolation</span>
     <span class="n">apply_noise_during_interpolation</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Whether to apply noise during interpolation.&quot;&quot;&quot;</span>
+
+    <span class="n">description</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Description of the subtask&quot;&quot;&quot;</span>
+
+    <span class="n">next_subtask_description</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Instructions for the next subtask&quot;&quot;&quot;</span></div>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">SubTaskConstraintType</span><span class="p">(</span><span class="n">enum</span><span class="o">.</span><span class="n">IntEnum</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Enum for subtask constraint types.&quot;&quot;&quot;</span>
+
+    <span class="n">SEQUENTIAL</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">COORDINATION</span> <span class="o">=</span> <span class="mi">1</span>
+
+    <span class="n">_SEQUENTIAL_FORMER</span> <span class="o">=</span> <span class="mi">2</span>
+    <span class="n">_SEQUENTIAL_LATTER</span> <span class="o">=</span> <span class="mi">3</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">SubTaskConstraintCoordinationScheme</span><span class="p">(</span><span class="n">enum</span><span class="o">.</span><span class="n">IntEnum</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Enum for coordination schemes.&quot;&quot;&quot;</span>
+
+    <span class="n">REPLAY</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">TRANSFORM</span> <span class="o">=</span> <span class="mi">1</span>
+    <span class="n">TRANSLATE</span> <span class="o">=</span> <span class="mi">2</span>
+
+
+<div class="viewcode-block" id="SubTaskConstraintConfig"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.envs.html#isaaclab.envs.SubTaskConstraintConfig">[docs]</a><span class="nd">@configclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">SubTaskConstraintConfig</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Configuration settings for specifying subtask constraints used in multi-eef Mimic environments.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">eef_subtask_constraint_tuple</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">int</span><span class="p">]]</span> <span class="o">=</span> <span class="p">((</span><span class="s2">&quot;&quot;</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="p">(</span><span class="s2">&quot;&quot;</span><span class="p">,</span> <span class="mi">0</span><span class="p">))</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;List of associated subtasks tuples in order.</span>
+
+<span class="sd">    The first element of the tuple refers to the eef name.</span>
+<span class="sd">    The second element of the tuple refers to the subtask index of the eef.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">constraint_type</span><span class="p">:</span> <span class="n">SubTaskConstraintType</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Type of constraint to apply between subtasks.&quot;&quot;&quot;</span>
+
+    <span class="n">sequential_min_time_diff</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Minimum time difference between two sequential subtasks finishing.</span>
+
+<span class="sd">    The second subtask will execute until sequential_min_time_diff steps left in its subtask trajectory</span>
+<span class="sd">    and wait until the first (preconditioned) subtask is finished to continue executing the rest.</span>
+<span class="sd">    If set to -1, the second subtask will start only after the first subtask is finished.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">coordination_scheme</span><span class="p">:</span> <span class="n">SubTaskConstraintCoordinationScheme</span> <span class="o">=</span> <span class="n">SubTaskConstraintCoordinationScheme</span><span class="o">.</span><span class="n">REPLAY</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Scheme to use for coordinating subtasks.&quot;&quot;&quot;</span>
+
+    <span class="n">coordination_scheme_pos_noise_scale</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Scale of position noise to apply during coordination.&quot;&quot;&quot;</span>
+
+    <span class="n">coordination_scheme_rot_noise_scale</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Scale of rotation noise to apply during coordination.&quot;&quot;&quot;</span>
+
+    <span class="n">coordination_synchronize_start</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Whether subtasks should start at the same time.&quot;&quot;&quot;</span>
+
+<div class="viewcode-block" id="SubTaskConstraintConfig.generate_runtime_subtask_constraints"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.envs.html#isaaclab.envs.SubTaskConstraintConfig.generate_runtime_subtask_constraints">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">generate_runtime_subtask_constraints</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Populate expanded task constraints dictionary based on the task constraint config.</span>
+<span class="sd">        The task constraint config contains the configurations set by the user. While the</span>
+<span class="sd">        task_constraints_dict contains flags used to implement the constraint logic in this class.</span>
+
+<span class="sd">        The task_constraint_configs may include the following types:</span>
+<span class="sd">        - &quot;sequential&quot;</span>
+<span class="sd">        - &quot;coordination&quot;</span>
+
+<span class="sd">        For a &quot;sequential&quot; constraint:</span>
+<span class="sd">            - Data from task_constraint_configs is added to task_constraints_dict as &quot;sequential former&quot; task constraint.</span>
+<span class="sd">            - The opposite constraint, of type &quot;sequential latter&quot;, is also added to task_constraints_dict.</span>
+<span class="sd">            - Additionally, a (&quot;fulfilled&quot;, Bool) key-value pair is added to task_constraints_dict.</span>
+<span class="sd">            - This is used to check if the precondition (i.e., the sequential former task) has been met.</span>
+<span class="sd">            - Until the &quot;fulfilled&quot; flag in &quot;sequential latter&quot; is set by &quot;sequential former&quot;,</span>
+<span class="sd">                the &quot;sequential latter&quot; subtask will remain paused.</span>
+
+<span class="sd">        For a &quot;coordination&quot; constraint:</span>
+<span class="sd">            - Data from task_constraint_configs is added to task_constraints_dict.</span>
+<span class="sd">            - The opposite constraint, of type &quot;coordination&quot;, is also added to task_constraints_dict.</span>
+<span class="sd">            - The number of synchronous steps is set to the minimum of subtask_len and concurrent_subtask_len.</span>
+<span class="sd">            - This ensures both concurrent tasks end at the same time step.</span>
+<span class="sd">            - A &quot;selected_src_demo_ind&quot; and &quot;transform&quot; field are used to ensure the transforms used by both subtasks are the same.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">task_constraints_dict</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">constraint_type</span> <span class="o">==</span> <span class="n">SubTaskConstraintType</span><span class="o">.</span><span class="n">SEQUENTIAL</span><span class="p">:</span>
+            <span class="n">constrained_task_spec_key</span><span class="p">,</span> <span class="n">constrained_subtask_ind</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">eef_subtask_constraint_tuple</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+            <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">constrained_subtask_ind</span><span class="p">,</span> <span class="nb">int</span><span class="p">)</span>
+            <span class="n">pre_condition_task_spec_key</span><span class="p">,</span> <span class="n">pre_condition_subtask_ind</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">eef_subtask_constraint_tuple</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">pre_condition_subtask_ind</span><span class="p">,</span> <span class="nb">int</span><span class="p">)</span>
+            <span class="k">assert</span> <span class="p">(</span>
+                <span class="n">constrained_task_spec_key</span><span class="p">,</span>
+                <span class="n">constrained_subtask_ind</span><span class="p">,</span>
+            <span class="p">)</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">task_constraints_dict</span><span class="p">,</span> <span class="s2">&quot;only one constraint per subtask allowed&quot;</span>
+            <span class="n">task_constraints_dict</span><span class="p">[(</span><span class="n">constrained_task_spec_key</span><span class="p">,</span> <span class="n">constrained_subtask_ind</span><span class="p">)]</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span>
+                <span class="nb">type</span><span class="o">=</span><span class="n">SubTaskConstraintType</span><span class="o">.</span><span class="n">_SEQUENTIAL_LATTER</span><span class="p">,</span>
+                <span class="n">pre_condition_task_spec_key</span><span class="o">=</span><span class="n">pre_condition_task_spec_key</span><span class="p">,</span>
+                <span class="n">pre_condition_subtask_ind</span><span class="o">=</span><span class="n">pre_condition_subtask_ind</span><span class="p">,</span>
+                <span class="n">min_time_diff</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">sequential_min_time_diff</span><span class="p">,</span>
+                <span class="n">fulfilled</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+            <span class="p">)</span>
+            <span class="n">task_constraints_dict</span><span class="p">[(</span><span class="n">pre_condition_task_spec_key</span><span class="p">,</span> <span class="n">pre_condition_subtask_ind</span><span class="p">)]</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span>
+                <span class="nb">type</span><span class="o">=</span><span class="n">SubTaskConstraintType</span><span class="o">.</span><span class="n">_SEQUENTIAL_FORMER</span><span class="p">,</span>
+                <span class="n">constrained_task_spec_key</span><span class="o">=</span><span class="n">constrained_task_spec_key</span><span class="p">,</span>
+                <span class="n">constrained_subtask_ind</span><span class="o">=</span><span class="n">constrained_subtask_ind</span><span class="p">,</span>
+            <span class="p">)</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">constraint_type</span> <span class="o">==</span> <span class="n">SubTaskConstraintType</span><span class="o">.</span><span class="n">COORDINATION</span><span class="p">:</span>
+            <span class="n">constrained_task_spec_key</span><span class="p">,</span> <span class="n">constrained_subtask_ind</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">eef_subtask_constraint_tuple</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">constrained_subtask_ind</span><span class="p">,</span> <span class="nb">int</span><span class="p">)</span>
+            <span class="n">concurrent_task_spec_key</span><span class="p">,</span> <span class="n">concurrent_subtask_ind</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">eef_subtask_constraint_tuple</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+            <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">concurrent_subtask_ind</span><span class="p">,</span> <span class="nb">int</span><span class="p">)</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">coordination_scheme</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Coordination scheme must be specified.&quot;</span><span class="p">)</span>
+            <span class="k">assert</span> <span class="p">(</span>
+                <span class="n">constrained_task_spec_key</span><span class="p">,</span>
+                <span class="n">constrained_subtask_ind</span><span class="p">,</span>
+            <span class="p">)</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">task_constraints_dict</span><span class="p">,</span> <span class="s2">&quot;only one constraint per subtask allowed&quot;</span>
+            <span class="n">task_constraints_dict</span><span class="p">[(</span><span class="n">constrained_task_spec_key</span><span class="p">,</span> <span class="n">constrained_subtask_ind</span><span class="p">)]</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span>
+                <span class="n">concurrent_task_spec_key</span><span class="o">=</span><span class="n">concurrent_task_spec_key</span><span class="p">,</span>
+                <span class="n">concurrent_subtask_ind</span><span class="o">=</span><span class="n">concurrent_subtask_ind</span><span class="p">,</span>
+                <span class="nb">type</span><span class="o">=</span><span class="n">SubTaskConstraintType</span><span class="o">.</span><span class="n">COORDINATION</span><span class="p">,</span>
+                <span class="n">fulfilled</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+                <span class="n">finished</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+                <span class="n">selected_src_demo_ind</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                <span class="n">coordination_scheme</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">coordination_scheme</span><span class="p">,</span>
+                <span class="n">coordination_scheme_pos_noise_scale</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">coordination_scheme_pos_noise_scale</span><span class="p">,</span>
+                <span class="n">coordination_scheme_rot_noise_scale</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">coordination_scheme_rot_noise_scale</span><span class="p">,</span>
+                <span class="n">coordination_synchronize_start</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">coordination_synchronize_start</span><span class="p">,</span>
+                <span class="n">synchronous_steps</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>  <span class="c1"># to be calculated at runtime</span>
+            <span class="p">)</span>
+            <span class="n">task_constraints_dict</span><span class="p">[(</span><span class="n">concurrent_task_spec_key</span><span class="p">,</span> <span class="n">concurrent_subtask_ind</span><span class="p">)]</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span>
+                <span class="n">concurrent_task_spec_key</span><span class="o">=</span><span class="n">constrained_task_spec_key</span><span class="p">,</span>
+                <span class="n">concurrent_subtask_ind</span><span class="o">=</span><span class="n">constrained_subtask_ind</span><span class="p">,</span>
+                <span class="nb">type</span><span class="o">=</span><span class="n">SubTaskConstraintType</span><span class="o">.</span><span class="n">COORDINATION</span><span class="p">,</span>
+                <span class="n">fulfilled</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+                <span class="n">finished</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+                <span class="n">selected_src_demo_ind</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                <span class="n">coordination_scheme</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">coordination_scheme</span><span class="p">,</span>
+                <span class="n">coordination_scheme_pos_noise_scale</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">coordination_scheme_pos_noise_scale</span><span class="p">,</span>
+                <span class="n">coordination_scheme_rot_noise_scale</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">coordination_scheme_rot_noise_scale</span><span class="p">,</span>
+                <span class="n">coordination_synchronize_start</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">coordination_synchronize_start</span><span class="p">,</span>
+                <span class="n">synchronous_steps</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>  <span class="c1"># to be calculated at runtime</span>
+            <span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Constraint type not supported.&quot;</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">task_constraints_dict</span></div></div>
 
 
 <div class="viewcode-block" id="MimicEnvCfg"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.envs.html#isaaclab.envs.MimicEnvCfg">[docs]</a><span class="nd">@configclass</span>
@@ -673,9 +831,10 @@
 
     <span class="c1"># Dictionary of list of subtask configurations for each end-effector.</span>
     <span class="c1"># Keys are end-effector names.</span>
-    <span class="c1"># Currently, only a single end-effector is supported by Isaac Lab Mimic</span>
-    <span class="c1"># so `subtask_configs` must always be of size 1.</span>
-    <span class="n">subtask_configs</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="n">SubTaskConfig</span><span class="p">]]</span> <span class="o">=</span> <span class="p">{}</span></div>
+    <span class="n">subtask_configs</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="n">SubTaskConfig</span><span class="p">]]</span> <span class="o">=</span> <span class="p">{}</span>
+
+    <span class="c1"># List of configurations for subtask constraints</span>
+    <span class="n">task_constraint_configs</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">SubTaskConstraintConfig</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span></div>
 </pre></div>
 
                 </article>
@@ -723,7 +882,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Apr 11, 2025.
+  Last updated on Apr 23, 2025.
   <br/>
 </p>
   </div>

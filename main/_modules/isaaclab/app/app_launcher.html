@@ -32,7 +32,7 @@
 
     <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css" />
     <link rel="stylesheet" href="../../../_static/styles/sphinx-book-theme.css?digest=14f4ca6b54d191a8c7657f6c759bf11a5fb86285" type="text/css" />
-    <link rel="stylesheet" type="text/css" href="/opt/hostedtoolcache/Python/3.10.16/x64/lib/python3.10/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/css/all.min.css" />
+    <link rel="stylesheet" type="text/css" href="/opt/hostedtoolcache/Python/3.10.17/x64/lib/python3.10/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/css/all.min.css" />
     <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css" />
     <link rel="stylesheet" type="text/css" href="../../../_static/custom.css" />
     <link rel="stylesheet" type="text/css" href="../../../_static/sphinx-design.4cbf315f70debaebd550c87a6162cf0f.min.css" />
@@ -46,7 +46,7 @@
     <script data-url_root="../../../" id="documentation_options" src="../../../_static/documentation_options.js"></script>
     <script src="../../../_static/doctools.js"></script>
     <script src="../../../_static/sphinx_highlight.js"></script>
-    <script src="/opt/hostedtoolcache/Python/3.10.16/x64/lib/python3.10/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/js/all.min.js"></script>
+    <script src="/opt/hostedtoolcache/Python/3.10.17/x64/lib/python3.10/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/js/all.min.js"></script>
     <script src="../../../_static/clipboard.min.js"></script>
     <script src="../../../_static/copybutton.js"></script>
     <script src="../../../_static/scripts/sphinx-book-theme.js?digest=5a5c038af52cf7bc1a1ec88eea08e6366ee68824"></script>
@@ -57,8 +57,8 @@
     <link rel="search" title="Search" href="../../../search.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-  <meta name="docsearch:version" content="2.0.2" />
-    <meta name="docbuild:last-update" content="Apr 11, 2025"/>
+  <meta name="docsearch:version" content="2.1.0" />
+    <meta name="docbuild:last-update" content="Apr 23, 2025"/>
   </head>
   
   
@@ -229,6 +229,7 @@
         <p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="../../../source/setup/ecosystem.html">Isaac Lab Ecosystem</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../source/setup/quickstart.html">Quickstart Guide</a></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../../source/setup/installation/index.html">Local Installation</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/setup/installation/pip_installation.html">Pip installation (recommended for Ubuntu 22.04 and Windows)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/setup/installation/binaries_installation.html">Binary installation (recommended for Ubuntu 20.04)</a></li>
@@ -289,6 +290,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../../../source/tutorials/00_sim/create_empty.html">Creating an empty scene</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/tutorials/00_sim/spawn_prims.html">Spawning prims into the scene</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/tutorials/00_sim/launch_app.html">Deep-dive into AppLauncher</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/tutorials/01_assets/add_new_robot.html">Adding a New Robot to Isaac Lab</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/tutorials/01_assets/run_rigid_object.html">Interacting with a rigid object</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/tutorials/01_assets/run_articulation.html">Interacting with an articulation</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/tutorials/01_assets/run_deformable_object.html">Interacting with a deformable object</a></li>
@@ -312,18 +314,24 @@
 <li class="toctree-l2"><a class="reference internal" href="../../../source/how-to/multi_asset_spawning.html">Spawning Multiple Assets</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/how-to/save_camera_output.html">Saving rendered images and 3D re-projection</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/how-to/estimate_how_many_cameras_can_run.html">Find How Many/What Cameras You Should Train With</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/how-to/configure_rendering.html">Configuring Rendering Settings</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/how-to/draw_markers.html">Creating Visualization Markers</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/how-to/wrap_rl_env.html">Wrapping environments</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/how-to/add_own_library.html">Adding your own learning library</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/how-to/record_animation.html">Recording Animations of Simulations</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/how-to/record_video.html">Recording video clips during training</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/how-to/master_omniverse.html">Mastering Omniverse for Robotics</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/how-to/cloudxr_teleoperation.html">Setting up CloudXR Teleoperation</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../../source/deployment/index.html">Container Deployment</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/deployment/docker.html">Docker Guide</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/deployment/cluster.html">Cluster Guide</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/deployment/run_docker_example.html">Running an example with Docker</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../source/policy_deployment/index.html">Sim2Real Deployment of Policies Trained in Isaac Lab</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/policy_deployment/00_hover/hover_policy.html">Training &amp; Deploying HOVER Policy</a></li>
 </ul>
 </details></li>
 </ul>
@@ -545,13 +553,26 @@
 <span class="kn">import</span><span class="w"> </span><span class="nn">re</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">signal</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">sys</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">toml</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">warnings</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Literal</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">flatdict</span>
 
 <span class="k">with</span> <span class="n">contextlib</span><span class="o">.</span><span class="n">suppress</span><span class="p">(</span><span class="ne">ModuleNotFoundError</span><span class="p">):</span>
     <span class="kn">import</span><span class="w"> </span><span class="nn">isaacsim</span>  <span class="c1"># noqa: F401</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaacsim</span><span class="w"> </span><span class="kn">import</span> <span class="n">SimulationApp</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">ExplicitAction</span><span class="p">(</span><span class="n">argparse</span><span class="o">.</span><span class="n">Action</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Custom action to track if an argument was explicitly passed by the user.&quot;&quot;&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">parser</span><span class="p">,</span> <span class="n">namespace</span><span class="p">,</span> <span class="n">values</span><span class="p">,</span> <span class="n">option_string</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="c1"># Set the parameter value</span>
+        <span class="nb">setattr</span><span class="p">(</span><span class="n">namespace</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">dest</span><span class="p">,</span> <span class="n">values</span><span class="p">)</span>
+        <span class="c1"># Set a flag indicating the parameter was explicitly passed</span>
+        <span class="nb">setattr</span><span class="p">(</span><span class="n">namespace</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">dest</span><span class="si">}</span><span class="s2">_explicit&quot;</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span>
 
 
 <div class="viewcode-block" id="AppLauncher"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.app.html#isaaclab.app.AppLauncher">[docs]</a><span class="k">class</span><span class="w"> </span><span class="nc">AppLauncher</span><span class="p">:</span>
@@ -637,16 +658,37 @@
 
         <span class="c1"># Integrate env-vars and input keyword args into simulation app config</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_config_resolution</span><span class="p">(</span><span class="n">launcher_args</span><span class="p">)</span>
+
+        <span class="c1"># Internal: Override SimulationApp._start_app method to apply patches after app has started.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">__patch_simulation_start_app</span><span class="p">(</span><span class="n">launcher_args</span><span class="p">)</span>
+
         <span class="c1"># Create SimulationApp, passing the resolved self._config to it for initialization</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_create_app</span><span class="p">()</span>
         <span class="c1"># Load IsaacSim extensions</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_load_extensions</span><span class="p">()</span>
         <span class="c1"># Hide the stop button in the toolbar</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_hide_stop_button</span><span class="p">()</span>
+        <span class="c1"># Set settings from the given rendering mode</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_set_rendering_mode_settings</span><span class="p">(</span><span class="n">launcher_args</span><span class="p">)</span>
 
+        <span class="c1"># Hide play button callback if the timeline is stopped</span>
+        <span class="kn">import</span><span class="w"> </span><span class="nn">omni.timeline</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_hide_play_button_callback</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="n">omni</span><span class="o">.</span><span class="n">timeline</span><span class="o">.</span><span class="n">get_timeline_interface</span><span class="p">()</span>
+            <span class="o">.</span><span class="n">get_timeline_event_stream</span><span class="p">()</span>
+            <span class="o">.</span><span class="n">create_subscription_to_pop_by_type</span><span class="p">(</span>
+                <span class="nb">int</span><span class="p">(</span><span class="n">omni</span><span class="o">.</span><span class="n">timeline</span><span class="o">.</span><span class="n">TimelineEventType</span><span class="o">.</span><span class="n">STOP</span><span class="p">),</span> <span class="k">lambda</span> <span class="n">e</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_hide_play_button</span><span class="p">(</span><span class="kc">True</span><span class="p">)</span>
+            <span class="p">)</span>
+        <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_unhide_play_button_callback</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="n">omni</span><span class="o">.</span><span class="n">timeline</span><span class="o">.</span><span class="n">get_timeline_interface</span><span class="p">()</span>
+            <span class="o">.</span><span class="n">get_timeline_event_stream</span><span class="p">()</span>
+            <span class="o">.</span><span class="n">create_subscription_to_pop_by_type</span><span class="p">(</span>
+                <span class="nb">int</span><span class="p">(</span><span class="n">omni</span><span class="o">.</span><span class="n">timeline</span><span class="o">.</span><span class="n">TimelineEventType</span><span class="o">.</span><span class="n">PLAY</span><span class="p">),</span> <span class="k">lambda</span> <span class="n">e</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_hide_play_button</span><span class="p">(</span><span class="kc">False</span><span class="p">)</span>
+            <span class="p">)</span>
+        <span class="p">)</span>
         <span class="c1"># Set up signal handlers for graceful shutdown</span>
-        <span class="c1"># -- during interrupts</span>
-        <span class="n">signal</span><span class="o">.</span><span class="n">signal</span><span class="p">(</span><span class="n">signal</span><span class="o">.</span><span class="n">SIGINT</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_interrupt_signal_handle_callback</span><span class="p">)</span>
         <span class="c1"># -- during explicit `kill` commands</span>
         <span class="n">signal</span><span class="o">.</span><span class="n">signal</span><span class="p">(</span><span class="n">signal</span><span class="o">.</span><span class="n">SIGTERM</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_abort_signal_handle_callback</span><span class="p">)</span>
         <span class="c1"># -- during segfaults</span>
@@ -776,8 +818,15 @@
             <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Enable camera sensors and relevant extension dependencies.&quot;</span><span class="p">,</span>
         <span class="p">)</span>
         <span class="n">arg_group</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
+            <span class="s2">&quot;--xr&quot;</span><span class="p">,</span>
+            <span class="n">action</span><span class="o">=</span><span class="s2">&quot;store_true&quot;</span><span class="p">,</span>
+            <span class="n">default</span><span class="o">=</span><span class="n">AppLauncher</span><span class="o">.</span><span class="n">_APPLAUNCHER_CFG_INFO</span><span class="p">[</span><span class="s2">&quot;xr&quot;</span><span class="p">][</span><span class="mi">1</span><span class="p">],</span>
+            <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Enable XR mode for VR/AR applications.&quot;</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="n">arg_group</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
             <span class="s2">&quot;--device&quot;</span><span class="p">,</span>
             <span class="nb">type</span><span class="o">=</span><span class="nb">str</span><span class="p">,</span>
+            <span class="n">action</span><span class="o">=</span><span class="n">ExplicitAction</span><span class="p">,</span>
             <span class="n">default</span><span class="o">=</span><span class="n">AppLauncher</span><span class="o">.</span><span class="n">_APPLAUNCHER_CFG_INFO</span><span class="p">[</span><span class="s2">&quot;device&quot;</span><span class="p">][</span><span class="mi">1</span><span class="p">],</span>
             <span class="n">help</span><span class="o">=</span><span class="s1">&#39;The device to run the simulation on. Can be &quot;cpu&quot;, &quot;cuda&quot;, &quot;cuda:N&quot;, where N is the device ID&#39;</span><span class="p">,</span>
         <span class="p">)</span>
@@ -804,6 +853,17 @@
             <span class="p">),</span>
         <span class="p">)</span>
         <span class="n">arg_group</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
+            <span class="s2">&quot;--rendering_mode&quot;</span><span class="p">,</span>
+            <span class="nb">type</span><span class="o">=</span><span class="nb">str</span><span class="p">,</span>
+            <span class="n">action</span><span class="o">=</span><span class="n">ExplicitAction</span><span class="p">,</span>
+            <span class="n">choices</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;performance&quot;</span><span class="p">,</span> <span class="s2">&quot;balanced&quot;</span><span class="p">,</span> <span class="s2">&quot;quality&quot;</span><span class="p">,</span> <span class="s2">&quot;xr&quot;</span><span class="p">},</span>
+            <span class="n">help</span><span class="o">=</span><span class="p">(</span>
+                <span class="s2">&quot;Sets the rendering mode. Preset settings files can be found in apps/rendering_modes.&quot;</span>
+                <span class="s1">&#39; Can be &quot;performance&quot;, &quot;balanced&quot;, &quot;quality&quot;, or &quot;xr&quot;.&#39;</span>
+                <span class="s2">&quot; Individual settings can be overwritten by using the RenderCfg class.&quot;</span>
+            <span class="p">),</span>
+        <span class="p">)</span>
+        <span class="n">arg_group</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
             <span class="s2">&quot;--kit_args&quot;</span><span class="p">,</span>
             <span class="nb">type</span><span class="o">=</span><span class="nb">str</span><span class="p">,</span>
             <span class="n">default</span><span class="o">=</span><span class="s2">&quot;&quot;</span><span class="p">,</span>
@@ -827,8 +887,10 @@
         <span class="s2">&quot;headless&quot;</span><span class="p">:</span> <span class="p">([</span><span class="nb">bool</span><span class="p">],</span> <span class="kc">False</span><span class="p">),</span>
         <span class="s2">&quot;livestream&quot;</span><span class="p">:</span> <span class="p">([</span><span class="nb">int</span><span class="p">],</span> <span class="o">-</span><span class="mi">1</span><span class="p">),</span>
         <span class="s2">&quot;enable_cameras&quot;</span><span class="p">:</span> <span class="p">([</span><span class="nb">bool</span><span class="p">],</span> <span class="kc">False</span><span class="p">),</span>
+        <span class="s2">&quot;xr&quot;</span><span class="p">:</span> <span class="p">([</span><span class="nb">bool</span><span class="p">],</span> <span class="kc">False</span><span class="p">),</span>
         <span class="s2">&quot;device&quot;</span><span class="p">:</span> <span class="p">([</span><span class="nb">str</span><span class="p">],</span> <span class="s2">&quot;cuda:0&quot;</span><span class="p">),</span>
         <span class="s2">&quot;experience&quot;</span><span class="p">:</span> <span class="p">([</span><span class="nb">str</span><span class="p">],</span> <span class="s2">&quot;&quot;</span><span class="p">),</span>
+        <span class="s2">&quot;rendering_mode&quot;</span><span class="p">:</span> <span class="p">([</span><span class="nb">str</span><span class="p">],</span> <span class="s2">&quot;balanced&quot;</span><span class="p">),</span>
     <span class="p">}</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;A dictionary of arguments added manually by the :meth:`AppLauncher.add_app_launcher_args` method.</span>
 
@@ -923,10 +985,31 @@
 <span class="sd">        Args:</span>
 <span class="sd">            launcher_args: A dictionary of all input arguments passed to the class object.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="c1"># Handle all control logic resolution</span>
+        <span class="c1"># Handle core settings</span>
+        <span class="n">livestream_arg</span><span class="p">,</span> <span class="n">livestream_env</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_livestream_settings</span><span class="p">(</span><span class="n">launcher_args</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_headless_settings</span><span class="p">(</span><span class="n">launcher_args</span><span class="p">,</span> <span class="n">livestream_arg</span><span class="p">,</span> <span class="n">livestream_env</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_camera_settings</span><span class="p">(</span><span class="n">launcher_args</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_xr_settings</span><span class="p">(</span><span class="n">launcher_args</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_viewport_settings</span><span class="p">(</span><span class="n">launcher_args</span><span class="p">)</span>
 
-        <span class="c1"># --LIVESTREAM logic--</span>
-        <span class="c1">#</span>
+        <span class="c1"># Handle device and distributed settings</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_device_settings</span><span class="p">(</span><span class="n">launcher_args</span><span class="p">)</span>
+
+        <span class="c1"># Handle experience file settings</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_experience_file</span><span class="p">(</span><span class="n">launcher_args</span><span class="p">)</span>
+
+        <span class="c1"># Handle additional arguments</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_kit_args</span><span class="p">(</span><span class="n">launcher_args</span><span class="p">)</span>
+
+        <span class="c1"># Prepare final simulation app config</span>
+        <span class="c1"># Remove all values from input keyword args which are not meant for SimulationApp</span>
+        <span class="c1"># Assign all the passed settings to a dictionary for the simulation app</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_sim_app_config</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="n">key</span><span class="p">:</span> <span class="n">launcher_args</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="nb">set</span><span class="p">(</span><span class="n">AppLauncher</span><span class="o">.</span><span class="n">_SIM_APP_CFG_TYPES</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span> <span class="o">&amp;</span> <span class="nb">set</span><span class="p">(</span><span class="n">launcher_args</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
+        <span class="p">}</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_resolve_livestream_settings</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">launcher_args</span><span class="p">:</span> <span class="nb">dict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Resolve livestream related settings.&quot;&quot;&quot;</span>
         <span class="n">livestream_env</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;LIVESTREAM&quot;</span><span class="p">,</span> <span class="mi">0</span><span class="p">))</span>
         <span class="n">livestream_arg</span> <span class="o">=</span> <span class="n">launcher_args</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s2">&quot;livestream&quot;</span><span class="p">,</span> <span class="n">AppLauncher</span><span class="o">.</span><span class="n">_APPLAUNCHER_CFG_INFO</span><span class="p">[</span><span class="s2">&quot;livestream&quot;</span><span class="p">][</span><span class="mi">1</span><span class="p">])</span>
         <span class="n">livestream_valid_vals</span> <span class="o">=</span> <span class="p">{</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">}</span>
@@ -953,8 +1036,38 @@
         <span class="k">else</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_livestream</span> <span class="o">=</span> <span class="n">livestream_env</span>
 
-        <span class="c1"># --HEADLESS logic--</span>
-        <span class="c1">#</span>
+        <span class="c1"># Process livestream here before launching kit because some of the extensions only work when launched with the kit file</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_livestream_args</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_livestream</span> <span class="o">&gt;=</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="c1"># Note: Only one livestream extension can be enabled at a time</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_livestream</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
+                    <span class="s2">&quot;Native Livestream is deprecated. Please use WebRTC Livestream instead with --livestream 2.&quot;</span>
+                <span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_livestream_args</span> <span class="o">+=</span> <span class="p">[</span>
+                    <span class="s1">&#39;--/app/livestream/proto=&quot;ws&quot;&#39;</span><span class="p">,</span>
+                    <span class="s2">&quot;--/app/livestream/allowResize=true&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;--enable&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;omni.kit.livestream.core-4.1.2&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;--enable&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;omni.kit.livestream.native-5.0.1&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;--enable&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;omni.kit.streamsdk.plugins-4.1.1&quot;</span><span class="p">,</span>
+                <span class="p">]</span>
+            <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">_livestream</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_livestream_args</span> <span class="o">+=</span> <span class="p">[</span>
+                    <span class="s2">&quot;--/app/livestream/allowResize=false&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;--enable&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;omni.kit.livestream.webrtc&quot;</span><span class="p">,</span>
+                <span class="p">]</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Invalid value for livestream: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_livestream</span><span class="si">}</span><span class="s2">. Expected: 1, 2 .&quot;</span><span class="p">)</span>
+            <span class="n">sys</span><span class="o">.</span><span class="n">argv</span> <span class="o">+=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_livestream_args</span>
+
+        <span class="k">return</span> <span class="n">livestream_arg</span><span class="p">,</span> <span class="n">livestream_env</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_resolve_headless_settings</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">launcher_args</span><span class="p">:</span> <span class="nb">dict</span><span class="p">,</span> <span class="n">livestream_arg</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">livestream_env</span><span class="p">:</span> <span class="nb">int</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Resolve headless related settings.&quot;&quot;&quot;</span>
         <span class="c1"># Resolve headless execution of simulation app</span>
         <span class="c1"># HEADLESS is initially passed as an int instead of</span>
         <span class="c1"># the bool of headless_arg to avoid messy string processing,</span>
@@ -990,8 +1103,8 @@
         <span class="c1"># Headless needs to be passed to the SimulationApp so we keep it here</span>
         <span class="n">launcher_args</span><span class="p">[</span><span class="s2">&quot;headless&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_headless</span>
 
-        <span class="c1"># --enable_cameras logic--</span>
-        <span class="c1">#</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_resolve_camera_settings</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">launcher_args</span><span class="p">:</span> <span class="nb">dict</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Resolve camera related settings.&quot;&quot;&quot;</span>
         <span class="n">enable_cameras_env</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;ENABLE_CAMERAS&quot;</span><span class="p">,</span> <span class="mi">0</span><span class="p">))</span>
         <span class="n">enable_cameras_arg</span> <span class="o">=</span> <span class="n">launcher_args</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s2">&quot;enable_cameras&quot;</span><span class="p">,</span> <span class="n">AppLauncher</span><span class="o">.</span><span class="n">_APPLAUNCHER_CFG_INFO</span><span class="p">[</span><span class="s2">&quot;enable_cameras&quot;</span><span class="p">][</span><span class="mi">1</span><span class="p">])</span>
         <span class="n">enable_cameras_valid_vals</span> <span class="o">=</span> <span class="p">{</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">}</span>
@@ -1009,6 +1122,21 @@
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_enable_cameras</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">_headless</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_offscreen_render</span> <span class="o">=</span> <span class="kc">True</span>
 
+    <span class="k">def</span><span class="w"> </span><span class="nf">_resolve_xr_settings</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">launcher_args</span><span class="p">:</span> <span class="nb">dict</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Resolve XR related settings.&quot;&quot;&quot;</span>
+        <span class="n">xr_env</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;XR&quot;</span><span class="p">,</span> <span class="mi">0</span><span class="p">))</span>
+        <span class="n">xr_arg</span> <span class="o">=</span> <span class="n">launcher_args</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s2">&quot;xr&quot;</span><span class="p">,</span> <span class="n">AppLauncher</span><span class="o">.</span><span class="n">_APPLAUNCHER_CFG_INFO</span><span class="p">[</span><span class="s2">&quot;xr&quot;</span><span class="p">][</span><span class="mi">1</span><span class="p">])</span>
+        <span class="n">xr_valid_vals</span> <span class="o">=</span> <span class="p">{</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">}</span>
+        <span class="k">if</span> <span class="n">xr_env</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">xr_valid_vals</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Invalid value for environment variable `XR`: </span><span class="si">{</span><span class="n">xr_env</span><span class="si">}</span><span class="s2"> .Expected: </span><span class="si">{</span><span class="n">xr_valid_vals</span><span class="si">}</span><span class="s2"> .&quot;</span><span class="p">)</span>
+        <span class="c1"># We allow xr kwarg to supersede XR envvar</span>
+        <span class="k">if</span> <span class="n">xr_arg</span> <span class="ow">is</span> <span class="kc">True</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_xr</span> <span class="o">=</span> <span class="n">xr_arg</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_xr</span> <span class="o">=</span> <span class="nb">bool</span><span class="p">(</span><span class="n">xr_env</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_resolve_viewport_settings</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">launcher_args</span><span class="p">:</span> <span class="nb">dict</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Resolve viewport related settings.&quot;&quot;&quot;</span>
         <span class="c1"># Check if we can disable the viewport to improve performance</span>
         <span class="c1">#   This should only happen if we are running headless and do not require livestreaming or video recording</span>
         <span class="c1">#   This is different from offscreen_render because this only affects the default viewport and not other renderproducts in the scene</span>
@@ -1024,14 +1152,25 @@
         <span class="c1"># avoid creating new stage at startup by default for performance reasons</span>
         <span class="n">launcher_args</span><span class="p">[</span><span class="s2">&quot;create_new_stage&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">False</span>
 
-        <span class="c1"># --simulation GPU device logic --</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_resolve_device_settings</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">launcher_args</span><span class="p">:</span> <span class="nb">dict</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Resolve simulation GPU device related settings.&quot;&quot;&quot;</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">device_id</span> <span class="o">=</span> <span class="mi">0</span>
         <span class="n">device</span> <span class="o">=</span> <span class="n">launcher_args</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;device&quot;</span><span class="p">,</span> <span class="n">AppLauncher</span><span class="o">.</span><span class="n">_APPLAUNCHER_CFG_INFO</span><span class="p">[</span><span class="s2">&quot;device&quot;</span><span class="p">][</span><span class="mi">1</span><span class="p">])</span>
+
+        <span class="n">device_explicitly_passed</span> <span class="o">=</span> <span class="n">launcher_args</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s2">&quot;device_explicit&quot;</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_xr</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">device_explicitly_passed</span><span class="p">:</span>
+            <span class="c1"># If no device is specified, default to the CPU device if we are running in XR</span>
+            <span class="n">device</span> <span class="o">=</span> <span class="s2">&quot;cpu&quot;</span>
+
+            <span class="c1"># Overwrite for downstream consumers</span>
+            <span class="n">launcher_args</span><span class="p">[</span><span class="s2">&quot;device&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;cpu&quot;</span>
+
         <span class="k">if</span> <span class="s2">&quot;cuda&quot;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">device</span> <span class="ow">and</span> <span class="s2">&quot;cpu&quot;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">device</span><span class="p">:</span>
             <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
                 <span class="sa">f</span><span class="s2">&quot;Invalid value for input keyword argument `device`: </span><span class="si">{</span><span class="n">device</span><span class="si">}</span><span class="s2">.&quot;</span>
                 <span class="s2">&quot; Expected: a string with the format &#39;cuda&#39;, &#39;cuda:&lt;device_id&gt;&#39;, or &#39;cpu&#39;.&quot;</span>
             <span class="p">)</span>
+
         <span class="k">if</span> <span class="s2">&quot;cuda:&quot;</span> <span class="ow">in</span> <span class="n">device</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">device_id</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">device</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;:&quot;</span><span class="p">)[</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span>
 
@@ -1061,6 +1200,10 @@
         <span class="n">launcher_args</span><span class="p">[</span><span class="s2">&quot;physics_gpu&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">device_id</span>
         <span class="n">launcher_args</span><span class="p">[</span><span class="s2">&quot;active_gpu&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">device_id</span>
 
+        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;[INFO][AppLauncher]: Using device: </span><span class="si">{</span><span class="n">device</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_resolve_experience_file</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">launcher_args</span><span class="p">:</span> <span class="nb">dict</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Resolve experience file related settings.&quot;&quot;&quot;</span>
         <span class="c1"># Check if input keywords contain an &#39;experience&#39; file setting</span>
         <span class="c1"># Note: since experience is taken as a separate argument by Simulation App, we store it separately</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_sim_experience_file</span> <span class="o">=</span> <span class="n">launcher_args</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s2">&quot;experience&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">)</span>
@@ -1069,7 +1212,7 @@
         <span class="n">kit_app_exp_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s2">&quot;EXP_PATH&quot;</span><span class="p">]</span>
         <span class="n">isaaclab_app_exp_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">abspath</span><span class="p">(</span><span class="vm">__file__</span><span class="p">)),</span> <span class="o">*</span><span class="p">[</span><span class="s2">&quot;..&quot;</span><span class="p">]</span> <span class="o">*</span> <span class="mi">4</span><span class="p">,</span> <span class="s2">&quot;apps&quot;</span><span class="p">)</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sim_experience_file</span> <span class="o">==</span> <span class="s2">&quot;&quot;</span><span class="p">:</span>
-            <span class="c1"># check if the headless flag is setS</span>
+            <span class="c1"># check if the headless flag is set</span>
             <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_enable_cameras</span><span class="p">:</span>
                 <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_headless</span> <span class="ow">and</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_livestream</span><span class="p">:</span>
                     <span class="bp">self</span><span class="o">.</span><span class="n">_sim_experience_file</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span>
@@ -1077,6 +1220,13 @@
                     <span class="p">)</span>
                 <span class="k">else</span><span class="p">:</span>
                     <span class="bp">self</span><span class="o">.</span><span class="n">_sim_experience_file</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">isaaclab_app_exp_path</span><span class="p">,</span> <span class="s2">&quot;isaaclab.python.rendering.kit&quot;</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">_xr</span><span class="p">:</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_headless</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_sim_experience_file</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span>
+                        <span class="n">isaaclab_app_exp_path</span><span class="p">,</span> <span class="s2">&quot;isaaclab.python.xr.openxr.headless.kit&quot;</span>
+                    <span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_sim_experience_file</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">isaaclab_app_exp_path</span><span class="p">,</span> <span class="s2">&quot;isaaclab.python.xr.openxr.kit&quot;</span><span class="p">)</span>
             <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">_headless</span> <span class="ow">and</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_livestream</span><span class="p">:</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">_sim_experience_file</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">isaaclab_app_exp_path</span><span class="p">,</span> <span class="s2">&quot;isaaclab.python.headless.kit&quot;</span><span class="p">)</span>
             <span class="k">else</span><span class="p">:</span>
@@ -1132,21 +1282,17 @@
             <span class="k">else</span><span class="p">:</span>
                 <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Invalid value for livestream: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_livestream</span><span class="si">}</span><span class="s2">. Expected: 1, 2 .&quot;</span><span class="p">)</span>
             <span class="n">sys</span><span class="o">.</span><span class="n">argv</span> <span class="o">+=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_livestream_args</span>
+        <span class="c1"># Resolve the absolute path of the experience file</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_sim_experience_file</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">abspath</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_sim_experience_file</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;[INFO][AppLauncher]: Loading experience file: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_sim_experience_file</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 
+    <span class="k">def</span><span class="w"> </span><span class="nf">_resolve_kit_args</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">launcher_args</span><span class="p">:</span> <span class="nb">dict</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Resolve additional arguments passed to Kit.&quot;&quot;&quot;</span>
         <span class="c1"># Resolve additional arguments passed to Kit</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_kit_args</span> <span class="o">=</span> <span class="p">[]</span>
         <span class="k">if</span> <span class="s2">&quot;kit_args&quot;</span> <span class="ow">in</span> <span class="n">launcher_args</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_kit_args</span> <span class="o">=</span> <span class="p">[</span><span class="n">arg</span> <span class="k">for</span> <span class="n">arg</span> <span class="ow">in</span> <span class="n">launcher_args</span><span class="p">[</span><span class="s2">&quot;kit_args&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">split</span><span class="p">()]</span>
             <span class="n">sys</span><span class="o">.</span><span class="n">argv</span> <span class="o">+=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_kit_args</span>
-
-        <span class="c1"># Resolve the absolute path of the experience file</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_sim_experience_file</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">abspath</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_sim_experience_file</span><span class="p">)</span>
-        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;[INFO][AppLauncher]: Loading experience file: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_sim_experience_file</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-        <span class="c1"># Remove all values from input keyword args which are not meant for SimulationApp</span>
-        <span class="c1"># Assign all the passed settings to a dictionary for the simulation app</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_sim_app_config</span> <span class="o">=</span> <span class="p">{</span>
-            <span class="n">key</span><span class="p">:</span> <span class="n">launcher_args</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="nb">set</span><span class="p">(</span><span class="n">AppLauncher</span><span class="o">.</span><span class="n">_SIM_APP_CFG_TYPES</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span> <span class="o">&amp;</span> <span class="nb">set</span><span class="p">(</span><span class="n">launcher_args</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
-        <span class="p">}</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_create_app</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Launch and create the SimulationApp based on the parsed simulation config.&quot;&quot;&quot;</span>
@@ -1186,7 +1332,7 @@
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Check if rendering is required by the app.&quot;&quot;&quot;</span>
         <span class="c1"># Indicates whether rendering is required by the app.</span>
         <span class="c1"># Extensions required for rendering bring startup and simulation costs, so we do not enable them if not required.</span>
-        <span class="k">return</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_headless</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">_livestream</span> <span class="o">&gt;=</span> <span class="mi">1</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">_enable_cameras</span>
+        <span class="k">return</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_headless</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">_livestream</span> <span class="o">&gt;=</span> <span class="mi">1</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">_enable_cameras</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">_xr</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_load_extensions</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Load correct extensions based on AppLauncher&#39;s resolved config member variables.&quot;&quot;&quot;</span>
@@ -1237,6 +1383,42 @@
                 <span class="n">play_button_group</span><span class="o">.</span><span class="n">_stop_button</span><span class="o">.</span><span class="n">enabled</span> <span class="o">=</span> <span class="kc">False</span>  <span class="c1"># type: ignore</span>
                 <span class="n">play_button_group</span><span class="o">.</span><span class="n">_stop_button</span> <span class="o">=</span> <span class="kc">None</span>  <span class="c1"># type: ignore</span>
 
+    <span class="k">def</span><span class="w"> </span><span class="nf">_set_rendering_mode_settings</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">launcher_args</span><span class="p">:</span> <span class="nb">dict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Set RTX rendering settings to the values from the selected preset.&quot;&quot;&quot;</span>
+        <span class="kn">import</span><span class="w"> </span><span class="nn">carb</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">isaacsim.core.utils.carb</span><span class="w"> </span><span class="kn">import</span> <span class="n">set_carb_setting</span>
+
+        <span class="n">rendering_mode</span> <span class="o">=</span> <span class="n">launcher_args</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;rendering_mode&quot;</span><span class="p">)</span>
+
+        <span class="c1"># use default kit rendering settings if cameras are disabled and a rendering mode is not selected</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_enable_cameras</span> <span class="ow">and</span> <span class="n">rendering_mode</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span>
+
+        <span class="c1"># default to balanced mode</span>
+        <span class="k">if</span> <span class="n">rendering_mode</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">rendering_mode</span> <span class="o">=</span> <span class="s2">&quot;balanced&quot;</span>
+
+        <span class="n">rendering_mode_explicitly_passed</span> <span class="o">=</span> <span class="n">launcher_args</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s2">&quot;rendering_mode_explicit&quot;</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_xr</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">rendering_mode_explicitly_passed</span><span class="p">:</span>
+            <span class="c1"># If no rendering mode is specified, default to the xr mode if we are running in XR</span>
+            <span class="n">rendering_mode</span> <span class="o">=</span> <span class="s2">&quot;xr&quot;</span>
+
+            <span class="c1"># Overwrite for downstream consumers</span>
+            <span class="n">launcher_args</span><span class="p">[</span><span class="s2">&quot;rendering_mode&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;xr&quot;</span>
+
+        <span class="c1"># parse preset file</span>
+        <span class="n">repo_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">carb</span><span class="o">.</span><span class="n">tokens</span><span class="o">.</span><span class="n">get_tokens_interface</span><span class="p">()</span><span class="o">.</span><span class="n">resolve</span><span class="p">(</span><span class="s2">&quot;$</span><span class="si">{app}</span><span class="s2">&quot;</span><span class="p">),</span> <span class="s2">&quot;..&quot;</span><span class="p">)</span>
+        <span class="n">preset_filename</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">repo_path</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;apps/rendering_modes/</span><span class="si">{</span><span class="n">rendering_mode</span><span class="si">}</span><span class="s2">.kit&quot;</span><span class="p">)</span>
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">preset_filename</span><span class="p">)</span> <span class="k">as</span> <span class="n">file</span><span class="p">:</span>
+            <span class="n">preset_dict</span> <span class="o">=</span> <span class="n">toml</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">file</span><span class="p">)</span>
+        <span class="n">preset_dict</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">flatdict</span><span class="o">.</span><span class="n">FlatDict</span><span class="p">(</span><span class="n">preset_dict</span><span class="p">,</span> <span class="n">delimiter</span><span class="o">=</span><span class="s2">&quot;.&quot;</span><span class="p">))</span>
+
+        <span class="c1"># set presets</span>
+        <span class="n">carb_setting</span> <span class="o">=</span> <span class="n">carb</span><span class="o">.</span><span class="n">settings</span><span class="o">.</span><span class="n">get_settings</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">preset_dict</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="n">key</span> <span class="o">=</span> <span class="s2">&quot;/&quot;</span> <span class="o">+</span> <span class="n">key</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;.&quot;</span><span class="p">,</span> <span class="s2">&quot;/&quot;</span><span class="p">)</span>  <span class="c1"># convert to carb setting format</span>
+            <span class="n">set_carb_setting</span><span class="p">(</span><span class="n">carb_setting</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span>
+
     <span class="k">def</span><span class="w"> </span><span class="nf">_interrupt_signal_handle_callback</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">signal</span><span class="p">,</span> <span class="n">frame</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Handle the interrupt signal from the keyboard.&quot;&quot;&quot;</span>
         <span class="c1"># close the app</span>
@@ -1244,10 +1426,122 @@
         <span class="c1"># raise the error for keyboard interrupt</span>
         <span class="k">raise</span> <span class="ne">KeyboardInterrupt</span>
 
+    <span class="k">def</span><span class="w"> </span><span class="nf">_hide_play_button</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">flag</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Hide/Unhide the play button in the toolbar.</span>
+
+<span class="sd">        This is used if the timeline is stopped by a GUI action like &quot;save as&quot; to not allow the user to</span>
+<span class="sd">        resume the timeline afterwards.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># when we are truly headless, then we can&#39;t import the widget toolbar</span>
+        <span class="c1"># thus, we only hide the play button when we are not headless (i.e. GUI is enabled)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_livestream</span> <span class="o">&gt;=</span> <span class="mi">1</span> <span class="ow">or</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_headless</span><span class="p">:</span>
+            <span class="kn">import</span><span class="w"> </span><span class="nn">omni.kit.widget.toolbar</span>
+
+            <span class="n">toolbar</span> <span class="o">=</span> <span class="n">omni</span><span class="o">.</span><span class="n">kit</span><span class="o">.</span><span class="n">widget</span><span class="o">.</span><span class="n">toolbar</span><span class="o">.</span><span class="n">get_instance</span><span class="p">()</span>
+            <span class="n">play_button_group</span> <span class="o">=</span> <span class="n">toolbar</span><span class="o">.</span><span class="n">_builtin_tools</span><span class="o">.</span><span class="n">_play_button_group</span>  <span class="c1"># type: ignore</span>
+            <span class="k">if</span> <span class="n">play_button_group</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">play_button_group</span><span class="o">.</span><span class="n">_play_button</span><span class="o">.</span><span class="n">visible</span> <span class="o">=</span> <span class="ow">not</span> <span class="n">flag</span>  <span class="c1"># type: ignore</span>
+                <span class="n">play_button_group</span><span class="o">.</span><span class="n">_play_button</span><span class="o">.</span><span class="n">enabled</span> <span class="o">=</span> <span class="ow">not</span> <span class="n">flag</span>  <span class="c1"># type: ignore</span>
+
     <span class="k">def</span><span class="w"> </span><span class="nf">_abort_signal_handle_callback</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">signal</span><span class="p">,</span> <span class="n">frame</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Handle the abort/segmentation/kill signals.&quot;&quot;&quot;</span>
         <span class="c1"># close the app</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_app</span><span class="o">.</span><span class="n">close</span><span class="p">()</span></div>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_app</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">__patch_simulation_start_app</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">launcher_args</span><span class="p">:</span> <span class="nb">dict</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">launcher_args</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;enable_pinocchio&quot;</span><span class="p">,</span> <span class="kc">False</span><span class="p">):</span>
+            <span class="k">return</span>
+
+        <span class="k">if</span> <span class="n">launcher_args</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;disable_pinocchio_patch&quot;</span><span class="p">,</span> <span class="kc">False</span><span class="p">):</span>
+            <span class="k">return</span>
+
+        <span class="n">original_start_app</span> <span class="o">=</span> <span class="n">SimulationApp</span><span class="o">.</span><span class="n">_start_app</span>
+
+        <span class="k">def</span><span class="w"> </span><span class="nf">_start_app_patch</span><span class="p">(</span><span class="n">sim_app_instance</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+            <span class="n">original_start_app</span><span class="p">(</span><span class="n">sim_app_instance</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">__patch_pxr_gf_matrix4d</span><span class="p">(</span><span class="n">launcher_args</span><span class="p">)</span>
+
+        <span class="n">SimulationApp</span><span class="o">.</span><span class="n">_start_app</span> <span class="o">=</span> <span class="n">_start_app_patch</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">__patch_pxr_gf_matrix4d</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">launcher_args</span><span class="p">:</span> <span class="nb">dict</span><span class="p">):</span>
+        <span class="kn">import</span><span class="w"> </span><span class="nn">traceback</span>
+
+        <span class="kn">import</span><span class="w"> </span><span class="nn">carb</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">pxr</span><span class="w"> </span><span class="kn">import</span> <span class="n">Gf</span>
+
+        <span class="n">carb</span><span class="o">.</span><span class="n">log_warn</span><span class="p">(</span>
+            <span class="s2">&quot;Due to an issue with Pinocchio and pxr.Gf.Matrix4d, patching the Matrix4d constructor to convert arguments&quot;</span>
+            <span class="s2">&quot; into a list of floats.&quot;</span>
+        <span class="p">)</span>
+
+        <span class="c1"># Store the original Matrix4d constructor</span>
+        <span class="n">original_matrix4d</span> <span class="o">=</span> <span class="n">Gf</span><span class="o">.</span><span class="n">Matrix4d</span><span class="o">.</span><span class="fm">__init__</span>
+
+        <span class="c1"># Define a wrapper function to handle different input types</span>
+        <span class="k">def</span><span class="w"> </span><span class="nf">patch_matrix4d</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="c1"># Case 1: No arguments (identity matrix)</span>
+                <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                    <span class="n">original_matrix4d</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+                    <span class="k">return</span>
+
+                <span class="c1"># Case 2: Single argument</span>
+                <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+                    <span class="n">arg</span> <span class="o">=</span> <span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+
+                    <span class="c1"># Case 2a: Already a Matrix4d</span>
+                    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">arg</span><span class="p">,</span> <span class="n">Gf</span><span class="o">.</span><span class="n">Matrix4d</span><span class="p">):</span>
+                        <span class="n">original_matrix4d</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">arg</span><span class="p">)</span>
+                        <span class="k">return</span>
+
+                    <span class="c1"># Case 2b: Tuple of tuples (4x4 matrix) OR List of lists (4x4 matrix)</span>
+                    <span class="k">elif</span> <span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">arg</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">arg</span><span class="p">)</span> <span class="o">==</span> <span class="mi">4</span> <span class="ow">and</span> <span class="nb">all</span><span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">row</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">)</span> <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">arg</span><span class="p">))</span> <span class="ow">or</span> <span class="p">(</span>
+                        <span class="nb">isinstance</span><span class="p">(</span><span class="n">arg</span><span class="p">,</span> <span class="nb">list</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">arg</span><span class="p">)</span> <span class="o">==</span> <span class="mi">4</span> <span class="ow">and</span> <span class="nb">all</span><span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">row</span><span class="p">,</span> <span class="nb">list</span><span class="p">)</span> <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">arg</span><span class="p">)</span>
+                    <span class="p">):</span>
+                        <span class="n">float_list</span> <span class="o">=</span> <span class="p">[</span><span class="nb">float</span><span class="p">(</span><span class="n">item</span><span class="p">)</span> <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">arg</span> <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">row</span><span class="p">]</span>
+                        <span class="n">original_matrix4d</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">float_list</span><span class="p">)</span>
+                        <span class="k">return</span>
+
+                    <span class="c1"># Case 2c: Flat list of 16 elements</span>
+                    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">arg</span><span class="p">,</span> <span class="p">(</span><span class="nb">list</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">))</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">arg</span><span class="p">)</span> <span class="o">==</span> <span class="mi">16</span><span class="p">:</span>
+                        <span class="n">float_list</span> <span class="o">=</span> <span class="p">[</span><span class="nb">float</span><span class="p">(</span><span class="n">item</span><span class="p">)</span> <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">arg</span><span class="p">]</span>
+                        <span class="n">original_matrix4d</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">float_list</span><span class="p">)</span>
+                        <span class="k">return</span>
+
+                    <span class="c1"># Case 2d: Another matrix-like object with elements accessible via indexing</span>
+                    <span class="k">elif</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">arg</span><span class="p">,</span> <span class="s2">&quot;__getitem__&quot;</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">arg</span><span class="p">,</span> <span class="s2">&quot;__len__&quot;</span><span class="p">):</span>
+                        <span class="k">with</span> <span class="n">contextlib</span><span class="o">.</span><span class="n">suppress</span><span class="p">(</span><span class="ne">IndexError</span><span class="p">,</span> <span class="ne">TypeError</span><span class="p">):</span>
+                            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">arg</span><span class="p">)</span> <span class="o">==</span> <span class="mi">16</span><span class="p">:</span>
+                                <span class="n">float_list</span> <span class="o">=</span> <span class="p">[</span><span class="nb">float</span><span class="p">(</span><span class="n">arg</span><span class="p">[</span><span class="n">i</span><span class="p">])</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">16</span><span class="p">)]</span>
+                                <span class="n">original_matrix4d</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">float_list</span><span class="p">)</span>
+                                <span class="k">return</span>
+                            <span class="c1"># Try to extract as 4x4 matrix</span>
+                            <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">arg</span><span class="p">)</span> <span class="o">==</span> <span class="mi">4</span> <span class="ow">and</span> <span class="nb">all</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">row</span><span class="p">)</span> <span class="o">==</span> <span class="mi">4</span> <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">arg</span><span class="p">):</span>
+                                <span class="n">float_list</span> <span class="o">=</span> <span class="p">[</span><span class="nb">float</span><span class="p">(</span><span class="n">arg</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="n">j</span><span class="p">])</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">4</span><span class="p">)</span> <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">4</span><span class="p">)]</span>
+                                <span class="n">original_matrix4d</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">float_list</span><span class="p">)</span>
+                                <span class="k">return</span>
+
+                <span class="c1"># Case 3: 16 separate arguments (individual matrix elements)</span>
+                <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">)</span> <span class="o">==</span> <span class="mi">16</span><span class="p">:</span>
+                    <span class="n">float_list</span> <span class="o">=</span> <span class="p">[</span><span class="nb">float</span><span class="p">(</span><span class="n">arg</span><span class="p">)</span> <span class="k">for</span> <span class="n">arg</span> <span class="ow">in</span> <span class="n">args</span><span class="p">]</span>
+                    <span class="n">original_matrix4d</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">float_list</span><span class="p">)</span>
+                    <span class="k">return</span>
+
+                <span class="c1"># Default: Use original constructor</span>
+                <span class="n">original_matrix4d</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+            <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+                <span class="n">carb</span><span class="o">.</span><span class="n">log_error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Matrix4d wrapper error: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+                <span class="n">traceback</span><span class="o">.</span><span class="n">print_stack</span><span class="p">()</span>
+                <span class="c1"># Fall back to original constructor as last resort</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="n">original_matrix4d</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+                <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">inner_e</span><span class="p">:</span>
+                    <span class="n">carb</span><span class="o">.</span><span class="n">log_error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Original Matrix4d constructor also failed: </span><span class="si">{</span><span class="n">inner_e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+                    <span class="c1"># Initialize as identity matrix if all else fails</span>
+                    <span class="n">original_matrix4d</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+
+        <span class="n">Gf</span><span class="o">.</span><span class="n">Matrix4d</span><span class="o">.</span><span class="fm">__init__</span> <span class="o">=</span> <span class="n">patch_matrix4d</span></div>
 </pre></div>
 
                 </article>
@@ -1295,7 +1589,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Apr 11, 2025.
+  Last updated on Apr 23, 2025.
   <br/>
 </p>
   </div>

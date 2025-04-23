@@ -32,7 +32,7 @@
 
     <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css" />
     <link rel="stylesheet" href="../../../_static/styles/sphinx-book-theme.css?digest=14f4ca6b54d191a8c7657f6c759bf11a5fb86285" type="text/css" />
-    <link rel="stylesheet" type="text/css" href="/opt/hostedtoolcache/Python/3.10.16/x64/lib/python3.10/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/css/all.min.css" />
+    <link rel="stylesheet" type="text/css" href="/opt/hostedtoolcache/Python/3.10.17/x64/lib/python3.10/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/css/all.min.css" />
     <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css" />
     <link rel="stylesheet" type="text/css" href="../../../_static/custom.css" />
     <link rel="stylesheet" type="text/css" href="../../../_static/sphinx-design.4cbf315f70debaebd550c87a6162cf0f.min.css" />
@@ -46,7 +46,7 @@
     <script data-url_root="../../../" id="documentation_options" src="../../../_static/documentation_options.js"></script>
     <script src="../../../_static/doctools.js"></script>
     <script src="../../../_static/sphinx_highlight.js"></script>
-    <script src="/opt/hostedtoolcache/Python/3.10.16/x64/lib/python3.10/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/js/all.min.js"></script>
+    <script src="/opt/hostedtoolcache/Python/3.10.17/x64/lib/python3.10/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/js/all.min.js"></script>
     <script src="../../../_static/clipboard.min.js"></script>
     <script src="../../../_static/copybutton.js"></script>
     <script src="../../../_static/scripts/sphinx-book-theme.js?digest=5a5c038af52cf7bc1a1ec88eea08e6366ee68824"></script>
@@ -57,8 +57,8 @@
     <link rel="search" title="Search" href="../../../search.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-  <meta name="docsearch:version" content="2.0.2" />
-    <meta name="docbuild:last-update" content="Apr 11, 2025"/>
+  <meta name="docsearch:version" content="2.1.0" />
+    <meta name="docbuild:last-update" content="Apr 23, 2025"/>
   </head>
   
   
@@ -229,6 +229,7 @@
         <p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="../../../source/setup/ecosystem.html">Isaac Lab Ecosystem</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../source/setup/quickstart.html">Quickstart Guide</a></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../../source/setup/installation/index.html">Local Installation</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/setup/installation/pip_installation.html">Pip installation (recommended for Ubuntu 22.04 and Windows)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/setup/installation/binaries_installation.html">Binary installation (recommended for Ubuntu 20.04)</a></li>
@@ -289,6 +290,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../../../source/tutorials/00_sim/create_empty.html">Creating an empty scene</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/tutorials/00_sim/spawn_prims.html">Spawning prims into the scene</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/tutorials/00_sim/launch_app.html">Deep-dive into AppLauncher</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/tutorials/01_assets/add_new_robot.html">Adding a New Robot to Isaac Lab</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/tutorials/01_assets/run_rigid_object.html">Interacting with a rigid object</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/tutorials/01_assets/run_articulation.html">Interacting with an articulation</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/tutorials/01_assets/run_deformable_object.html">Interacting with a deformable object</a></li>
@@ -312,18 +314,24 @@
 <li class="toctree-l2"><a class="reference internal" href="../../../source/how-to/multi_asset_spawning.html">Spawning Multiple Assets</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/how-to/save_camera_output.html">Saving rendered images and 3D re-projection</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/how-to/estimate_how_many_cameras_can_run.html">Find How Many/What Cameras You Should Train With</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/how-to/configure_rendering.html">Configuring Rendering Settings</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/how-to/draw_markers.html">Creating Visualization Markers</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/how-to/wrap_rl_env.html">Wrapping environments</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/how-to/add_own_library.html">Adding your own learning library</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/how-to/record_animation.html">Recording Animations of Simulations</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/how-to/record_video.html">Recording video clips during training</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/how-to/master_omniverse.html">Mastering Omniverse for Robotics</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/how-to/cloudxr_teleoperation.html">Setting up CloudXR Teleoperation</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../../source/deployment/index.html">Container Deployment</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/deployment/docker.html">Docker Guide</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/deployment/cluster.html">Cluster Guide</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/deployment/run_docker_example.html">Running an example with Docker</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../source/policy_deployment/index.html">Sim2Real Deployment of Policies Trained in Isaac Lab</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/policy_deployment/00_hover/hover_policy.html">Training &amp; Deploying HOVER Policy</a></li>
 </ul>
 </details></li>
 </ul>
@@ -536,13 +544,32 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Callable</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span>
 
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.devices.retargeter_base</span><span class="w"> </span><span class="kn">import</span> <span class="n">RetargeterBase</span>
+
 
 <div class="viewcode-block" id="DeviceBase"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.devices.html#isaaclab.devices.DeviceBase">[docs]</a><span class="k">class</span><span class="w"> </span><span class="nc">DeviceBase</span><span class="p">(</span><span class="n">ABC</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;An interface class for teleoperation devices.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;An interface class for teleoperation devices.</span>
 
-<div class="viewcode-block" id="DeviceBase.__init__"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.devices.html#isaaclab.devices.DeviceBase.__init__">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Initialize the teleoperation interface.&quot;&quot;&quot;</span>
-        <span class="k">pass</span></div>
+<span class="sd">    Derived classes have two implementation options:</span>
+
+<span class="sd">    1. Override _get_raw_data() and use the base advance() implementation:</span>
+<span class="sd">       This approach is suitable for devices that want to leverage the built-in</span>
+<span class="sd">       retargeting logic but only need to customize the raw data acquisition.</span>
+
+<span class="sd">    2. Override advance() completely:</span>
+<span class="sd">       This approach gives full control over the command generation process,</span>
+<span class="sd">       and _get_raw_data() can be ignored entirely.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+<div class="viewcode-block" id="DeviceBase.__init__"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.devices.html#isaaclab.devices.DeviceBase.__init__">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">retargeters</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">RetargeterBase</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Initialize the teleoperation interface.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            retargeters: List of components that transform device data into robot commands.</span>
+<span class="sd">                        If None or empty list, the device will output its native data format.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># Initialize empty list if None is provided</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_retargeters</span> <span class="o">=</span> <span class="n">retargeters</span> <span class="ow">or</span> <span class="p">[]</span></div>
 
     <span class="k">def</span><span class="w"> </span><span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Returns: A string containing the information of joystick.&quot;&quot;&quot;</span>
@@ -568,14 +595,44 @@
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">raise</span> <span class="ne">NotImplementedError</span></div>
 
-<div class="viewcode-block" id="DeviceBase.advance"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.devices.html#isaaclab.devices.DeviceBase.advance">[docs]</a>    <span class="nd">@abstractmethod</span>
-    <span class="k">def</span><span class="w"> </span><span class="nf">advance</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Provides the joystick event state.</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_get_raw_data</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Internal method to get the raw data from the device.</span>
+
+<span class="sd">        This method is intended for internal use by the advance() implementation.</span>
+<span class="sd">        Derived classes can override this method to customize raw data acquisition</span>
+<span class="sd">        while still using the base class&#39;s advance() implementation.</span>
 
 <span class="sd">        Returns:</span>
-<span class="sd">            The processed output form the joystick.</span>
+<span class="sd">            Raw device data in a device-specific format</span>
+
+<span class="sd">        Note:</span>
+<span class="sd">            This is an internal implementation detail. Clients should call advance()</span>
+<span class="sd">            instead of this method.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">raise</span> <span class="ne">NotImplementedError</span></div></div>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s2">&quot;Derived class must implement _get_raw_data() or override advance()&quot;</span><span class="p">)</span>
+
+<div class="viewcode-block" id="DeviceBase.advance"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.devices.html#isaaclab.devices.DeviceBase.advance">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">advance</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Process current device state and return control commands.</span>
+
+<span class="sd">        This method retrieves raw data from the device and optionally applies</span>
+<span class="sd">        retargeting to convert it to robot commands.</span>
+
+<span class="sd">        Derived classes can either:</span>
+<span class="sd">        1. Override _get_raw_data() and use this base implementation, or</span>
+<span class="sd">        2. Override this method completely for custom command processing</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            Raw device data if no retargeters are configured.</span>
+<span class="sd">            When retargeters are configured, returns a tuple containing each retargeter&#39;s processed output.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">raw_data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_raw_data</span><span class="p">()</span>
+
+        <span class="c1"># If no retargeters, return raw data directly (not as a tuple)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_retargeters</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">raw_data</span>
+
+        <span class="c1"># With multiple retargeters, return a tuple of outputs</span>
+        <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">retargeter</span><span class="o">.</span><span class="n">retarget</span><span class="p">(</span><span class="n">raw_data</span><span class="p">)</span> <span class="k">for</span> <span class="n">retargeter</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_retargeters</span><span class="p">)</span></div></div>
 </pre></div>
 
                 </article>
@@ -623,7 +680,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Apr 11, 2025.
+  Last updated on Apr 23, 2025.
   <br/>
 </p>
   </div>

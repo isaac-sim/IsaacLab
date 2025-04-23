@@ -33,7 +33,7 @@
 
     <link rel="stylesheet" type="text/css" href="../../_static/pygments.css" />
     <link rel="stylesheet" href="../../_static/styles/sphinx-book-theme.css?digest=14f4ca6b54d191a8c7657f6c759bf11a5fb86285" type="text/css" />
-    <link rel="stylesheet" type="text/css" href="/opt/hostedtoolcache/Python/3.10.16/x64/lib/python3.10/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/css/all.min.css" />
+    <link rel="stylesheet" type="text/css" href="/opt/hostedtoolcache/Python/3.10.17/x64/lib/python3.10/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/css/all.min.css" />
     <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css" />
     <link rel="stylesheet" type="text/css" href="../../_static/custom.css" />
     <link rel="stylesheet" type="text/css" href="../../_static/sphinx-design.4cbf315f70debaebd550c87a6162cf0f.min.css" />
@@ -47,7 +47,7 @@
     <script data-url_root="../../" id="documentation_options" src="../../_static/documentation_options.js"></script>
     <script src="../../_static/doctools.js"></script>
     <script src="../../_static/sphinx_highlight.js"></script>
-    <script src="/opt/hostedtoolcache/Python/3.10.16/x64/lib/python3.10/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/js/all.min.js"></script>
+    <script src="/opt/hostedtoolcache/Python/3.10.17/x64/lib/python3.10/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/js/all.min.js"></script>
     <script src="../../_static/clipboard.min.js"></script>
     <script src="../../_static/copybutton.js"></script>
     <script src="../../_static/scripts/sphinx-book-theme.js?digest=5a5c038af52cf7bc1a1ec88eea08e6366ee68824"></script>
@@ -63,7 +63,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="0.3.0" />
-    <meta name="docbuild:last-update" content="Apr 11, 2025"/>
+    <meta name="docbuild:last-update" content="Apr 23, 2025"/>
   </head>
   
   
@@ -2353,8 +2353,8 @@ determinism from PhysX. Please note this comes at the expense of performance.</p
 <section id="id137">
 <h4>Fixed<a class="headerlink" href="#id137" title="Permalink to this heading">#</a></h4>
 <ul class="simple">
-<li><p>Pinned <a class="reference external" href="https://pytorch.org/docs/stable/torch.html#module-torch" title="(in PyTorch v2.6)"><code class="xref py py-mod docutils literal notranslate"><span class="pre">torch</span></code></a> version to 2.0.1 in the setup.py to keep parity version of <a class="reference external" href="https://pytorch.org/docs/stable/torch.html#module-torch" title="(in PyTorch v2.6)"><code class="xref py py-mod docutils literal notranslate"><span class="pre">torch</span></code></a> supplied by
-Isaac 2023.1.1, and prevent version incompatibility between <a class="reference external" href="https://pytorch.org/docs/stable/torch.html#module-torch" title="(in PyTorch v2.6)"><code class="xref py py-mod docutils literal notranslate"><span class="pre">torch</span></code></a> ==2.2 and
+<li><p>Pinned <a class="reference external" href="https://pytorch.org/docs/stable/torch.html#module-torch" title="(in PyTorch v2.7)"><code class="xref py py-mod docutils literal notranslate"><span class="pre">torch</span></code></a> version to 2.0.1 in the setup.py to keep parity version of <a class="reference external" href="https://pytorch.org/docs/stable/torch.html#module-torch" title="(in PyTorch v2.7)"><code class="xref py py-mod docutils literal notranslate"><span class="pre">torch</span></code></a> supplied by
+Isaac 2023.1.1, and prevent version incompatibility between <a class="reference external" href="https://pytorch.org/docs/stable/torch.html#module-torch" title="(in PyTorch v2.7)"><code class="xref py py-mod docutils literal notranslate"><span class="pre">torch</span></code></a> ==2.2 and
 <code class="xref py py-mod docutils literal notranslate"><span class="pre">typing-extensions</span></code> ==3.7.4.3</p></li>
 </ul>
 </section>
@@ -2513,7 +2513,7 @@ the XForm prim instead of the Mesh prim.</p></li>
 <h4>Fixed<a class="headerlink" href="#id165" title="Permalink to this heading">#</a></h4>
 <ul class="simple">
 <li><p>Fixed test <code class="docutils literal notranslate"><span class="pre">check_base_env_anymal_locomotion.py</span></code>, which
-previously called <a class="reference external" href="https://pytorch.org/docs/stable/generated/torch.jit.load.html#torch.jit.load" title="(in PyTorch v2.6)"><code class="xref py py-func docutils literal notranslate"><span class="pre">torch.jit.load()</span></code></a> with the path to a policy (which would work
+previously called <a class="reference external" href="https://pytorch.org/docs/stable/generated/torch.jit.load.html#torch.jit.load" title="(in PyTorch v2.7)"><code class="xref py py-func docutils literal notranslate"><span class="pre">torch.jit.load()</span></code></a> with the path to a policy (which would work
 for a local file), rather than calling
 <code class="xref py py-func docutils literal notranslate"><span class="pre">omni.isaac.lab.utils.assets.read_file()</span></code> on the path to get the file itself.</p></li>
 </ul>
@@ -4193,8 +4193,8 @@ key <code class="docutils literal notranslate"><span class="pre">&quot;episode&q
 <section id="id452">
 <h4>Fixed<a class="headerlink" href="#id452" title="Permalink to this heading">#</a></h4>
 <ul class="simple">
-<li><p>Pinned <a class="reference external" href="https://pytorch.org/docs/stable/torch.html#module-torch" title="(in PyTorch v2.6)"><code class="xref py py-mod docutils literal notranslate"><span class="pre">torch</span></code></a> version to 2.0.1 in the setup.py to keep parity version of <a class="reference external" href="https://pytorch.org/docs/stable/torch.html#module-torch" title="(in PyTorch v2.6)"><code class="xref py py-mod docutils literal notranslate"><span class="pre">torch</span></code></a> supplied by
-Isaac 2023.1.1, and prevent version incompatibility between <a class="reference external" href="https://pytorch.org/docs/stable/torch.html#module-torch" title="(in PyTorch v2.6)"><code class="xref py py-mod docutils literal notranslate"><span class="pre">torch</span></code></a> ==2.2 and
+<li><p>Pinned <a class="reference external" href="https://pytorch.org/docs/stable/torch.html#module-torch" title="(in PyTorch v2.7)"><code class="xref py py-mod docutils literal notranslate"><span class="pre">torch</span></code></a> version to 2.0.1 in the setup.py to keep parity version of <a class="reference external" href="https://pytorch.org/docs/stable/torch.html#module-torch" title="(in PyTorch v2.7)"><code class="xref py py-mod docutils literal notranslate"><span class="pre">torch</span></code></a> supplied by
+Isaac 2023.1.1, and prevent version incompatibility between <a class="reference external" href="https://pytorch.org/docs/stable/torch.html#module-torch" title="(in PyTorch v2.7)"><code class="xref py py-mod docutils literal notranslate"><span class="pre">torch</span></code></a> ==2.2 and
 <code class="xref py py-mod docutils literal notranslate"><span class="pre">typing-extensions</span></code> ==3.7.4.3</p></li>
 </ul>
 </section>
@@ -5500,7 +5500,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Apr 11, 2025.
+  Last updated on Apr 23, 2025.
   <br/>
 </p>
   </div>

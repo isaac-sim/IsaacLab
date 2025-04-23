@@ -33,7 +33,7 @@
 
     <link rel="stylesheet" type="text/css" href="../../_static/pygments.css" />
     <link rel="stylesheet" href="../../_static/styles/sphinx-book-theme.css?digest=14f4ca6b54d191a8c7657f6c759bf11a5fb86285" type="text/css" />
-    <link rel="stylesheet" type="text/css" href="/opt/hostedtoolcache/Python/3.10.16/x64/lib/python3.10/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/css/all.min.css" />
+    <link rel="stylesheet" type="text/css" href="/opt/hostedtoolcache/Python/3.10.17/x64/lib/python3.10/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/css/all.min.css" />
     <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css" />
     <link rel="stylesheet" type="text/css" href="../../_static/custom.css" />
     <link rel="stylesheet" type="text/css" href="../../_static/sphinx-design.4cbf315f70debaebd550c87a6162cf0f.min.css" />
@@ -47,7 +47,7 @@
     <script data-url_root="../../" id="documentation_options" src="../../_static/documentation_options.js"></script>
     <script src="../../_static/doctools.js"></script>
     <script src="../../_static/sphinx_highlight.js"></script>
-    <script src="/opt/hostedtoolcache/Python/3.10.16/x64/lib/python3.10/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/js/all.min.js"></script>
+    <script src="/opt/hostedtoolcache/Python/3.10.17/x64/lib/python3.10/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/js/all.min.js"></script>
     <script src="../../_static/clipboard.min.js"></script>
     <script src="../../_static/copybutton.js"></script>
     <script src="../../_static/scripts/sphinx-book-theme.js?digest=5a5c038af52cf7bc1a1ec88eea08e6366ee68824"></script>
@@ -60,8 +60,8 @@
     <link rel="prev" title="Creating Visualization Markers" href="draw_markers.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-  <meta name="docsearch:version" content="2.0.2" />
-    <meta name="docbuild:last-update" content="Apr 11, 2025"/>
+  <meta name="docsearch:version" content="2.1.0" />
+    <meta name="docbuild:last-update" content="Apr 23, 2025"/>
   </head>
   
   
@@ -230,6 +230,7 @@
         <p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="../setup/ecosystem.html">Isaac Lab Ecosystem</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../setup/quickstart.html">Quickstart Guide</a></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../setup/installation/index.html">Local Installation</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2"><a class="reference internal" href="../setup/installation/pip_installation.html">Pip installation (recommended for Ubuntu 22.04 and Windows)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../setup/installation/binaries_installation.html">Binary installation (recommended for Ubuntu 20.04)</a></li>
@@ -290,6 +291,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../tutorials/00_sim/create_empty.html">Creating an empty scene</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../tutorials/00_sim/spawn_prims.html">Spawning prims into the scene</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../tutorials/00_sim/launch_app.html">Deep-dive into AppLauncher</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/01_assets/add_new_robot.html">Adding a New Robot to Isaac Lab</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../tutorials/01_assets/run_rigid_object.html">Interacting with a rigid object</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../tutorials/01_assets/run_articulation.html">Interacting with an articulation</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../tutorials/01_assets/run_deformable_object.html">Interacting with a deformable object</a></li>
@@ -313,18 +315,24 @@
 <li class="toctree-l2"><a class="reference internal" href="multi_asset_spawning.html">Spawning Multiple Assets</a></li>
 <li class="toctree-l2"><a class="reference internal" href="save_camera_output.html">Saving rendered images and 3D re-projection</a></li>
 <li class="toctree-l2"><a class="reference internal" href="estimate_how_many_cameras_can_run.html">Find How Many/What Cameras You Should Train With</a></li>
+<li class="toctree-l2"><a class="reference internal" href="configure_rendering.html">Configuring Rendering Settings</a></li>
 <li class="toctree-l2"><a class="reference internal" href="draw_markers.html">Creating Visualization Markers</a></li>
 <li class="toctree-l2 current active"><a class="current reference internal" href="#">Wrapping environments</a></li>
 <li class="toctree-l2"><a class="reference internal" href="add_own_library.html">Adding your own learning library</a></li>
 <li class="toctree-l2"><a class="reference internal" href="record_animation.html">Recording Animations of Simulations</a></li>
 <li class="toctree-l2"><a class="reference internal" href="record_video.html">Recording video clips during training</a></li>
 <li class="toctree-l2"><a class="reference internal" href="master_omniverse.html">Mastering Omniverse for Robotics</a></li>
+<li class="toctree-l2"><a class="reference internal" href="cloudxr_teleoperation.html">Setting up CloudXR Teleoperation</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../deployment/index.html">Container Deployment</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2"><a class="reference internal" href="../deployment/docker.html">Docker Guide</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../deployment/cluster.html">Cluster Guide</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../deployment/run_docker_example.html">Running an example with Docker</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../policy_deployment/index.html">Sim2Real Deployment of Policies Trained in Isaac Lab</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../policy_deployment/00_hover/hover_policy.html">Training &amp; Deploying HOVER Policy</a></li>
 </ul>
 </details></li>
 </ul>
@@ -867,7 +875,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Apr 11, 2025.
+  Last updated on Apr 23, 2025.
   <br/>
 </p>
   </div>

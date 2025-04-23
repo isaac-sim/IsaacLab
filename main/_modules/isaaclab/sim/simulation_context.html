@@ -32,7 +32,7 @@
 
     <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css" />
     <link rel="stylesheet" href="../../../_static/styles/sphinx-book-theme.css?digest=14f4ca6b54d191a8c7657f6c759bf11a5fb86285" type="text/css" />
-    <link rel="stylesheet" type="text/css" href="/opt/hostedtoolcache/Python/3.10.16/x64/lib/python3.10/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/css/all.min.css" />
+    <link rel="stylesheet" type="text/css" href="/opt/hostedtoolcache/Python/3.10.17/x64/lib/python3.10/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/css/all.min.css" />
     <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css" />
     <link rel="stylesheet" type="text/css" href="../../../_static/custom.css" />
     <link rel="stylesheet" type="text/css" href="../../../_static/sphinx-design.4cbf315f70debaebd550c87a6162cf0f.min.css" />
@@ -46,7 +46,7 @@
     <script data-url_root="../../../" id="documentation_options" src="../../../_static/documentation_options.js"></script>
     <script src="../../../_static/doctools.js"></script>
     <script src="../../../_static/sphinx_highlight.js"></script>
-    <script src="/opt/hostedtoolcache/Python/3.10.16/x64/lib/python3.10/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/js/all.min.js"></script>
+    <script src="/opt/hostedtoolcache/Python/3.10.17/x64/lib/python3.10/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/js/all.min.js"></script>
     <script src="../../../_static/clipboard.min.js"></script>
     <script src="../../../_static/copybutton.js"></script>
     <script src="../../../_static/scripts/sphinx-book-theme.js?digest=5a5c038af52cf7bc1a1ec88eea08e6366ee68824"></script>
@@ -57,8 +57,8 @@
     <link rel="search" title="Search" href="../../../search.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-  <meta name="docsearch:version" content="2.0.2" />
-    <meta name="docbuild:last-update" content="Apr 11, 2025"/>
+  <meta name="docsearch:version" content="2.1.0" />
+    <meta name="docbuild:last-update" content="Apr 23, 2025"/>
   </head>
   
   
@@ -229,6 +229,7 @@
         <p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="../../../source/setup/ecosystem.html">Isaac Lab Ecosystem</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../source/setup/quickstart.html">Quickstart Guide</a></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../../source/setup/installation/index.html">Local Installation</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/setup/installation/pip_installation.html">Pip installation (recommended for Ubuntu 22.04 and Windows)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/setup/installation/binaries_installation.html">Binary installation (recommended for Ubuntu 20.04)</a></li>
@@ -289,6 +290,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../../../source/tutorials/00_sim/create_empty.html">Creating an empty scene</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/tutorials/00_sim/spawn_prims.html">Spawning prims into the scene</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/tutorials/00_sim/launch_app.html">Deep-dive into AppLauncher</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/tutorials/01_assets/add_new_robot.html">Adding a New Robot to Isaac Lab</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/tutorials/01_assets/run_rigid_object.html">Interacting with a rigid object</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/tutorials/01_assets/run_articulation.html">Interacting with an articulation</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/tutorials/01_assets/run_deformable_object.html">Interacting with a deformable object</a></li>
@@ -312,18 +314,24 @@
 <li class="toctree-l2"><a class="reference internal" href="../../../source/how-to/multi_asset_spawning.html">Spawning Multiple Assets</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/how-to/save_camera_output.html">Saving rendered images and 3D re-projection</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/how-to/estimate_how_many_cameras_can_run.html">Find How Many/What Cameras You Should Train With</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/how-to/configure_rendering.html">Configuring Rendering Settings</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/how-to/draw_markers.html">Creating Visualization Markers</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/how-to/wrap_rl_env.html">Wrapping environments</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/how-to/add_own_library.html">Adding your own learning library</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/how-to/record_animation.html">Recording Animations of Simulations</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/how-to/record_video.html">Recording video clips during training</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/how-to/master_omniverse.html">Mastering Omniverse for Robotics</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/how-to/cloudxr_teleoperation.html">Setting up CloudXR Teleoperation</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../../source/deployment/index.html">Container Deployment</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/deployment/docker.html">Docker Guide</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/deployment/cluster.html">Cluster Guide</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/deployment/run_docker_example.html">Running an example with Docker</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../source/policy_deployment/index.html">Sim2Real Deployment of Policies Trained in Isaac Lab</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/policy_deployment/00_hover/hover_policy.html">Training &amp; Deploying HOVER Policy</a></li>
 </ul>
 </details></li>
 </ul>
@@ -533,7 +541,8 @@
 <span class="kn">import</span><span class="w"> </span><span class="nn">builtins</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">enum</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
-<span class="kn">import</span><span class="w"> </span><span class="nn">sys</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">toml</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">traceback</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">weakref</span>
@@ -542,10 +551,12 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">carb</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">flatdict</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">isaacsim.core.utils.stage</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">stage_utils</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">omni.log</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">omni.physx</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaacsim.core.api.simulation_context</span><span class="w"> </span><span class="kn">import</span> <span class="n">SimulationContext</span> <span class="k">as</span> <span class="n">_SimulationContext</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaacsim.core.utils.carb</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_carb_setting</span><span class="p">,</span> <span class="n">set_carb_setting</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaacsim.core.utils.viewports</span><span class="w"> </span><span class="kn">import</span> <span class="n">set_camera_view</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaacsim.core.version</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_version</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">pxr</span><span class="w"> </span><span class="kn">import</span> <span class="n">Gf</span><span class="p">,</span> <span class="n">PhysxSchema</span><span class="p">,</span> <span class="n">Usd</span><span class="p">,</span> <span class="n">UsdPhysics</span>
@@ -648,80 +659,31 @@
         <span class="k">if</span> <span class="n">stage_utils</span><span class="o">.</span><span class="n">get_current_stage</span><span class="p">()</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;The stage has not been created. Did you run the simulator?&quot;</span><span class="p">)</span>
 
-        <span class="c1"># set flags for simulator</span>
         <span class="c1"># acquire settings interface</span>
-        <span class="n">carb_settings_iface</span> <span class="o">=</span> <span class="n">carb</span><span class="o">.</span><span class="n">settings</span><span class="o">.</span><span class="n">get_settings</span><span class="p">()</span>
-        <span class="c1"># enable hydra scene-graph instancing</span>
-        <span class="c1"># note: this allows rendering of instanceable assets on the GUI</span>
-        <span class="n">carb_settings_iface</span><span class="o">.</span><span class="n">set_bool</span><span class="p">(</span><span class="s2">&quot;/persistent/omnihydra/useSceneGraphInstancing&quot;</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span>
-        <span class="c1"># change dispatcher to use the default dispatcher in PhysX SDK instead of carb tasking</span>
-        <span class="c1"># note: dispatcher handles how threads are launched for multi-threaded physics</span>
-        <span class="n">carb_settings_iface</span><span class="o">.</span><span class="n">set_bool</span><span class="p">(</span><span class="s2">&quot;/physics/physxDispatcher&quot;</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span>
-        <span class="c1"># disable contact processing in omni.physx</span>
-        <span class="c1"># note: we disable it by default to avoid the overhead of contact processing when it isn&#39;t needed.</span>
-        <span class="c1">#   The physics flag gets enabled when a contact sensor is created.</span>
-        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="p">,</span> <span class="s2">&quot;disable_contact_processing&quot;</span><span class="p">):</span>
-            <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
-                <span class="s2">&quot;The `disable_contact_processing` attribute is deprecated and always set to True&quot;</span>
-                <span class="s2">&quot; to avoid unnecessary overhead. Contact processing is automatically enabled when&quot;</span>
-                <span class="s2">&quot; a contact sensor is created, so manual configuration is no longer required.&quot;</span>
-            <span class="p">)</span>
-        <span class="c1"># FIXME: From investigation, it seems this flag only affects CPU physics. For GPU physics, contacts</span>
-        <span class="c1">#  are always processed. The issue is reported to the PhysX team by @mmittal.</span>
-        <span class="n">carb_settings_iface</span><span class="o">.</span><span class="n">set_bool</span><span class="p">(</span><span class="s2">&quot;/physics/disableContactProcessing&quot;</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span>
-        <span class="c1"># disable custom geometry for cylinder and cone collision shapes to allow contact reporting for them</span>
-        <span class="c1"># reason: cylinders and cones aren&#39;t natively supported by PhysX so we need to use custom geometry flags</span>
-        <span class="c1"># reference: https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/docs/Geometry.html?highlight=capsule#geometry</span>
-        <span class="n">carb_settings_iface</span><span class="o">.</span><span class="n">set_bool</span><span class="p">(</span><span class="s2">&quot;/physics/collisionConeCustomGeometry&quot;</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
-        <span class="n">carb_settings_iface</span><span class="o">.</span><span class="n">set_bool</span><span class="p">(</span><span class="s2">&quot;/physics/collisionCylinderCustomGeometry&quot;</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
-        <span class="c1"># hide the Simulation Settings window</span>
-        <span class="n">carb_settings_iface</span><span class="o">.</span><span class="n">set_bool</span><span class="p">(</span><span class="s2">&quot;/physics/autoPopupSimulationOutputWindow&quot;</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">carb_settings</span> <span class="o">=</span> <span class="n">carb</span><span class="o">.</span><span class="n">settings</span><span class="o">.</span><span class="n">get_settings</span><span class="p">()</span>
+
+        <span class="c1"># apply carb physics settings</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_apply_physics_settings</span><span class="p">()</span>
+
         <span class="c1"># note: we read this once since it is not expected to change during runtime</span>
         <span class="c1"># read flag for whether a local GUI is enabled</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_local_gui</span> <span class="o">=</span> <span class="n">carb_settings_iface</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;/app/window/enabled&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_local_gui</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">carb_settings</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;/app/window/enabled&quot;</span><span class="p">)</span>
         <span class="c1"># read flag for whether livestreaming GUI is enabled</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_livestream_gui</span> <span class="o">=</span> <span class="n">carb_settings_iface</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;/app/livestream/enabled&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_livestream_gui</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">carb_settings</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;/app/livestream/enabled&quot;</span><span class="p">)</span>
+        <span class="c1"># read flag for whether XR GUI is enabled</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_xr_gui</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">carb_settings</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;/app/xr/enabled&quot;</span><span class="p">)</span>
 
         <span class="c1"># read flag for whether the Isaac Lab viewport capture pipeline will be used,</span>
         <span class="c1"># casting None to False if the flag doesn&#39;t exist</span>
         <span class="c1"># this flag is set from the AppLauncher class</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_offscreen_render</span> <span class="o">=</span> <span class="nb">bool</span><span class="p">(</span><span class="n">carb_settings_iface</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;/isaaclab/render/offscreen&quot;</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_offscreen_render</span> <span class="o">=</span> <span class="nb">bool</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">carb_settings</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;/isaaclab/render/offscreen&quot;</span><span class="p">))</span>
         <span class="c1"># read flag for whether the default viewport should be enabled</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_render_viewport</span> <span class="o">=</span> <span class="nb">bool</span><span class="p">(</span><span class="n">carb_settings_iface</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;/isaaclab/render/active_viewport&quot;</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_render_viewport</span> <span class="o">=</span> <span class="nb">bool</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">carb_settings</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;/isaaclab/render/active_viewport&quot;</span><span class="p">))</span>
         <span class="c1"># flag for whether any GUI will be rendered (local, livestreamed or viewport)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_has_gui</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_local_gui</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">_livestream_gui</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_has_gui</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_local_gui</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">_livestream_gui</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">_xr_gui</span>
 
         <span class="c1"># apply render settings from render config</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">render</span><span class="o">.</span><span class="n">enable_translucency</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="n">carb_settings_iface</span><span class="o">.</span><span class="n">set_bool</span><span class="p">(</span><span class="s2">&quot;/rtx/translucency/enabled&quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">render</span><span class="o">.</span><span class="n">enable_translucency</span><span class="p">)</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">render</span><span class="o">.</span><span class="n">enable_reflections</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="n">carb_settings_iface</span><span class="o">.</span><span class="n">set_bool</span><span class="p">(</span><span class="s2">&quot;/rtx/reflections/enabled&quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">render</span><span class="o">.</span><span class="n">enable_reflections</span><span class="p">)</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">render</span><span class="o">.</span><span class="n">enable_global_illumination</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="n">carb_settings_iface</span><span class="o">.</span><span class="n">set_bool</span><span class="p">(</span><span class="s2">&quot;/rtx/indirectDiffuse/enabled&quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">render</span><span class="o">.</span><span class="n">enable_global_illumination</span><span class="p">)</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">render</span><span class="o">.</span><span class="n">enable_dlssg</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="n">carb_settings_iface</span><span class="o">.</span><span class="n">set_bool</span><span class="p">(</span><span class="s2">&quot;/rtx-transient/dlssg/enabled&quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">render</span><span class="o">.</span><span class="n">enable_dlssg</span><span class="p">)</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">render</span><span class="o">.</span><span class="n">enable_dl_denoiser</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="n">carb_settings_iface</span><span class="o">.</span><span class="n">set_bool</span><span class="p">(</span><span class="s2">&quot;/rtx-transient/dldenoiser/enabled&quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">render</span><span class="o">.</span><span class="n">enable_dl_denoiser</span><span class="p">)</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">render</span><span class="o">.</span><span class="n">dlss_mode</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="n">carb_settings_iface</span><span class="o">.</span><span class="n">set_int</span><span class="p">(</span><span class="s2">&quot;/rtx/post/dlss/execMode&quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">render</span><span class="o">.</span><span class="n">dlss_mode</span><span class="p">)</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">render</span><span class="o">.</span><span class="n">enable_direct_lighting</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="n">carb_settings_iface</span><span class="o">.</span><span class="n">set_bool</span><span class="p">(</span><span class="s2">&quot;/rtx/directLighting/enabled&quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">render</span><span class="o">.</span><span class="n">enable_direct_lighting</span><span class="p">)</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">render</span><span class="o">.</span><span class="n">samples_per_pixel</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="n">carb_settings_iface</span><span class="o">.</span><span class="n">set_int</span><span class="p">(</span>
-                <span class="s2">&quot;/rtx/directLighting/sampledLighting/samplesPerPixel&quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">render</span><span class="o">.</span><span class="n">samples_per_pixel</span>
-            <span class="p">)</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">render</span><span class="o">.</span><span class="n">enable_shadows</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="n">carb_settings_iface</span><span class="o">.</span><span class="n">set_bool</span><span class="p">(</span><span class="s2">&quot;/rtx/shadows/enabled&quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">render</span><span class="o">.</span><span class="n">enable_shadows</span><span class="p">)</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">render</span><span class="o">.</span><span class="n">enable_ambient_occlusion</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="n">carb_settings_iface</span><span class="o">.</span><span class="n">set_bool</span><span class="p">(</span><span class="s2">&quot;/rtx/ambientOcclusion/enabled&quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">render</span><span class="o">.</span><span class="n">enable_ambient_occlusion</span><span class="p">)</span>
-        <span class="c1"># set denoiser mode</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">render</span><span class="o">.</span><span class="n">antialiasing_mode</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="k">try</span><span class="p">:</span>
-                <span class="kn">import</span><span class="w"> </span><span class="nn">omni.replicator.core</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">rep</span>
-
-                <span class="n">rep</span><span class="o">.</span><span class="n">settings</span><span class="o">.</span><span class="n">set_render_rtx_realtime</span><span class="p">(</span><span class="n">antialiasing</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">render</span><span class="o">.</span><span class="n">antialiasing_mode</span><span class="p">)</span>
-            <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
-                <span class="k">pass</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_apply_render_settings_from_cfg</span><span class="p">()</span>
 
         <span class="c1"># store the default render mode</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_has_gui</span> <span class="ow">and</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_offscreen_render</span><span class="p">:</span>
@@ -784,17 +746,17 @@
         <span class="c1">#   you can reproduce the issue by commenting out this line and running the test `test_articulation.py`.</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_gravity_tensor</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">gravity</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
 
-        <span class="c1"># add callback to deal the simulation app when simulation is stopped.</span>
-        <span class="c1"># this is needed because physics views go invalid once we stop the simulation</span>
+        <span class="c1"># add a callback to keep rendering when a stop is triggered through different GUI commands like (save as)</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="n">builtins</span><span class="o">.</span><span class="n">ISAAC_LAUNCHED_FROM_TERMINAL</span><span class="p">:</span>
             <span class="n">timeline_event_stream</span> <span class="o">=</span> <span class="n">omni</span><span class="o">.</span><span class="n">timeline</span><span class="o">.</span><span class="n">get_timeline_interface</span><span class="p">()</span><span class="o">.</span><span class="n">get_timeline_event_stream</span><span class="p">()</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_app_control_on_stop_handle</span> <span class="o">=</span> <span class="n">timeline_event_stream</span><span class="o">.</span><span class="n">create_subscription_to_pop_by_type</span><span class="p">(</span>
                 <span class="nb">int</span><span class="p">(</span><span class="n">omni</span><span class="o">.</span><span class="n">timeline</span><span class="o">.</span><span class="n">TimelineEventType</span><span class="o">.</span><span class="n">STOP</span><span class="p">),</span>
-                <span class="k">lambda</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="n">obj</span><span class="o">=</span><span class="n">weakref</span><span class="o">.</span><span class="n">proxy</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span> <span class="n">obj</span><span class="o">.</span><span class="n">_app_control_on_stop_callback</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">),</span>
+                <span class="k">lambda</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="n">obj</span><span class="o">=</span><span class="n">weakref</span><span class="o">.</span><span class="n">proxy</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span> <span class="n">obj</span><span class="o">.</span><span class="n">_app_control_on_stop_handle_fn</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">),</span>
                 <span class="n">order</span><span class="o">=</span><span class="mi">15</span><span class="p">,</span>
             <span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_app_control_on_stop_handle</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_disable_app_control_on_stop_handle</span> <span class="o">=</span> <span class="kc">False</span>
 
         <span class="c1"># flatten out the simulation dictionary</span>
         <span class="n">sim_params</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">to_dict</span><span class="p">()</span>
@@ -812,6 +774,113 @@
             <span class="n">physics_prim_path</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">physics_prim_path</span><span class="p">,</span>
             <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">device</span><span class="p">,</span>
         <span class="p">)</span></div>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_apply_physics_settings</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Sets various carb physics settings.&quot;&quot;&quot;</span>
+        <span class="c1"># enable hydra scene-graph instancing</span>
+        <span class="c1"># note: this allows rendering of instanceable assets on the GUI</span>
+        <span class="n">set_carb_setting</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">carb_settings</span><span class="p">,</span> <span class="s2">&quot;/persistent/omnihydra/useSceneGraphInstancing&quot;</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span>
+        <span class="c1"># change dispatcher to use the default dispatcher in PhysX SDK instead of carb tasking</span>
+        <span class="c1"># note: dispatcher handles how threads are launched for multi-threaded physics</span>
+        <span class="n">set_carb_setting</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">carb_settings</span><span class="p">,</span> <span class="s2">&quot;/physics/physxDispatcher&quot;</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span>
+        <span class="c1"># disable contact processing in omni.physx</span>
+        <span class="c1"># note: we disable it by default to avoid the overhead of contact processing when it isn&#39;t needed.</span>
+        <span class="c1">#   The physics flag gets enabled when a contact sensor is created.</span>
+        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="p">,</span> <span class="s2">&quot;disable_contact_processing&quot;</span><span class="p">):</span>
+            <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
+                <span class="s2">&quot;The `disable_contact_processing` attribute is deprecated and always set to True&quot;</span>
+                <span class="s2">&quot; to avoid unnecessary overhead. Contact processing is automatically enabled when&quot;</span>
+                <span class="s2">&quot; a contact sensor is created, so manual configuration is no longer required.&quot;</span>
+            <span class="p">)</span>
+        <span class="c1"># FIXME: From investigation, it seems this flag only affects CPU physics. For GPU physics, contacts</span>
+        <span class="c1">#  are always processed. The issue is reported to the PhysX team by @mmittal.</span>
+        <span class="n">set_carb_setting</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">carb_settings</span><span class="p">,</span> <span class="s2">&quot;/physics/disableContactProcessing&quot;</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span>
+        <span class="c1"># disable custom geometry for cylinder and cone collision shapes to allow contact reporting for them</span>
+        <span class="c1"># reason: cylinders and cones aren&#39;t natively supported by PhysX so we need to use custom geometry flags</span>
+        <span class="c1"># reference: https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/docs/Geometry.html?highlight=capsule#geometry</span>
+        <span class="n">set_carb_setting</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">carb_settings</span><span class="p">,</span> <span class="s2">&quot;/physics/collisionConeCustomGeometry&quot;</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
+        <span class="n">set_carb_setting</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">carb_settings</span><span class="p">,</span> <span class="s2">&quot;/physics/collisionCylinderCustomGeometry&quot;</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
+        <span class="c1"># hide the Simulation Settings window</span>
+        <span class="n">set_carb_setting</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">carb_settings</span><span class="p">,</span> <span class="s2">&quot;/physics/autoPopupSimulationOutputWindow&quot;</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_apply_render_settings_from_cfg</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Sets rtx settings specified in the RenderCfg.&quot;&quot;&quot;</span>
+
+        <span class="c1"># define mapping of user-friendly RenderCfg names to native carb names</span>
+        <span class="n">rendering_setting_name_mapping</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s2">&quot;enable_translucency&quot;</span><span class="p">:</span> <span class="s2">&quot;/rtx/translucency/enabled&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;enable_reflections&quot;</span><span class="p">:</span> <span class="s2">&quot;/rtx/reflections/enabled&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;enable_global_illumination&quot;</span><span class="p">:</span> <span class="s2">&quot;/rtx/indirectDiffuse/enabled&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;enable_dlssg&quot;</span><span class="p">:</span> <span class="s2">&quot;/rtx-transient/dlssg/enabled&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;enable_dl_denoiser&quot;</span><span class="p">:</span> <span class="s2">&quot;/rtx-transient/dldenoiser/enabled&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;dlss_mode&quot;</span><span class="p">:</span> <span class="s2">&quot;/rtx/post/dlss/execMode&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;enable_direct_lighting&quot;</span><span class="p">:</span> <span class="s2">&quot;/rtx/directLighting/enabled&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;samples_per_pixel&quot;</span><span class="p">:</span> <span class="s2">&quot;/rtx/directLighting/sampledLighting/samplesPerPixel&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;enable_shadows&quot;</span><span class="p">:</span> <span class="s2">&quot;/rtx/shadows/enabled&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;enable_ambient_occlusion&quot;</span><span class="p">:</span> <span class="s2">&quot;/rtx/ambientOcclusion/enabled&quot;</span><span class="p">,</span>
+        <span class="p">}</span>
+
+        <span class="n">not_carb_settings</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;rendering_mode&quot;</span><span class="p">,</span> <span class="s2">&quot;carb_settings&quot;</span><span class="p">,</span> <span class="s2">&quot;antialiasing_mode&quot;</span><span class="p">]</span>
+
+        <span class="c1"># set preset settings (same behavior as the CLI arg --rendering_mode)</span>
+        <span class="n">rendering_mode</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">render</span><span class="o">.</span><span class="n">rendering_mode</span>
+        <span class="k">if</span> <span class="n">rendering_mode</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="c1"># check if preset is supported</span>
+            <span class="n">supported_rendering_modes</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;performance&quot;</span><span class="p">,</span> <span class="s2">&quot;balanced&quot;</span><span class="p">,</span> <span class="s2">&quot;quality&quot;</span><span class="p">,</span> <span class="s2">&quot;xr&quot;</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">rendering_mode</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">supported_rendering_modes</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;RenderCfg rendering mode &#39;</span><span class="si">{</span><span class="n">rendering_mode</span><span class="si">}</span><span class="s2">&#39; not in supported modes </span><span class="si">{</span><span class="n">supported_rendering_modes</span><span class="si">}</span><span class="s2">.&quot;</span>
+                <span class="p">)</span>
+
+            <span class="c1"># parse preset file</span>
+            <span class="n">repo_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">carb</span><span class="o">.</span><span class="n">tokens</span><span class="o">.</span><span class="n">get_tokens_interface</span><span class="p">()</span><span class="o">.</span><span class="n">resolve</span><span class="p">(</span><span class="s2">&quot;$</span><span class="si">{app}</span><span class="s2">&quot;</span><span class="p">),</span> <span class="s2">&quot;..&quot;</span><span class="p">)</span>
+            <span class="n">preset_filename</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">repo_path</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;apps/rendering_modes/</span><span class="si">{</span><span class="n">rendering_mode</span><span class="si">}</span><span class="s2">.kit&quot;</span><span class="p">)</span>
+            <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">preset_filename</span><span class="p">)</span> <span class="k">as</span> <span class="n">file</span><span class="p">:</span>
+                <span class="n">preset_dict</span> <span class="o">=</span> <span class="n">toml</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">file</span><span class="p">)</span>
+            <span class="n">preset_dict</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">flatdict</span><span class="o">.</span><span class="n">FlatDict</span><span class="p">(</span><span class="n">preset_dict</span><span class="p">,</span> <span class="n">delimiter</span><span class="o">=</span><span class="s2">&quot;.&quot;</span><span class="p">))</span>
+
+            <span class="c1"># set presets</span>
+            <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">preset_dict</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                <span class="n">key</span> <span class="o">=</span> <span class="s2">&quot;/&quot;</span> <span class="o">+</span> <span class="n">key</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;.&quot;</span><span class="p">,</span> <span class="s2">&quot;/&quot;</span><span class="p">)</span>  <span class="c1"># convert to carb setting format</span>
+                <span class="n">set_carb_setting</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">carb_settings</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span>
+
+        <span class="c1"># set user-friendly named settings</span>
+        <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="nb">vars</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">render</span><span class="p">)</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="k">if</span> <span class="n">value</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">not_carb_settings</span><span class="p">:</span>
+                <span class="c1"># skip unset settings and non-carb settings</span>
+                <span class="k">continue</span>
+            <span class="k">if</span> <span class="n">key</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">rendering_setting_name_mapping</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;&#39;</span><span class="si">{</span><span class="n">key</span><span class="si">}</span><span class="s2">&#39; in RenderCfg not found. Note: internal &#39;rendering_setting_name_mapping&#39; dictionary might&quot;</span>
+                    <span class="s2">&quot; need to be updated.&quot;</span>
+                <span class="p">)</span>
+            <span class="n">key</span> <span class="o">=</span> <span class="n">rendering_setting_name_mapping</span><span class="p">[</span><span class="n">key</span><span class="p">]</span>
+            <span class="n">set_carb_setting</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">carb_settings</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span>
+
+        <span class="c1"># set general carb settings</span>
+        <span class="n">carb_settings</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">render</span><span class="o">.</span><span class="n">carb_settings</span>
+        <span class="k">if</span> <span class="n">carb_settings</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">carb_settings</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                <span class="k">if</span> <span class="s2">&quot;_&quot;</span> <span class="ow">in</span> <span class="n">key</span><span class="p">:</span>
+                    <span class="n">key</span> <span class="o">=</span> <span class="s2">&quot;/&quot;</span> <span class="o">+</span> <span class="n">key</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;_&quot;</span><span class="p">,</span> <span class="s2">&quot;/&quot;</span><span class="p">)</span>  <span class="c1"># convert from python variable style string</span>
+                <span class="k">elif</span> <span class="s2">&quot;.&quot;</span> <span class="ow">in</span> <span class="n">key</span><span class="p">:</span>
+                    <span class="n">key</span> <span class="o">=</span> <span class="s2">&quot;/&quot;</span> <span class="o">+</span> <span class="n">key</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;.&quot;</span><span class="p">,</span> <span class="s2">&quot;/&quot;</span><span class="p">)</span>  <span class="c1"># convert from .kit file style string</span>
+                <span class="k">if</span> <span class="n">get_carb_setting</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">carb_settings</span><span class="p">,</span> <span class="n">key</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;&#39;</span><span class="si">{</span><span class="n">key</span><span class="si">}</span><span class="s2">&#39; in RenderCfg.general_parameters does not map to a carb setting.&quot;</span><span class="p">)</span>
+                <span class="n">set_carb_setting</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">carb_settings</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span>
+
+        <span class="c1"># set denoiser mode</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">render</span><span class="o">.</span><span class="n">antialiasing_mode</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="kn">import</span><span class="w"> </span><span class="nn">omni.replicator.core</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">rep</span>
+
+                <span class="n">rep</span><span class="o">.</span><span class="n">settings</span><span class="o">.</span><span class="n">set_render_rtx_realtime</span><span class="p">(</span><span class="n">antialiasing</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">render</span><span class="o">.</span><span class="n">antialiasing_mode</span><span class="p">)</span>
+            <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+                <span class="k">pass</span>
+
+        <span class="c1"># WAR: Ensure /rtx/renderMode RaytracedLighting is correctly cased.</span>
+        <span class="k">if</span> <span class="n">get_carb_setting</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">carb_settings</span><span class="p">,</span> <span class="s2">&quot;/rtx/rendermode&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="o">==</span> <span class="s2">&quot;raytracedlighting&quot;</span><span class="p">:</span>
+            <span class="n">set_carb_setting</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">carb_settings</span><span class="p">,</span> <span class="s2">&quot;/rtx/rendermode&quot;</span><span class="p">,</span> <span class="s2">&quot;RaytracedLighting&quot;</span><span class="p">)</span>
 
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Operations - New.</span>
@@ -978,6 +1047,7 @@
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">reset</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">soft</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_disable_app_control_on_stop_handle</span> <span class="o">=</span> <span class="kc">True</span>
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">reset</span><span class="p">(</span><span class="n">soft</span><span class="o">=</span><span class="n">soft</span><span class="p">)</span>
         <span class="c1"># app.update() may be changing the cuda device in reset, so we force it back to our desired device here</span>
         <span class="k">if</span> <span class="s2">&quot;cuda&quot;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">:</span>
@@ -990,6 +1060,7 @@
         <span class="k">if</span> <span class="ow">not</span> <span class="n">soft</span><span class="p">:</span>
             <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">2</span><span class="p">):</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">render</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_disable_app_control_on_stop_handle</span> <span class="o">=</span> <span class="kc">False</span>
 
 <div class="viewcode-block" id="SimulationContext.step"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.sim.html#isaaclab.sim.SimulationContext.step">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">step</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">render</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Steps the simulation.</span>
@@ -1185,7 +1256,7 @@
 <span class="sd">    Callbacks.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="k">def</span><span class="w"> </span><span class="nf">_app_control_on_stop_callback</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">event</span><span class="p">:</span> <span class="n">carb</span><span class="o">.</span><span class="n">events</span><span class="o">.</span><span class="n">IEvent</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_app_control_on_stop_handle_fn</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">event</span><span class="p">:</span> <span class="n">carb</span><span class="o">.</span><span class="n">events</span><span class="o">.</span><span class="n">IEvent</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Callback to deal with the app when the simulation is stopped.</span>
 
 <span class="sd">        Once the simulation is stopped, the physics handles go invalid. After that, it is not possible to</span>
@@ -1202,67 +1273,10 @@
 <span class="sd">            This callback is used only when running the simulation in a standalone python script. In an extension,</span>
 <span class="sd">            it is expected that the user handles the extension shutdown.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="c1"># check if the simulation is stopped</span>
-        <span class="k">if</span> <span class="n">event</span><span class="o">.</span><span class="n">type</span> <span class="o">==</span> <span class="nb">int</span><span class="p">(</span><span class="n">omni</span><span class="o">.</span><span class="n">timeline</span><span class="o">.</span><span class="n">TimelineEventType</span><span class="o">.</span><span class="n">STOP</span><span class="p">):</span>
-            <span class="c1"># keep running the simulator when configured to not shutdown the app</span>
-            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_has_gui</span> <span class="ow">and</span> <span class="n">sys</span><span class="o">.</span><span class="n">exc_info</span><span class="p">()[</span><span class="mi">0</span><span class="p">]</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-                <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
-                    <span class="s2">&quot;Simulation is stopped. The app will keep running with physics disabled.&quot;</span>
-                    <span class="s2">&quot; Press Ctrl+C or close the window to exit the app.&quot;</span>
-                <span class="p">)</span>
-                <span class="k">while</span> <span class="bp">self</span><span class="o">.</span><span class="n">app</span><span class="o">.</span><span class="n">is_running</span><span class="p">():</span>
-                    <span class="bp">self</span><span class="o">.</span><span class="n">render</span><span class="p">()</span>
-
-        <span class="c1"># Note: For the following code:</span>
-        <span class="c1">#   The method is an exact copy of the implementation in the `isaacsim.simulation_app.SimulationApp` class.</span>
-        <span class="c1">#   We need to remove this method once the SimulationApp class becomes a singleton.</span>
-
-        <span class="c1"># make sure that any replicator workflows finish rendering/writing</span>
-        <span class="k">try</span><span class="p">:</span>
-            <span class="kn">import</span><span class="w"> </span><span class="nn">omni.replicator.core</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">rep</span>
-
-            <span class="n">rep_status</span> <span class="o">=</span> <span class="n">rep</span><span class="o">.</span><span class="n">orchestrator</span><span class="o">.</span><span class="n">get_status</span><span class="p">()</span>
-            <span class="k">if</span> <span class="n">rep_status</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">[</span><span class="n">rep</span><span class="o">.</span><span class="n">orchestrator</span><span class="o">.</span><span class="n">Status</span><span class="o">.</span><span class="n">STOPPED</span><span class="p">,</span> <span class="n">rep</span><span class="o">.</span><span class="n">orchestrator</span><span class="o">.</span><span class="n">Status</span><span class="o">.</span><span class="n">STOPPING</span><span class="p">]:</span>
-                <span class="n">rep</span><span class="o">.</span><span class="n">orchestrator</span><span class="o">.</span><span class="n">stop</span><span class="p">()</span>
-            <span class="k">if</span> <span class="n">rep_status</span> <span class="o">!=</span> <span class="n">rep</span><span class="o">.</span><span class="n">orchestrator</span><span class="o">.</span><span class="n">Status</span><span class="o">.</span><span class="n">STOPPED</span><span class="p">:</span>
-                <span class="n">rep</span><span class="o">.</span><span class="n">orchestrator</span><span class="o">.</span><span class="n">wait_until_complete</span><span class="p">()</span>
-
-            <span class="c1"># Disable capture on play to avoid replicator engaging on any new timeline events</span>
-            <span class="n">rep</span><span class="o">.</span><span class="n">orchestrator</span><span class="o">.</span><span class="n">set_capture_on_play</span><span class="p">(</span><span class="kc">False</span><span class="p">)</span>
-        <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
-            <span class="k">pass</span>
-
-        <span class="c1"># clear the instance and all callbacks</span>
-        <span class="c1"># note: clearing callbacks is important to prevent memory leaks</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">clear_all_callbacks</span><span class="p">()</span>
-
-        <span class="c1"># workaround for exit issues, clean the stage first:</span>
-        <span class="k">if</span> <span class="n">omni</span><span class="o">.</span><span class="n">usd</span><span class="o">.</span><span class="n">get_context</span><span class="p">()</span><span class="o">.</span><span class="n">can_close_stage</span><span class="p">():</span>
-            <span class="n">omni</span><span class="o">.</span><span class="n">usd</span><span class="o">.</span><span class="n">get_context</span><span class="p">()</span><span class="o">.</span><span class="n">close_stage</span><span class="p">()</span>
-
-        <span class="c1"># print logging information</span>
-        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[INFO]: Simulation is stopped. Shutting down the app.&quot;</span><span class="p">)</span>
-
-        <span class="c1"># Cleanup any running tracy instances so data is not lost</span>
-        <span class="k">try</span><span class="p">:</span>
-            <span class="n">profiler_tracy</span> <span class="o">=</span> <span class="n">carb</span><span class="o">.</span><span class="n">profiler</span><span class="o">.</span><span class="n">acquire_profiler_interface</span><span class="p">(</span><span class="n">plugin_name</span><span class="o">=</span><span class="s2">&quot;carb.profiler-tracy.plugin&quot;</span><span class="p">)</span>
-            <span class="k">if</span> <span class="n">profiler_tracy</span><span class="p">:</span>
-                <span class="n">profiler_tracy</span><span class="o">.</span><span class="n">set_capture_mask</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
-                <span class="n">profiler_tracy</span><span class="o">.</span><span class="n">end</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
-                <span class="n">profiler_tracy</span><span class="o">.</span><span class="n">shutdown</span><span class="p">()</span>
-        <span class="k">except</span> <span class="ne">RuntimeError</span><span class="p">:</span>
-            <span class="c1"># Tracy plugin was not loaded, so profiler never started - skip checks.</span>
-            <span class="k">pass</span>
-
-        <span class="c1"># Disable logging before shutdown to keep the log clean</span>
-        <span class="c1"># Warnings at this point don&#39;t matter as the python process is about to be terminated</span>
-        <span class="n">logging</span> <span class="o">=</span> <span class="n">carb</span><span class="o">.</span><span class="n">logging</span><span class="o">.</span><span class="n">acquire_logging</span><span class="p">()</span>
-        <span class="n">logging</span><span class="o">.</span><span class="n">set_level_threshold</span><span class="p">(</span><span class="n">carb</span><span class="o">.</span><span class="n">logging</span><span class="o">.</span><span class="n">LEVEL_ERROR</span><span class="p">)</span>
-
-        <span class="c1"># App shutdown is disabled to prevent crashes on shutdown. Terminating carb is faster</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_app</span><span class="o">.</span><span class="n">shutdown</span><span class="p">()</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_framework</span><span class="o">.</span><span class="n">unload_all_plugins</span><span class="p">()</span>
-        <span class="n">sys</span><span class="o">.</span><span class="n">exit</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span></div>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_disable_app_control_on_stop_handle</span><span class="p">:</span>
+            <span class="k">while</span> <span class="ow">not</span> <span class="n">omni</span><span class="o">.</span><span class="n">timeline</span><span class="o">.</span><span class="n">get_timeline_interface</span><span class="p">()</span><span class="o">.</span><span class="n">is_playing</span><span class="p">():</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">render</span><span class="p">()</span>
+        <span class="k">return</span></div>
 
 
 <span class="nd">@contextmanager</span>
@@ -1408,7 +1422,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Apr 11, 2025.
+  Last updated on Apr 23, 2025.
   <br/>
 </p>
   </div>

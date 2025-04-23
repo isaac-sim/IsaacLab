@@ -32,7 +32,7 @@
 
     <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css" />
     <link rel="stylesheet" href="../../../_static/styles/sphinx-book-theme.css?digest=14f4ca6b54d191a8c7657f6c759bf11a5fb86285" type="text/css" />
-    <link rel="stylesheet" type="text/css" href="/opt/hostedtoolcache/Python/3.10.16/x64/lib/python3.10/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/css/all.min.css" />
+    <link rel="stylesheet" type="text/css" href="/opt/hostedtoolcache/Python/3.10.17/x64/lib/python3.10/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/css/all.min.css" />
     <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css" />
     <link rel="stylesheet" type="text/css" href="../../../_static/custom.css" />
     <link rel="stylesheet" type="text/css" href="../../../_static/sphinx-design.4cbf315f70debaebd550c87a6162cf0f.min.css" />
@@ -46,7 +46,7 @@
     <script data-url_root="../../../" id="documentation_options" src="../../../_static/documentation_options.js"></script>
     <script src="../../../_static/doctools.js"></script>
     <script src="../../../_static/sphinx_highlight.js"></script>
-    <script src="/opt/hostedtoolcache/Python/3.10.16/x64/lib/python3.10/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/js/all.min.js"></script>
+    <script src="/opt/hostedtoolcache/Python/3.10.17/x64/lib/python3.10/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/js/all.min.js"></script>
     <script src="../../../_static/clipboard.min.js"></script>
     <script src="../../../_static/copybutton.js"></script>
     <script src="../../../_static/scripts/sphinx-book-theme.js?digest=5a5c038af52cf7bc1a1ec88eea08e6366ee68824"></script>
@@ -57,8 +57,8 @@
     <link rel="search" title="Search" href="../../../search.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-  <meta name="docsearch:version" content="2.0.2" />
-    <meta name="docbuild:last-update" content="Apr 11, 2025"/>
+  <meta name="docsearch:version" content="2.1.0" />
+    <meta name="docbuild:last-update" content="Apr 23, 2025"/>
   </head>
   
   
@@ -229,6 +229,7 @@
         <p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="../../../source/setup/ecosystem.html">Isaac Lab Ecosystem</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../source/setup/quickstart.html">Quickstart Guide</a></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../../source/setup/installation/index.html">Local Installation</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/setup/installation/pip_installation.html">Pip installation (recommended for Ubuntu 22.04 and Windows)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/setup/installation/binaries_installation.html">Binary installation (recommended for Ubuntu 20.04)</a></li>
@@ -289,6 +290,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../../../source/tutorials/00_sim/create_empty.html">Creating an empty scene</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/tutorials/00_sim/spawn_prims.html">Spawning prims into the scene</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/tutorials/00_sim/launch_app.html">Deep-dive into AppLauncher</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/tutorials/01_assets/add_new_robot.html">Adding a New Robot to Isaac Lab</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/tutorials/01_assets/run_rigid_object.html">Interacting with a rigid object</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/tutorials/01_assets/run_articulation.html">Interacting with an articulation</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/tutorials/01_assets/run_deformable_object.html">Interacting with a deformable object</a></li>
@@ -312,18 +314,24 @@
 <li class="toctree-l2"><a class="reference internal" href="../../../source/how-to/multi_asset_spawning.html">Spawning Multiple Assets</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/how-to/save_camera_output.html">Saving rendered images and 3D re-projection</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/how-to/estimate_how_many_cameras_can_run.html">Find How Many/What Cameras You Should Train With</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/how-to/configure_rendering.html">Configuring Rendering Settings</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/how-to/draw_markers.html">Creating Visualization Markers</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/how-to/wrap_rl_env.html">Wrapping environments</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/how-to/add_own_library.html">Adding your own learning library</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/how-to/record_animation.html">Recording Animations of Simulations</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/how-to/record_video.html">Recording video clips during training</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/how-to/master_omniverse.html">Mastering Omniverse for Robotics</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/how-to/cloudxr_teleoperation.html">Setting up CloudXR Teleoperation</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../../source/deployment/index.html">Container Deployment</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/deployment/docker.html">Docker Guide</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/deployment/cluster.html">Cluster Guide</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/deployment/run_docker_example.html">Running an example with Docker</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../source/policy_deployment/index.html">Sim2Real Deployment of Policies Trained in Isaac Lab</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/policy_deployment/00_hover/hover_policy.html">Training &amp; Deploying HOVER Policy</a></li>
 </ul>
 </details></li>
 </ul>
@@ -2088,16 +2096,15 @@
     <span class="k">return</span> <span class="n">R</span><span class="o">.</span><span class="n">transpose</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span></div>
 
 
-<div class="viewcode-block" id="make_pose"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.utils.html#isaaclab.utils.math.make_pose">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">make_pose</span><span class="p">(</span><span class="n">pos</span><span class="p">,</span> <span class="n">rot</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Make homogeneous pose matrices from a set of translation vectors and rotation matrices.</span>
+<div class="viewcode-block" id="make_pose"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.utils.html#isaaclab.utils.math.make_pose">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">make_pose</span><span class="p">(</span><span class="n">pos</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">rot</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Creates transformation matrices from positions and rotation matrices.</span>
 
 <span class="sd">    Args:</span>
-<span class="sd">        pos (torch.Tensor): batch of position vectors with last dimension of 3</span>
-<span class="sd">        rot (torch.Tensor): batch of rotation matrices with last 2 dimensions of (3, 3)</span>
+<span class="sd">        pos: Batch of position vectors with last dimension of 3.</span>
+<span class="sd">        rot: Batch of rotation matrices with last 2 dimensions of (3, 3).</span>
 
 <span class="sd">    Returns:</span>
-<span class="sd">        pose (torch.Tensor): batch of pose matrices with last 2 dimensions of (4, 4)</span>
+<span class="sd">        Batch of pose matrices with last 2 dimensions of (4, 4).</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">pos</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">),</span> <span class="s2">&quot;Input must be a torch tensor&quot;</span>
     <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">rot</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">),</span> <span class="s2">&quot;Input must be a torch tensor&quot;</span>
@@ -2110,33 +2117,31 @@
     <span class="k">return</span> <span class="n">pose</span></div>
 
 
-<div class="viewcode-block" id="unmake_pose"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.utils.html#isaaclab.utils.math.unmake_pose">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">unmake_pose</span><span class="p">(</span><span class="n">pose</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Split homogeneous pose matrices back into translation vectors and rotation matrices.</span>
+<div class="viewcode-block" id="unmake_pose"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.utils.html#isaaclab.utils.math.unmake_pose">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">unmake_pose</span><span class="p">(</span><span class="n">pose</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Splits transformation matrices into positions and rotation matrices.</span>
 
 <span class="sd">    Args:</span>
-<span class="sd">        pose (torch.Tensor): batch of pose matrices with last 2 dimensions of (4, 4)</span>
+<span class="sd">        pose: Batch of pose matrices with last 2 dimensions of (4, 4).</span>
 
 <span class="sd">    Returns:</span>
-<span class="sd">        pos (torch.Tensor): batch of position vectors with last dimension of 3</span>
-<span class="sd">        rot (torch.Tensor): batch of rotation matrices with last 2 dimensions of (3, 3)</span>
+<span class="sd">        Tuple containing:</span>
+<span class="sd">            - Batch of position vectors with last dimension of 3.</span>
+<span class="sd">            - Batch of rotation matrices with last 2 dimensions of (3, 3).</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">pose</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">),</span> <span class="s2">&quot;Input must be a torch tensor&quot;</span>
     <span class="k">return</span> <span class="n">pose</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="p">:</span><span class="mi">3</span><span class="p">,</span> <span class="mi">3</span><span class="p">],</span> <span class="n">pose</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="p">:</span><span class="mi">3</span><span class="p">,</span> <span class="p">:</span><span class="mi">3</span><span class="p">]</span></div>
 
 
-<div class="viewcode-block" id="pose_inv"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.utils.html#isaaclab.utils.math.pose_inv">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">pose_inv</span><span class="p">(</span><span class="n">pose</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Computes the inverse of homogeneous pose matrices.</span>
+<div class="viewcode-block" id="pose_inv"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.utils.html#isaaclab.utils.math.pose_inv">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">pose_inv</span><span class="p">(</span><span class="n">pose</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Computes the inverse of transformation matrices.</span>
 
-<span class="sd">    Note that the inverse of a pose matrix is the following:</span>
-<span class="sd">    [R t; 0 1]^-1 = [R.T -R.T*t; 0 1]</span>
+<span class="sd">    The inverse of a pose matrix [R t; 0 1] is [R.T -R.T*t; 0 1].</span>
 
 <span class="sd">    Args:</span>
-<span class="sd">        pose (torch.Tensor): batch of pose matrices with last 2 dimensions of (4, 4)</span>
+<span class="sd">        pose: Batch of pose matrices with last 2 dimensions of (4, 4).</span>
 
 <span class="sd">    Returns:</span>
-<span class="sd">        inv_pose (torch.Tensor): batch of inverse pose matrices with last 2 dimensions of (4, 4)</span>
+<span class="sd">        Batch of inverse pose matrices with last 2 dimensions of (4, 4).</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">pose</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">),</span> <span class="s2">&quot;Input must be a torch tensor&quot;</span>
     <span class="n">num_axes</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">pose</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
@@ -2144,7 +2149,7 @@
 
     <span class="n">inv_pose</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="n">pose</span><span class="p">)</span>
 
-    <span class="c1"># take transpose of last 2 dimensions</span>
+    <span class="c1"># Take transpose of last 2 dimensions</span>
     <span class="n">inv_pose</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="p">:</span><span class="mi">3</span><span class="p">,</span> <span class="p">:</span><span class="mi">3</span><span class="p">]</span> <span class="o">=</span> <span class="n">pose</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="p">:</span><span class="mi">3</span><span class="p">,</span> <span class="p">:</span><span class="mi">3</span><span class="p">]</span><span class="o">.</span><span class="n">transpose</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="mi">2</span><span class="p">)</span>
 
     <span class="c1"># note: PyTorch matmul wants shapes [..., 3, 3] x [..., 3, 1] -&gt; [..., 3, 1] so we add a dimension and take it away after</span>
@@ -2153,35 +2158,40 @@
     <span class="k">return</span> <span class="n">inv_pose</span></div>
 
 
-<div class="viewcode-block" id="pose_in_A_to_pose_in_B"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.utils.html#isaaclab.utils.math.pose_in_A_to_pose_in_B">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">pose_in_A_to_pose_in_B</span><span class="p">(</span><span class="n">pose_in_A</span><span class="p">,</span> <span class="n">pose_A_in_B</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Converts homogeneous matrices corresponding to a point C in frame A</span>
-<span class="sd">    to homogeneous matrices corresponding to the same point C in frame B.</span>
+<div class="viewcode-block" id="pose_in_A_to_pose_in_B"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.utils.html#isaaclab.utils.math.pose_in_A_to_pose_in_B">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">pose_in_A_to_pose_in_B</span><span class="p">(</span><span class="n">pose_in_A</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">pose_A_in_B</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Converts poses from one coordinate frame to another.</span>
+
+<span class="sd">    Transforms matrices representing point C in frame A</span>
+<span class="sd">    to matrices representing the same point C in frame B.</span>
+
+<span class="sd">    Example usage:</span>
+
+<span class="sd">    frame_C_in_B = pose_in_A_to_pose_in_B(frame_C_in_A, frame_A_in_B)</span>
 
 <span class="sd">    Args:</span>
-<span class="sd">        pose_in_A (torch.Tensor): batch of homogeneous matrices corresponding to the pose of C in frame A</span>
-<span class="sd">        pose_A_in_B (torch.Tensor): batch of homogeneous matrices corresponding to the pose of A in frame B</span>
+<span class="sd">        pose_in_A: Batch of transformation matrices of point C in frame A.</span>
+<span class="sd">        pose_A_in_B: Batch of transformation matrices of frame A in frame B.</span>
 
 <span class="sd">    Returns:</span>
-<span class="sd">        pose_in_B (torch.Tensor): batch of homogeneous matrices corresponding to the pose of C in frame B</span>
+<span class="sd">        Batch of transformation matrices of point C in frame B.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">pose_in_A</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">),</span> <span class="s2">&quot;Input must be a torch tensor&quot;</span>
     <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">pose_A_in_B</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">),</span> <span class="s2">&quot;Input must be a torch tensor&quot;</span>
     <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">matmul</span><span class="p">(</span><span class="n">pose_A_in_B</span><span class="p">,</span> <span class="n">pose_in_A</span><span class="p">)</span></div>
 
 
-<div class="viewcode-block" id="quat_slerp"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.utils.html#isaaclab.utils.math.quat_slerp">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">quat_slerp</span><span class="p">(</span><span class="n">q1</span><span class="p">,</span> <span class="n">q2</span><span class="p">,</span> <span class="n">tau</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Spherical linear interpolation (SLERP) between two quaternions.</span>
-<span class="sd">    This function does NOT support batch processing.</span>
+<div class="viewcode-block" id="quat_slerp"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.utils.html#isaaclab.utils.math.quat_slerp">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">quat_slerp</span><span class="p">(</span><span class="n">q1</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">q2</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">tau</span><span class="p">:</span> <span class="nb">float</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Performs spherical linear interpolation (SLERP) between two quaternions.</span>
+
+<span class="sd">    This function does not support batch processing.</span>
 
 <span class="sd">    Args:</span>
-<span class="sd">        q1 (torch.Tensor): The first quaternion (w, x, y, z) format.</span>
-<span class="sd">        q2 (torch.Tensor): The second quaternion (w, x, y, z) format.</span>
-<span class="sd">        tau (float): Interpolation coefficient between 0 (q1) and 1 (q2).</span>
+<span class="sd">        q1: First quaternion in (w, x, y, z) format.</span>
+<span class="sd">        q2: Second quaternion in (w, x, y, z) format.</span>
+<span class="sd">        tau: Interpolation coefficient between 0 (q1) and 1 (q2).</span>
 
 <span class="sd">    Returns:</span>
-<span class="sd">        torch.Tensor: The interpolated quaternion (w, x, y, z) format.</span>
+<span class="sd">        Interpolated quaternion in (w, x, y, z) format.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">q1</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">),</span> <span class="s2">&quot;Input must be a torch tensor&quot;</span>
     <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">q2</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">),</span> <span class="s2">&quot;Input must be a torch tensor&quot;</span>
@@ -2193,7 +2203,7 @@
     <span class="k">if</span> <span class="nb">abs</span><span class="p">(</span><span class="nb">abs</span><span class="p">(</span><span class="n">d</span><span class="p">)</span> <span class="o">-</span> <span class="mf">1.0</span><span class="p">)</span> <span class="o">&lt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">finfo</span><span class="p">(</span><span class="n">q1</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span><span class="o">.</span><span class="n">eps</span> <span class="o">*</span> <span class="mf">4.0</span><span class="p">:</span>
         <span class="k">return</span> <span class="n">q1</span>
     <span class="k">if</span> <span class="n">d</span> <span class="o">&lt;</span> <span class="mf">0.0</span><span class="p">:</span>
-        <span class="c1"># invert rotation</span>
+        <span class="c1"># Invert rotation</span>
         <span class="n">d</span> <span class="o">=</span> <span class="o">-</span><span class="n">d</span>
         <span class="n">q2</span> <span class="o">*=</span> <span class="o">-</span><span class="mf">1.0</span>
     <span class="n">angle</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">acos</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">clamp</span><span class="p">(</span><span class="n">d</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span>
@@ -2206,24 +2216,24 @@
     <span class="k">return</span> <span class="n">q1</span></div>
 
 
-<div class="viewcode-block" id="interpolate_rotations"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.utils.html#isaaclab.utils.math.interpolate_rotations">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">interpolate_rotations</span><span class="p">(</span><span class="n">R1</span><span class="p">,</span> <span class="n">R2</span><span class="p">,</span> <span class="n">num_steps</span><span class="p">,</span> <span class="n">axis_angle</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Interpolate between two rotation matrices.</span>
+<div class="viewcode-block" id="interpolate_rotations"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.utils.html#isaaclab.utils.math.interpolate_rotations">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">interpolate_rotations</span><span class="p">(</span><span class="n">R1</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">R2</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">num_steps</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">axis_angle</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Interpolates between two rotation matrices.</span>
 
 <span class="sd">    Args:</span>
-<span class="sd">        R1 (torch.Tensor): The first rotation matrix (4x4).</span>
-<span class="sd">        R2 (torch.Tensor): The second rotation matrix (4x4).</span>
-<span class="sd">        num_steps (int): The number of desired interpolated rotations (excluding start and end).</span>
-<span class="sd">        axis_angle (bool, optional): If True, interpolate in axis-angle representation. Else, use slerp. Defaults to True.</span>
+<span class="sd">        R1: First rotation matrix. (4x4).</span>
+<span class="sd">        R2: Second rotation matrix. (4x4).</span>
+<span class="sd">        num_steps: Number of desired interpolated rotations (excluding start and end).</span>
+<span class="sd">        axis_angle: If True, interpolate in axis-angle representation;</span>
+<span class="sd">                   otherwise use slerp. Defaults to True.</span>
 
 <span class="sd">    Returns:</span>
-<span class="sd">        torch.Tensor: A stack of interpolated rotation matrices (shape: (num_steps + 1, 4, 4)),</span>
-<span class="sd">                      including the start and end rotations.</span>
+<span class="sd">        Stack of interpolated rotation matrices of shape (num_steps + 1, 4, 4),</span>
+<span class="sd">        including the start and end rotations.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">R1</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">),</span> <span class="s2">&quot;Input must be a torch tensor&quot;</span>
     <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">R2</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">),</span> <span class="s2">&quot;Input must be a torch tensor&quot;</span>
     <span class="k">if</span> <span class="n">axis_angle</span><span class="p">:</span>
-        <span class="c1"># delta rotation expressed as axis-angle</span>
+        <span class="c1"># Delta rotation expressed as axis-angle</span>
         <span class="n">delta_rot_mat</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">matmul</span><span class="p">(</span><span class="n">R2</span><span class="p">,</span> <span class="n">R1</span><span class="o">.</span><span class="n">transpose</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="mi">2</span><span class="p">))</span>
         <span class="n">delta_quat</span> <span class="o">=</span> <span class="n">quat_from_matrix</span><span class="p">(</span><span class="n">delta_rot_mat</span><span class="p">)</span>
         <span class="n">delta_axis_angle</span> <span class="o">=</span> <span class="n">axis_angle_from_quat</span><span class="p">(</span><span class="n">delta_quat</span><span class="p">)</span>
@@ -2231,15 +2241,15 @@
         <span class="c1"># Grab angle</span>
         <span class="n">delta_angle</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">delta_axis_angle</span><span class="p">)</span>
 
-        <span class="c1"># fix the axis, and chunk the angle up into steps</span>
+        <span class="c1"># Fix the axis, and chunk the angle up into steps</span>
         <span class="n">rot_step_size</span> <span class="o">=</span> <span class="n">delta_angle</span> <span class="o">/</span> <span class="n">num_steps</span>
 
-        <span class="c1"># convert into delta rotation matrices, and then convert to absolute rotations</span>
+        <span class="c1"># Convert into delta rotation matrices, and then convert to absolute rotations</span>
         <span class="k">if</span> <span class="n">delta_angle</span> <span class="o">&lt;</span> <span class="mf">0.05</span><span class="p">:</span>
-            <span class="c1"># small angle - don&#39;t bother with interpolation</span>
+            <span class="c1"># Small angle - don&#39;t bother with interpolation</span>
             <span class="n">rot_steps</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">stack</span><span class="p">([</span><span class="n">R2</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_steps</span><span class="p">)])</span>
         <span class="k">else</span><span class="p">:</span>
-            <span class="c1"># make sure that axis is a unit vector</span>
+            <span class="c1"># Make sure that axis is a unit vector</span>
             <span class="n">delta_axis</span> <span class="o">=</span> <span class="n">delta_axis_angle</span> <span class="o">/</span> <span class="n">delta_angle</span>
             <span class="n">delta_rot_steps</span> <span class="o">=</span> <span class="p">[</span>
                 <span class="n">matrix_from_quat</span><span class="p">(</span><span class="n">quat_from_angle_axis</span><span class="p">(</span><span class="n">i</span> <span class="o">*</span> <span class="n">rot_step_size</span><span class="p">,</span> <span class="n">delta_axis</span><span class="p">))</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_steps</span><span class="p">)</span>
@@ -2252,29 +2262,33 @@
             <span class="p">[</span><span class="n">matrix_from_quat</span><span class="p">(</span><span class="n">quat_slerp</span><span class="p">(</span><span class="n">q1</span><span class="p">,</span> <span class="n">q2</span><span class="p">,</span> <span class="n">tau</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="o">/</span> <span class="n">num_steps</span><span class="p">))</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_steps</span><span class="p">)]</span>
         <span class="p">)</span>
 
-    <span class="c1"># add in endpoint</span>
+    <span class="c1"># Add in endpoint</span>
     <span class="n">rot_steps</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">([</span><span class="n">rot_steps</span><span class="p">,</span> <span class="n">R2</span><span class="p">[</span><span class="kc">None</span><span class="p">]],</span> <span class="n">dim</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
 
     <span class="k">return</span> <span class="n">rot_steps</span></div>
 
 
-<div class="viewcode-block" id="interpolate_poses"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.utils.html#isaaclab.utils.math.interpolate_poses">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">interpolate_poses</span><span class="p">(</span><span class="n">pose_1</span><span class="p">,</span> <span class="n">pose_2</span><span class="p">,</span> <span class="n">num_steps</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">step_size</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">perturb</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Linear interpolation between two poses.</span>
+<div class="viewcode-block" id="interpolate_poses"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.utils.html#isaaclab.utils.math.interpolate_poses">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">interpolate_poses</span><span class="p">(</span>
+    <span class="n">pose_1</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">pose_2</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">num_steps</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">step_size</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">perturb</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="nb">int</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Performs linear interpolation between two poses.</span>
 
 <span class="sd">    Args:</span>
-<span class="sd">        pose_1 (torch.tensor): 4x4 start pose</span>
-<span class="sd">        pose_2 (torch.tensor): 4x4 end pose</span>
-<span class="sd">        num_steps (int): if provided, specifies the number of desired interpolated points (not excluding</span>
-<span class="sd">            the start and end points). Passing 0 corresponds to no interpolation, and passing None</span>
-<span class="sd">            means that @step_size must be provided to determine the number of interpolated points.</span>
-<span class="sd">        step_size (float): if provided, will be used to infer the number of steps, by taking the norm</span>
-<span class="sd">            of the delta position vector, and dividing it by the step size</span>
-<span class="sd">        perturb (bool): if True, randomly move all the interpolated position points in a uniform, non-overlapping grid.</span>
+<span class="sd">        pose_1: 4x4 start pose.</span>
+<span class="sd">        pose_2: 4x4 end pose.</span>
+<span class="sd">        num_steps: If provided, specifies the number of desired interpolated points.</span>
+<span class="sd">                  Passing 0 corresponds to no interpolation. If None, step_size must be provided.</span>
+<span class="sd">        step_size: If provided, determines number of steps based on distance between poses.</span>
+<span class="sd">        perturb: If True, randomly perturbs interpolated position points.</span>
 
 <span class="sd">    Returns:</span>
-<span class="sd">        pose_steps (torch.tensor): array of shape (N + 2, 3) corresponding to the interpolated pose path, where N is @num_steps</span>
-<span class="sd">        num_steps (int): the number of interpolated points (N) in the path</span>
+<span class="sd">        Tuple containing:</span>
+<span class="sd">            - Array of shape (N + 2, 4, 4) corresponding to the interpolated pose path.</span>
+<span class="sd">            - Number of interpolated points (N) in the path.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">pose_1</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">),</span> <span class="s2">&quot;Input must be a torch tensor&quot;</span>
     <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">pose_2</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">),</span> <span class="s2">&quot;Input must be a torch tensor&quot;</span>
@@ -2284,7 +2298,7 @@
     <span class="n">pos2</span><span class="p">,</span> <span class="n">rot2</span> <span class="o">=</span> <span class="n">unmake_pose</span><span class="p">(</span><span class="n">pose_2</span><span class="p">)</span>
 
     <span class="k">if</span> <span class="n">num_steps</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
-        <span class="c1"># skip interpolation</span>
+        <span class="c1"># Skip interpolation</span>
         <span class="k">return</span> <span class="p">(</span>
             <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">([</span><span class="n">pos1</span><span class="p">[</span><span class="kc">None</span><span class="p">],</span> <span class="n">pos2</span><span class="p">[</span><span class="kc">None</span><span class="p">]],</span> <span class="n">dim</span><span class="o">=</span><span class="mi">0</span><span class="p">),</span>
             <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">([</span><span class="n">rot1</span><span class="p">[</span><span class="kc">None</span><span class="p">],</span> <span class="n">rot2</span><span class="p">[</span><span class="kc">None</span><span class="p">]],</span> <span class="n">dim</span><span class="o">=</span><span class="mi">0</span><span class="p">),</span>
@@ -2296,51 +2310,48 @@
         <span class="k">assert</span> <span class="n">torch</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">delta_pos</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span>
         <span class="n">num_steps</span> <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">ceil</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">delta_pos</span><span class="p">)</span> <span class="o">/</span> <span class="n">step_size</span><span class="p">)</span>
 
-    <span class="n">num_steps</span> <span class="o">+=</span> <span class="mi">1</span>  <span class="c1"># include starting pose</span>
+    <span class="n">num_steps</span> <span class="o">+=</span> <span class="mi">1</span>  <span class="c1"># Include starting pose</span>
     <span class="k">assert</span> <span class="n">num_steps</span> <span class="o">&gt;=</span> <span class="mi">2</span>
 
-    <span class="c1"># linear interpolation of positions</span>
+    <span class="c1"># Linear interpolation of positions</span>
     <span class="n">pos_step_size</span> <span class="o">=</span> <span class="n">delta_pos</span> <span class="o">/</span> <span class="n">num_steps</span>
     <span class="n">grid</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">num_steps</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
     <span class="k">if</span> <span class="n">perturb</span><span class="p">:</span>
-        <span class="c1"># move the interpolation grid points by up to a half-size forward or backward</span>
+        <span class="c1"># Move interpolation grid points by up to half-size forward or backward</span>
         <span class="n">perturbations</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">rand</span><span class="p">(</span><span class="n">num_steps</span> <span class="o">-</span> <span class="mi">2</span><span class="p">)</span> <span class="o">-</span> <span class="mf">0.5</span>
         <span class="n">grid</span><span class="p">[</span><span class="mi">1</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">+=</span> <span class="n">perturbations</span>
     <span class="n">pos_steps</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">stack</span><span class="p">([</span><span class="n">pos1</span> <span class="o">+</span> <span class="n">grid</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">*</span> <span class="n">pos_step_size</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_steps</span><span class="p">)])</span>
 
-    <span class="c1"># add in endpoint</span>
+    <span class="c1"># Add in endpoint</span>
     <span class="n">pos_steps</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">([</span><span class="n">pos_steps</span><span class="p">,</span> <span class="n">pos2</span><span class="p">[</span><span class="kc">None</span><span class="p">]],</span> <span class="n">dim</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
 
-    <span class="c1"># interpolate the rotations too</span>
+    <span class="c1"># Interpolate rotations</span>
     <span class="n">rot_steps</span> <span class="o">=</span> <span class="n">interpolate_rotations</span><span class="p">(</span><span class="n">R1</span><span class="o">=</span><span class="n">rot1</span><span class="p">,</span> <span class="n">R2</span><span class="o">=</span><span class="n">rot2</span><span class="p">,</span> <span class="n">num_steps</span><span class="o">=</span><span class="n">num_steps</span><span class="p">,</span> <span class="n">axis_angle</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 
     <span class="n">pose_steps</span> <span class="o">=</span> <span class="n">make_pose</span><span class="p">(</span><span class="n">pos_steps</span><span class="p">,</span> <span class="n">rot_steps</span><span class="p">)</span>
     <span class="k">return</span> <span class="n">pose_steps</span><span class="p">,</span> <span class="n">num_steps</span> <span class="o">-</span> <span class="mi">1</span></div>
 
 
-<div class="viewcode-block" id="transform_poses_from_frame_A_to_frame_B"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.utils.html#isaaclab.utils.math.transform_poses_from_frame_A_to_frame_B">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">transform_poses_from_frame_A_to_frame_B</span><span class="p">(</span><span class="n">src_poses</span><span class="p">,</span> <span class="n">frame_A</span><span class="p">,</span> <span class="n">frame_B</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Transform a source data segment (object-centric subtask segment from source demonstration) such that</span>
-<span class="sd">    the relative poses between the target eef pose frame and the object frame are preserved. Recall that</span>
-<span class="sd">    each object-centric subtask segment corresponds to one object, and consists of a sequence of</span>
-<span class="sd">    target eef poses.</span>
+<div class="viewcode-block" id="transform_poses_from_frame_A_to_frame_B"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.utils.html#isaaclab.utils.math.transform_poses_from_frame_A_to_frame_B">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">transform_poses_from_frame_A_to_frame_B</span><span class="p">(</span>
+    <span class="n">src_poses</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">frame_A</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">frame_B</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Transforms poses from one coordinate frame to another preserving relative poses.</span>
 
 <span class="sd">    Args:</span>
-<span class="sd">        src_poses (torch.tensor): Input pose sequence (shape [T, 4, 4]) from the source demonstration</span>
-<span class="sd">        frame_A (torch.tensor): 4x4 frame A pose</span>
-<span class="sd">        frame_B (torch.tensor): 4x4 frame B pose</span>
+<span class="sd">        src_poses: Input pose sequence (shape [T, 4, 4]) from source demonstration.</span>
+<span class="sd">        frame_A: 4x4 frame A pose.</span>
+<span class="sd">        frame_B: 4x4 frame B pose.</span>
 
 <span class="sd">    Returns:</span>
-<span class="sd">        transformed_eef_poses (torch.tensor): transformed pose sequence (shape [T, 4, 4])</span>
+<span class="sd">        Transformed pose sequence of shape [T, 4, 4].</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-
-    <span class="c1"># transform source end effector poses to be relative to source object frame</span>
+    <span class="c1"># Transform source end effector poses to be relative to source object frame</span>
     <span class="n">src_poses_rel_frame_B</span> <span class="o">=</span> <span class="n">pose_in_A_to_pose_in_B</span><span class="p">(</span>
         <span class="n">pose_in_A</span><span class="o">=</span><span class="n">src_poses</span><span class="p">,</span>
         <span class="n">pose_A_in_B</span><span class="o">=</span><span class="n">pose_inv</span><span class="p">(</span><span class="n">frame_B</span><span class="p">[</span><span class="kc">None</span><span class="p">]),</span>
     <span class="p">)</span>
 
-    <span class="c1"># apply relative poses to current object frame to obtain new target eef poses</span>
+    <span class="c1"># Apply relative poses to current object frame to obtain new target eef poses</span>
     <span class="n">transformed_poses</span> <span class="o">=</span> <span class="n">pose_in_A_to_pose_in_B</span><span class="p">(</span>
         <span class="n">pose_in_A</span><span class="o">=</span><span class="n">src_poses_rel_frame_B</span><span class="p">,</span>
         <span class="n">pose_A_in_B</span><span class="o">=</span><span class="n">frame_A</span><span class="p">[</span><span class="kc">None</span><span class="p">],</span>
@@ -2348,15 +2359,14 @@
     <span class="k">return</span> <span class="n">transformed_poses</span></div>
 
 
-<div class="viewcode-block" id="generate_random_rotation"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.utils.html#isaaclab.utils.math.generate_random_rotation">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">generate_random_rotation</span><span class="p">(</span><span class="n">rot_boundary</span><span class="o">=</span><span class="p">(</span><span class="mi">2</span> <span class="o">*</span> <span class="n">math</span><span class="o">.</span><span class="n">pi</span><span class="p">)):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Generates a random rotation matrix using Euler angles.</span>
+<div class="viewcode-block" id="generate_random_rotation"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.utils.html#isaaclab.utils.math.generate_random_rotation">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">generate_random_rotation</span><span class="p">(</span><span class="n">rot_boundary</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="p">(</span><span class="mi">2</span> <span class="o">*</span> <span class="n">math</span><span class="o">.</span><span class="n">pi</span><span class="p">))</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Generates a random rotation matrix using Euler angles.</span>
 
 <span class="sd">    Args:</span>
-<span class="sd">        rot_boundary (float): The range for random rotation angles around each axis (x, y, z).</span>
+<span class="sd">        rot_boundary: Range for random rotation angles around each axis (x, y, z).</span>
 
 <span class="sd">    Returns:</span>
-<span class="sd">        torch.tensor: A 3x3 rotation matrix.</span>
+<span class="sd">        3x3 rotation matrix.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">angles</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">rand</span><span class="p">(</span><span class="mi">3</span><span class="p">)</span> <span class="o">*</span> <span class="n">rot_boundary</span>
     <span class="n">Rx</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span>
@@ -2376,29 +2386,27 @@
     <span class="k">return</span> <span class="n">R</span></div>
 
 
-<div class="viewcode-block" id="generate_random_translation"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.utils.html#isaaclab.utils.math.generate_random_translation">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">generate_random_translation</span><span class="p">(</span><span class="n">pos_boundary</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Generates a random translation vector.</span>
+<div class="viewcode-block" id="generate_random_translation"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.utils.html#isaaclab.utils.math.generate_random_translation">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">generate_random_translation</span><span class="p">(</span><span class="n">pos_boundary</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">1</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Generates a random translation vector.</span>
 
 <span class="sd">    Args:</span>
-<span class="sd">        pos_boundary (float): The range for random translation values in 3D space.</span>
+<span class="sd">        pos_boundary: Range for random translation values in 3D space.</span>
 
 <span class="sd">    Returns:</span>
-<span class="sd">        torch.tensor: A 3-element translation vector.</span>
+<span class="sd">        3-element translation vector.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">rand</span><span class="p">(</span><span class="mi">3</span><span class="p">)</span> <span class="o">*</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">pos_boundary</span> <span class="o">-</span> <span class="n">pos_boundary</span>  <span class="c1"># Random translation in 3D space</span></div>
 
 
-<div class="viewcode-block" id="generate_random_transformation_matrix"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.utils.html#isaaclab.utils.math.generate_random_transformation_matrix">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">generate_random_transformation_matrix</span><span class="p">(</span><span class="n">pos_boundary</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">rot_boundary</span><span class="o">=</span><span class="p">(</span><span class="mi">2</span> <span class="o">*</span> <span class="n">math</span><span class="o">.</span><span class="n">pi</span><span class="p">)):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Generates a random transformation matrix combining rotation and translation.</span>
+<div class="viewcode-block" id="generate_random_transformation_matrix"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.utils.html#isaaclab.utils.math.generate_random_transformation_matrix">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">generate_random_transformation_matrix</span><span class="p">(</span><span class="n">pos_boundary</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span> <span class="n">rot_boundary</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="p">(</span><span class="mi">2</span> <span class="o">*</span> <span class="n">math</span><span class="o">.</span><span class="n">pi</span><span class="p">))</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Generates a random transformation matrix combining rotation and translation.</span>
 
 <span class="sd">    Args:</span>
-<span class="sd">        pos_boundary (float): The range for random translation values.</span>
-<span class="sd">        rot_boundary (float): The range for random rotation angles.</span>
+<span class="sd">        pos_boundary: Range for random translation values.</span>
+<span class="sd">        rot_boundary: Range for random rotation angles.</span>
 
 <span class="sd">    Returns:</span>
-<span class="sd">        torch.tensor: A 4x4 transformation matrix.</span>
+<span class="sd">        4x4 transformation matrix.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">R</span> <span class="o">=</span> <span class="n">generate_random_rotation</span><span class="p">(</span><span class="n">rot_boundary</span><span class="p">)</span>
     <span class="n">translation</span> <span class="o">=</span> <span class="n">generate_random_translation</span><span class="p">(</span><span class="n">pos_boundary</span><span class="p">)</span>
@@ -2456,7 +2464,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Apr 11, 2025.
+  Last updated on Apr 23, 2025.
   <br/>
 </p>
   </div>
