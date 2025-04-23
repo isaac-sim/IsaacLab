@@ -47,12 +47,15 @@ class FrankaCabinetEnvCfg(CabinetEnvCfg):
         # IMPORTANT: The order of the frames in the list is important. The first frame is the tool center point (TCP)
         # the other frames are the fingers
         self.scene.ee_frame = FrameTransformerCfg(
+            # 父坐标系
             prim_path="{ENV_REGEX_NS}/Robot/panda_link0",
             debug_vis=False,
             visualizer_cfg=FRAME_MARKER_SMALL_CFG.replace(prim_path="/Visuals/EndEffectorFrameTransformer"),
             target_frames=[
                 FrameTransformerCfg.FrameCfg(
+                    # 新的虚拟坐标系附着在usd中定义好的panda_hand这个xfrom上
                     prim_path="{ENV_REGEX_NS}/Robot/panda_hand",
+                    # 新的虚拟坐标系名字
                     name="ee_tcp",
                     offset=OffsetCfg(
                         pos=(0.0, 0.0, 0.1034),
@@ -66,9 +69,9 @@ class FrankaCabinetEnvCfg(CabinetEnvCfg):
                     ),
                 ),
                 FrameTransformerCfg.FrameCfg(
-                    prim_path="{ENV_REGEX_NS}/Robot/panda_rightfinger",
-                    name="tool_rightfinger",
-                    offset=OffsetCfg(
+                    prim_path="{ENV_REGEX_NS}/Robot/panda_rightfinger", 
+                    name="tool_rightfinger",   
+                    offset=OffsetCfg(   
                         pos=(0.0, 0.0, 0.046),
                     ),
                 ),

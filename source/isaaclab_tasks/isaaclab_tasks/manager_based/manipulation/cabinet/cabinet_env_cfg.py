@@ -53,11 +53,13 @@ class CabinetSceneCfg(InteractiveSceneCfg):
     ee_frame: FrameTransformerCfg = MISSING
 
     cabinet = ArticulationCfg(
+        # 设置物体的路径，就是在场景树中相对于环境的路径
         prim_path="{ENV_REGEX_NS}/Cabinet",
         spawn=sim_utils.UsdFileCfg(
             usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Sektion_Cabinet/sektion_cabinet_instanceable.usd",
             activate_contact_sensors=False,
         ),
+        # 设置初始状态
         init_state=ArticulationCfg.InitialStateCfg(
             pos=(0.8, 0, 0.4),
             rot=(0.0, 0.0, 0.0, 1.0),
@@ -68,6 +70,7 @@ class CabinetSceneCfg(InteractiveSceneCfg):
                 "drawer_top_joint": 0.0,
             },
         ),
+        # 设置内部关节限制
         actuators={
             "drawers": ImplicitActuatorCfg(
                 joint_names_expr=["drawer_top_joint", "drawer_bottom_joint"],
@@ -86,14 +89,19 @@ class CabinetSceneCfg(InteractiveSceneCfg):
         },
     )
 
-    # Frame definitions for the cabinet.
+    # 获取相对于柜子的变动的一些位置姿态（变换关系）
     cabinet_frame = FrameTransformerCfg(
+        # 设置父坐标系的xform
         prim_path="{ENV_REGEX_NS}/Cabinet/sektion",
         debug_vis=True,
         visualizer_cfg=FRAME_MARKER_SMALL_CFG.replace(prim_path="/Visuals/CabinetFrameTransformer"),
         target_frames=[
+            # 手柄坐标系的名字还是“drawer_handle_top”
             FrameTransformerCfg.FrameCfg(
+                # 手柄坐标系在哪里？它要固定附着在场景中已经存在的参考系，两者“相对位姿固定”
+                # 在这里，用"{ENV_REGEX_NS}/Cabinet/drawer_handle_top"这个xform来作为附着对象
                 prim_path="{ENV_REGEX_NS}/Cabinet/drawer_handle_top",
+                # 手柄的坐标系的名称，它起了一个与prim_path中相同的名字
                 name="drawer_handle_top",
                 offset=OffsetCfg(
                     pos=(0.305, 0.0, 0.01),
@@ -150,6 +158,8 @@ class ObservationsCfg:
             params={"asset_cfg": SceneEntityCfg("cabinet", joint_names=["drawer_top_joint"])},
         )
         rel_ee_drawer_distance = ObsTerm(func=mdp.rel_ee_drawer_distance)
+        
+        
 
         actions = ObsTerm(func=mdp.last_action)
 
