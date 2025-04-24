@@ -80,6 +80,7 @@ Table of Contents
    source/setup/quickstart
    source/setup/installation/index
    source/setup/installation/cloud_installation
+   source/setup/walkthrough/index
 
 .. toctree::
    :maxdepth: 3
