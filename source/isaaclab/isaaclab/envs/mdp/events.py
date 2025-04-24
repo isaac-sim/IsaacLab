@@ -392,6 +392,7 @@ def randomize_rigid_body_com(
 
     # Set the new coms
     asset.root_physx_view.set_coms(coms, env_ids)
+
     
 def randomize_rigid_body_collider_offsets(
     env: ManagerBasedEnv,
@@ -418,6 +419,11 @@ def randomize_rigid_body_collider_offsets(
     """
     # extract the used quantities (to enable type-hinting)
     asset: RigidObject | Articulation = env.scene[asset_cfg.name]
+
+    # resolve environment ids
+    if env_ids is None:
+        env_ids = torch.arange(env.scene.num_envs, device="cpu")
+
     # sample collider properties from the given ranges and set into the physics simulation
     # -- rest offsets
     if rest_offset_distribution_params is not None:
