@@ -253,6 +253,23 @@ def execute_job(
                         "proc": process,
                         "result": " ".join(result_details),
                     }
+        if extract_experiment and not (experiment_name and logdir):
+            error_msg = (
+                "Could not extract experiment_name/logdir from trainer output "
+                f"(experiment_name={experiment_name!r}, logdir={logdir!r}). "
+                "Make sure your training script prints the following correctly:\n\n"
+                "\t\tExact experiment name requested from command line: <name>\n"
+                "\t\t[INFO] Logging experiment in directory: <logdir>\n\n"
+            )
+            print(f"[ERROR]: {error_msg}")
+            process.terminate()
+            try:
+                process.wait(timeout=20)
+            except subprocess.TimeoutExpired:
+                print("[ERROR]: The training workflow process did not terminate within timeout duration")
+                process.kill()
+                process.wait()
+            raise RuntimeError("Could not extract experiment_name/logdir from trainer output.")
         process.wait()
         now = datetime.now().strftime("%H:%M:%S.%f")
         completion_info = f"\n[INFO]: {identifier_string}: Job Started at {start_time}, completed at {now}\n"
