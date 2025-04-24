@@ -229,6 +229,8 @@ def invoke_tuning_run(cfg: dict, args: argparse.Namespace) -> None:
         IsaacLabTuneTrainable,
         param_space=cfg,
         tune_config=tune.TuneConfig(
+            metric=args.metric,
+            mode=args.mode,
             search_alg=repeat_search,
             num_samples=args.num_samples,
             reuse_actors=True,

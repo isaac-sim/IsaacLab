@@ -26,6 +26,12 @@ def load_tensorboard_logs(directory: str) -> dict:
         The latest available scalar values.
     """
 
+    # replace any non-alnum/underscore/dot with "_", then collapse runs of "_"
+    def replace_invalid_chars(t):
+        t2 = re.sub(r"[^0-9A-Za-z_./]", "_", t)
+        t2 = re.sub(r"_+", "_", t2)
+        return t2.strip("_")
+
     # Initialize the event accumulator with a size guidance for only the latest entry
     def get_latest_scalars(path: str) -> dict:
         event_acc = EventAccumulator(path, size_guidance={"scalars": 1})
@@ -33,7 +39,7 @@ def load_tensorboard_logs(directory: str) -> dict:
             event_acc.Reload()
             if event_acc.Tags()["scalars"]:
                 return {
-                    tag: event_acc.Scalars(tag)[-1].value
+                    replace_invalid_chars(tag): event_acc.Scalars(tag)[-1].value
                     for tag in event_acc.Tags()["scalars"]
                     if event_acc.Scalars(tag)
                 }
