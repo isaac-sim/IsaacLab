@@ -5,6 +5,7 @@
 import argparse
 import importlib.util
 import os
+import subprocess
 import sys
 from time import sleep, time
 
@@ -57,6 +58,7 @@ BASE_DIR = os.path.expanduser("~")
 PYTHON_EXEC = "./isaaclab.sh -p"
 WORKFLOW = "scripts/reinforcement_learning/rl_games/train.py"
 NUM_WORKERS_PER_NODE = 1  # needed for local parallelism
+DATA_FREEZE_DURATION_THRESHOLD = 180.0  # seconds to wait with no new tensorboard scalars before killing the process
 
 
 class IsaacLabTuneTrainable(tune.Trainable):
@@ -71,7 +73,6 @@ class IsaacLabTuneTrainable(tune.Trainable):
         """Get the invocation command, return quick for easy scheduling."""
         self.data = None
         self.data_freeze_duration = 0.0
-        self._DATA_FREEZE_DURATION_THRESHOLD = 180.0
         self.invoke_cmd = util.get_invocation_command_from_cfg(cfg=config, python_cmd=PYTHON_EXEC, workflow=WORKFLOW)
         print(f"[INFO]: Recovered invocation with {self.invoke_cmd}")
         self.experiment = None
@@ -127,16 +128,19 @@ class IsaacLabTuneTrainable(tune.Trainable):
                     proc_status = self.proc.poll()
                     if proc_status is not None:
                         break
-                    if (
-                        self.data_freeze_duration > self._DATA_FREEZE_DURATION_THRESHOLD
-                    ):  # If the data is not updated for this long, terminate the process
+                    if self.data_freeze_duration > DATA_FREEZE_DURATION_THRESHOLD:
                         self.data_freeze_duration = 0.0
+                        print("[INFO]: Training workflow process frozen, terminating...")
                         self.proc.terminate()
                         try:
-                            retcode = self.proc.wait(timeout=20)
-                            print("[INFO]: Process return code after terminate():", retcode)
-                        except Exception as e:
-                            raise RuntimeError(f"The frozen process did not terminate within timeout duration: {e}")
+                            self.proc.wait(timeout=20)
+                        except subprocess.TimeoutExpired:
+                            print(
+                                "[ERROR]: The frozen training workflow process did not terminate within timeout"
+                                " duration"
+                            )
+                            self.proc.kill()
+                            self.proc.wait()
                         self.data = data
                         self.data["done"] = True
                         return self.data
@@ -332,8 +336,19 @@ if __name__ == "__main__":
         default=3,
         help="How many times to repeat each hyperparameter config.",
     )
+    parser.add_argument(
+        "--data-freeze-threshold",
+        type=float,
+        default=DATA_FREEZE_DURATION_THRESHOLD,
+        help="Seconds to wait with no new tensorboard scalars before terminating the training workflow process",
+    )
 
     args = parser.parse_args()
+    DATA_FREEZE_DURATION_THRESHOLD = args.data_freeze_threshold
+    print(
+        "[INFO]: The time to wait with no new tensorboard scalars before (early) terminating the training "
+        f"workflow process is set to {DATA_FREEZE_DURATION_THRESHOLD} seconds."
+    )
     NUM_WORKERS_PER_NODE = args.num_workers_per_node
     print(f"[INFO]: Using {NUM_WORKERS_PER_NODE} workers per node.")
     if args.run_mode == "remote":
