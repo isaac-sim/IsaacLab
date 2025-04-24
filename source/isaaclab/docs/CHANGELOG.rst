@@ -1,8 +1,17 @@
 Changelog
 ---------
 
-0.36.6 (2025-04-09)
-~~~~~~~~~~~~~~~~~~~
+0.36.21 (2025-04-15)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Removed direct call of qpsovlers library from pink_ik controller and changed solver from quadprog to osqp.
+
+
+0.36.20 (2025-04-09)
+~~~~~~~~~~~~~~~~~~~~
 
 Changed
 ^^^^^^^
@@ -12,17 +21,54 @@ Changed
   the cuda device, which results in NCCL errors on distributed setups.
 
 
-0.36.5 (2025-04-01)
-~~~~~~~~~~~~~~~~~~~
+0.36.19 (2025-04-01)
+~~~~~~~~~~~~~~~~~~~~
 
 Fixed
 ^^^^^
 
-* Adds check in RecorderManager to ensure that the success indicator is only set if the termination manager is present.
+* Added check in RecorderManager to ensure that the success indicator is only set if the termination manager is present.
 
 
-0.36.4 (2025-03-24)
-~~~~~~~~~~~~~~~~~~~
+0.36.18 (2025-03-26)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added a dynamic text instruction widget that provides real-time feedback
+  on the number of successful recordings during demonstration sessions.
+
+
+0.36.17 (2025-03-26)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Added override in AppLauncher to apply patch for ``pxr.Gf.Matrix4d`` to work with Pinocchio 2.7.0.
+
+
+0.36.16 (2025-03-25)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Modified rendering mode default behavior when the launcher arg :attr:`enable_cameras` is not set.
+
+
+0.36.15 (2025-03-25)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added near plane distance configuration for XR device.
+
+
+0.36.14 (2025-03-24)
+~~~~~~~~~~~~~~~~~~~~
 
 Changed
 ^^^^^^^
@@ -31,8 +77,26 @@ Changed
   the default settings will be used from the experience files and the double definition is removed.
 
 
-0.36.3 (2025-03-17)
-~~~~~~~~~~~~~~~~~~~
+0.36.13 (2025-03-24)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added headpose support to OpenXRDevice.
+
+
+0.36.12 (2025-03-19)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added parameter to show warning if Pink IK solver fails to find a solution.
+
+
+0.36.11 (2025-03-19)
+~~~~~~~~~~~~~~~~~~~~
 
 Fixed
 ^^^^^
@@ -41,17 +105,100 @@ Fixed
   :attr:`effort_limit` is set.
 
 
-0.36.2 (2025-03-12)
+0.36.10 (2025-03-17)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* App launcher to update the cli arguments if conditional defaults are used.
+
+
+0.36.9 (2025-03-18)
 ~~~~~~~~~~~~~~~~~~~
 
 Added
+^^^^^^^
+
+* Xr rendering mode, which is default when xr is used.
+
+
+0.36.8 (2025-03-17)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
 ^^^^^
 
-* Added a new event mode called "prestartup", which gets called right after the scene design is complete
-  and before the simulation is played.
-* Added a callback to resolve the scene entity configurations separately once the simulation plays,
-  since the scene entities cannot be resolved before the simulation starts playing
-  (as we currently rely on PhysX to provide us with the joint/body ordering)
+* Removed ``scalar_first`` from scipy function usage to support older versions of scipy.
+
+
+0.36.7 (2025-03-14)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Changed the import structure to only import ``pinocchio`` when ``pink-ik`` or ``dex-retargeting`` is being used.
+  This also solves for the problem that ``pink-ik`` and ``dex-retargeting`` are not supported in windows.
+* Removed ``isaacsim.robot_motion.lula`` and ``isaacsim.robot_motion.motion_generation`` from the default loaded Isaac Sim extensions.
+* Moved pink ik action config to a separate file.
+
+
+0.36.6 (2025-03-13)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Worked around an issue where the render mode is set to ``"RayTracedLighting"`` instead of ``"RaytracedLighting"`` by
+  some dependencies.
+
+
+0.36.5 (2025-03-11)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^^^
+
+* Added 3 rendering mode presets: performance, balanced, and quality.
+* Preset settings are stored in ``apps/rendering_modes``.
+* Presets can be set with cli arg ``--rendering_mode`` or with :class:`RenderCfg`.
+* Preset rendering settings can be overwritten with :class:`RenderCfg`.
+* :class:`RenderCfg` supports all native RTX carb settings.
+
+Changed
+^^^^^^^
+* :class:`RenderCfg` default settings are unset.
+
+
+0.36.4 (2025-03-11)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated the OpenXR kit file ``isaaclab.python.xr.openxr.kit`` to inherit from ``isaaclab.python.kit`` instead of
+  ``isaaclab.python.rendering.kit`` which is not appropriate.
+
+
+0.36.3 (2025-03-10)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Added the PinkIKController controller class that interfaces Isaac Lab with the Pink differential inverse kinematics solver
+  to allow control of multiple links in a robot using a single solver.
+
+
+0.36.2 (2025-03-07)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Allowed users to exit on 1 Ctrl+C instead of consecutive 2 key strokes.
+* Allowed physics reset during simulation through :meth:`reset` in :class:`~isaaclab.sim.SimulationContext`.
 
 
 0.36.1 (2025-03-10)
@@ -118,8 +265,33 @@ Changed
   * ``set_fixed_tendon_limit`` → ``set_fixed_tendon_position_limit``
 
 
-0.34.9 (2025-03-04)
-~~~~~~~~~~~~~~~~~~~
+0.34.13 (2025-03-06)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added a new event mode called "prestartup", which gets called right after the scene design is complete
+  and before the simulation is played.
+* Added a callback to resolve the scene entity configurations separately once the simulation plays,
+  since the scene entities cannot be resolved before the simulation starts playing
+  (as we currently rely on PhysX to provide us with the joint/body ordering)
+
+
+0.34.12 (2025-03-06)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Updated the mimic API :meth:`target_eef_pose_to_action` in :class:`isaaclab.envs.ManagerBasedRLMimicEnv` to take a dictionary of
+  eef noise values instead of a single noise value.
+* Added support for optional subtask constraints based on DexMimicGen to the mimic configuration class :class:`isaaclab.envs.MimicEnvCfg`.
+* Enabled data compression in HDF5 dataset file handler :class:`isaaclab.utils.datasets.hdf5_dataset_file_handler.HDF5DatasetFileHandler`.
+
+
+0.34.11 (2025-03-04)
+~~~~~~~~~~~~~~~~~~~~
 
 Fixed
 ^^^^^
@@ -129,8 +301,8 @@ Fixed
   outputs are requested.
 
 
-0.34.8 (2025-03-04)
-~~~~~~~~~~~~~~~~~~~
+0.34.10 (2025-03-04)
+~~~~~~~~~~~~~~~~~~~~
 
 Fixed
 ^^^^^
@@ -139,7 +311,7 @@ Fixed
   with other modalities such as RGBA and depth.
 
 
-0.34.7 (2025-03-04)
+0.34.9 (2025-03-04)
 ~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -151,7 +323,7 @@ Added
   which didn't allow setting the joint position and velocity separately.
 
 
-0.34.6 (2025-03-02)
+0.34.8 (2025-03-02)
 ~~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -162,7 +334,7 @@ Fixed
   was always set to False, which led to incorrect contact sensor settings for the spawned assets.
 
 
-0.34.5 (2025-03-02)
+0.34.7 (2025-03-02)
 ~~~~~~~~~~~~~~~~~~~
 
 Changed
@@ -180,7 +352,7 @@ Removed
 * Removed the attribute ``disable_contact_processing`` from :class:`~isaaclab.sim.SimulationContact`.
 
 
-0.34.4 (2025-03-01)
+0.34.6 (2025-03-01)
 ~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -209,7 +381,7 @@ Changed
   they should use the :attr:`isaaclab.actuators.ImplicitActuatorCfg.velocity_limit_sim` attribute instead.
 
 
-0.34.3 (2025-02-28)
+0.34.5 (2025-02-28)
 ~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -218,6 +390,26 @@ Added
 * Added IP address support for WebRTC livestream to allow specifying IP address to stream across networks.
   This feature requires an updated livestream extension, which is current only available in the pre-built Isaac Lab 2.0.1 docker image.
   Support for other Isaac Sim builds will become available in Isaac Sim 5.0.
+
+
+0.34.4 (2025-02-27)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Refactored retargeting code from Se3Handtracking class into separate modules for better modularity
+* Added scaffolding for developing additional retargeters (e.g. dex)
+
+
+0.34.3 (2025-02-26)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Enablec specifying the placement of the simulation when viewed in an XR device. This is achieved by
+  adding an ``XrCfg`` environment configuration with ``anchor_pos`` and ``anchor_rot`` parameters.
 
 
 0.34.2 (2025-02-21)

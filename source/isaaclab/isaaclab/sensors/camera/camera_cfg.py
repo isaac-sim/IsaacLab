@@ -119,14 +119,16 @@ class CameraCfg(SensorBaseCfg):
     """Dictionary mapping semantics to specific colours
 
     Eg.
-    ```
-    {
-        "class:cube_1": (255, 36, 66, 255),
-        "class:cube_2": (255, 184, 48, 255),
-        "class:cube_3": (55, 255, 139, 255),
-        "class:table": (255, 237, 218, 255),
-        "class:ground": (100, 100, 100, 255),
-        "class:robot": (61, 178, 255, 255),
-    }
-    ```
+
+    .. code-block:: python
+
+        {
+            "class:cube_1": (255, 36, 66, 255),
+            "class:cube_2": (255, 184, 48, 255),
+            "class:cube_3": (55, 255, 139, 255),
+            "class:table": (255, 237, 218, 255),
+            "class:ground": (100, 100, 100, 255),
+            "class:robot": (61, 178, 255, 255),
+        }
+
     """
