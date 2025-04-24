@@ -31,7 +31,7 @@ async def run_data_generator(
     success_term: Any,
     pause_subtask: bool = False,
 ):
-    """Run data generator."""
+    """Run data generator.运行数据生成器，异步生成数据并记录生成结果"""
     global num_success, num_failures, num_attempts
     while True:
         results = await data_generator.generate(
@@ -175,17 +175,18 @@ def setup_async_generation(
         List of asyncio tasks for data generation
     """
     asyncio_event_loop = asyncio.get_event_loop()
-    env_action_queue = asyncio.Queue()
-    shared_datagen_info_pool_lock = asyncio.Lock()
-    shared_datagen_info_pool = DataGenInfoPool(
+    env_action_queue = asyncio.Queue() # 创建异步队列
+    shared_datagen_info_pool_lock = asyncio.Lock() # 创建异步锁
+    shared_datagen_info_pool = DataGenInfoPool( # 创建数据生成信息池
         env.unwrapped, env.unwrapped.cfg, env.unwrapped.device, asyncio_lock=shared_datagen_info_pool_lock
     )
-    shared_datagen_info_pool.load_from_dataset_file(input_file)
+    shared_datagen_info_pool.load_from_dataset_file(input_file) # 从数据集中加载数据生成信息
     print(f"Loaded {shared_datagen_info_pool.num_datagen_infos} to datagen info pool")
 
     # Create and schedule data generator tasks
     data_generator = DataGenerator(env=env.unwrapped, src_demo_datagen_info_pool=shared_datagen_info_pool)
     data_generator_asyncio_tasks = []
+    # 创建n个数据生成器的“运行器”，运行器 包含了环境、用于保存动作序列的容器、生成器、成功条件等
     for i in range(num_envs):
         task = asyncio_event_loop.create_task(
             run_data_generator(env, i, env_action_queue, data_generator, success_term, pause_subtask=pause_subtask)

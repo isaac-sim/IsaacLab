@@ -405,8 +405,11 @@ class WaypointTrajectory:
                     play_action = play_action.unsqueeze(0)  # Reshape to [1, 7]
 
                 if env_action_queue is None:
+                    # 如果没有使用异步环境，则直接执行动作
                     obs, _, _, _, _ = env.step(play_action)
                 else:
+                    # 否则将生成的动作存入队列
+                    # 以便在异步环境中使用
                     await env_action_queue.put((env_id, play_action[0]))
                     await env_action_queue.join()
                     obs = env.obs_buf
@@ -428,3 +431,6 @@ class WaypointTrajectory:
             success=success,
         )
         return results
+    
+    
+    

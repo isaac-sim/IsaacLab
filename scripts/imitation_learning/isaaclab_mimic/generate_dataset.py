@@ -63,7 +63,7 @@ def main():
     output_dir, output_file_name = setup_output_paths(args_cli.output_file)
     env_name = args_cli.task or get_env_name_from_dataset(args_cli.input_file)
 
-    # Configure environment
+    # Configure environment  
     env_cfg, success_term = setup_env_config(
         env_name=env_name,
         output_dir=output_dir,
@@ -87,10 +87,10 @@ def main():
     # Setup and run async data generation
     async_components = setup_async_generation(
         env=env,
-        num_envs=args_cli.num_envs,
-        input_file=args_cli.input_file,
-        success_term=success_term,
-        pause_subtask=args_cli.pause_subtask,
+        num_envs=args_cli.num_envs, # 并发环境数量
+        input_file=args_cli.input_file,  # 输入数据集文件
+        success_term=success_term, # 成功终止条件
+        pause_subtask=args_cli.pause_subtask, # 是否在每个子任务后暂停
     )
 
     try:

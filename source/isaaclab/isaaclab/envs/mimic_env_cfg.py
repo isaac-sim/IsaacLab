@@ -78,16 +78,21 @@ class SubTaskConfig:
     """
     Configuration settings specific to the management of individual
     subtasks.
+    IsaacLab认为，一整条轨迹，可以被分解为多个子任务，例如“伸手去抓”，“拿起来”等，类似于
+    从当前的位置执行到下个一离散路点的动作。每个子任务都有一个起始点和终止点，起始点是当前的状态，终止点是下一个。
+    
+    而这个类，就是对每个子任务片段的配置设置；
+    
     """
 
     ##############################################################
     # Mandatory options that should be defined for every subtask
 
     # Reference to the object involved in this subtask, None if no
-    # object is involved (this is rarely the case).
+    # object is involved (this is rarely the case).这个子任务涉及的参考物体（用于姿态对齐）
     object_ref: str = None
 
-    # Signal for subtask termination
+    # Signal for subtask termination 哪个 termination signal 表示子任务完成
     subtask_term_signal: str = None
 
     ##############################################################

@@ -70,7 +70,7 @@ class DataGenerator:
 
     def __repr__(self):
         """
-        Pretty print this object.
+        Pretty print this object.用于调试或打印
         """
         msg = str(self.__class__.__name__)
         msg += " (\n\tdataset_path={}\n\tdemo_keys={}\n)".format(
@@ -84,6 +84,7 @@ class DataGenerator:
         Apply random offsets to sample subtask boundaries according to the task spec.
         Recall that each demonstration is segmented into a set of subtask segments, and the
         end index of each subtask can have a random offset.
+        为每个演示的子任务边界应用随机偏移，生成新的子任务分割
         """
 
         # initial subtask start and end indices - shape (N, S, 2)
@@ -117,17 +118,18 @@ class DataGenerator:
 
     def select_source_demo(
         self,
-        eef_pose,
-        object_pose,
-        subtask_ind,
-        src_subtask_inds,
-        subtask_object_name,
-        selection_strategy_name,
-        selection_strategy_kwargs=None,
+        eef_pose, # 当前末端执行器位姿
+        object_pose, # 当前子任务对象的姿态
+        subtask_ind,  # 子任务索引，没用到
+        src_subtask_inds, # 源参考demo的子任务索引
+        subtask_object_name, # 子任务的参考对象名称
+        selection_strategy_name, # 选择策略名称（如随机选择）
+        selection_strategy_kwargs=None, # 所选择策略的额外参数
     ):
         """
+        根据当前状态和策略选择一个源演示，用于指导子任务的轨迹生成。
         Helper method to run source subtask segment selection.
-
+    
         Args:
             eef_pose (np.array): current end effector pose
             object_pose (np.array): current object pose for this subtask
@@ -204,7 +206,7 @@ class DataGenerator:
     ):
         """
         Attempt to generate a new demonstration.
-
+        异步生成一条新的演示轨迹，包含状态、动作和观测数据
         Args:
             env_id (int): environment ID
 
@@ -264,15 +266,21 @@ class DataGenerator:
         )  # like @generated_src_demo_inds, but padded to align with size of @generated_actions
 
         prev_src_demo_datagen_info_pool_size = 0
+        
+        # 遍历每个子任务（一个 episode 可能包含多个子任务）
+        # 每次处理一个小阶段（如“移动到积木”、“抓积木”）
         for subtask_ind in range(len(self.subtask_configs)):
 
             # some things only happen on first subtask
+            # 是不是第一个子任务
             is_first_subtask = subtask_ind == 0
 
             # name of object for this subtask
+            # 当前子任务的参考对象名称（类似于路点附着在哪个物体上）
             subtask_object_name = self.subtask_configs[subtask_ind].object_ref
 
             # corresponding current object pose
+            # 当前子任务的参考对象的当前位姿
             cur_object_pose = (
                 self.env.get_object_poses(env_ids=[env_id])[subtask_object_name][0]
                 if (subtask_object_name is not None)
@@ -293,6 +301,8 @@ class DataGenerator:
                 need_source_demo_selection = is_first_subtask or select_src_per_subtask
 
                 # Run source demo selection or use selected demo from previous iteration
+                # 在源 demo 池中找到一个适合当前子任务的段落
+                # 比如我们要做“抓物体”，那就找历史上也在抓同一个物体的位置段
                 if need_source_demo_selection:
                     selected_src_demo_ind = self.select_source_demo(
                         eef_pose=self.env.get_robot_eef_pose(eef_name, env_ids=[env_id])[0],
@@ -311,6 +321,7 @@ class DataGenerator:
                 # get subtask segment, consisting of the sequence of robot eef poses, target poses, gripper actions
                 src_ep_datagen_info = self.src_demo_datagen_info_pool.datagen_infos[selected_src_demo_ind]
 
+            # 从源演示中获取子任务段
             src_subtask_eef_poses = src_ep_datagen_info.eef_pose[
                 selected_src_subtask_inds[0] : selected_src_subtask_inds[1]
             ]
@@ -399,6 +410,7 @@ class DataGenerator:
             traj_to_execute.pop_first()
 
             # Execute the trajectory and collect data.
+            # 执行轨迹并收集数据
             exec_results = await traj_to_execute.execute(
                 env=self.env, env_id=env_id, env_action_queue=env_action_queue, success_term=success_term
             )
