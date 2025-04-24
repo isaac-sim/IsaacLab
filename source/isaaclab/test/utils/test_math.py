@@ -598,6 +598,58 @@ class TestMathUtilities(unittest.TestCase):
             np.testing.assert_array_almost_equal(result_quat, expected_quat, decimal=DECIMAL_PRECISION)
             np.testing.assert_array_almost_equal(result_pos, expected_pos, decimal=DECIMAL_PRECISION)
 
+    def test_euler_xyz_from_quat(self):
+        """Test euler_xyz_from_quat function.
+
+        This test checks the output from the :meth:`~isaaclab.utils.math_utils.euler_xyz_from_quat` function
+        against the expected output for various quaternions.
+        The test includes quaternions representing different rotations around the x, y, and z axes.
+        The test is performed for both the default output range (-π, π] and the wrapped output range [0, 2π).
+        """
+        quats = [
+            torch.Tensor([[1.0, 0.0, 0.0, 0.0]]),  # 0° around x, y, z
+            torch.Tensor([
+                [0.9238795, 0.3826834, 0.0, 0.0],  # 45° around x
+                [0.9238795, 0.0, -0.3826834, 0.0],  # -45° around y
+                [0.9238795, 0.0, 0.0, -0.3826834],  # -45° around z
+            ]),
+            torch.Tensor([
+                [0.7071068, -0.7071068, 0.0, 0.0],  # -90° around x
+                [0.7071068, 0.0, 0.0, -0.7071068],  # -90° around z
+            ]),
+            torch.Tensor([
+                [0.3826834, -0.9238795, 0.0, 0.0],  # -135° around x
+                [0.3826834, 0.0, 0.0, -0.9238795],  # -135° around y
+            ]),
+        ]
+
+        expected_euler_angles = [
+            torch.Tensor([[0.0, 0.0, 0.0]]),  # identity
+            torch.Tensor([
+                [torch.pi / 4, 0.0, 0.0],  # 45° about x
+                [0.0, -torch.pi / 4, 0.0],  # -45° about y
+                [0.0, 0.0, -torch.pi / 4],  # -45° about z
+            ]),
+            torch.Tensor([
+                [-torch.pi / 2, 0.0, 0.0],  # -90° about x
+                [0.0, 0.0, -torch.pi / 2],  # -90° about z
+            ]),
+            torch.Tensor([
+                [-3 * torch.pi / 4, 0.0, 0.0],  # -135° about x
+                [0.0, 0.0, -3 * torch.pi / 4],  # -135° about y
+            ]),
+        ]
+
+        # Test 1: default no-wrap range from (-π, π]
+        for quat, expected in zip(quats, expected_euler_angles):
+            output = torch.stack(math_utils.euler_xyz_from_quat(quat), dim=-1)
+            torch.testing.assert_close(output, expected)
+
+        # Test 2: wrap to [0, 2π)
+        for quat, expected in zip(quats, expected_euler_angles):
+            wrapped = expected % (2 * torch.pi)
+            output = torch.stack(math_utils.euler_xyz_from_quat(quat, wrap_to_2pi=True), dim=-1)
+            torch.testing.assert_close(output, wrapped)
 
 if __name__ == "__main__":
     run_tests()

@@ -96,6 +96,7 @@ Guidelines for modifications:
 * Rosario Scalise
 * Ryley McCarroll
 * Shafeef Omar
+* Shaoshu Su
 * Shundo Kishi
 * Stephan Pleines
 * Tyler Lum
