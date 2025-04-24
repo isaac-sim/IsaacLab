@@ -1,0 +1,1 @@
+"Mobile manipulation cabinet task"

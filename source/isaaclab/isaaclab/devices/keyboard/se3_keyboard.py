@@ -186,3 +186,215 @@ class Se3Keyboard(DeviceBase):
             "C": np.asarray([0.0, 0.0, 1.0]) * self.rot_sensitivity,
             "V": np.asarray([0.0, 0.0, -1.0]) * self.rot_sensitivity,
         }
+
+
+class Se3Keyboard_BMM(DeviceBase):
+    """A keyboard controller for sending SE(3) commands for two arms and 2D commands for a mobile base."""
+
+    def __init__(self, pos_sensitivity: float = 1, rot_sensitivity: float = 1, base_sensitivity: float = 0.3):
+        """Initialize the keyboard layer.
+
+        Args:
+            pos_sensitivity: Magnitude of input position command scaling for arms.
+            rot_sensitivity: Magnitude of input rotation command scaling for arms.
+            base_sensitivity: Magnitude of input command scaling for the mobile base.
+        """
+        # store inputs
+        self.pos_sensitivity = pos_sensitivity
+        self.rot_sensitivity = rot_sensitivity
+        self.base_sensitivity = base_sensitivity
+
+        # acquire omniverse interfaces
+        self._appwindow = omni.appwindow.get_default_app_window()
+        self._input = carb.input.acquire_input_interface()
+        self._keyboard = self._appwindow.get_keyboard()
+
+        # note: Use weakref on callbacks to ensure that this object can be deleted when its destructor is called.
+        self._keyboard_sub = self._input.subscribe_to_keyboard_events(
+            self._keyboard,
+            lambda event, *args, obj=weakref.proxy(self): obj._on_keyboard_event(event, *args),
+        )
+        self._key_hold_start = {}  # Track when a key is pressed
+        self._base_z_accum = 0.0   # Accumulated vertical motion for base
+
+        # bindings for keyboard to command
+        self._create_key_bindings()
+
+        # command buffers
+        self._close_gripper_left = False
+        self._close_gripper_right = False
+        self._delta_pos_left = np.zeros(3)  # (x, y, z) for left arm
+        self._delta_rot_left = np.zeros(3)  # (roll, pitch, yaw) for left arm
+        self._delta_pos_right = np.zeros(3)  # (x, y, z) for right arm
+        self._delta_rot_right = np.zeros(3)  # (roll, pitch, yaw) for right arm
+        self._delta_base = np.zeros(3)  # (x, y, yaw) for mobile base
+
+        # dictionary for additional callbacks
+        self._additional_callbacks = dict()
+
+    def __del__(self):
+        """Release the keyboard interface."""
+        self._input.unsubscribe_from_keyboard_events(self._keyboard, self._keyboard_sub)
+        self._keyboard_sub = None
+
+    def reset(self):
+        """Reset all commands."""
+        self._close_gripper_left = False
+        self._close_gripper_right = False
+        self._delta_pos_left = np.zeros(3)
+        self._delta_rot_left = np.zeros(3)
+        self._delta_pos_right = np.zeros(3)
+        self._delta_rot_right = np.zeros(3)
+        self._delta_base = np.zeros(3)
+        self._base_z_accum = 0.0
+        self._key_hold_start = {}  # Reset key hold tracking
+
+    def __str__(self) -> str:
+        """Returns: A string containing the information of joystick."""
+        msg = f"Keyboard Controller for SE(3): {self.__class__.__name__}\n"
+        msg += f"\tKeyboard name: {self._input.get_keyboard_name(self._keyboard)}\n"
+        msg += "\t----------------------------------------------\n"
+
+    def add_callback(self, key: str, func: Callable):
+        """Add additional functions to bind keyboard.
+
+        A list of available keys are present in the
+        `carb documentation <https://docs.omniverse.nvidia.com/dev-guide/latest/programmer_ref/input-devices/keyboard.html>`__.
+
+        Args:
+            key: The keyboard button to check against.
+            func: The function to call when key is pressed. The callback function should not
+                take any arguments.
+        """
+        self._additional_callbacks[key] = func
+
+    def advance(self) -> tuple[np.ndarray, bool, np.ndarray, bool, np.ndarray]:
+        """Provides the result from keyboard event state.
+
+        Returns:
+            A tuple containing the delta pose commands for left arm, right arm, and mobile base.
+        """
+        # convert to rotation vectors
+        rot_vec_left = Rotation.from_euler("XYZ", self._delta_rot_left).as_rotvec()
+        rot_vec_right = Rotation.from_euler("XYZ", self._delta_rot_right).as_rotvec()
+        # return the commands
+        return (
+            np.concatenate([self._delta_pos_left, rot_vec_left]),  # Left arm
+            self._close_gripper_left,  # Left gripper
+            np.concatenate([self._delta_pos_right, rot_vec_right]),  # Right arm
+            self._close_gripper_right,  # Right gripper
+            self._delta_base,  # Mobile base
+        )
+
+    def _on_keyboard_event(self, event, *args, **kwargs):
+        """Subscriber callback to handle keyboard events."""
+        # apply the command when pressed
+
+        key = str(event.input)[-1]
+        # ipdb.set_trace()
+        now = time.time()
+
+        print(self._base_z_accum)
+
+
+        if event.type == carb.input.KeyboardEventType.KEY_PRESS:
+            # if event.input.name == "Y":
+            #     self.reset()
+            # Right arm
+            if event.input.name == "B":
+                self._close_gripper_left = not self._close_gripper_left
+            elif event.input.name in ["W", "S", "A", "D", "Q", "E"]:
+                self._delta_pos_right += self._INPUT_KEY_MAPPING[event.input.name]
+            elif event.input.name in ["Z", "X", "T", "G", "C", "V"]:
+                self._delta_rot_right += self._INPUT_KEY_MAPPING[event.input.name]
+            # Left arm
+            elif event.input.name == "P":
+                self._close_gripper_right = not self._close_gripper_right
+            # elif event.input.name in ["I", "K", "J", "L", "U", "O"]:
+            #     self._delta_pos_right += self._INPUT_KEY_MAPPING[event.input.name]
+            # elif event.input.name in ["M", "N", "B", "Y", "p", ";"]:
+            #     self._delta_rot_right += self._INPUT_KEY_MAPPING[event.input.name]
+
+            # Mobile base
+            elif event.input.name in ["U", "O"]:
+                self._delta_base += self._INPUT_KEY_MAPPING[event.input.name]
+                self._key_hold_start[key] = now
+            elif event.input.name in ["I"]:
+                self._delta_base += np.asarray([ math.cos(self._base_z_accum / 2.5 ),  math.sin(self._base_z_accum / 2.5), 0.0]) * self.base_sensitivity
+            elif event.input.name in ["K"]:
+                self._delta_base += np.asarray([ -math.cos(self._base_z_accum / 2.5),  -math.sin(self._base_z_accum / 2.5), 0.0]) * self.base_sensitivity
+            elif event.input.name in ["J"]:
+                self._delta_base += np.asarray([ -math.sin(self._base_z_accum / 2.5),  math.cos(self._base_z_accum / 2.5), 0.0]) * self.base_sensitivity
+            elif event.input.name in ["L"]:
+                self._delta_base += np.asarray([ math.sin(self._base_z_accum / 2.5),  -math.cos(self._base_z_accum / 2.5), 0.0]) * self.base_sensitivity
+        
+        # remove the command when un-pressed
+        if event.type == carb.input.KeyboardEventType.KEY_RELEASE:
+            if event.input.name in ["W", "S", "A", "D", "Q", "E"]:
+                # self._delta_base -= self._INPUT_KEY_MAPPING[event.input.name]
+                self._delta_pos_right -= self._INPUT_KEY_MAPPING[event.input.name]
+            elif event.input.name in ["Z", "X", "T", "G", "C", "V"]:
+                self._delta_rot_right -= self._INPUT_KEY_MAPPING[event.input.name]
+            # elif event.input.name in ["I", "K", "J", "L", "U", "O"]:
+            #     self._delta_pos_right -= self._INPUT_KEY_MAPPING[event.input.name]
+            # elif event.input.name in ["M", "N", "B", "Y", "P", ";"]:
+            #     self._delta_rot_right -= self._INPUT_KEY_MAPPING[event.input.name]
+            elif event.input.name in ["U", "O"]:
+                self._delta_base -= self._INPUT_KEY_MAPPING[event.input.name]
+                if key in self._key_hold_start:
+                    duration = now - self._key_hold_start[key]
+                    direction = 1.0 if key == "U" else -1.0
+                    delta = direction * self.base_sensitivity * duration
+                    self._base_z_accum += delta
+                    del self._key_hold_start[key]
+            elif event.input.name in ["I"]:
+                self._delta_base -= np.asarray([ math.cos(self._base_z_accum / 2.5),  math.sin(self._base_z_accum / 2.5), 0.0]) * self.base_sensitivity
+            elif event.input.name in ["K"]:
+                self._delta_base -= np.asarray([ -math.cos(self._base_z_accum / 2.5),  -math.sin(self._base_z_accum / 2.5), 0.0]) * self.base_sensitivity
+            elif event.input.name in ["J"]:
+                self._delta_base -= np.asarray([ -math.sin(self._base_z_accum / 2.5),  math.cos(self._base_z_accum / 2.5), 0.0]) * self.base_sensitivity
+            elif event.input.name in ["L"]:
+                self._delta_base -= np.asarray([ math.sin(self._base_z_accum / 2.5),  -math.cos(self._base_z_accum / 2.5), 0.0]) * self.base_sensitivity
+
+        # additional callbacks
+        if event.type == carb.input.KeyboardEventType.KEY_PRESS:
+            if event.input.name in self._additional_callbacks:
+                self._additional_callbacks[event.input.name]()
+
+        return True
+
+    def _create_key_bindings(self):
+        """Creates default key bindings."""
+        self._INPUT_KEY_MAPPING = {
+            # Left arm
+            "W": np.asarray([1.0, 0.0, 0.0]) * self.pos_sensitivity,
+            "S": np.asarray([-1.0, 0.0, 0.0]) * self.pos_sensitivity,
+            "A": np.asarray([0.0, 1.0, 0.0]) * self.pos_sensitivity,
+            "D": np.asarray([0.0, -1.0, 0.0]) * self.pos_sensitivity,
+            "Q": np.asarray([0.0, 0.0, 1.0]) * self.pos_sensitivity,
+            "E": np.asarray([0.0, 0.0, -1.0]) * self.pos_sensitivity,
+            "Z": np.asarray([1.0, 0.0, 0.0]) * self.rot_sensitivity,
+            "X": np.asarray([-1.0, 0.0, 0.0]) * self.rot_sensitivity,
+            "T": np.asarray([0.0, 1.0, 0.0]) * self.rot_sensitivity,
+            "G": np.asarray([0.0, -1.0, 0.0]) * self.rot_sensitivity,
+            "C": np.asarray([0.0, 0.0, 1.0]) * self.rot_sensitivity,
+            "V": np.asarray([0.0, 0.0, -1.0]) * self.rot_sensitivity,
+            # Right arm
+            # "I": np.asarray([1.0, 0.0, 0.0]) * self.pos_sensitivity,
+            # "K": np.asarray([-1.0, 0.0, 0.0]) * self.pos_sensitivity,
+            # "J": np.asarray([0.0, 1.0, 0.0]) * self.pos_sensitivity,
+            # "L": np.asarray([0.0, -1.0, 0.0]) * self.pos_sensitivity,
+            # "U": np.asarray([0.0, 0.0, 1.0]) * self.pos_sensitivity,
+            # "O": np.asarray([0.0, 0.0, -1.0]) * self.pos_sensitivity,
+            # "M": np.asarray([1.0, 0.0, 0.0]) * self.rot_sensitivity,
+            # "N": np.asarray([-1.0, 0.0, 0.0]) * self.rot_sensitivity,
+            # "B": np.asarray([0.0, 1.0, 0.0]) * self.rot_sensitivity,
+            # "Y": np.asarray([0.0, -1.0, 0.0]) * self.rot_sensitivity,
+            # "P": np.asarray([0.0, 0.0, 1.0]) * self.rot_sensitivity,
+            # ";": np.asarray([0.0, 0.0, -1.0]) * self.rot_sensitivity,
+
+            # Mobile base
+            "U": np.asarray([0.0, 0.0, 1.0]) * self.base_sensitivity,
+            "O": np.asarray([0.0, 0.0, -1.0]) * self.base_sensitivity,
+
+        }
