@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING
 
 import omni.log
 
-from .manager_base import ManagerBase, ManagerTermBase
+from .manager_base import ManagerBase
 from .manager_term_cfg import EventTermCfg
 
 if TYPE_CHECKING:

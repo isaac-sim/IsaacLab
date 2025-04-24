@@ -7,7 +7,7 @@
 # pyright: reportPrivateUsage=none
 
 """Launch Isaac Sim Simulator first."""
-from typing import Sequence
+from collections.abc import Sequence
 
 from isaaclab.app import AppLauncher, run_tests
 
@@ -20,11 +20,10 @@ import torch
 import unittest
 from collections import namedtuple
 
-from isaaclab.managers import EventManager, EventTermCfg
+from isaaclab.envs import ManagerBasedEnv
+from isaaclab.managers import EventManager, EventTermCfg, ManagerTermBase, ManagerTermBaseCfg
 from isaaclab.sim import SimulationContext
 from isaaclab.utils import configclass
-from isaaclab.envs import ManagerBasedEnv
-from isaaclab.managers import ManagerTermBase, ManagerTermBaseCfg
 
 DummyEnv = namedtuple("ManagerBasedRLEnv", ["num_envs", "dt", "device", "sim", "dummy1", "dummy2"])
 """Dummy environment for testing."""
@@ -58,9 +57,9 @@ class reset_dummy2_to_zero_class(ManagerTermBase):
         pass
 
     def __call__(
-            self,
-            env: ManagerBasedEnv,
-            env_ids: torch.Tensor,
+        self,
+        env: ManagerBasedEnv,
+        env_ids: torch.Tensor,
     ) -> None:
         env.dummy2[env_ids] = 0
 
@@ -73,9 +72,9 @@ class increment_dummy2_by_one_class(ManagerTermBase):
         pass
 
     def __call__(
-            self,
-            env: ManagerBasedEnv,
-            env_ids: torch.Tensor,
+        self,
+        env: ManagerBasedEnv,
+        env_ids: torch.Tensor,
     ) -> None:
         env.dummy2[env_ids] += 1
 
@@ -184,7 +183,6 @@ class TestEventManager(unittest.TestCase):
         self.assertEqual(len(self.event_man.active_terms["reset"]), 2)
         self.assertEqual(len(self.event_man._mode_class_term_cfgs), 2)
         self.assertEqual(len(self.event_man._mode_class_term_cfgs["reset"]), 1)
-
 
     def test_config_empty(self):
         """Test the creation of reward manager with empty config."""
