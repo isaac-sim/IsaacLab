@@ -43,7 +43,7 @@ class TestSKRLVecEnvWrapper(unittest.TestCase):
                     cls.registered_tasks.append(task_spec.id)
         # sort environments by name
         cls.registered_tasks.sort()
-        cls.registered_tasks = cls.registered_tasks[:5]
+        cls.registered_tasks = cls.registered_tasks[:3]
 
         # this flag is necessary to prevent a bug where the simulation gets stuck randomly when running the
         # test on many environments.

@@ -88,6 +88,13 @@ class ActuatorBase(ABC):
     friction: torch.Tensor
     """The joint friction of the actuator joints. Shape is (num_envs, num_joints)."""
 
+    _DEFAULT_MAX_EFFORT_SIM: ClassVar[float] = 1.0e9
+    """The default maximum effort for the actuator joints in the simulation. Defaults to 1.0e9.
+
+    If the :attr:`ActuatorBaseCfg.effort_limit_sim` is not specified and the actuator is an explicit
+    actuator, then this value is used.
+    """
+
     def __init__(
         self,
         cfg: ActuatorBaseCfg,
@@ -140,8 +147,8 @@ class ActuatorBase(ABC):
 
         # For explicit models, we do not want to enforce the effort limit through the solver
         # (unless it is explicitly set)
-        if not ActuatorBase.is_implicit_model and self.cfg.effort_limit_sim is None:
-            self.cfg.effort_limit_sim = 1.0e9
+        if not self.is_implicit_model and self.cfg.effort_limit_sim is None:
+            self.cfg.effort_limit_sim = self._DEFAULT_MAX_EFFORT_SIM
 
         # parse joint stiffness and damping
         self.stiffness = self._parse_joint_parameter(self.cfg.stiffness, stiffness)

@@ -156,55 +156,100 @@ class PhysxCfg:
 class RenderCfg:
     """Configuration for Omniverse RTX Renderer.
 
-    These parameters are used to configure the Omniverse RTX Renderer.
+    These parameters are used to configure the Omniverse RTX Renderer. The defaults for IsaacLab are set in the
+    experience files: `apps/isaaclab.python.rendering.kit` and `apps/isaaclab.python.headless.rendering.kit`. Setting any
+    value here will override the defaults of the experience files.
+
     For more information, see the `Omniverse RTX Renderer documentation`_.
 
     .. _Omniverse RTX Renderer documentation: https://docs.omniverse.nvidia.com/materials-and-rendering/latest/rtx-renderer.html
     """
 
-    enable_translucency: bool = False
-    """Enables translucency for specular transmissive surfaces such as glass at the cost of some performance. Default is False."""
+    enable_translucency: bool | None = None
+    """Enables translucency for specular transmissive surfaces such as glass at the cost of some performance. Default is False.
 
-    enable_reflections: bool = False
-    """Enables reflections at the cost of some performance. Default is False."""
+    Set variable: /rtx/translucency/enabled
+    """
 
-    enable_global_illumination: bool = False
-    """Enables Diffused Global Illumination at the cost of some performance. Default is False."""
+    enable_reflections: bool | None = None
+    """Enables reflections at the cost of some performance. Default is False.
 
-    antialiasing_mode: Literal["Off", "FXAA", "DLSS", "TAA", "DLAA"] = "DLSS"
+    Set variable: /rtx/reflections/enabled
+    """
+
+    enable_global_illumination: bool | None = None
+    """Enables Diffused Global Illumination at the cost of some performance. Default is False.
+
+    Set variable: /rtx/indirectDiffuse/enabled
+    """
+
+    antialiasing_mode: Literal["Off", "FXAA", "DLSS", "TAA", "DLAA"] | None = None
     """Selects the anti-aliasing mode to use. Defaults to DLSS.
        - DLSS: Boosts performance by using AI to output higher resolution frames from a lower resolution input. DLSS samples multiple lower resolution images and uses motion data and feedback from prior frames to reconstruct native quality images.
-       - DLAA: Provides higher image quality with an AI-based anti-aliasing technique. DLAA uses the same Super Resolution technology developed for DLSS, reconstructing a native resolution image to maximize image quality."""
+       - DLAA: Provides higher image quality with an AI-based anti-aliasing technique. DLAA uses the same Super Resolution technology developed for DLSS, reconstructing a native resolution image to maximize image quality.
 
-    enable_dlssg: bool = False
+    Set variable: /rtx/post/dlss/execMode
+    """
+
+    enable_dlssg: bool | None = None
     """"Enables the use of DLSS-G.
         DLSS Frame Generation boosts performance by using AI to generate more frames.
         DLSS analyzes sequential frames and motion data to create additional high quality frames.
         This feature requires an Ada Lovelace architecture GPU.
         Enabling this feature also enables additional thread-related activities, which can hurt performance.
-        Default is False."""
+        Default is False.
 
-    enable_dl_denoiser: bool = False
-    """Enables the use of a DL denoiser.
-       The DL denoiser can help improve the quality of renders, but comes at a cost of performance.
+    Set variable: /rtx-transient/dlssg/enabled
     """
 
-    dlss_mode: Literal[0, 1, 2, 3] = 0
+    enable_dl_denoiser: bool | None = None
+    """Enables the use of a DL denoiser.
+       The DL denoiser can help improve the quality of renders, but comes at a cost of performance.
+
+    Set variable: /rtx-transient/dldenoiser/enabled
+    """
+
+    dlss_mode: Literal[0, 1, 2, 3] | None = None
     """For DLSS anti-aliasing, selects the performance/quality tradeoff mode.
-       Valid values are 0 (Performance), 1 (Balanced), 2 (Quality), or 3 (Auto). Default is 0."""
+       Valid values are 0 (Performance), 1 (Balanced), 2 (Quality), or 3 (Auto). Default is 0.
 
-    enable_direct_lighting: bool = True
-    """Enable direct light contributions from lights."""
+    Set variable: /rtx/post/dlss/execMode
+    """
 
-    samples_per_pixel: int = 1
+    enable_direct_lighting: bool | None = None
+    """Enable direct light contributions from lights.
+
+    Set variable: /rtx/directLighting/enabled
+    """
+
+    samples_per_pixel: int | None = None
     """Defines the Direct Lighting samples per pixel.
-       Higher values increase the direct lighting quality at the cost of performance. Default is 1."""
+       Higher values increase the direct lighting quality at the cost of performance. Default is 1.
 
-    enable_shadows: bool = True
-    """Enables shadows at the cost of performance. When disabled, lights will not cast shadows. Defaults to True."""
+    Set variable: /rtx/directLighting/sampledLighting/samplesPerPixel"""
 
-    enable_ambient_occlusion: bool = False
-    """Enables ambient occlusion at the cost of some performance. Default is False."""
+    enable_shadows: bool | None = None
+    """Enables shadows at the cost of performance. When disabled, lights will not cast shadows. Defaults to True.
+
+    Set variable: /rtx/shadows/enabled
+    """
+
+    enable_ambient_occlusion: bool | None = None
+    """Enables ambient occlusion at the cost of some performance. Default is False.
+
+    Set variable: /rtx/ambientOcclusion/enabled
+    """
+
+    carb_settings: dict | None = None
+    """Provides a general dictionary for users to supply all carb rendering settings with native names.
+        - Name strings can be formatted like a carb setting, .kit file setting, or python variable.
+        - For instance, a key value pair can be
+            /rtx/translucency/enabled: False # carb
+             rtx.translucency.enabled: False # .kit
+             rtx_translucency_enabled: False # python"""
+
+    rendering_mode: Literal["performance", "balanced", "quality", "xr"] | None = None
+    """Sets the rendering mode. Behaves the same as the CLI arg '--rendering_mode'"""
 
 
 @configclass

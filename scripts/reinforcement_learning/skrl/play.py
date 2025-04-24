@@ -69,7 +69,7 @@ import skrl
 from packaging import version
 
 # check for minimum supported skrl version
-SKRL_VERSION = "1.4.1"
+SKRL_VERSION = "1.4.2"
 if version.parse(skrl.__version__) < version.parse(SKRL_VERSION):
     skrl.logger.error(
         f"Unsupported skrl version: {skrl.__version__}. "
@@ -90,6 +90,8 @@ from isaaclab_rl.skrl import SkrlVecEnvWrapper
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import get_checkpoint_path, load_cfg_from_registry, parse_env_cfg
+
+# PLACEHOLDER: Extension template (do not remove this comment)
 
 # config shortcuts
 algorithm = args_cli.algorithm.lower()
@@ -135,11 +137,11 @@ def main():
     if isinstance(env.unwrapped, DirectMARLEnv) and algorithm in ["ppo"]:
         env = multi_agent_to_single_agent(env)
 
-    # get environment (physics) dt for real-time evaluation
+    # get environment (step) dt for real-time evaluation
     try:
-        dt = env.physics_dt
+        dt = env.step_dt
     except AttributeError:
-        dt = env.unwrapped.physics_dt
+        dt = env.unwrapped.step_dt
 
     # wrap for video recording
     if args_cli.video:
