@@ -125,16 +125,17 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
 
     # Create the OSC
     osc_cfg = OperationalSpaceControllerCfg(
-        target_types=["pose_abs", "wrench_abs"],
-        impedance_mode="variable_kp",
-        inertial_dynamics_decoupling=True,
+        target_types=["pose_abs",  # 相对于机器人基坐标系的绝对位姿
+                      "wrench_abs"], # 控制末端施加的力/力矩（也相对于 base）
+        impedance_mode="variable_kp", # 可变刚度模式（variable stiffness）
+        inertial_dynamics_decoupling=True, # 启用 惯性解耦
         partial_inertial_dynamics_decoupling=False,
-        gravity_compensation=False,
-        motion_damping_ratio_task=1.0,
-        contact_wrench_stiffness_task=[0.0, 0.0, 0.1, 0.0, 0.0, 0.0],
-        motion_control_axes_task=[1, 1, 0, 1, 1, 1],
-        contact_wrench_control_axes_task=[0, 0, 1, 0, 0, 0],
-        nullspace_control="position",
+        gravity_compensation=False, # 不补偿重力
+        motion_damping_ratio_task=1.0, # 运动阻尼比，设置为1.0 表示临界阻尼，在执行任务时，机器人不会震荡或过冲
+        contact_wrench_stiffness_task=[0.0, 0.0, 0.1, 0.0, 0.0, 0.0], # 力控制方向上的“刚度” 6D 向量（x, y, z, roll, pitch, yaw），仅对 z方向的力 设置了非零刚度 0.1（其他方向是软的）
+        motion_control_axes_task=[1, 1, 0, 1, 1, 1],  # 允许末端哪些自由度运动（x, y, z, roll, pitch, yaw），只让末端 在 xy 平面内自由移动并控制朝向，不允许末端 z 方向乱动（比如浮起来）
+        contact_wrench_control_axes_task=[0, 0, 1, 0, 0, 0], # 控制末端哪些自由度的力，这里只控制 z 方向的末端力（比如下压）
+        nullspace_control="position",# 控制多余自由度的方式（Nullspace control），这里使用位置控制去处理 nullspace，比如让手臂靠中、躲避障碍等
     )
     osc = OperationalSpaceController(osc_cfg, num_envs=scene.num_envs, device=sim.device)
 

@@ -9,7 +9,9 @@ import torch
 from typing import TYPE_CHECKING
 
 import isaaclab.utils.math as math_utils
-from isaaclab.assets import ArticulationData
+from isaaclab.assets import ArticulationData,RigidObject
+from isaaclab.managers import SceneEntityCfg
+
 from isaaclab.sensors import FrameTransformerData
 
 if TYPE_CHECKING:
@@ -57,3 +59,29 @@ def ee_quat(env: ManagerBasedRLEnv, make_quat_unique: bool = True) -> torch.Tens
     ee_quat = ee_tf_data.target_quat_w[..., 0, :]
     # make first element of quaternion positive
     return math_utils.quat_unique(ee_quat) if make_quat_unique else ee_quat
+
+
+def waypoints(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> tuple:
+    """
+    waypoint_idx_gripperaction
+    """
+    rigid_objects = env.scene.rigid_objects
+    gripper_actions = []
+    waypoint_poses = []
+    for rigid_obj_name in rigid_objects.keys():
+        if "waypoint" in rigid_obj_name:
+            waypoint: RigidObject = rigid_objects[rigid_obj_name]
+            waypoint_poses.append(waypoint.data.body_state_w[..., :7])
+
+            segments = rigid_obj_name.split("_")
+            if len(segments) > 2:
+                gripper_actions.append(segments[-1])
+            else:
+                gripper_actions.append("None")
+            
+    return waypoint_poses,gripper_actions
+
+
+
+
+
