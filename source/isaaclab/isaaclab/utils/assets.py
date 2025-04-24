@@ -97,7 +97,7 @@ def retrieve_file_path(path: str, download_dir: str | None = None, force_downloa
         # check if file already exists locally
         if not os.path.isfile(target_path) or force_download:
             # copy file to local machine
-            result = omni.client.copy(path.replace(os.sep, "/"), target_path)
+            result = omni.client.copy(path.replace(os.sep, "/"), target_path, omni.client.CopyBehavior.OVERWRITE)
             if result != omni.client.Result.OK and force_download:
                 raise RuntimeError(f"Unable to copy file: '{path}'. Is the Nucleus Server running?")
         return os.path.abspath(target_path)

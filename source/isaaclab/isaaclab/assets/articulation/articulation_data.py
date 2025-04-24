@@ -8,6 +8,7 @@ import weakref
 
 import omni.log
 import omni.physics.tensors.impl.api as physx
+from isaacsim.core.simulation_manager import SimulationManager
 
 import isaaclab.utils.math as math_utils
 from isaaclab.utils.buffers import TimestampedBuffer
@@ -48,9 +49,8 @@ class ArticulationData:
         # Set initial time stamp
         self._sim_timestamp = 0.0
 
-        # Obtain global physics sim view
-        self._physics_sim_view = physx.create_simulation_view("torch")
-        self._physics_sim_view.set_subspace_roots("/")
+        # obtain global simulation view
+        self._physics_sim_view = SimulationManager.get_physics_sim_view()
         gravity = self._physics_sim_view.get_gravity()
         # Convert to direction vector
         gravity_dir = torch.tensor((gravity[0], gravity[1], gravity[2]), device=self.device)
