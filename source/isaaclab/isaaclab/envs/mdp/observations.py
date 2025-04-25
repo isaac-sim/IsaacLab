@@ -538,9 +538,9 @@ Time.
 
 def current_time_s(env: ManagerBasedRLEnv) -> torch.Tensor:
     """The current time in the episode (in seconds)."""
-    return env.curr_episode_length * env.step_dt
+    return env.episode_length_buf.unsqueeze(1) * env.step_dt
 
 
 def remaining_time_s(env: ManagerBasedRLEnv) -> torch.Tensor:
     """The maximum time remaining in the episode (in seconds)."""
-    return env.max_episode_length_s - env.curr_episode_length * env.step_dt
+    return env.max_episode_length_s - env.episode_length_buf.unsqueeze(1) * env.step_dt

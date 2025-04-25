@@ -105,11 +105,6 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         """Maximum episode length in environment steps."""
         return math.ceil(self.max_episode_length_s / self.step_dt)
 
-    @property
-    def curr_episode_length(self) -> torch.Tensor:
-        """Current episode lengths in environment steps. Shape is (num_envs, 1)."""
-        return torch.reshape(self.episode_length_buf, [self.num_envs, -1])
-
     """
     Operations - Setup.
     """
