@@ -15,6 +15,7 @@ from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
+from isaaclab.managers import ActionTermCfg as ActionTerm
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import FrameTransformerCfg
@@ -152,7 +153,7 @@ class CabinetSceneCfg(InteractiveSceneCfg):
 class ActionsCfg:
     """Action specifications for the MDP."""
 
-    arm_action: mdp.JointPositionActionCfg = MISSING
+    arm_action: ActionTerm = MISSING
     gripper_action: mdp.BinaryJointPositionActionCfg = MISSING
 
 
@@ -185,6 +186,12 @@ class ObservationsCfg:
         
 
         actions = ObsTerm(func=mdp.last_action)
+        
+        # 占位，不一定用
+        waypoint_states: ObsTerm = MISSING
+        # 补充一个gripper的观测，用来判断当前的状态, state = 1 打开，否则是关闭状态
+        gripper_state = ObsTerm(func=mdp.gripper_state)
+
 
         def __post_init__(self):
             self.enable_corruption = True

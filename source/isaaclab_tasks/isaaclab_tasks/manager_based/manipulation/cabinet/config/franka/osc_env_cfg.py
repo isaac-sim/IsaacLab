@@ -7,7 +7,11 @@ from isaaclab.controllers.operational_space_cfg import OperationalSpaceControlle
 from isaaclab.envs.mdp.actions.actions_cfg import OperationalSpaceControllerActionCfg
 from isaaclab.utils import configclass
 
+from isaaclab.managers import ObservationTermCfg as ObsTerm
+from isaaclab.managers import SceneEntityCfg
+
 from . import joint_pos_env_cfg
+from ... import mdp
 
 ##
 # Pre-defined configs
@@ -60,6 +64,10 @@ class FrankaCabinetEnvCfg(joint_pos_env_cfg.FrankaCabinetEnvCfg):
         self.observations.policy.joint_pos = None
         self.observations.policy.joint_vel = None
 
+        # 为这种任务空间的形式 添加路点观测
+        self.observations.policy.waypoint_states = ObsTerm(func=mdp.waypoints,
+                                                           params={"asset_cfg": SceneEntityCfg("robot")},
+                                                           )
 
 
 

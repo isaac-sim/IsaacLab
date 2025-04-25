@@ -68,7 +68,7 @@ import torch
 import omni.log
 
 from isaaclab.devices import Se3HandTracking, Se3Keyboard, Se3SpaceMouse
-from isaaclab.envs import ViewerCfg
+from isaaclab.envs import ViewerCfg,ManagerBasedRLEnv
 from isaaclab.envs.mdp.recorders.recorders_cfg import ActionStateRecorderManagerCfg
 from isaaclab.envs.ui import ViewportCameraController
 
@@ -104,23 +104,143 @@ class RateLimiter:
                 self.last_time += self.sleep_duration
 
 
-def pre_process_actions(delta_pose: torch.Tensor, gripper_command: bool) -> torch.Tensor:
+def pre_process_actions(arm_action: torch.Tensor, gripper_command: bool) -> torch.Tensor:
     """Pre-process actions for the environment."""
     # compute actions based on environment
     if "Reach" in args_cli.task:
         # note: reach is the only one that uses a different action space
         # compute actions
-        return delta_pose
+        return arm_action
     else:
         # resolve gripper command
-        gripper_vel = torch.zeros((delta_pose.shape[0], 1), dtype=torch.float, device=delta_pose.device)
+        gripper_vel = torch.zeros((arm_action.shape[0], 1), dtype=torch.float, device=arm_action.device)
         gripper_vel[:] = -1 if gripper_command else 1
         # compute actions
-        return torch.concat([delta_pose, gripper_vel], dim=1)
+        return torch.concat([arm_action, gripper_vel], dim=1)
 
 
 def distance_below_threshold(current_pos, desired_pos, threshold: float) -> bool:
     return torch.norm(current_pos - desired_pos) < threshold
+
+
+
+def get_waypoints(env:ManagerBasedRLEnv):
+    """从场景中找到其中设定的路径点位置"""
+    raw_waypoint_states = env.obs_buf["policy"]["waypoint_states"]
+    waypoint_poses = raw_waypoint_states[:, :7]
+    waypoint_gripper_actions = raw_waypoint_states[:, 7:]
+    return waypoint_poses, waypoint_gripper_actions 
+
+
+def gen_actions(env:ManagerBasedRLEnv):
+    """将路点转换为末端执行器(ee)对应要求的任务空间的动作"""
+    
+    # 以观测的形式获取场景中定义的路点的位置以及夹爪动作命令
+    waypoint_poses, gripper_actions = get_waypoints(env)
+    
+    # 随便写的一些动作，仅仅是为了占位，满足任务空间动作的形式要求 
+    ee_goal_wrench_set_tilted_task = torch.tensor([0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                                                  device=env.device).repeat(waypoint_poses.shape[0], 1)
+    
+    # 随便写的一些动作，仅仅是为了占位，满足任务空间动作的形式要求 
+    kp_set_task = torch.tensor([420.0, 420.0, 420.0, 420.0, 420.0, 420.0],
+                               device=env.device).repeat(waypoint_poses.shape[0], 1)
+    
+    arm_actions = torch.cat([waypoint_poses, kp_set_task], dim=-1)
+    # gripper 动作命令，  0： 关闭   1： 打开  -1： 不动
+    gripper_commands = gripper_actions[:, 0]
+    return arm_actions, gripper_commands
+
+
+
+def execute_action(env:ManagerBasedRLEnv, arm_action: torch.Tensor, 
+                      gripper_command: torch.Tensor, success_term=None, rate_limiter=None):
+    """执行单次路点动作，包含ee动作和夹爪动作"""
+    # 
+    should_reset_recording_instance = False
+    success_step_count = 0
+    # convert to torch
+    arm_action = torch.tensor(arm_action.clone().detach(), dtype=torch.float, device=env.device).repeat(env.num_envs, 1)
+    # 夹爪动作置为false, 在执行arm动作时不执行夹爪动作
+    ee_action = pre_process_actions(arm_action, False)
+    # 先判断一下当前状态
+    current_gripper_state = env.obs_buf["policy"]["gripper_state"]
+
+    if current_gripper_state == gripper_command or gripper_command == -1:
+        bool_gripper_command = False
+    else:
+        bool_gripper_command = True
+        
+
+
+    gripper_action = pre_process_actions(arm_action, bool_gripper_command)
+    
+    # 先执行ee动作,夹爪保持不变
+    #while True: # 当夹爪还没有到达目标位置时，不停循环执行动作
+    for _ in range(100):
+
+        # perform action on environment
+        env.step(ee_action)
+        # 计算当前末端执行器的位姿
+        current_ee_pos = env.scene
+        
+        # 判断是否成功
+        if success_term is not None:
+            if bool(success_term.func(env, **success_term.params)[0]):
+                success_step_count += 1
+                if success_step_count >= args_cli.num_success_steps:
+                    env.recorder_manager.record_pre_reset([0], force_export_or_skip=False)
+                    env.recorder_manager.set_success_to_episodes(
+                        [0], torch.tensor([[True]], dtype=torch.bool, device=env.device)
+                    )
+                    env.recorder_manager.export_episodes([0])
+                    should_reset_recording_instance = True
+            else:
+                success_step_count = 0
+
+
+        # TODO: 这里需要检查当前末端执行器的位姿是否到达了目标位置
+        if env.sim.is_stopped()  or should_reset_recording_instance:
+            break
+        # 
+        if rate_limiter:
+            rate_limiter.sleep(env)
+
+
+    # 再执行gripper动作
+    if gripper_command and not should_reset_recording_instance:
+        for _ in range(10):
+            # perform gripper action on environment
+            env.step(gripper_action)
+        
+            # 判断是否成功
+            if success_term is not None:
+                if bool(success_term.func(env, **success_term.params)[0]):
+                    success_step_count += 1
+                    if success_step_count >= args_cli.num_success_steps:
+                        env.recorder_manager.record_pre_reset([0], force_export_or_skip=False)
+                        env.recorder_manager.set_success_to_episodes(
+                            [0], torch.tensor([[True]], dtype=torch.bool, device=env.device)
+                        )
+                        env.recorder_manager.export_episodes([0])
+                        should_reset_recording_instance = True
+                else:
+                    success_step_count = 0
+            # 检查是否打断
+            if env.sim.is_stopped() or should_reset_recording_instance:
+                break
+            
+            if rate_limiter:
+                rate_limiter.sleep(env)
+
+
+    return should_reset_recording_instance
+
+
+
+
+        
+        
 
 
 def main():
@@ -198,89 +318,40 @@ def main():
     # reset before starting
     env.reset()
     teleop_interface.reset()
-
-
-    # Define targets for the arm
-    ee_goal_pose_set_tilted_b = torch.tensor(
-        [
-            [0.6, 0.15, 0.3, 0.0, 0.92387953, 0.0, 0.38268343],
-            [0.6, -0.3, 0.3, 0.0, 0.92387953, 0.0, 0.38268343],
-            [0.8, 0.0, 0.5, 0.0, 0.92387953, 0.0, 0.38268343],
-        ],
-        device=env.device
-    )
-    ee_goal_wrench_set_tilted_task = torch.tensor(
-        [
-            [0.0, 0.0, 10.0, 0.0, 0.0, 0.0],
-            [0.0, 0.0, 10.0, 0.0, 0.0, 0.0],
-            [0.0, 0.0, 10.0, 0.0, 0.0, 0.0],
-        ],
-        device=env.device,
-    )
-    kp_set_task = torch.tensor(
-        [
-            [360.0, 360.0, 360.0, 360.0, 360.0, 360.0],
-            [420.0, 420.0, 420.0, 420.0, 420.0, 420.0],
-            [320.0, 320.0, 320.0, 320.0, 320.0, 320.0],
-        ],
-        device=env.device,
-    )
-    ee_target_set = torch.cat([ee_goal_pose_set_tilted_b, ee_goal_wrench_set_tilted_task, kp_set_task], dim=-1)
-
-
-    # simulate environment -- run everything in inference mode
+    
     current_recorded_demo_count = 0
-    success_step_count = 0
-    with contextlib.suppress(KeyboardInterrupt) and torch.inference_mode():
-        while True:
-            # get keyboard command
-            #delta_pose, gripper_command = teleop_interface.advance()
-            target_pose, gripper_command = teleop_interface.advance()
-            # convert to torch
-            target_pose = torch.tensor(target_pose, dtype=torch.float, device=env.device).repeat(env.num_envs, 1)
-            # compute actions based on environment
-            actions = pre_process_actions(target_pose, gripper_command)
+    
+    # 一直自动生成，直到到达指定的成功demo数量
+    while current_recorded_demo_count < args_cli.num_demos:
 
-            # perform action on environment
-            #env.step(actions)
+        # 获取当前回合场景中的路点以及对应的夹爪动作
+        arm_actions, gripper_commands = gen_actions(env)
+        
+        for waypoint_idx in range(arm_actions.shape[0]):
+            # 执行动作
+            should_reset_recording_instance = execute_action(env, arm_actions[waypoint_idx], 
+                                                            gripper_commands[waypoint_idx], 
+                                                            success_term=success_term, 
+                                                            rate_limiter=rate_limiter)
+            # if should_reset_recording_instance:
+            #     env.recorder_manager.reset()
+            #     env.reset()
+            #     # 退出当前回合
+            #     break
 
-            if success_term is not None:
-                if bool(success_term.func(env, **success_term.params)[0]):
-                    success_step_count += 1
-                    if success_step_count >= args_cli.num_success_steps:
-                        env.recorder_manager.record_pre_reset([0], force_export_or_skip=False)
-                        env.recorder_manager.set_success_to_episodes(
-                            [0], torch.tensor([[True]], dtype=torch.bool, device=env.device)
-                        )
-                        env.recorder_manager.export_episodes([0])
-                        should_reset_recording_instance = True
-                else:
-                    success_step_count = 0
+        # 执行完一个回合的所有路点之后，打印出当前完成的demo数量
+        if env.recorder_manager.exported_successful_episode_count > current_recorded_demo_count:
+            current_recorded_demo_count = env.recorder_manager.exported_successful_episode_count
+            print(f"Recorded {current_recorded_demo_count} successful demonstrations.")
 
-            if should_reset_recording_instance:
-                env.recorder_manager.reset()
-                env.reset()
-                should_reset_recording_instance = False
-                success_step_count = 0
+        env.recorder_manager.reset()
+        env.reset()
 
-            # print out the current demo count if it has changed
-            if env.recorder_manager.exported_successful_episode_count > current_recorded_demo_count:
-                current_recorded_demo_count = env.recorder_manager.exported_successful_episode_count
-                print(f"Recorded {current_recorded_demo_count} successful demonstrations.")
-
-            if args_cli.num_demos > 0 and env.recorder_manager.exported_successful_episode_count >= args_cli.num_demos:
-                print(f"All {args_cli.num_demos} demonstrations recorded. Exiting the app.")
-                break
-
-            # check that simulation is stopped or not
-            if env.sim.is_stopped():
-                break
-
-            if rate_limiter:
-                rate_limiter.sleep(env)
-
-    env.close()
-
+    # 完成所有的demo之后退出环境
+    print(f"All {args_cli.num_demos} demonstrations recorded. Exiting the app.")
+    env.close() 
+    
+    
 
 if __name__ == "__main__":
     # run the main function
