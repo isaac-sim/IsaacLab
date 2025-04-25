@@ -293,7 +293,7 @@ class OculusV0(DeviceBase):
         msg = f"Joystick Controller for SE(3): {self.__class__.__name__}\n"
         msg += "\t----------------------------------------------\n"
 
-    #[TODO: Reset evnet in add_callback]
+    #[TODO: Reset event in add_callback]
     def add_callback(self, key: str, func: Callable):
         """Add additional functions to bind keyboard.
 
@@ -308,13 +308,13 @@ class OculusV0(DeviceBase):
         self._additional_callbacks[key] = func
 
 
-    def advance(self) -> np.ndarray:
+    def advance(self) -> tuple[np.ndarray, bool, np.ndarray, bool, np.ndarray]:
         """
         Read joystick events and return command for BMM.
 
         Threshold:
             base xy: 0.1
-            base z: 0.9
+            base z: 0.7
 
         Returns:
             A tuple containing the delta pose commands for left arm, right arm, and mobile base.
@@ -338,13 +338,14 @@ class OculusV0(DeviceBase):
 
         # mobile base
 
+        # yaw
         # check if the rightJS is moved to right
-        if buttons['rightJS'][0] > 0.9  and ('counterclockwise' not in self._key_hold_start):
+        if buttons['rightJS'][0] > 0.7  and ('counterclockwise' not in self._key_hold_start):
             self._delta_base[2] -= self.base_sensitivity
             self._key_hold_start['counterclockwise'] = time.time()
 
         # check if the rightJS is moved to left
-        elif buttons['rightJS'][0] < -0.9 and ('clockwise' not in self._key_hold_start):
+        elif buttons['rightJS'][0] < -0.7 and ('clockwise' not in self._key_hold_start):
             self._delta_base[2] += self.base_sensitivity
             self._key_hold_start['clockwise'] = time.time()
 
@@ -352,16 +353,19 @@ class OculusV0(DeviceBase):
         elif buttons['rightJS'][0] == 0.0 & (('counterclockwise' in self._key_hold_start) or ()'clockwise' in self._key_hold_start)):
             # remove the key from the dictionary
             if 'counterclockwise' in self._key_hold_start:
+                duration = time.time() - self._key_hold_start['counterclockwise']
+                self._delta_base[2] += self.base_sensitivity * duration
                 del self._key_hold_start['counterclockwise']
+                
             if 'clockwise' in self._key_hold_start:
+                duration = time.time() - self._key_hold_start['clockwise']
+                self._delta_base[2] -= self.base_sensitivity * duration
                 del self._key_hold_start['clockwise']
-
-
-
-        self._delta_base[0], self._delta_base[1] = buttons['leftJS']  # x, y in [-1, 1]
-        self._delta_base[2] = buttons['rightJS'][0]  # use only x for yaw
-
-
+        # xy
+        if buttons['leftJS'] != (0.0, 0.0):
+            raw_x, raw_y = buttons['leftJS']  # x, y in [-1, 1]
+            self._delta_base += raw_x * np.asarray([ math.cos(self._base_z_accum / 1.25),  math.sin(self._base_z_accum / 1.25), 0.0]) * self.base_sensitivity
+            self._delta_base += raw_y * np.asarray([ math.sin(self._base_z_accum / 1.25),  -math.cos(self._base_z_accum / 1.25), 0.0]) * self.base_sensitivity
 
         # return the commands
         return (
@@ -381,10 +385,3 @@ class OculusV0(DeviceBase):
     #    [-0.643948 , -0.756171 , -0.116345 ,  0.0297576],
     #    [ 0.       ,  0.       ,  0.       ,  1.       ]])}, {'A': False, 'B': False, 'RThU': True, 'RJ': False, 'RG': False, 'RTr': False, 'X': False, 'Y': False, 'LThU': True, 'LJ': False, 'LG': False, 'LTr': False, 'leftJS': (0.0, 0.0), 'leftTrig': (0.0,), 'leftGrip': (0.0,), 'rightJS': (0.0, 0.0), 'rightTrig': (0.0,), 'rightGrip': (0.0,)})
 
-    def __str__(self):
-        return (
-            f"Joystick Controller for Mobile Base:\n"
-            f"  Linear sensitivity: {self.lin_sens}\n"
-            f"  Angular sensitivity: {self.ang_sens}\n"
-            f"  Mapping: left stick → [vx, vy], right stick X → yaw_rate"
-        )
