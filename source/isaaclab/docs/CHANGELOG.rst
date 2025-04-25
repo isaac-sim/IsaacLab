@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.36.23 (2025-04-24)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed ``return_latest_camera_pose`` option in :class:`~isaaclab.sensors.TiledCameraCfg` from not being used to the
+  argument ``update_latest_camera_pose`` in :class:`~isaaclab.sensors.CameraCfg` with application in both
+  :class:`~isaaclab.sensors.Camera` and :class:`~isaaclab.sensors.TiledCamera`.
+
 
 0.36.22 (2025-04-23)
 ~~~~~~~~~~~~~~~~~~~~
