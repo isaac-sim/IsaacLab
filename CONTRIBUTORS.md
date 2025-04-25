@@ -47,6 +47,7 @@ Guidelines for modifications:
 * Cheng-Rong Lai
 * Chenyu Yang
 * Clemens Schwarke
+* Connor Smith
 * CY (Chien-Ying) Chen
 * David Yang
 * Dorsa Rohani
@@ -63,6 +64,7 @@ Guidelines for modifications:
 * Jan Kerner
 * Jean Tampon
 * Jia Lin Yuan
+* Jiakai Zhang
 * Jinghuan Shang
 * Jingzhou Liu
 * Jinqi Wei
@@ -85,8 +87,10 @@ Guidelines for modifications:
 * Oyindamola Omotuyi
 * Özhan Özen
 * Peter Du
+* Pulkit Goyal
 * Qian Wan
 * Qinxi Yu
+* Rafael Wiltz
 * René Zurbrügg
 * Ritvik Singh
 * Rosario Scalise

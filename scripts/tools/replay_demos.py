@@ -7,6 +7,7 @@
 
 """Launch Isaac Sim Simulator first."""
 
+
 import argparse
 
 from isaaclab.app import AppLauncher
@@ -32,12 +33,23 @@ parser.add_argument(
         " --num_envs is 1."
     ),
 )
+parser.add_argument(
+    "--enable_pinocchio",
+    action="store_true",
+    default=False,
+    help="Enable Pinocchio.",
+)
 
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
 args_cli = parser.parse_args()
 # args_cli.headless = True
+
+if args_cli.enable_pinocchio:
+    # Import pinocchio before AppLauncher to force the use of the version installed by IsaacLab and not the one installed by Isaac Sim
+    # pinocchio is required by the Pink IK controllers and the GR1T2 retargeter
+    import pinocchio  # noqa: F401
 
 # launch the simulator
 app_launcher = AppLauncher(args_cli)
@@ -52,6 +64,9 @@ import torch
 
 from isaaclab.devices import Se3Keyboard
 from isaaclab.utils.datasets import EpisodeData, HDF5DatasetFileHandler
+
+if args_cli.enable_pinocchio:
+    import isaaclab_tasks.manager_based.manipulation.pick_place  # noqa: F401
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
@@ -147,6 +162,12 @@ def main():
     elif args_cli.validate_states and num_envs > 1:
         print("Warning: State validation is only supported with a single environment. Skipping state validation.")
 
+    # Get idle action (idle actions are applied to envs without next action)
+    if hasattr(env_cfg, "idle_action"):
+        idle_action = env_cfg.idle_action.repeat(num_envs, 1)
+    else:
+        idle_action = torch.zeros(env.action_space.shape)
+
     # reset before starting
     env.reset()
     teleop_interface.reset()
@@ -160,8 +181,8 @@ def main():
             first_loop = True
             has_next_action = True
             while has_next_action:
-                # initialize actions with zeros so those without next action will not move
-                actions = torch.zeros(env.action_space.shape)
+                # initialize actions with idle action so those without next action will not move
+                actions = idle_action
                 has_next_action = False
                 for env_id in range(num_envs):
                     env_next_action = env_episode_data_map[env_id].get_next_action()
