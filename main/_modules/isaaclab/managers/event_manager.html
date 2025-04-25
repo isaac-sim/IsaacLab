@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.1.0" />
-    <meta name="docbuild:last-update" content="Apr 24, 2025"/>
+    <meta name="docbuild:last-update" content="Apr 25, 2025"/>
   </head>
   
   
@@ -551,7 +551,7 @@
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">omni.log</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">.manager_base</span><span class="w"> </span><span class="kn">import</span> <span class="n">ManagerBase</span><span class="p">,</span> <span class="n">ManagerTermBase</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.manager_base</span><span class="w"> </span><span class="kn">import</span> <span class="n">ManagerBase</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">.manager_term_cfg</span><span class="w"> </span><span class="kn">import</span> <span class="n">EventTermCfg</span>
 
 <span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
@@ -670,7 +670,7 @@
         <span class="c1"># if we are doing interval based events then we need to reset the time left</span>
         <span class="c1"># when the episode starts. otherwise the counter will start from the last time</span>
         <span class="c1"># for that environment</span>
-        <span class="k">if</span> <span class="s2">&quot;interval&quot;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_mode_class_term_cfgs</span><span class="p">:</span>
+        <span class="k">if</span> <span class="s2">&quot;interval&quot;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_mode_term_cfgs</span><span class="p">:</span>
             <span class="k">for</span> <span class="n">index</span><span class="p">,</span> <span class="n">term_cfg</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_mode_class_term_cfgs</span><span class="p">[</span><span class="s2">&quot;interval&quot;</span><span class="p">]):</span>
                 <span class="c1"># sample a new interval and set that as time left</span>
                 <span class="c1"># note: global time events are based on simulation time and not episode time</span>
@@ -920,7 +920,7 @@
             <span class="bp">self</span><span class="o">.</span><span class="n">_mode_term_cfgs</span><span class="p">[</span><span class="n">term_cfg</span><span class="o">.</span><span class="n">mode</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">term_cfg</span><span class="p">)</span>
 
             <span class="c1"># check if the term is a class</span>
-            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">term_cfg</span><span class="o">.</span><span class="n">func</span><span class="p">,</span> <span class="n">ManagerTermBase</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">inspect</span><span class="o">.</span><span class="n">isclass</span><span class="p">(</span><span class="n">term_cfg</span><span class="o">.</span><span class="n">func</span><span class="p">):</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">_mode_class_term_cfgs</span><span class="p">[</span><span class="n">term_cfg</span><span class="o">.</span><span class="n">mode</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">term_cfg</span><span class="p">)</span>
 
             <span class="c1"># resolve the mode of the events</span>
@@ -1002,7 +1002,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Apr 24, 2025.
+  Last updated on Apr 25, 2025.
   <br/>
 </p>
   </div>

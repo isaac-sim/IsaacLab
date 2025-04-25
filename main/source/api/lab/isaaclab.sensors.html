@@ -63,7 +63,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.1.0" />
-    <meta name="docbuild:last-update" content="Apr 24, 2025"/>
+    <meta name="docbuild:last-update" content="Apr 25, 2025"/>
   </head>
   
   
@@ -668,6 +668,7 @@
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.CameraCfg.debug_vis"><code class="docutils literal notranslate"><span class="pre">CameraCfg.debug_vis</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.CameraCfg.width"><code class="docutils literal notranslate"><span class="pre">CameraCfg.width</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.CameraCfg.height"><code class="docutils literal notranslate"><span class="pre">CameraCfg.height</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.CameraCfg.update_latest_camera_pose"><code class="docutils literal notranslate"><span class="pre">CameraCfg.update_latest_camera_pose</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.CameraCfg.semantic_filter"><code class="docutils literal notranslate"><span class="pre">CameraCfg.semantic_filter</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.CameraCfg.colorize_semantic_segmentation"><code class="docutils literal notranslate"><span class="pre">CameraCfg.colorize_semantic_segmentation</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.CameraCfg.colorize_instance_id_segmentation"><code class="docutils literal notranslate"><span class="pre">CameraCfg.colorize_instance_id_segmentation</span></code></a></li>
@@ -714,12 +715,12 @@
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.TiledCameraCfg.data_types"><code class="docutils literal notranslate"><span class="pre">TiledCameraCfg.data_types</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.TiledCameraCfg.width"><code class="docutils literal notranslate"><span class="pre">TiledCameraCfg.width</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.TiledCameraCfg.height"><code class="docutils literal notranslate"><span class="pre">TiledCameraCfg.height</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.TiledCameraCfg.update_latest_camera_pose"><code class="docutils literal notranslate"><span class="pre">TiledCameraCfg.update_latest_camera_pose</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.TiledCameraCfg.semantic_filter"><code class="docutils literal notranslate"><span class="pre">TiledCameraCfg.semantic_filter</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.TiledCameraCfg.colorize_semantic_segmentation"><code class="docutils literal notranslate"><span class="pre">TiledCameraCfg.colorize_semantic_segmentation</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.TiledCameraCfg.colorize_instance_id_segmentation"><code class="docutils literal notranslate"><span class="pre">TiledCameraCfg.colorize_instance_id_segmentation</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.TiledCameraCfg.colorize_instance_segmentation"><code class="docutils literal notranslate"><span class="pre">TiledCameraCfg.colorize_instance_segmentation</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.TiledCameraCfg.semantic_segmentation_mapping"><code class="docutils literal notranslate"><span class="pre">TiledCameraCfg.semantic_segmentation_mapping</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.TiledCameraCfg.return_latest_camera_pose"><code class="docutils literal notranslate"><span class="pre">TiledCameraCfg.return_latest_camera_pose</span></code></a></li>
 </ul>
 </li>
 </ul>
@@ -1695,19 +1696,22 @@ Opengl / USD Camera convention.</p>
 <tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sensors.CameraCfg.height" title="isaaclab.sensors.CameraCfg.height"><code class="xref py py-obj docutils literal notranslate"><span class="pre">height</span></code></a></p></td>
 <td><p>Height of the image in pixels.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sensors.CameraCfg.semantic_filter" title="isaaclab.sensors.CameraCfg.semantic_filter"><code class="xref py py-obj docutils literal notranslate"><span class="pre">semantic_filter</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sensors.CameraCfg.update_latest_camera_pose" title="isaaclab.sensors.CameraCfg.update_latest_camera_pose"><code class="xref py py-obj docutils literal notranslate"><span class="pre">update_latest_camera_pose</span></code></a></p></td>
+<td><p>Whether to update the latest camera pose when fetching the camera's data.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sensors.CameraCfg.semantic_filter" title="isaaclab.sensors.CameraCfg.semantic_filter"><code class="xref py py-obj docutils literal notranslate"><span class="pre">semantic_filter</span></code></a></p></td>
 <td><p>A string or a list specifying a semantic filter predicate.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sensors.CameraCfg.colorize_semantic_segmentation" title="isaaclab.sensors.CameraCfg.colorize_semantic_segmentation"><code class="xref py py-obj docutils literal notranslate"><span class="pre">colorize_semantic_segmentation</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sensors.CameraCfg.colorize_semantic_segmentation" title="isaaclab.sensors.CameraCfg.colorize_semantic_segmentation"><code class="xref py py-obj docutils literal notranslate"><span class="pre">colorize_semantic_segmentation</span></code></a></p></td>
 <td><p>Whether to colorize the semantic segmentation images.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sensors.CameraCfg.colorize_instance_id_segmentation" title="isaaclab.sensors.CameraCfg.colorize_instance_id_segmentation"><code class="xref py py-obj docutils literal notranslate"><span class="pre">colorize_instance_id_segmentation</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sensors.CameraCfg.colorize_instance_id_segmentation" title="isaaclab.sensors.CameraCfg.colorize_instance_id_segmentation"><code class="xref py py-obj docutils literal notranslate"><span class="pre">colorize_instance_id_segmentation</span></code></a></p></td>
 <td><p>Whether to colorize the instance ID segmentation images.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sensors.CameraCfg.colorize_instance_segmentation" title="isaaclab.sensors.CameraCfg.colorize_instance_segmentation"><code class="xref py py-obj docutils literal notranslate"><span class="pre">colorize_instance_segmentation</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sensors.CameraCfg.colorize_instance_segmentation" title="isaaclab.sensors.CameraCfg.colorize_instance_segmentation"><code class="xref py py-obj docutils literal notranslate"><span class="pre">colorize_instance_segmentation</span></code></a></p></td>
 <td><p>Whether to colorize the instance ID segmentation images.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sensors.CameraCfg.semantic_segmentation_mapping" title="isaaclab.sensors.CameraCfg.semantic_segmentation_mapping"><code class="xref py py-obj docutils literal notranslate"><span class="pre">semantic_segmentation_mapping</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sensors.CameraCfg.semantic_segmentation_mapping" title="isaaclab.sensors.CameraCfg.semantic_segmentation_mapping"><code class="xref py py-obj docutils literal notranslate"><span class="pre">semantic_segmentation_mapping</span></code></a></p></td>
 <td><p>Dictionary mapping semantics to specific colours</p></td>
 </tr>
 </tbody>
@@ -1836,6 +1840,15 @@ the current data is stored (no history).</p>
 <dt class="sig sig-object py" id="isaaclab.sensors.CameraCfg.height">
 <span class="sig-name descname"><span class="pre">height</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><span class="pre">int</span></a></em><a class="headerlink" href="#isaaclab.sensors.CameraCfg.height" title="Permalink to this definition">#</a></dt>
 <dd><p>Height of the image in pixels.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab.sensors.CameraCfg.update_latest_camera_pose">
+<span class="sig-name descname"><span class="pre">update_latest_camera_pose</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a></em><a class="headerlink" href="#isaaclab.sensors.CameraCfg.update_latest_camera_pose" title="Permalink to this definition">#</a></dt>
+<dd><p>Whether to update the latest camera pose when fetching the camera’s data. Defaults to False.</p>
+<p>If True, the latest camera pose is updated in the camera’s data which will slow down performance
+due to the use of <code class="xref py py-class docutils literal notranslate"><span class="pre">XformPrimView</span></code>.
+If False, the pose of the camera during initialization is returned.</p>
 </dd></dl>
 
 <dl class="py attribute">
@@ -2250,23 +2263,23 @@ Defaults to None, in which case the camera orientation in not changed.</p></li>
 <tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sensors.TiledCameraCfg.height" title="isaaclab.sensors.TiledCameraCfg.height"><code class="xref py py-obj docutils literal notranslate"><span class="pre">height</span></code></a></p></td>
 <td><p>Height of the image in pixels.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sensors.TiledCameraCfg.semantic_filter" title="isaaclab.sensors.TiledCameraCfg.semantic_filter"><code class="xref py py-obj docutils literal notranslate"><span class="pre">semantic_filter</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sensors.TiledCameraCfg.update_latest_camera_pose" title="isaaclab.sensors.TiledCameraCfg.update_latest_camera_pose"><code class="xref py py-obj docutils literal notranslate"><span class="pre">update_latest_camera_pose</span></code></a></p></td>
+<td><p>Whether to update the latest camera pose when fetching the camera's data.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sensors.TiledCameraCfg.semantic_filter" title="isaaclab.sensors.TiledCameraCfg.semantic_filter"><code class="xref py py-obj docutils literal notranslate"><span class="pre">semantic_filter</span></code></a></p></td>
 <td><p>A string or a list specifying a semantic filter predicate.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sensors.TiledCameraCfg.colorize_semantic_segmentation" title="isaaclab.sensors.TiledCameraCfg.colorize_semantic_segmentation"><code class="xref py py-obj docutils literal notranslate"><span class="pre">colorize_semantic_segmentation</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sensors.TiledCameraCfg.colorize_semantic_segmentation" title="isaaclab.sensors.TiledCameraCfg.colorize_semantic_segmentation"><code class="xref py py-obj docutils literal notranslate"><span class="pre">colorize_semantic_segmentation</span></code></a></p></td>
 <td><p>Whether to colorize the semantic segmentation images.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sensors.TiledCameraCfg.colorize_instance_id_segmentation" title="isaaclab.sensors.TiledCameraCfg.colorize_instance_id_segmentation"><code class="xref py py-obj docutils literal notranslate"><span class="pre">colorize_instance_id_segmentation</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sensors.TiledCameraCfg.colorize_instance_id_segmentation" title="isaaclab.sensors.TiledCameraCfg.colorize_instance_id_segmentation"><code class="xref py py-obj docutils literal notranslate"><span class="pre">colorize_instance_id_segmentation</span></code></a></p></td>
 <td><p>Whether to colorize the instance ID segmentation images.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sensors.TiledCameraCfg.colorize_instance_segmentation" title="isaaclab.sensors.TiledCameraCfg.colorize_instance_segmentation"><code class="xref py py-obj docutils literal notranslate"><span class="pre">colorize_instance_segmentation</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sensors.TiledCameraCfg.colorize_instance_segmentation" title="isaaclab.sensors.TiledCameraCfg.colorize_instance_segmentation"><code class="xref py py-obj docutils literal notranslate"><span class="pre">colorize_instance_segmentation</span></code></a></p></td>
 <td><p>Whether to colorize the instance ID segmentation images.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sensors.TiledCameraCfg.semantic_segmentation_mapping" title="isaaclab.sensors.TiledCameraCfg.semantic_segmentation_mapping"><code class="xref py py-obj docutils literal notranslate"><span class="pre">semantic_segmentation_mapping</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sensors.TiledCameraCfg.semantic_segmentation_mapping" title="isaaclab.sensors.TiledCameraCfg.semantic_segmentation_mapping"><code class="xref py py-obj docutils literal notranslate"><span class="pre">semantic_segmentation_mapping</span></code></a></p></td>
 <td><p>Dictionary mapping semantics to specific colours</p></td>
-</tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sensors.TiledCameraCfg.return_latest_camera_pose" title="isaaclab.sensors.TiledCameraCfg.return_latest_camera_pose"><code class="xref py py-obj docutils literal notranslate"><span class="pre">return_latest_camera_pose</span></code></a></p></td>
-<td><p>Whether to return the latest camera pose when fetching the camera's data.</p></td>
 </tr>
 </tbody>
 </table>
@@ -2397,6 +2410,15 @@ asset is already present in the scene.</p>
 </dd></dl>
 
 <dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab.sensors.TiledCameraCfg.update_latest_camera_pose">
+<span class="sig-name descname"><span class="pre">update_latest_camera_pose</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a></em><a class="headerlink" href="#isaaclab.sensors.TiledCameraCfg.update_latest_camera_pose" title="Permalink to this definition">#</a></dt>
+<dd><p>Whether to update the latest camera pose when fetching the camera’s data. Defaults to False.</p>
+<p>If True, the latest camera pose is updated in the camera’s data which will slow down performance
+due to the use of <code class="xref py py-class docutils literal notranslate"><span class="pre">XformPrimView</span></code>.
+If False, the pose of the camera during initialization is returned.</p>
+</dd></dl>
+
+<dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab.sensors.TiledCameraCfg.semantic_filter">
 <span class="sig-name descname"><span class="pre">semantic_filter</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.13)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#isaaclab.sensors.TiledCameraCfg.semantic_filter" title="Permalink to this definition">#</a></dt>
 <dd><p>A string or a list specifying a semantic filter predicate. Defaults to <code class="docutils literal notranslate"><span class="pre">&quot;*:*&quot;</span></code>.</p>
@@ -2455,15 +2477,6 @@ and returned as a <code class="docutils literal notranslate"><span class="pre">u
 <span class="p">}</span>
 </pre></div>
 </div>
-</dd></dl>
-
-<dl class="py attribute">
-<dt class="sig sig-object py" id="isaaclab.sensors.TiledCameraCfg.return_latest_camera_pose">
-<span class="sig-name descname"><span class="pre">return_latest_camera_pose</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a></em><a class="headerlink" href="#isaaclab.sensors.TiledCameraCfg.return_latest_camera_pose" title="Permalink to this definition">#</a></dt>
-<dd><p>Whether to return the latest camera pose when fetching the camera’s data. Defaults to False.</p>
-<p>If True, the latest camera pose is returned in the camera’s data which will slow down performance
-due to the use of <code class="xref py py-class docutils literal notranslate"><span class="pre">XformPrimView</span></code>.
-If False, the pose of the camera during initialization is returned.</p>
 </dd></dl>
 
 </dd></dl>
@@ -4640,6 +4653,7 @@ which results in a positive acceleration reading in the world Z.</p>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.CameraCfg.debug_vis"><code class="docutils literal notranslate"><span class="pre">CameraCfg.debug_vis</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.CameraCfg.width"><code class="docutils literal notranslate"><span class="pre">CameraCfg.width</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.CameraCfg.height"><code class="docutils literal notranslate"><span class="pre">CameraCfg.height</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.CameraCfg.update_latest_camera_pose"><code class="docutils literal notranslate"><span class="pre">CameraCfg.update_latest_camera_pose</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.CameraCfg.semantic_filter"><code class="docutils literal notranslate"><span class="pre">CameraCfg.semantic_filter</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.CameraCfg.colorize_semantic_segmentation"><code class="docutils literal notranslate"><span class="pre">CameraCfg.colorize_semantic_segmentation</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.CameraCfg.colorize_instance_id_segmentation"><code class="docutils literal notranslate"><span class="pre">CameraCfg.colorize_instance_id_segmentation</span></code></a></li>
@@ -4686,12 +4700,12 @@ which results in a positive acceleration reading in the world Z.</p>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.TiledCameraCfg.data_types"><code class="docutils literal notranslate"><span class="pre">TiledCameraCfg.data_types</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.TiledCameraCfg.width"><code class="docutils literal notranslate"><span class="pre">TiledCameraCfg.width</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.TiledCameraCfg.height"><code class="docutils literal notranslate"><span class="pre">TiledCameraCfg.height</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.TiledCameraCfg.update_latest_camera_pose"><code class="docutils literal notranslate"><span class="pre">TiledCameraCfg.update_latest_camera_pose</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.TiledCameraCfg.semantic_filter"><code class="docutils literal notranslate"><span class="pre">TiledCameraCfg.semantic_filter</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.TiledCameraCfg.colorize_semantic_segmentation"><code class="docutils literal notranslate"><span class="pre">TiledCameraCfg.colorize_semantic_segmentation</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.TiledCameraCfg.colorize_instance_id_segmentation"><code class="docutils literal notranslate"><span class="pre">TiledCameraCfg.colorize_instance_id_segmentation</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.TiledCameraCfg.colorize_instance_segmentation"><code class="docutils literal notranslate"><span class="pre">TiledCameraCfg.colorize_instance_segmentation</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.TiledCameraCfg.semantic_segmentation_mapping"><code class="docutils literal notranslate"><span class="pre">TiledCameraCfg.semantic_segmentation_mapping</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.TiledCameraCfg.return_latest_camera_pose"><code class="docutils literal notranslate"><span class="pre">TiledCameraCfg.return_latest_camera_pose</span></code></a></li>
 </ul>
 </li>
 </ul>
@@ -4934,7 +4948,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Apr 24, 2025.
+  Last updated on Apr 25, 2025.
   <br/>
 </p>
   </div>

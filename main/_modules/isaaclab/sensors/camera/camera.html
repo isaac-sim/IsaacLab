@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.1.0" />
-    <meta name="docbuild:last-update" content="Apr 24, 2025"/>
+    <meta name="docbuild:last-update" content="Apr 25, 2025"/>
   </head>
   
   
@@ -1046,7 +1046,8 @@
         <span class="c1"># Increment frame count</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_frame</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>
         <span class="c1"># -- pose</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_update_poses</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">update_latest_camera_pose</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_update_poses</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span>
         <span class="c1"># -- read the data from annotator registry</span>
         <span class="c1"># check if buffer is called for the first time. If so then, allocate the memory</span>
         <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">output</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
@@ -1316,7 +1317,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Apr 24, 2025.
+  Last updated on Apr 25, 2025.
   <br/>
 </p>
   </div>

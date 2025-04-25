@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.1.0" />
-    <meta name="docbuild:last-update" content="Apr 24, 2025"/>
+    <meta name="docbuild:last-update" content="Apr 25, 2025"/>
   </head>
   
   
@@ -609,6 +609,14 @@
     <span class="n">height</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">MISSING</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Height of the image in pixels.&quot;&quot;&quot;</span>
 
+    <span class="n">update_latest_camera_pose</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Whether to update the latest camera pose when fetching the camera&#39;s data. Defaults to False.</span>
+
+<span class="sd">    If True, the latest camera pose is updated in the camera&#39;s data which will slow down performance</span>
+<span class="sd">    due to the use of :class:`XformPrimView`.</span>
+<span class="sd">    If False, the pose of the camera during initialization is returned.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
     <span class="n">semantic_filter</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;*:*&quot;</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;A string or a list specifying a semantic filter predicate. Defaults to ``&quot;*:*&quot;``.</span>
 
@@ -715,7 +723,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Apr 24, 2025.
+  Last updated on Apr 25, 2025.
   <br/>
 </p>
   </div>
