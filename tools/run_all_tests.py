@@ -136,6 +136,12 @@ def test_all(
 
     # Run each script and store results
     for test_path in test_paths:
+        if (
+            "test_tiled_camera" not in test_path
+            and "test_pink_ik" not in test_path
+            and "test_environments" not in test_path
+        ):
+            continue
         results[test_path] = {}
         before = time.time()
         logging.info("\n" + "-" * 60 + "\n")

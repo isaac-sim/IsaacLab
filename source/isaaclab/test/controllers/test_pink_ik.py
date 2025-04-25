@@ -4,10 +4,12 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 """Launch Isaac Sim Simulator first."""
+import sys
 
 # Import pinocchio in the main script to force the use of the dependencies installed by IsaacLab and not the one installed by Isaac Sim
 # pinocchio is required by the Pink IK controller
-import pinocchio  # noqa: F401
+if sys.platform != "win32":
+    import pinocchio  # noqa: F401
 
 from isaaclab.app import AppLauncher, run_tests
 
@@ -22,6 +24,7 @@ import torch
 import unittest
 
 import isaaclab_tasks  # noqa: F401
+import isaaclab_tasks.manager_based.manipulation.pick_place  # noqa: F401
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
 
 
