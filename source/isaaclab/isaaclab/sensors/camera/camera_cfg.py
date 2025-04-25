@@ -74,7 +74,7 @@ class CameraCfg(SensorBaseCfg):
     """Height of the image in pixels."""
 
     update_latest_camera_pose: bool = False
-    """Whether to update the latest camera pose when fetching the camera's data. Defaults to True.
+    """Whether to update the latest camera pose when fetching the camera's data. Defaults to False.
 
     If True, the latest camera pose is updated in the camera's data which will slow down performance
     due to the use of :class:`XformPrimView`.
