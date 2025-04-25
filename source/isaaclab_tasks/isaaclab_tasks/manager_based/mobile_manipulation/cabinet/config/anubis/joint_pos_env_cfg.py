@@ -4,9 +4,9 @@ from isaaclab.sensors import FrameTransformerCfg
 from isaaclab.sensors.frame_transformer.frame_transformer_cfg import OffsetCfg
 from isaaclab.utils import configclass
 
-from isaaclab_tasks.manager_based.mm.cabinet import mdp
+from isaaclab_tasks.manager_based.mobile_manipulation.cabinet import mdp
 
-from isaaclab_tasks.manager_based.mm.cabinet.cabinet_env_cfg import (  # isort: skip
+from isaaclab_tasks.manager_based.mobile_manipulation.cabinet.cabinet_env_cfg import (  # isort: skip
     FRAME_MARKER_SMALL_CFG,
     CabinetEnvCfg,
 )
@@ -135,10 +135,3 @@ class AnubisCabinetEnvCfg_PLAY(AnubisCabinetEnvCfg):
         self.scene.env_spacing = 2.5
         # disable randomization for play
         self.observations.policy.enable_corruption = False
-~                                                                                                                                                                                                                                                                                             
-~                                                                                                                                                                                                                                                                                             
-~                                                                                                                                                                                                                                                                                             
-~                                                                                                                                                                                                                                                                                             
-~                                                                                                                                                                                                                                                                                             
-~                                                                                                                                                                                                                                                                                             
-~                                                                       

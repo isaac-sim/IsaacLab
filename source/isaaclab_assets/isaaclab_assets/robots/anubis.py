@@ -1,0 +1,90 @@
+# exaFLOPs
+
+import isaaclab.sim as sim_utils
+from isaaclab.actuators import ImplicitActuatorCfg
+from isaaclab.assets.articulation import ArticulationCfg
+
+##
+# Configuration
+##
+
+ANUBIS_CFG = ArticulationCfg(
+    spawn=sim_utils.UsdFileCfg(
+        usd_path="/root/IsaacLab/source/isaaclab_assets/data/Robots/MM/anubis/anubis_v2.usd",
+        activate_contact_sensors=False,
+        rigid_props=sim_utils.RigidBodyPropertiesCfg(
+            rigid_body_enabled=True,
+            kinematic_enabled=False,
+            disable_gravity=False,
+            max_linear_velocity=12.0,
+            max_angular_velocity=12.0,
+            max_depenetration_velocity=10.0,
+            max_contact_impulse=100.0,
+            stabilization_threshold=0.5,
+        ),
+        articulation_props=sim_utils.ArticulationRootPropertiesCfg(
+            enabled_self_collisions=True,
+            solver_position_iteration_count=8,
+            solver_velocity_iteration_count=0,
+            fix_root_link=True,
+        ),
+    ),
+    init_state=ArticulationCfg.InitialStateCfg(
+        joint_pos={
+            # base
+            "dummy_base_prismatic_y_joint": 0.0,
+            "dummy_base_prismatic_x_joint": 0.0,
+            "dummy_base_revolute_z_joint": 0.0,
+
+            # arm <-> base
+            "arm.*": 0.0,
+
+            # arm
+            "link.*": 0.0,
+
+            # finger
+            "gripper.*": 0.0,
+        },
+        joint_vel={".*": 0.0},
+    ),
+
+    actuators={
+        "base": ImplicitActuatorCfg(
+            joint_names_expr=["dummy_base_.*"],
+            velocity_limit=100.0,
+            effort_limit=1000.0,
+            stiffness=0.0,
+            damping=1e7,  # tip:: For velocity control of the base with dummy mechanism, we recommend setting high damping gains to the joints. This ensures that the base remains unperturbed from external disturbances, such as an arm mounted on the base.
+        ),
+        "arm_base": ImplicitActuatorCfg(
+            joint_names_expr=["arm.*"],
+            effort_limit_sim=1e5,
+            velocity_limit_sim=1e4,
+            stiffness=1e7,
+            damping=1e5,
+        ),
+        "arm_link": ImplicitActuatorCfg(
+            joint_names_expr=["link.*"],
+            effort_limit_sim=1e5,
+            velocity_limit_sim=1e4,
+            stiffness=1e7,
+            damping=1e5,
+        ),
+        "anubis_hand": ImplicitActuatorCfg(
+            joint_names_expr=["gripper.*"],
+            effort_limit_sim=1000,
+            velocity_limit_sim=0.2,
+            stiffness=1e5,
+            damping=1e4,
+        ),
+    },
+)
+
+
+
+ANUBIS_PD_CFG = ANUBIS_CFG.copy()
+# ANUBIS_PD_CFG.spawn.rigid_props.disable_gravity = True
+# ANUBIS_PD_CFG.actuators["arm_link"].stiffness = 400.0
+# ANUBIS_PD_CFG.actuators["arm_link"].damping = 80.0
+# ANUBIS_PD_CFG.actuators["arm_base"].stiffness = 400.0
+# ANUBIS_PD_CFG.actuators["arm_base"].damping = 80.0

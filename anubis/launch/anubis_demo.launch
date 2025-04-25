@@ -1,0 +1,26 @@
+<launch>
+  <arg name="gui" default="true"/>
+  <arg name="robotname" default="anubis.urdf"/>
+
+  <param name="robot_description" command="$(find xacro)/xacro --inorder '$(find anubis)/urdf/$(arg robotname)'"/>
+
+  <node pkg="tf" type="static_transform_publisher" name="robot_tf" args="0 0 0 0 0 0 /map /base_footprint 100" />
+
+  <!-- robot state publisher (from joint_state to robot visualization) -->
+  <node pkg="robot_state_publisher" type="robot_state_publisher" name="robot_state_publisher">
+      <param name="publish_frequency" type="double" value="100.0"/>
+  </node>
+
+  <!-- <node pkg="joint_state_publisher" type="joint_state_publisher" name="joint_state_publisher" output="screen" >
+      <param name="use_gui" value="TRUE"/>
+  </node> -->
+
+  <arg name="use_gui" default="true" doc="Should the joint_state_publisher use a GUI for controlling joint states" />
+  <node pkg="joint_state_publisher" type="joint_state_publisher" name="joint_state_publisher" output="screen" unless="$(arg use_gui)" />
+  <node pkg="joint_state_publisher_gui" type="joint_state_publisher_gui" name="joint_state_publisher_gui" output="screen" if="$(arg use_gui)" />
+
+
+  <arg name="rviz_file" value="$(find anubis)/config/anubis.rviz"/>
+  <node name="rviz" pkg="rviz" type="rviz" args="-d $(arg rviz_file)" required="true"/>
+
+</launch>

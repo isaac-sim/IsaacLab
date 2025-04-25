@@ -1,8 +1,3 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
-# All rights reserved.
-#
-# SPDX-License-Identifier: BSD-3-Clause
-
 """Keyboard controller for SE(3) control."""
 
 import numpy as np
@@ -12,9 +7,9 @@ from scipy.spatial.transform import Rotation
 
 import carb
 import omni
-
+import time
+import math
 from ..device_base import DeviceBase
-
 
 class Se3Keyboard(DeviceBase):
     """A keyboard controller for sending SE(3) commands as delta poses and binary command (open/close).
@@ -320,13 +315,13 @@ class Se3Keyboard_BMM(DeviceBase):
                 self._delta_base += self._INPUT_KEY_MAPPING[event.input.name]
                 self._key_hold_start[key] = now
             elif event.input.name in ["I"]:
-                self._delta_base += np.asarray([ math.cos(self._base_z_accum / 2.5 ),  math.sin(self._base_z_accum / 2.5), 0.0]) * self.base_sensitivity
+                self._delta_base += np.asarray([ math.cos(self._base_z_accum / 1.25 ),  math.sin(self._base_z_accum / 1.25), 0.0]) * self.base_sensitivity
             elif event.input.name in ["K"]:
-                self._delta_base += np.asarray([ -math.cos(self._base_z_accum / 2.5),  -math.sin(self._base_z_accum / 2.5), 0.0]) * self.base_sensitivity
+                self._delta_base += np.asarray([ -math.cos(self._base_z_accum / 1.25),  -math.sin(self._base_z_accum / 1.25), 0.0]) * self.base_sensitivity
             elif event.input.name in ["J"]:
-                self._delta_base += np.asarray([ -math.sin(self._base_z_accum / 2.5),  math.cos(self._base_z_accum / 2.5), 0.0]) * self.base_sensitivity
+                self._delta_base += np.asarray([ -math.sin(self._base_z_accum / 1.25),  math.cos(self._base_z_accum / 1.25), 0.0]) * self.base_sensitivity
             elif event.input.name in ["L"]:
-                self._delta_base += np.asarray([ math.sin(self._base_z_accum / 2.5),  -math.cos(self._base_z_accum / 2.5), 0.0]) * self.base_sensitivity
+                self._delta_base += np.asarray([ math.sin(self._base_z_accum / 1.25),  -math.cos(self._base_z_accum / 1.25), 0.0]) * self.base_sensitivity
         
         # remove the command when un-pressed
         if event.type == carb.input.KeyboardEventType.KEY_RELEASE:
@@ -348,14 +343,14 @@ class Se3Keyboard_BMM(DeviceBase):
                     self._base_z_accum += delta
                     del self._key_hold_start[key]
             elif event.input.name in ["I"]:
-                self._delta_base -= np.asarray([ math.cos(self._base_z_accum / 2.5),  math.sin(self._base_z_accum / 2.5), 0.0]) * self.base_sensitivity
+                self._delta_base -= np.asarray([ math.cos(self._base_z_accum / 1.25),  math.sin(self._base_z_accum / 1.25), 0.0]) * self.base_sensitivity
             elif event.input.name in ["K"]:
-                self._delta_base -= np.asarray([ -math.cos(self._base_z_accum / 2.5),  -math.sin(self._base_z_accum / 2.5), 0.0]) * self.base_sensitivity
+                self._delta_base -= np.asarray([ -math.cos(self._base_z_accum / 1.25),  -math.sin(self._base_z_accum / 1.25), 0.0]) * self.base_sensitivity
             elif event.input.name in ["J"]:
-                self._delta_base -= np.asarray([ -math.sin(self._base_z_accum / 2.5),  math.cos(self._base_z_accum / 2.5), 0.0]) * self.base_sensitivity
+                self._delta_base -= np.asarray([ -math.sin(self._base_z_accum / 1.25),  math.cos(self._base_z_accum / 1.25), 0.0]) * self.base_sensitivity
             elif event.input.name in ["L"]:
-                self._delta_base -= np.asarray([ math.sin(self._base_z_accum / 2.5),  -math.cos(self._base_z_accum / 2.5), 0.0]) * self.base_sensitivity
-
+                self._delta_base -= np.asarray([ math.sin(self._base_z_accum / 1.25),  -math.cos(self._base_z_accum / 1.25), 0.0]) * self.base_sensitivity
+            # 1.25 differ by hardware
         # additional callbacks
         if event.type == carb.input.KeyboardEventType.KEY_PRESS:
             if event.input.name in self._additional_callbacks:

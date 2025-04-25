@@ -1,0 +1,11 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>anubis</name>
+  <version>0.0.0</version>
+  <description>The anubis package</description>
+  <maintainer email="sj@todo.todo">sj</maintainer>
+  <license>TODO</license>
+  <buildtool_depend>catkin</buildtool_depend>
+  <export>
+  </export>
+</package>
