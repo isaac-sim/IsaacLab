@@ -10,7 +10,7 @@ from isaaclab.assets.articulation import ArticulationCfg
 
 ANUBIS_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
-        usd_path="/root/IsaacLab/source/isaaclab_assets/data/Robots/MM/anubis/anubis_v3.usd",
+        usd_path="/root/IsaacLab/source/isaaclab_assets/data/Robots/MM/anubis/anubis_v2.usd",
         activate_contact_sensors=False,
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             rigid_body_enabled=True,

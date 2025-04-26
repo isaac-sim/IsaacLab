@@ -1,3 +1,5 @@
+"""Script to run a keyboard teleoperation with anubis in Isaac Lab manipulation environments."""
+
 """Launch Isaac Sim Simulator first."""
 
 import argparse
@@ -11,7 +13,7 @@ parser.add_argument(
     "--disable_fabric", action="store_true", default=False, help="Disable fabric and use USD I/O operations."
 )
 parser.add_argument("--num_envs", type=int, default=1, help="Number of environments to simulate.")
-parser.add_argument("--teleop_device", type=str, default="keyboard_bmm", help="Device for interacting with environment")
+parser.add_argument("--teleop_device", type=str, default="oculus", help="Device for interacting with environment")
 parser.add_argument("--task", type=str, default="Cabinet-anubis-teleop-v0", help="Name of the task.")
 parser.add_argument("--sensitivity", type=float, default=1.0, help="Sensitivity factor.")
 # append AppLauncher cli args
@@ -26,20 +28,51 @@ if args_cli.teleop_device.lower() == "handtracking":
 app_launcher = AppLauncher(app_launcher_args)
 simulation_app = app_launcher.app
 
+"""Rest everything follows."""
 
-import argparse
-import numpy as np
+
 import gymnasium as gym
 import torch
+import ipdb
 import omni.log
 
-from isaaclab.app import AppLauncher
-from isaaclab.devices import Se3Keyboard_BMM, MobileBaseJoystick
+from isaaclab.devices import Se3Gamepad, Se3Keyboard, Se3SpaceMouse, Se3Keyboard_BMM, OculusV0
+from isaaclab.envs import ViewerCfg
 from isaaclab.envs.ui import ViewportCameraController
 from isaaclab.managers import TerminationTermCfg as DoneTerm
-from isaaclab.envs import ViewerCfg
-from isaaclab_tasks.utils import parse_env_cfg
+
 import isaaclab_tasks  # noqa: F401
+from isaaclab_tasks.manager_based.manipulation.lift import mdp
+from isaaclab_tasks.utils import parse_env_cfg
+
+
+def pre_process_actions(delta_pose_L: torch.Tensor, gripper_command_L: bool, delta_pose_R, gripper_command_R: bool, delta_pose_base) -> torch.Tensor:
+    """Pre-process actions for the environment."""
+    # compute actions based on environment
+    if "Reach" in args_cli.task:
+        # note: reach is the only one that uses a different action space
+        # compute actions
+        return delta_pose
+    else:
+        # resolve gripper command
+        gripper_vel_L = torch.zeros(delta_pose_L.shape[0], 1, device=delta_pose_L.device)
+        gripper_vel_L[:] = -1.0 if gripper_command_L else 1.0
+
+        gripper_vel_R = torch.zeros(delta_pose_R.shape[0], 1, device=delta_pose_R.device)
+        gripper_vel_R[:] = -1.0 if gripper_command_R else 1.0
+        # compute actions
+
+        delta_pose_L_zeroed = torch.zeros_like(delta_pose_L)  # Shape: (batch_size, 6)
+        delta_pose_R_zeroed = torch.zeros_like(delta_pose_R)  # Shape: (batch_size, 6)
+
+        # Ensure gripper velocities and base poses have the correct shapes  
+        gripper_vel_L = gripper_vel_L.reshape(-1, 1)  # Shape: (batch_size, 1)
+        gripper_vel_R = gripper_vel_R.reshape(-1, 1)  # Shape: (batch_size, 1)
+        
+        # Concatenate the zeroed out poses with the velocities and base movement
+        return torch.concat([delta_pose_L_zeroed, delta_pose_R_zeroed, gripper_vel_L, gripper_vel_R, delta_pose_base], dim=1)
+
+        # return torch.concat([delta_pose_L, delta_pose_R, gripper_vel_L, gripper_vel_R, delta_pose_base], dim=1)
 
 
 def main():
@@ -66,68 +99,85 @@ def main():
             f"The environment '{args_cli.task}' does not support gripper control. The device command will be ignored."
         )
 
-    # Instantiate teleoperation interfaces
-    # Keyboard BMM for arms only (disable base) by setting base_sensitivity=0
-    arm_ctrl = Se3Keyboard_BMM(
-        pos_sensitivity=0.05 * args_cli.sensitivity,
-        rot_sensitivity=0.05 * args_cli.sensitivity,
-        base_sensitivity=0.0
-    )
-    # Joystick for mobile base
-    base_ctrl = MobileBaseJoystick(
-        linear_sensitivity=0.1 * args_cli.sensitivity,
-        angular_sensitivity=0.1 * args_cli.sensitivity
-    )
+    # create controller
+    if args_cli.teleop_device.lower() == "keyboard":
+        teleop_interface = Se3Keyboard(
+            pos_sensitivity=0.05 * args_cli.sensitivity, rot_sensitivity=0.05 * args_cli.sensitivity
+        )
+    elif args_cli.teleop_device.lower() == "keyboard_bmm":
+        teleop_interface = Se3Keyboard_BMM(
+            pos_sensitivity=0.05 * args_cli.sensitivity, rot_sensitivity=0.05 * args_cli.sensitivity
+        )
+    elif args_cli.teleop_device.lower() == "oculus":
+        teleop_interface = OculusV0(
+            pos_sensitivity=0.000001 * args_cli.sensitivity, rot_sensitivity=0.000001 * args_cli.sensitivity
+        )
+    elif args_cli.teleop_device.lower() == "spacemouse":
+        teleop_interface = Se3SpaceMouse(
+            pos_sensitivity=0.000001 * args_cli.sensitivity, rot_sensitivity=0.000001 * args_cli.sensitivity
+        )
+    elif args_cli.teleop_device.lower() == "gamepad":
+        teleop_interface = Se3Gamepad(
+            pos_sensitivity=0.1 * args_cli.sensitivity, rot_sensitivity=0.1 * args_cli.sensitivity
+        )
+    # elif args_cli.teleop_device.lower() == "handtracking":
+    #     from isaacsim.xr.openxr import OpenXRSpec
 
-    # Teleoperation reset flag and callback
-    should_reset = False
-    def reset_all():
-        nonlocal should_reset
-        should_reset = True
-        arm_ctrl.reset()
-        base_ctrl.reset()
+    #     teleop_interface = Se3HandTracking(OpenXRSpec.XrHandEXT.XR_HAND_RIGHT_EXT, False, True)
+    #     teleop_interface.add_callback("RESET", env.reset)
+    #     viewer = ViewerCfg(eye=(-0.25, -0.3, 0.5), lookat=(0.6, 0, 0), asset_name="viewer")
+    #     ViewportCameraController(env, viewer)
+    else:
+        raise ValueError(
+            f"Invalid device interface '{args_cli.teleop_device}'. Supported: 'keyboard', 'spacemouse''handtracking'."
+        )
 
-    arm_ctrl.add_callback("R", reset_all)
+    # add teleoperation key for env reset
+    should_reset_recording_instance = False
 
-    # Initial resets
+    def reset_recording_instance():
+        nonlocal should_reset_recording_instance
+        should_reset_recording_instance = True
+
+    teleop_interface.add_callback("X", reset_recording_instance)
+    # print(teleop_interface)
+
+    # reset environment
     env.reset()
-    arm_ctrl.reset()
-    base_ctrl.reset()
+    teleop_interface.reset()
 
-    # Main simulation loop
-    while sim_app.is_running():
+    # simulate environment
+    while simulation_app.is_running():
+        # run everything in inference mode
         with torch.inference_mode():
-            # Read arm commands from keyboard
-            delta_L, grip_L, delta_R, grip_R, _ = arm_ctrl.advance()
-            # Read base commands from joystick
-            delta_base = base_ctrl.advance()
+            # get keyboard command
+            delta_pose_L, gripper_command_L, delta_pose_R, gripper_command_R, delta_pose_base = teleop_interface.advance()
+            print(delta_pose_L, gripper_command_L, delta_pose_R, gripper_command_R, delta_pose_base)
+            delta_pose_L = delta_pose_L.astype("float32")
+            delta_pose_R = delta_pose_R.astype("float32")
+            delta_pose_base = delta_pose_base.astype("float32")
+            # convert to torch
+            delta_pose_L = torch.tensor(delta_pose_L, device=env.device).repeat(env.num_envs, 1)
+            delta_pose_R = torch.tensor(delta_pose_R, device=env.device).repeat(env.num_envs, 1)
+            delta_pose_base = torch.tensor(delta_pose_base, device=env.device).repeat(env.num_envs, 1)
+            # pre-process actions
 
-            # Convert to torch and repeat per environment
-            tdelta_L = torch.tensor(delta_L.astype("float32"), device=env.device).repeat(env.num_envs, 1)
-            tdelta_R = torch.tensor(delta_R.astype("float32"), device=env.device).repeat(env.num_envs, 1)
-            tdelta_base = torch.tensor(delta_base.astype("float32"), device=env.device).repeat(env.num_envs, 1)
+            actions = pre_process_actions(delta_pose_L, gripper_command_L, delta_pose_R, gripper_command_R, delta_pose_base)
+            # apply actions
 
-            # Build action tensor
-            grL = -1.0 if grip_L else 1.0
-            grR = -1.0 if grip_R else 1.0
-            grL_tensor = torch.full((env.num_envs, 1), grL, device=env.device)
-            grR_tensor = torch.full((env.num_envs, 1), grR, device=env.device)
-            actions = torch.cat([
-                tdelta_L, tdelta_R, grL_tensor, grR_tensor, tdelta_base
-            ], dim=1)
-
-            # Step the environment
             env.step(actions)
 
-            # Handle reset
-            if should_reset:
+            if should_reset_recording_instance:
                 env.reset()
-                should_reset = False
+                teleop_interface.reset()
+                should_reset_recording_instance = False
 
-    # Cleanup
+    # close the simulator
     env.close()
-    sim_app.close()
 
 
 if __name__ == "__main__":
+    # run the main function
     main()
+    # close sim app
+    simulation_app.close()

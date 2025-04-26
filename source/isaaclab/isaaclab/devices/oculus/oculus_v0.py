@@ -193,7 +193,22 @@ class OculusReader:
     def get_transformations_and_buttons(self):
         with self._lock:
             return self.last_transforms, self.last_buttons
-
+    
+    def get_valid_transforms_and_buttons(self):
+        while True:
+            transforms, buttons = self.get_transformations_and_buttons()
+        
+            # Check if 'l' and 'r' are in transforms, indicating valid data
+            if "l" in transforms and "r" in transforms:
+                # print("Valid transforms received.")
+                return transforms, buttons
+        
+            # Optionally log or print when data isn't available
+            print("Waiting for valid transforms...")
+        
+            # Wait a bit before trying again (to avoid busy loop)
+            time.sleep(0.1)  # Sleep for 100ms before retrying
+    
     def read_logcat_by_line(self, connection):
         file_obj = connection.socket.makefile()
         while self.running:
@@ -240,7 +255,7 @@ class OculusV0(DeviceBase):
         Move left arm                  IK of left joystick SE(3) 4x4 matrix
         ============================== ================= 
     """
-    def __init__(self, pos_sensitivity: float = 1, rot_sensitivity: float = 1, base_sensitivity: float = 0.3):
+    def __init__(self, pos_sensitivity: float = 0.00001, rot_sensitivity: float = 0.00001, base_sensitivity: float = 0.03):
         """
         Args:
             pos_sensitivity: Magnitude of input position command scaling for arms.
@@ -254,7 +269,6 @@ class OculusV0(DeviceBase):
 
         # initialize OculusReader for joystick input
         self.oculus_reader = OculusReader()
-        self.oculus_reader.initialize()  # start background threads if needed
 
         # set up yaw cumulative motion
         self._key_hold_start = {}  # Track when rightJS is moved
@@ -320,8 +334,8 @@ class OculusV0(DeviceBase):
             A tuple containing the delta pose commands for left arm, right arm, and mobile base.
         """
         # fetch latest controller data
-        transforms, buttons = self.oculus_reader.get_transformations_and_buttons()  # returns dict with 'leftJS', 'rightJS'
-        
+        transforms, buttons = self.oculus_reader.get_valid_transforms_and_buttons()  # returns dict with 'leftJS', 'rightJS'
+        # ipdb.set_trace()
         # Delta pose for arms
         self._delta_pos_left += np.array([transforms["l"][0, 3], transforms["l"][1, 3], transforms["l"][2, 3]]) * self.pos_sensitivity
         self._delta_pos_right += np.array([transforms["r"][0, 3], transforms["l"][1, 3], transforms["l"][2, 3]]) * self.pos_sensitivity
@@ -329,6 +343,9 @@ class OculusV0(DeviceBase):
         # Rotation for arms
         rot_vec_left = Rotation.from_matrix(transforms["l"][:3, :3]).as_rotvec()
         rot_vec_right = Rotation.from_matrix(transforms["r"][:3, :3]).as_rotvec()
+
+        if buttons["X"]:
+            self.reset()
 
         # Gripper
         if buttons['LTr']:
@@ -350,7 +367,7 @@ class OculusV0(DeviceBase):
             self._key_hold_start['clockwise'] = time.time()
 
         # check if the rightJS is returned to the center (similar to key realeased)
-        elif buttons['rightJS'][0] == 0.0 & (('counterclockwise' in self._key_hold_start) or ()'clockwise' in self._key_hold_start)):
+        elif buttons['rightJS'][0] == 0.0 and (('counterclockwise' in self._key_hold_start) or ('clockwise' in self._key_hold_start)):
             # remove the key from the dictionary
             if 'counterclockwise' in self._key_hold_start:
                 duration = time.time() - self._key_hold_start['counterclockwise']
