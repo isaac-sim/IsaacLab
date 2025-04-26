@@ -73,8 +73,17 @@ class FrankaCabinetEnvCfg(CabinetEnvCfg):
                     name="tool_rightfinger",   
                     offset=OffsetCfg(   
                         pos=(0.0, 0.0, 0.046),
-                    ),
+                    )
                 ),
+                # FrameTransformerCfg.FrameCfg(
+                #     # 新的虚拟坐标系附着在usd中定义好的panda_hand这个xfrom上
+                #     prim_path="{ENV_REGEX_NS}/Robot/panda_hand",
+                #     # 新的虚拟坐标系名字
+                #     name="hand",
+                #     offset=OffsetCfg(
+                #         pos=(0.0, 0.0, 0.0),
+                #     ),
+                # ),
             ],
         )
 

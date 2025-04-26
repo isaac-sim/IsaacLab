@@ -49,7 +49,7 @@ class FrankaCabinetEnvCfg(joint_pos_env_cfg.FrankaCabinetEnvCfg):
                 impedance_mode="variable_kp",
                 inertial_dynamics_decoupling=True, 
                 partial_inertial_dynamics_decoupling=False,
-                gravity_compensation=True, # 开启重力补偿
+                gravity_compensation=False, # 重力补偿不能开，好像有问题
                 motion_stiffness_task=100.0,
                 motion_damping_ratio_task=1.0,
                 motion_stiffness_limits_task=(50.0, 200.0),
@@ -68,6 +68,9 @@ class FrankaCabinetEnvCfg(joint_pos_env_cfg.FrankaCabinetEnvCfg):
         self.observations.policy.waypoint_states = ObsTerm(func=mdp.waypoints,
                                                            params={"asset_cfg": SceneEntityCfg("robot")},
                                                            )
+        # self.observations.policy.ee_action_targets = ObsTerm(func=mdp.waypoints,
+        #                                                    params={"asset_cfg": SceneEntityCfg("robot")},
+        #                                                    )
 
 
 

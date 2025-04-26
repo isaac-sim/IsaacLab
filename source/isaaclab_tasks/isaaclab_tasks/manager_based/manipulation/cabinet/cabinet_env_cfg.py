@@ -21,6 +21,10 @@ from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import FrameTransformerCfg
 from isaaclab.sensors import TiledCameraCfg
 
+
+from isaaclab.markers import VisualizationMarkers
+
+
 from isaaclab.sensors.frame_transformer import OffsetCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
@@ -49,6 +53,11 @@ class CabinetSceneCfg(InteractiveSceneCfg):
     This is the abstract base implementation, the exact scene is defined in the derived classes
     which need to set the robot and end-effector frames
     """
+
+    # Markers
+    # ee_marker = VisualizationMarkers(FRAME_MARKER_SMALL_CFG.replace(prim_path="/Visuals/ee_current"))
+    # goal_marker = VisualizationMarkers(FRAME_MARKER_SMALL_CFG.replace(prim_path="/Visuals/ee_goal"))
+
 
     # robots, Will be populated by agent env cfg
     robot: ArticulationCfg = MISSING
@@ -92,10 +101,10 @@ class CabinetSceneCfg(InteractiveSceneCfg):
         actuators={
             "drawers": ImplicitActuatorCfg(
                 joint_names_expr=["drawer_top_joint", "drawer_bottom_joint"],
-                effort_limit=87.0,
-                velocity_limit=100.0,
-                stiffness=10.0,
-                damping=1.0,
+                effort_limit=10.0, # 这里我偷懒，降低了抽屉的容易拉开程度，并不太符合物理标准 原87
+                velocity_limit=100.0, # 原100
+                stiffness=2.0, # 原10
+                damping=0.2, # 原1.0
             ),
             "doors": ImplicitActuatorCfg(
                 joint_names_expr=["door_left_joint", "door_right_joint"],
@@ -111,8 +120,8 @@ class CabinetSceneCfg(InteractiveSceneCfg):
     cabinet_frame = FrameTransformerCfg(
         # 设置父坐标系的xform
         prim_path="{ENV_REGEX_NS}/Cabinet/sektion",
-        debug_vis=True,
-        visualizer_cfg=FRAME_MARKER_SMALL_CFG.replace(prim_path="/Visuals/CabinetFrameTransformer"),
+        debug_vis=False,
+        visualizer_cfg= FRAME_MARKER_SMALL_CFG.replace(prim_path="/Visuals/CabinetFrameTransformer"),
         target_frames=[
             # 手柄坐标系的名字还是“drawer_handle_top”
             FrameTransformerCfg.FrameCfg(
@@ -187,15 +196,24 @@ class ObservationsCfg:
 
         actions = ObsTerm(func=mdp.last_action)
         
-        # 占位，不一定用
+        # 原始的waypoint+gripper命令
         waypoint_states: ObsTerm = MISSING
+        # 需要的ee手指中心目标位置
+        # ee_action_targets: ObsTerm = MISSING
+
         # 补充一个gripper的观测，用来判断当前的状态, state = 1 打开，否则是关闭状态
         gripper_state = ObsTerm(func=mdp.gripper_state)
+        # 
+        ee_pos = ObsTerm(func=mdp.ee_pos)
+        ee_quat = ObsTerm(func=mdp.ee_quat)
 
+        # hand_pos = ObsTerm(func=mdp.hand_pos)
+        # hand_quat = ObsTerm(func=mdp.hand_quat)
 
         def __post_init__(self):
             self.enable_corruption = True
-            self.concatenate_terms = True
+            # 这里我改动为False
+            self.concatenate_terms = False
 
     # observation groups
     policy: PolicyCfg = PolicyCfg()
@@ -284,6 +302,8 @@ class TerminationsCfg:
     """Termination terms for the MDP."""
 
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
+    # 声明一个简单的成功判断函数，具体的自定义success函数写在了observation.py中
+    success = DoneTerm(func=mdp.success)
 
 
 ##

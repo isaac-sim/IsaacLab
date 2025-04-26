@@ -38,10 +38,18 @@ def rel_ee_drawer_distance(env: ManagerBasedRLEnv) -> torch.Tensor:
     return cabinet_tf_data.target_pos_w[..., 0, :] - ee_tf_data.target_pos_w[..., 0, :]
 
 
+# 我这里简单添加了一个成功判断函数
+def success(env: ManagerBasedRLEnv) -> torch.Tensor:
+    cabinet_tf_data: FrameTransformerData = env.scene["cabinet_frame"].data
+    threshold = 0.770
+    success = torch.norm(cabinet_tf_data.target_pos_w[..., 0, :], dim=1) <= threshold
+    return success.float()  
+
+
 def fingertips_pos(env: ManagerBasedRLEnv) -> torch.Tensor:
     """The position of the fingertips relative to the environment origins."""
     ee_tf_data: FrameTransformerData = env.scene["ee_frame"].data
-    fingertips_pos = ee_tf_data.target_pos_w[..., 1:, :] - env.scene.env_origins.unsqueeze(1)
+    fingertips_pos = ee_tf_data.target_pos_w[..., 1:3, :] - env.scene.env_origins.unsqueeze(1)
 
     return fingertips_pos.view(env.num_envs, -1)
 
@@ -64,13 +72,24 @@ def ee_quat(env: ManagerBasedRLEnv, make_quat_unique: bool = True) -> torch.Tens
     # make first element of quaternion positive
     return math_utils.quat_unique(ee_quat) if make_quat_unique else ee_quat
 
+# def hand_pos(env: ManagerBasedRLEnv) -> torch.Tensor:
+#     """The position of the end-effector relative to the environment origins."""
+#     ee_tf_data: FrameTransformerData = env.scene["ee_frame"].data
+#     hand_pos = ee_tf_data.target_pos_w[..., 3, :] - env.scene.env_origins
 
-def gripper_pos(env: ManagerBasedRLEnv, robot_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
-    robot: Articulation = env.scene[robot_cfg.name]
-    finger_joint_1 = robot.data.joint_pos[:, -1].clone().unsqueeze(1)
-    finger_joint_2 = -1 * robot.data.joint_pos[:, -2].clone().unsqueeze(1)
+#     return hand_pos
 
-    return torch.cat((finger_joint_1, finger_joint_2), dim=1)
+
+# def hand_quat(env: ManagerBasedRLEnv, make_quat_unique: bool = True) -> torch.Tensor:
+#     """The orientation of the end-effector in the environment frame.
+
+#     If :attr:`make_quat_unique` is True, the quaternion is made unique by ensuring the real part is positive.
+#     """
+#     ee_tf_data: FrameTransformerData = env.scene["ee_frame"].data
+#     hand_quat = ee_tf_data.target_quat_w[..., 3, :]
+#     # make first element of quaternion positive
+#     return math_utils.quat_unique(hand_quat) if make_quat_unique else hand_quat
+
 
 def gripper_state(env: ManagerBasedRLEnv, robot_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
     robot: Articulation = env.scene[robot_cfg.name]
@@ -120,8 +139,8 @@ def waypoints(env: ManagerBasedRLEnv,
     asset: Articulation = env.scene[asset_cfg.name]
     # (1,3), (1,4)
     root_link_pos , root_link_quat = asset.data.root_state_w[..., :3],asset.data.root_state_w[..., 3:7]  
-
-    waypoint_states = torch.empty(len(all_waypoint_paths), 8, device=env.device)
+    # raw_waypoint (7)  hand_waypoint (7)  gripper_command (1)
+    waypoint_states = torch.empty(len(all_waypoint_paths), 15, device=env.device)
 
     for path in all_waypoint_paths:
         waypoint_name = path.split("/")[-1]  # 使用 path，而非 rigid_obj_name
@@ -135,31 +154,43 @@ def waypoints(env: ManagerBasedRLEnv,
         world_quat = world_transform.ExtractRotationQuat()
         
         world_quat = [world_quat.GetReal(),*world_quat.GetImaginary()]
-        # (7,)
-        waypoint_pose = torch.tensor(world_pos + world_quat, dtype=torch.float32, device=env.device)
+        # (7,) 世界参考系
+        raw_waypoint_pose = torch.tensor(world_pos + world_quat, dtype=torch.float32, device=env.device)
         
         # 变换到以root坐标系为参考系
         if referance == "root":
             # 1. 四元数变换（旋转变换到 root 坐标系）
             rel_quat = math_utils.quat_mul(
                 math_utils.quat_inv(root_link_quat),
-                waypoint_pose[None,3:7]
+                raw_waypoint_pose[None,3:7]
             )
             # 2. 平移向量变换（位置减去 root）
-            rel_pos = waypoint_pose[:3] - root_link_pos
+            rel_pos = raw_waypoint_pose[:3] - root_link_pos
 
             # 拼接为新的 pose
-            waypoint_pose = torch.cat([rel_pos, rel_quat], dim=-1).squeeze(0)
+            raw_waypoint_pose = torch.cat([rel_pos, rel_quat], dim=-1).squeeze(0)
+        
+        # ee_target_pose (1,3) 我们希望路点指的是手指中心ee_tcp的路点
+        # 但是IK结算器需要给定pand_hand的位置，因此要根据路点计算出panda_hand的对应位置
+        # panda_hand坐标系的姿态与ee_tcp相同，但是原点位于ee_tcp的(0,0,-0.1034)的位置
+        # TODO: 注意这里我简单设置偏差为(0,0,-0.1034)，当机械臂类型变化后，需要重新设定数值，或者以某种自动化检索的方式获取
+        # 我这里没写自动化检索偏差。 
+        offset_local = torch.tensor([0.0, 0.0, -0.1034], device=env.device)
+        offset_referance = math_utils.quat_apply(raw_waypoint_pose[3:7], offset_local)
+        hand_waypoint_pos = torch.tensor(raw_waypoint_pose[:3], device=env.device) + offset_referance
+        hand_waypoint_pose = torch.cat([hand_waypoint_pos,raw_waypoint_pose[3:7]],dim=-1)
+
+
         
 
         # gripper flag: open=1.0, close=0.0, default=-1.0 不动
         if len(segments) > 2:
-            gripper_flag = 1.0 if segments[-1] == "open" else 0.0
+            gripper_command = 1.0 if segments[-1] == "open" else 0.0
         else:
-            gripper_flag = -1.0
+            gripper_command = -1.0
 
-        gripper_tensor = torch.tensor([gripper_flag], device=waypoint_pose.device)
-        full_state = torch.cat([waypoint_pose, gripper_tensor], dim=-1)
+        gripper_tensor = torch.tensor([gripper_command], device=raw_waypoint_pose.device)
+        full_state = torch.cat([raw_waypoint_pose, hand_waypoint_pose, gripper_tensor], dim=-1)
         waypoint_states[waypoint_idx,:] = full_state
 
 
