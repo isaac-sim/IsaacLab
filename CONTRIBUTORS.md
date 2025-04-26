@@ -79,6 +79,7 @@ Guidelines for modifications:
 * Masoud Moghani
 * Michael Gussert
 * Michael Noseworthy
+* Miguel Alonso Jr
 * Muhong Guo
 * Nicola Loi
 * Nuoyan Chen (Alvin)
