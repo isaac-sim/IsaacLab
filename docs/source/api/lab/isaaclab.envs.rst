@@ -24,6 +24,8 @@
     DirectMARLEnvCfg
     ManagerBasedRLMimicEnv
     MimicEnvCfg
+    SubTaskConfig
+    SubTaskConstraintConfig
     ViewerCfg
 
 Manager Based Environment
@@ -87,6 +89,18 @@ Mimic Environment
     :show-inheritance:
 
 .. autoclass:: MimicEnvCfg
+    :members:
+    :inherited-members:
+    :show-inheritance:
+    :exclude-members: __init__, class_type
+
+.. autoclass:: SubTaskConfig
+    :members:
+    :inherited-members:
+    :show-inheritance:
+    :exclude-members: __init__, class_type
+
+.. autoclass:: SubTaskConstraintConfig
     :members:
     :inherited-members:
     :show-inheritance:

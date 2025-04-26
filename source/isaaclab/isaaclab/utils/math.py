@@ -1561,16 +1561,15 @@ def create_rotation_matrix_from_view(
     return R.transpose(1, 2)
 
 
-def make_pose(pos, rot):
-    """
-    Make homogeneous pose matrices from a set of translation vectors and rotation matrices.
+def make_pose(pos: torch.Tensor, rot: torch.Tensor) -> torch.Tensor:
+    """Creates transformation matrices from positions and rotation matrices.
 
     Args:
-        pos (torch.Tensor): batch of position vectors with last dimension of 3
-        rot (torch.Tensor): batch of rotation matrices with last 2 dimensions of (3, 3)
+        pos: Batch of position vectors with last dimension of 3.
+        rot: Batch of rotation matrices with last 2 dimensions of (3, 3).
 
     Returns:
-        pose (torch.Tensor): batch of pose matrices with last 2 dimensions of (4, 4)
+        Batch of pose matrices with last 2 dimensions of (4, 4).
     """
     assert isinstance(pos, torch.Tensor), "Input must be a torch tensor"
     assert isinstance(rot, torch.Tensor), "Input must be a torch tensor"
@@ -1583,33 +1582,31 @@ def make_pose(pos, rot):
     return pose
 
 
-def unmake_pose(pose):
-    """
-    Split homogeneous pose matrices back into translation vectors and rotation matrices.
+def unmake_pose(pose: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+    """Splits transformation matrices into positions and rotation matrices.
 
     Args:
-        pose (torch.Tensor): batch of pose matrices with last 2 dimensions of (4, 4)
+        pose: Batch of pose matrices with last 2 dimensions of (4, 4).
 
     Returns:
-        pos (torch.Tensor): batch of position vectors with last dimension of 3
-        rot (torch.Tensor): batch of rotation matrices with last 2 dimensions of (3, 3)
+        Tuple containing:
+            - Batch of position vectors with last dimension of 3.
+            - Batch of rotation matrices with last 2 dimensions of (3, 3).
     """
     assert isinstance(pose, torch.Tensor), "Input must be a torch tensor"
     return pose[..., :3, 3], pose[..., :3, :3]
 
 
-def pose_inv(pose):
-    """
-    Computes the inverse of homogeneous pose matrices.
+def pose_inv(pose: torch.Tensor) -> torch.Tensor:
+    """Computes the inverse of transformation matrices.
 
-    Note that the inverse of a pose matrix is the following:
-    [R t; 0 1]^-1 = [R.T -R.T*t; 0 1]
+    The inverse of a pose matrix [R t; 0 1] is [R.T -R.T*t; 0 1].
 
     Args:
-        pose (torch.Tensor): batch of pose matrices with last 2 dimensions of (4, 4)
+        pose: Batch of pose matrices with last 2 dimensions of (4, 4).
 
     Returns:
-        inv_pose (torch.Tensor): batch of inverse pose matrices with last 2 dimensions of (4, 4)
+        Batch of inverse pose matrices with last 2 dimensions of (4, 4).
     """
     assert isinstance(pose, torch.Tensor), "Input must be a torch tensor"
     num_axes = len(pose.shape)
@@ -1617,7 +1614,7 @@ def pose_inv(pose):
 
     inv_pose = torch.zeros_like(pose)
 
-    # take transpose of last 2 dimensions
+    # Take transpose of last 2 dimensions
     inv_pose[..., :3, :3] = pose[..., :3, :3].transpose(-1, -2)
 
     # note: PyTorch matmul wants shapes [..., 3, 3] x [..., 3, 1] -> [..., 3, 1] so we add a dimension and take it away after
@@ -1626,35 +1623,40 @@ def pose_inv(pose):
     return inv_pose
 
 
-def pose_in_A_to_pose_in_B(pose_in_A, pose_A_in_B):
-    """
-    Converts homogeneous matrices corresponding to a point C in frame A
-    to homogeneous matrices corresponding to the same point C in frame B.
+def pose_in_A_to_pose_in_B(pose_in_A: torch.Tensor, pose_A_in_B: torch.Tensor) -> torch.Tensor:
+    """Converts poses from one coordinate frame to another.
+
+    Transforms matrices representing point C in frame A
+    to matrices representing the same point C in frame B.
+
+    Example usage:
+
+    frame_C_in_B = pose_in_A_to_pose_in_B(frame_C_in_A, frame_A_in_B)
 
     Args:
-        pose_in_A (torch.Tensor): batch of homogeneous matrices corresponding to the pose of C in frame A
-        pose_A_in_B (torch.Tensor): batch of homogeneous matrices corresponding to the pose of A in frame B
+        pose_in_A: Batch of transformation matrices of point C in frame A.
+        pose_A_in_B: Batch of transformation matrices of frame A in frame B.
 
     Returns:
-        pose_in_B (torch.Tensor): batch of homogeneous matrices corresponding to the pose of C in frame B
+        Batch of transformation matrices of point C in frame B.
     """
     assert isinstance(pose_in_A, torch.Tensor), "Input must be a torch tensor"
     assert isinstance(pose_A_in_B, torch.Tensor), "Input must be a torch tensor"
     return torch.matmul(pose_A_in_B, pose_in_A)
 
 
-def quat_slerp(q1, q2, tau):
-    """
-    Spherical linear interpolation (SLERP) between two quaternions.
-    This function does NOT support batch processing.
+def quat_slerp(q1: torch.Tensor, q2: torch.Tensor, tau: float) -> torch.Tensor:
+    """Performs spherical linear interpolation (SLERP) between two quaternions.
+
+    This function does not support batch processing.
 
     Args:
-        q1 (torch.Tensor): The first quaternion (w, x, y, z) format.
-        q2 (torch.Tensor): The second quaternion (w, x, y, z) format.
-        tau (float): Interpolation coefficient between 0 (q1) and 1 (q2).
+        q1: First quaternion in (w, x, y, z) format.
+        q2: Second quaternion in (w, x, y, z) format.
+        tau: Interpolation coefficient between 0 (q1) and 1 (q2).
 
     Returns:
-        torch.Tensor: The interpolated quaternion (w, x, y, z) format.
+        Interpolated quaternion in (w, x, y, z) format.
     """
     assert isinstance(q1, torch.Tensor), "Input must be a torch tensor"
     assert isinstance(q2, torch.Tensor), "Input must be a torch tensor"
@@ -1666,7 +1668,7 @@ def quat_slerp(q1, q2, tau):
     if abs(abs(d) - 1.0) < torch.finfo(q1.dtype).eps * 4.0:
         return q1
     if d < 0.0:
-        # invert rotation
+        # Invert rotation
         d = -d
         q2 *= -1.0
     angle = torch.acos(torch.clamp(d, -1, 1))
@@ -1679,24 +1681,24 @@ def quat_slerp(q1, q2, tau):
     return q1
 
 
-def interpolate_rotations(R1, R2, num_steps, axis_angle=True):
-    """
-    Interpolate between two rotation matrices.
+def interpolate_rotations(R1: torch.Tensor, R2: torch.Tensor, num_steps: int, axis_angle: bool = True) -> torch.Tensor:
+    """Interpolates between two rotation matrices.
 
     Args:
-        R1 (torch.Tensor): The first rotation matrix (4x4).
-        R2 (torch.Tensor): The second rotation matrix (4x4).
-        num_steps (int): The number of desired interpolated rotations (excluding start and end).
-        axis_angle (bool, optional): If True, interpolate in axis-angle representation. Else, use slerp. Defaults to True.
+        R1: First rotation matrix. (4x4).
+        R2: Second rotation matrix. (4x4).
+        num_steps: Number of desired interpolated rotations (excluding start and end).
+        axis_angle: If True, interpolate in axis-angle representation;
+                   otherwise use slerp. Defaults to True.
 
     Returns:
-        torch.Tensor: A stack of interpolated rotation matrices (shape: (num_steps + 1, 4, 4)),
-                      including the start and end rotations.
+        Stack of interpolated rotation matrices of shape (num_steps + 1, 4, 4),
+        including the start and end rotations.
     """
     assert isinstance(R1, torch.Tensor), "Input must be a torch tensor"
     assert isinstance(R2, torch.Tensor), "Input must be a torch tensor"
     if axis_angle:
-        # delta rotation expressed as axis-angle
+        # Delta rotation expressed as axis-angle
         delta_rot_mat = torch.matmul(R2, R1.transpose(-1, -2))
         delta_quat = quat_from_matrix(delta_rot_mat)
         delta_axis_angle = axis_angle_from_quat(delta_quat)
@@ -1704,15 +1706,15 @@ def interpolate_rotations(R1, R2, num_steps, axis_angle=True):
         # Grab angle
         delta_angle = torch.linalg.norm(delta_axis_angle)
 
-        # fix the axis, and chunk the angle up into steps
+        # Fix the axis, and chunk the angle up into steps
         rot_step_size = delta_angle / num_steps
 
-        # convert into delta rotation matrices, and then convert to absolute rotations
+        # Convert into delta rotation matrices, and then convert to absolute rotations
         if delta_angle < 0.05:
-            # small angle - don't bother with interpolation
+            # Small angle - don't bother with interpolation
             rot_steps = torch.stack([R2 for _ in range(num_steps)])
         else:
-            # make sure that axis is a unit vector
+            # Make sure that axis is a unit vector
             delta_axis = delta_axis_angle / delta_angle
             delta_rot_steps = [
                 matrix_from_quat(quat_from_angle_axis(i * rot_step_size, delta_axis)) for i in range(num_steps)
@@ -1725,29 +1727,33 @@ def interpolate_rotations(R1, R2, num_steps, axis_angle=True):
             [matrix_from_quat(quat_slerp(q1, q2, tau=float(i) / num_steps)) for i in range(num_steps)]
         )
 
-    # add in endpoint
+    # Add in endpoint
     rot_steps = torch.cat([rot_steps, R2[None]], dim=0)
 
     return rot_steps
 
 
-def interpolate_poses(pose_1, pose_2, num_steps=None, step_size=None, perturb=False):
-    """
-    Linear interpolation between two poses.
+def interpolate_poses(
+    pose_1: torch.Tensor,
+    pose_2: torch.Tensor,
+    num_steps: int = None,
+    step_size: float = None,
+    perturb: bool = False,
+) -> tuple[torch.Tensor, int]:
+    """Performs linear interpolation between two poses.
 
     Args:
-        pose_1 (torch.tensor): 4x4 start pose
-        pose_2 (torch.tensor): 4x4 end pose
-        num_steps (int): if provided, specifies the number of desired interpolated points (not excluding
-            the start and end points). Passing 0 corresponds to no interpolation, and passing None
-            means that @step_size must be provided to determine the number of interpolated points.
-        step_size (float): if provided, will be used to infer the number of steps, by taking the norm
-            of the delta position vector, and dividing it by the step size
-        perturb (bool): if True, randomly move all the interpolated position points in a uniform, non-overlapping grid.
+        pose_1: 4x4 start pose.
+        pose_2: 4x4 end pose.
+        num_steps: If provided, specifies the number of desired interpolated points.
+                  Passing 0 corresponds to no interpolation. If None, step_size must be provided.
+        step_size: If provided, determines number of steps based on distance between poses.
+        perturb: If True, randomly perturbs interpolated position points.
 
     Returns:
-        pose_steps (torch.tensor): array of shape (N + 2, 3) corresponding to the interpolated pose path, where N is @num_steps
-        num_steps (int): the number of interpolated points (N) in the path
+        Tuple containing:
+            - Array of shape (N + 2, 4, 4) corresponding to the interpolated pose path.
+            - Number of interpolated points (N) in the path.
     """
     assert isinstance(pose_1, torch.Tensor), "Input must be a torch tensor"
     assert isinstance(pose_2, torch.Tensor), "Input must be a torch tensor"
@@ -1757,7 +1763,7 @@ def interpolate_poses(pose_1, pose_2, num_steps=None, step_size=None, perturb=Fa
     pos2, rot2 = unmake_pose(pose_2)
 
     if num_steps == 0:
-        # skip interpolation
+        # Skip interpolation
         return (
             torch.cat([pos1[None], pos2[None]], dim=0),
             torch.cat([rot1[None], rot2[None]], dim=0),
@@ -1769,51 +1775,48 @@ def interpolate_poses(pose_1, pose_2, num_steps=None, step_size=None, perturb=Fa
         assert torch.norm(delta_pos) > 0
         num_steps = math.ceil(torch.norm(delta_pos) / step_size)
 
-    num_steps += 1  # include starting pose
+    num_steps += 1  # Include starting pose
     assert num_steps >= 2
 
-    # linear interpolation of positions
+    # Linear interpolation of positions
     pos_step_size = delta_pos / num_steps
     grid = torch.arange(num_steps, dtype=torch.float32)
     if perturb:
-        # move the interpolation grid points by up to a half-size forward or backward
+        # Move interpolation grid points by up to half-size forward or backward
         perturbations = torch.rand(num_steps - 2) - 0.5
         grid[1:-1] += perturbations
     pos_steps = torch.stack([pos1 + grid[i] * pos_step_size for i in range(num_steps)])
 
-    # add in endpoint
+    # Add in endpoint
     pos_steps = torch.cat([pos_steps, pos2[None]], dim=0)
 
-    # interpolate the rotations too
+    # Interpolate rotations
     rot_steps = interpolate_rotations(R1=rot1, R2=rot2, num_steps=num_steps, axis_angle=True)
 
     pose_steps = make_pose(pos_steps, rot_steps)
     return pose_steps, num_steps - 1
 
 
-def transform_poses_from_frame_A_to_frame_B(src_poses, frame_A, frame_B):
-    """
-    Transform a source data segment (object-centric subtask segment from source demonstration) such that
-    the relative poses between the target eef pose frame and the object frame are preserved. Recall that
-    each object-centric subtask segment corresponds to one object, and consists of a sequence of
-    target eef poses.
+def transform_poses_from_frame_A_to_frame_B(
+    src_poses: torch.Tensor, frame_A: torch.Tensor, frame_B: torch.Tensor
+) -> torch.Tensor:
+    """Transforms poses from one coordinate frame to another preserving relative poses.
 
     Args:
-        src_poses (torch.tensor): Input pose sequence (shape [T, 4, 4]) from the source demonstration
-        frame_A (torch.tensor): 4x4 frame A pose
-        frame_B (torch.tensor): 4x4 frame B pose
+        src_poses: Input pose sequence (shape [T, 4, 4]) from source demonstration.
+        frame_A: 4x4 frame A pose.
+        frame_B: 4x4 frame B pose.
 
     Returns:
-        transformed_eef_poses (torch.tensor): transformed pose sequence (shape [T, 4, 4])
+        Transformed pose sequence of shape [T, 4, 4].
     """
-
-    # transform source end effector poses to be relative to source object frame
+    # Transform source end effector poses to be relative to source object frame
     src_poses_rel_frame_B = pose_in_A_to_pose_in_B(
         pose_in_A=src_poses,
         pose_A_in_B=pose_inv(frame_B[None]),
     )
 
-    # apply relative poses to current object frame to obtain new target eef poses
+    # Apply relative poses to current object frame to obtain new target eef poses
     transformed_poses = pose_in_A_to_pose_in_B(
         pose_in_A=src_poses_rel_frame_B,
         pose_A_in_B=frame_A[None],
@@ -1821,15 +1824,14 @@ def transform_poses_from_frame_A_to_frame_B(src_poses, frame_A, frame_B):
     return transformed_poses
 
 
-def generate_random_rotation(rot_boundary=(2 * math.pi)):
-    """
-    Generates a random rotation matrix using Euler angles.
+def generate_random_rotation(rot_boundary: float = (2 * math.pi)) -> torch.Tensor:
+    """Generates a random rotation matrix using Euler angles.
 
     Args:
-        rot_boundary (float): The range for random rotation angles around each axis (x, y, z).
+        rot_boundary: Range for random rotation angles around each axis (x, y, z).
 
     Returns:
-        torch.tensor: A 3x3 rotation matrix.
+        3x3 rotation matrix.
     """
     angles = torch.rand(3) * rot_boundary
     Rx = torch.tensor(
@@ -1849,29 +1851,27 @@ def generate_random_rotation(rot_boundary=(2 * math.pi)):
     return R
 
 
-def generate_random_translation(pos_boundary=1):
-    """
-    Generates a random translation vector.
+def generate_random_translation(pos_boundary: float = 1) -> torch.Tensor:
+    """Generates a random translation vector.
 
     Args:
-        pos_boundary (float): The range for random translation values in 3D space.
+        pos_boundary: Range for random translation values in 3D space.
 
     Returns:
-        torch.tensor: A 3-element translation vector.
+        3-element translation vector.
     """
     return torch.rand(3) * 2 * pos_boundary - pos_boundary  # Random translation in 3D space
 
 
-def generate_random_transformation_matrix(pos_boundary=1, rot_boundary=(2 * math.pi)):
-    """
-    Generates a random transformation matrix combining rotation and translation.
+def generate_random_transformation_matrix(pos_boundary: float = 1, rot_boundary: float = (2 * math.pi)) -> torch.Tensor:
+    """Generates a random transformation matrix combining rotation and translation.
 
     Args:
-        pos_boundary (float): The range for random translation values.
-        rot_boundary (float): The range for random rotation angles.
+        pos_boundary: Range for random translation values.
+        rot_boundary: Range for random rotation angles.
 
     Returns:
-        torch.tensor: A 4x4 transformation matrix.
+        4x4 transformation matrix.
     """
     R = generate_random_rotation(rot_boundary)
     translation = generate_random_translation(pos_boundary)

@@ -6,7 +6,8 @@
 import builtins
 import enum
 import numpy as np
-import sys
+import os
+import toml
 import torch
 import traceback
 import weakref
@@ -15,10 +16,12 @@ from contextlib import contextmanager
 from typing import Any
 
 import carb
+import flatdict
 import isaacsim.core.utils.stage as stage_utils
 import omni.log
 import omni.physx
 from isaacsim.core.api.simulation_context import SimulationContext as _SimulationContext
+from isaacsim.core.utils.carb import get_carb_setting, set_carb_setting
 from isaacsim.core.utils.viewports import set_camera_view
 from isaacsim.core.version import get_version
 from pxr import Gf, PhysxSchema, Usd, UsdPhysics
@@ -121,69 +124,31 @@ class SimulationContext(_SimulationContext):
         if stage_utils.get_current_stage() is None:
             raise RuntimeError("The stage has not been created. Did you run the simulator?")
 
-        # set flags for simulator
         # acquire settings interface
-        carb_settings_iface = carb.settings.get_settings()
-        # enable hydra scene-graph instancing
-        # note: this allows rendering of instanceable assets on the GUI
-        carb_settings_iface.set_bool("/persistent/omnihydra/useSceneGraphInstancing", True)
-        # change dispatcher to use the default dispatcher in PhysX SDK instead of carb tasking
-        # note: dispatcher handles how threads are launched for multi-threaded physics
-        carb_settings_iface.set_bool("/physics/physxDispatcher", True)
-        # disable contact processing in omni.physx
-        # note: we disable it by default to avoid the overhead of contact processing when it isn't needed.
-        #   The physics flag gets enabled when a contact sensor is created.
-        if hasattr(self.cfg, "disable_contact_processing"):
-            omni.log.warn(
-                "The `disable_contact_processing` attribute is deprecated and always set to True"
-                " to avoid unnecessary overhead. Contact processing is automatically enabled when"
-                " a contact sensor is created, so manual configuration is no longer required."
-            )
-        # FIXME: From investigation, it seems this flag only affects CPU physics. For GPU physics, contacts
-        #  are always processed. The issue is reported to the PhysX team by @mmittal.
-        carb_settings_iface.set_bool("/physics/disableContactProcessing", True)
-        # disable custom geometry for cylinder and cone collision shapes to allow contact reporting for them
-        # reason: cylinders and cones aren't natively supported by PhysX so we need to use custom geometry flags
-        # reference: https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/docs/Geometry.html?highlight=capsule#geometry
-        carb_settings_iface.set_bool("/physics/collisionConeCustomGeometry", False)
-        carb_settings_iface.set_bool("/physics/collisionCylinderCustomGeometry", False)
-        # hide the Simulation Settings window
-        carb_settings_iface.set_bool("/physics/autoPopupSimulationOutputWindow", False)
+        self.carb_settings = carb.settings.get_settings()
+
+        # apply carb physics settings
+        self._apply_physics_settings()
+
         # note: we read this once since it is not expected to change during runtime
         # read flag for whether a local GUI is enabled
-        self._local_gui = carb_settings_iface.get("/app/window/enabled")
+        self._local_gui = self.carb_settings.get("/app/window/enabled")
         # read flag for whether livestreaming GUI is enabled
-        self._livestream_gui = carb_settings_iface.get("/app/livestream/enabled")
+        self._livestream_gui = self.carb_settings.get("/app/livestream/enabled")
+        # read flag for whether XR GUI is enabled
+        self._xr_gui = self.carb_settings.get("/app/xr/enabled")
 
         # read flag for whether the Isaac Lab viewport capture pipeline will be used,
         # casting None to False if the flag doesn't exist
         # this flag is set from the AppLauncher class
-        self._offscreen_render = bool(carb_settings_iface.get("/isaaclab/render/offscreen"))
+        self._offscreen_render = bool(self.carb_settings.get("/isaaclab/render/offscreen"))
         # read flag for whether the default viewport should be enabled
-        self._render_viewport = bool(carb_settings_iface.get("/isaaclab/render/active_viewport"))
+        self._render_viewport = bool(self.carb_settings.get("/isaaclab/render/active_viewport"))
         # flag for whether any GUI will be rendered (local, livestreamed or viewport)
-        self._has_gui = self._local_gui or self._livestream_gui
+        self._has_gui = self._local_gui or self._livestream_gui or self._xr_gui
 
         # apply render settings from render config
-        carb_settings_iface.set_bool("/rtx/translucency/enabled", self.cfg.render.enable_translucency)
-        carb_settings_iface.set_bool("/rtx/reflections/enabled", self.cfg.render.enable_reflections)
-        carb_settings_iface.set_bool("/rtx/indirectDiffuse/enabled", self.cfg.render.enable_global_illumination)
-        carb_settings_iface.set_bool("/rtx-transient/dlssg/enabled", self.cfg.render.enable_dlssg)
-        carb_settings_iface.set_bool("/rtx-transient/dldenoiser/enabled", self.cfg.render.enable_dl_denoiser)
-        carb_settings_iface.set_int("/rtx/post/dlss/execMode", self.cfg.render.dlss_mode)
-        carb_settings_iface.set_bool("/rtx/directLighting/enabled", self.cfg.render.enable_direct_lighting)
-        carb_settings_iface.set_int(
-            "/rtx/directLighting/sampledLighting/samplesPerPixel", self.cfg.render.samples_per_pixel
-        )
-        carb_settings_iface.set_bool("/rtx/shadows/enabled", self.cfg.render.enable_shadows)
-        carb_settings_iface.set_bool("/rtx/ambientOcclusion/enabled", self.cfg.render.enable_ambient_occlusion)
-        # set denoiser mode
-        try:
-            import omni.replicator.core as rep
-
-            rep.settings.set_render_rtx_realtime(antialiasing=self.cfg.render.antialiasing_mode)
-        except Exception:
-            pass
+        self._apply_render_settings_from_cfg()
 
         # store the default render mode
         if not self._has_gui and not self._offscreen_render:
@@ -246,17 +211,17 @@ class SimulationContext(_SimulationContext):
         #   you can reproduce the issue by commenting out this line and running the test `test_articulation.py`.
         self._gravity_tensor = torch.tensor(self.cfg.gravity, dtype=torch.float32, device=self.cfg.device)
 
-        # add callback to deal the simulation app when simulation is stopped.
-        # this is needed because physics views go invalid once we stop the simulation
+        # add a callback to keep rendering when a stop is triggered through different GUI commands like (save as)
         if not builtins.ISAAC_LAUNCHED_FROM_TERMINAL:
             timeline_event_stream = omni.timeline.get_timeline_interface().get_timeline_event_stream()
             self._app_control_on_stop_handle = timeline_event_stream.create_subscription_to_pop_by_type(
                 int(omni.timeline.TimelineEventType.STOP),
-                lambda *args, obj=weakref.proxy(self): obj._app_control_on_stop_callback(*args),
+                lambda *args, obj=weakref.proxy(self): obj._app_control_on_stop_handle_fn(*args),
                 order=15,
             )
         else:
             self._app_control_on_stop_handle = None
+        self._disable_app_control_on_stop_handle = False
 
         # flatten out the simulation dictionary
         sim_params = self.cfg.to_dict()
@@ -274,6 +239,113 @@ class SimulationContext(_SimulationContext):
             physics_prim_path=self.cfg.physics_prim_path,
             device=self.cfg.device,
         )
+
+    def _apply_physics_settings(self):
+        """Sets various carb physics settings."""
+        # enable hydra scene-graph instancing
+        # note: this allows rendering of instanceable assets on the GUI
+        set_carb_setting(self.carb_settings, "/persistent/omnihydra/useSceneGraphInstancing", True)
+        # change dispatcher to use the default dispatcher in PhysX SDK instead of carb tasking
+        # note: dispatcher handles how threads are launched for multi-threaded physics
+        set_carb_setting(self.carb_settings, "/physics/physxDispatcher", True)
+        # disable contact processing in omni.physx
+        # note: we disable it by default to avoid the overhead of contact processing when it isn't needed.
+        #   The physics flag gets enabled when a contact sensor is created.
+        if hasattr(self.cfg, "disable_contact_processing"):
+            omni.log.warn(
+                "The `disable_contact_processing` attribute is deprecated and always set to True"
+                " to avoid unnecessary overhead. Contact processing is automatically enabled when"
+                " a contact sensor is created, so manual configuration is no longer required."
+            )
+        # FIXME: From investigation, it seems this flag only affects CPU physics. For GPU physics, contacts
+        #  are always processed. The issue is reported to the PhysX team by @mmittal.
+        set_carb_setting(self.carb_settings, "/physics/disableContactProcessing", True)
+        # disable custom geometry for cylinder and cone collision shapes to allow contact reporting for them
+        # reason: cylinders and cones aren't natively supported by PhysX so we need to use custom geometry flags
+        # reference: https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/docs/Geometry.html?highlight=capsule#geometry
+        set_carb_setting(self.carb_settings, "/physics/collisionConeCustomGeometry", False)
+        set_carb_setting(self.carb_settings, "/physics/collisionCylinderCustomGeometry", False)
+        # hide the Simulation Settings window
+        set_carb_setting(self.carb_settings, "/physics/autoPopupSimulationOutputWindow", False)
+
+    def _apply_render_settings_from_cfg(self):
+        """Sets rtx settings specified in the RenderCfg."""
+
+        # define mapping of user-friendly RenderCfg names to native carb names
+        rendering_setting_name_mapping = {
+            "enable_translucency": "/rtx/translucency/enabled",
+            "enable_reflections": "/rtx/reflections/enabled",
+            "enable_global_illumination": "/rtx/indirectDiffuse/enabled",
+            "enable_dlssg": "/rtx-transient/dlssg/enabled",
+            "enable_dl_denoiser": "/rtx-transient/dldenoiser/enabled",
+            "dlss_mode": "/rtx/post/dlss/execMode",
+            "enable_direct_lighting": "/rtx/directLighting/enabled",
+            "samples_per_pixel": "/rtx/directLighting/sampledLighting/samplesPerPixel",
+            "enable_shadows": "/rtx/shadows/enabled",
+            "enable_ambient_occlusion": "/rtx/ambientOcclusion/enabled",
+        }
+
+        not_carb_settings = ["rendering_mode", "carb_settings", "antialiasing_mode"]
+
+        # set preset settings (same behavior as the CLI arg --rendering_mode)
+        rendering_mode = self.cfg.render.rendering_mode
+        if rendering_mode is not None:
+            # check if preset is supported
+            supported_rendering_modes = ["performance", "balanced", "quality", "xr"]
+            if rendering_mode not in supported_rendering_modes:
+                raise ValueError(
+                    f"RenderCfg rendering mode '{rendering_mode}' not in supported modes {supported_rendering_modes}."
+                )
+
+            # parse preset file
+            repo_path = os.path.join(carb.tokens.get_tokens_interface().resolve("${app}"), "..")
+            preset_filename = os.path.join(repo_path, f"apps/rendering_modes/{rendering_mode}.kit")
+            with open(preset_filename) as file:
+                preset_dict = toml.load(file)
+            preset_dict = dict(flatdict.FlatDict(preset_dict, delimiter="."))
+
+            # set presets
+            for key, value in preset_dict.items():
+                key = "/" + key.replace(".", "/")  # convert to carb setting format
+                set_carb_setting(self.carb_settings, key, value)
+
+        # set user-friendly named settings
+        for key, value in vars(self.cfg.render).items():
+            if value is None or key in not_carb_settings:
+                # skip unset settings and non-carb settings
+                continue
+            if key not in rendering_setting_name_mapping:
+                raise ValueError(
+                    f"'{key}' in RenderCfg not found. Note: internal 'rendering_setting_name_mapping' dictionary might"
+                    " need to be updated."
+                )
+            key = rendering_setting_name_mapping[key]
+            set_carb_setting(self.carb_settings, key, value)
+
+        # set general carb settings
+        carb_settings = self.cfg.render.carb_settings
+        if carb_settings is not None:
+            for key, value in carb_settings.items():
+                if "_" in key:
+                    key = "/" + key.replace("_", "/")  # convert from python variable style string
+                elif "." in key:
+                    key = "/" + key.replace(".", "/")  # convert from .kit file style string
+                if get_carb_setting(self.carb_settings, key) is None:
+                    raise ValueError(f"'{key}' in RenderCfg.general_parameters does not map to a carb setting.")
+                set_carb_setting(self.carb_settings, key, value)
+
+        # set denoiser mode
+        if self.cfg.render.antialiasing_mode is not None:
+            try:
+                import omni.replicator.core as rep
+
+                rep.settings.set_render_rtx_realtime(antialiasing=self.cfg.render.antialiasing_mode)
+            except Exception:
+                pass
+
+        # WAR: Ensure /rtx/renderMode RaytracedLighting is correctly cased.
+        if get_carb_setting(self.carb_settings, "/rtx/rendermode").lower() == "raytracedlighting":
+            set_carb_setting(self.carb_settings, "/rtx/rendermode", "RaytracedLighting")
 
     """
     Operations - New.
@@ -440,7 +512,11 @@ class SimulationContext(_SimulationContext):
     """
 
     def reset(self, soft: bool = False):
+        self._disable_app_control_on_stop_handle = True
         super().reset(soft=soft)
+        # app.update() may be changing the cuda device in reset, so we force it back to our desired device here
+        if "cuda" in self.device:
+            torch.cuda.set_device(self.device)
         # enable kinematic rendering with fabric
         if self.physics_sim_view:
             self.physics_sim_view._backend.initialize_kinematic_bodies()
@@ -449,6 +525,7 @@ class SimulationContext(_SimulationContext):
         if not soft:
             for _ in range(2):
                 self.render()
+        self._disable_app_control_on_stop_handle = False
 
     def step(self, render: bool = True):
         """Steps the simulation.
@@ -476,6 +553,10 @@ class SimulationContext(_SimulationContext):
 
         # step the simulation
         super().step(render=render)
+
+        # app.update() may be changing the cuda device in step, so we force it back to our desired device here
+        if "cuda" in self.device:
+            torch.cuda.set_device(self.device)
 
     def render(self, mode: RenderMode | None = None):
         """Refreshes the rendering components including UI elements and view-ports depending on the render mode.
@@ -515,6 +596,10 @@ class SimulationContext(_SimulationContext):
             self.set_setting("/app/player/playSimulations", False)
             self._app.update()
             self.set_setting("/app/player/playSimulations", True)
+
+        # app.update() may be changing the cuda device, so we force it back to our desired device here
+        if "cuda" in self.device:
+            torch.cuda.set_device(self.device)
 
     """
     Operations - Override (extension)
@@ -636,7 +721,7 @@ class SimulationContext(_SimulationContext):
     Callbacks.
     """
 
-    def _app_control_on_stop_callback(self, event: carb.events.IEvent):
+    def _app_control_on_stop_handle_fn(self, event: carb.events.IEvent):
         """Callback to deal with the app when the simulation is stopped.
 
         Once the simulation is stopped, the physics handles go invalid. After that, it is not possible to
@@ -653,67 +738,10 @@ class SimulationContext(_SimulationContext):
             This callback is used only when running the simulation in a standalone python script. In an extension,
             it is expected that the user handles the extension shutdown.
         """
-        # check if the simulation is stopped
-        if event.type == int(omni.timeline.TimelineEventType.STOP):
-            # keep running the simulator when configured to not shutdown the app
-            if self._has_gui and sys.exc_info()[0] is None:
-                omni.log.warn(
-                    "Simulation is stopped. The app will keep running with physics disabled."
-                    " Press Ctrl+C or close the window to exit the app."
-                )
-                while self.app.is_running():
-                    self.render()
-
-        # Note: For the following code:
-        #   The method is an exact copy of the implementation in the `isaacsim.simulation_app.SimulationApp` class.
-        #   We need to remove this method once the SimulationApp class becomes a singleton.
-
-        # make sure that any replicator workflows finish rendering/writing
-        try:
-            import omni.replicator.core as rep
-
-            rep_status = rep.orchestrator.get_status()
-            if rep_status not in [rep.orchestrator.Status.STOPPED, rep.orchestrator.Status.STOPPING]:
-                rep.orchestrator.stop()
-            if rep_status != rep.orchestrator.Status.STOPPED:
-                rep.orchestrator.wait_until_complete()
-
-            # Disable capture on play to avoid replicator engaging on any new timeline events
-            rep.orchestrator.set_capture_on_play(False)
-        except Exception:
-            pass
-
-        # clear the instance and all callbacks
-        # note: clearing callbacks is important to prevent memory leaks
-        self.clear_all_callbacks()
-
-        # workaround for exit issues, clean the stage first:
-        if omni.usd.get_context().can_close_stage():
-            omni.usd.get_context().close_stage()
-
-        # print logging information
-        print("[INFO]: Simulation is stopped. Shutting down the app.")
-
-        # Cleanup any running tracy instances so data is not lost
-        try:
-            profiler_tracy = carb.profiler.acquire_profiler_interface(plugin_name="carb.profiler-tracy.plugin")
-            if profiler_tracy:
-                profiler_tracy.set_capture_mask(0)
-                profiler_tracy.end(0)
-                profiler_tracy.shutdown()
-        except RuntimeError:
-            # Tracy plugin was not loaded, so profiler never started - skip checks.
-            pass
-
-        # Disable logging before shutdown to keep the log clean
-        # Warnings at this point don't matter as the python process is about to be terminated
-        logging = carb.logging.acquire_logging()
-        logging.set_level_threshold(carb.logging.LEVEL_ERROR)
-
-        # App shutdown is disabled to prevent crashes on shutdown. Terminating carb is faster
-        self._app.shutdown()
-        self._framework.unload_all_plugins()
-        sys.exit(0)
+        if not self._disable_app_control_on_stop_handle:
+            while not omni.timeline.get_timeline_interface().is_playing():
+                self.render()
+        return
 
 
 @contextmanager

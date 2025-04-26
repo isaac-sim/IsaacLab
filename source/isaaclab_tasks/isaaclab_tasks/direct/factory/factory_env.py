@@ -157,7 +157,7 @@ class FactoryEnv(DirectRLEnv):
 
     def _setup_scene(self):
         """Initialize simulation scene."""
-        spawn_ground_plane(prim_path="/World/ground", cfg=GroundPlaneCfg(), translation=(0.0, 0.0, -0.4))
+        spawn_ground_plane(prim_path="/World/ground", cfg=GroundPlaneCfg(), translation=(0.0, 0.0, -1.05))
 
         # spawn a usd file of a table into the scene
         cfg = sim_utils.UsdFileCfg(usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/SeattleLabTable/table_instanceable.usd")
