@@ -1,0 +1,1430 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!-- This URDF was automatically created by SolidWorks to URDF Exporter! Originally created by Stephen Brawner (brawner@gmail.com) 
+     Commit Version: 1.6.0-4-g7f85cfe  Build Version: 1.6.7995.38578
+     For more information, please see http://wiki.ros.org/sw_urdf_exporter -->
+<robot name="arx5_description" xmlns:xacro="http://www.ros.org/wiki/xacro">
+    <!-- <link name="footprint"/> -->
+
+    <!-- <xacro:include filename="$(find tracer_description)/urdf/tracer_v1.xacro"/> -->
+
+    <link name="footprint">
+    </link>
+
+    <!-- tracer base -->
+    <link name="base_link">
+        <visual>
+            <origin xyz="0 0 0" rpy="1.57 0 0"/>
+            <!--<origin xyz="0 0 0" rpy="0 0 0"/>-->
+            <geometry>
+                <mesh filename="package://aloha_isaac_sim/meshes/tracer_base_link_no_wheel.dae" />
+                 <!--<box size="${base_x_size} ${base_y_size} ${base_z_size}"/>-->
+            </geometry>
+        </visual>
+        <collision>
+          <!--origin
+            xyz="-0.0145261552504705 0.0231316650320557 0.00586280190939592"
+            rpy="0 0 0" /-->
+            <origin xyz="0 0 0" rpy="1.57 0 0"/>
+          <geometry>
+            <mesh
+              filename="package://aloha_isaac_sim/meshes/tracer_base_link_no_wheel.dae" />
+              <!--<box size="${base_x_size} ${base_y_size} ${base_z_size}"/>-->
+          </geometry>
+        </collision>
+    </link>
+    <link name="inertial_link">
+        <inertial>
+            <!--mass value="44.3898489950015" /-->
+            <mass value="132.3898489950015" />
+            <!-- <mass value="50" /> -->
+            <!-- <origin xyz="-0.00065 -0.085 0.062" />
+            <inertia ixx="0.6022" ixy="-0.02364" ixz="-0.1197" iyy="1.7386" iyz="-0.001544" izz="2.0296" /> -->
+            <origin xyz="0.015 0.0231316650320557 0" />
+            <!--<origin
+              xyz="-0.0145261552504705 0.0231316650320557 0.00586280190939592"
+              rpy="0 0 0" />-->
+            <inertia ixx="0.185196122711036"
+            ixy="4.30144213829512E-08"
+            ixz="5.81037523686401E-08"
+            iyy="0.364893736238929"
+            iyz="-0.000386720198091934"
+            izz="0.223868521722778" />
+            <!--<inertia ixx="2.288641" ixy="0" ixz="0" iyy="5.103976" iyz="0" izz="3.431465" />-->
+        </inertial>
+    </link>
+
+    <joint name="inertial_joint" type="fixed">
+        <origin xyz="0 0 0" rpy="0 0 0" />
+        <parent link="base_link" />
+        <child link="inertial_link" />
+    </joint>
+
+    <link name="right_wheel_link">
+        <inertial>
+            <mass value="6" />
+            <origin xyz="0 0 0" />
+            <inertia ixx="0.7171" ixy="0" ixz="0" iyy="0.1361" iyz="0" izz="0.7171" />
+        </inertial>
+        <visual>
+            <origin xyz="0 0 0" rpy="0 0 0" />
+            <geometry>
+                <mesh filename="package://aloha_isaac_sim/meshes/tracer_wheel.dae" />
+            </geometry>
+        </visual>
+        <collision>
+        <origin
+            xyz="0 0 0"
+            rpy="0 0 0" />
+        <geometry>
+            <mesh filename="package://aloha_isaac_sim/meshes/tracer_wheel.dae" />
+        </geometry>
+        </collision>
+    </link>
+
+    <joint name="right_wheel" type="continuous">
+        <parent link="base_link"/>
+        <child link="right_wheel_link"/>
+        <origin xyz="0 -0.17 -0.082" rpy="0 0 0" />        
+        <axis xyz="0 1 0" rpy="0 0 0" />
+    </joint>
+
+    <link name="left_wheel_link">
+        <inertial>
+            <mass value="6" />
+            <origin xyz="0 0 0" />
+            <inertia ixx="0.7171" ixy="0" ixz="0" iyy="0.1361" iyz="0" izz="0.7171" />
+        </inertial>
+        <visual>
+            <origin xyz="0 0 0" rpy="0 0 0" />
+            <geometry>
+                <mesh filename="package://aloha_isaac_sim/meshes/tracer_wheel.dae" />
+            </geometry>
+        </visual>
+        <collision>
+        <origin
+            xyz="0 0 0"
+            rpy="0 0 0" />
+        <geometry>
+            <mesh filename="package://aloha_isaac_sim/meshes/tracer_wheel.dae" />
+        </geometry>
+        </collision>
+    </link>
+
+    <joint name="left_wheel" type="continuous">
+        <parent link="base_link"/>
+        <child link="left_wheel_link"/>
+        <origin xyz="0 0.17 -0.082" rpy="0 0 0" />        
+        <axis xyz="0 1 0" rpy="0 0 0" />
+    </joint>
+
+    <link name="fl_castor_link">
+        <inertial>
+            <mass value="1" />
+            <origin xyz="0 0 0" />
+            <inertia ixx="0.7171" ixy="0" ixz="0" iyy="0.1361" iyz="0" izz="0.7171" />
+        </inertial>
+        <visual>
+                <geometry>
+                    <mesh filename="package://aloha_isaac_sim/meshes/castor_joint.dae" />
+                </geometry>
+        </visual>
+    </link>
+
+    <joint name="fl_castor_wheel" type="continuous">
+        <parent link="base_link" />
+        <child link="fl_castor_link" />
+        <origin xyz="0.19 0.17 -0.038" rpy="-1.57 0 0" />        
+        <axis xyz="0 1 0" rpy="0 0 0" />
+    </joint>
+
+    <link name="fr_castor_link">
+        <inertial>
+            <mass value="1" />
+            <origin xyz="0 0 0" />
+            <inertia ixx="0.7171" ixy="0" ixz="0" iyy="0.1361" iyz="0" izz="0.7171" />
+        </inertial>
+        <visual>
+                <geometry>
+                    <mesh filename="package://aloha_isaac_sim/meshes/castor_joint.dae" />
+                </geometry>
+        </visual>
+    </link>
+
+    <joint name="fr_castor_wheel" type="continuous">
+        <origin xyz="0.18955 -0.17 -0.0380886" rpy="-1.57 0 0" />
+        <parent link="base_link" />
+        <child link="fr_castor_link" />
+        <axis xyz="0 1 0" rpy="0 0 0" />
+    </joint>
+
+    <link name="rr_castor_link">
+        <inertial>
+            <mass value="1" />
+            <origin xyz="0 0 0" />
+            <inertia ixx="0.7171" ixy="0" ixz="0" iyy="0.1361" iyz="0" izz="0.7171" />
+        </inertial>
+        <visual>
+                <geometry>
+                    <mesh filename="package://aloha_isaac_sim/meshes/castor_joint.dae" />
+                </geometry>
+        </visual>
+    </link>
+
+    <joint name="rr_castor_wheel" type="continuous">
+        <origin xyz="-0.18955 -0.17 -0.0380886" rpy="-1.57 0 0" />
+        <parent link="base_link" />
+        <child link="rr_castor_link" />
+        <axis xyz="0 1 0" rpy="0 0 0" />
+    </joint>
+
+    <link name="rl_castor_link">
+        <inertial>
+            <mass value="1" />
+            <origin xyz="0 0 0" />
+            <inertia ixx="0.7171" ixy="0" ixz="0" iyy="0.1361" iyz="0" izz="0.7171" />
+        </inertial>
+        <visual>
+                <geometry>
+                    <mesh filename="package://aloha_isaac_sim/meshes/castor_joint.dae" />
+                </geometry>
+        </visual>
+    </link>
+
+    <joint name="rl_castor_wheel" type="continuous">
+        <origin xyz="-0.18955 0.17 -0.0380886" rpy="-1.57 0 0" />
+        <parent link="base_link" />
+        <child link="rl_castor_link" />
+        <axis xyz="0 1 0" rpy="0 0 0" />
+    </joint>
+
+        <link name="fl_wheel_link">
+            <inertial>
+                <mass value="1" />
+                <origin xyz="0 0 0" />
+                <inertia ixx="0.3131" ixy="0" ixz="0" iyy="0.3131" iyz="0" izz="0.1361" />
+            </inertial>
+            <visual>
+               <geometry>
+                    <mesh filename="package://aloha_isaac_sim/meshes/castor.dae" />
+               </geometry>
+            </visual>
+            <collision>
+              <origin
+                xyz="0 0 0"
+                rpy="0 0 0" />
+              <geometry>-->
+                <mesh filename="package://aloha_isaac_sim/meshes/castor.dae" />
+              </geometry>
+            </collision>
+        </link>
+
+        <joint name="fl_wheel" type="continuous">
+            <parent link="fl_castor_link"/>
+            <child link="fl_wheel_link"/>
+             <dynamics damping="0.0" friction="0.0"/>
+            <origin xyz="-0.0218084 0.077 0" rpy="0 0 0" />
+            <axis xyz="0 0 1" rpy="0 0 0" />
+        </joint>
+
+        <link name="fr_wheel_link">
+            <inertial>
+                <mass value="1" />
+                <origin xyz="0 0 0" />
+                <inertia ixx="0.3131" ixy="0" ixz="0" iyy="0.3131" iyz="0" izz="0.1361" />
+            </inertial>
+            <visual>
+                   <geometry>
+                   <mesh filename="package://aloha_isaac_sim/meshes/castor.dae" />
+                   </geometry>
+            </visual>
+            <collision>
+              <origin
+                xyz="0 0 0"
+                rpy="0 0 0" />
+              <geometry>-->
+                <mesh filename="package://aloha_isaac_sim/meshes/castor.dae" />
+              </geometry>
+            </collision>
+        </link>
+
+        <joint name="fr_wheel" type="continuous">
+            <parent link="fr_castor_link"/>
+            <child link="fr_wheel_link"/>
+            <dynamics damping="0.0" friction="0.0"/>
+            <origin xyz="-0.0218084 0.077 0" rpy="0 0 0" />
+            <axis xyz="0 0 1" rpy="0 0 0" />
+        </joint>
+
+        <link name="rr_wheel_link">
+            <inertial>
+                <mass value="1" />
+                <origin xyz="0 0 0" />
+                <inertia ixx="0.3131" ixy="0" ixz="0" iyy="0.3131" iyz="0" izz="0.1361" />
+                <!--<inertia ixx="0" ixy="0" ixz="0" iyy="0" iyz="0" izz="0" />-->
+            </inertial>
+            <visual>
+                   <geometry>
+                        <mesh filename="package://aloha_isaac_sim/meshes/castor.dae" />
+                   </geometry>
+            </visual>
+            <collision>
+              <origin
+                xyz="0 0 0"
+                rpy="0 0 0" />
+              <geometry>
+                <mesh filename="package://aloha_isaac_sim/meshes/castor.dae" />
+              </geometry>
+            </collision>
+        </link>
+
+        <joint name="rr_wheel" type="continuous">
+            <parent link="rr_castor_link"/>
+            <child link="rr_wheel_link"/>
+            <dynamics damping="0.0" friction="0.0"/>
+            <origin xyz="-0.0218084 0.077 0" rpy="0 0 0" />
+            <axis xyz="0 0 1" rpy="0 0 0" />
+        </joint>
+
+        <link name="rl_wheel_link">
+            <inertial>
+                <mass value="1" />
+                <origin xyz="0 0 0" />
+                <inertia ixx="0.3131" ixy="0" ixz="0" iyy="0.3131" iyz="0" izz="0.1361" />
+            </inertial>
+            <visual>
+                   <geometry>
+                        <mesh filename="package://aloha_isaac_sim/meshes/castor.dae" />
+                   </geometry>
+            </visual>
+            <collision>
+              <origin
+                xyz="0 0 0"
+                rpy="0 0 0" />
+              <geometry>
+                <mesh filename="package://aloha_isaac_sim/meshes/castor.dae" />
+              </geometry>
+            </collision>
+        </link>
+
+        <joint name="rl_wheel" type="continuous">
+            <parent link="rl_castor_link"/>
+            <child link="rl_wheel_link"/>
+            <dynamics damping="0.0" friction="0.0"/>
+            <origin xyz="-0.0218084 0.077 0" rpy="0 0 0" />
+            <axis xyz="0 0 1" rpy="0 0 0" />
+        </joint>
+
+    <!-- aloha base -->
+    <joint name="box_joint" type="fixed">
+        <origin xyz="0 0 0.15" rpy="0 0 0" />
+        <parent link="footprint" />
+        <child link="base_link" />
+        <axis xyz="0 0 0" />
+    </joint>
+    <link name="box1_Link">
+        <inertial>
+            <origin xyz="-0.17227 -0.0012276 0.023432" rpy="0 0 0" />
+            <mass value="0.00014994" />
+            <inertia ixx="0.012264" ixy="-9.2432E-06" ixz="0.0001761" iyy="0.0045226" iyz="-0.00063248" izz="0.016558" />
+        </inertial>
+        <visual>
+            <origin xyz="0 0 0" rpy="-0.05 0 0" />
+            <geometry>
+                <mesh filename="package://aloha_isaac_sim/meshes/box1_Link.STL" />
+            </geometry>
+            <material name="">
+                <color rgba="0.79216 0.81961 0.93333 1" />
+            </material>
+        </visual>
+        <collision>
+            <origin xyz="0 0 0" rpy="-0.05 0 0" />
+            <geometry>
+                <mesh filename="package://aloha_isaac_sim/meshes/box1_Link.STL" />
+            </geometry>
+        </collision>
+    </link>
+    <joint name="box1" type="fixed">
+        <origin xyz="0 0 0.15" rpy="0 0 0" />
+        <parent link="footprint" />
+        <child link="box1_Link" />
+        <axis xyz="0 0 0" />
+    </joint>
+    <link name="box2_Link">
+        <inertial>
+            <origin xyz="0.015107 -0.027922 0.00013672" rpy="0 0 0" />
+            <mass value="3.736" />
+            <inertia ixx="0.097545" ixy="-9.2609E-06" ixz="0.00015366" iyy="0.045841" iyz="-0.0020459" izz="0.084773" />
+        </inertial>
+        <visual>
+            <origin xyz="0 0 0" rpy="-0.05 0 0" />
+            <geometry>
+                <mesh filename="package://aloha_isaac_sim/meshes/box2_Link.STL" />
+            </geometry>
+            <material name="">
+                <color rgba="0.79216 0.81961 0.93333 1" />
+            </material>
+        </visual>
+        <collision>
+            <origin xyz="0 0 0" rpy="-0.05 0 0" />
+            <geometry>
+                <mesh filename="package://aloha_isaac_sim/meshes/box2_Link.STL" />
+            </geometry>
+        </collision>
+    </link>
+    <joint name="box2" type="fixed">
+        <origin xyz="0 0 0" rpy="0 0 0" />
+        <parent link="box1_Link" />
+        <child link="box2_Link" />
+        <axis xyz="0 0 0" />
+    </joint>
+    <!--***************************** front-left ****************************** -->
+    <link name="fl_base_link">
+        <inertial>
+            <origin xyz="-2.9972E-05 3.056E-05 0.027301" rpy="0 0 0" />
+            <mass value="0.44038" />
+            <inertia ixx="0.00017" ixy="0.00000" ixz="0.00000" iyy="0.00018" iyz="0.00000" izz="0.00016" />
+        </inertial>
+        <visual>
+            <origin xyz="0 0 0" rpy="0 0 0" />
+            <geometry>
+                <mesh filename="package://aloha_isaac_sim/meshes/base_arm.STL" />
+            </geometry>
+            <material name="">
+                <color rgba="0.75294 0.75294 0.75294 1" />
+            </material>
+        </visual>
+        <collision>
+            <origin xyz="0 0 0" rpy="0 0 0" />
+            <geometry>
+                <mesh filename="package://aloha_isaac_sim/meshes/base_arm.STL" />
+            </geometry>
+        </collision>
+    </link>
+    <joint name="fl_base_joint" type="fixed">
+        <origin xyz="0.233 0.3 0.7775" rpy="0.0 0.0 0.0" />
+        <parent link="footprint" />
+        <child link="fl_base_link" />
+        <axis xyz="0.0 0.0 1.0" />
+    </joint>
+    <link name="fl_link1">
+        <inertial>
+            <origin xyz="0.00609525411893452 -0.00429681977500749 0.0179590247477389" rpy="0 0 0" />
+            <mass value="0.0608351104988555" />
+            <inertia ixx="0.00008" ixy="0.00000" ixz="0.00001" iyy="0.00003" iyz="0.00000" izz="0.00007" />
+        </inertial>
+        <visual>
+            <origin xyz="0 0 0" rpy="0 0 0" />
+            <geometry>
+                <mesh filename="package://aloha_isaac_sim/meshes/link1.STL" />
+            </geometry>
+            <material name="">
+                <color rgba="0.752941176470588 0.752941176470588 0.752941176470588 1" />
+            </material>
+        </visual>
+        <collision>
+            <origin xyz="0 0 0" rpy="0 0 0" />
+            <geometry>
+                <mesh filename="package://aloha_isaac_sim/meshes/link1.STL" />
+            </geometry>
+        </collision>
+    </link>
+    <joint name="fl_joint1" type="revolute">
+        <origin xyz="0 0 0.0603" rpy="0 0 0" />
+        <parent link="fl_base_link" />
+        <child link="fl_link1" />
+        <axis xyz="0 0 1" />
+        <limit lower="-10" upper="10" effort="100" velocity="1000" />
+    </joint>
+    <link name="fl_link2">
+        <inertial>
+            <origin xyz="-0.132382037190567 0.00220380675553821 0.000111790164679923" rpy="0 0 0" />
+            <mass value="1.0733279014126" />
+            <inertia ixx="0.00050" ixy="0.00000" ixz="-0.00004" iyy="0.01596" iyz="0.00000" izz="0.01602" />
+        </inertial>
+        <visual>
+            <origin xyz="0 0 0" rpy="0 0 0" />
+            <geometry>
+                <mesh filename="package://aloha_isaac_sim/meshes/link2.STL" />
+            </geometry>
+            <material name="">
+                <color rgba="0.752941176470588 0.752941176470588 0.752941176470588 1" />
+            </material>
+        </visual>
+        <collision>
+            <origin xyz="0 0 0" rpy="0 0 0" />
+            <geometry>
+                <mesh filename="package://aloha_isaac_sim/meshes/link2.STL" />
+            </geometry>
+        </collision>
+    </link>
+    <joint name="fl_joint2" type="revolute">
+        <origin xyz="0.02 0 0.0402" rpy="0 0 0" />
+        <parent link="fl_link1" />
+        <child link="fl_link2" />
+        <axis xyz="0 1 0" />
+        <limit lower="-10" upper="10" effort="100" velocity="1000" />
+    </joint>
+    <link name="fl_link3">
+        <inertial>
+            <origin xyz="0.187203287369961 -0.000305676361444925 -0.0514832866415513" rpy="0 0 0" />
+            <mass value="0.499404738025019" />
+            <inertia ixx="0.00033" ixy="-0.00006" ixz="-0.00039" iyy="0.00387" iyz="0.00001" izz="0.00383" />
+        </inertial>
+        <visual>
+            <origin xyz="0 0 0" rpy="0 0 0" />
+            <geometry>
+                <mesh filename="package://aloha_isaac_sim/meshes/link3.STL" />
+            </geometry>
+            <material name="">
+                <color rgba="0.752941176470588 0.752941176470588 0.752941176470588 1" />
+            </material>
+        </visual>
+        <collision>
+            <origin xyz="0 0 0" rpy="0 0 0" />
+            <geometry>
+                <mesh filename="package://aloha_isaac_sim/meshes/link3.STL" />
+            </geometry>
+        </collision>
+    </link>
+    <joint name="fl_joint3" type="revolute">
+        <origin xyz="-0.264 0 0" rpy="-3.1416 0 0" />
+        <parent link="fl_link2" />
+        <child link="fl_link3" />
+        <axis xyz="0 1 0" />
+        <limit lower="-10" upper="10" effort="100" velocity="1000" />
+    </joint>
+    <link name="fl_link4">
+        <inertial>
+            <origin xyz="0.0388884702662706 0.00295168681334743 -0.0353282735009622" rpy="0 0 0" />
+            <mass value="0.0809712553169999" />
+            <inertia ixx="0.00013" ixy="-0.00001" ixz="-0.00006" iyy="0.00016" iyz="0.00001" izz="0.00010" />
+        </inertial>
+        <visual>
+            <origin xyz="0 0 0" rpy="0 0 0" />
+            <geometry>
+                <mesh filename="package://aloha_isaac_sim/meshes/link4.STL" />
+            </geometry>
+            <material name="">
+                <color rgba="0.898039215686275 0.917647058823529 0.929411764705882 1" />
+            </material>
+        </visual>
+        <collision>
+            <origin xyz="0 0 0" rpy="0 0 0" />
+            <geometry>
+                <mesh filename="package://aloha_isaac_sim/meshes/link4.STL" />
+            </geometry>
+        </collision>
+    </link>
+    <joint name="fl_joint4" type="revolute">
+        <origin xyz="0.245 0 -0.056" rpy="0 0 0" />
+        <parent link="fl_link3" />
+        <child link="fl_link4" />
+        <axis xyz="0 1 0" />
+        <limit lower="-10" upper="10" effort="100" velocity="1000" />
+    </joint>
+    <link name="fl_link5">
+        <inertial>
+            <origin xyz="0.00289956909960302 3.15826689885766E-05 0.0526188859211408" rpy="0 0 0" />
+            <mass value="0.602357399313257" />
+            <inertia ixx="0.00072" ixy="0.00000" ixz="0.00005" iyy="0.00069" iyz="0.00000" izz="0.00021" />
+        </inertial>
+        <visual>
+            <origin xyz="0 0 0" rpy="0 0 0" />
+            <geometry>
+                <mesh filename="package://aloha_isaac_sim/meshes/link5.STL" />
+            </geometry>
+            <material name="">
+                <color rgba="0.752941176470588 0.752941176470588 0.752941176470588 1" />
+            </material>
+        </visual>
+        <collision>
+            <origin xyz="0 0 0" rpy="0 0 0" />
+            <geometry>
+                <mesh filename="package://aloha_isaac_sim/meshes/link5.STL" />
+            </geometry>
+        </collision>
+    </link>
+    <joint name="fl_joint5" type="revolute">
+        <origin xyz="0.06575 -0.001 -0.0825" rpy="0 0 0" />
+        <parent link="fl_link4" />
+        <child link="fl_link5" />
+        <axis xyz="0 0 1" />
+        <limit lower="-10" upper="10" effort="100" velocity="1000" />
+    </joint>
+    <link name="fl_link6">
+        <inertial>
+            <origin xyz="0.0471798400661976 0.000102970421835668 -0.000138510949393961" rpy="0 0 0" />
+            <mass value="0.462244960775882" />
+            <inertia ixx="0.00068" ixy="0.00000" ixz="0.00000" iyy="0.00036" iyz="-0.00001" izz="0.00091" />
+        </inertial>
+        <visual>
+            <origin xyz="0 0 0" rpy="0 0 0" />
+            <geometry>
+                <mesh filename="package://aloha_isaac_sim/meshes/link6.STL" />
+            </geometry>
+            <material name="">
+                <color rgba="0.898039215686275 0.917647058823529 0.929411764705882 1" />
+            </material>
+        </visual>
+        <collision>
+            <origin xyz="0 0 0" rpy="0 0 0" />
+            <geometry>
+                <mesh filename="package://aloha_isaac_sim/meshes/link6.STL" />
+            </geometry>
+        </collision>
+    </link>
+    <joint name="fl_joint6" type="revolute">
+        <origin xyz="0.02845 0 0.0825" rpy="-3.1416 0 0" />
+        <parent link="fl_link5" />
+        <child link="fl_link6" />
+        <axis xyz="1 0 0" />
+        <limit lower="-10" upper="10" effort="100" velocity="1000" />
+    </joint>
+    <link name="fl_link7">
+        <inertial>
+            <origin xyz="-0.000327642774520215 -0.00482005374028087 -0.00167540868720402" rpy="0 0 0" />
+            <mass value="0.0484016660227936" />
+            <inertia ixx="0.00001" ixy="0.00000" ixz="0.00000" iyy="0.00002" iyz="0.00000" izz="0.00002" />
+        </inertial>
+        <visual>
+            <origin xyz="0 0 0" rpy="0 0 0" />
+            <geometry>
+                <mesh filename="package://aloha_isaac_sim/meshes/link7.STL" />
+            </geometry>
+            <material name="">
+                <color rgba="0.898039215686275 0.917647058823529 0.929411764705882 1" />
+            </material>
+        </visual>
+        <collision>
+            <origin xyz="0 0 0" rpy="0 0 0" />
+            <geometry>
+                <mesh filename="package://aloha_isaac_sim/meshes/link7.STL" />
+            </geometry>
+        </collision>
+    </link>
+    <joint name="fl_joint7" type="prismatic">
+        <origin xyz="0.073574 0.024629 0" rpy="0 0 0" />
+        <parent link="fl_link6" />
+        <child link="fl_link7" />
+        <axis xyz="0 1 0" />
+        <limit lower="0" upper="0.04765" effort="100" velocity="100" />
+    </joint>
+    <link name="fl_link8">
+        <inertial>
+            <origin xyz="-0.000327643744208572 0.00482005363510456 0.000752972893839382" rpy="0 0 0" />
+            <mass value="0.0484016646136083" />
+            <inertia ixx="0.00001" ixy="0.00000" ixz="0.00000" iyy="0.00002" iyz="0.00000" izz="0.00002" />
+        </inertial>
+        <visual>
+            <origin xyz="0 0 0" rpy="0 0 0" />
+            <geometry>
+                <mesh filename="package://aloha_isaac_sim/meshes/link8.STL" />
+            </geometry>
+            <material name="">
+                <color rgba="0.898039215686275 0.917647058823529 0.929411764705882 1" />
+            </material>
+        </visual>
+        <collision>
+            <origin xyz="0 0 0" rpy="0 0 0" />
+            <geometry>
+                <mesh filename="package://aloha_isaac_sim/meshes/link8.STL" />
+            </geometry>
+        </collision>
+    </link>
+    <joint name="fl_joint8" type="prismatic">
+        <origin xyz="0.073574 -0.024629 0" rpy="0 0 0" />
+        <parent link="fl_link6" />
+        <child link="fl_link8" />
+        <axis xyz="0 -1 0" />
+        <limit lower="0" upper="0.04765" effort="100" velocity="100" />
+    </joint>
+    <!--***************************** front-right ****************************** -->
+    <link name="fr_base_link">
+        <inertial>
+            <origin xyz="-2.9972E-05 3.056E-05 0.027301" rpy="0 0 0" />
+            <mass value="0.44038" />
+            <inertia ixx="0.00017" ixy="0.00000" ixz="0.00000" iyy="0.00018" iyz="0.00000" izz="0.00016" />
+        </inertial>
+        <visual>
+            <origin xyz="0 0 0" rpy="0 0 0" />
+            <geometry>
+                <mesh filename="package://aloha_isaac_sim/meshes/base_arm.STL" />
+            </geometry>
+            <material name="">
+                <color rgba="0.75294 0.75294 0.75294 1" />
+            </material>
+        </visual>
+        <collision>
+            <origin xyz="0 0 0" rpy="0 0 0" />
+            <geometry>
+                <mesh filename="package://aloha_isaac_sim/meshes/base_arm.STL" />
+            </geometry>
+        </collision>
+    </link>
+    <joint name="fr_base_joint" type="fixed">
+        <origin xyz="0.233 -0.307 0.7775" rpy="0.0 0.0 0.0" />
+        <parent link="footprint" />
+        <child link="fr_base_link" />
+        <axis xyz="0.0 0.0 1.0" />
+    </joint>
+    <link name="fr_link1">
+        <inertial>
+            <origin xyz="0.00609525411893452 -0.00429681977500749 0.0179590247477389" rpy="0 0 0" />
+            <mass value="0.0608351104988555" />
+            <inertia ixx="0.00008" ixy="0.00000" ixz="0.00001" iyy="0.00003" iyz="0.00000" izz="0.00007" />
+        </inertial>
+        <visual>
+            <origin xyz="0 0 0" rpy="0 0 0" />
+            <geometry>
+                <mesh filename="package://aloha_isaac_sim/meshes/link1.STL" />
+            </geometry>
+            <material name="">
+                <color rgba="0.752941176470588 0.752941176470588 0.752941176470588 1" />
+            </material>
+        </visual>
+        <collision>
+            <origin xyz="0 0 0" rpy="0 0 0" />
+            <geometry>
+                <mesh filename="package://aloha_isaac_sim/meshes/link1.STL" />
+            </geometry>
+        </collision>
+    </link>
+    <joint name="fr_joint1" type="revolute">
+        <origin xyz="0 0 0.0603" rpy="0 0 0" />
+        <parent link="fr_base_link" />
+        <child link="fr_link1" />
+        <axis xyz="0 0 1" />
+        <limit lower="-10" upper="10" effort="100" velocity="1000" />
+    </joint>
+    <link name="fr_link2">
+        <inertial>
+            <origin xyz="-0.132382037190567 0.00220380675553821 0.000111790164679923" rpy="0 0 0" />
+            <mass value="1.0733279014126" />
+            <inertia ixx="0.00050" ixy="0.00000" ixz="-0.00004" iyy="0.01596" iyz="0.00000" izz="0.01602" />
+        </inertial>
+        <visual>
+            <origin xyz="0 0 0" rpy="0 0 0" />
+            <geometry>
+                <mesh filename="package://aloha_isaac_sim/meshes/link2.STL" />
+            </geometry>
+            <material name="">
+                <color rgba="0.752941176470588 0.752941176470588 0.752941176470588 1" />
+            </material>
+        </visual>
+        <collision>
+            <origin xyz="0 0 0" rpy="0 0 0" />
+            <geometry>
+                <mesh filename="package://aloha_isaac_sim/meshes/link2.STL" />
+            </geometry>
+        </collision>
+    </link>
+    <joint name="fr_joint2" type="revolute">
+        <origin xyz="0.02 0 0.0402" rpy="0 0 0" />
+        <parent link="fr_link1" />
+        <child link="fr_link2" />
+        <axis xyz="0 1 0" />
+        <limit lower="-10" upper="10" effort="100" velocity="1000" />
+    </joint>
+    <link name="fr_link3">
+        <inertial>
+            <origin xyz="0.187203287369961 -0.000305676361444925 -0.0514832866415513" rpy="0 0 0" />
+            <mass value="0.499404738025019" />
+            <inertia ixx="0.00033" ixy="-0.00006" ixz="-0.00039" iyy="0.00387" iyz="0.00001" izz="0.00383" />
+        </inertial>
+        <visual>
+            <origin xyz="0 0 0" rpy="0 0 0" />
+            <geometry>
+                <mesh filename="package://aloha_isaac_sim/meshes/link3.STL" />
+            </geometry>
+            <material name="">
+                <color rgba="0.752941176470588 0.752941176470588 0.752941176470588 1" />
+            </material>
+        </visual>
+        <collision>
+            <origin xyz="0 0 0" rpy="0 0 0" />
+            <geometry>
+                <mesh filename="package://aloha_isaac_sim/meshes/link3.STL" />
+            </geometry>
+        </collision>
+    </link>
+    <joint name="fr_joint3" type="revolute">
+        <origin xyz="-0.264 0 0" rpy="-3.1416 0 0" />
+        <parent link="fr_link2" />
+        <child link="fr_link3" />
+        <axis xyz="0 1 0" />
+        <limit lower="-10" upper="10" effort="100" velocity="1000" />
+    </joint>
+    <link name="fr_link4">
+        <inertial>
+            <origin xyz="0.0388884702662706 0.00295168681334743 -0.0353282735009622" rpy="0 0 0" />
+            <mass value="0.0809712553169999" />
+            <inertia ixx="0.00013" ixy="-0.00001" ixz="-0.00006" iyy="0.00016" iyz="0.00001" izz="0.00010" />
+        </inertial>
+        <visual>
+            <origin xyz="0 0 0" rpy="0 0 0" />
+            <geometry>
+                <mesh filename="package://aloha_isaac_sim/meshes/link4.STL" />
+            </geometry>
+            <material name="">
+                <color rgba="0.898039215686275 0.917647058823529 0.929411764705882 1" />
+            </material>
+        </visual>
+        <collision>
+            <origin xyz="0 0 0" rpy="0 0 0" />
+            <geometry>
+                <mesh filename="package://aloha_isaac_sim/meshes/link4.STL" />
+            </geometry>
+        </collision>
+    </link>
+    <joint name="fr_joint4" type="revolute">
+        <origin xyz="0.245 0 -0.056" rpy="0 0 0" />
+        <parent link="fr_link3" />
+        <child link="fr_link4" />
+        <axis xyz="0 1 0" />
+        <limit lower="-10" upper="10" effort="100" velocity="1000" />
+    </joint>
+    <link name="fr_link5">
+        <inertial>
+            <origin xyz="0.00289956909960302 3.15826689885766E-05 0.0526188859211408" rpy="0 0 0" />
+            <mass value="0.602357399313257" />
+            <inertia ixx="0.00072" ixy="0.00000" ixz="0.00005" iyy="0.00069" iyz="0.00000" izz="0.00021" />
+        </inertial>
+        <visual>
+            <origin xyz="0 0 0" rpy="0 0 0" />
+            <geometry>
+                <mesh filename="package://aloha_isaac_sim/meshes/link5.STL" />
+            </geometry>
+            <material name="">
+                <color rgba="0.752941176470588 0.752941176470588 0.752941176470588 1" />
+            </material>
+        </visual>
+        <collision>
+            <origin xyz="0 0 0" rpy="0 0 0" />
+            <geometry>
+                <mesh filename="package://aloha_isaac_sim/meshes/link5.STL" />
+            </geometry>
+        </collision>
+    </link>
+    <joint name="fr_joint5" type="revolute">
+        <origin xyz="0.06575 -0.001 -0.0825" rpy="0 0 0" />
+        <parent link="fr_link4" />
+        <child link="fr_link5" />
+        <axis xyz="0 0 1" />
+        <limit lower="-10" upper="10" effort="100" velocity="1000" />
+    </joint>
+    <link name="fr_link6">
+        <inertial>
+            <origin xyz="0.0471798400661976 0.000102970421835668 -0.000138510949393961" rpy="0 0 0" />
+            <mass value="0.462244960775882" />
+            <inertia ixx="0.00068" ixy="0.00000" ixz="0.00000" iyy="0.00036" iyz="-0.00001" izz="0.00091" />
+        </inertial>
+        <visual>
+            <origin xyz="0 0 0" rpy="0 0 0" />
+            <geometry>
+                <mesh filename="package://aloha_isaac_sim/meshes/link6.STL" />
+            </geometry>
+            <material name="">
+                <color rgba="0.898039215686275 0.917647058823529 0.929411764705882 1" />
+            </material>
+        </visual>
+        <collision>
+            <origin xyz="0 0 0" rpy="0 0 0" />
+            <geometry>
+                <mesh filename="package://aloha_isaac_sim/meshes/link6.STL" />
+            </geometry>
+        </collision>
+    </link>
+    <joint name="fr_joint6" type="revolute">
+        <origin xyz="0.02845 0 0.0825" rpy="-3.1416 0 0" />
+        <parent link="fr_link5" />
+        <child link="fr_link6" />
+        <axis xyz="1 0 0" />
+        <limit lower="-10" upper="10" effort="100" velocity="1000" />
+    </joint>
+    <link name="fr_link7">
+        <inertial>
+            <origin xyz="-0.000327642774520215 -0.00482005374028087 -0.00167540868720402" rpy="0 0 0" />
+            <mass value="0.0484016660227936" />
+            <inertia ixx="0.00001" ixy="0.00000" ixz="0.00000" iyy="0.00002" iyz="0.00000" izz="0.00002" />
+        </inertial>
+        <visual>
+            <origin xyz="0 0 0" rpy="0 0 0" />
+            <geometry>
+                <mesh filename="package://aloha_isaac_sim/meshes/link7.STL" />
+            </geometry>
+            <material name="">
+                <color rgba="0.898039215686275 0.917647058823529 0.929411764705882 1" />
+            </material>
+        </visual>
+        <collision>
+            <origin xyz="0 0 0" rpy="0 0 0" />
+            <geometry>
+                <mesh filename="package://aloha_isaac_sim/meshes/link7.STL" />
+            </geometry>
+        </collision>
+    </link>
+    <joint name="fr_joint7" type="prismatic">
+        <origin xyz="0.073574 0.024629 0" rpy="0 0 0" />
+        <parent link="fr_link6" />
+        <child link="fr_link7" />
+        <axis xyz="0 1 0" />
+        <limit lower="0" upper="0.04765" effort="100" velocity="100" />
+    </joint>
+    <link name="fr_link8">
+        <inertial>
+            <origin xyz="-0.000327643744208572 0.00482005363510456 0.000752972893839382" rpy="0 0 0" />
+            <mass value="0.0484016646136083" />
+            <inertia ixx="0.00001" ixy="0.00000" ixz="0.00000" iyy="0.00002" iyz="0.00000" izz="0.00002" />
+        </inertial>
+        <visual>
+            <origin xyz="0 0 0" rpy="0 0 0" />
+            <geometry>
+                <mesh filename="package://aloha_isaac_sim/meshes/link8.STL" />
+            </geometry>
+            <material name="">
+                <color rgba="0.898039215686275 0.917647058823529 0.929411764705882 1" />
+            </material>
+        </visual>
+        <collision>
+            <origin xyz="0 0 0" rpy="0 0 0" />
+            <geometry>
+                <mesh filename="package://aloha_isaac_sim/meshes/link8.STL" />
+            </geometry>
+        </collision>
+    </link>
+    <joint name="fr_joint8" type="prismatic">
+        <origin xyz="0.073574 -0.024629 0" rpy="0 0 0" />
+        <parent link="fr_link6" />
+        <child link="fr_link8" />
+        <axis xyz="0 -1 0" />
+        <limit lower="0" upper="0.04765" effort="100" velocity="100" />
+    </joint>
+
+    <!--***************************** left-rear ****************************** -->
+    <link name="lr_base_link">
+        <inertial>
+            <origin xyz="-2.9972E-05 3.056E-05 0.027301" rpy="0 0 0" />
+            <mass value="0.44038" />
+            <inertia ixx="0.00017" ixy="0.00000" ixz="0.00000" iyy="0.00018" iyz="0.00000" izz="0.00016" />
+        </inertial>
+        <visual>
+            <origin xyz="0 0 0" rpy="0 0 0" />
+            <geometry>
+                <mesh filename="package://aloha_isaac_sim/meshes/base_arm.STL" />
+            </geometry>
+            <material name="">
+                <color rgba="0.75294 0.75294 0.75294 1" />
+            </material>
+        </visual>
+        <collision>
+            <origin xyz="0 0 0" rpy="0 0 0" />
+            <geometry>
+                <mesh filename="package://aloha_isaac_sim/meshes/base_arm.STL" />
+            </geometry>
+        </collision>
+    </link>
+    <joint name="lr_base_joint" type="fixed">
+        <origin xyz="-0.309 0.307 0.903" rpy="0.0 0.0 0.0" />
+        <parent link="footprint" />
+        <child link="lr_base_link" />
+        <axis xyz="0.0 0.0 1.0" />
+    </joint>
+    <link name="lr_link1">
+        <inertial>
+            <origin xyz="0.00609525411893452 -0.00429681977500749 0.0179590247477389" rpy="0 0 0" />
+            <mass value="0.0608351104988555" />
+            <inertia ixx="0.00008" ixy="0.00000" ixz="0.00001" iyy="0.00003" iyz="0.00000" izz="0.00007" />
+        </inertial>
+        <visual>
+            <origin xyz="0 0 0" rpy="0 0 0" />
+            <geometry>
+                <mesh filename="package://aloha_isaac_sim/meshes/link1.STL" />
+            </geometry>
+            <material name="">
+                <color rgba="0.752941176470588 0.752941176470588 0.752941176470588 1" />
+            </material>
+        </visual>
+        <collision>
+            <origin xyz="0 0 0" rpy="0 0 0" />
+            <geometry>
+                <mesh filename="package://aloha_isaac_sim/meshes/link1.STL" />
+            </geometry>
+        </collision>
+    </link>
+    <joint name="lr_joint1" type="revolute">
+        <origin xyz="0 0 0.0603" rpy="0 0 0" />
+        <parent link="lr_base_link" />
+        <child link="lr_link1" />
+        <axis xyz="0 0 1" />
+        <limit lower="-10" upper="10" effort="100" velocity="1000" />
+    </joint>
+    <link name="lr_link2">
+        <inertial>
+            <origin xyz="-0.132382037190567 0.00220380675553821 0.000111790164679923" rpy="0 0 0" />
+            <mass value="1.0733279014126" />
+            <inertia ixx="0.00050" ixy="0.00000" ixz="-0.00004" iyy="0.01596" iyz="0.00000" izz="0.01602" />
+        </inertial>
+        <visual>
+            <origin xyz="0 0 0" rpy="0 0 0" />
+            <geometry>
+                <mesh filename="package://aloha_isaac_sim/meshes/link2.STL" />
+            </geometry>
+            <material name="">
+                <color rgba="0.752941176470588 0.752941176470588 0.752941176470588 1" />
+            </material>
+        </visual>
+        <collision>
+            <origin xyz="0 0 0" rpy="0 0 0" />
+            <geometry>
+                <mesh filename="package://aloha_isaac_sim/meshes/link2.STL" />
+            </geometry>
+        </collision>
+    </link>
+    <joint name="lr_joint2" type="revolute">
+        <origin xyz="0.02 0 0.0402" rpy="0 0 0" />
+        <parent link="lr_link1" />
+        <child link="lr_link2" />
+        <axis xyz="0 1 0" />
+        <dynamics damping="0.0" friction="100.0"/>
+        <limit lower="-10" upper="10" effort="100" velocity="1000" />
+    </joint>
+    <link name="lr_link3">
+        <inertial>
+            <origin xyz="0.187203287369961 -0.000305676361444925 -0.0514832866415513" rpy="0 0 0" />
+            <mass value="0.499404738025019" />
+            <inertia ixx="0.00033" ixy="-0.00006" ixz="-0.00039" iyy="0.00387" iyz="0.00001" izz="0.00383" />
+        </inertial>
+        <visual>
+            <origin xyz="0 0 0" rpy="0 0 0" />
+            <geometry>
+                <mesh filename="package://aloha_isaac_sim/meshes/link3.STL" />
+            </geometry>
+            <material name="">
+                <color rgba="0.752941176470588 0.752941176470588 0.752941176470588 1" />
+            </material>
+        </visual>
+        <collision>
+            <origin xyz="0 0 0" rpy="0 0 0" />
+            <geometry>
+                <mesh filename="package://aloha_isaac_sim/meshes/link3.STL" />
+            </geometry>
+        </collision>
+    </link>
+    <joint name="lr_joint3" type="revolute">
+        <origin xyz="-0.264 0 0" rpy="-3.1416 0 0" />
+        <parent link="lr_link2" />
+        <child link="lr_link3" />
+        <axis xyz="0 1 0" />
+        <dynamics damping="0.0" friction="100.0"/>
+        <limit lower="-10" upper="10" effort="100" velocity="1000" />
+    </joint>
+    <link name="lr_link4">
+        <inertial>
+            <origin xyz="0.0388884702662706 0.00295168681334743 -0.0353282735009622" rpy="0 0 0" />
+            <mass value="0.0809712553169999" />
+            <inertia ixx="0.00013" ixy="-0.00001" ixz="-0.00006" iyy="0.00016" iyz="0.00001" izz="0.00010" />
+        </inertial>
+        <visual>
+            <origin xyz="0 0 0" rpy="0 0 0" />
+            <geometry>
+                <mesh filename="package://aloha_isaac_sim/meshes/link4.STL" />
+            </geometry>
+            <material name="">
+                <color rgba="0.898039215686275 0.917647058823529 0.929411764705882 1" />
+            </material>
+        </visual>
+        <collision>
+            <origin xyz="0 0 0" rpy="0 0 0" />
+            <geometry>
+                <mesh filename="package://aloha_isaac_sim/meshes/link4.STL" />
+            </geometry>
+        </collision>
+    </link>
+    <joint name="lr_joint4" type="revolute">
+        <origin xyz="0.245 0 -0.056" rpy="0 0 0" />
+        <parent link="lr_link3" />
+        <child link="lr_link4" />
+        <axis xyz="0 1 0" />
+        <limit lower="-10" upper="10" effort="100" velocity="1000" />
+    </joint>
+    <link name="lr_link5">
+        <inertial>
+            <origin xyz="0.00289956909960302 3.15826689885766E-05 0.0526188859211408" rpy="0 0 0" />
+            <mass value="0.602357399313257" />
+            <inertia ixx="0.00072" ixy="0.00000" ixz="0.00005" iyy="0.00069" iyz="0.00000" izz="0.00021" />
+        </inertial>
+        <visual>
+            <origin xyz="0 0 0" rpy="0 0 0" />
+            <geometry>
+                <mesh filename="package://aloha_isaac_sim/meshes/link5.STL" />
+            </geometry>
+            <material name="">
+                <color rgba="0.752941176470588 0.752941176470588 0.752941176470588 1" />
+            </material>
+        </visual>
+        <collision>
+            <origin xyz="0 0 0" rpy="0 0 0" />
+            <geometry>
+                <mesh filename="package://aloha_isaac_sim/meshes/link5.STL" />
+            </geometry>
+        </collision>
+    </link>
+    <joint name="lr_joint5" type="revolute">
+        <origin xyz="0.06575 -0.001 -0.0825" rpy="0 0 0" />
+        <parent link="lr_link4" />
+        <child link="lr_link5" />
+        <axis xyz="0 0 1" />
+        <limit lower="-10" upper="10" effort="100" velocity="1000" />
+    </joint>
+    <link name="lr_link6">
+        <inertial>
+            <origin xyz="0.0471798400661976 0.000102970421835668 -0.000138510949393961" rpy="0 0 0" />
+            <mass value="0.462244960775882" />
+            <inertia ixx="0.00068" ixy="0.00000" ixz="0.00000" iyy="0.00036" iyz="-0.00001" izz="0.00091" />
+        </inertial>
+        <visual>
+            <origin xyz="0 0 0" rpy="0 0 0" />
+            <geometry>
+                <mesh filename="package://aloha_isaac_sim/meshes/link6.STL" />
+            </geometry>
+            <material name="">
+                <color rgba="0.898039215686275 0.917647058823529 0.929411764705882 1" />
+            </material>
+        </visual>
+        <collision>
+            <origin xyz="0 0 0" rpy="0 0 0" />
+            <geometry>
+                <mesh filename="package://aloha_isaac_sim/meshes/link6.STL" />
+            </geometry>
+        </collision>
+    </link>
+    <joint name="lr_joint6" type="revolute">
+        <origin xyz="0.02845 0 0.0825" rpy="-3.1416 0 0" />
+        <parent link="lr_link5" />
+        <child link="lr_link6" />
+        <axis xyz="1 0 0" />
+        <limit lower="-10" upper="10" effort="100" velocity="1000" />
+    </joint>
+    <link name="lr_link7">
+        <inertial>
+            <origin xyz="-0.000327642774520215 -0.00482005374028087 -0.00167540868720402" rpy="0 0 0" />
+            <mass value="0.0484016660227936" />
+            <inertia ixx="0.00001" ixy="0.00000" ixz="0.00000" iyy="0.00002" iyz="0.00000" izz="0.00002" />
+        </inertial>
+        <visual>
+            <origin xyz="0 0 0" rpy="0 0 0" />
+            <geometry>
+                <mesh filename="package://aloha_isaac_sim/meshes/link7.STL" />
+            </geometry>
+            <material name="">
+                <color rgba="0.898039215686275 0.917647058823529 0.929411764705882 1" />
+            </material>
+        </visual>
+        <collision>
+            <origin xyz="0 0 0" rpy="0 0 0" />
+            <geometry>
+                <mesh filename="package://aloha_isaac_sim/meshes/link7.STL" />
+            </geometry>
+        </collision>
+    </link>
+    <joint name="lr_joint7" type="prismatic">
+        <origin xyz="0.073574 0.024629 0" rpy="0 0 0" />
+        <parent link="lr_link6" />
+        <child link="lr_link7" />
+        <axis xyz="0 1 0" />
+        <limit lower="0" upper="0.04765" effort="100" velocity="100" />
+    </joint>
+    <link name="lr_link8">
+        <inertial>
+            <origin xyz="-0.000327643744208572 0.00482005363510456 0.000752972893839382" rpy="0 0 0" />
+            <mass value="0.0484016646136083" />
+            <inertia ixx="0.00001" ixy="0.00000" ixz="0.00000" iyy="0.00002" iyz="0.00000" izz="0.00002" />
+        </inertial>
+        <visual>
+            <origin xyz="0 0 0" rpy="0 0 0" />
+            <geometry>
+                <mesh filename="package://aloha_isaac_sim/meshes/link8.STL" />
+            </geometry>
+            <material name="">
+                <color rgba="0.898039215686275 0.917647058823529 0.929411764705882 1" />
+            </material>
+        </visual>
+        <collision>
+            <origin xyz="0 0 0" rpy="0 0 0" />
+            <geometry>
+                <mesh filename="package://aloha_isaac_sim/meshes/link8.STL" />
+            </geometry>
+        </collision>
+    </link>
+    <joint name="lr_joint8" type="prismatic">
+        <origin xyz="0.073574 -0.024629 0" rpy="0 0 0" />
+        <parent link="lr_link6" />
+        <child link="lr_link8" />
+        <axis xyz="0 -1 0" />
+        <limit lower="0" upper="0.04765" effort="100" velocity="100" />
+    </joint>
+
+    <!--***************************** right-rear ****************************** -->
+    <link name="rr_base_link">
+        <inertial>
+            <origin xyz="-2.9972E-05 3.056E-05 0.027301" rpy="0 0 0" />
+            <mass value="0.44038" />
+            <inertia ixx="0.00017" ixy="0.00000" ixz="0.00000" iyy="0.00018" iyz="0.00000" izz="0.00016" />
+        </inertial>
+        <visual>
+            <origin xyz="0 0 0" rpy="0 0 0" />
+            <geometry>
+                <mesh filename="package://aloha_isaac_sim/meshes/base_arm.STL" />
+            </geometry>
+            <material name="">
+                <color rgba="0.75294 0.75294 0.75294 1" />
+            </material>
+        </visual>
+        <collision>
+            <origin xyz="0 0 0" rpy="0 0 0" />
+            <geometry>
+                <mesh filename="package://aloha_isaac_sim/meshes/base_arm.STL" />
+            </geometry>
+        </collision>
+    </link>
+    <joint name="rr_base_joint" type="fixed">
+        <origin xyz="-0.309 -0.307 0.903" rpy="0.0 0.0 0.0" />
+        <parent link="footprint" />
+        <child link="rr_base_link" />
+        <axis xyz="0.0 0.0 1.0" />
+    </joint>
+    <link name="rr_link1">
+        <inertial>
+            <origin xyz="0.00609525411893452 -0.00429681977500749 0.0179590247477389" rpy="0 0 0" />
+            <mass value="0.0608351104988555" />
+            <inertia ixx="0.00008" ixy="0.00000" ixz="0.00001" iyy="0.00003" iyz="0.00000" izz="0.00007" />
+        </inertial>
+        <visual>
+            <origin xyz="0 0 0" rpy="0 0 0" />
+            <geometry>
+                <mesh filename="package://aloha_isaac_sim/meshes/link1.STL" />
+            </geometry>
+            <material name="">
+                <color rgba="0.752941176470588 0.752941176470588 0.752941176470588 1" />
+            </material>
+        </visual>
+        <collision>
+            <origin xyz="0 0 0" rpy="0 0 0" />
+            <geometry>
+                <mesh filename="package://aloha_isaac_sim/meshes/link1.STL" />
+            </geometry>
+        </collision>
+    </link>
+    <joint name="rr_joint1" type="revolute">
+        <origin xyz="0 0 0.0603" rpy="0 0 0" />
+        <parent link="rr_base_link" />
+        <child link="rr_link1" />
+        <axis xyz="0 0 1" />
+        <limit lower="-10" upper="10" effort="100" velocity="1000" />
+    </joint>
+    <link name="rr_link2">
+        <inertial>
+            <origin xyz="-0.132382037190567 0.00220380675553821 0.000111790164679923" rpy="0 0 0" />
+            <mass value="1.0733279014126" />
+            <inertia ixx="0.00050" ixy="0.00000" ixz="-0.00004" iyy="0.01596" iyz="0.00000" izz="0.01602" />
+        </inertial>
+        <visual>
+            <origin xyz="0 0 0" rpy="0 0 0" />
+            <geometry>
+                <mesh filename="package://aloha_isaac_sim/meshes/link2.STL" />
+            </geometry>
+            <material name="">
+                <color rgba="0.752941176470588 0.752941176470588 0.752941176470588 1" />
+            </material>
+        </visual>
+        <collision>
+            <origin xyz="0 0 0" rpy="0 0 0" />
+            <geometry>
+                <mesh filename="package://aloha_isaac_sim/meshes/link2.STL" />
+            </geometry>
+        </collision>
+    </link>
+    <joint name="rr_joint2" type="revolute">
+        <origin xyz="0.02 0 0.0402" rpy="0 0 0" />
+        <parent link="rr_link1" />
+        <child link="rr_link2" />
+        <axis xyz="0 1 0" />
+        <limit lower="-10" upper="10" effort="100" velocity="1000" />
+    </joint>
+    <link name="rr_link3">
+        <inertial>
+            <origin xyz="0.187203287369961 -0.000305676361444925 -0.0514832866415513" rpy="0 0 0" />
+            <mass value="0.499404738025019" />
+            <inertia ixx="0.00033" ixy="-0.00006" ixz="-0.00039" iyy="0.00387" iyz="0.00001" izz="0.00383" />
+        </inertial>
+        <visual>
+            <origin xyz="0 0 0" rpy="0 0 0" />
+            <geometry>
+                <mesh filename="package://aloha_isaac_sim/meshes/link3.STL" />
+            </geometry>
+            <material name="">
+                <color rgba="0.752941176470588 0.752941176470588 0.752941176470588 1" />
+            </material>
+        </visual>
+        <collision>
+            <origin xyz="0 0 0" rpy="0 0 0" />
+            <geometry>
+                <mesh filename="package://aloha_isaac_sim/meshes/link3.STL" />
+            </geometry>
+        </collision>
+    </link>
+    <joint name="rr_joint3" type="revolute">
+        <origin xyz="-0.264 0 0" rpy="-3.1416 0 0" />
+        <parent link="rr_link2" />
+        <child link="rr_link3" />
+        <axis xyz="0 1 0" />
+        <limit lower="-10" upper="10" effort="100" velocity="1000" />
+    </joint>
+    <link name="rr_link4">
+        <inertial>
+            <origin xyz="0.0388884702662706 0.00295168681334743 -0.0353282735009622" rpy="0 0 0" />
+            <mass value="0.0809712553169999" />
+            <inertia ixx="0.00013" ixy="-0.00001" ixz="-0.00006" iyy="0.00016" iyz="0.00001" izz="0.00010" />
+        </inertial>
+        <visual>
+            <origin xyz="0 0 0" rpy="0 0 0" />
+            <geometry>
+                <mesh filename="package://aloha_isaac_sim/meshes/link4.STL" />
+            </geometry>
+            <material name="">
+                <color rgba="0.898039215686275 0.917647058823529 0.929411764705882 1" />
+            </material>
+        </visual>
+        <collision>
+            <origin xyz="0 0 0" rpy="0 0 0" />
+            <geometry>
+                <mesh filename="package://aloha_isaac_sim/meshes/link4.STL" />
+            </geometry>
+        </collision>
+    </link>
+    <joint name="rr_joint4" type="revolute">
+        <origin xyz="0.245 0 -0.056" rpy="0 0 0" />
+        <parent link="rr_link3" />
+        <child link="rr_link4" />
+        <axis xyz="0 1 0" />
+        <limit lower="-10" upper="10" effort="100" velocity="1000" />
+    </joint>
+    <link name="rr_link5">
+        <inertial>
+            <origin xyz="0.00289956909960302 3.15826689885766E-05 0.0526188859211408" rpy="0 0 0" />
+            <mass value="0.602357399313257" />
+            <inertia ixx="0.00072" ixy="0.00000" ixz="0.00005" iyy="0.00069" iyz="0.00000" izz="0.00021" />
+        </inertial>
+        <visual>
+            <origin xyz="0 0 0" rpy="0 0 0" />
+            <geometry>
+                <mesh filename="package://aloha_isaac_sim/meshes/link5.STL" />
+            </geometry>
+            <material name="">
+                <color rgba="0.752941176470588 0.752941176470588 0.752941176470588 1" />
+            </material>
+        </visual>
+        <collision>
+            <origin xyz="0 0 0" rpy="0 0 0" />
+            <geometry>
+                <mesh filename="package://aloha_isaac_sim/meshes/link5.STL" />
+            </geometry>
+        </collision>
+    </link>
+    <joint name="rr_joint5" type="revolute">
+        <origin xyz="0.06575 -0.001 -0.0825" rpy="0 0 0" />
+        <parent link="rr_link4" />
+        <child link="rr_link5" />
+        <axis xyz="0 0 1" />
+        <limit lower="-10" upper="10" effort="100" velocity="1000" />
+    </joint>
+    <link name="rr_link6">
+        <inertial>
+            <origin xyz="0.0471798400661976 0.000102970421835668 -0.000138510949393961" rpy="0 0 0" />
+            <mass value="0.462244960775882" />
+            <inertia ixx="0.00068" ixy="0.00000" ixz="0.00000" iyy="0.00036" iyz="-0.00001" izz="0.00091" />
+        </inertial>
+        <visual>
+            <origin xyz="0 0 0" rpy="0 0 0" />
+            <geometry>
+                <mesh filename="package://aloha_isaac_sim/meshes/link6.STL" />
+            </geometry>
+            <material name="">
+                <color rgba="0.898039215686275 0.917647058823529 0.929411764705882 1" />
+            </material>
+        </visual>
+        <collision>
+            <origin xyz="0 0 0" rpy="0 0 0" />
+            <geometry>
+                <mesh filename="package://aloha_isaac_sim/meshes/link6.STL" />
+            </geometry>
+        </collision>
+    </link>
+    <joint name="rr_joint6" type="revolute">
+        <origin xyz="0.02845 0 0.0825" rpy="-3.1416 0 0" />
+        <parent link="rr_link5" />
+        <child link="rr_link6" />
+        <axis xyz="1 0 0" />
+        <limit lower="-10" upper="10" effort="100" velocity="1000" />
+    </joint>
+    <link name="rr_link7">
+        <inertial>
+            <origin xyz="-0.000327642774520215 -0.00482005374028087 -0.00167540868720402" rpy="0 0 0" />
+            <mass value="0.0484016660227936" />
+            <inertia ixx="0.00001" ixy="0.00000" ixz="0.00000" iyy="0.00002" iyz="0.00000" izz="0.00002" />
+        </inertial>
+        <visual>
+            <origin xyz="0 0 0" rpy="0 0 0" />
+            <geometry>
+                <mesh filename="package://aloha_isaac_sim/meshes/link7.STL" />
+            </geometry>
+            <material name="">
+                <color rgba="0.898039215686275 0.917647058823529 0.929411764705882 1" />
+            </material>
+        </visual>
+        <collision>
+            <origin xyz="0 0 0" rpy="0 0 0" />
+            <geometry>
+                <mesh filename="package://aloha_isaac_sim/meshes/link7.STL" />
+            </geometry>
+        </collision>
+    </link>
+    <joint name="rr_joint7" type="prismatic">
+        <origin xyz="0.073574 0.024629 0" rpy="0 0 0" />
+        <parent link="rr_link6" />
+        <child link="rr_link7" />
+        <axis xyz="0 1 0" />
+        <limit lower="0" upper="0.04765" effort="100" velocity="100" />
+    </joint>
+    <link name="rr_link8">
+        <inertial>
+            <origin xyz="-0.000327643744208572 0.00482005363510456 0.000752972893839382" rpy="0 0 0" />
+            <mass value="0.0484016646136083" />
+            <inertia ixx="0.00001" ixy="0.00000" ixz="0.00000" iyy="0.00002" iyz="0.00000" izz="0.00002" />
+        </inertial>
+        <visual>
+            <origin xyz="0 0 0" rpy="0 0 0" />
+            <geometry>
+                <mesh filename="package://aloha_isaac_sim/meshes/link8.STL" />
+            </geometry>
+            <material name="">
+                <color rgba="0.898039215686275 0.917647058823529 0.929411764705882 1" />
+            </material>
+        </visual>
+        <collision>
+            <origin xyz="0 0 0" rpy="0 0 0" />
+            <geometry>
+                <mesh filename="package://aloha_isaac_sim/meshes/link8.STL" />
+            </geometry>
+        </collision>
+    </link>
+    <joint name="rr_joint8" type="prismatic">
+        <origin xyz="0.073574 -0.024629 0" rpy="0 0 0" />
+        <parent link="rr_link6" />
+        <child link="rr_link8" />
+        <axis xyz="0 -1 0" />
+        <limit lower="0" upper="0.04765" effort="100" velocity="100" />
+    </joint>
+
+</robot>
+

@@ -283,6 +283,10 @@ class OculusV0(DeviceBase):
         self._delta_rot_right = np.zeros(3)  # (roll, pitch, yaw) for right arm
         self._delta_base = np.zeros(3)  # (x, y, yaw) for mobile base
         
+        # yaw
+        self.rotation_divisor = 1.25   
+        self.base_rot_sensitivity = 10
+        
         # dictionary for additional callbacks
         self._additional_callbacks = dict()
 
@@ -358,12 +362,12 @@ class OculusV0(DeviceBase):
         # yaw
         # check if the rightJS is moved to right
         if buttons['rightJS'][0] > 0.7  and ('counterclockwise' not in self._key_hold_start):
-            self._delta_base[2] -= self.base_sensitivity
+            self._delta_base[2] -= self.base_sensitivity * self.base_rot_sensitivity
             self._key_hold_start['counterclockwise'] = time.time()
 
         # check if the rightJS is moved to left
         elif buttons['rightJS'][0] < -0.7 and ('clockwise' not in self._key_hold_start):
-            self._delta_base[2] += self.base_sensitivity
+            self._delta_base[2] += self.base_sensitivity * self.base_rot_sensitivity
             self._key_hold_start['clockwise'] = time.time()
 
         # check if the rightJS is returned to the center (similar to key realeased)
@@ -381,8 +385,8 @@ class OculusV0(DeviceBase):
         # xy
         if buttons['leftJS'] != (0.0, 0.0):
             raw_x, raw_y = buttons['leftJS']  # x, y in [-1, 1]
-            self._delta_base += raw_x * np.asarray([ math.cos(self._base_z_accum / 1.25),  math.sin(self._base_z_accum / 1.25), 0.0]) * self.base_sensitivity
-            self._delta_base += raw_y * np.asarray([ math.sin(self._base_z_accum / 1.25),  -math.cos(self._base_z_accum / 1.25), 0.0]) * self.base_sensitivity
+            self._delta_base += raw_x * np.asarray([ math.cos(self._base_z_accum / self.rotation_divisor),  math.sin(self._base_z_accum / self.rotation_divisor), 0.0]) * self.base_sensitivity
+            self._delta_base += raw_y * np.asarray([ math.sin(self._base_z_accum / self.rotation_divisor),  -math.cos(self._base_z_accum / self.rotation_divisor), 0.0]) * self.base_sensitivity
 
         # return the commands
         return (
