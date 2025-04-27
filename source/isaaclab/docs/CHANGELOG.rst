@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.36.24 (2025-04-27)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the issue where the quaternion difference was not unique in :func:`~isaaclab.utils.math.quat_box_minus`.
+
+
 0.36.23 (2025-04-24)
 ~~~~~~~~~~~~~~~~~~~~
 
