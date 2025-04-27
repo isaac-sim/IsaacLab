@@ -511,6 +511,7 @@ def quat_box_minus(q1: torch.Tensor, q2: torch.Tensor) -> torch.Tensor:
         The difference between the two quaternions. Shape is (N, 3).
     """
     quat_diff = quat_mul(q1, quat_conjugate(q2))  # q1 * q2^-1
+    quat_diff = quat_unique(quat_diff)
     re = quat_diff[:, 0]  # real part, q = [w, x, y, z] = [re, im]
     im = quat_diff[:, 1:]  # imaginary part
     norm_im = torch.norm(im, dim=1)

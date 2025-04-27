@@ -598,6 +598,26 @@ class TestMathUtilities(unittest.TestCase):
             np.testing.assert_array_almost_equal(result_quat, expected_quat, decimal=DECIMAL_PRECISION)
             np.testing.assert_array_almost_equal(result_pos, expected_pos, decimal=DECIMAL_PRECISION)
 
+    def test_quat_box_minus_non_unique(self):
+        """Test quat_box_minus method with non-unique quaternions.
+
+        This test specifically checks the case where the quaternion from quat_mul(q1, quat_conjugate(q2))
+        is not unique (has negative real part).
+        """
+        # Create quaternions that will result in a non-unique quaternion after multiplication
+        q1 = torch.tensor([[0.5, 0.5, 0.5, 0.5]], dtype=torch.float32)
+        q2 = torch.tensor([[-0.5, -0.5, -0.5, -0.5]], dtype=torch.float32)
+
+        # Compute quat_box_minus
+        result = math_utils.quat_box_minus(q1, q2)
+
+        # The quaternion difference should be unique (positive real part)
+        # and should represent the same rotation as the non-unique quaternion
+        expected = torch.tensor([[0.0, 0.0, 0.0]], dtype=torch.float32)
+
+        # Check that the result is close to the expected value
+        torch.testing.assert_close(result, expected, atol=1e-5)
+
 
 if __name__ == "__main__":
     run_tests()
