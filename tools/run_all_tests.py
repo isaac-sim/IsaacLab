@@ -135,8 +135,8 @@ def test_all(
     results = {}
 
     # Run each script and store results
-    for test_path in test_paths:
-        if "camera" not in test_path:
+    for i, test_path in enumerate(test_paths):
+        if i > 10:
             continue
         results[test_path] = {}
         before = time.time()
