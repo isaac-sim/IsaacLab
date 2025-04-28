@@ -122,7 +122,6 @@ def pre_process_actions(arm_action: torch.Tensor, open_gripper: bool) -> torch.T
         # compute actions
         return torch.concat([arm_action, gripper_vel], dim=1)
 
-
 def get_waypoints(env:ManagerBasedRLEnv):
     """从场景中找到其中设定的路径点位置"""
     waypoint_states = env.obs_buf["policy"]["waypoint_states"]
@@ -131,17 +130,11 @@ def get_waypoints(env:ManagerBasedRLEnv):
     waypoint_gripper_actions = waypoint_states[:, -1:]
     return raw_waypoint_poses,hand_waypoint_poses, waypoint_gripper_actions 
 
-
 def gen_actions(env:ManagerBasedRLEnv):
     """将路点转换为末端执行器(ee)对应要求的任务空间的动作"""
     
     # 以观测的形式获取场景中定义的路点的位置以及夹爪动作命令
     raw_waypoint_poses,hand_waypoint_poses, gripper_actions = get_waypoints(env)
-    
-    # 随便写的一些动作，仅仅是为了占位，满足任务空间动作的形式要求 
-    # ee_goal_wrench_set_tilted_task = torch.tensor([0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-    #                                               device=env.device).repeat(raw_waypoint_poses.shape[0], 1)
-    
     # 随便写的一些动作，仅仅是为了占位，满足任务空间动作的形式要求 
     kp_set_task = torch.tensor([420.0, 420.0, 420.0, 420.0, 420.0, 420.0],
                                device=env.device).repeat(raw_waypoint_poses.shape[0], 1)
@@ -150,8 +143,6 @@ def gen_actions(env:ManagerBasedRLEnv):
     # gripper 动作命令，  0： 关闭   1： 打开  -1： 不动
     gripper_commands = gripper_actions[:, 0]
     return raw_waypoint_poses, actions, gripper_commands
-
-
 
 def execute_action(env:ManagerBasedRLEnv, arm_action: torch.Tensor, 
                       gripper_command: torch.Tensor, success_term=None, 
@@ -163,7 +154,6 @@ def execute_action(env:ManagerBasedRLEnv, arm_action: torch.Tensor,
     # convert to torch
     arm_action = torch.tensor(arm_action.clone().detach(),
                               dtype=torch.float, device=env.device).repeat(env.num_envs, 1)
-
     if gripper_command == -1:
         # 如果不动，则维持上一个夹爪动作
         bool_gripper_command = last_gripper_command
@@ -174,21 +164,19 @@ def execute_action(env:ManagerBasedRLEnv, arm_action: torch.Tensor,
 
     # 夹爪动作置为false, 在执行arm动作时不执行夹爪动作
     ee_action = pre_process_actions(arm_action, open_gripper=last_gripper_command)
-
+    # 夹爪动作
     gripper_action = pre_process_actions(arm_action, open_gripper=bool_gripper_command)
-    
     # 先执行ee动作,夹爪保持不变
-    #while True: # 当夹爪还没有到达目标位置时，不停循环执行动作
+    # 这里设置了固定的时间步长
     for _ in range(50):
-
         # perform action on environment
         env.step(ee_action)
-        # 计算当前末端执行器的位姿
+        # 计算当前末端执行器的位姿，不过这里没用到
         current_ee_pos = env.scene
-        # 显示当前ee手指中心的位置
+        # 获取观测，显示当前ee手指中心的位置
         marker.visualize(env.obs_buf["policy"]["ee_pos"], env.obs_buf["policy"]["ee_quat"])
         
-        # 判断是否成功
+        # 判断回合是否成功
         if success_term is not None:
             if bool(success_term.func(env, **success_term.params)[0]):
                 success_step_count += 1
@@ -244,29 +232,19 @@ def execute_action(env:ManagerBasedRLEnv, arm_action: torch.Tensor,
 
     return should_reset_recording_instance,last_gripper_command
 
-
 def main():
-    """Collect demonstrations from the environment using teleop interfaces."""
-
-    # if handtracking is selected, rate limiting is achieved via OpenXR
-    if args_cli.teleop_device.lower() == "handtracking":
-        rate_limiter = None
-    else:
-        rate_limiter = RateLimiter(args_cli.step_hz)
-
-    # get directory path and file name (without extension) from cli arguments
+    """通过回放预设路点的形式来收集任务的演示数据集."""
+    rate_limiter = RateLimiter(args_cli.step_hz)
+    # 获取并创建数据集的存放路径
     output_dir = os.path.dirname(args_cli.dataset_file)
     output_file_name = os.path.splitext(os.path.basename(args_cli.dataset_file))[0]
-
-    # create directory if it does not exist
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
-    # parse configuration
+    # 获取当前任务环境的名称
     env_cfg = parse_env_cfg(args_cli.task, device=args_cli.device, num_envs=1)
     env_cfg.env_name = args_cli.task
-
-    # extract success checking function to invoke in the main loop
+    # 从配置文件中获取成功检测函数，这一点就是我们设置的成功检测函数
     success_term = None
     if hasattr(env_cfg.terminations, "success"):
         success_term = env_cfg.terminations.success
@@ -276,97 +254,58 @@ def main():
             "No success termination term was found in the environment."
             " Will not be able to mark recorded demos as successful."
         )
-
-    # modify configuration such that the environment runs indefinitely until
-    # the goal is reached or other termination conditions are met
+    # 这里禁止了超时判断，使得环境只能在达到你设定的成功条件后再结束一个回合
     env_cfg.terminations.time_out = None
-
+    # 这里不允许isaacsim自动把观测信息拼接在一起，而是单独保存
     env_cfg.observations.policy.concatenate_terms = False
-
+    # 应该是设置录像器？
     env_cfg.recorders: ActionStateRecorderManagerCfg = ActionStateRecorderManagerCfg()
     env_cfg.recorders.dataset_export_dir_path = output_dir
     env_cfg.recorders.dataset_filename = output_file_name
-
-    # create environment
+    # 创建环境对象
     env = gym.make(args_cli.task, cfg=env_cfg).unwrapped
-
-
+    # 判断是否应该重置录像器的flag  
     should_reset_recording_instance = False
-
-    # def reset_recording_instance():
-    #     nonlocal should_reset_recording_instance
-    #     should_reset_recording_instance = True
-
-    # # create controller
-    # if args_cli.teleop_device.lower() == "keyboard":
-    #     teleop_interface = Se3Keyboard(pos_sensitivity=0.2, rot_sensitivity=0.5)
-    # elif args_cli.teleop_device.lower() == "spacemouse":
-    #     teleop_interface = Se3SpaceMouse(pos_sensitivity=0.2, rot_sensitivity=0.5)
-    # elif args_cli.teleop_device.lower() == "handtracking":
-    #     from isaacsim.xr.openxr import OpenXRSpec
-
-    #     teleop_interface = Se3HandTracking(OpenXRSpec.XrHandEXT.XR_HAND_RIGHT_EXT, False, True)
-    #     teleop_interface.add_callback("RESET", reset_recording_instance)
-    #     viewer = ViewerCfg(eye=(-0.25, -0.3, 0.5), lookat=(0.6, 0, 0), asset_name="viewer")
-    #     ViewportCameraController(env, viewer)
-    # else:
-    #     raise ValueError(
-    #         f"Invalid device interface '{args_cli.teleop_device}'. Supported: 'keyboard', 'spacemouse', 'handtracking'."
-    #     )
-
-    # teleop_interface.add_callback("R", reset_recording_instance)
-    # print(teleop_interface)
-
-    # reset before starting
+    # 开始之前先重置环境
     env.reset()
-    # teleop_interface.reset()
-
-    # Markers
+    # 在isaacsim仿真器中设置坐标系的marker，用来显示坐标系，调试用
     frame_marker_cfg = FRAME_MARKER_CFG.copy()
     frame_marker_cfg.markers["frame"].scale = (0.1, 0.1, 0.1)
-
+    # 定义了两个marker，一个是末端执行器的坐标系，一个是目标位置的坐标系
     ee_marker = VisualizationMarkers(frame_marker_cfg.replace(prim_path="/Visuals/ee_current"))
     goal_marker = VisualizationMarkers(frame_marker_cfg.replace(prim_path="/Visuals/ee_goal"))
-    
-    
+    # 当前已经记录下来的成功demo回合数量
     current_recorded_demo_count = 0
-    
     # 一直自动生成，直到到达指定的成功demo数量
     while current_recorded_demo_count < args_cli.num_demos:
-
-        # 获取当前回合场景中的路点以及对应的夹爪动作
+        # 从场景中获取当前回合中的路点以及对应的夹爪动作
         raw_waypoint_poses, actions, gripper_commands = gen_actions(env)
-        # 默认初始的gripper 是 打开的动作
+        # 默认初始的gripper动作是 open，即使你没有手动给定，例如 waypoint_0 等价于 waypoint_0_open
         last_gripper_command = True
-
+        # 逐一执行刚收集的所有路点
         for waypoint_idx in range(actions.shape[0]):
-            # update marker positions
-            # 显示原始的路点位置姿态
+            # 显示当前路点的坐标系
             goal_marker.visualize(raw_waypoint_poses[waypoint_idx][None,0:3], raw_waypoint_poses[waypoint_idx][None,3:7])
-            # 执行动作
+            # 执行该路点对应的动作，并判断是否重置回合，回传保存当前的夹爪动作
             should_reset_recording_instance,last_gripper_command = execute_action(env, actions[waypoint_idx], 
                                                             gripper_commands[waypoint_idx], 
                                                             success_term=success_term, 
                                                             rate_limiter=rate_limiter,
                                                             marker=ee_marker,
                                                             last_gripper_command=last_gripper_command)
+            # 如果满足了成功条件，或者手动退出了当前回合，则退出当前回合
             if should_reset_recording_instance:
-                # 退出当前回合
                 break
-
-        # 执行完一个回合的所有路点之后，打印出当前完成的demo数量
+        # 如果当前回合成功结束，就打印出当前回合的成功次数，并更新current_recorded_demo_count
         if env.recorder_manager.exported_successful_episode_count > current_recorded_demo_count:
             current_recorded_demo_count = env.recorder_manager.exported_successful_episode_count
             print(f"Recorded {current_recorded_demo_count} successful demonstrations.")
-
+        # 不论回合怎么结束，在这里都要重置录像器和环境自身
         env.recorder_manager.reset()
         env.reset()
-
-    # 完成所有的demo之后退出环境
+    # 成功完成要求的n次回合之后，就关闭环境
     print(f"All {args_cli.num_demos} demonstrations recorded. Exiting the app.")
     env.close() 
-    
-    
 
 if __name__ == "__main__":
     # run the main function
