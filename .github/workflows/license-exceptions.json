@@ -1,0 +1,14 @@
+[
+  {
+    "package": "package1",
+    "license": "GPL"
+  },
+  {
+    "package": "package2",
+    "license": "Apache"
+  },
+  {
+    "package": "package3",
+    "license": "BSD"
+  }
+]

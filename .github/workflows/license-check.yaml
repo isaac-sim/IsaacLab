@@ -1,0 +1,62 @@
+name: Check Python Dependency Licenses
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  license-check:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'  # Adjust as needed
+
+    - name: Install dependencies using ./isaaclab.sh -i
+      run: |
+        # first install isaac sim
+        pip install --upgrade pip
+        pip install 'isaacsim[all,extscache]==4.5.0' --extra-index-url https://pypi.nvidia.com
+        chmod +x ./isaaclab.sh  # Make sure the script is executable
+        # install all lab dependencies
+        ./isaaclab.sh -i
+
+    - name: Install pip-licenses
+      run: pip install pip-licenses
+
+    - name: Check licenses against whitelist and exceptions
+      run: |
+        # Load the exceptions list from the exceptions.json file
+        EXCEPTIONS_FILE="license-exceptions.json"
+
+        # Get the list of installed packages and their licenses
+        pip-licenses --from=mixed --format=json > licenses.json
+
+        # Loop through the installed packages and their licenses
+        for pkg in $(jq -r '.[].name' licenses.json); do
+          LICENSE=$(jq -r --arg pkg "$pkg" '.[] | select(.name == $pkg) | .license' licenses.json)
+
+          # Check if the license is in the allowed licenses list
+          if ! echo "$ALLOWED_LICENSES" | grep -q "\b$LICENSE\b"; then
+            # If the license is not in the whitelist, check the exceptions list
+            if ! jq -e --arg pkg "$pkg" --arg license "$LICENSE" \
+              '.[] | select(.package == $pkg and .license == $license)' "$EXCEPTIONS_FILE" > /dev/null; then
+              # If the package is not in the exceptions list, fail the build
+              echo "ERROR: $pkg has an unacceptable license: $LICENSE"
+              exit 1  # Fail the build
+            fi
+          fi
+        done
+
+    # Optional: Print the license report for visibility
+    - name: Print License Report
+      run: pip-licenses --from=mixed --format=markdown
