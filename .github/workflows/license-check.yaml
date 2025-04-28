@@ -78,7 +78,7 @@ jobs:
             echo $LICENSE
             jq . "$EXCEPTIONS_FILE"
             # Check if the package is in the exceptions list
-            EXCEPTION=$(jq -e -v --arg pkg "$pkg" --arg license "$LICENSE" \
+            EXCEPTION=$(jq -e --exit-status --arg pkg "$pkg" --arg license "$LICENSE" \
               '.[] | select(.package | test("GitPython"))' "$EXCEPTIONS_FILE")
             echo "passed that line"
             echo $EXCEPTION
