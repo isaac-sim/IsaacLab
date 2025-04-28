@@ -39,18 +39,38 @@ jobs:
 
     - name: Check licenses against whitelist and exceptions
       run: |
+        # Define the whitelist of allowed licenses
+        ALLOWED_LICENSES="MIT Apache BSD ISC zlib"
+
         # Load the exceptions list from the exceptions.json file
         EXCEPTIONS_FILE=".github/workflows/license-exceptions.json"
 
         # Get the list of installed packages and their licenses
         pip-licenses --from=mixed --format=json > licenses.json
 
-        # Loop through the installed packages and their licenses
-        for pkg in $(jq -r '.[].name' licenses.json); do
-          LICENSE=$(jq -r --arg pkg "$pkg" '.[] | select(.name == $pkg) | .license' licenses.json)
+        # Check the output of pip-licenses to ensure it is valid JSON
+        if ! jq empty licenses.json; then
+          echo "ERROR: Failed to parse pip-licenses output. Exiting..."
+          exit 1
+        fi
 
-          # Check if the license is in the allowed licenses list
-          if ! echo "$ALLOWED_LICENSES" | grep -q "\b$LICENSE\b"; then
+        # Split ALLOWED_LICENSES into individual words
+        IFS=' ' read -r -a allowed_licenses <<< "$ALLOWED_LICENSES"
+
+        # Loop through the installed packages and their licenses
+        for pkg in $(jq -r '.[].Name' licenses.json); do
+          LICENSE=$(jq -r --arg pkg "$pkg" '.[] | select(.Name == $pkg) | .License' licenses.json)
+
+          # Check if any of the allowed licenses are a substring of the package's license
+          match_found=false
+          for allowed_license in "${allowed_licenses[@]}"; do
+            if [[ "$LICENSE" == *"$allowed_license"* ]]; then
+              match_found=true
+              break
+            fi
+          done
+
+          if [ "$match_found" = false ]; then
             # Check if the package is in the exceptions list
             EXCEPTION=$(jq -e --arg pkg "$pkg" --arg license "$LICENSE" \
               '.[] | select(.package | test($pkg))' "$EXCEPTIONS_FILE")
@@ -62,15 +82,23 @@ jobs:
 
               if [ "$EXCEPTION_LICENSE" != "null" ] && [ "$EXCEPTION_LICENSE" != "$LICENSE" ]; then
                 echo "ERROR: $pkg has an unacceptable license: $LICENSE"
-                exit 1  # Fail the build
+                FAILED_PACKAGES=$((FAILED_PACKAGES + 1))  # Increment the counter
               fi
             else
               # If the package is not in the exceptions list and doesn't match the license
               echo "ERROR: $pkg has an unacceptable license: $LICENSE"
-              exit 1  # Fail the build
+              FAILED_PACKAGES=$((FAILED_PACKAGES + 1))  # Increment the counter
             fi
           fi
         done
+
+        # After all packages are processed, check if there were any errors
+        if [ "$FAILED_PACKAGES" -gt 0 ]; then
+          echo "ERROR: $FAILED_PACKAGES packages have unacceptable licenses."
+          exit 1  # Fail the build
+        else
+          echo "All packages have acceptable licenses."
+        fi
 
     # Optional: Print the license report for visibility
     - name: Print License Report

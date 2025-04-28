@@ -16,7 +16,19 @@
     "license": null
   },
   {
+    "package": "warp-lang",
+    "license": null
+  },
+  {
     "package": "cmeel-*",
     "license": "UNKNOWN"
   },
+  {
+    "package": "matplotlib",
+    "license": "Python Software Foundation License"
+  },
+  {
+    "package": "certifi",
+    "license": "Python Software Foundation License"
+  }
 ]
