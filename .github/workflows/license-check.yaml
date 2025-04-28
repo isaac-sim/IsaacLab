@@ -73,6 +73,10 @@ jobs:
           done
 
           if [ "$match_found" = false ]; then
+            echo "no match!"
+            echo $pkg
+            echo $LICENSE
+            jq . "$EXCEPTIONS_FILE"
             # Check if the package is in the exceptions list
             EXCEPTION=$(jq -e --arg pkg "$pkg" --arg license "$LICENSE" \
               '.[] | select(.package | test($pkg))' "$EXCEPTIONS_FILE")
