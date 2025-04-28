@@ -36,12 +36,24 @@ ANUBIS_CFG = ArticulationCfg(
             "dummy_base_prismatic_x_joint": 0.0,
             "dummy_base_revolute_z_joint": 0.0,
 
-            # arm <-> base
-            "arm.*": 0.0,
+            # arm <-> base (rad)
+            "arm1_base_link_joint": 0.0,
+            "arm2_base_link_joint": 0.0,
 
-            # arm
-            "link.*": 0.0,
-
+            # Right arm
+            "link11_joint": -0.69289571,
+            "link12_joint": 2.34048653,
+            "link13_joint": -0.07679449,
+            "link14_joint": 0.52359878,
+            "link15_joint": -0.17453293,
+            
+            # Left arm
+            "link21_joint": -0.69289571,
+            "link22_joint": 2.34048653,
+            "link23_joint": -0.07679449,
+            "link24_joint": -0.52359878,
+            "link25_joint": 0.17453293,
+            
             # finger
             "gripper.*": 0.0,
         },
