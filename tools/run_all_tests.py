@@ -135,8 +135,11 @@ def test_all(
     results = {}
 
     # Run each script and store results
-    for i, test_path in enumerate(test_paths):
-        if i > 35:
+    skip = False
+    for test_path in test_paths:
+        if "test_tiled_camera.py" in test_path:
+            skip = True
+        if skip:
             continue
         results[test_path] = {}
         before = time.time()
