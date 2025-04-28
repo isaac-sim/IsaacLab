@@ -80,11 +80,14 @@ jobs:
             # Check if the package is in the exceptions list
             EXCEPTION=$(jq -e --arg pkg "$pkg" --arg license "$LICENSE" \
               '.[] | select(.package | test($pkg))' "$EXCEPTIONS_FILE")
+            echo "passed that line"
+            echo $EXCEPTION
 
             # If the package is in the exceptions list
             if [ -n "$EXCEPTION" ]; then
               # If the license is provided in the exceptions list, check the license
               EXCEPTION_LICENSE=$(echo "$EXCEPTION" | jq -r '.license')
+              echo $EXCEPTION_LICENSE
               # If the exceptions list has a license and doesn't match the current license
               if [ "$EXCEPTION_LICENSE" != "null" ] && [ "$EXCEPTION_LICENSE" != "$LICENSE" ]; then
                 echo "ERROR: $pkg has an unacceptable license: $LICENSE"
