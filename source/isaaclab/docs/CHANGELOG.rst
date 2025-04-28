@@ -7,7 +7,7 @@ Changelog
 Added
 ^^^^^
 
-* Adds option to add terrain border as "wall" above the ground or as terrain extension below the ground in 
+* Adds option to add terrain border as "wall" above the ground or as terrain extension below the ground in
   :class:`~isaaclab.terrains.terrain_generator.TerrainGeneratorCfg`.
 
 
