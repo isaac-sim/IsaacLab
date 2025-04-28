@@ -51,10 +51,21 @@ jobs:
 
           # Check if the license is in the allowed licenses list
           if ! echo "$ALLOWED_LICENSES" | grep -q "\b$LICENSE\b"; then
-            # If the license is not in the whitelist, check the exceptions list
-            if ! jq -e --arg pkg "$pkg" --arg license "$LICENSE" \
-              '.[] | select(.package == $pkg and .license == $license)' "$EXCEPTIONS_FILE" > /dev/null; then
-              # If the package is not in the exceptions list, fail the build
+            # Check if the package is in the exceptions list
+            EXCEPTION=$(jq -e --arg pkg "$pkg" --arg license "$LICENSE" \
+              '.[] | select(.package | test($pkg))' "$EXCEPTIONS_FILE")
+
+            # If the package is in the exceptions list
+            if [ -n "$EXCEPTION" ]; then
+              # If the license is provided in the exceptions list, check it
+              EXCEPTION_LICENSE=$(echo "$EXCEPTION" | jq -r '.license')
+
+              if [ "$EXCEPTION_LICENSE" != "null" ] && [ "$EXCEPTION_LICENSE" != "$LICENSE" ]; then
+                echo "ERROR: $pkg has an unacceptable license: $LICENSE"
+                exit 1  # Fail the build
+              fi
+            else
+              # If the package is not in the exceptions list and doesn't match the license
               echo "ERROR: $pkg has an unacceptable license: $LICENSE"
               exit 1  # Fail the build
             fi

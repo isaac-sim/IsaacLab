@@ -1,14 +1,22 @@
 [
   {
-    "package": "package1",
-    "license": "GPL"
+    "package": "isaaclab_*",
+    "license": null
   },
   {
-    "package": "package2",
-    "license": "Apache"
+    "package": "isaacsim-*",
+    "license": null
   },
   {
-    "package": "package3",
-    "license": "BSD"
-  }
+    "package": "nvidia-*",
+    "license": null
+  },
+  {
+    "package": "omniverse-kit",
+    "license": null
+  },
+  {
+    "package": "cmeel-*",
+    "license": "UNKNOWN"
+  },
 ]
