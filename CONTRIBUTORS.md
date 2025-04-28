@@ -80,6 +80,7 @@ Guidelines for modifications:
 * Masoud Moghani
 * Michael Gussert
 * Michael Noseworthy
+* Miguel Alonso Jr
 * Muhong Guo
 * Nicola Loi
 * Nuoyan Chen (Alvin)
@@ -92,6 +93,7 @@ Guidelines for modifications:
 * Qian Wan
 * Qinxi Yu
 * Rafael Wiltz
+* Renaud Poncelet
 * René Zurbrügg
 * Ritvik Singh
 * Rosario Scalise
