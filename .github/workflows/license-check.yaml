@@ -33,10 +33,14 @@ jobs:
     - name: Install pip-licenses
       run: pip install pip-licenses
 
+    # Optional: Print the license report for visibility
+    - name: Print License Report
+      run: pip-licenses --from=mixed --format=markdown
+
     - name: Check licenses against whitelist and exceptions
       run: |
         # Load the exceptions list from the exceptions.json file
-        EXCEPTIONS_FILE="license-exceptions.json"
+        EXCEPTIONS_FILE=".github/workflows/license-exceptions.json"
 
         # Get the list of installed packages and their licenses
         pip-licenses --from=mixed --format=json > licenses.json
