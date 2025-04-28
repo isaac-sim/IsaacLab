@@ -136,7 +136,7 @@ def test_all(
 
     # Run each script and store results
     for i, test_path in enumerate(test_paths):
-        if i > 10:
+        if i > 35:
             continue
         results[test_path] = {}
         before = time.time()
