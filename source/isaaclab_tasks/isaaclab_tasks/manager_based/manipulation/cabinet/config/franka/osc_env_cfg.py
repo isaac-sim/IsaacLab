@@ -68,9 +68,6 @@ class FrankaCabinetEnvCfg(joint_pos_env_cfg.FrankaCabinetEnvCfg):
         self.observations.policy.waypoint_states = ObsTerm(func=mdp.waypoints,
                                                            params={"asset_cfg": SceneEntityCfg("robot")},
                                                            )
-        # self.observations.policy.ee_action_targets = ObsTerm(func=mdp.waypoints,
-        #                                                    params={"asset_cfg": SceneEntityCfg("robot")},
-        #                                                    )
 
 
 

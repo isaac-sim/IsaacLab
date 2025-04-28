@@ -102,9 +102,9 @@ class CabinetSceneCfg(InteractiveSceneCfg):
             "drawers": ImplicitActuatorCfg(
                 joint_names_expr=["drawer_top_joint", "drawer_bottom_joint"],
                 effort_limit=10.0, # 这里我偷懒，降低了抽屉的容易拉开程度，并不太符合物理标准 原87
-                velocity_limit=100.0, # 原100
-                stiffness=2.0, # 原10
-                damping=0.2, # 原1.0
+                velocity_limit=200.0, # 原100
+                stiffness=0.0, # 原10
+                damping=0.0, # 原1.0
             ),
             "doors": ImplicitActuatorCfg(
                 joint_names_expr=["door_left_joint", "door_right_joint"],
@@ -191,24 +191,15 @@ class ObservationsCfg:
             params={"asset_cfg": SceneEntityCfg("cabinet", joint_names=["drawer_top_joint"])},
         )
         rel_ee_drawer_distance = ObsTerm(func=mdp.rel_ee_drawer_distance)
-        
-        
-
         actions = ObsTerm(func=mdp.last_action)
         
-        # 原始的waypoint+gripper命令
+        # waypoint states
         waypoint_states: ObsTerm = MISSING
-        # 需要的ee手指中心目标位置
-        # ee_action_targets: ObsTerm = MISSING
-
-        # 补充一个gripper的观测，用来判断当前的状态, state = 1 打开，否则是关闭状态
-        gripper_state = ObsTerm(func=mdp.gripper_state)
-        # 
+        # 获取当前的夹爪位置姿态
         ee_pos = ObsTerm(func=mdp.ee_pos)
         ee_quat = ObsTerm(func=mdp.ee_quat)
-
-        # hand_pos = ObsTerm(func=mdp.hand_pos)
-        # hand_quat = ObsTerm(func=mdp.hand_quat)
+        # 补充一个gripper的观测，用来判断当前的状态, state = 1 打开，否则是关闭状态
+        gripper_state = ObsTerm(func=mdp.gripper_state)
 
         def __post_init__(self):
             self.enable_corruption = True

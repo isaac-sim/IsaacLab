@@ -123,11 +123,6 @@ def pre_process_actions(arm_action: torch.Tensor, open_gripper: bool) -> torch.T
         return torch.concat([arm_action, gripper_vel], dim=1)
 
 
-def distance_below_threshold(current_pos, desired_pos, threshold: float) -> bool:
-    return torch.norm(current_pos - desired_pos) < threshold
-
-
-
 def get_waypoints(env:ManagerBasedRLEnv):
     """从场景中找到其中设定的路径点位置"""
     waypoint_states = env.obs_buf["policy"]["waypoint_states"]
@@ -144,8 +139,8 @@ def gen_actions(env:ManagerBasedRLEnv):
     raw_waypoint_poses,hand_waypoint_poses, gripper_actions = get_waypoints(env)
     
     # 随便写的一些动作，仅仅是为了占位，满足任务空间动作的形式要求 
-    ee_goal_wrench_set_tilted_task = torch.tensor([0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-                                                  device=env.device).repeat(raw_waypoint_poses.shape[0], 1)
+    # ee_goal_wrench_set_tilted_task = torch.tensor([0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+    #                                               device=env.device).repeat(raw_waypoint_poses.shape[0], 1)
     
     # 随便写的一些动作，仅仅是为了占位，满足任务空间动作的形式要求 
     kp_set_task = torch.tensor([420.0, 420.0, 420.0, 420.0, 420.0, 420.0],
@@ -166,7 +161,8 @@ def execute_action(env:ManagerBasedRLEnv, arm_action: torch.Tensor,
     should_reset_recording_instance = False
     success_step_count = 0
     # convert to torch
-    arm_action = torch.tensor(arm_action.clone().detach(), dtype=torch.float, device=env.device).repeat(env.num_envs, 1)
+    arm_action = torch.tensor(arm_action.clone().detach(),
+                              dtype=torch.float, device=env.device).repeat(env.num_envs, 1)
 
     if gripper_command == -1:
         # 如果不动，则维持上一个夹爪动作
@@ -196,7 +192,8 @@ def execute_action(env:ManagerBasedRLEnv, arm_action: torch.Tensor,
         if success_term is not None:
             if bool(success_term.func(env, **success_term.params)[0]):
                 success_step_count += 1
-                if success_step_count >= args_cli.num_success_steps: # 检查当前连续成功的步数（success_step_count）是否达到预设阈值
+                # 检查当前连续成功的步数（success_step_count）是否达到预设阈值
+                if success_step_count >= args_cli.num_success_steps: 
                     env.recorder_manager.record_pre_reset([0], force_export_or_skip=False)
                     env.recorder_manager.set_success_to_episodes(
                         [0], torch.tensor([[True]], dtype=torch.bool, device=env.device)
@@ -248,12 +245,6 @@ def execute_action(env:ManagerBasedRLEnv, arm_action: torch.Tensor,
     return should_reset_recording_instance,last_gripper_command
 
 
-
-
-        
-        
-
-
 def main():
     """Collect demonstrations from the environment using teleop interfaces."""
 
@@ -299,36 +290,36 @@ def main():
     # create environment
     env = gym.make(args_cli.task, cfg=env_cfg).unwrapped
 
-    # add teleoperation key for reset current recording instance
+
     should_reset_recording_instance = False
 
-    def reset_recording_instance():
-        nonlocal should_reset_recording_instance
-        should_reset_recording_instance = True
+    # def reset_recording_instance():
+    #     nonlocal should_reset_recording_instance
+    #     should_reset_recording_instance = True
 
-    # create controller
-    if args_cli.teleop_device.lower() == "keyboard":
-        teleop_interface = Se3Keyboard(pos_sensitivity=0.2, rot_sensitivity=0.5)
-    elif args_cli.teleop_device.lower() == "spacemouse":
-        teleop_interface = Se3SpaceMouse(pos_sensitivity=0.2, rot_sensitivity=0.5)
-    elif args_cli.teleop_device.lower() == "handtracking":
-        from isaacsim.xr.openxr import OpenXRSpec
+    # # create controller
+    # if args_cli.teleop_device.lower() == "keyboard":
+    #     teleop_interface = Se3Keyboard(pos_sensitivity=0.2, rot_sensitivity=0.5)
+    # elif args_cli.teleop_device.lower() == "spacemouse":
+    #     teleop_interface = Se3SpaceMouse(pos_sensitivity=0.2, rot_sensitivity=0.5)
+    # elif args_cli.teleop_device.lower() == "handtracking":
+    #     from isaacsim.xr.openxr import OpenXRSpec
 
-        teleop_interface = Se3HandTracking(OpenXRSpec.XrHandEXT.XR_HAND_RIGHT_EXT, False, True)
-        teleop_interface.add_callback("RESET", reset_recording_instance)
-        viewer = ViewerCfg(eye=(-0.25, -0.3, 0.5), lookat=(0.6, 0, 0), asset_name="viewer")
-        ViewportCameraController(env, viewer)
-    else:
-        raise ValueError(
-            f"Invalid device interface '{args_cli.teleop_device}'. Supported: 'keyboard', 'spacemouse', 'handtracking'."
-        )
+    #     teleop_interface = Se3HandTracking(OpenXRSpec.XrHandEXT.XR_HAND_RIGHT_EXT, False, True)
+    #     teleop_interface.add_callback("RESET", reset_recording_instance)
+    #     viewer = ViewerCfg(eye=(-0.25, -0.3, 0.5), lookat=(0.6, 0, 0), asset_name="viewer")
+    #     ViewportCameraController(env, viewer)
+    # else:
+    #     raise ValueError(
+    #         f"Invalid device interface '{args_cli.teleop_device}'. Supported: 'keyboard', 'spacemouse', 'handtracking'."
+    #     )
 
-    teleop_interface.add_callback("R", reset_recording_instance)
-    print(teleop_interface)
+    # teleop_interface.add_callback("R", reset_recording_instance)
+    # print(teleop_interface)
 
     # reset before starting
     env.reset()
-    teleop_interface.reset()
+    # teleop_interface.reset()
 
     # Markers
     frame_marker_cfg = FRAME_MARKER_CFG.copy()
@@ -348,11 +339,9 @@ def main():
         # 默认初始的gripper 是 打开的动作
         last_gripper_command = True
 
-
-
         for waypoint_idx in range(actions.shape[0]):
             # update marker positions
-            #ee_marker.visualize(ee_pose_w[:, 0:3], ee_pose_w[:, 3:7])
+            # 显示原始的路点位置姿态
             goal_marker.visualize(raw_waypoint_poses[waypoint_idx][None,0:3], raw_waypoint_poses[waypoint_idx][None,3:7])
             # 执行动作
             should_reset_recording_instance,last_gripper_command = execute_action(env, actions[waypoint_idx], 
