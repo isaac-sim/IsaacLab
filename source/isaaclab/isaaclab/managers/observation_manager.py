@@ -88,8 +88,14 @@ class ObservationManager(ManagerBase):
             # otherwise, keep the list of shapes as is
             if self._group_obs_concatenate[group_name]:
                 try:
-                    term_dims = [torch.tensor(dims, device="cpu") for dims in group_term_dims]
-                    self._group_obs_dim[group_name] = tuple(torch.sum(torch.stack(term_dims, dim=0), dim=0).tolist())
+                    term_dims = torch.stack([torch.tensor(dims, device="cpu") for dims in group_term_dims], dim=0)
+                    if len(term_dims.shape) > 1:
+                        dim_sum = torch.sum(term_dims[:, self._group_obs_concatenate_dim[group_name]], dim=0)
+                        term_dims[0, self._group_obs_concatenate_dim[group_name]] = dim_sum
+                        term_dims = term_dims[0]
+                    else:
+                        term_dims = torch.sum(term_dims, dim=0)
+                    self._group_obs_dim[group_name] = tuple(term_dims.tolist())
                 except RuntimeError:
                     raise RuntimeError(
                         f"Unable to concatenate observation terms in group '{group_name}'."
@@ -330,7 +336,13 @@ class ObservationManager(ManagerBase):
 
         # concatenate all observations in the group together
         if self._group_obs_concatenate[group_name]:
-            return torch.cat(list(group_obs.values()), dim=-1)
+            # set the concatenate dimension, account for the batch dimension if positive dimension is given
+            dim = (
+                self._group_obs_concatenate_dim[group_name] + 1
+                if self._group_obs_concatenate_dim[group_name] >= 0
+                else self._group_obs_concatenate_dim[group_name]
+            )
+            return torch.cat(list(group_obs.values()), dim=dim)
         else:
             return group_obs
 
@@ -347,6 +359,8 @@ class ObservationManager(ManagerBase):
         self._group_obs_term_cfgs: dict[str, list[ObservationTermCfg]] = dict()
         self._group_obs_class_term_cfgs: dict[str, list[ObservationTermCfg]] = dict()
         self._group_obs_concatenate: dict[str, bool] = dict()
+        self._group_obs_concatenate_dim: dict[str, int] = dict()
+
         self._group_obs_term_history_buffer: dict[str, dict] = dict()
         # create a list to store modifiers that are classes
         # we store it as a separate list to only call reset on them and prevent unnecessary calls
@@ -384,6 +398,7 @@ class ObservationManager(ManagerBase):
             group_entry_history_buffer: dict[str, CircularBuffer] = dict()
             # read common config for the group
             self._group_obs_concatenate[group_name] = group_cfg.concatenate_terms
+            self._group_obs_concatenate_dim[group_name] = group_cfg.concatenate_dim
             # check if config is dict already
             if isinstance(group_cfg, dict):
                 group_cfg_items = group_cfg.items()
@@ -392,7 +407,13 @@ class ObservationManager(ManagerBase):
             # iterate over all the terms in each group
             for term_name, term_cfg in group_cfg_items:
                 # skip non-obs settings
-                if term_name in ["enable_corruption", "concatenate_terms", "history_length", "flatten_history_dim"]:
+                if term_name in [
+                    "enable_corruption",
+                    "concatenate_terms",
+                    "history_length",
+                    "flatten_history_dim",
+                    "concatenate_dim",
+                ]:
                     continue
                 # check for non config
                 if term_cfg is None:
