@@ -283,6 +283,10 @@ class OculusV0(DeviceBase):
         self._delta_rot_right = np.zeros(3)  # (roll, pitch, yaw) for right arm
         self._delta_base = np.zeros(3)  # (x, y, yaw) for mobile base
         
+        # xy
+        self._last_leftJS = (0.0, 0.0)
+        self._js_threshold = 0.4  # tune this to taste
+        
         # yaw
         self.rotation_divisor = 1.25   
         self.base_rot_sensitivity = 10
@@ -382,12 +386,51 @@ class OculusV0(DeviceBase):
                 duration = time.time() - self._key_hold_start['clockwise']
                 self._delta_base[2] -= self.base_sensitivity * duration
                 del self._key_hold_start['clockwise']
+        
         # xy
-        if buttons['leftJS'] != (0.0, 0.0):
-            raw_x, raw_y = buttons['leftJS']  # x, y in [-1, 1]
-            self._delta_base += raw_x * np.asarray([ math.cos(self._base_z_accum / self.rotation_divisor),  math.sin(self._base_z_accum / self.rotation_divisor), 0.0]) * self.base_sensitivity
-            self._delta_base += raw_y * np.asarray([ math.sin(self._base_z_accum / self.rotation_divisor),  -math.cos(self._base_z_accum / self.rotation_divisor), 0.0]) * self.base_sensitivity
+        raw_x, raw_y = buttons['leftJS']
+        new_js = (raw_x, raw_y)
+        
+        # compute Euclidean change
+        dx = raw_x - self._last_leftJS[0]
+        dy = raw_y - self._last_leftJS[1]
+        
+        # check if the leftJS is moved by the self._js_threshold
+        if (dx*dx + dy*dy)**0.5 > self._js_threshold:
+            # 1) subtract out the old
+            ox, oy = self._last_leftJS
+            old_vec = (
+                ox * np.asarray([
+                    math.cos(self._base_z_accum / self.rotation_divisor),
+                    math.sin(self._base_z_accum / self.rotation_divisor),
+                    0.0
+                ]) +
+                oy * np.asarray([
+                    math.sin(self._base_z_accum / self.rotation_divisor),
+                    -math.cos(self._base_z_accum / self.rotation_divisor),
+                    0.0
+                ])
+            ) * self.base_sensitivity
+            self._delta_base -= old_vec
 
+            # 2) add in the new
+            new_vec = (
+                raw_x * np.asarray([
+                    math.cos(self._base_z_accum / self.rotation_divisor),
+                    math.sin(self._base_z_accum / self.rotation_divisor),
+                    0.0
+                ]) +
+                raw_y * np.asarray([
+                    math.sin(self._base_z_accum / self.rotation_divisor),
+                    -math.cos(self._base_z_accum / self.rotation_divisor),
+                    0.0
+                ])
+            ) * self.base_sensitivity
+            self._delta_base += new_vec
+
+            # 3) remember it
+            self._last_leftJS = new_js
+            
         # return the commands
         return (
             np.concatenate([self._delta_pos_left, rot_vec_left]),  # Left arm

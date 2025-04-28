@@ -53,7 +53,7 @@ ANUBIS_CFG = ArticulationCfg(
             joint_names_expr=["dummy_base_.*"],
             velocity_limit=100.0,
             effort_limit=1000.0,
-            stiffness=10.0,
+            stiffness=0.0,
             damping=1e10,  # tip:: For velocity control of the base with dummy mechanism, we recommend setting high damping gains to the joints. This ensures that the base remains unperturbed from external disturbances, such as an arm mounted on the base.
         ),
         "arm_base": ImplicitActuatorCfg(
