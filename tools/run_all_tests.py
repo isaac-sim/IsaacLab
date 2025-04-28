@@ -137,10 +137,10 @@ def test_all(
     # Run each script and store results
     skip = False
     for test_path in test_paths:
-        if "test_tiled_camera.py" in test_path:
-            skip = True
         if skip:
             continue
+        if "test_tiled_camera.py" in test_path:
+            skip = True
         results[test_path] = {}
         before = time.time()
         logging.info("\n" + "-" * 60 + "\n")
