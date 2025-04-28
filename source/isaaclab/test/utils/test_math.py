@@ -605,18 +605,63 @@ class TestMathUtilities(unittest.TestCase):
         is not unique (has negative real part).
         """
         # Create quaternions that will result in a non-unique quaternion after multiplication
-        q1 = torch.tensor([[0.5, 0.5, 0.5, 0.5]], dtype=torch.float32)
-        q2 = torch.tensor([[-0.5, -0.5, -0.5, -0.5]], dtype=torch.float32)
+        axis_angles = torch.tensor([0.0, 0.0, 1.0])
+        angle_a = math.pi - 0.1
+        angle_b = -math.pi + 0.1
+        quat_a = math_utils.quat_from_angle_axis(torch.tensor([angle_a]), axis_angles)
+        quat_b = math_utils.quat_from_angle_axis(torch.tensor([angle_b]), axis_angles)
 
         # Compute quat_box_minus
-        result = math_utils.quat_box_minus(q1, q2)
+        axis_diff = math_utils.quat_box_minus(quat_a, quat_b).squeeze(0)
 
         # The quaternion difference should be unique (positive real part)
         # and should represent the same rotation as the non-unique quaternion
-        expected = torch.tensor([[0.0, 0.0, 0.0]], dtype=torch.float32)
+        expected_diff = axis_angles * math_utils.wrap_to_pi(torch.tensor(angle_a - angle_b))
 
         # Check that the result is close to the expected value
-        torch.testing.assert_close(result, expected, atol=1e-5)
+        torch.testing.assert_close(expected_diff, axis_diff, atol=1e-06, rtol=1e-06)
+
+    def test_quat_box_minus_and_quat_box_plus(self):
+        """Test consistency of quat_box_plus and quat_box_minus.
+
+        Checks that applying quat_box_plus to accumulate rotations and then using
+        quat_box_minus to retrieve differences results in expected values.
+        """
+
+        # NOTE: Accuracy may decrease for very small angle increments due to numerical precision limits.
+        for device in ("cpu", "cuda:0"):
+            with self.subTest(device=device):
+                for n in (2, 10, 100, 1000):
+                    # Define small incremental rotations around principal axes
+                    delta_angle = torch.tensor(
+                        [
+                            [0, 0, -math.pi / n],
+                            [0, -math.pi / n, 0],
+                            [-math.pi / n, 0, 0],
+                            [0, 0, math.pi / n],
+                            [0, math.pi / n, 0],
+                            [math.pi / n, 0, 0],
+                        ],
+                        device=device,
+                    )
+
+                    # Initialize quaternion trajectory starting from identity quaternion
+                    quat_trajectory = torch.zeros((len(delta_angle), 2 * n + 1, 4), device=device)
+                    quat_trajectory[:, 0, :] = torch.tensor([[1.0, 0.0, 0.0, 0.0]], device=device).repeat(
+                        len(delta_angle), 1
+                    )
+
+                    # Integrate incremental rotations forward to form a closed loop trajectory
+                    for i in range(1, 2 * n + 1):
+                        quat_trajectory[:, i] = math_utils.quat_box_plus(quat_trajectory[:, i - 1], delta_angle)
+
+                    # Validate the loop closure: start and end quaternions should be approximately equal
+                    torch.testing.assert_close(quat_trajectory[:, 0], quat_trajectory[:, -1], atol=1e-04, rtol=1e-04)
+
+                    # Validate that the differences between consecutive quaternions match the original increments
+                    for i in range(2 * n):
+                        delta_result = math_utils.quat_box_minus(quat_trajectory[:, i + 1], quat_trajectory[:, i])
+                        torch.testing.assert_close(delta_result, delta_angle, atol=1e-04, rtol=1e-04)
 
 
 if __name__ == "__main__":

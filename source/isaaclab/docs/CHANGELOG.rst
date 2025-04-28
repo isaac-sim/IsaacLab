@@ -4,6 +4,11 @@ Changelog
 0.36.24 (2025-04-27)
 ~~~~~~~~~~~~~~~~~~~~
 
+Added
+^^^^^
+
+* Added :func:`~isaaclab.utils.math.quat_box_plus`.
+
 Fixed
 ^^^^^
 

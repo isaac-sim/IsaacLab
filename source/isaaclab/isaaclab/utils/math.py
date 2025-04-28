@@ -500,26 +500,6 @@ def quat_mul(q1: torch.Tensor, q2: torch.Tensor) -> torch.Tensor:
 
 
 @torch.jit.script
-def quat_box_minus(q1: torch.Tensor, q2: torch.Tensor) -> torch.Tensor:
-    """The box-minus operator (quaternion difference) between two quaternions.
-
-    Args:
-        q1: The first quaternion in (w, x, y, z). Shape is (N, 4).
-        q2: The second quaternion in (w, x, y, z). Shape is (N, 4).
-
-    Returns:
-        The difference between the two quaternions. Shape is (N, 3).
-    """
-    quat_diff = quat_mul(q1, quat_conjugate(q2))  # q1 * q2^-1
-    quat_diff = quat_unique(quat_diff)
-    re = quat_diff[:, 0]  # real part, q = [w, x, y, z] = [re, im]
-    im = quat_diff[:, 1:]  # imaginary part
-    norm_im = torch.norm(im, dim=1)
-    scale = 2.0 * torch.where(norm_im > 1.0e-7, torch.atan2(norm_im, re) / norm_im, torch.sign(re))
-    return scale.unsqueeze(-1) * im
-
-
-@torch.jit.script
 def yaw_quat(quat: torch.Tensor) -> torch.Tensor:
     """Extract the yaw component of a quaternion.
 
@@ -688,6 +668,46 @@ def quat_error_magnitude(q1: torch.Tensor, q2: torch.Tensor) -> torch.Tensor:
     """
     quat_diff = quat_mul(q1, quat_conjugate(q2))
     return torch.norm(axis_angle_from_quat(quat_diff), dim=-1)
+
+
+@torch.jit.script
+def quat_box_minus(q1: torch.Tensor, q2: torch.Tensor) -> torch.Tensor:
+    """The box-minus operator (quaternion difference) between two quaternions.
+
+    Args:
+        q1: The first quaternion in (w, x, y, z). Shape is (N, 4).
+        q2: The second quaternion in (w, x, y, z). Shape is (N, 4).
+
+    Returns:
+        The difference between the two quaternions. Shape is (N, 3).
+    """
+    quat_diff = quat_mul(q1, quat_conjugate(q2))  # q1 * q2^-1
+    quat_diff = quat_unique(quat_diff)
+    re = quat_diff[:, 0]  # real part, q = [w, x, y, z] = [re, im]
+    im = quat_diff[:, 1:]  # imaginary part
+    norm_im = torch.norm(im, dim=1)
+    scale = 2.0 * torch.where(norm_im > 1.0e-7, torch.atan2(norm_im, re) / norm_im, torch.sign(re))
+    return scale.unsqueeze(-1) * im
+
+
+@torch.jit.script
+def quat_box_plus(q: torch.Tensor, delta: torch.Tensor, eps: float = 1.0e-6) -> torch.Tensor:
+    """The box-plus operator (quaternion perturbation) for a quaternion.
+
+    Applies a small rotation, represented as a 3D vector, to a quaternion.
+
+    Args:
+        q: The original quaternion in (w, x, y, z). Shape is (N, 4).
+        delta: The perturbation vector representing a small rotation (axis-angle). Shape is (N, 3).
+        eps: A small threshold to avoid division by zero when normalizing. Default is 1e-6.
+
+    Returns:
+        The perturbed quaternion. Shape is (N, 4).
+    """
+    delta_norm = torch.clamp_min(torch.linalg.norm(delta, dim=-1, keepdim=True), min=eps)
+    delta_quat = quat_from_angle_axis(delta_norm.squeeze(-1), delta / delta_norm)  # exp(dq)
+    new_quat = quat_mul(delta_quat, q)  # Apply perturbation
+    return quat_unique(new_quat)
 
 
 @torch.jit.script
