@@ -138,6 +138,15 @@ class TerrainGeneratorCfg:
     border_height: float = 1.0
     """The height of the border around the terrain (in m). Defaults to 1.0."""
 
+    border_below_ground: bool = True
+    """Whether to place the border below the ground. Defaults to True.
+    
+    If True, the heighest point of the border is at the height 0.0. This extends the terrain and is typically used in 
+    locomotion tasks.
+    If False, the lowest point of the border is at the height 0.0. This is typically used in navigation tasks and acts 
+    as a wall to prevent the robot from falling off the terrain.
+    """
+
     num_rows: int = 1
     """Number of rows of sub-terrains to generate. Defaults to 1."""
 
