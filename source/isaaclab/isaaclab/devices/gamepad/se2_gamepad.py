@@ -10,6 +10,7 @@ import weakref
 from collections.abc import Callable
 
 import carb
+import carb.input
 import omni
 
 from ..device_base import DeviceBase
