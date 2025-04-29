@@ -4,6 +4,8 @@
 .gitignore
 # ignore docs
 docs/
+# copy in licenses folder to the container
+!docs/licenses/
 # ignore logs
 **/logs/
 **/runs/
