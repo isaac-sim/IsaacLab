@@ -226,5 +226,33 @@
   {
     "package": "certifi",
     "license": "Python Software Foundation License"
+  },
+  {
+      "package": "rl_games",
+      "license": "UNKNOWN"
+  },
+  {
+      "package": "robomimic",
+      "license": "UNKNOWN"
+  },
+  {
+      "package": "hpp-fcl",
+      "license": "UNKNOWN"
+  },
+  {
+      "package": "pin",
+      "license": "UNKNOWN"
+  },
+  {
+      "package": "eigenpy",
+      "license": "UNKNOWN"
+  },
+  {
+      "package": "qpsolvers",
+      "license": "GNU Lesser General Public License v3 (LGPLv3)"
+  },
+  {
+      "package": "quadprog",
+      "license": "GNU General Public License v2 or later (GPLv2+)"
   }
 ]
