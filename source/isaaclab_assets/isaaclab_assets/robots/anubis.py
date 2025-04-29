@@ -10,7 +10,7 @@ from isaaclab.assets.articulation import ArticulationCfg
 
 ANUBIS_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
-        usd_path="/root/IsaacLab/source/isaaclab_assets/data/Robots/MM/anubis/anubis_v2.usd",
+        usd_path="/root/IsaacLab/source/isaaclab_assets/data/Robots/MM/anubis/anubis_v3.usd",
         activate_contact_sensors=False,
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             rigid_body_enabled=True,
@@ -66,27 +66,27 @@ ANUBIS_CFG = ArticulationCfg(
             velocity_limit=100.0,
             effort_limit=1000.0,
             stiffness=0.0,
-            damping=1e10,  # tip:: For velocity control of the base with dummy mechanism, we recommend setting high damping gains to the joints. This ensures that the base remains unperturbed from external disturbances, such as an arm mounted on the base.
+            damping=1e20,  # tip:: For velocity control of the base with dummy mechanism, we recommend setting high damping gains to the joints. This ensures that the base remains unperturbed from external disturbances, such as an arm mounted on the base.
         ),
         "arm_base": ImplicitActuatorCfg(
             joint_names_expr=["arm.*"],
             effort_limit_sim=1e5,
             velocity_limit_sim=1e4,
-            stiffness=1e7,
+            stiffness=1e10,
             damping=1e5,
         ),
         "arm_link": ImplicitActuatorCfg(
             joint_names_expr=["link.*"],
             effort_limit_sim=1e5,
-            velocity_limit_sim=1,
-            stiffness=1e7,
+            velocity_limit_sim=1e4,
+            stiffness=1e10,
             damping=1e5,
         ),
         "anubis_hand": ImplicitActuatorCfg(
             joint_names_expr=["gripper.*"],
             effort_limit_sim=10,
             velocity_limit_sim=0.2,
-            stiffness=1e5,
+            stiffness=1e10,
             damping=1e4,
         ),
     },

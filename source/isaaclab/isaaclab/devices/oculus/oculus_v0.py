@@ -255,7 +255,7 @@ class OculusV0(DeviceBase):
         Move left arm                  IK of left joystick SE(3) 4x4 matrix
         ============================== ================= 
     """
-    def __init__(self, pos_sensitivity: float = 0.00001, rot_sensitivity: float = 0.00001, base_sensitivity: float = 0.03):
+    def __init__(self, pos_sensitivity: float = 0.00001, rot_sensitivity: float = 0.00001, base_sensitivity: float = 0.05):
         """
         Args:
             pos_sensitivity: Magnitude of input position command scaling for arms.
@@ -283,12 +283,17 @@ class OculusV0(DeviceBase):
         self._delta_rot_right = np.zeros(3)  # (roll, pitch, yaw) for right arm
         self._delta_base = np.zeros(3)  # (x, y, yaw) for mobile base
         
+        # arm
+        self._last_transform_left = np.eye(4)
+        self._last_transform_right = np.eye(4)
+
+
         # xy
         self._last_leftJS = (0.0, 0.0)
         self._js_threshold = 0.4  # tune this to taste
         
         # yaw
-        self.rotation_divisor = 1.25   
+        self.rotation_divisor = 1.2037685675
         self.base_rot_sensitivity = 10
         
         # dictionary for additional callbacks
@@ -344,13 +349,43 @@ class OculusV0(DeviceBase):
         # fetch latest controller data
         transforms, buttons = self.oculus_reader.get_valid_transforms_and_buttons()  # returns dict with 'leftJS', 'rightJS'
         # ipdb.set_trace()
+        
         # Delta pose for arms
-        self._delta_pos_left += np.array([transforms["l"][0, 3], transforms["l"][1, 3], transforms["l"][2, 3]]) * self.pos_sensitivity
-        self._delta_pos_right += np.array([transforms["r"][0, 3], transforms["l"][1, 3], transforms["l"][2, 3]]) * self.pos_sensitivity
 
-        # Rotation for arms
-        rot_vec_left = Rotation.from_matrix(transforms["l"][:3, :3]).as_rotvec()
-        rot_vec_right = Rotation.from_matrix(transforms["r"][:3, :3]).as_rotvec()
+        # 1. Current transforms
+        T_left_now = transforms["l"]
+        T_right_now = transforms["r"]
+
+        # 2. Compute delta transforms
+        T_left_delta = np.matmul(T_left_now, np.linalg.inv(self._last_transform_left))
+        T_right_delta = np.matmul(T_right_now, np.linalg.inv(self._last_transform_right))
+
+        # 3. Translation delta (only x if you want)
+        delta_pos_left = np.array([
+            T_left_delta[0, 3],  # x
+            T_left_delta[1, 3],  # y
+            T_left_delta[2, 3],  # z
+        ]) * self.pos_sensitivity
+
+        delta_pos_right = np.array([
+            T_right_delta[0, 3],  # x
+            T_right_delta[1, 3],  # y
+            T_right_delta[2, 3],  # z
+        ]) * self.pos_sensitivity
+
+        self._delta_pos_left += delta_pos_left
+        self._delta_pos_right += delta_pos_right
+
+        # 4. Rotation delta (relative rotation)
+        rot_left = Rotation.from_matrix(T_left_delta[:3, :3])
+        rot_vec_left = rot_left.as_rotvec()
+
+        rot_right = Rotation.from_matrix(T_right_delta[:3, :3])
+        rot_vec_right = rot_right.as_rotvec()
+
+        # 5. Update last transform for next step
+        self._last_transform_left = T_left_now
+        self._last_transform_right = T_right_now
 
         if buttons["X"]:
             self.reset()
@@ -365,13 +400,13 @@ class OculusV0(DeviceBase):
 
         # yaw
         # check if the rightJS is moved to right
-        if buttons['rightJS'][0] > 0.7  and ('counterclockwise' not in self._key_hold_start):
-            self._delta_base[2] -= self.base_sensitivity * self.base_rot_sensitivity
+        if buttons['rightJS'][0] < -0.7  and ('counterclockwise' not in self._key_hold_start):
+            self._delta_base[2] += self.base_sensitivity * self.base_rot_sensitivity
             self._key_hold_start['counterclockwise'] = time.time()
 
         # check if the rightJS is moved to left
-        elif buttons['rightJS'][0] < -0.7 and ('clockwise' not in self._key_hold_start):
-            self._delta_base[2] += self.base_sensitivity * self.base_rot_sensitivity
+        elif buttons['rightJS'][0] > 0.7 and ('clockwise' not in self._key_hold_start):
+            self._delta_base[2] -= self.base_sensitivity * self.base_rot_sensitivity
             self._key_hold_start['clockwise'] = time.time()
 
         # check if the rightJS is returned to the center (similar to key realeased)
@@ -379,57 +414,63 @@ class OculusV0(DeviceBase):
             # remove the key from the dictionary
             if 'counterclockwise' in self._key_hold_start:
                 duration = time.time() - self._key_hold_start['counterclockwise']
-                self._delta_base[2] += self.base_sensitivity * duration
+                self._base_z_accum += self.base_sensitivity * duration
+                self._delta_base[2] = 0.0
                 del self._key_hold_start['counterclockwise']
+                
                 
             if 'clockwise' in self._key_hold_start:
                 duration = time.time() - self._key_hold_start['clockwise']
-                self._delta_base[2] -= self.base_sensitivity * duration
+                self._base_z_accum -= self.base_sensitivity * duration
+                self._delta_base[2] = 0.0
                 del self._key_hold_start['clockwise']
         
         # xy
-        raw_x, raw_y = buttons['leftJS']
-        new_js = (raw_x, raw_y)
-        
-        # compute Euclidean change
-        dx = raw_x - self._last_leftJS[0]
-        dy = raw_y - self._last_leftJS[1]
-        
-        # check if the leftJS is moved by the self._js_threshold
-        if (dx*dx + dy*dy)**0.5 > self._js_threshold:
-            # 1) subtract out the old
-            ox, oy = self._last_leftJS
-            old_vec = (
-                ox * np.asarray([
-                    math.cos(self._base_z_accum / self.rotation_divisor),
-                    math.sin(self._base_z_accum / self.rotation_divisor),
-                    0.0
-                ]) +
-                oy * np.asarray([
-                    math.sin(self._base_z_accum / self.rotation_divisor),
-                    -math.cos(self._base_z_accum / self.rotation_divisor),
-                    0.0
-                ])
-            ) * self.base_sensitivity
-            self._delta_base -= old_vec
+        if buttons['rightJS'][0] == 0.0:
+            raw_x, raw_y = buttons['leftJS']
+            new_js = (raw_x, raw_y)
 
-            # 2) add in the new
-            new_vec = (
-                raw_x * np.asarray([
-                    math.cos(self._base_z_accum / self.rotation_divisor),
-                    math.sin(self._base_z_accum / self.rotation_divisor),
-                    0.0
-                ]) +
-                raw_y * np.asarray([
-                    math.sin(self._base_z_accum / self.rotation_divisor),
-                    -math.cos(self._base_z_accum / self.rotation_divisor),
-                    0.0
-                ])
-            ) * self.base_sensitivity
-            self._delta_base += new_vec
+            # compute Euclidean change
+            dx = raw_x - self._last_leftJS[0]
+            dy = raw_y - self._last_leftJS[1]
 
-            # 3) remember it
-            self._last_leftJS = new_js
+            # check if the leftJS is moved by the self._js_threshold
+            if (dx*dx + dy*dy)**0.6 > self._js_threshold:
+                theta = self._base_z_accum * self.base_rot_sensitivity / self.rotation_divisor
+                print(theta)
+                # 1) subtract out the old
+                ox, oy = self._last_leftJS
+                old_vec = (
+                    ox * np.asarray([
+                        math.cos((theta)),
+                        math.sin((theta)),
+                        0.0
+                    ]) +
+                    oy * np.asarray([
+                        -math.sin((theta)),
+                        math.cos((theta)),
+                        0.0
+                    ])
+                ) * self.base_sensitivity
+                self._delta_base -= old_vec
+
+                # 2) add in the new
+                new_vec = (
+                    raw_x * np.asarray([
+                        math.cos((theta)),
+                        math.sin((theta)),
+                        0.0
+                    ]) +
+                    raw_y * np.asarray([
+                        -math.sin((theta)),
+                        math.cos((theta)),
+                        0.0
+                    ])
+                ) * self.base_sensitivity
+                self._delta_base += new_vec
+
+                # 3) remember it
+                self._last_leftJS = new_js
             
         # return the commands
         return (

@@ -106,11 +106,11 @@ def main():
         )
     elif args_cli.teleop_device.lower() == "keyboard_bmm":
         teleop_interface = Se3Keyboard_BMM(
-            pos_sensitivity=0.05 * args_cli.sensitivity, rot_sensitivity=0.05 * args_cli.sensitivity
+            pos_sensitivity=0.005 * args_cli.sensitivity, rot_sensitivity=0.01 * args_cli.sensitivity
         )
     elif args_cli.teleop_device.lower() == "oculus":
         teleop_interface = OculusV0(
-            pos_sensitivity=0.000001 * args_cli.sensitivity, rot_sensitivity=0.000001 * args_cli.sensitivity
+            pos_sensitivity=0.1 * args_cli.sensitivity, rot_sensitivity=0.1 * args_cli.sensitivity
         )
     elif args_cli.teleop_device.lower() == "spacemouse":
         teleop_interface = Se3SpaceMouse(
@@ -139,7 +139,7 @@ def main():
         nonlocal should_reset_recording_instance
         should_reset_recording_instance = True
 
-    teleop_interface.add_callback("X", reset_recording_instance)
+    teleop_interface.add_callback("R", reset_recording_instance)
     # print(teleop_interface)
 
     # reset environment
@@ -152,7 +152,7 @@ def main():
         with torch.inference_mode():
             # get keyboard command
             delta_pose_L, gripper_command_L, delta_pose_R, gripper_command_R, delta_pose_base = teleop_interface.advance()
-            print(delta_pose_L, gripper_command_L, delta_pose_R, gripper_command_R, delta_pose_base)
+            # print(delta_pose_L, gripper_command_L, delta_pose_R, gripper_command_R, delta_pose_base)
             delta_pose_L = delta_pose_L.astype("float32")
             delta_pose_R = delta_pose_R.astype("float32")
             delta_pose_base = delta_pose_base.astype("float32")
