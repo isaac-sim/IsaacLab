@@ -24,14 +24,15 @@ from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 RIDGEBACK_FRANKA_PANDA_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
         usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/Clearpath/RidgebackFranka/ridgeback_franka.usd",
+        # usd_path=f"/home/xuezhi/Downloads/ridgeback_franka6_instanceable.usd",
         articulation_props=sim_utils.ArticulationRootPropertiesCfg(enabled_self_collisions=False),
         activate_contact_sensors=False,
     ),
     init_state=ArticulationCfg.InitialStateCfg(
         joint_pos={
             # base
-            "dummy_base_prismatic_y_joint": 0.0,
             "dummy_base_prismatic_x_joint": 0.0,
+            "dummy_base_prismatic_y_joint": 0.0,
             "dummy_base_revolute_z_joint": 0.0,
             # franka arm
             "panda_joint1": 0.0,

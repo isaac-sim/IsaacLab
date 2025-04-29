@@ -53,15 +53,14 @@ class CartDoublePendulumEnvCfg(DirectMARLEnvCfg):
     pendulum_action_scale = 50.0  # [Nm]
 
     # reward scales
-    rew_scale_alive = 1.0
-    rew_scale_terminated = -2.0
-    rew_scale_cart_pos = 0
-    rew_scale_cart_vel = -0.01
-    rew_scale_pole_pos = -1.0
-    rew_scale_pole_vel = -0.01
-    rew_scale_pendulum_pos = -1.0
-    rew_scale_pendulum_vel = -0.01
-
+    eps_alive = 1.0
+    eps_terminated = -2.0
+    eps_cart_pos = 0
+    eps_cart_vel = -0.01
+    eps_pole_pos = -1.0
+    eps_pole_vel = -0.01
+    eps_pendulum_pos = -1.0
+    eps_pendulum_vel = -0.01
 
 class CartDoublePendulumEnv(DirectMARLEnv):
     cfg: CartDoublePendulumEnvCfg
@@ -124,23 +123,29 @@ class CartDoublePendulumEnv(DirectMARLEnv):
         return observations
 
     def _get_rewards(self) -> dict[str, torch.Tensor]:
-        total_reward = compute_rewards(
-            self.cfg.rew_scale_alive,
-            self.cfg.rew_scale_terminated,
-            self.cfg.rew_scale_cart_pos,
-            self.cfg.rew_scale_cart_vel,
-            self.cfg.rew_scale_pole_pos,
-            self.cfg.rew_scale_pole_vel,
-            self.cfg.rew_scale_pendulum_pos,
-            self.cfg.rew_scale_pendulum_vel,
-            self.joint_pos[:, self._cart_dof_idx[0]],
-            self.joint_vel[:, self._cart_dof_idx[0]],
-            normalize_angle(self.joint_pos[:, self._pole_dof_idx[0]]),
-            self.joint_vel[:, self._pole_dof_idx[0]],
-            normalize_angle(self.joint_pos[:, self._pendulum_dof_idx[0]]),
-            self.joint_vel[:, self._pendulum_dof_idx[0]],
-            math.prod(self.terminated_dict.values()),
+        P_cart_0, P_pendulum_0, Delta_P_cart, Delta_P_pendulum, total_reward = compute_rewards(
+            1.0, # alpha
+            1.0, # beta
+            self.cfg.eps_alive, # eps_alive
+            self.cfg.eps_terminated, # eps_terminated
+            self.cfg.eps_cart_vel, # eps_cart_vel
+            self.cfg.eps_pole_pos, # eps_pole_pos
+            self.cfg.eps_pole_vel, # eps_pole_vel
+            self.cfg.eps_pendulum_pos,   # eps_pendulum_pos
+            self.cfg.eps_pendulum_vel,    # eps_pendulum_vel
+            self.joint_vel[:, self._cart_dof_idx[0]], # cart_vel
+            normalize_angle(self.joint_pos[:, self._pole_dof_idx[0]]), # pole_pos
+            self.joint_vel[:, self._pole_dof_idx[0]], # pole_vel
+            normalize_angle(self.joint_pos[:, self._pendulum_dof_idx[0]]), # pendulum_pos
+            self.joint_vel[:, self._pendulum_dof_idx[0]],  # pendulum_vel
+            math.prod(self.terminated_dict.values()), # reset_terminated
         )
+        if "log" not in self.extras:
+            self.extras["log"] = dict() 
+        self.extras["log"]["P_cart_0"] = P_cart_0.mean()
+        self.extras["log"]["P_pendulum_0"] = P_pendulum_0.mean()
+        self.extras["log"]["Delta_P_cart"] = Delta_P_cart.mean()
+        self.extras["log"]["Delta_P_pendulum"] = Delta_P_pendulum.mean()
         return total_reward
 
     def _get_dones(self) -> tuple[dict[str, torch.Tensor], dict[str, torch.Tensor]]:
@@ -193,15 +198,15 @@ def normalize_angle(angle):
 
 @torch.jit.script
 def compute_rewards(
-    rew_scale_alive: float,
-    rew_scale_terminated: float,
-    rew_scale_cart_pos: float,
-    rew_scale_cart_vel: float,
-    rew_scale_pole_pos: float,
-    rew_scale_pole_vel: float,
-    rew_scale_pendulum_pos: float,
-    rew_scale_pendulum_vel: float,
-    cart_pos: torch.Tensor,
+    alpha: float,
+    beta: float,
+    eps_alive: float,
+    eps_terminated: float,
+    eps_cart_vel: float,
+    eps_pole_pos: float,
+    eps_pole_vel: float,
+    eps_pendulum_pos: float,
+    eps_pendulum_vel: float,
     cart_vel: torch.Tensor,
     pole_pos: torch.Tensor,
     pole_vel: torch.Tensor,
@@ -209,18 +214,33 @@ def compute_rewards(
     pendulum_vel: torch.Tensor,
     reset_terminated: torch.Tensor,
 ):
-    rew_alive = rew_scale_alive * (1.0 - reset_terminated.float())
-    rew_termination = rew_scale_terminated * reset_terminated.float()
-    rew_pole_pos = rew_scale_pole_pos * torch.sum(torch.square(pole_pos).unsqueeze(dim=1), dim=-1)
-    rew_pendulum_pos = rew_scale_pendulum_pos * torch.sum(
-        torch.square(pole_pos + pendulum_pos).unsqueeze(dim=1), dim=-1
+    # Base reward components
+    P_cart_0 = (
+        eps_alive * (1.0 - reset_terminated.float())
+        + eps_terminated * reset_terminated.float()
+        + eps_cart_vel * torch.sum(torch.abs(cart_vel).unsqueeze(dim=1), dim=-1)
     )
-    rew_cart_vel = rew_scale_cart_vel * torch.sum(torch.abs(cart_vel).unsqueeze(dim=1), dim=-1)
-    rew_pole_vel = rew_scale_pole_vel * torch.sum(torch.abs(pole_vel).unsqueeze(dim=1), dim=-1)
-    rew_pendulum_vel = rew_scale_pendulum_vel * torch.sum(torch.abs(pendulum_vel).unsqueeze(dim=1), dim=-1)
-
-    total_reward = {
-        "cart": rew_alive + rew_termination + rew_pole_pos + rew_cart_vel + rew_pole_vel,
-        "pendulum": rew_alive + rew_termination + rew_pendulum_pos + rew_pendulum_vel,
-    }
-    return total_reward
+    
+    P_pendulum_0 = (
+        eps_alive * (1.0 - reset_terminated.float())
+        + eps_terminated * reset_terminated.float()
+    )
+    
+    # Cooperative (mutualistic) terms
+    Delta_P_cart = (
+        eps_pole_pos * torch.sum(torch.square(pole_pos).unsqueeze(dim=1), dim=-1)
+        + eps_pole_vel * torch.sum(torch.abs(pole_vel).unsqueeze(dim=1), dim=-1)
+    )
+    
+    Delta_P_pendulum = (
+        eps_pendulum_pos * torch.sum(torch.square(pole_pos + pendulum_pos).unsqueeze(dim=1), dim=-1)
+        + eps_pendulum_vel * torch.sum(torch.abs(pendulum_vel).unsqueeze(dim=1), dim=-1)
+    )
+    
+    # Final rewards incorporating mutualistic principles
+    R_cart = alpha * P_cart_0 + beta * Delta_P_cart
+    R_pendulum = alpha * P_pendulum_0 + beta * Delta_P_pendulum
+    
+    total_reward = {"cart": R_cart, "pendulum": R_pendulum}
+    
+    return P_cart_0, P_pendulum_0, Delta_P_cart, Delta_P_pendulum, total_reward
