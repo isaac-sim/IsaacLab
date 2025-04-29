@@ -78,6 +78,9 @@ jobs:
             EXCEPTION=$(jq -r --arg pkg "$pkg" --arg license "$LICENSE" \
               '.[] | select(.package | test($pkg))' "$EXCEPTIONS_FILE")
 
+            echo $pkg
+            echo $EXCEPTION
+
             # If the package is in the exceptions list
             if [ -n "$EXCEPTION" ]; then
               # If the license is provided in the exceptions list, check the license

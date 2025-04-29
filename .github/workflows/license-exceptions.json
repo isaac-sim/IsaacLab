@@ -20,7 +20,7 @@
     "license": null
   },
   {
-    "package": "cmeel-*",
+    "package": "cmeel*",
     "license": "UNKNOWN"
   },
   {
