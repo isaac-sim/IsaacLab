@@ -16,7 +16,7 @@ from . import agents
 
 gym.register(
     id="Anubis-Cabinet-Direct-v0",
-    entry_point=f"{__name__}.anubis_cabinet_env:AnubisCabinetEnvCfg",
+    entry_point=f"{__name__}.anubis_cabinet_env:AnubisCabinetEnv",
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.anubis_cabinet_env:AnubisCabinetEnvCfg",
