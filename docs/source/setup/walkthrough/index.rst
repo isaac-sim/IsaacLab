@@ -15,7 +15,8 @@ For this walkthrough, we will be starting with the Jetbot, a simple two wheeled 
   :titlesonly:
 
   project_setup
-  designing_the_env
+  concepts_env_design
+  technical_env_design
   training_jetbot_gt
 
 
