@@ -60,6 +60,9 @@ jobs:
         # Split ALLOWED_LICENSES into individual words
         IFS=' ' read -r -a allowed_licenses <<< "$ALLOWED_LICENSES"
 
+        jq -e '.[] | select(.package | test("GitPython"))' "$EXCEPTIONS_FILE"
+        echo "jq exit code: $?"
+
         # Loop through the installed packages and their licenses
         for pkg in $(jq -r '.[].Name' licenses.json); do
           echo $pkg
@@ -81,8 +84,8 @@ jobs:
             echo $LICENSE
             jq . "$EXCEPTIONS_FILE"
             # Check if the package is in the exceptions list
-            EXCEPTION=$(jq -e --exit-status --arg pkg "$pkg" --arg license "$LICENSE" \
-              '.[] | select(.package | test("GitPython"))' "$EXCEPTIONS_FILE")
+            EXCEPTION=$(jq -e --arg pkg "$pkg" --arg license "$LICENSE" \
+              '.[] | select(.package | test($pkg))' "$EXCEPTIONS_FILE")
             echo "passed that line"
             echo $EXCEPTION
 
@@ -93,12 +96,12 @@ jobs:
               echo $EXCEPTION_LICENSE
               # If the exceptions list has a license and doesn't match the current license
               if [ "$EXCEPTION_LICENSE" != "null" ] && [ "$EXCEPTION_LICENSE" != "$LICENSE" ]; then
-                echo "ERROR: $pkg has an unacceptable license: $LICENSE"
+                echo "ERROR: $pkg has license: $LICENSE"
                 FAILED_PACKAGES=$((FAILED_PACKAGES + 1))  # Increment the counter
               fi
             else
               # If the package is not in the exceptions list
-              echo "ERROR: $pkg has an unacceptable license: $LICENSE"
+              echo "ERROR: $pkg has license: $LICENSE"
               FAILED_PACKAGES=$((FAILED_PACKAGES + 1))  # Increment the counter
             fi
           fi
@@ -106,10 +109,10 @@ jobs:
 
         # After all packages are processed, check if there were any errors
         if [ "$FAILED_PACKAGES" -gt 0 ]; then
-          echo "ERROR: $FAILED_PACKAGES packages have unacceptable licenses."
+          echo "ERROR: $FAILED_PACKAGES packages were flagged."
           exit 1  # Fail the build
         else
-          echo "All packages have acceptable licenses."
+          echo "All packages were checked."
         fi
 
     # Optional: Print the license report for visibility
