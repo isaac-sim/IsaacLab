@@ -1,3 +1,8 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg
@@ -41,17 +46,13 @@ MOBILE_FRANKA_CFG = ArticulationCfg(
             "panda_joint7": 0.8,
             "panda_finger_joint1": 0.035,
             "panda_finger_joint2": 0.035,
-            
         },
         joint_vel={".*": 0.0},
     ),
     actuators={
         "arm_actuators": ImplicitActuatorCfg(
-            joint_names_expr=[
-                "panda_joint[1-7]"
-            ],
+            joint_names_expr=["panda_joint[1-7]"],
             effort_limit=87.0,
-            
             velocity_limit=2.175,
             stiffness=400.0,
             damping=80.0,

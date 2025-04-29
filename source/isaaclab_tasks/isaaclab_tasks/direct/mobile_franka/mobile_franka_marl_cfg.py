@@ -1,15 +1,22 @@
-from isaaclab_assets.robots.ridgeback_franka import RIDGEBACK_FRANKA_PANDA_CFG
-from isaaclab_assets.robots.mobile_franka import MOBILE_FRANKA_CFG
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab.envs import DirectMARLEnvCfg
-from isaaclab.sim import PhysxCfg, SimulationCfg
-from isaaclab.sim.spawners.materials.physics_materials_cfg import RigidBodyMaterialCfg
+from isaaclab_assets.robots.mobile_franka import MOBILE_FRANKA_CFG
+from isaaclab_assets.robots.ridgeback_franka import RIDGEBACK_FRANKA_PANDA_CFG
+
+import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, RigidObjectCfg
+from isaaclab.envs import DirectMARLEnvCfg
 from isaaclab.markers import VisualizationMarkersCfg
 from isaaclab.scene import InteractiveSceneCfg
+from isaaclab.sim import PhysxCfg, SimulationCfg
+from isaaclab.sim.spawners.materials.physics_materials_cfg import RigidBodyMaterialCfg
+
 # from isaaclab.managers import EventTermCfg as EventTerm, SceneEntityCfg
 from isaaclab.utils import configclass
-import isaaclab.sim as sim_utils
+
 
 @configclass
 class MobileFrankaMARLCfg(DirectMARLEnvCfg):
@@ -56,8 +63,13 @@ class MobileFrankaMARLCfg(DirectMARLEnvCfg):
     )
 
     actuated_joint_names = [
-        "panda_joint1", "panda_joint2", "panda_joint3", "panda_joint4",
-        "panda_joint5", "panda_joint6", "panda_joint7", 
+        "panda_joint1",
+        "panda_joint2",
+        "panda_joint3",
+        "panda_joint4",
+        "panda_joint5",
+        "panda_joint6",
+        "panda_joint7",
     ]
 
     mobile_base_names = [
