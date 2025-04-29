@@ -61,7 +61,7 @@ jobs:
         # Split ALLOWED_LICENSES into individual words
         IFS=' ' read -r -a allowed_licenses <<< "$ALLOWED_LICENSES"
 
-        jq -e '.[] | select(.package | test("GitPython"))' "$EXCEPTIONS_FILE"
+        jq -e '.[].package | select(.package | test("GitPython"))' "$EXCEPTIONS_FILE"
         echo "jq exit code: $?"
 
         # Loop through the installed packages and their licenses
