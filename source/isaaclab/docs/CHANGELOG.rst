@@ -1,6 +1,23 @@
 Changelog
 ---------
 
+
+0.36.24 (2025-04-28)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added support for concatenation of observations along different dimensions in :class:`~isaaclab.managers.observation_manager.ObservationManager`.
+
+Changed
+^^^^^^^
+
+* Updated the :class:`~isaaclab.managers.command_manager.CommandManager` to update the command counter after the
+  resampling call.
+
+
+
 0.36.23 (2025-04-24)
 ~~~~~~~~~~~~~~~~~~~~
 

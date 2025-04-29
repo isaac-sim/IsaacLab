@@ -662,6 +662,72 @@ class TestObservationManager(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.obs_man = ObservationManager(cfg, self.env)
 
+    def test_concatenate_dim(self):
+        """Test concatenation of observations along different dimensions."""
+
+        @configclass
+        class MyObservationManagerCfg:
+            """Test config class for observation manager."""
+
+            @configclass
+            class PolicyCfg(ObservationGroupCfg):
+                """Test config class for policy observation group."""
+
+                concatenate_terms = True
+                concatenate_dim = 1  # Concatenate along dimension 1
+                term_1 = ObservationTermCfg(func=grilled_chicken_image, scale=1.0, params={"bland": 1.0, "channel": 1})
+                term_2 = ObservationTermCfg(func=grilled_chicken_image, scale=1.0, params={"bland": 1.0, "channel": 1})
+
+            @configclass
+            class CriticCfg(ObservationGroupCfg):
+                """Test config class for critic observation group."""
+
+                concatenate_terms = True
+                concatenate_dim = 2  # Concatenate along dimension 2
+                term_1 = ObservationTermCfg(func=grilled_chicken_image, scale=1.0, params={"bland": 1.0, "channel": 1})
+                term_2 = ObservationTermCfg(func=grilled_chicken_image, scale=1.0, params={"bland": 1.0, "channel": 1})
+
+            @configclass
+            class CriticCfg_neg_dim(ObservationGroupCfg):
+                """Test config class for critic observation group."""
+
+                concatenate_terms = True
+                concatenate_dim = -1  # Concatenate along last dimension
+                term_1 = ObservationTermCfg(func=grilled_chicken_image, scale=1.0, params={"bland": 1.0, "channel": 1})
+                term_2 = ObservationTermCfg(func=grilled_chicken_image, scale=1.0, params={"bland": 1.0, "channel": 1})
+
+            policy: ObservationGroupCfg = PolicyCfg()
+            critic: ObservationGroupCfg = CriticCfg()
+            critic_neg_dim: ObservationGroupCfg = CriticCfg_neg_dim()
+
+        # create observation manager
+        cfg = MyObservationManagerCfg()
+        self.obs_man = ObservationManager(cfg, self.env)
+        # compute observation using manager
+        observations = self.obs_man.compute()
+
+        # obtain the group observations
+        obs_policy: torch.Tensor = observations["policy"]
+        obs_critic: torch.Tensor = observations["critic"]
+        obs_critic_neg_dim: torch.Tensor = observations["critic_neg_dim"]
+
+        # check the observation shapes
+        # For policy: concatenated along dim 1, so width should be doubled
+        self.assertEqual((self.env.num_envs, 128, 512, 1), obs_policy.shape)
+        # For critic: concatenated along last dim, so channels should be doubled
+        self.assertEqual((self.env.num_envs, 128, 256, 2), obs_critic.shape)
+        # For critic_neg_dim: concatenated along last dim, so channels should be doubled
+        self.assertEqual((self.env.num_envs, 128, 256, 2), obs_critic_neg_dim.shape)
+
+        # verify the data is concatenated correctly
+        # For policy: check that the second half matches the first half
+        torch.testing.assert_close(obs_policy[:, :, :256, :], obs_policy[:, :, 256:, :])
+        # For critic: check that the second channel matches the first channel
+        torch.testing.assert_close(obs_critic[:, :, :, 0], obs_critic[:, :, :, 1])
+
+        # For critic_neg_dim: check that it is the same as critic
+        torch.testing.assert_close(obs_critic_neg_dim, obs_critic)
+
 
 if __name__ == "__main__":
     run_tests()
