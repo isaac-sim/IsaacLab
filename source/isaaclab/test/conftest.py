@@ -12,7 +12,7 @@ FIRST_RUN_TESTS = {
     "/app/test_argparser_launch.py",
     "/app/test_env_var_launch.py",
     "/app/test_kwarg_launch.py",
-    "/app/test_kit_startup_performance.py",
+    "/performance/test_kit_startup_performance.py",
 }
 
 # Tests that require headless and camera enabled
@@ -44,7 +44,7 @@ def pytest_ignore_collect(path, config):
             return test_name not in FIRST_RUN_TESTS
         if stage == "second":
             return test_name not in SECOND_RUN_TESTS
-        if stage == "remaining":
+        if stage == "main":
             return test_name in FIRST_RUN_TESTS or test_name in SECOND_RUN_TESTS
 
     # Default behavior if path is not 'source/IsaacLab/test'
@@ -100,7 +100,7 @@ def pytest_sessionstart(session):
         failed |= run_test_group(SECOND_RUN_TESTS, "second", session.config.args)
 
         # Step 3: Run all remaining tests
-        failed |= run_test_group([], "remaining", session.config.args)
+        failed |= run_test_group([], "main", session.config.args)
 
         # Exit only at the end with failure code if any test failed
         if failed:

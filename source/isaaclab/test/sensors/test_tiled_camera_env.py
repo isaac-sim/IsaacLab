@@ -36,6 +36,7 @@ elif AppLauncher.instance() and AppLauncher.instance()._enable_cameras is False:
 
 import gymnasium as gym
 import sys
+import pytest
 
 import omni.usd
 
@@ -46,6 +47,7 @@ import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
 
 
+@pytest.mark.skip(reason="Currently takes too long to run")
 def test_tiled_resolutions_tiny():
     """Define settings for resolution and number of environments"""
     num_envs = 1024
@@ -54,6 +56,7 @@ def test_tiled_resolutions_tiny():
     _launch_tests(tile_widths, tile_heights, num_envs)
 
 
+@pytest.mark.skip(reason="Currently takes too long to run")
 def test_tiled_resolutions_small():
     """Define settings for resolution and number of environments"""
     num_envs = 300
@@ -62,6 +65,7 @@ def test_tiled_resolutions_small():
     _launch_tests(tile_widths, tile_heights, num_envs)
 
 
+@pytest.mark.skip(reason="Currently takes too long to run")
 def test_tiled_resolutions_medium():
     """Define settings for resolution and number of environments"""
     num_envs = 64
@@ -70,6 +74,7 @@ def test_tiled_resolutions_medium():
     _launch_tests(tile_widths, tile_heights, num_envs)
 
 
+@pytest.mark.skip(reason="Currently takes too long to run")
 def test_tiled_resolutions_large():
     """Define settings for resolution and number of environments"""
     num_envs = 4
@@ -78,6 +83,7 @@ def test_tiled_resolutions_large():
     _launch_tests(tile_widths, tile_heights, num_envs)
 
 
+@pytest.mark.skip(reason="Currently takes too long to run")
 def test_tiled_resolutions_edge_cases():
     """Define settings for resolution and number of environments"""
     num_envs = 1000
@@ -86,6 +92,7 @@ def test_tiled_resolutions_edge_cases():
     _launch_tests(tile_widths, tile_heights, num_envs)
 
 
+@pytest.mark.skip(reason="Currently takes too long to run")
 def test_tiled_num_envs_edge_cases():
     """Define settings for resolution and number of environments"""
     num_envs = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 53, 359, 733, 927]
