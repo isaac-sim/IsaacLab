@@ -541,7 +541,7 @@
       </material>
     </visual>
     <collision>
-      <orgin rpy="0 0 0" xyz="0 0 -0.702"/>
+      <origin rpy="0 0 0" xyz="0 0 -0.702"/>
        <geometry>
          <mesh filename="package://anubis/meshes/link5.stl"/>
        </geometry>
