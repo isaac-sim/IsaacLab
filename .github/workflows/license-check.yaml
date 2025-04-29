@@ -42,7 +42,6 @@ jobs:
 
     - name: Check licenses against whitelist and exceptions
       run: |
-        echo jq --version
         # Define the whitelist of allowed licenses
         ALLOWED_LICENSES="MIT Apache BSD ISC zlib"
 
@@ -77,7 +76,7 @@ jobs:
           if [ "$match_found" = false ]; then
             # Check if the package is in the exceptions list
             EXCEPTION=$(jq -r --arg pkg "$pkg" --arg license "$LICENSE" \
-              '.[] | select(.package | test($pkg)' "$EXCEPTIONS_FILE")
+              '.[] | select(.package | test($pkg))' "$EXCEPTIONS_FILE")
 
             # If the package is in the exceptions list
             if [ -n "$EXCEPTION" ]; then
