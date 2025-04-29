@@ -61,9 +61,6 @@ jobs:
         # Split ALLOWED_LICENSES into individual words
         IFS=' ' read -r -a allowed_licenses <<< "$ALLOWED_LICENSES"
 
-        jq -e '.[]' "$EXCEPTIONS_FILE"
-        echo "jq exit code: $?"
-
         # Loop through the installed packages and their licenses
         for pkg in $(jq -r '.[].Name' licenses.json); do
           echo $pkg
@@ -86,7 +83,7 @@ jobs:
             jq . "$EXCEPTIONS_FILE"
             # Check if the package is in the exceptions list
             EXCEPTION=$(jq -e --arg pkg "$pkg" --arg license "$LICENSE" \
-              '.[] | select(.package | test($pkg))' "$EXCEPTIONS_FILE")
+              '.[] | select(.package == $pkg)' "$EXCEPTIONS_FILE")
             echo "passed that line"
             echo $EXCEPTION
 
