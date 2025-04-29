@@ -68,9 +68,10 @@ class CabinetSceneCfg(InteractiveSceneCfg):
         spawn=sim_utils.UsdFileCfg(
             usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Sektion_Cabinet/sektion_cabinet_instanceable.usd",
             activate_contact_sensors=False,
+            scale=(1.5, 1.5, 1.5), 
         ),
         init_state=ArticulationCfg.InitialStateCfg(
-            pos=(0.8, 0, 0.4),
+            pos=(2, 0, 0.6),
             rot=(0.0, 0.0, 0.0, 1.0),
             joint_pos={
                 "door_left_joint": 0.0,

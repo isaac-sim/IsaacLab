@@ -63,16 +63,21 @@ def pre_process_actions(delta_pose_L: torch.Tensor, gripper_command_L: bool, del
         # compute actions
 
         delta_pose_L_zeroed = torch.zeros_like(delta_pose_L)  # Shape: (batch_size, 6)
+        # delta_pose_L_zeroed[:, 0:3] = delta_pose_L[:, 0:3]  # Position
+        delta_pose_L_zeroed[:, 3:6] = delta_pose_L[:, 3:6]  # Rotation
         delta_pose_R_zeroed = torch.zeros_like(delta_pose_R)  # Shape: (batch_size, 6)
+        # delta_pose_R_zeroed[:, 0:3] = delta_pose_R[:, 0:3]  # Position
+        delta_pose_R_zeroed[:, 3:6] = delta_pose_R[:, 3:6]  # Rotation
+
 
         # Ensure gripper velocities and base poses have the correct shapes  
         gripper_vel_L = gripper_vel_L.reshape(-1, 1)  # Shape: (batch_size, 1)
         gripper_vel_R = gripper_vel_R.reshape(-1, 1)  # Shape: (batch_size, 1)
         
         # Concatenate the zeroed out poses with the velocities and base movement
-        return torch.concat([delta_pose_L_zeroed, delta_pose_R_zeroed, gripper_vel_L, gripper_vel_R, delta_pose_base], dim=1)
+        # return torch.concat([delta_pose_L_zeroed, delta_pose_R_zeroed, gripper_vel_L, gripper_vel_R, delta_pose_base], dim=1)
 
-        # return torch.concat([delta_pose_L, delta_pose_R, gripper_vel_L, gripper_vel_R, delta_pose_base], dim=1)
+        return torch.concat([delta_pose_L, delta_pose_R, gripper_vel_L, gripper_vel_R, delta_pose_base], dim=1)
 
 
 def main():
@@ -110,7 +115,7 @@ def main():
         )
     elif args_cli.teleop_device.lower() == "oculus":
         teleop_interface = OculusV0(
-            pos_sensitivity=0.1 * args_cli.sensitivity, rot_sensitivity=0.1 * args_cli.sensitivity
+            pos_sensitivity=0.5 * args_cli.sensitivity, rot_sensitivity=0.3 * args_cli.sensitivity
         )
     elif args_cli.teleop_device.lower() == "spacemouse":
         teleop_interface = Se3SpaceMouse(
@@ -139,7 +144,11 @@ def main():
         nonlocal should_reset_recording_instance
         should_reset_recording_instance = True
 
-    teleop_interface.add_callback("R", reset_recording_instance)
+    teleop_interface2 = Se3Keyboard_BMM(
+            pos_sensitivity=0.005 * args_cli.sensitivity, rot_sensitivity=0.01 * args_cli.sensitivity
+        )
+
+    teleop_interface2.add_callback("R", reset_recording_instance)
     # print(teleop_interface)
 
     # reset environment
@@ -164,7 +173,7 @@ def main():
 
             actions = pre_process_actions(delta_pose_L, gripper_command_L, delta_pose_R, gripper_command_R, delta_pose_base)
             # apply actions
-
+            print(actions)
             env.step(actions)
 
             if should_reset_recording_instance:

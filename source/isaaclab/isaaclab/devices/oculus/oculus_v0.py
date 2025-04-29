@@ -255,7 +255,7 @@ class OculusV0(DeviceBase):
         Move left arm                  IK of left joystick SE(3) 4x4 matrix
         ============================== ================= 
     """
-    def __init__(self, pos_sensitivity: float = 0.00001, rot_sensitivity: float = 0.00001, base_sensitivity: float = 0.05):
+    def __init__(self, pos_sensitivity: float = 0.01, rot_sensitivity: float = 0.01, base_sensitivity: float = 0.05):
         """
         Args:
             pos_sensitivity: Magnitude of input position command scaling for arms.
@@ -355,33 +355,35 @@ class OculusV0(DeviceBase):
         # 1. Current transforms
         T_left_now = transforms["l"]
         T_right_now = transforms["r"]
-
+        
         # 2. Compute delta transforms
         T_left_delta = np.matmul(T_left_now, np.linalg.inv(self._last_transform_left))
         T_right_delta = np.matmul(T_right_now, np.linalg.inv(self._last_transform_right))
 
         # 3. Translation delta (only x if you want)
         delta_pos_left = np.array([
-            T_left_delta[0, 3],  # x
-            T_left_delta[1, 3],  # y
-            T_left_delta[2, 3],  # z
+            -T_left_delta[2, 3],  # x
+            -T_left_delta[0, 3],  # y
+            T_left_delta[1, 3],  # z
         ]) * self.pos_sensitivity
 
         delta_pos_right = np.array([
-            T_right_delta[0, 3],  # x
-            T_right_delta[1, 3],  # y
-            T_right_delta[2, 3],  # z
+            -T_right_delta[2, 3],  # x
+            -T_right_delta[0, 3],  # y
+            T_right_delta[1, 3],  # z
         ]) * self.pos_sensitivity
-
-        self._delta_pos_left += delta_pos_left
-        self._delta_pos_right += delta_pos_right
+        
+        # print('delta_pos_left:', delta_pos_left)
+        # print('delta_pos_right:', delta_pos_right)
+        self._delta_pos_left = delta_pos_left
+        self._delta_pos_right = delta_pos_right
 
         # 4. Rotation delta (relative rotation)
-        rot_left = Rotation.from_matrix(T_left_delta[:3, :3])
-        rot_vec_left = rot_left.as_rotvec()
+        self._delta_rot_left = Rotation.from_matrix(T_left_delta[:3, :3]).as_rotvec() * self.rot_sensitivity
+        self._delta_rot_right = Rotation.from_matrix(T_right_delta[:3, :3]).as_rotvec() * self.rot_sensitivity
 
-        rot_right = Rotation.from_matrix(T_right_delta[:3, :3])
-        rot_vec_right = rot_right.as_rotvec()
+        # print('rot_vec_left:', rot_vec_left)
+        # print('rot_vec_right:', rot_vec_right)
 
         # 5. Update last transform for next step
         self._last_transform_left = T_left_now
@@ -474,9 +476,9 @@ class OculusV0(DeviceBase):
             
         # return the commands
         return (
-            np.concatenate([self._delta_pos_left, rot_vec_left]),  # Left arm
+            np.concatenate([self._delta_pos_left, self._delta_rot_left]),  # Left arm
             self._close_gripper_left,  # Left gripper
-            np.concatenate([self._delta_pos_right, rot_vec_right]),  # Right arm
+            np.concatenate([self._delta_pos_right, self._delta_rot_right ]),  # Right arm
             self._close_gripper_right,  # Right gripper
             self._delta_base,  # Mobile base
         )
