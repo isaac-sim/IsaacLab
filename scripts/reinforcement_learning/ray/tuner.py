@@ -88,14 +88,21 @@ class IsaacLabTuneTrainable(tune.Trainable):
             # When including this as first step instead of setup, experiments get scheduled faster
             # Don't want to block the scheduler while the experiment spins up
             print(f"[INFO]: Invoking experiment as first step with {self.invoke_cmd}...")
-            experiment = util.execute_job(
-                self.invoke_cmd,
-                identifier_string="",
-                extract_experiment=True,
-                persistent_dir=BASE_DIR,
-                max_lines_to_search_logs=MAX_LINES_TO_SEARCH_EXPERIMENT_LOGS,
-                max_time_to_search_logs=PROCESS_RESPONSE_TIMEOUT,
-            )
+            try:
+                experiment = util.execute_job(
+                    self.invoke_cmd,
+                    identifier_string="",
+                    extract_experiment=True,  # Keep this as True to return a valid dictionary
+                    persistent_dir=BASE_DIR,
+                    max_lines_to_search_logs=MAX_LINES_TO_SEARCH_EXPERIMENT_LOGS,
+                    max_time_to_search_logs=PROCESS_RESPONSE_TIMEOUT,
+                )
+            except util.LogExtractionError:
+                print("[FATAL]: LogExtractionError: aborting entire tuning run...")
+                self.data = {}
+                self.data["LOG_EXTRACTION_ERROR_STOPPER_FLAG"] = True
+                self.data["done"] = True
+                return self.data
             self.experiment = experiment
             print(f"[INFO]: Tuner recovered experiment info {experiment}")
             self.proc = experiment["proc"]
@@ -162,6 +169,22 @@ class IsaacLabTuneTrainable(tune.Trainable):
         )
 
 
+class LogExtractionErrorStopper(tune.Stopper):
+    """Stopper that stops all trials if a log extraction error occurs."""
+
+    def __init__(self):
+        self.stop_now = False
+
+    def __call__(self, trial_id, result):
+        if result.get("LOG_EXTRACTION_ERROR_STOPPER_FLAG", False):
+            self.stop_now = True
+        return False
+
+    def stop_all(self):
+        # Stop all trials if the flag was set
+        return self.stop_now
+
+
 def invoke_tuning_run(cfg: dict, args: argparse.Namespace) -> None:
     """Invoke an Isaac-Ray tuning run.
 
@@ -205,6 +228,7 @@ def invoke_tuning_run(cfg: dict, args: argparse.Namespace) -> None:
                 checkpoint_frequency=0,  # Disable periodic checkpointing
                 checkpoint_at_end=False,  # Disable final checkpoint
             ),
+            stop=LogExtractionErrorStopper(),
         )
 
     elif args.run_mode == "remote":  # MLFlow, to MLFlow server
@@ -220,6 +244,7 @@ def invoke_tuning_run(cfg: dict, args: argparse.Namespace) -> None:
             storage_path="/tmp/ray",
             callbacks=[mlflow_callback],
             checkpoint_config=ray.train.CheckpointConfig(checkpoint_frequency=0, checkpoint_at_end=False),
+            stop=LogExtractionErrorStopper(),
         )
     else:
         raise ValueError("Unrecognized run mode.")
