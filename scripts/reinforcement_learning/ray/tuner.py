@@ -382,7 +382,7 @@ if __name__ == "__main__":
     print(
         "[INFO]: The max number of lines to search for experiment logs before (early) terminating the training "
         f"workflow process is set to {MAX_LINES_TO_SEARCH_EXPERIMENT_LOGS}.\n"
-        f"[INFO]: The process response timeout, used while updating tensorboard scalars and searching for "
+        "[INFO]: The process response timeout, used while updating tensorboard scalars and searching for "
         f"experiment logs, is set to {PROCESS_RESPONSE_TIMEOUT} seconds."
     )
     NUM_WORKERS_PER_NODE = args.num_workers_per_node
