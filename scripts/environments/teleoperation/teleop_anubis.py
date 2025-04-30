@@ -75,7 +75,7 @@ def pre_process_actions(delta_pose_L: torch.Tensor, gripper_command_L: bool, del
         gripper_vel_R = gripper_vel_R.reshape(-1, 1)  # Shape: (batch_size, 1)
         
         # Concatenate the zeroed out poses with the velocities and base movement
-        return torch.concat([delta_pose_L_zeroed, delta_pose_R_zeroed, gripper_vel_L, gripper_vel_R, delta_pose_base], dim=1)
+        # return torch.concat([delta_pose_L_zeroed, delta_pose_R_zeroed, gripper_vel_L, gripper_vel_R, delta_pose_base], dim=1)
 
         return torch.concat([delta_pose_L, delta_pose_R, gripper_vel_L, gripper_vel_R, delta_pose_base], dim=1)
 
@@ -115,7 +115,7 @@ def main():
         )
     elif args_cli.teleop_device.lower() == "oculus":
         teleop_interface = OculusV0(
-            pos_sensitivity=0.6 * args_cli.sensitivity, rot_sensitivity=0.3 * args_cli.sensitivity, base_sensitivity = 0.15 * args_cli.sensitivity
+            pos_sensitivity=0.3 * args_cli.sensitivity, rot_sensitivity=0.3 * args_cli.sensitivity, base_sensitivity = 0.15 * args_cli.sensitivity
         )
     elif args_cli.teleop_device.lower() == "spacemouse":
         teleop_interface = Se3SpaceMouse(
@@ -173,7 +173,7 @@ def main():
 
             actions = pre_process_actions(delta_pose_L, gripper_command_L, delta_pose_R, gripper_command_R, delta_pose_base)
             # apply actions
-            print(actions)
+            # print(actions)
             env.step(actions)
 
             if should_reset_recording_instance:

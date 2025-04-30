@@ -349,50 +349,38 @@ class OculusV0(DeviceBase):
         # fetch latest controller data
         transforms, buttons = self.oculus_reader.get_valid_transforms_and_buttons()  # returns dict with 'leftJS', 'rightJS'
         # ipdb.set_trace()
-        
+        # print(transforms)
         # Delta pose for arms
 
-        # 1. Current transforms
-        T_left_now = transforms["l"]
-        T_right_now = transforms["r"]
-        
-        # 2. Compute delta transforms
-        T_left_delta = np.matmul(T_left_now, np.linalg.inv(self._last_transform_left))
-        T_right_delta = np.matmul(T_right_now, np.linalg.inv(self._last_transform_right))
+        # 1. grab current
+        T_l = transforms["l"]
+        T_r = transforms["r"]
 
-        # 3. Translation delta (only x if you want)
-        delta_pos_left = np.array([
-            -T_left_delta[2, 3],  # x
-            -T_left_delta[0, 3],  # y
-            T_left_delta[1, 3],  # z
-        ]) * self.pos_sensitivity
+        # 2. TRANSLATION DELTA: just position difference
+        #    (new_pos - old_pos), then axis‐swap & sensitivity
+        dp_l_raw = T_l[:3, 3] - self._last_transform_left[:3, 3]
+        dp_r_raw = T_r[:3, 3] - self._last_transform_right[:3, 3]
 
-        delta_pos_right = np.array([
-            -T_right_delta[2, 3],  # x
-            -T_right_delta[0, 3],  # y
-            T_right_delta[1, 3],  # z
-        ]) * self.pos_sensitivity
-        
+        self._delta_pos_left  = np.array([-dp_l_raw[2], -dp_l_raw[0], dp_l_raw[1]]) * self.pos_sensitivity
+        self._delta_pos_right = np.array([-dp_r_raw[2], -dp_r_raw[0], dp_r_raw[1]]) * self.pos_sensitivity
 
-        self._delta_pos_left = delta_pos_left
-        self._delta_pos_right = delta_pos_right
+        # 3. ROTATION DELTA: same as before, via delta‐matrix
+        R_l_delta = T_l[:3, :3] @ self._last_transform_left[:3, :3].T
+        R_r_delta = T_r[:3, :3] @ self._last_transform_right[:3, :3].T
 
-        # 4. Rotation delta (relative rotation)
-        self._delta_rot_left = (Rotation.from_matrix(T_left_delta[:3, :3]).as_rotvec() * self.rot_sensitivity)[[2, 0, 1]]
-        self._delta_rot_left = self._delta_rot_left * [-1, -1, 1]
+        rv_l = Rotation.from_matrix(R_l_delta).as_rotvec() * self.rot_sensitivity
+        rv_r = Rotation.from_matrix(R_r_delta).as_rotvec() * self.rot_sensitivity
 
-        self._delta_rot_right = (Rotation.from_matrix(T_right_delta[:3, :3]).as_rotvec() * self.rot_sensitivity)[[2, 0, 1]]
-        self._delta_rot_right = self._delta_rot_right * [-1, -1, 1]
-       # print('delta_pos_left:', delta_pos_left)
-        # print('delta_pos_right:', delta_pos_right)
-        # print('rot_vec_left:', rot_vec_left)
-        # print('rot_vec_right:', rot_vec_right)
+        # re‐order [z, x, y] and flip signs on first two
+        self._delta_rot_left  = rv_l[[2, 0, 1]] * np.array([-1, -1, 1])
+        self._delta_rot_right = rv_r[[2, 0, 1]] * np.array([-1, -1, 1])
 
-        # 5. Update last transform for next step
-        self._last_transform_left = T_left_now
-        self._last_transform_right = T_right_now
+        # 4. save current for next frame
+        self._last_transform_left  = T_l.copy()
+        self._last_transform_right = T_r.copy()
 
-        if buttons["X"]:
+        # 5. reset on button X
+        if buttons.get("X", False):
             self.reset()
 
         # Gripper
