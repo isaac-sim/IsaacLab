@@ -8,7 +8,7 @@ from isaaclab.assets.articulation import ArticulationCfg
 # Configuration
 ##
 
-ANUBIS_CFG = ArticulationCfg(
+ANUBIS_FIX_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
         usd_path="/root/IsaacLab/source/isaaclab_assets/data/Robots/MM/anubis/anubis_fixed.usd",
         activate_contact_sensors=False,

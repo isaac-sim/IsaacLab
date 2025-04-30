@@ -18,7 +18,7 @@ from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.math import sample_uniform
 import ipdb
 
-from isaaclab_assets.robots.anubis_fix import ANUBIS_CFG
+from isaaclab_assets.robots.anubis_fix import ANUBIS_FIX_CFG
 
 
 
@@ -32,7 +32,7 @@ class AnubisCabinetEnvCfg(DirectRLEnvCfg):
     action_scale: float = 7.5
     dof_velocity_scale: float = 0.1
 
-    action_space: int = 19  # 7 joints per arm
+    action_space: int = 16  # 7 joints per arm
     observation_space: int = 40  # 14 pos + 14 vel + 6 to targets + 2 drawer states
     state_space: int = 0
 
@@ -53,7 +53,7 @@ class AnubisCabinetEnvCfg(DirectRLEnvCfg):
     scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=32, env_spacing=3.0, replicate_physics=True)
 
     # robot uses URDF loader for Anubis
-    robot: ArticulationCfg = ANUBIS_CFG.replace(prim_path="/World/envs/env_.*/Robot")
+    robot: ArticulationCfg = ANUBIS_FIX_CFG.replace(prim_path="/World/envs/env_.*/Robot")
     
     # cabinet
     cabinet = ArticulationCfg(
@@ -63,7 +63,7 @@ class AnubisCabinetEnvCfg(DirectRLEnvCfg):
             activate_contact_sensors=False,
         ),
         init_state=ArticulationCfg.InitialStateCfg(
-            pos=(0.8, 0, 0.4),
+            pos=(0.6, 0, 0.4),
             rot=(0.0, 0.0, 0.0, 1.0),
             joint_pos={
                 "door_left_joint": 0.0,
@@ -229,6 +229,7 @@ class AnubisCabinetEnv(DirectRLEnv):
 
     def _pre_physics_step(self, actions: torch.Tensor):
         a = actions.clone().clamp(-1,1)
+        # ipdb.set_trace()
         delta = self.speed_scale * self.dt * a * self.cfg.action_scale
         self.targets[:] = torch.clamp(self.targets + delta, self.joint_lower, self.joint_upper)
 
