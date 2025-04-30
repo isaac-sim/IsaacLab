@@ -73,6 +73,14 @@ class CameraCfg(SensorBaseCfg):
     height: int = MISSING
     """Height of the image in pixels."""
 
+    update_latest_camera_pose: bool = False
+    """Whether to update the latest camera pose when fetching the camera's data. Defaults to False.
+
+    If True, the latest camera pose is updated in the camera's data which will slow down performance
+    due to the use of :class:`XformPrimView`.
+    If False, the pose of the camera during initialization is returned.
+    """
+
     semantic_filter: str | list[str] = "*:*"
     """A string or a list specifying a semantic filter predicate. Defaults to ``"*:*"``.
 
