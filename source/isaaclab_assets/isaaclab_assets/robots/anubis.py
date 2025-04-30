@@ -86,7 +86,7 @@ ANUBIS_CFG = ArticulationCfg(
             joint_names_expr=["gripper.*"],
             effort_limit_sim=10,
             velocity_limit_sim=0.2,
-            stiffness=1e10,
+            stiffness=1e5,
             damping=1e4,
         ),
     },

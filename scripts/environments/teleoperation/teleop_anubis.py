@@ -173,7 +173,7 @@ def main():
 
             actions = pre_process_actions(delta_pose_L, gripper_command_L, delta_pose_R, gripper_command_R, delta_pose_base)
             # apply actions
-            print(actions)
+            # print(actions)
             env.step(actions)
 
             if should_reset_recording_instance:
