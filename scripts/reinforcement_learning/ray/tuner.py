@@ -59,6 +59,7 @@ PYTHON_EXEC = "./isaaclab.sh -p"
 WORKFLOW = "scripts/reinforcement_learning/rl_games/train.py"
 NUM_WORKERS_PER_NODE = 1  # needed for local parallelism
 PROCESS_RESPONSE_TIMEOUT = 200.0  # seconds to wait before killing the process when it stops responding
+MAX_LINES_TO_SEARCH_EXPERIMENT_LOGS = 1000  # maximum number of lines to read from the training process logs
 
 
 class IsaacLabTuneTrainable(tune.Trainable):
@@ -92,6 +93,8 @@ class IsaacLabTuneTrainable(tune.Trainable):
                 identifier_string="",
                 extract_experiment=True,
                 persistent_dir=BASE_DIR,
+                max_lines_to_search_logs=MAX_LINES_TO_SEARCH_EXPERIMENT_LOGS,
+                max_time_to_search_logs=PROCESS_RESPONSE_TIMEOUT,
             )
             self.experiment = experiment
             print(f"[INFO]: Tuner recovered experiment info {experiment}")
@@ -341,10 +344,19 @@ if __name__ == "__main__":
         default=PROCESS_RESPONSE_TIMEOUT,
         help="Training workflow process response timeout",
     )
+    parser.add_argument(
+        "--max_lines_to_search_experiment_logs",
+        type=float,
+        default=MAX_LINES_TO_SEARCH_EXPERIMENT_LOGS,
+        help="Max number of lines to search for experiment logs before terminating the training workflow process",
+    )
 
     args = parser.parse_args()
     PROCESS_RESPONSE_TIMEOUT = args.process_response_timeout
+    MAX_LINES_TO_SEARCH_EXPERIMENT_LOGS = int(args.max_lines_to_search_experiment_logs)
     print(
+        "[INFO]: The max number of lines to search for experiment logs before (early) terminating the training "
+        f"workflow process is set to {MAX_LINES_TO_SEARCH_EXPERIMENT_LOGS}.\n"
         f"[INFO]: The process response timeout, used while updating tensorboard scalars and searching for "
         f"experiment logs, is set to {PROCESS_RESPONSE_TIMEOUT} seconds."
     )
