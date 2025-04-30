@@ -12,7 +12,8 @@ for this tutorial series is done by calling the ``isaaclab`` scrip from the root
     ./isaaclab.sh --new
 
 Be sure to select ``External`` and ``Direct | single agent``.  For the frameworks, select ``skrl`` and both ``PPO`` and ``AMP`` on the following menu.  You can 
-select other frameworks if you like, but this tutorial will detail ``skrl`` specifically. The configuration process for other frameworks is similar. 
+select other frameworks if you like, but this tutorial will detail ``skrl`` specifically. The configuration process for other frameworks is similar. You 
+can get a copy of this code directly by checking out the `initial branch of the tutorial repository <https://github.com/isaac-sim/isaac_lab_tutorial/tree/initial>`_!
 
 
 This will create an extension project with the specified name at the chosen path.  For this tutorial, we chose the name ``isaac_lab_tutorial``. 
