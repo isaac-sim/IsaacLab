@@ -195,7 +195,7 @@ There are two options to run the CloudXR Runtime Docker container:
              -p 48005:48005/udp \
              -p 48008:48008/udp \
              -p 48012:48012/udp \
-             nvcr.io/nvidia/cloudxr-runtime:0.1.0-isaac
+             nvcr.io/nvidia/cloudxr-runtime:5.0.0
 
       .. note::
          If you choose a particular GPU instead of ``all``, you need to make sure Isaac Lab also runs
