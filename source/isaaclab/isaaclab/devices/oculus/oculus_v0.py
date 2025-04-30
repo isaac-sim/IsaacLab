@@ -373,15 +373,18 @@ class OculusV0(DeviceBase):
             T_right_delta[1, 3],  # z
         ]) * self.pos_sensitivity
         
-        # print('delta_pos_left:', delta_pos_left)
-        # print('delta_pos_right:', delta_pos_right)
+
         self._delta_pos_left = delta_pos_left
         self._delta_pos_right = delta_pos_right
 
         # 4. Rotation delta (relative rotation)
-        self._delta_rot_left = Rotation.from_matrix(T_left_delta[:3, :3]).as_rotvec() * self.rot_sensitivity
-        self._delta_rot_right = Rotation.from_matrix(T_right_delta[:3, :3]).as_rotvec() * self.rot_sensitivity
+        self._delta_rot_left = (Rotation.from_matrix(T_left_delta[:3, :3]).as_rotvec() * self.rot_sensitivity)[[2, 0, 1]]
+        self._delta_rot_left = self._delta_rot_left * [-1, -1, 1]
 
+        self._delta_rot_right = (Rotation.from_matrix(T_right_delta[:3, :3]).as_rotvec() * self.rot_sensitivity)[[2, 0, 1]]
+        self._delta_rot_right = self._delta_rot_right * [-1, -1, 1]
+       # print('delta_pos_left:', delta_pos_left)
+        # print('delta_pos_right:', delta_pos_right)
         # print('rot_vec_left:', rot_vec_left)
         # print('rot_vec_right:', rot_vec_right)
 
