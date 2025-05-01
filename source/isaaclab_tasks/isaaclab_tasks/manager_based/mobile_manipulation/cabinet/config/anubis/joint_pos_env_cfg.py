@@ -31,12 +31,28 @@ class AnubisCabinetEnvCfg(CabinetEnvCfg):
             joint_names=["link1.*", "arm1.*"],
             scale=1.0,
             use_default_offset=True,
+            clip = {
+                "link1_joint": (-0.523599, 0.523599),
+                "link12_joint": (-0.523599, 1.91986),
+                "link13_joint": (0.174533, 2.79253),
+                "link14_joint": (-1.5708, 1.74533),
+                "link15_joint": (-1.5708, 1.57085),
+                "arm1_base_joint": (-1.74533, 1.74533),
+            }
         )
         self.actions.armL_action = mdp.JointPositionActionCfg(
             asset_name="robot",
             joint_names=["link2.*","arm2.*"],
             scale=1.0,
             use_default_offset=True,
+            clip = {
+                "link21_joint": (-0.523599, 0.523599),
+                "link22_joint": (-0.523599, 1.91986),
+                "link23_joint": (0.174533, 2.79253),
+                "link24_joint": (-1.5708, 1.74533),
+                "link25_joint": (-1.5708, 1.57085),
+                "arm2_base_joint": (-1.74533, 1.74533),
+            }
         )
         self.actions.gripperR_action = mdp.BinaryJointPositionActionCfg(
             asset_name="robot",
