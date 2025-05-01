@@ -1,14 +1,17 @@
 # Environment configuration for the Anubis robot in the Cabinet task for RL training.
-
+from isaaclab.assets import RigidObjectCfg
 from isaaclab.sensors import FrameTransformerCfg
 from isaaclab.sensors.frame_transformer.frame_transformer_cfg import OffsetCfg
 from isaaclab.utils import configclass
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
+from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
+from isaaclab.sim.schemas.schemas_cfg import RigidBodyPropertiesCfg
 
-from isaaclab_tasks.manager_based.mobile_manipulation.cabinet import mdp
+from isaaclab_tasks.manager_based.mobile_manipulation.lift import mdp
 
-from isaaclab_tasks.manager_based.mobile_manipulation.cabinet.cabinet_env_cfg import (  # isort: skip
+from isaaclab_tasks.manager_based.mobile_manipulation.lift.lift_env_cfg import (  # isort: skip
     FRAME_MARKER_SMALL_CFG,
-    CabinetEnvCfg,
+    LiftEnvCfg,
 )
 
 ##
@@ -17,15 +20,13 @@ from isaaclab_tasks.manager_based.mobile_manipulation.cabinet.cabinet_env_cfg im
 from isaaclab_assets.robots.anubis import ANUBIS_CFG  # isort:skip
 
 @configclass
-class AnubisCabinetEnvCfg(CabinetEnvCfg):
+class AnubisLiftEnvCfg(LiftEnvCfg):
     def __post_init__(self):
         # post init of parent
         super().__post_init__()
 
         # Set franka as robot
         self.scene.robot = ANUBIS_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
-
-
 
         # Set Actions for the specific robot type (franka)
         self.actions.armR_action = mdp.JointPositionActionCfg(
@@ -59,6 +60,23 @@ class AnubisCabinetEnvCfg(CabinetEnvCfg):
             joint_names=["dummy_base_.*"],
         )
 
+        # Set Cube as object
+        self.scene.object = RigidObjectCfg(
+            prim_path="{ENV_REGEX_NS}/Object",
+            init_state=RigidObjectCfg.InitialStateCfg(pos=[0.5, 0, 0.055], rot=[1, 0, 0, 0]),
+            spawn=UsdFileCfg(
+                usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd",
+                scale=(0.8, 0.8, 0.8),
+                rigid_props=RigidBodyPropertiesCfg(
+                    solver_position_iteration_count=16,
+                    solver_velocity_iteration_count=1,
+                    max_angular_velocity=1000.0,
+                    max_linear_velocity=1000.0,
+                    max_depenetration_velocity=5.0,
+                    disable_gravity=False,
+                ),
+            ),
+        )
         # Listens to the required transforms
         # IMPORTANT: The order of the frames in the list is important. The first frame is the tool center point (TCP)
         # the other frames are the fingers
@@ -126,7 +144,7 @@ class AnubisCabinetEnvCfg(CabinetEnvCfg):
 
 
 @configclass
-class AnubisCabinetEnvCfg_PLAY(AnubisCabinetEnvCfg):
+class AnubisLiftEnvCfg_PLAY(AnubisLiftEnvCfg):
     def __post_init__(self):
         # post init of parent
         super().__post_init__()

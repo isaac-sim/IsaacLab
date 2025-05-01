@@ -17,7 +17,7 @@ from isaaclab.sensors import FrameTransformerCfg
 from isaaclab.sensors.frame_transformer import OffsetCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
-from isaaclab.sensors import CameraCfg, ContactSensorCfg, RayCasterCfg, patterns
+from isaaclab.sensors import CameraCfg
 
 from . import mdp
 
@@ -212,7 +212,7 @@ class EventCfg:
         func=mdp.reset_joints_by_offset,
         mode="reset",
         params={
-            "position_range": (-0.1, 0.1),
+            "position_range": (-0.0, 0.0),
             "velocity_range": (0.0, 0.0),
         },
     )
