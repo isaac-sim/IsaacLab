@@ -73,7 +73,7 @@ class TestOpenXRDevice(unittest.TestCase):
         # Create environment.
         env = ManagerBasedEnv(cfg=env_cfg)
 
-        device = OpenXRDevice(env_cfg.xr, OpenXRDevice.Hand.RIGHT)
+        device = OpenXRDevice(env_cfg.xr)
 
         # Check that the xr anchor prim is created with the correct pose.
         xr_anchor_prim = XFormPrim("/XRAnchor")
@@ -97,7 +97,7 @@ class TestOpenXRDevice(unittest.TestCase):
         # Create environment.
         env = ManagerBasedEnv(cfg=env_cfg)
 
-        device = OpenXRDevice(None, OpenXRDevice.Hand.RIGHT)
+        device = OpenXRDevice(None)
 
         # Check that the xr anchor prim is created with the correct default pose.
         xr_anchor_prim = XFormPrim("/XRAnchor")
@@ -121,8 +121,8 @@ class TestOpenXRDevice(unittest.TestCase):
         # Create environment.
         env = ManagerBasedEnv(cfg=env_cfg)
 
-        device_1 = OpenXRDevice(None, OpenXRDevice.Hand.LEFT)
-        device_2 = OpenXRDevice(None, OpenXRDevice.Hand.RIGHT)
+        device_1 = OpenXRDevice(None)
+        device_2 = OpenXRDevice(None)
 
         # Check that the xr anchor prim is created with the correct default pose.
         xr_anchor_prim = XFormPrim("/XRAnchor")
