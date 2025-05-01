@@ -287,6 +287,9 @@ class OculusV0(DeviceBase):
         self._last_transform_left = np.eye(4)
         self._last_transform_right = np.eye(4)
 
+        # gripper
+        self._prev_LTr_state = False
+        self._prev_RTr_state = False
 
         # xy
         self._last_leftJS = (0.0, 0.0)
@@ -384,10 +387,19 @@ class OculusV0(DeviceBase):
             self.reset()
 
         # Gripper
-        if buttons['LTr']:
+        # Somewhere in your class, add:
+
+        # Then in your update loop or callback:
+        if buttons['LTr'] and not self._prev_LTr_state:
             self._close_gripper_left = not self._close_gripper_left
-        if buttons['RTr']:
+        
+        # Update the previous state for the next cycle
+        self._prev_LTr_state = buttons['LTr']
+
+        if buttons['RTr'] and not self._prev_RTr_state:
             self._close_gripper_right = not self._close_gripper_right
+        # Update the previous state for the next cycle
+        self._prev_RTr_state = buttons['RTr']
 
         # mobile base
 
