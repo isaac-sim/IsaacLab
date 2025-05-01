@@ -88,7 +88,7 @@ import omni.log
 import omni.ui as ui
 
 # Additional Isaac Lab imports that can only be imported after the simulator is running
-from isaaclab.devices import OpenXRDevice, Se3Keyboard, Se3SpaceMouse
+from isaaclab.devices import OpenXRDevice, Se3Keyboard, Se3SpaceMouse, Se3Keyboard_BMM, Oculus_mobile
 
 import isaaclab_mimic.envs  # noqa: F401
 from isaaclab_mimic.ui.instruction_display import InstructionDisplay, show_subtask_instructions
