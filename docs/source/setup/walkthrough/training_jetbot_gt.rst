@@ -51,6 +51,14 @@ The ``VisualizationMarkersCfg`` defines USD prims to serve as the "marker".  Any
 This is because the purpose of these markers is for *debug visualization only* and not to be a part of the simulation: the user has full control over how many markers to draw when and where. 
 NVIDIA provides several simple meshes on our public nucleus server, located at ``ISAAC_NUCLEUS_DIR``.
 
+.. dropdown:: Code for the markers.py demo
+   :icon: code
+
+   .. literalinclude:: ../../../../scripts/demos/markers.py
+      :language: python
+      :linenos:
+
+
 Exploring the problem
 -----------------------
 

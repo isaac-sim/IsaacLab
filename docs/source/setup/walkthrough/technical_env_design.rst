@@ -194,3 +194,10 @@ Finally, the ``_reset_idx`` method accepts a tensor of booleans indicating which
 ``super``, which is done so here to manage the internal buffers related to episode length.  For those environments indicated by ``env_ids`` we retrieve the root default state, and reset the robot to that state while
 also offsetting the position of each robot according to the origin of the corresponding scene. This is a consequence of the cloning procedure, which starts with a single robot and a single default state defined in the world
 frame. Don't forget this step for your own custom environments!
+
+With these changes complete, you should see the Jetbot slowly learn to drive forward when you launch the task with the template ``train.py`` script.
+
+.. figure:: ../../_static/setup/walkthrough_1_1_result.jpg
+    :align: center
+    :figwidth: 100%
+    :alt: The Jetbot invasion begins!
