@@ -230,7 +230,7 @@ class OculusReader:
 
 
 
-class OculusV0(DeviceBase):
+class Oculus_mobile(DeviceBase):
     """A joystick controller for sending SE(3) commands as delta poses and binary command (open/close).
 
     This class is designed to provide a joystick controller for a bi-manual mobile manipulator.
@@ -308,15 +308,15 @@ class OculusV0(DeviceBase):
     
     def reset(self):
         """Reset all commands."""
-        self._close_gripper_left = False
-        self._close_gripper_right = False
+        # self._close_gripper_left = False
+        # self._close_gripper_right = False
         self._delta_pos_left = np.zeros(3)
         self._delta_rot_left = np.zeros(3)
         self._delta_pos_right = np.zeros(3)
         self._delta_rot_right = np.zeros(3)
         self._delta_base = np.zeros(3)
-        self._base_z_accum = 0.0
-        self._key_hold_start = {}  # Reset key hold tracking
+        # self._base_z_accum = 0.0
+        # self._key_hold_start = {}  # Reset key hold tracking
 
     def __str__(self) -> str:
         """Returns: A string containing the information of joystick."""
@@ -457,7 +457,7 @@ class OculusV0(DeviceBase):
                         0.0
                     ])
                 ) * self.base_sensitivity
-                self._delta_base -= old_vec
+                self._delta_base -= old_vec[[1,0,2]]* np.array([1, -1, 1])
 
                 # 2) add in the new
                 new_vec = (
@@ -472,7 +472,7 @@ class OculusV0(DeviceBase):
                         0.0
                     ])
                 ) * self.base_sensitivity
-                self._delta_base += new_vec
+                self._delta_base += new_vec[[1,0,2]]* np.array([1, -1, 1])
 
                 # 3) remember it
                 self._last_leftJS = new_js

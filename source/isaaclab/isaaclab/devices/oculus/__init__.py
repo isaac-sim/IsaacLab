@@ -1,1 +1,1 @@
-from .oculus_v0 import OculusV0
+from .oculus_v0 import Oculus_mobile

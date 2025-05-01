@@ -36,7 +36,7 @@ import torch
 import ipdb
 import omni.log
 
-from isaaclab.devices import Se3Gamepad, Se3Keyboard, Se3SpaceMouse, Se3Keyboard_BMM, OculusV0
+from isaaclab.devices import Se3Gamepad, Se3Keyboard, Se3SpaceMouse, Se3Keyboard_BMM, Oculus_mobile
 from isaaclab.envs import ViewerCfg
 from isaaclab.envs.ui import ViewportCameraController
 from isaaclab.managers import TerminationTermCfg as DoneTerm
@@ -114,7 +114,7 @@ def main():
             pos_sensitivity=0.005 * args_cli.sensitivity, rot_sensitivity=0.01 * args_cli.sensitivity
         )
     elif args_cli.teleop_device.lower() == "oculus":
-        teleop_interface = OculusV0(
+        teleop_interface = Oculus_mobile(
             pos_sensitivity=0.8 * args_cli.sensitivity, rot_sensitivity=0.5 * args_cli.sensitivity, base_sensitivity = 0.10 * args_cli.sensitivity
         )
     elif args_cli.teleop_device.lower() == "spacemouse":
