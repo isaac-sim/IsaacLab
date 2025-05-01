@@ -2,6 +2,3 @@
 
 Training the Jetbot: Ground Truth
 ======================================
-
-
-
