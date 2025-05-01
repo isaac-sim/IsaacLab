@@ -49,7 +49,9 @@ To begin, we need to define the marker config and then instantiate the markers w
 
 The ``VisualizationMarkersCfg`` defines USD prims to serve as the "marker".  Any prim will do, but generally you want to keep markers as simple as possible because the cloning of markers occurs at runtime on every time step.
 This is because the purpose of these markers is for *debug visualization only* and not to be a part of the simulation: the user has full control over how many markers to draw when and where. 
-NVIDIA provides several simple meshes on our public nucleus server, located at ``ISAAC_NUCLEUS_DIR``.
+NVIDIA provides several simple meshes on our public nucleus server, located at ``ISAAC_NUCLEUS_DIR``, and for obvious reasons we choose to use ``arrow_x.usd``.
+
+For a more detailed example of using ``VisualizationMarkers`` checkout the ``markers.py`` demo!
 
 .. dropdown:: Code for the markers.py demo
    :icon: code
@@ -58,6 +60,53 @@ NVIDIA provides several simple meshes on our public nucleus server, located at `
       :language: python
       :linenos:
 
+Next, we need to expand the initialization and setup steps to construct the data we need for tracking the commands as well as the marker positions and rotations. Replace the contents of 
+``_setup_scene`` with the following
+
+.. code-block:: python
+
+    def _setup_scene(self):
+        self.visualization_markers = define_markers()
+        self.robot = Articulation(self.cfg.robot_cfg)
+        # add ground plane
+        spawn_ground_plane(prim_path="/World/ground", cfg=GroundPlaneCfg())
+        # clone and replicate
+        self.scene.clone_environments(copy_from_source=False)
+        # add articulation to scene
+        self.scene.articulations["robot"] = self.robot
+        # add lights
+        light_cfg = sim_utils.DomeLightCfg(intensity=2000.0, color=(0.75, 0.75, 0.75))
+        light_cfg.func("/World/Light", light_cfg)
+
+        self.all_envs = torch.arange(self.cfg.scene.num_envs)
+        self.up_dir = torch.tensor([0.0, 0.0, 1.0]).cuda()  
+        self.yaws = torch.zeros((self.cfg.scene.num_envs, 1)).cuda()
+
+        self.commands = torch.randn((self.cfg.scene.num_envs, 3)).cuda()
+        self.commands[:,-1] = 0.0
+        self.commands = self.commands/torch.linalg.norm(self.commands, dim=1, keepdim=True)
+        
+        ratio = self.commands[:,1]/(self.commands[:,0]+1E-8)
+        
+        gzero = torch.where(self.commands > 0, True, False)
+        lzero = torch.where(self.commands < 0, True, False)
+        plus = lzero[:,0]*gzero[:,1]
+        minus = lzero[:,0]*lzero[:,1]
+        offsets = torch.pi*plus - torch.pi*minus
+
+        self.yaws = torch.atan(ratio).reshape(-1,1) + offsets.reshape(-1,1)
+
+        self.marker_locations = torch.zeros((self.cfg.scene.num_envs, 3)).cuda()
+        self.marker_offset = torch.zeros((self.cfg.scene.num_envs, 3)).cuda()
+        self.marker_offset[:,-1] = 0.5
+        self.forward_marker_orientations = torch.zeros((self.cfg.scene.num_envs, 4)).cuda()
+        self.command_marker_orientations = torch.zeros((self.cfg.scene.num_envs, 4)).cuda()
+
+
+.. figure:: ../../_static/setup/walkthrough_training_vectors.svg
+    :align: center
+    :figwidth: 100%
+    :alt: Useful vector definitions for training 
 
 Exploring the problem
 -----------------------
