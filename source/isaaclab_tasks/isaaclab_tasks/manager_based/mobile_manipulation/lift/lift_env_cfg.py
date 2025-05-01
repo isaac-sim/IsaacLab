@@ -16,9 +16,8 @@ from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdF
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.sensors import CameraCfg
+
 from isaaclab.markers.config import FRAME_MARKER_CFG  # isort: skip
-
-
 FRAME_MARKER_SMALL_CFG = FRAME_MARKER_CFG.copy()
 FRAME_MARKER_SMALL_CFG.markers["frame"].scale = (0.10, 0.10, 0.10)
 
@@ -47,15 +46,16 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
     # Table
     table = AssetBaseCfg(
         prim_path="{ENV_REGEX_NS}/Table",
-        init_state=AssetBaseCfg.InitialStateCfg(pos=[2, 0, 1.05], rot=[0.707, 0, 0, 0.707]),
+        init_state=AssetBaseCfg.InitialStateCfg(pos=[1, 0, 1.05], rot=[1, 0, 0, 0]),
         spawn=UsdFileCfg(usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/SeattleLabTable/table_instanceable.usd"),
     )
 
     # plane
     plane = AssetBaseCfg(
         prim_path="/World/GroundPlane",
-        init_state=AssetBaseCfg.InitialStateCfg(pos=[0, 0, 0]),
-        spawn=GroundPlaneCfg(),
+        init_state=AssetBaseCfg.InitialStateCfg(),
+        spawn=sim_utils.GroundPlaneCfg(),
+        collision_group=-1,
     )
 
     # lights
@@ -89,7 +89,7 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
 ##
 
 
-@configclass
+# @configclass
 # class CommandsCfg:
 #     """Command terms for the MDP."""
 
@@ -136,12 +136,33 @@ class ObservationsCfg:
     policy: PolicyCfg = PolicyCfg()
 
 
+
 @configclass
 class EventCfg:
     """Configuration for events."""
 
+    robot_physics_material = EventTerm(
+        func=mdp.randomize_rigid_body_material,
+        mode="startup",
+        params={
+            "asset_cfg": SceneEntityCfg("robot", body_names=".*"),
+            "static_friction_range": (0.8, 1.25),
+            "dynamic_friction_range": (0.8, 1.25),
+            "restitution_range": (0.0, 0.0),
+            "num_buckets": 16,
+        },
+    )
+
     reset_all = EventTerm(func=mdp.reset_scene_to_default, mode="reset")
 
+    reset_robot_joints = EventTerm(
+        func=mdp.reset_joints_by_offset,
+        mode="reset",
+        params={
+            "position_range": (-0.0, 0.0),
+            "velocity_range": (0.0, 0.0),
+        },
+    )
     reset_object_position = EventTerm(
         func=mdp.reset_root_state_uniform,
         mode="reset",
@@ -149,14 +170,6 @@ class EventCfg:
             "pose_range": {"x": (-0.1, 0.1), "y": (-0.25, 0.25), "z": (0.0, 0.0)},
             "velocity_range": {},
             "asset_cfg": SceneEntityCfg("object", body_names="Object"),
-        },
-    )
-    reset_robot_joints = EventTerm(
-        func=mdp.reset_joints_by_offset,
-        mode="reset",
-        params={
-            "position_range": (-0.0, 0.0),
-            "velocity_range": (0.0, 0.0),
         },
     )
 
@@ -234,19 +247,18 @@ class LiftEnvCfg(ManagerBasedRLEnvCfg):
     rewards: RewardsCfg = RewardsCfg()
     terminations: TerminationsCfg = TerminationsCfg()
     events: EventCfg = EventCfg()
-    curriculum: CurriculumCfg = CurriculumCfg()
+    # curriculum: CurriculumCfg = CurriculumCfg()
 
     def __post_init__(self):
         """Post initialization."""
         # general settings
-        self.decimation = 2
-        self.episode_length_s = 5.0
+        self.decimation = 1
+        self.episode_length_s = 8.0
+        self.viewer.eye = (-2.0, 2.0, 2.0)
+        self.viewer.lookat = (0.8, 0.0, 0.5)
         # simulation settings
-        self.sim.dt = 0.01  # 100Hz
+        self.sim.dt = 1 / 60  # 60Hz
         self.sim.render_interval = self.decimation
-
         self.sim.physx.bounce_threshold_velocity = 0.2
         self.sim.physx.bounce_threshold_velocity = 0.01
-        self.sim.physx.gpu_found_lost_aggregate_pairs_capacity = 1024 * 1024 * 4
-        self.sim.physx.gpu_total_aggregate_pairs_capacity = 16 * 1024
         self.sim.physx.friction_correlation_distance = 0.00625

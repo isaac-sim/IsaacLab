@@ -18,7 +18,6 @@ class AnubisCabinetEnvCfg(joint_pos_env_cfg.AnubisCabinetEnvCfg):
         # post init of parent
         super().__post_init__()
 
-        # Set Franka as robot
         # We switch here to a stiffer PD controller for IK tracking to be better.
         self.scene.robot = ANUBIS_PD_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
 
@@ -40,9 +39,6 @@ class AnubisCabinetEnvCfg(joint_pos_env_cfg.AnubisCabinetEnvCfg):
             scale=0.5,
             body_offset=DifferentialInverseKinematicsActionCfg.OffsetCfg(pos=[0.0, 0.0, 0.107]),
         )
-
-        # self.
-
 
 @configclass
 class AnubisCabinetEnvCfg_PLAY(AnubisCabinetEnvCfg):
