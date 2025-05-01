@@ -25,8 +25,6 @@ class AnubisCabinetEnvCfg(CabinetEnvCfg):
         # Set franka as robot
         self.scene.robot = ANUBIS_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
 
-
-
         # Set Actions for the specific robot type (franka)
         self.actions.armR_action = mdp.JointPositionActionCfg(
             asset_name="robot",
