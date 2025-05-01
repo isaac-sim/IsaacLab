@@ -111,7 +111,7 @@ def main():
         )
     elif args_cli.teleop_device.lower() == "keyboard_bmm":
         teleop_interface = Se3Keyboard_BMM(
-            pos_sensitivity=0.005 * args_cli.sensitivity, rot_sensitivity=0.01 * args_cli.sensitivity
+            pos_sensitivity=0.005 * args_cli.sensitivity, rot_sensitivity=0.03 * args_cli.sensitivity, base_sensitivity = 0.5 * args_cli.sensitivity
         )
     elif args_cli.teleop_device.lower() == "oculus":
         teleop_interface = Oculus_mobile(

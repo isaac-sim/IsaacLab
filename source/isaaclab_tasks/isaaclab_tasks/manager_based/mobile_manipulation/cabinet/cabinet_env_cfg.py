@@ -17,6 +17,7 @@ from isaaclab.sensors import FrameTransformerCfg
 from isaaclab.sensors.frame_transformer import OffsetCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
+from isaaclab.sensors import CameraCfg, ContactSensorCfg, RayCasterCfg, patterns
 
 from . import mdp
 
@@ -62,7 +63,27 @@ class CabinetSceneCfg(InteractiveSceneCfg):
         prim_path="/World/light",
         spawn=sim_utils.DomeLightCfg(color=(0.75, 0.75, 0.75), intensity=3000.0),
     )
-
+    
+    camera_Head = CameraCfg(
+        prim_path="{ENV_REGEX_NS}/Robot/base_link/head_cam",
+        update_period=0.1,
+        height=480,
+        width=640,
+        data_types=["rgb", "distance_to_image_plane"],
+        spawn = sim_utils.PinholeCameraCfg(
+            focal_length=14.0,
+            focus_distance=400.0,
+            horizontal_aperture=20.955,
+            clipping_range=(0.1, 1.0e5),
+        ),
+        offset = CameraCfg.OffsetCfg(
+            pos=(-0.4, 0.0, 1.5),
+            rot=(0.62721, 0.32651, -0.32651, -0.62721),
+            convention="opengl",
+        ),
+    )
+    
+    
     cabinet = ArticulationCfg(
         prim_path="{ENV_REGEX_NS}/Cabinet",
         spawn=sim_utils.UsdFileCfg(
