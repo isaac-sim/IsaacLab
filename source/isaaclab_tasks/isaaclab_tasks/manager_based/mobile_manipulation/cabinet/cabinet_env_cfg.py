@@ -3,6 +3,7 @@
 from dataclasses import MISSING
 
 import isaaclab.sim as sim_utils
+from isaaclab.assets import ArticulationCfg, AssetBaseCfg, DeformableObjectCfg, RigidObjectCfg
 from isaaclab.actuators.actuator_cfg import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
@@ -49,7 +50,9 @@ class CabinetSceneCfg(InteractiveSceneCfg):
     # End-effector, Will be populated by agent env cfg
     ee_R_frame: FrameTransformerCfg = MISSING
     ee_L_frame: FrameTransformerCfg = MISSING
-
+    # target object: will be populated by agent env cfg
+    object: RigidObjectCfg | DeformableObjectCfg = MISSING
+    
     # plane
     plane = AssetBaseCfg(
         prim_path="/World/GroundPlane",
@@ -89,10 +92,10 @@ class CabinetSceneCfg(InteractiveSceneCfg):
         spawn=sim_utils.UsdFileCfg(
             usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Sektion_Cabinet/sektion_cabinet_instanceable.usd",
             activate_contact_sensors=False,
-            scale=(1.5, 1.5, 1.5), 
+            scale=(1.5, 1.5, 1.2), 
         ),
         init_state=ArticulationCfg.InitialStateCfg(
-            pos=(2, 0, 0.6),
+            pos=(1.5, 0, 0.6),
             rot=(0.0, 0.0, 0.0, 1.0),
             joint_pos={
                 "door_left_joint": 0.0,
@@ -118,6 +121,8 @@ class CabinetSceneCfg(InteractiveSceneCfg):
             ),
         },
     )
+    
+    
     # Frame definitions for the cabinet.
     cabinet_frame = FrameTransformerCfg(
         prim_path="{ENV_REGEX_NS}/Cabinet/sektion",
@@ -214,6 +219,15 @@ class EventCfg:
         params={
             "position_range": (-0.0, 0.0),
             "velocity_range": (0.0, 0.0),
+        },
+    )
+    reset_object_position = EventTerm(
+        func=mdp.reset_root_state_uniform,
+        mode="reset",
+        params={
+            "pose_range": {"x": (-0.1, 0.1), "y": (-0.25, 0.25), "z": (0.0, 0.0)},
+            "velocity_range": {},
+            "asset_cfg": SceneEntityCfg("object", body_names="Object"),
         },
     )
 

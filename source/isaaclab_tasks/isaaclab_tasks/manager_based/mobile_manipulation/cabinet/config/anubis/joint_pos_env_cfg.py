@@ -1,8 +1,11 @@
 # Environment configuration for the Anubis robot in the Cabinet task for RL training.
-
+from isaaclab.assets import RigidObjectCfg
 from isaaclab.sensors import FrameTransformerCfg
 from isaaclab.sensors.frame_transformer.frame_transformer_cfg import OffsetCfg
 from isaaclab.utils import configclass
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
+from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
+from isaaclab.sim.schemas.schemas_cfg import RigidBodyPropertiesCfg
 
 from isaaclab_tasks.manager_based.mobile_manipulation.cabinet import mdp
 
@@ -71,6 +74,23 @@ class AnubisCabinetEnvCfg(CabinetEnvCfg):
         self.actions.base_action = mdp.JointVelocityActionCfg(
             asset_name="robot",
             joint_names=["dummy_base_.*"],
+        )
+        
+        self.scene.object = RigidObjectCfg(
+            prim_path="{ENV_REGEX_NS}/Object",
+            init_state=RigidObjectCfg.InitialStateCfg(pos=[1.15, 0, 1.5], rot=[1, 0, 0, 0]),
+            spawn=UsdFileCfg(
+                usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd",
+                scale=(0.8, 0.8, 0.8),
+                rigid_props=RigidBodyPropertiesCfg(
+                    solver_position_iteration_count=16,
+                    solver_velocity_iteration_count=1,
+                    max_angular_velocity=1000.0,
+                    max_linear_velocity=1000.0,
+                    max_depenetration_velocity=5.0,
+                    disable_gravity=False,
+                ),
+            ),
         )
 
         # Listens to the required transforms
