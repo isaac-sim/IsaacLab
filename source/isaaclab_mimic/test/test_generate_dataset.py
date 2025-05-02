@@ -59,10 +59,6 @@ class TestGenerateDataset(unittest.TestCase):
             DATASETS_DOWNLOAD_DIR + "/dataset.hdf5",
             "--output_file",
             DATASETS_DOWNLOAD_DIR + "/annotated_dataset.hdf5",
-            "--signals",
-            "grasp_1",
-            "stack_1",
-            "grasp_2",
             "--auto",
             "--headless",
         ]
