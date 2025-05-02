@@ -215,7 +215,7 @@ is created by using the ``robot_config`` we defined in ``IsaacLabTutorialEnvCfg`
 articulation is created, the robot exists on the stage at ``/World/envs/env_0/Robot``.  The call to ``scene.clone_environments`` then
 copies ``env_0`` appropriately.  At this point the robot exists as many copies on the stage, so all that's left is to notify the ``scene``
 object of the existence of this articulation to be tracked.  The articulations of the scene are kept as a dictionary, so ``scene.articulations["robot"] = self.robot``
-creates a new ``robot`` element of the ``articulations``dictionary and sets the value to be ``self.robot``.
+creates a new ``robot`` element of the ``articulations`` dictionary and sets the value to be ``self.robot``.
 
 Notice also that the remaining functions do not take additional arguments save ``_reset_idx``.  This is because the environment only manages the application of
 actions to the agent being simulated, and then updating the sim.  This is what the ``_pre_physics_step`` and ``_apply_action`` steps are for: we set the drive commands

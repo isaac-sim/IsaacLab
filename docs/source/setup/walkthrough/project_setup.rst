@@ -5,7 +5,7 @@ Isaac Lab Project Setup
 ========================
 
 The best way to create a new project is to use the :ref:`Template Generator<template-generator>`. Generating the template
-for this tutorial series is done by calling the ``isaaclab`` scrip from the root directory of the repository
+for this tutorial series is done by calling the ``isaaclab`` script from the root directory of the repository
 
 .. code-block:: bash
 

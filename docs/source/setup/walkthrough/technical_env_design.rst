@@ -14,7 +14,7 @@ centrally. We will need to write the code that will...
 #. Manage resetting and terminal states
 
 As a first step, our goal will be to get the environment training pipeline to load and run.  We will use a dummy reward signal
-for the purposes of this part of the walkthrough. You can find the code for these modifications `here <https://github.com/isaac-sim/isaac_lab_tutorial/tree/jetbot-intro-1-1>`!
+for the purposes of this part of the walkthrough. You can find the code for these modifications `here <https://github.com/isaac-sim/isaac_lab_tutorial/tree/jetbot-intro-1-1>`_!
 
 Define the Robot
 ------------------
@@ -136,7 +136,7 @@ policy being trained and applying updates to the physics simulation. The ``_appl
 on the stage, after which the simulation is actually stepped forward in time.
 
 Next is the observations and rewards, which is just going to depend on the linear velocity of the Jetbot in the body frame of the robot. Replace the contents of ``_get_observations``
-and ``_get_rewards``with the following.
+and ``_get_rewards`` with the following.
 
 .. code-block:: python
 
@@ -151,7 +151,7 @@ and ``_get_rewards``with the following.
 
 The robot exists as an Articulation object within the Isaac Lab API. That object carries a data class, the ``ArticulationData``, which contains all the data for **specific** robots on the stage.
 When we talk about a scene entity like the robot, we can either be talking about the robot broadly, as an entity that exists in every scene, or we can be describing a specific, singular clone
-of the robot on the stage. The ``ArticulationData`` contains the data for those individual clones. This includes things like various kinematic vectors (like ``root_com_lin_vel_b``) and reference 
+of the robot on the stage. The ``ArticulationData`` contains the data for those individual clones. This includes things like various kinematic vectors (like ``root_com_lin_vel_b``) and reference
 vectors (like ``robot.data.FORWARD_VEC_B``).
 
 Notice how in the ``_apply_action`` method, we are calling a method of ``self.robot`` which is a method of ``Articulation``. The actions being applied are in the form of a 2D tensor
