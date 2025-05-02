@@ -324,6 +324,18 @@ def main():
         nonlocal running_recording_instance
         if device_name == "keyboard":
             return Se3Keyboard(pos_sensitivity=0.2, rot_sensitivity=0.5)
+        elif args_cli.teleop_device.lower() == "keyboard_bmm":
+            return Se3Keyboard_BMM(
+                pos_sensitivity=0.005 * args_cli.sensitivity, 
+                rot_sensitivity=0.03 * args_cli.sensitivity,
+                base_sensitivity = 0.5 * args_cli.sensitivity
+            )
+        elif device_name == "oculus":
+            return Oculus_mobile(
+                pos_sensitivity=0.8 * args_cli.sensitivity,
+                rot_sensitivity=0.5 * args_cli.sensitivity,
+                base_sensitivity=0.1 * args_cli.sensitivity
+                )
         elif device_name == "spacemouse":
             return Se3SpaceMouse(pos_sensitivity=0.2, rot_sensitivity=0.5)
         elif "dualhandtracking_abs" in device_name and "GR1T2" in env.cfg.env_name:

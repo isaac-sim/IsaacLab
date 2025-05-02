@@ -15,39 +15,51 @@ def cube_in_cabinet(
     cube_1_cfg: SceneEntityCfg = SceneEntityCfg("cube_1"),
     cabinet_cfg: SceneEntityCfg = SceneEntityCfg("cabinet"),
 
-    xy_threshold: float = 0.05,
-    height_threshold: float = 0.005,
-    height_diff: float = 0.0468,
-    gripper_open_val: torch.tensor = torch.tensor([0.04]),
-    atol=0.0001,
-    rtol=0.0001,
+    top_cabinet_height: float = 0.3,
+    ztol=0.1,
 ):
     robot: Articulation = env.scene[robot_cfg.name]
     cube_1: RigidObject = env.scene[cube_1_cfg.name]
+    cabinet: Articulation = env.scene[cabinet_cfg.name]
 
+    cube_pos = cube_1.data.root_pos_w  
+    
+    cabinet_body_pos = cabinet.data.body_pos_w  # shape: (1, num_bodies, 3)
 
-    pos_diff_c12 = cube_1.data.root_pos_w - cube_2.data.root_pos_w
-    pos_diff_c23 = cube_2.data.root_pos_w - cube_3.data.root_pos_w
+    # Compute min and max in the x, y, z dimensions
+    cabinet_min = cabinet_body_pos.min(dim=1).values[0]  # shape: (3,)
+    cabinet_max = cabinet_body_pos.max(dim=1).values[0]  # shape: (3,)
 
-    # Compute cube position difference in x-y plane
-    xy_dist_c12 = torch.norm(pos_diff_c12[:, :2], dim=1)
-    xy_dist_c23 = torch.norm(pos_diff_c23[:, :2], dim=1)
+    # Unpack the results into variables directly
+    cabinet_x_min, cabinet_y_min, cabinet_z_min = cabinet_min  # Shape (3,)
+    cabinet_x_max, cabinet_y_max, cabinet_z_max = cabinet_max  # Shape (3,)
 
-    # Compute cube height difference
-    h_dist_c12 = torch.norm(pos_diff_c12[:, 2:], dim=1)
-    h_dist_c23 = torch.norm(pos_diff_c23[:, 2:], dim=1)
-
-    # Check cube positions
-    stacked = torch.logical_and(xy_dist_c12 < xy_threshold, xy_dist_c23 < xy_threshold)
-    stacked = torch.logical_and(h_dist_c12 - height_diff < height_threshold, stacked)
-    stacked = torch.logical_and(h_dist_c23 - height_diff < height_threshold, stacked)
-
-    # Check gripper positions
-    stacked = torch.logical_and(
-        torch.isclose(robot.data.joint_pos[:, -1], gripper_open_val.to(env.device), atol=atol, rtol=rtol), stacked
+    
+    # x
+    inside_cabinet =torch.logical_and(
+        cube_pos[:, 0] > cabinet_x_min,
+        cube_pos[:, 0] < cabinet_x_max,
     )
-    stacked = torch.logical_and(
-        torch.isclose(robot.data.joint_pos[:, -2], gripper_open_val.to(env.device), atol=atol, rtol=rtol), stacked
+    
+    # y
+    inside_cabinet =torch.logical_and(
+        cube_pos[:, 1] > cabinet_y_min,
+        inside_cabinet,
     )
+    inside_cabinet =torch.logical_and(
+        cube_pos[:, 1] < cabinet_y_max,
+        inside_cabinet,
+    )
+    
+    # z
+    inside_cabinet =torch.logical_and(
+        cube_pos[:, 2] > cabinet_z_max - top_cabinet_height,
+        inside_cabinet,
+    )
+    inside_cabinet =torch.logical_and(
+        cube_pos[:, 2] < cabinet_z_max - ztol,
+        inside_cabinet,
+    )
+    
 
-    return stacked
+    return inside_cabinet
