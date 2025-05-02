@@ -276,6 +276,9 @@ while [[ $# -gt 0 ]]; do
             # install the python packages in IsaacLab/source directory
             echo "[INFO] Installing extensions inside the Isaac Lab repository..."
             python_exe=$(extract_python_exe)
+            # first install pytorch with cuda 12.8 for blackwell support
+            ${python_exe} -m pip uninstall -y torch torchvision torchaudio
+            ${python_exe} -m pip install torch==2.7.0 torchvision==0.22.0 --index-url https://download.pytorch.org/whl/cu128
             # recursively look into directories and install them
             # this does not check dependencies between extensions
             export -f extract_python_exe

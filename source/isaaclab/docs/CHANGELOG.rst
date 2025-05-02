@@ -1,7 +1,7 @@
 Changelog
 ---------
 
-0.40.5 (2025-05-22)
+0.41.5 (2025-05-22)
 ~~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -11,7 +11,7 @@ Fixed
   currently has limitations for CPU simulation. Collision filtering needs to be manually enabled when using CPU simulation.
 
 
-0.40.4 (2025-06-03)
+0.41.4 (2025-06-03)
 ~~~~~~~~~~~~~~~~~~~
 
 Changed
@@ -22,7 +22,7 @@ Changed
   passed in the ``TerrainGeneratorCfg``.
 
 
-0.40.3 (2025-03-20)
+0.41.3 (2025-03-20)
 ~~~~~~~~~~~~~~~~~~~
 
 Changed
@@ -37,7 +37,7 @@ Changed
   more readable.
 
 
-0.40.2 (2025-05-10)
+0.41.2 (2025-05-10)
 ~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -47,7 +47,7 @@ Added
 * Added support for specifying module:task_name as task name to avoid module import for ``gym.make``
 
 
-0.40.1 (2025-06-02)
+0.41.1 (2025-06-02)
 ~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -63,7 +63,7 @@ Changed
   to make it available for mdp functions.
 
 
-0.40.0 (2025-05-16)
+0.41.0 (2025-05-16)
 ~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -79,7 +79,7 @@ Changed
   :meth:`~isaaclab.utils.math.quat_apply` and :meth:`~isaaclab.utils.math.quat_apply_inverse` for speed.
 
 
-0.39.7 (2025-05-19)
+0.40.7 (2025-05-19)
 ~~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -89,7 +89,7 @@ Fixed
   of assets and sensors.used from the experience files and the double definition is removed.
 
 
-0.39.6 (2025-01-30)
+0.40.6 (2025-01-30)
 ~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -99,7 +99,7 @@ Added
   in the simulation.
 
 
-0.39.5 (2025-05-16)
+0.40.5 (2025-05-16)
 ~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -114,7 +114,7 @@ Changed
   resampling call.
 
 
-0.39.4 (2025-05-16)
+0.40.4 (2025-05-16)
 ~~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -123,7 +123,7 @@ Fixed
 * Fixed penetration issue for negative border height in :class:`~isaaclab.terrains.terrain_generator.TerrainGeneratorCfg`.
 
 
-0.39.3 (2025-05-16)
+0.40.3 (2025-05-16)
 ~~~~~~~~~~~~~~~~~~~
 
 Changed
@@ -138,7 +138,7 @@ Added
 * Added :meth:`~isaaclab.utils.math.rigid_body_twist_transform`
 
 
-0.39.2 (2025-05-15)
+0.40.2 (2025-05-15)
 ~~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -152,14 +152,14 @@ Fixed
   unused USD camera parameters.
 
 
-0.39.1 (2025-05-14)
+0.40.1 (2025-05-14)
 ~~~~~~~~~~~~~~~~~~~
 
 * Added a new attribute :attr:`articulation_root_prim_path` to the :class:`~isaaclab.assets.ArticulationCfg` class
   to allow explicitly specifying the prim path of the articulation root.
 
 
-0.39.0 (2025-05-03)
+0.40.0 (2025-05-03)
 ~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -170,8 +170,8 @@ Added
   This allows for :attr:`semantic_segmentation_mapping` to be used when using the ground plane spawner.
 
 
-0.38.0 (2025-04-01)
-~~~~~~~~~~~~~~~~~~~
+0.39.0 (2025-04-01)
+~~~~~~~~~~~~~~~~~~
 
 Added
 ~~~~~
@@ -179,7 +179,7 @@ Added
 * Added the :meth:`~isaaclab.env.mdp.observations.joint_effort`
 
 
-0.37.0 (2025-04-01)
+0.38.0 (2025-04-01)
 ~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -187,6 +187,18 @@ Added
 
 * Added :meth:`~isaaclab.envs.mdp.observations.body_pose_w`
 * Added :meth:`~isaaclab.envs.mdp.observations.body_projected_gravity_b`
+
+
+0.37.0 (2025-04-24)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated pytorch to latest 2.7.0 with cuda 12.8 for Blackwell support.
+  Torch is now installed as part of the isaaclab.sh/bat scripts to ensure the correct version is installed.
+* Removed :attr:`~isaaclab.sim.spawners.PhysicsMaterialCfg.improve_patch_friction` as it has been deprecated and removed from the simulation.
+  The simulation will always behave as if this attribute is set to true.
 
 
 0.36.23 (2025-04-24)

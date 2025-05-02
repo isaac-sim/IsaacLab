@@ -343,7 +343,7 @@ def warm_start_app():
         capture_output=True,
     )
     if len(warm_start_output.stderr) > 0:
-        if "DeprecationWarning" not in str(warm_start_output.stderr):
+        if "omni::fabric::IStageReaderWriter" not in str(warm_start_output.stderr):
             logging.error(f"Error warm starting the app: {str(warm_start_output.stderr)}")
             exit(1)
 
@@ -360,7 +360,7 @@ def warm_start_app():
         capture_output=True,
     )
     if len(warm_start_rendering_output.stderr) > 0:
-        if "DeprecationWarning" not in str(warm_start_rendering_output.stderr):
+        if "omni::fabric::IStageReaderWriter" not in str(warm_start_rendering_output.stderr):
             logging.error(f"Error warm starting the app with rendering: {str(warm_start_rendering_output.stderr)}")
             exit(1)
 

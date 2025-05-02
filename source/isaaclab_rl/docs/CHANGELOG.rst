@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.2.0 (2025-04-24)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Switched to a 3.11 compatible branch for rl-games as Isaac Sim 5.0 is now using Python 3.11.
+
+
 0.1.4 (2025-04-10)
 ~~~~~~~~~~~~~~~~~~
 

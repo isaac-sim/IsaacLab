@@ -4,6 +4,14 @@ Release Notes
 The release notes are now available in the `Isaac Lab GitHub repository <https://github.com/isaac-sim/IsaacLab/releases>`_.
 We summarize the release notes here for convenience.
 
+v2.2.0
+======
+
+Breaking Changes
+----------------
+
+* :attr:`~isaaclab.sim.spawners.PhysicsMaterialCfg.improve_patch_friction` is now removed. The simulation will always behave as if this attribute is set to true.
+
 v2.1.0
 ======
 
