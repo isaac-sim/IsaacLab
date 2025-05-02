@@ -151,7 +151,8 @@ and ``_get_rewards``with the following.
 
 The robot exists as an Articulation object within the Isaac Lab API. That object carries a data class, the ``ArticulationData``, which contains all the data for **specific** robots on the stage.
 When we talk about a scene entity like the robot, we can either be talking about the robot broadly, as an entity that exists in every scene, or we can be describing a specific, singular clone
-of the robot on the stage. The ``ArticulationData`` contains the data for those individual clones.
+of the robot on the stage. The ``ArticulationData`` contains the data for those individual clones. This includes things like various kinematic vectors (like ``root_com_lin_vel_b``) and reference 
+vectors (like ``robot.data.FORWARD_VEC_B``).
 
 Notice how in the ``_apply_action`` method, we are calling a method of ``self.robot`` which is a method of ``Articulation``. The actions being applied are in the form of a 2D tensor
 of shape ``[num_envs, num_actions]``. We are applying actions to **all** robots on the stage at once! Here, when we need to get the observations, we need the body frame velocity for all robots on the
