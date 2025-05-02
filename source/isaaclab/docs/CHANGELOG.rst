@@ -88,7 +88,7 @@ Changed
 * Modified rendering mode default behavior when the launcher arg :attr:`enable_cameras` is not set.
 
 
-0.36.15 (2025-03-24)
+0.36.15 (2025-03-25)
 ~~~~~~~~~~~~~~~~~~~~
 
 Added
