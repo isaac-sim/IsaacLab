@@ -1,7 +1,7 @@
 Changelog
 ---------
 
-0.40.21 (2025-06-25)
+0.41.21 (2025-06-25)
 ~~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -12,7 +12,7 @@ Added
   env instance
 
 
-0.40.20 (2025-07-11)
+0.41.20 (2025-07-11)
 ~~~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -22,7 +22,7 @@ Fixed
 restricting the resetting joint indices be that user defined joint indices.
 
 
-0.40.19 (2025-07-11)
+0.41.19 (2025-07-11)
 ~~~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -32,7 +32,7 @@ Fixed
   env_ids are passed.
 
 
-0.40.18 (2025-07-09)
+0.41.18 (2025-07-09)
 ~~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -49,7 +49,7 @@ Fixed
   buffer on recording.
 
 
-0.40.17 (2025-07-10)
+0.41.17 (2025-07-10)
 ~~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -80,7 +80,7 @@ Changed
 * Changed the implementation of :func:`~isaaclab.utils.math.copysign` to better reflect the documented functionality.
 
 
-0.40.16 (2025-07-08)
+0.41.16 (2025-07-08)
 ~~~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -90,7 +90,7 @@ Fixed
   :class:`~isaaclab.assets.articulation.RigidObjectCollectionData`
 
 
-0.40.15 (2025-07-08)
+0.41.15 (2025-07-08)
 ~~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -99,7 +99,7 @@ Added
 * Added ability to set platform height independent of object height for trimesh terrains.
 
 
-0.40.14 (2025-07-01)
+0.41.14 (2025-07-01)
 ~~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -110,7 +110,7 @@ Added
 * Added deprecation warnings to the existing :attr:`max_height_noise` but still functions.
 
 
-0.40.13 (2025-07-03)
+0.41.13 (2025-07-03)
 ~~~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -119,7 +119,7 @@ Fixed
 * Fixed unittest tests that are floating inside pytests for articulation and rendering
 
 
-0.40.12 (2025-07-03)
+0.41.12 (2025-07-03)
 ~~~~~~~~~~~~~~~~~~~~
 
 Changed
@@ -129,7 +129,7 @@ Changed
   videos with the ``--video`` flag.
 
 
-0.40.11 (2025-06-27)
+0.41.11 (2025-06-27)
 ~~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -144,7 +144,7 @@ Fixed
 * Fixed the implementation mistake in :func:`~isaaclab.utils.math.quat_inv`.
 
 
-0.40.10 (2025-06-25)
+0.41.10 (2025-06-25)
 ~~~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -153,7 +153,7 @@ Fixed
 * Fixed :func:`~isaaclab.utils.dict.update_class_from_dict` preventing setting flat Iterables with different lengths.
 
 
-0.40.9 (2025-06-25)
+0.41.9 (2025-06-25)
 ~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -163,7 +163,7 @@ Added
   sampling, which is now the default behavior. If set to False, the previous behavior of sharing the same bias value across all components is retained.
 
 
-0.40.8 (2025-06-18)
+0.41.8 (2025-06-18)
 ~~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -175,7 +175,7 @@ Fixed
 * added pytest that check against these data consistencies
 
 
-0.40.7 (2025-06-24)
+0.41.7 (2025-06-24)
 ~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -189,8 +189,12 @@ Changed
 * Renamed :func:`~isaaclab.utils.noise.NoiseModel.apply` method to :func:`~isaaclab.utils.noise.NoiseModel.__call__`.
 
 
+<<<<<<< HEAD
 
 0.40.6 (2025-06-12)
+=======
+0.41.6 (2025-06-12)
+>>>>>>> cf094c211f (Updates to Isaac Sim 5.0 (#379))
 ~~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -199,7 +203,7 @@ Fixed
 * Fixed potential issues in :func:`~isaaclab.envs.mdp.events.randomize_visual_texture_material` related to handling visual prims during texture randomization.
 
 
-0.40.5 (2025-05-22)
+0.41.5 (2025-05-22)
 ~~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -209,7 +213,7 @@ Fixed
   currently has limitations for CPU simulation. Collision filtering needs to be manually enabled when using CPU simulation.
 
 
-0.40.4 (2025-06-03)
+0.41.4 (2025-06-03)
 ~~~~~~~~~~~~~~~~~~~
 
 Changed
@@ -220,7 +224,7 @@ Changed
   passed in the ``TerrainGeneratorCfg``.
 
 
-0.40.3 (2025-03-20)
+0.41.3 (2025-03-20)
 ~~~~~~~~~~~~~~~~~~~
 
 Changed
@@ -235,7 +239,7 @@ Changed
   more readable.
 
 
-0.40.2 (2025-05-10)
+0.41.2 (2025-05-10)
 ~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -245,7 +249,7 @@ Added
 * Added support for specifying module:task_name as task name to avoid module import for ``gym.make``
 
 
-0.40.1 (2025-06-02)
+0.41.1 (2025-06-02)
 ~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -261,7 +265,7 @@ Changed
   to make it available for mdp functions.
 
 
-0.40.0 (2025-05-16)
+0.41.0 (2025-05-16)
 ~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -277,7 +281,7 @@ Changed
   :meth:`~isaaclab.utils.math.quat_apply` and :meth:`~isaaclab.utils.math.quat_apply_inverse` for speed.
 
 
-0.39.7 (2025-05-19)
+0.40.7 (2025-05-19)
 ~~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -287,7 +291,7 @@ Fixed
   of assets and sensors.used from the experience files and the double definition is removed.
 
 
-0.39.6 (2025-01-30)
+0.40.6 (2025-01-30)
 ~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -297,7 +301,7 @@ Added
   in the simulation.
 
 
-0.39.5 (2025-05-16)
+0.40.5 (2025-05-16)
 ~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -312,7 +316,7 @@ Changed
   resampling call.
 
 
-0.39.4 (2025-05-16)
+0.40.4 (2025-05-16)
 ~~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -321,7 +325,7 @@ Fixed
 * Fixed penetration issue for negative border height in :class:`~isaaclab.terrains.terrain_generator.TerrainGeneratorCfg`.
 
 
-0.39.3 (2025-05-16)
+0.40.3 (2025-05-16)
 ~~~~~~~~~~~~~~~~~~~
 
 Changed
@@ -336,7 +340,7 @@ Added
 * Added :meth:`~isaaclab.utils.math.rigid_body_twist_transform`
 
 
-0.39.2 (2025-05-15)
+0.40.2 (2025-05-15)
 ~~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -350,14 +354,14 @@ Fixed
   unused USD camera parameters.
 
 
-0.39.1 (2025-05-14)
+0.40.1 (2025-05-14)
 ~~~~~~~~~~~~~~~~~~~
 
 * Added a new attribute :attr:`articulation_root_prim_path` to the :class:`~isaaclab.assets.ArticulationCfg` class
   to allow explicitly specifying the prim path of the articulation root.
 
 
-0.39.0 (2025-05-03)
+0.40.0 (2025-05-03)
 ~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -368,8 +372,8 @@ Added
   This allows for :attr:`semantic_segmentation_mapping` to be used when using the ground plane spawner.
 
 
-0.38.0 (2025-04-01)
-~~~~~~~~~~~~~~~~~~~
+0.39.0 (2025-04-01)
+~~~~~~~~~~~~~~~~~~
 
 Added
 ~~~~~
@@ -377,7 +381,7 @@ Added
 * Added the :meth:`~isaaclab.env.mdp.observations.joint_effort`
 
 
-0.37.0 (2025-04-01)
+0.38.0 (2025-04-01)
 ~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -385,6 +389,18 @@ Added
 
 * Added :meth:`~isaaclab.envs.mdp.observations.body_pose_w`
 * Added :meth:`~isaaclab.envs.mdp.observations.body_projected_gravity_b`
+
+
+0.37.0 (2025-04-24)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated pytorch to latest 2.7.0 with cuda 12.8 for Blackwell support.
+  Torch is now installed as part of the isaaclab.sh/bat scripts to ensure the correct version is installed.
+* Removed :attr:`~isaaclab.sim.spawners.PhysicsMaterialCfg.improve_patch_friction` as it has been deprecated and removed from the simulation.
+  The simulation will always behave as if this attribute is set to true.
 
 
 0.36.23 (2025-04-24)

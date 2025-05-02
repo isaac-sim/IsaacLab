@@ -804,7 +804,6 @@ class AppLauncher:
         """Load correct extensions based on AppLauncher's resolved config member variables."""
         # These have to be loaded after SimulationApp is initialized
         import carb
-        import omni.physx.bindings._physx as physx_impl
 
         # Retrieve carb settings for modification
         carb_settings_iface = carb.settings.get_settings()
@@ -826,9 +825,6 @@ class AppLauncher:
 
         # set fabric update flag to disable updating transforms when rendering is disabled
         carb_settings_iface.set_bool("/physics/fabricUpdateTransformations", self._rendering_enabled())
-
-        # disable physics backwards compatibility check
-        carb_settings_iface.set_int(physx_impl.SETTING_BACKWARD_COMPATIBILITY, 0)
 
     def _hide_stop_button(self):
         """Hide the stop button in the toolbar.

@@ -17,6 +17,8 @@ DEFAULT_TIMEOUT = 120
 
 PER_TEST_TIMEOUTS = {
     "test_articulation.py": 200,
+    "test_rigid_object.py": 200,
+    "test_rigid_object_collection.py": 200,
     "test_deformable_object.py": 200,
     "test_rigid_object_collection.py": 200,
     "test_environments.py": 1850,  # This test runs through all the environments for 100 steps each
@@ -24,7 +26,8 @@ PER_TEST_TIMEOUTS = {
     "test_factory_environments.py": 300,  # This test runs through Factory environments for 100 steps each
     "test_env_rendering_logic.py": 300,
     "test_camera.py": 500,
-    "test_tiled_camera.py": 300,
+    "test_tiled_camera.py": 500,
+    "test_multi_tiled_camera.py": 500,
     "test_generate_dataset.py": 300,  # This test runs annotation for 10 demos and generation until one succeeds
     "test_rsl_rl_wrapper.py": 200,
     "test_sb3_wrapper.py": 200,

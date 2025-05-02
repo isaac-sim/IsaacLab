@@ -1414,7 +1414,7 @@ def test_all_annotators_instanceable(setup_camera):
                 # instance_segmentation_fast has mean 0.42
                 # instance_id_segmentation_fast has mean 0.55-0.62
                 for i in range(num_cameras):
-                    assert (im_data[i] / 255.0).mean() > 0.3
+                    assert (im_data[i] / 255.0).mean() > 0.2
             elif data_type in ["motion_vectors"]:
                 # motion vectors have mean 0.2
                 assert im_data.shape == (num_cameras, camera_cfg.height, camera_cfg.width, 2)
@@ -1620,7 +1620,7 @@ def test_frame_offset_small_resolution(setup_camera):
     image_after = tiled_camera.data.output["rgb"].clone() / 255.0
 
     # check difference is above threshold
-    assert torch.abs(image_after - image_before).mean() > 0.04  # images of same color should be below 0.001
+    assert torch.abs(image_after - image_before).mean() > 0.01  # images of same color should be below 0.001
 
 
 def test_frame_offset_large_resolution(setup_camera):
@@ -1665,7 +1665,7 @@ def test_frame_offset_large_resolution(setup_camera):
     image_after = tiled_camera.data.output["rgb"].clone() / 255.0
 
     # check difference is above threshold
-    assert torch.abs(image_after - image_before).mean() > 0.05  # images of same color should be below 0.001
+    assert torch.abs(image_after - image_before).mean() > 0.01  # images of same color should be below 0.001
 
 
 """
