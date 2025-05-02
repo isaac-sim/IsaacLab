@@ -198,7 +198,7 @@ There are two options to run the CloudXR Runtime Docker container:
              nvcr.io/nvidia/cloudxr-runtime:0.1.0-isaac
 
       .. note::
-         If you choose a particular GPU instead of `all`, you need to make sure Isaac Lab also runs
+         If you choose a particular GPU instead of ``all``, you need to make sure Isaac Lab also runs
          on that GPU.
 
    #. In a new terminal where you intend to run Isaac Lab, export the following environment
