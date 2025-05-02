@@ -174,6 +174,37 @@ def pre_process_actions(
         ).unsqueeze(0)
         # Concatenate arm poses and hand joint angles
         return actions
+    elif "anubis" in args_cli.task:
+        # devide the teleop data into bimanual mobile manipulation
+        delta_pose_L = teleop_data[:, 0:6]
+        gripper_command_L = teleop_data[:,6]
+        delta_pose_R = teleop_data[:, 7:13]
+        gripper_command_R = teleop_data[:,13]
+        delta_pose_base = teleop_data[:,14:]
+        
+        # resolve gripper command
+        gripper_vel_L = torch.zeros(delta_pose_L.shape[0], 1, device=delta_pose_L.device)
+        gripper_vel_L[:] = -1.0 if gripper_command_L else 1.0
+
+        gripper_vel_R = torch.zeros(delta_pose_R.shape[0], 1, device=delta_pose_R.device)
+        gripper_vel_R[:] = -1.0 if gripper_command_R else 1.0
+        # compute actions
+
+        delta_pose_L_zeroed = torch.zeros_like(delta_pose_L)  # Shape: (batch_size, 6)
+        delta_pose_L_zeroed[:, 0:3] = delta_pose_L[:, 0:3]  # Position
+        # delta_pose_L_zeroed[:, 3:6] = delta_pose_L[:, 3:6]  # Rotation
+        delta_pose_R_zeroed = torch.zeros_like(delta_pose_R)  # Shape: (batch_size, 6)
+        delta_pose_R_zeroed[:, 0:3] = delta_pose_R[:, 0:3]  # Position
+        # delta_pose_R_zeroed[:, 3:6] = delta_pose_R[:, 3:6]  # Rotation
+
+        # Ensure gripper velocities and base poses have the correct shapes  
+        gripper_vel_L = gripper_vel_L.reshape(-1, 1)  # Shape: (batch_size, 1)
+        gripper_vel_R = gripper_vel_R.reshape(-1, 1)  # Shape: (batch_size, 1)
+        
+        # Concatenate the zeroed out poses with the velocities and base movement
+        # return torch.concat([delta_pose_L_zeroed, delta_pose_R_zeroed, gripper_vel_L, gripper_vel_R, delta_pose_base], dim=1)
+
+        return torch.concat([delta_pose_L, delta_pose_R, gripper_vel_L, gripper_vel_R, delta_pose_base], dim=1)
     else:
         # resolve gripper command
         delta_pose, gripper_command = teleop_data

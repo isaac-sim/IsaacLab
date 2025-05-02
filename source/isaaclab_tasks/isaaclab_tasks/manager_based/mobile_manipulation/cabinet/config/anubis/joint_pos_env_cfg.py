@@ -89,6 +89,7 @@ class AnubisCabinetEnvCfg(CabinetEnvCfg):
                     max_linear_velocity=1000.0,
                     max_depenetration_velocity=5.0,
                     disable_gravity=False,
+                    semantic_tags=[("class", "cube_1")]
                 ),
             ),
         )
