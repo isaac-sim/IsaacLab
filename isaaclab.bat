@@ -270,6 +270,9 @@ if "%arg%"=="-i" (
     rem install the python packages in isaaclab/source directory
     echo [INFO] Installing extensions inside the Isaac Lab repository...
     call :extract_python_exe
+    rem first install pytorch with cuda 12.8 for blackwell support
+    call !python_exe! -m pip uninstall -y torch torchvision torchaudio
+    call !python_exe! -m pip install torch==2.7.0 torchvision==0.22.0 --index-url https://download.pytorch.org/whl/cu128
     for /d %%d in ("%ISAACLAB_PATH%\source\*") do (
         set ext_folder="%%d"
         call :install_isaaclab_extension
@@ -295,6 +298,9 @@ if "%arg%"=="-i" (
     rem install the python packages in source directory
     echo [INFO] Installing extensions inside the Isaac Lab repository...
     call :extract_python_exe
+    rem first install pytorch with cuda 12.8 for blackwell support
+    call !python_exe! -m pip uninstall -y torch torchvision torchaudio
+    call !python_exe! -m pip install torch==2.7.0 torchvision==0.22.0 --index-url https://download.pytorch.org/whl/cu128
     for /d %%d in ("%ISAACLAB_PATH%\source\*") do (
         set ext_folder="%%d"
         call :install_isaaclab_extension

@@ -48,14 +48,12 @@ setup(
     keywords=EXTENSION_TOML_DATA["package"]["keywords"],
     install_requires=INSTALL_REQUIRES,
     extras_require=EXTRAS_REQUIRE,
-    license="MIT",
     include_package_data=True,
-    python_requires=">=3.10",
+    python_requires=">=3.11",
     classifiers=[
         "Natural Language :: English",
-        "Programming Language :: Python :: 3.10",
-        "Isaac Sim :: 2023.1.1",
-        "Isaac Sim :: 4.0.0",
+        "Programming Language :: Python :: 3.11",
+        "Isaac Sim :: 5.0.0",
     ],
     zip_safe=False,
 )

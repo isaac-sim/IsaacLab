@@ -5,7 +5,7 @@ Isaac Lab comes pre-integrated with a number of libraries (such as RSL-RL, RL-Ga
 However, you may want to integrate your own library with Isaac Lab or use a different version of the libraries than
 the one installed by Isaac Lab. This is possible as long as the library is available as Python package that supports
 the Python version used by the underlying simulator. For instance, if you are using Isaac Sim 4.0.0 onwards, you need
-to ensure that the library is available for Python 3.10.
+to ensure that the library is available for Python 3.11.
 
 Using a different version of a library
 --------------------------------------

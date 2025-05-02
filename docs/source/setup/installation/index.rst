@@ -3,17 +3,17 @@
 Local Installation
 ==================
 
-.. image:: https://img.shields.io/badge/IsaacSim-4.5.0-silver.svg
+.. image:: https://img.shields.io/badge/IsaacSim-5.0.0-silver.svg
    :target: https://developer.nvidia.com/isaac-sim
-   :alt: IsaacSim 4.5.0
+   :alt: IsaacSim 5.0.0
 
-.. image:: https://img.shields.io/badge/python-3.10-blue.svg
+.. image:: https://img.shields.io/badge/python-3.11-blue.svg
    :target: https://www.python.org/downloads/release/python-31013/
-   :alt: Python 3.10
+   :alt: Python 3.11
 
 .. image:: https://img.shields.io/badge/platform-linux--64-orange.svg
-   :target: https://releases.ubuntu.com/20.04/
-   :alt: Ubuntu 20.04
+   :target: https://releases.ubuntu.com/22.04/
+   :alt: Ubuntu 22.04
 
 .. image:: https://img.shields.io/badge/platform-windows--64-orange.svg
    :target: https://www.microsoft.com/en-ca/windows/windows-11
@@ -22,7 +22,7 @@ Local Installation
 .. caution::
 
    We have dropped support for Isaac Sim versions 4.2.0 and below. We recommend using the latest
-   Isaac Sim 4.5.0 release to benefit from the latest features and improvements.
+   Isaac Sim 5.0.0 release to benefit from the latest features and improvements.
 
    For more information, please refer to the
    `Isaac Sim release notes <https://docs.isaacsim.omniverse.nvidia.com/latest/overview/release_notes.html#>`__.

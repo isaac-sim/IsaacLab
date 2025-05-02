@@ -97,7 +97,6 @@ class TestSpawningMaterials(unittest.TestCase):
             static_friction=0.5,
             restitution_combine_mode="max",
             friction_combine_mode="max",
-            improve_patch_friction=True,
         )
         prim = cfg.func("/Looks/RigidBodyMaterial", cfg)
         # Check validity
@@ -107,7 +106,6 @@ class TestSpawningMaterials(unittest.TestCase):
         self.assertEqual(prim.GetAttribute("physics:staticFriction").Get(), cfg.static_friction)
         self.assertEqual(prim.GetAttribute("physics:dynamicFriction").Get(), cfg.dynamic_friction)
         self.assertEqual(prim.GetAttribute("physics:restitution").Get(), cfg.restitution)
-        self.assertEqual(prim.GetAttribute("physxMaterial:improvePatchFriction").Get(), cfg.improve_patch_friction)
         self.assertEqual(prim.GetAttribute("physxMaterial:restitutionCombineMode").Get(), cfg.restitution_combine_mode)
         self.assertEqual(prim.GetAttribute("physxMaterial:frictionCombineMode").Get(), cfg.friction_combine_mode)
 
@@ -148,7 +146,6 @@ class TestSpawningMaterials(unittest.TestCase):
             static_friction=0.5,
             restitution_combine_mode="max",
             friction_combine_mode="max",
-            improve_patch_friction=True,
         )
         prim = cfg.func("/Looks/Material", cfg)
         # Check validity
@@ -158,7 +155,6 @@ class TestSpawningMaterials(unittest.TestCase):
         self.assertEqual(prim.GetAttribute("physics:staticFriction").Get(), cfg.static_friction)
         self.assertEqual(prim.GetAttribute("physics:dynamicFriction").Get(), cfg.dynamic_friction)
         self.assertEqual(prim.GetAttribute("physics:restitution").Get(), cfg.restitution)
-        self.assertEqual(prim.GetAttribute("physxMaterial:improvePatchFriction").Get(), cfg.improve_patch_friction)
         self.assertEqual(prim.GetAttribute("physxMaterial:restitutionCombineMode").Get(), cfg.restitution_combine_mode)
         self.assertEqual(prim.GetAttribute("physxMaterial:frictionCombineMode").Get(), cfg.friction_combine_mode)
 

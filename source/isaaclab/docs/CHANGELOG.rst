@@ -1,6 +1,18 @@
 Changelog
 ---------
 
+0.37.0 (2025-04-24)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated pytorch to latest 2.7.0 with cuda 12.8 for Blackwell support.
+  Torch is now installed as part of the isaaclab.sh/bat scripts to ensure the correct version is installed.
+* Removed :attr:`~isaaclab.sim.spawners.PhysicsMaterialCfg.improve_patch_friction` as it has been deprecated and removed from the simulation.
+  The simulation will always behave as if this attribute is set to true.
+
+
 0.36.23 (2025-04-24)
 ~~~~~~~~~~~~~~~~~~~~
 

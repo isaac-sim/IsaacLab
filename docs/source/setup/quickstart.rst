@@ -43,8 +43,8 @@ To begin, we first define our virtual environment.
 
         .. code-block:: bash
 
-            # create a virtual environment named env_isaaclab with python3.10
-            python3.10 -m venv env_isaaclab
+            # create a virtual environment named env_isaaclab with python3.11
+            python3.11 -m venv env_isaaclab
             # activate the virtual environment
             source env_isaaclab/bin/activate
 
@@ -53,27 +53,10 @@ To begin, we first define our virtual environment.
 
         .. code-block:: batch
 
-            # create a virtual environment named env_isaaclab with python3.10
-            python3.10 -m venv env_isaaclab
+            # create a virtual environment named env_isaaclab with python3.11
+            python3.11 -m venv env_isaaclab
             # activate the virtual environment
             env_isaaclab\Scripts\activate
-
-Next, we need to install the CUDA-enabled version of PyTorch 2.5.1. This step is optional for Linux, but required for Windows to ensure a CUDA-compatible version of PyTorch is installed. If in doubt on which
-version to use, use 11.8.
-
-.. tab-set::
-
-    .. tab-item:: CUDA 11
-
-        .. code-block:: bash
-
-            pip install torch==2.5.1 torchvision==0.20.1 --index-url https://download.pytorch.org/whl/cu118
-
-    .. tab-item:: CUDA 12
-
-        .. code-block:: bash
-
-            pip install torch==2.5.1 torchvision==0.20.1 --index-url https://download.pytorch.org/whl/cu121
 
 Before we can install Isaac Sim, we need to make sure pip is updated.  To update pip, run
 
