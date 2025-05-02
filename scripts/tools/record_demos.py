@@ -105,6 +105,8 @@ from isaaclab.managers import DatasetExportMode
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
 
+import ipdb
+
 
 class RateLimiter:
     """Convenience class for enforcing rates in loops."""
@@ -326,15 +328,15 @@ def main():
             return Se3Keyboard(pos_sensitivity=0.2, rot_sensitivity=0.5)
         elif args_cli.teleop_device.lower() == "keyboard_bmm":
             return Se3Keyboard_BMM(
-                pos_sensitivity=0.005 * args_cli.sensitivity, 
-                rot_sensitivity=0.03 * args_cli.sensitivity,
-                base_sensitivity = 0.5 * args_cli.sensitivity
+                pos_sensitivity=0.005, 
+                rot_sensitivity=0.03,
+                base_sensitivity = 0.5,
             )
         elif device_name == "oculus":
             return Oculus_mobile(
-                pos_sensitivity=0.8 * args_cli.sensitivity,
-                rot_sensitivity=0.5 * args_cli.sensitivity,
-                base_sensitivity=0.1 * args_cli.sensitivity
+                pos_sensitivity=0.8,
+                rot_sensitivity=0.5,
+                base_sensitivity=0.1,
                 )
         elif device_name == "spacemouse":
             return Se3SpaceMouse(pos_sensitivity=0.2, rot_sensitivity=0.5)
@@ -390,18 +392,19 @@ def main():
 
     teleop_interface = create_teleop_device(args_cli.teleop_device, env)
     teleop_interface.add_callback("R", reset_recording_instance)
-    print(teleop_interface)
+    ipdb.set_trace()
 
     # reset before starting
     env.sim.reset()
     env.reset()
     teleop_interface.reset()
-
+    ipdb.set_trace()
     # simulate environment -- run everything in inference mode
     current_recorded_demo_count = 0
     success_step_count = 0
 
     label_text = f"Recorded {current_recorded_demo_count} successful demonstrations."
+    ipdb.set_trace()
 
     instruction_display = InstructionDisplay(args_cli.teleop_device)
     if args_cli.teleop_device.lower() != "handtracking":
@@ -417,12 +420,13 @@ def main():
         while simulation_app.is_running():
             # get data from teleop device
             teleop_data = teleop_interface.advance()
-
+            ipdb.set_trace()
             # perform action on environment
             if running_recording_instance:
                 # compute actions based on environment
                 actions = pre_process_actions(teleop_data, env.num_envs, env.device)
                 obv = env.step(actions)
+                ipdb.set_trace()
                 if subtasks is not None:
                     if subtasks == {}:
                         subtasks = obv[0].get("subtask_terms")

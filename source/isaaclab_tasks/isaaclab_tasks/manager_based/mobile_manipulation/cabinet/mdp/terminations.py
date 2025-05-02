@@ -12,7 +12,7 @@ if TYPE_CHECKING:
 def cube_in_cabinet(
     env: ManagerBasedRLEnv,
     robot_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
-    cube_1_cfg: SceneEntityCfg = SceneEntityCfg("cube_1"),
+    cube_1_cfg: SceneEntityCfg = SceneEntityCfg("object"),
     cabinet_cfg: SceneEntityCfg = SceneEntityCfg("cabinet"),
 
     top_cabinet_height: float = 0.3,
