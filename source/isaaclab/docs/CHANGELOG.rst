@@ -1,6 +1,7 @@
 Changelog
 ---------
 
+<<<<<<< HEAD
 0.39.0 (2025-05-03)
 ~~~~~~~~~~~~~~~~~~~
 
@@ -12,6 +13,8 @@ Added
   This allows for :attr:`semantic_segmentation_mapping` to be used when using the ground plane spawner.
 
 
+=======
+>>>>>>> 70a5ffcd (Adds joint effort observation (#2211))
 0.38.0 (2025-04-01)
 ~~~~~~~~~~~~~~~~~~
 

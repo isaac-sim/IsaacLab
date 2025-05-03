@@ -60,10 +60,10 @@ def pre_process_actions_abs(env, abs_pose_L: torch.Tensor, gripper_command_L: bo
         init_pos = env.scene["ee_R_frame"].data.target_pos_source[0,0]
         init_rot = env.scene["ee_R_frame"].data.target_quat_source[0,0]
         ee_r_state = torch.cat([init_pos, init_rot], dim=0).unsqueeze(0)
-        print("-------------------------------")
+        print("-----------------------")
         print("ee_l_state", ee_l_state)
         print("ee_r_state", ee_r_state)
-        print("-------------------------------")
+        print("-----------------------")
 
         # resolve gripper command
         gripper_vel_L = torch.zeros(abs_pose_L.shape[0], 1, device=abs_pose_L.device)
