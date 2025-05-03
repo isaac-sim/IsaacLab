@@ -4,7 +4,7 @@ Changelog
 0.39.0 (2025-05-03)
 ~~~~~~~~~~~~~~~~~~~~
 
-Fixed
+Added
 ^^^^^
 
 * Added semantic tags in :func:`isaaclab.sim.spawners.from_files.spawn_ground_plane`.
