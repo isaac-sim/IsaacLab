@@ -572,7 +572,11 @@ class TestWarpCamera(unittest.TestCase):
         )
         torch.testing.assert_close(
             camera_usd._sensor_prims[0].GetVerticalApertureAttr().Get(),
-            camera_cfg_warp.pattern_cfg.vertical_aperture,
+            (
+                camera_cfg_warp.pattern_cfg.horizontal_aperture
+                * camera_cfg_warp.pattern_cfg.height
+                / camera_cfg_warp.pattern_cfg.width
+            ),
         )
 
         # check image data
@@ -711,6 +715,7 @@ class TestWarpCamera(unittest.TestCase):
                 focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(1e-6, 1.0e5)
             ),
             offset=CameraCfg.OffsetCfg(pos=(0, 0, 2.0), rot=offset_rot, convention="ros"),
+            update_latest_camera_pose=True,
         )
         prim_usd = prim_utils.create_prim("/World/Camera_usd", "Xform")
         prim_usd.GetAttribute("xformOp:translate").Set(tuple(POSITION))

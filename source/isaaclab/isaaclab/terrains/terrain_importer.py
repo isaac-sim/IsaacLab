@@ -10,16 +10,13 @@ import torch
 import trimesh
 from typing import TYPE_CHECKING
 
-import warp
-from pxr import UsdGeom
+import omni.log
 
 import isaaclab.sim as sim_utils
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.markers.config import FRAME_MARKER_CFG
-from isaaclab.utils.warp import convert_to_warp_mesh
 
 from .terrain_generator import TerrainGenerator
-from .trimesh.utils import make_plane
 from .utils import create_prim_from_mesh
 
 if TYPE_CHECKING:
@@ -43,15 +40,16 @@ class TerrainImporter:
     curriculum. For example, in a game, the player starts with easy levels and progresses to harder levels.
     """
 
-    meshes: dict[str, trimesh.Trimesh]
-    """A dictionary containing the names of the meshes and their keys."""
-    warp_meshes: dict[str, warp.Mesh]
-    """A dictionary containing the names of the warp meshes and their keys."""
+    terrain_prim_paths: list[str]
+    """A list containing the USD prim paths to the imported terrains."""
+
     terrain_origins: torch.Tensor | None
     """The origins of the sub-terrains in the added terrain mesh. Shape is (num_rows, num_cols, 3).
 
-    If None, then it is assumed no sub-terrains exist. The environment origins are computed in a grid.
+    If terrain origins is not None, the environment origins are computed based on the terrain origins.
+    Otherwise, the environment origins are computed based on the grid spacing.
     """
+
     env_origins: torch.Tensor
     """The origins of the environments. Shape is (num_envs, 3)."""
 
@@ -73,11 +71,10 @@ class TerrainImporter:
         self.cfg = cfg
         self.device = sim_utils.SimulationContext.instance().device  # type: ignore
 
-        # create a dict of meshes
-        self.meshes = dict()
-        self.warp_meshes = dict()
-        self.env_origins = None
+        # create buffers for the terrains
+        self.terrain_prim_paths = list()
         self.terrain_origins = None
+        self.env_origins = None  # assigned later when `configure_env_origins` is called
         # private variables
         self._terrain_flat_patches = dict()
 
@@ -135,6 +132,11 @@ class TerrainImporter:
         """
         return self._terrain_flat_patches
 
+    @property
+    def terrain_names(self) -> list[str]:
+        """A list of names of the imported terrains."""
+        return [f"'{path.split('/')[-1]}'" for path in self.terrain_prim_paths]
+
     """
     Operations - Visibility.
     """
@@ -176,112 +178,110 @@ class TerrainImporter:
     Operations - Import.
     """
 
-    def import_ground_plane(self, key: str, size: tuple[float, float] = (2.0e6, 2.0e6)):
+    def import_ground_plane(self, name: str, size: tuple[float, float] = (2.0e6, 2.0e6)):
         """Add a plane to the terrain importer.
 
         Args:
-            key: The key to store the mesh.
+            name: The name of the imported terrain. This name is used to create the USD prim
+                corresponding to the terrain.
             size: The size of the plane. Defaults to (2.0e6, 2.0e6).
 
         Raises:
-            ValueError: If a terrain with the same key already exists.
+            ValueError: If a terrain with the same name already exists.
         """
+        # create prim path for the terrain
+        prim_path = self.cfg.prim_path + f"/{name}"
         # check if key exists
-        if key in self.meshes:
-            raise ValueError(f"Mesh with key {key} already exists. Existing keys: {self.meshes.keys()}.")
-        # create a plane
-        mesh = make_plane(size, height=0.0, center_zero=True)
-        # store the mesh
-        self.meshes[key] = mesh
-        # create a warp mesh
-        device = "cuda" if "cuda" in self.device else "cpu"
-        self.warp_meshes[key] = convert_to_warp_mesh(mesh.vertices, mesh.faces, device=device)
+        if prim_path in self.terrain_prim_paths:
+            raise ValueError(
+                f"A terrain with the name '{name}' already exists. Existing terrains: {', '.join(self.terrain_names)}."
+            )
+        # store the mesh name
+        self.terrain_prim_paths.append(prim_path)
+
+        # obtain ground plane color from the configured visual material
+        color = (0.0, 0.0, 0.0)
+        if self.cfg.visual_material is not None:
+            material = self.cfg.visual_material.to_dict()
+            # defaults to the `GroundPlaneCfg` color if diffuse color attribute is not found
+            if "diffuse_color" in material:
+                color = material["diffuse_color"]
+            else:
+                omni.log.warn(
+                    "Visual material specified for ground plane but no diffuse color found."
+                    " Using default color: (0.0, 0.0, 0.0)"
+                )
 
         # get the mesh
-        ground_plane_cfg = sim_utils.GroundPlaneCfg(physics_material=self.cfg.physics_material, size=size)
-        ground_plane_cfg.func(self.cfg.prim_path, ground_plane_cfg)
+        ground_plane_cfg = sim_utils.GroundPlaneCfg(physics_material=self.cfg.physics_material, size=size, color=color)
+        ground_plane_cfg.func(prim_path, ground_plane_cfg)
 
-    def import_mesh(self, key: str, mesh: trimesh.Trimesh):
+    def import_mesh(self, name: str, mesh: trimesh.Trimesh):
         """Import a mesh into the simulator.
 
         The mesh is imported into the simulator under the prim path ``cfg.prim_path/{key}``. The created path
         contains the mesh as a :class:`pxr.UsdGeom` instance along with visual or physics material prims.
 
         Args:
-            key: The key to store the mesh.
+            name: The name of the imported terrain. This name is used to create the USD prim
+                corresponding to the terrain.
             mesh: The mesh to import.
 
         Raises:
-            ValueError: If a terrain with the same key already exists.
+            ValueError: If a terrain with the same name already exists.
         """
+        # create prim path for the terrain
+        prim_path = self.cfg.prim_path + f"/{name}"
         # check if key exists
-        if key in self.meshes:
-            raise ValueError(f"Mesh with key {key} already exists. Existing keys: {self.meshes.keys()}.")
-        # store the mesh
-        self.meshes[key] = mesh
-        # create a warp mesh
-        device = "cuda" if "cuda" in self.device else "cpu"
-        self.warp_meshes[key] = convert_to_warp_mesh(mesh.vertices, mesh.faces, device=device)
+        if prim_path in self.terrain_prim_paths:
+            raise ValueError(
+                f"A terrain with the name '{name}' already exists. Existing terrains: {', '.join(self.terrain_names)}."
+            )
+        # store the mesh name
+        self.terrain_prim_paths.append(prim_path)
 
-        # get the mesh
-        mesh = self.meshes[key]
-        mesh_prim_path = self.cfg.prim_path + f"/{key}"
         # import the mesh
         create_prim_from_mesh(
-            mesh_prim_path,
-            mesh,
-            visual_material=self.cfg.visual_material,
-            physics_material=self.cfg.physics_material,
+            prim_path, mesh, visual_material=self.cfg.visual_material, physics_material=self.cfg.physics_material
         )
 
-    def import_usd(self, key: str, usd_path: str):
+    def import_usd(self, name: str, usd_path: str):
         """Import a mesh from a USD file.
 
-        We assume that the USD file contains a single mesh. If the USD file contains multiple meshes, then
-        the first mesh is used. The function mainly helps in registering the mesh into the warp meshes
-        and the meshes dictionary.
+        This function imports a USD file into the simulator as a terrain. It parses the USD file and
+        stores the mesh under the prim path ``cfg.prim_path/{key}``. If multiple meshes are present in
+        the USD file, only the first mesh is imported.
 
-        Note:
-            We do not apply any material properties to the mesh. The material properties should
-            be defined in the USD file.
+        The function doe not apply any material properties to the mesh. The material properties should
+        be defined in the USD file.
 
         Args:
-            key: The key to store the mesh.
+            name: The name of the imported terrain. This name is used to create the USD prim
+                corresponding to the terrain.
             usd_path: The path to the USD file.
 
         Raises:
-            ValueError: If a terrain with the same key already exists.
+            ValueError: If a terrain with the same name already exists.
         """
-        # add mesh to the dict
-        if key in self.meshes:
-            raise ValueError(f"Mesh with key {key} already exists. Existing keys: {self.meshes.keys()}.")
+        # create prim path for the terrain
+        prim_path = self.cfg.prim_path + f"/{name}"
+        # check if key exists
+        if prim_path in self.terrain_prim_paths:
+            raise ValueError(
+                f"A terrain with the name '{name}' already exists. Existing terrains: {', '.join(self.terrain_names)}."
+            )
+        # store the mesh name
+        self.terrain_prim_paths.append(prim_path)
+
         # add the prim path
         cfg = sim_utils.UsdFileCfg(usd_path=usd_path)
-        cfg.func(self.cfg.prim_path + f"/{key}", cfg)
-
-        # traverse the prim and get the collision mesh
-        # THINK: Should the user specify the collision mesh?
-        mesh_prim = sim_utils.get_first_matching_child_prim(
-            self.cfg.prim_path + f"/{key}", lambda prim: prim.GetTypeName() == "Mesh"
-        )
-        # check if the mesh is valid
-        if mesh_prim is None:
-            raise ValueError(f"Could not find any collision mesh in {usd_path}. Please check asset.")
-        # cast into UsdGeomMesh
-        mesh_prim = UsdGeom.Mesh(mesh_prim)
-        # store the mesh
-        vertices = np.asarray(mesh_prim.GetPointsAttr().Get())
-        faces = np.asarray(mesh_prim.GetFaceVertexIndicesAttr().Get()).reshape(-1, 3)
-        self.meshes[key] = trimesh.Trimesh(vertices=vertices, faces=faces)
-        # create a warp mesh
-        device = "cuda" if "cuda" in self.device else "cpu"
-        self.warp_meshes[key] = convert_to_warp_mesh(vertices, faces, device=device)
+        cfg.func(prim_path, cfg)
 
     """
     Operations - Origins.
     """
 
-    def configure_env_origins(self, origins: np.ndarray | None = None):
+    def configure_env_origins(self, origins: np.ndarray | torch.Tensor | None = None):
         """Configure the origins of the environments based on the added terrain.
 
         Args:
@@ -339,9 +339,7 @@ class TerrainImporter:
         # define all terrain levels and types available
         self.terrain_levels = torch.randint(0, max_init_level + 1, (num_envs,), device=self.device)
         self.terrain_types = torch.div(
-            torch.arange(num_envs, device=self.device),
-            (num_envs / num_cols),
-            rounding_mode="floor",
+            torch.arange(num_envs, device=self.device), (num_envs / num_cols), rounding_mode="floor"
         ).to(torch.long)
         # create tensor based on number of environments
         env_origins = torch.zeros(num_envs, 3, device=self.device)
@@ -362,3 +360,33 @@ class TerrainImporter:
         env_origins[:, 1] = (jj.flatten()[:num_envs] - (num_cols - 1) / 2) * env_spacing
         env_origins[:, 2] = 0.0
         return env_origins
+
+    """
+    Deprecated.
+    """
+
+    @property
+    def warp_meshes(self):
+        """A dictionary containing the terrain's names and their warp meshes.
+
+        .. deprecated:: v2.1.0
+            The `warp_meshes` attribute is deprecated. It is no longer stored inside the class.
+        """
+        omni.log.warn(
+            "The `warp_meshes` attribute is deprecated. It is no longer stored inside the `TerrainImporter` class."
+            " Returning an empty dictionary."
+        )
+        return {}
+
+    @property
+    def meshes(self) -> dict[str, trimesh.Trimesh]:
+        """A dictionary containing the terrain's names and their tri-meshes.
+
+        .. deprecated:: v2.1.0
+            The `meshes` attribute is deprecated. It is no longer stored inside the class.
+        """
+        omni.log.warn(
+            "The `meshes` attribute is deprecated. It is no longer stored inside the `TerrainImporter` class."
+            " Returning an empty dictionary."
+        )
+        return {}

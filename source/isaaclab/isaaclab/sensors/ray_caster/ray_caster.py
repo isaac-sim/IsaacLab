@@ -15,6 +15,7 @@ import omni.log
 import omni.physics.tensors.impl.api as physx
 import warp as wp
 from isaacsim.core.prims import XFormPrim
+from isaacsim.core.simulation_manager import SimulationManager
 from pxr import UsdGeom, UsdPhysics
 
 import isaaclab.sim as sim_utils
@@ -110,7 +111,7 @@ class RayCaster(SensorBase):
         if env_ids is None:
             env_ids = slice(None)
         # resample the drift
-        self.drift[env_ids].uniform_(*self.cfg.drift_range)
+        self.drift[env_ids] = self.drift[env_ids].uniform_(*self.cfg.drift_range)
 
     """
     Implementation.
@@ -118,9 +119,8 @@ class RayCaster(SensorBase):
 
     def _initialize_impl(self):
         super()._initialize_impl()
-        # create simulation view
-        self._physics_sim_view = physx.create_simulation_view(self._backend)
-        self._physics_sim_view.set_subspace_roots("/")
+        # obtain global simulation view
+        self._physics_sim_view = SimulationManager.get_physics_sim_view()
         # check if the prim at path is an articulated or rigid prim
         # we do this since for physics-based view classes we can access their data directly
         # otherwise we need to use the xform view class which is slower
@@ -272,8 +272,11 @@ class RayCaster(SensorBase):
                 self.ray_visualizer.set_visibility(False)
 
     def _debug_vis_callback(self, event):
+        # remove possible inf values
+        viz_points = self._data.ray_hits_w.reshape(-1, 3)
+        viz_points = viz_points[~torch.any(torch.isinf(viz_points), dim=1)]
         # show ray hit positions
-        self.ray_visualizer.visualize(self._data.ray_hits_w.view(-1, 3))
+        self.ray_visualizer.visualize(viz_points)
 
     """
     Internal simulation callbacks.
@@ -284,5 +287,4 @@ class RayCaster(SensorBase):
         # call parent
         super()._invalidate_initialize_callback(event)
         # set all existing views to None to invalidate them
-        self._physics_sim_view = None
         self._view = None
