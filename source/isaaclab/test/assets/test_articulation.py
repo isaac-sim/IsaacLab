@@ -613,7 +613,7 @@ class TestArticulation(unittest.TestCase):
                         # Play sim
                         sim.reset()
                         # Check if articulation is initialized
-                        self.assertFalse(articulation._is_initialized)
+                        self.assertFalse(articulation.is_initialized)
 
     def test_out_of_range_default_joint_vel(self):
         """Test that the default joint velocity from configuration is out of range."""
@@ -633,7 +633,7 @@ class TestArticulation(unittest.TestCase):
             # Play sim
             sim.reset()
             # Check if articulation is initialized
-            self.assertFalse(articulation._is_initialized)
+            self.assertFalse(articulation.is_initialized)
 
     def test_joint_pos_limits(self):
         """Test write_joint_position_limit_to_sim API and when default position falls outside of the new limits."""
@@ -649,7 +649,7 @@ class TestArticulation(unittest.TestCase):
                         # Play sim
                         sim.reset()
                         # Check if articulation is initialized
-                        self.assertTrue(articulation._is_initialized)
+                        self.assertTrue(articulation.is_initialized)
 
                         # Get current default joint pos
                         default_joint_pos = articulation._data.default_joint_pos.clone()
