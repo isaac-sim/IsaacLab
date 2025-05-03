@@ -1,7 +1,6 @@
 services:
   cloudxr-runtime:
     image: ${CLOUDXR_RUNTIME_BASE_IMAGE_ARG}:${CLOUDXR_RUNTIME_VERSION_ARG}
-    runtime: nvidia
     ports:
       - "48010:48010/tcp" # signaling
       - "47998:47998/udp" # media
@@ -20,9 +19,15 @@ services:
       - ACCEPT_EULA=${ACCEPT_EULA}
     volumes:
       - openxr-volume:/openxr:rw
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [ gpu ]
 
   isaac-lab-base:
-    runtime: nvidia
     environment:
       - XDG_RUNTIME_DIR=/openxr/run
       - XR_RUNTIME_JSON=/openxr/share/openxr/1/openxr_cloudxr.json
@@ -30,6 +35,13 @@ services:
       - openxr-volume:/openxr:rw
     depends_on:
         - cloudxr-runtime
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [ gpu ]
 
 volumes:
   openxr-volume:
