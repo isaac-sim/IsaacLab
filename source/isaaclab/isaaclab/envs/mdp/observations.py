@@ -209,6 +209,23 @@ def joint_vel_rel(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityC
     return asset.data.joint_vel[:, asset_cfg.joint_ids] - asset.data.default_joint_vel[:, asset_cfg.joint_ids]
 
 
+def joint_effort(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
+    """The joint applied effort of the robot.
+
+    NOTE: Only the joints configured in :attr:`asset_cfg.joint_ids` will have their effort returned.
+
+    Args:
+        env: The environment.
+        asset_cfg: The SceneEntity associated with this observation.
+
+    Returns:
+        The joint effort (N or N-m) for joint_names in asset_cfg, shape is [num_env,num_joints].
+    """
+    # extract the used quantities (to enable type-hinting)
+    asset: Articulation = env.scene[asset_cfg.name]
+    return asset.data.applied_torque[:, asset_cfg.joint_ids]
+
+
 """
 Sensors.
 """
@@ -233,8 +250,8 @@ def body_incoming_wrench(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg) -> tor
     # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
     # obtain the link incoming forces in world frame
-    link_incoming_forces = asset.root_physx_view.get_link_incoming_joint_force()[:, asset_cfg.body_ids]
-    return link_incoming_forces.view(env.num_envs, -1)
+    body_incoming_joint_wrench_b = asset.data.body_incoming_joint_wrench_b[:, asset_cfg.body_ids]
+    return body_incoming_joint_wrench_b.view(env.num_envs, -1)
 
 
 def imu_orientation(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("imu")) -> torch.Tensor:

@@ -1,13 +1,22 @@
 Changelog
 ---------
 
-0.37.1 (2025-05-01)
+0.38.1 (2025-05-01)
 ~~~~~~~~~~~~~~~~~~~
 
 Fixed
 ^^^^^
 
 * Fixed redundant body_names assignment in rough_env_cfg.py for H1 robot.
+
+
+0.38.0 (2025-04-01)
+~~~~~~~~~~~~~~~~~~
+
+Added
+~~~~~
+
+* Added the :meth:`~isaaclab.env.mdp.observations.joint_effort`
 
 
 0.37.0 (2025-04-01)
