@@ -60,6 +60,7 @@ WORKFLOW = "scripts/reinforcement_learning/rl_games/train.py"
 NUM_WORKERS_PER_NODE = 1  # needed for local parallelism
 PROCESS_RESPONSE_TIMEOUT = 200.0  # seconds to wait before killing the process when it stops responding
 MAX_LINES_TO_SEARCH_EXPERIMENT_LOGS = 1000  # maximum number of lines to read from the training process logs
+MAX_LOG_EXTRACTION_ERRORS = 2  # maximum allowed LogExtractionErrors before we abort the whole training
 
 
 class IsaacLabTuneTrainable(tune.Trainable):
@@ -98,10 +99,10 @@ class IsaacLabTuneTrainable(tune.Trainable):
                     max_time_to_search_logs=PROCESS_RESPONSE_TIMEOUT,
                 )
             except util.LogExtractionError:
-                print("[FATAL]: LogExtractionError: aborting entire tuning run...")
-                self.data = {}
-                self.data["LOG_EXTRACTION_ERROR_STOPPER_FLAG"] = True
-                self.data["done"] = True
+                self.data = {
+                    "LOG_EXTRACTION_ERROR_STOPPER_FLAG": True,
+                    "done": True,
+                }
                 return self.data
             self.experiment = experiment
             print(f"[INFO]: Tuner recovered experiment info {experiment}")
@@ -170,19 +171,27 @@ class IsaacLabTuneTrainable(tune.Trainable):
 
 
 class LogExtractionErrorStopper(tune.Stopper):
-    """Stopper that stops all trials if a log extraction error occurs."""
+    """Stopper that stops all trials if many log extraction error occurs."""
 
-    def __init__(self):
-        self.stop_now = False
+    def __init__(self, max_errors: int):
+        self.max_errors = max_errors
+        self.error_count = 0
 
     def __call__(self, trial_id, result):
         if result.get("LOG_EXTRACTION_ERROR_STOPPER_FLAG", False):
-            self.stop_now = True
+            self.error_count += 1
+            print(
+                f"[ERROR]: Encountered LogExtractionError {self.error_count} times. "
+                f"Maximum allowed is {self.max_errors}."
+            )
         return False
 
     def stop_all(self):
-        # Stop all trials if the flag was set
-        return self.stop_now
+        if self.error_count > self.max_errors:
+            print("[FATAL]: Encountered LogExtractionError more than allowed, aborting entire tuning run... ")
+            return True
+        else:
+            return False
 
 
 def invoke_tuning_run(cfg: dict, args: argparse.Namespace) -> None:
@@ -228,7 +237,7 @@ def invoke_tuning_run(cfg: dict, args: argparse.Namespace) -> None:
                 checkpoint_frequency=0,  # Disable periodic checkpointing
                 checkpoint_at_end=False,  # Disable final checkpoint
             ),
-            stop=LogExtractionErrorStopper(),
+            stop=LogExtractionErrorStopper(max_errors=MAX_LOG_EXTRACTION_ERRORS),
         )
 
     elif args.run_mode == "remote":  # MLFlow, to MLFlow server
@@ -244,7 +253,7 @@ def invoke_tuning_run(cfg: dict, args: argparse.Namespace) -> None:
             storage_path="/tmp/ray",
             callbacks=[mlflow_callback],
             checkpoint_config=ray.train.CheckpointConfig(checkpoint_frequency=0, checkpoint_at_end=False),
-            stop=LogExtractionErrorStopper(),
+            stop=LogExtractionErrorStopper(max_errors=MAX_LOG_EXTRACTION_ERRORS),
         )
     else:
         raise ValueError("Unrecognized run mode.")
@@ -367,13 +376,19 @@ if __name__ == "__main__":
         "--process_response_timeout",
         type=float,
         default=PROCESS_RESPONSE_TIMEOUT,
-        help="Training workflow process response timeout",
+        help="Training workflow process response timeout.",
     )
     parser.add_argument(
         "--max_lines_to_search_experiment_logs",
         type=float,
         default=MAX_LINES_TO_SEARCH_EXPERIMENT_LOGS,
-        help="Max number of lines to search for experiment logs before terminating the training workflow process",
+        help="Max number of lines to search for experiment logs before terminating the training workflow process.",
+    )
+    parser.add_argument(
+        "--max_log_extraction_errors",
+        type=float,
+        default=MAX_LOG_EXTRACTION_ERRORS,
+        help="Max number number of LogExtractionError failures before we abort the whole tuning run.",
     )
 
     args = parser.parse_args()
@@ -384,6 +399,11 @@ if __name__ == "__main__":
         f"workflow process is set to {MAX_LINES_TO_SEARCH_EXPERIMENT_LOGS}.\n"
         "[INFO]: The process response timeout, used while updating tensorboard scalars and searching for "
         f"experiment logs, is set to {PROCESS_RESPONSE_TIMEOUT} seconds."
+    )
+    MAX_LOG_EXTRACTION_ERRORS = int(args.max_log_extraction_errors)
+    print(
+        "[INFO]: Max number of LogExtractionError failures before we abort the whole tuning run is "
+        f"set to {MAX_LOG_EXTRACTION_ERRORS}.\n"
     )
     NUM_WORKERS_PER_NODE = args.num_workers_per_node
     print(f"[INFO]: Using {NUM_WORKERS_PER_NODE} workers per node.")
