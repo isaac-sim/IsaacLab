@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING, Any
 
 import omni.kit.app
 import omni.timeline
+from isaacsim.core.simulation_manager import SimulationManager
 
 import isaaclab.sim as sim_utils
 
@@ -255,12 +256,8 @@ class AssetBase(ABC):
             called whenever the simulator "plays" from a "stop" state.
         """
         if not self._is_initialized:
-            # obtain simulation related information
-            sim = sim_utils.SimulationContext.instance()
-            if sim is None:
-                raise RuntimeError("SimulationContext is not initialized! Please initialize SimulationContext first.")
-            self._backend = sim.backend
-            self._device = sim.device
+            self._backend = SimulationManager.get_backend()
+            self._device = SimulationManager.get_physics_sim_device()
             # initialize the asset
             self._initialize_impl()
             # set flag
@@ -269,3 +266,6 @@ class AssetBase(ABC):
     def _invalidate_initialize_callback(self, event):
         """Invalidates the scene elements."""
         self._is_initialized = False
+        if self._debug_vis_handle is not None:
+            self._debug_vis_handle.unsubscribe()
+            self._debug_vis_handle = None

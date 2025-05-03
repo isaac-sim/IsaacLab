@@ -352,6 +352,14 @@ class ObservationManager(ManagerBase):
         # we store it as a separate list to only call reset on them and prevent unnecessary calls
         self._group_obs_class_modifiers: list[modifiers.ModifierBase] = list()
 
+        # make sure the simulation is playing since we compute obs dims which needs asset quantities
+        if not self._env.sim.is_playing():
+            raise RuntimeError(
+                "Simulation is not playing. Observation manager requires the simulation to be playing"
+                " to compute observation dimensions. Please start the simulation before using the"
+                " observation manager."
+            )
+
         # check if config is dict already
         if isinstance(self.cfg, dict):
             group_cfg_items = self.cfg.items()
@@ -407,8 +415,10 @@ class ObservationManager(ManagerBase):
                 # add term config to list to list
                 self._group_obs_term_names[group_name].append(term_name)
                 self._group_obs_term_cfgs[group_name].append(term_cfg)
+
                 # call function the first time to fill up dimensions
                 obs_dims = tuple(term_cfg.func(self._env, **term_cfg.params).shape)
+
                 # create history buffers and calculate history term dimensions
                 if term_cfg.history_length > 0:
                     group_entry_history_buffer[term_name] = CircularBuffer(

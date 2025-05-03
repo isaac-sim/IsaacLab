@@ -4,6 +4,99 @@ Release Notes
 The release notes are now available in the `Isaac Lab GitHub repository <https://github.com/isaac-sim/IsaacLab/releases>`_.
 We summarize the release notes here for convenience.
 
+v2.1.0
+======
+
+Overview
+--------
+
+This release introduces the official support for teleoperation using the Apple Vision Pro for collecting high-quality
+and dexterous hand data, including the addition of bi-manual teleoperation and imitation learning workflows through Isaac Lab Mimic.
+
+We have also introduced new randomization methods for USD attributes, including the randomization of
+scale, color, and textures. In this release, we updated RSL RL to v2.3.1, which introduces many additional features
+including distributed training, student-teacher distillation, and recurrent student-teacher distillation.
+
+Additionally, we revamped the `Extension Template <https://github.com/isaac-sim/IsaacLabExtensionTemplate>`_
+to include an automatic template generator tool from within the Isaac Lab repo. The extension template is
+a powerful method for users to develop new projects in user-hosted repos, allowing for isolation from the core
+Isaac Lab repo and changes. The previous IsaacLabExtensionTemplate repo showed a limited example pertaining only
+to the Manager-based workflow and RSL RL. In the new template generator, users can choose from any supported
+workflow and RL library, along with the desired RL algorithm. We will be deprecating the standalone
+`IsaacLabExtensionTemplate <https://github.com/isaac-sim/IsaacLabExtensionTemplate>`_ in the near future.
+
+NVIDIA has also released `HOVER <https://github.com/NVlabs/HOVER>`_ as an independent repo, hosting a neural whole body
+controller for humanoids built on top of Isaac Lab. HOVER includes sim-to-real workflows for deployment on the Unitree
+H1 robot, which we have also added a tutorial guide for the deployment process in the Isaac Lab documentation.
+
+**Full Changelog**: https://github.com/isaac-sim/IsaacLab/compare/v2.0.2...v2.1.0
+
+New Features
+------------
+
+* Adds new external project / internal task template generator by @Toni-SM in https://github.com/isaac-sim/IsaacLab/pull/2039
+* Adds dummy agents to the external task template generator by @louislelay in https://github.com/isaac-sim/IsaacLab/pull/2221
+* Adds USD-level randomization mode to event manager by @Mayankm96 in https://github.com/isaac-sim/IsaacLab/pull/2040
+* Adds texture and scale randomization event terms by @hapatel-bdai in https://github.com/isaac-sim/IsaacLab/pull/2121
+* Adds replicator event for randomizing colors by @Mayankm96 in https://github.com/isaac-sim/IsaacLab/pull/2153
+* Adds interactive demo script for H1 locomotion by @kellyguo11 in https://github.com/isaac-sim/IsaacLab/pull/2041
+* Adds blueprint environment for Franka stacking mimic by @chengronglai in https://github.com/isaac-sim/IsaacLab/pull/1944
+* Adds action clipping to rsl-rl wrapper by @Mayankm96 in https://github.com/isaac-sim/IsaacLab/pull/2019
+* Adds Gymnasium spaces showcase tasks by @Toni-SM in https://github.com/isaac-sim/IsaacLab/pull/2109
+* Add configs and adapt exporter for RSL-RL distillation by @ClemensSchwarke in https://github.com/isaac-sim/IsaacLab/pull/2182
+* Adds support for head pose for Open XR device by @rwiltz
+* Adds handtracking joints and retargetting pipeline by @rwiltz
+* Adds documentation for openxr device and retargeters by @rwiltz
+* Adds tutorial for training & validating HOVER policy using Isaac Lab by @pulkitg01
+* Adds rendering mode presets by @matthewtrepte
+* Adds GR1 scene with Pink IK + Groot Mimic data generation and training by @ashwinvkNV
+* Adds absolute pose franka cube stacking environment for mimic by @rwiltz
+* Enables CloudXR OpenXR runtime container by @jaczhangnv
+* Adds a quick start guide for quick installation and introduction by @mpgussert
+
+Improvements
+------------
+
+* Clarifies the default parameters in ArticulationData by @Mayankm96 in https://github.com/isaac-sim/IsaacLab/pull/1875
+* Removes storage of meshes inside the TerrainImporter class by @Mayankm96 in https://github.com/isaac-sim/IsaacLab/pull/1987
+* Adds more details about state in InteractiveScene by @Mayankm96 in https://github.com/isaac-sim/IsaacLab/pull/2119
+* Mounts scripts to docker container by @Mayankm96 in https://github.com/isaac-sim/IsaacLab/pull/2152
+* Initializes manager term classes only when sim starts by @Mayankm96 in https://github.com/isaac-sim/IsaacLab/pull/2117
+* Updates to latest RSL-RL v2.3.0 release by @Mayankm96 in https://github.com/isaac-sim/IsaacLab/pull/2154
+* Skips dependency installation for directories with no extension.toml by @jsmith-bdai in https://github.com/isaac-sim/IsaacLab/pull/2216
+* Clarifies layer instructions in animation docs by @tylerlum in https://github.com/isaac-sim/IsaacLab/pull/2240
+* Lowers the default number of environments for camera envs by @kellyguo11 in https://github.com/isaac-sim/IsaacLab/pull/2287
+* Updates Rendering Mode guide in documentation by @matthewtrepte
+* Adds task instruction UI support for mimic by @chengronglai
+* Adds ExplicitAction class to track argument usage in AppLauncher by @nv-mhaselton
+* Allows physics reset during simulation by @oahmednv
+* Updates mimic to support multi-eef (DexMimicGen) data generation by @nvcyc
+
+Bug Fixes
+---------
+
+* Fixes default effort limit behavior for implicit actuators by @jtigue-bdai in https://github.com/isaac-sim/IsaacLab/pull/2098
+* Fixes docstrings inconsistencies the code by @Bardreamaster in https://github.com/isaac-sim/IsaacLab/pull/2112
+* Fixes missing stage recorder extension for animation recorder by @kellyguo11 in https://github.com/isaac-sim/IsaacLab/pull/2125
+* Fixes ground height in factory environment by @louislelay in https://github.com/isaac-sim/IsaacLab/pull/2071
+* Removes double definition of render settings by @pascal-roth in https://github.com/isaac-sim/IsaacLab/pull/2083
+* Fixes device settings in env tutorials by @Mayankm96 in https://github.com/isaac-sim/IsaacLab/pull/2151
+* Changes default ground color back to dark grey by @Mayankm96 in https://github.com/isaac-sim/IsaacLab/pull/2164
+* Initializes extras dict before loading managers by @kousheekc in https://github.com/isaac-sim/IsaacLab/pull/2178
+* Fixes typos in development.rst by @vi3itor in https://github.com/isaac-sim/IsaacLab/pull/2181
+* Fixes SE gamepad omniverse subscription API by @PinkPanther-ny in https://github.com/isaac-sim/IsaacLab/pull/2173
+* Fixes modify_action_space in RslRlVecEnvWrapper by @felipemohr in https://github.com/isaac-sim/IsaacLab/pull/2185
+* Fixes distributed setup in benchmarking scripts by @kellyguo11 in https://github.com/isaac-sim/IsaacLab/pull/2194
+* Fixes typo ``RF_FOOT`` to ``RH_FOOT`` in tutorials by @likecanyon in https://github.com/isaac-sim/IsaacLab/pull/2200
+* Checks if success term exists before recording in RecorderManager by @peterd-NV in https://github.com/isaac-sim/IsaacLab/pull/2218
+* Unsubscribes from debug vis handle when timeline is stopped by @jsmith-bdai in https://github.com/isaac-sim/IsaacLab/pull/2214
+* Fixes wait time in ``play.py`` by using ``env.step_dt`` by @tylerlum in https://github.com/isaac-sim/IsaacLab/pull/2239
+* Fixes 50 series installation instruction to include torchvision by @kellyguo11 in https://github.com/isaac-sim/IsaacLab/pull/2258
+* Fixes importing MotionViewer from external scripts by @T-K-233 in https://github.com/isaac-sim/IsaacLab/pull/2195
+* Resets cuda device after each app.update call by @kellyguo11 in https://github.com/isaac-sim/IsaacLab/pull/2283
+* Fixes resume flag in rsl-rl cli args by @Mayankm96 in https://github.com/isaac-sim/IsaacLab/pull/2299
+
+
 v2.0.2
 ======
 
@@ -274,10 +367,10 @@ Breaking Changes
 .. attention::
 
 	We have identified a breaking feature for semantic segmentation and instance segmentation when using
-	``TiledCamera`` with instanceable assets. Since the Isaac Sim 4.5 / Isaac Lab 2.0 release, semantic and instance
+	``Camera`` and ``TiledCamera`` with instanceable assets. Since the Isaac Sim 4.5 / Isaac Lab 2.0 release, semantic and instance
 	segmentation outputs only render the first tile correctly and produces blank outputs for the remaining tiles.
 	We will be introducing a workaround for this fix to remove scene instancing if semantic segmentation or instance
-	segmentation is required for ``TiledCamera`` until we receive a proper fix from Omniverse as part of the next Isaac Sim release.
+	segmentation is required for ``Camera`` and ``TiledCamera`` until we receive a proper fix from Omniverse as part of the next Isaac Sim release.
 
 Migration Guide
 ---------------

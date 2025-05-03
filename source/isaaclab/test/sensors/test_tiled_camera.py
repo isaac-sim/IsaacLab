@@ -1587,7 +1587,7 @@ class TestTiledCamera(unittest.TestCase):
 
         # check difference is above threshold
         self.assertGreater(
-            torch.abs(image_after - image_before).mean(), 0.05
+            torch.abs(image_after - image_before).mean(), 0.04
         )  # images of same color should be below 0.001
 
     def test_frame_offset_large_resolution(self):

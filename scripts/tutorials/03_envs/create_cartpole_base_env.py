@@ -140,6 +140,7 @@ def main():
     # parse the arguments
     env_cfg = CartpoleEnvCfg()
     env_cfg.scene.num_envs = args_cli.num_envs
+    env_cfg.sim.device = args_cli.device
     # setup base environment
     env = ManagerBasedEnv(cfg=env_cfg)
 

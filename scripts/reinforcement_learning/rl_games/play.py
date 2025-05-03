@@ -152,7 +152,7 @@ def main():
     agent.restore(resume_path)
     agent.reset()
 
-    dt = env.unwrapped.physics_dt
+    dt = env.unwrapped.step_dt
 
     # reset environment
     obs = env.reset()

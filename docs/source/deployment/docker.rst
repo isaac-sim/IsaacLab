@@ -50,6 +50,9 @@ needed to run Isaac Lab inside a Docker container. A subset of these are summari
   store frequently re-used resources compiled by Isaac Sim, such as shaders, and to retain logs, data, and documents.
 * **.env.base**: Stores environment variables required for the ``base`` build process and the container itself. ``.env``
   files which end with something else (i.e. ``.env.ros2``) define these for `image extension <#isaac-lab-image-extensions>`_.
+* **docker-compose.cloudxr-runtime.patch.yaml**: A patch file that is applied to enable CloudXR Runtime support for
+  streaming to compatible XR devices. It defines services and volumes for CloudXR Runtime and the base.
+* **.env.cloudxr-runtime**: Environment variables for the CloudXR Runtime support.
 * **container.py**: A utility script that interfaces with tools in ``utils`` to configure and build the image,
   and run and interact with the container.
 
@@ -112,6 +115,23 @@ directories to the ``docker/artifacts`` directory. This is useful for copying th
 
     # stop the container
     ./docker/container.py stop
+
+
+CloudXR Runtime Support
+~~~~~~~~~~~~~~~~~~~~~~~
+
+To enable CloudXR Runtime for streaming to compatible XR devices, you need to apply the patch file
+``docker-compose.cloudxr-runtime.patch.yaml`` to run CloudXR Runtime container. The patch file defines services and
+volumes for CloudXR Runtime and base. The environment variables required for CloudXR Runtime are specified in the
+``.env.cloudxr-runtime`` file. To start or stop the CloudXR runtime container with base, use the following command:
+
+.. code:: bash
+
+    # Start CloudXR Runtime container with base.
+    ./docker/container.py start --files docker-compose.cloudxr-runtime.patch.yaml --env-file .env.cloudxr-runtime
+
+    # Stop CloudXR Runtime container and base.
+    ./docker/container.py stop --files docker-compose.cloudxr-runtime.patch.yaml --env-file .env.cloudxr-runtime
 
 
 X11 forwarding
@@ -266,7 +286,7 @@ To pull the minimal Isaac Lab container, run:
 
 .. code:: bash
 
-  docker pull nvcr.io/nvidia/isaac-lab:2.0.2
+  docker pull nvcr.io/nvidia/isaac-lab:2.1.0
 
 To run the Isaac Lab container with an interactive bash session, run:
 
@@ -282,7 +302,26 @@ To run the Isaac Lab container with an interactive bash session, run:
      -v ~/docker/isaac-sim/logs:/root/.nvidia-omniverse/logs:rw \
      -v ~/docker/isaac-sim/data:/root/.local/share/ov/data:rw \
      -v ~/docker/isaac-sim/documents:/root/Documents:rw \
-     nvcr.io/nvidia/isaac-lab:2.0.2
+     nvcr.io/nvidia/isaac-lab:2.1.0
+
+To enable rendering through X11 forwarding, run:
+
+.. code:: bash
+
+  xhost +
+  docker run --name isaac-lab --entrypoint bash -it --gpus all -e "ACCEPT_EULA=Y" --rm --network=host \
+     -e "PRIVACY_CONSENT=Y" \
+     -e DISPLAY \
+     -v $HOME/.Xauthority:/root/.Xauthority \
+     -v ~/docker/isaac-sim/cache/kit:/isaac-sim/kit/cache:rw \
+     -v ~/docker/isaac-sim/cache/ov:/root/.cache/ov:rw \
+     -v ~/docker/isaac-sim/cache/pip:/root/.cache/pip:rw \
+     -v ~/docker/isaac-sim/cache/glcache:/root/.cache/nvidia/GLCache:rw \
+     -v ~/docker/isaac-sim/cache/computecache:/root/.nv/ComputeCache:rw \
+     -v ~/docker/isaac-sim/logs:/root/.nvidia-omniverse/logs:rw \
+     -v ~/docker/isaac-sim/data:/root/.local/share/ov/data:rw \
+     -v ~/docker/isaac-sim/documents:/root/Documents:rw \
+     nvcr.io/nvidia/isaac-lab:2.1.0
 
 To run an example within the container, run:
 

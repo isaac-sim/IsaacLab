@@ -39,7 +39,7 @@ command:
 
 .. code-block:: bash
 
-  ./isaaclab.sh -p -m pip show rsl-rl
+  ./isaaclab.sh -p -m pip show rsl-rl-lib
 
 This should now show the location of the ``rsl-rl`` library as the directory where you cloned the library.
 For instance, if you cloned the library to ``/home/user/git/rsl_rl``, the output of the above command should be:
@@ -47,7 +47,7 @@ For instance, if you cloned the library to ``/home/user/git/rsl_rl``, the output
 .. code-block:: bash
 
   Name: rsl_rl
-  Version: 2.0.2
+  Version: 2.1.0
   Summary: Fast and simple RL algorithms implemented in pytorch
   Home-page: https://github.com/leggedrobotics/rsl_rl
   Author: ETH Zurich, NVIDIA CORPORATION

@@ -141,7 +141,10 @@ setup_conda_env() {
         echo -e "[INFO] Conda environment named '${env_name}' already exists."
     else
         echo -e "[INFO] Creating conda environment named '${env_name}'..."
-        conda create -y --name ${env_name} python=3.10
+        echo -e "[INFO] Installing dependencies from ${ISAACLAB_PATH}/environment.yml"
+
+        # Create environment from YAML file with specified name
+        conda env create -y --file ${ISAACLAB_PATH}/environment.yml -n ${env_name}
     fi
 
     # cache current paths for later
@@ -207,10 +210,6 @@ setup_conda_env() {
             'unset ISAAC_PATH' \
             '' >> ${CONDA_PREFIX}/etc/conda/deactivate.d/unsetenv.sh
     fi
-
-    # install some extra dependencies
-    echo -e "[INFO] Installing extra dependencies (this might take a few minutes)..."
-    conda install -c conda-forge -y importlib_metadata &> /dev/null
 
     # deactivate the environment
     conda deactivate

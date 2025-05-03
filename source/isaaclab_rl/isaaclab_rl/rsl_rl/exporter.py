@@ -8,26 +8,26 @@ import os
 import torch
 
 
-def export_policy_as_jit(actor_critic: object, normalizer: object | None, path: str, filename="policy.pt"):
+def export_policy_as_jit(policy: object, normalizer: object | None, path: str, filename="policy.pt"):
     """Export policy into a Torch JIT file.
 
     Args:
-        actor_critic: The actor-critic torch module.
+        policy: The policy torch module.
         normalizer: The empirical normalizer module. If None, Identity is used.
         path: The path to the saving directory.
         filename: The name of exported JIT file. Defaults to "policy.pt".
     """
-    policy_exporter = _TorchPolicyExporter(actor_critic, normalizer)
+    policy_exporter = _TorchPolicyExporter(policy, normalizer)
     policy_exporter.export(path, filename)
 
 
 def export_policy_as_onnx(
-    actor_critic: object, path: str, normalizer: object | None = None, filename="policy.onnx", verbose=False
+    policy: object, path: str, normalizer: object | None = None, filename="policy.onnx", verbose=False
 ):
     """Export policy into a Torch ONNX file.
 
     Args:
-        actor_critic: The actor-critic torch module.
+        policy: The policy torch module.
         normalizer: The empirical normalizer module. If None, Identity is used.
         path: The path to the saving directory.
         filename: The name of exported ONNX file. Defaults to "policy.onnx".
@@ -35,7 +35,7 @@ def export_policy_as_onnx(
     """
     if not os.path.exists(path):
         os.makedirs(path, exist_ok=True)
-    policy_exporter = _OnnxPolicyExporter(actor_critic, normalizer, verbose)
+    policy_exporter = _OnnxPolicyExporter(policy, normalizer, verbose)
     policy_exporter.export(path, filename)
 
 
@@ -47,12 +47,22 @@ Helper Classes - Private.
 class _TorchPolicyExporter(torch.nn.Module):
     """Exporter of actor-critic into JIT file."""
 
-    def __init__(self, actor_critic, normalizer=None):
+    def __init__(self, policy, normalizer=None):
         super().__init__()
-        self.actor = copy.deepcopy(actor_critic.actor)
-        self.is_recurrent = actor_critic.is_recurrent
+        self.is_recurrent = policy.is_recurrent
+        # copy policy parameters
+        if hasattr(policy, "actor"):
+            self.actor = copy.deepcopy(policy.actor)
+            if self.is_recurrent:
+                self.rnn = copy.deepcopy(policy.memory_a.rnn)
+        elif hasattr(policy, "student"):
+            self.actor = copy.deepcopy(policy.student)
+            if self.is_recurrent:
+                self.rnn = copy.deepcopy(policy.memory_s.rnn)
+        else:
+            raise ValueError("Policy does not have an actor/student module.")
+        # set up recurrent network
         if self.is_recurrent:
-            self.rnn = copy.deepcopy(actor_critic.memory_a.rnn)
             self.rnn.cpu()
             self.register_buffer("hidden_state", torch.zeros(self.rnn.num_layers, 1, self.rnn.hidden_size))
             self.register_buffer("cell_state", torch.zeros(self.rnn.num_layers, 1, self.rnn.hidden_size))
@@ -94,13 +104,23 @@ class _TorchPolicyExporter(torch.nn.Module):
 class _OnnxPolicyExporter(torch.nn.Module):
     """Exporter of actor-critic into ONNX file."""
 
-    def __init__(self, actor_critic, normalizer=None, verbose=False):
+    def __init__(self, policy, normalizer=None, verbose=False):
         super().__init__()
         self.verbose = verbose
-        self.actor = copy.deepcopy(actor_critic.actor)
-        self.is_recurrent = actor_critic.is_recurrent
+        self.is_recurrent = policy.is_recurrent
+        # copy policy parameters
+        if hasattr(policy, "actor"):
+            self.actor = copy.deepcopy(policy.actor)
+            if self.is_recurrent:
+                self.rnn = copy.deepcopy(policy.memory_a.rnn)
+        elif hasattr(policy, "student"):
+            self.actor = copy.deepcopy(policy.student)
+            if self.is_recurrent:
+                self.rnn = copy.deepcopy(policy.memory_s.rnn)
+        else:
+            raise ValueError("Policy does not have an actor/student module.")
+        # set up recurrent network
         if self.is_recurrent:
-            self.rnn = copy.deepcopy(actor_critic.memory_a.rnn)
             self.rnn.cpu()
             self.forward = self.forward_lstm
         # copy normalizer if exists

@@ -120,7 +120,8 @@ if %errorlevel% equ 0 (
     echo [INFO] Conda environment named '%env_name%' already exists.
 ) else (
     echo [INFO] Creating conda environment named '%env_name%'...
-    call conda create -y --name %env_name% python=3.10
+    echo [INFO] Installing dependencies from %ISAACLAB_PATH%\environment.yml
+    call conda env create -y --file %ISAACLAB_PATH%\environment.yml -n %env_name%
 )
 rem cache current paths for later
 set "cache_pythonpath=%PYTHONPATH%"
@@ -198,10 +199,6 @@ rem remove variables from environment during deactivation
     echo $env:PYTHONPATH="%cache_pythonpath%"
     echo $env:LD_LIBRARY_PATH="%cache_pythonpath%"
 ) > "%CONDA_PREFIX%\etc\conda\deactivate.d\unsetenv_vars.ps1"
-
-rem install some extra dependencies
-echo [INFO] Installing extra dependencies (this might take a few minutes)...
-call conda install -c conda-forge -y importlib_metadata >nul 2>&1
 
 rem deactivate the environment
 call conda deactivate

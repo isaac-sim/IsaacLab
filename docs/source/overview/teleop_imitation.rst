@@ -1,3 +1,5 @@
+.. _teleoperation-imitation-learning:
+
 Teleoperation and Imitation Learning
 ====================================
 
@@ -31,7 +33,32 @@ For smoother operation and off-axis operation, we recommend using a SpaceMouse a
    Identify the device corresponding to the SpaceMouse by running ``cat /sys/class/hidraw/hidraw<#>/device/uevent`` on each of the devices listed
    from the prior step.
 
-   Only compatible with the SpaceMouse Wireless and SpaceMouse Compact models from 3Dconnexion.
+   We recommend using local deployment of Isaac Lab to use the SpaceMouse. If using container deployment (:ref:`deployment-docker`), you must manually mount the SpaceMouse to the ``isaac-lab-base`` container by
+   adding a ``devices`` attribute with the path to the device in your ``docker-compose.yaml`` file:
+
+   .. code:: yaml
+
+      devices:
+         - /dev/hidraw<#>:/dev/hidraw<#>
+
+   where ``<#>`` is the device index of the connected SpaceMouse.
+
+   If you are using the IsaacLab + CloudXR container deployment (:ref:`cloudxr-teleoperation`), you can add the ``devices`` attribute under the ``services -> isaac-lab-base`` section of the
+   ``docker/docker-compose.cloudxr-runtime.patch.yaml`` file.
+
+   Isaac Lab is only compatible with the SpaceMouse Wireless and SpaceMouse Compact models from 3Dconnexion.
+
+
+For tasks that benefit from the use of an extended reality (XR) device with hand tracking, Isaac Lab supports using NVIDIA CloudXR to immersively stream the scene to compatible XR devices for teleoperation. Note that when using hand tracking we recommend using the absolute variant of the task (``Isaac-Stack-Cube-Franka-IK-Abs-v0``), which requires the ``handtracking_abs`` device:
+
+.. code:: bash
+
+   ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py --task Isaac-Stack-Cube-Franka-IK-Abs-v0 --teleop_device handtracking_abs --device cpu
+
+.. note::
+
+   See :ref:`cloudxr-teleoperation` to learn more about using CloudXR with Isaac Lab.
+
 
 The script prints the teleoperation events configured. For keyboard,
 these are as follows:
@@ -78,7 +105,7 @@ To collect demonstrations with teleoperation for the environment ``Isaac-Stack-C
    # step a: create folder for datasets
    mkdir -p datasets
    # step b: collect data with a selected teleoperation device. Replace <teleop_device> with your preferred input device.
-   # Available options: spacemouse, keyboard
+   # Available options: spacemouse, keyboard, handtracking, handtracking_abs, dualhandtracking_abs
    ./isaaclab.sh -p scripts/tools/record_demos.py --task Isaac-Stack-Cube-Franka-IK-Rel-v0 --teleop_device <teleop_device> --dataset_file ./datasets/dataset.hdf5 --num_demos 10
    # step a: replay the collected dataset
    ./isaaclab.sh -p scripts/tools/replay_demos.py --task Isaac-Stack-Cube-Franka-IK-Rel-v0 --dataset_file ./datasets/dataset.hdf5
@@ -87,6 +114,10 @@ To collect demonstrations with teleoperation for the environment ``Isaac-Stack-C
 .. note::
 
    The order of the stacked cubes should be blue (bottom), red (middle), green (top).
+
+.. tip::
+
+   When using an XR device, we suggest collecting demonstrations with the ``Isaac-Stack-Cube-Frank-IK-Abs-v0`` version of the task and ``--teleop_device handtracking_abs``, which controls the end effector using the absolute position of the hand.
 
 About 10 successful demonstrations are required in order for the following steps to succeed.
 
@@ -104,7 +135,8 @@ If, while performing a demonstration, a mistake is made, or the current demonstr
 Pre-recorded demonstrations
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-We provide a pre-recorded ``dataset.hdf5`` containing 10 human demonstrations for ``Isaac-Stack-Cube-Franka-IK-Rel-v0`` `here <https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/4.5/Isaac/IsaacLab/Mimic/dataset.hdf5>`_.
+We provide a pre-recorded ``dataset.hdf5`` containing 10 human demonstrations for ``Isaac-Stack-Cube-Franka-IK-Rel-v0``
+`here <https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/4.5/Isaac/IsaacLab/Mimic/dataset.hdf5>`_.
 This dataset may be downloaded and used in the remaining tutorial steps if you do not wish to collect your own demonstrations.
 
 .. note::
@@ -117,35 +149,93 @@ Additional demonstrations can be generated using Isaac Lab Mimic.
 
 Isaac Lab Mimic is a feature in Isaac Lab that allows generation of additional demonstrations automatically, allowing a policy to learn successfully even from just a handful of manual demonstrations.
 
+In the following example, we will show how to use Isaac Lab Mimic to generate additional demonstrations that can be used to train either a state-based policy
+(using the ``Isaac-Stack-Cube-Franka-IK-Rel-Mimic-v0`` environment) or visuomotor policy (using the ``Isaac-Stack-Cube-Franka-IK-Rel-Visuomotor-Mimic-v0`` environment).
+
+.. important::
+
+   All commands in the following sections must keep a consistent policy type. For example, if choosing to use a state-based policy, then all commands used should be from the "State-based policy" tab.
+
 In order to use Isaac Lab Mimic with the recorded dataset, first annotate the subtasks in the recording:
 
-.. code:: bash
+.. tab-set::
+   :sync-group: policy_type
 
-   ./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/annotate_demos.py --input_file ./datasets/dataset.hdf5 --output_file ./datasets/annotated_dataset.hdf5 --task Isaac-Stack-Cube-Franka-IK-Rel-Mimic-v0 --auto
+   .. tab-item:: State-based policy
+      :sync: state
+
+      .. code:: bash
+
+         ./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/annotate_demos.py \
+         --device cuda --task Isaac-Stack-Cube-Franka-IK-Rel-Mimic-v0 --auto \
+         --input_file ./datasets/dataset.hdf5 --output_file ./datasets/annotated_dataset.hdf5
+
+   .. tab-item:: Visuomotor policy
+      :sync: visuomotor
+
+      .. code:: bash
+
+         ./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/annotate_demos.py \
+         --device cuda --enable_cameras --task Isaac-Stack-Cube-Franka-IK-Rel-Visuomotor-Mimic-v0 --auto \
+         --input_file ./datasets/dataset.hdf5 --output_file ./datasets/annotated_dataset.hdf5
+
 
 Then, use Isaac Lab Mimic to generate some additional demonstrations:
 
-.. code:: bash
+.. tab-set::
+   :sync-group: policy_type
 
-   ./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/generate_dataset.py --input_file ./datasets/annotated_dataset.hdf5 --output_file ./datasets/generated_dataset_small.hdf5 --num_envs 10 --generation_num_trials 10
+   .. tab-item:: State-based policy
+      :sync: state
+
+      .. code:: bash
+
+         ./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
+         --device cuda --num_envs 10 --generation_num_trials 10 \
+         --input_file ./datasets/annotated_dataset.hdf5 --output_file ./datasets/generated_dataset_small.hdf5
+
+   .. tab-item:: Visuomotor policy
+      :sync: visuomotor
+
+      .. code:: bash
+
+         ./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
+         --device cuda --enable_cameras --num_envs 10 --generation_num_trials 10 \
+         --input_file ./datasets/annotated_dataset.hdf5 --output_file ./datasets/generated_dataset_small.hdf5
 
 .. note::
 
    The output_file of the ``annotate_demos.py`` script is the input_file to the ``generate_dataset.py`` script
 
-.. note::
-
-   Isaac Lab is designed to work with manipulators with grippers. The gripper commands in the demonstrations are extracted separately and temporally replayed during the generation of additional demonstrations.
-
 Inspect the output of generated data (filename: ``generated_dataset_small.hdf5``), and if satisfactory, generate the full dataset:
 
-.. code:: bash
+.. tab-set::
+   :sync-group: policy_type
 
-   ./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/generate_dataset.py --input_file ./datasets/annotated_dataset.hdf5 --output_file ./datasets/generated_dataset.hdf5 --num_envs 10 --generation_num_trials 1000 --headless
+   .. tab-item:: State-based policy
+      :sync: state
+
+      .. code:: bash
+
+         ./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
+         --device cuda --headless --num_envs 10 --generation_num_trials 1000 \
+         --input_file ./datasets/annotated_dataset.hdf5 --output_file ./datasets/generated_dataset.hdf5
+
+   .. tab-item:: Visuomotor policy
+      :sync: visuomotor
+
+      .. code:: bash
+
+         ./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
+         --device cuda --enable_cameras --headless --num_envs 10 --generation_num_trials 1000 \
+         --input_file ./datasets/annotated_dataset.hdf5 --output_file ./datasets/generated_dataset.hdf5
+
 
 The number of demonstrations can be increased or decreased, 1000 demonstrations have been shown to provide good training results for this task.
 
-Additionally, the number of environments in the ``--num_envs`` parameter can be adjusted to speed up data generation. The suggested number of 10 can be executed even on a laptop GPU. On a more powerful desktop machine, set it to 100 or higher for significant speedup of this step.
+Additionally, the number of environments in the ``--num_envs`` parameter can be adjusted to speed up data generation.
+The suggested number of 10 can be executed on a moderate laptop GPU.
+On a more powerful desktop machine, use a larger number of environments for a significant speedup of this step.
 
 Robomimic setup
 ^^^^^^^^^^^^^^^
@@ -164,23 +254,238 @@ To install the robomimic framework, use the following commands:
 Training an agent
 ^^^^^^^^^^^^^^^^^
 
-We can now train a BC agent for ``Isaac-Stack-Cube-Franka-IK-Rel-v0`` using the Mimic generated data:
+Using the Mimic generated data we can now train a state-based BC agent for ``Isaac-Stack-Cube-Franka-IK-Rel-v0``, or a visuomotor BC agent for ``Isaac-Stack-Cube-Franka-IK-Rel-Visuomotor-v0``:
 
-.. code:: bash
+.. tab-set::
+   :sync-group: policy_type
 
-   ./isaaclab.sh -p scripts/imitation_learning/robomimic/train.py --task Isaac-Stack-Cube-Franka-IK-Rel-v0 --algo bc --dataset ./datasets/generated_dataset.hdf5
+   .. tab-item:: State-based policy
+      :sync: state
 
-By default, the training script will save a model checkpoint every 100 epochs. The trained models and logs will be saved to logs/robomimic/Isaac-Stack-Cube-Franka-IK-Rel-v0/bc
+      .. code:: bash
+
+         ./isaaclab.sh -p scripts/imitation_learning/robomimic/train.py \
+         --task Isaac-Stack-Cube-Franka-IK-Rel-v0 --algo bc \
+         --dataset ./datasets/generated_dataset.hdf5
+
+   .. tab-item:: Visuomotor policy
+      :sync: visuomotor
+
+      .. code:: bash
+
+         ./isaaclab.sh -p scripts/imitation_learning/robomimic/train.py \
+         --task Isaac-Stack-Cube-Franka-IK-Rel-Visuomotor-v0 --algo bc \
+         --dataset ./datasets/generated_dataset.hdf5
+
+.. note::
+   By default the trained models and logs will be saved to ``IssacLab/logs/robomimic``.
 
 Visualizing results
 ^^^^^^^^^^^^^^^^^^^
 
-By inferencing using the generated model, we can visualize the results of the policy in the same environment:
+By inferencing using the generated model, we can visualize the results of the policy:
+
+.. tab-set::
+   :sync-group: policy_type
+
+   .. tab-item:: State-based policy
+      :sync: state
+
+      .. code:: bash
+
+         ./isaaclab.sh -p scripts/imitation_learning/robomimic/play.py \
+         --device cuda --task Isaac-Stack-Cube-Franka-IK-Rel-v0 --num_rollouts 50 \
+         --checkpoint /PATH/TO/desired_model_checkpoint.pth
+
+   .. tab-item:: Visuomotor policy
+      :sync: visuomotor
+
+      .. code:: bash
+
+         ./isaaclab.sh -p scripts/imitation_learning/robomimic/play.py \
+         --device cuda --enable_cameras --task Isaac-Stack-Cube-Franka-IK-Rel-Visuomotor-v0 --num_rollouts 50 \
+         --checkpoint /PATH/TO/desired_model_checkpoint.pth
+
+
+Demo: Data Generation and Policy Training for a Humanoid Robot
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+Isaac Lab Mimic supports data generation for robots with multiple end effectors. In the following demonstration, we will show how to generate data
+to train a Fourier GR-1 humanoid robot to perform a pick and place task.
+
+Optional: Collect and annotate demonstrations
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Collect human demonstrations
+""""""""""""""""""""""""""""
+.. note::
+
+   Data collection for the GR-1 humanoid robot environment requires use of an Apple Vision Pro headset. If you do not have access to
+   an Apple Vision Pro, you may skip this step and continue on to the next step: `Generate the dataset`_.
+   A pre-recorded annotated dataset is provided in the next step .
+
+.. tip::
+   The GR1 scene utilizes the wrist poses from the Apple Vision Pro (AVP) as setpoints for a differential IK controller (Pink-IK).
+   The differential IK controller requires the user's wrist pose to be close to the robot's initial or current pose for optimal performance.
+   Rapid movements of the user's wrist may cause it to deviate significantly from the goal state, which could prevent the IK controller from finding the optimal solution.
+   This may result in a mismatch between the user's wrist and the robot's wrist.
+   You can increase the gain of the all `Pink-IK controller's FrameTasks <https://github.com/isaac-sim/IsaacLab-Internal/blob/devel/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/pick_place/pickplace_gr1t2_env_cfg.py>`__ to track the AVP wrist poses with lower latency.
+   However, this may lead to more jerky motion.
+   Separately, the finger joints of the robot are retargeted to the user's finger joints using the `dex-retargeting <https://github.com/dexsuite/dex-retargeting>`_ library.
+
+Set up the CloudXR Runtime and Apple Vision Pro for teleoperation by following the steps in :ref:`cloudxr-teleoperation`.
+CPU simulation is used in the following steps for better XR performance when running a single environment.
+
+Collect a set of human demonstrations using the command below.
+A success demo requires the object to be placed in the bin and for the robot's right arm to be retracted to the starting position.
+The Isaac Lab Mimic Env GR-1 humanoid robot is set up such that the left hand has a single subtask, while the right hand has two subtasks.
+The first subtask involves the right hand remaining idle while the left hand picks up and moves the object to the position where the right hand will grasp it.
+This setup allows Isaac Lab Mimic to interpolate the right hand's trajectory accurately by using the object's pose, especially when poses are randomized during data generation.
+Therefore, avoid moving the right hand while the left hand picks up the object and brings it to a stable position.
+We recommend 10 successful demonstrations for good data generation results. An example of a successful demonstration is shown below:
+
+.. figure:: ../_static/tasks/manipulation/gr-1_pick_place.gif
+   :width: 100%
+   :align: center
+   :alt: GR-1 humanoid robot performing a pick and place task
+
+Collect demonstrations by running the following command:
 
 .. code:: bash
 
-   ./isaaclab.sh -p scripts/imitation_learning/robomimic/play.py --task Isaac-Stack-Cube-Franka-IK-Rel-v0 --num_rollouts 50 --checkpoint /PATH/TO/desired_model_checkpoint.pth
+   ./isaaclab.sh -p scripts/tools/record_demos.py \
+   --device cpu \
+   --task Isaac-PickPlace-GR1T2-Abs-v0 \
+   --teleop_device dualhandtracking_abs \
+   --dataset_file ./datasets/dataset_gr1.hdf5 \
+   --num_demos 10 --enable_pinocchio
 
+.. tip::
+   If a demo fails during data collection, the environment can be reset using the teleoperation controls panel in the XR teleop client
+   on the Apple Vision Pro or via voice control by saying "reset". See :ref:`teleoperate-apple-vision-pro` for more details.
+
+   The robot uses simplified collision meshes for physics calculations that differ from the detailed visual meshes displayed in the simulation. Due to this difference, you may occasionally observe visual artifacts where parts of the robot appear to penetrate other objects or itself, even though proper collision handling is occurring in the physics simulation.
+
+.. warning::
+   When first starting the simulation window, you may encounter the following ``DeprecationWarning`` and ``UserWarning`` error:
+
+   .. code-block:: text
+
+      DeprecationWarning: get_prim_path is deprecated and will be removed
+      in a future release. Use get_path.
+      UserWarning: Sum of faceVertexCounts (25608) does not equal sum of
+      length of GeomSubset indices (840) for prim
+      '/GR1T2_fourier_hand_6dof/waist_pitch_link/visuals/waist_pitch_link/mesh'.
+      Material mtl files will not be created.
+
+   This error can be ignored and will not affect the data collection process.
+   The error will be patched in a future release of Isaac Sim.
+
+You can replay the collected demonstrations by running the following command:
+
+.. code:: bash
+
+   ./isaaclab.sh -p scripts/tools/replay_demos.py \
+   --device cpu \
+   --task Isaac-PickPlace-GR1T2-Abs-v0 \
+   --dataset_file ./datasets/dataset_gr1.hdf5 --enable_pinocchio
+
+.. note::
+   Non-determinism may be observed during replay as physics in IsaacLab are not determimnistically reproducible when using ``env.reset``.
+
+
+Annotate the demonstrations
+"""""""""""""""""""""""""""
+
+Unlike the prior Franka stacking task, the GR-1 pick and place task uses manual annotation to define subtasks.
+Each demo requires a single annotation between the first and second subtask of the right arm. This annotation ("S" button press) should be done when the right robot arm finishes the "idle" subtask and begins to
+move towards the target object. An example of a correct annotation is shown below:
+
+.. figure:: ../_static/tasks/manipulation/gr-1_pick_place_annotation.jpg
+   :width: 100%
+   :align: center
+
+Annotate the demonstrations by running the following command:
+
+.. code:: bash
+
+   ./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/annotate_demos.py \
+   --device cpu \
+   --task Isaac-PickPlace-GR1T2-Abs-Mimic-v0 \
+   --input_file ./datasets/dataset_gr1.hdf5 \
+   --output_file ./datasets/dataset_annotated_gr1.hdf5 --enable_pinocchio
+
+.. note::
+
+   The script prints the keyboard commands for manual annotation and the current subtask being annotated:
+
+   .. code:: text
+
+      Annotating episode #0 (demo_0)
+         Playing the episode for subtask annotations for eef "right".
+         Subtask signals to annotate:
+            - Termination:	['idle_right']
+
+         Press "N" to begin.
+         Press "B" to pause.
+         Press "S" to annotate subtask signals.
+         Press "Q" to skip the episode.
+
+.. tip::
+
+   If the object does not get placed in the bin during annotation, you can press "N" to replay the episode and annotate again. Or you can press "Q" to skip the episode and annotate the next one.
+
+Generate the dataset
+^^^^^^^^^^^^^^^^^^^^
+
+If you skipped the prior collection and annotation step, download the pre-recorded annotated dataset ``dataset_annotated_gr1.hdf5`` from
+`here <https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/4.5/Isaac/IsaacLab/Mimic/dataset_annotated_gr1.hdf5>`_.
+Place the file under ``IsaacLab/datasets`` and run the following command to generate a new dataset with 1000 demonstrations.
+
+.. code:: bash
+
+   ./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
+   --device cuda --headless --num_envs 10 --generation_num_trials 1000 --enable_pinocchio \
+   --input_file ./datasets/dataset_annotated_gr1.hdf5 --output_file ./datasets/generated_dataset_gr1.hdf5
+
+Train a policy
+^^^^^^^^^^^^^^
+
+Use Robomimic to train a policy for the generated dataset.
+
+.. code:: bash
+
+   ./isaaclab.sh -p scripts/imitation_learning/robomimic/train.py \
+   --task Isaac-PickPlace-GR1T2-Abs-v0 --algo bc \
+   --normalize_training_actions \
+   --dataset ./datasets/generated_dataset_gr1.hdf5
+
+The training script will normalize the actions in the dataset to the range [-1, 1].
+The normalization parameters are saved in the model directory under ``PATH_TO_MODEL_DIRECTORY/logs/normalization_params.txt``.
+Record the normalization parameters for later use in the visualization step.
+
+.. note::
+   By default the trained models and logs will be saved to ``IssacLab/logs/robomimic``.
+
+Visualize the results
+^^^^^^^^^^^^^^^^^^^^^
+
+Visualize the results of the trained policy by running the following command, using the normalization parameters recorded in the prior training step:
+
+.. code:: bash
+
+   ./isaaclab.sh -p scripts/imitation_learning/robomimic/play.py \
+   --device cuda \
+   --enable_pinocchio \
+   --task Isaac-PickPlace-GR1T2-Abs-v0 \
+   --num_rollouts 50 \
+   --norm_factor_min <NORM_FACTOR_MIN> \
+   --norm_factor_max <NORM_FACTOR_MAX> \
+   --checkpoint /PATH/TO/desired_model_checkpoint.pth
+
+.. note::
+   Change the ``NORM_FACTOR`` in the above command with the values generated in the training step.
 
 Common Pitfalls when Generating Data
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -246,10 +551,12 @@ The config class :class:`~isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg` s
 
 The ``DataGenConfig`` member contains various parameters that influence how data is generated. It is initially sufficient to just set the ``name`` parameter, and revise the rest later.
 
-Subtasks are a list of ``SubTaskConfig`` objects, of which the most important members are:
+Subtasks are a list of :class:`~isaaclab.envs.SubTaskConfig` objects, of which the most important members are:
 
 * ``object_ref`` is the object that is being interacted with. This will be used to adjust motions relative to this object during data generation. Can be ``None`` if the current subtask does not involve any object.
 * ``subtask_term_signal`` is the ID of the signal indicating whether the subtask is active or not.
+
+For multi end-effector environments, subtask ordering between end-effectors can be enforced by specifying subtask constraints. These constraints are defined in the :class:`~isaaclab.envs.SubTaskConstraintConfig` class.
 
 Subtask annotation
 ^^^^^^^^^^^^^^^^^^

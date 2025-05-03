@@ -38,6 +38,9 @@ x-default-isaac-lab-volumes: &default-isaac-lab-volumes
     source: ../source
     target: ${DOCKER_ISAACLAB_PATH}/source
   - type: bind
+    source: ../scripts
+    target: ${DOCKER_ISAACLAB_PATH}/scripts
+  - type: bind
     source: ../docs
     target: ${DOCKER_ISAACLAB_PATH}/docs
   - type: bind

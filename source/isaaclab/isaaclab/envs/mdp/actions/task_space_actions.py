@@ -324,7 +324,7 @@ class OperationalSpaceControllerAction(ActionTerm):
             if not self._task_frame_transformer.is_initialized:
                 self._task_frame_transformer._initialize_impl()
                 self._task_frame_transformer._is_initialized = True
-            # create tensor for task frame pose wrt the root frame
+            # create tensor for task frame pose in the root frame
             self._task_frame_pose_b = torch.zeros(self.num_envs, 7, device=self.device)
         else:
             # create an empty reference for task frame pose

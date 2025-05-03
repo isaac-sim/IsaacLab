@@ -44,6 +44,23 @@ It allows you to develop in an isolated environment, outside of the core Isaac L
         python scripts/<RL_LIBRARY>/train.py --task=<TASK_NAME>
         ```
 
+    - Running a task with dummy agents:
+
+        These include dummy agents that output zero or random agents. They are useful to ensure that the environments are configured correctly.
+
+        - Zero-action agent
+
+            ```bash
+            # use 'FULL_PATH_TO_isaaclab.sh|bat -p' instead of 'python' if Isaac Lab is not installed in Python venv or conda
+            python scripts/zero_agent.py --task=<TASK_NAME>
+            ```
+        - Random-action agent
+
+            ```bash
+            # use 'FULL_PATH_TO_isaaclab.sh|bat -p' instead of 'python' if Isaac Lab is not installed in Python venv or conda
+            python scripts/random_agent.py --task=<TASK_NAME>
+            ```
+
 ### Set up IDE (Optional)
 
 To setup the IDE, please follow these instructions:

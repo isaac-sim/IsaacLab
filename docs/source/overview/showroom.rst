@@ -191,3 +191,19 @@ A few quick showroom scripts to run and checkout:
    .. image:: ../_static/demos/h1_locomotion.jpg
       :width: 100%
       :alt: H1 locomotion in Isaac Lab
+
+   This is an interactive demo that can be run using the mouse and keyboard.
+   To enter third-person perspective, click on a humanoid character in the scene.
+   Once entered into third-person view, the humanoid can be controlled by keyboard using:
+
+   * ``UP``: go forward
+   * ``LEFT``: turn left
+   * ``RIGHT``: turn right
+   * ``DOWN``: stop
+   * ``C``: switch between third-person and perspective views
+   * ``ESC``: exit current third-person view
+
+   If a misclick happens outside of the humanoid bodies when selecting a humanoid,
+   a message is printed to console indicating the error, such as
+   ``The selected prim was not a H1 robot`` or
+   ``Multiple prims are selected. Please only select one!``.

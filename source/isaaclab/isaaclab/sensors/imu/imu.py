@@ -10,7 +10,7 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import isaacsim.core.utils.stage as stage_utils
-import omni.physics.tensors.impl.api as physx
+from isaacsim.core.simulation_manager import SimulationManager
 from pxr import UsdPhysics
 
 import isaaclab.sim as sim_utils
@@ -123,9 +123,8 @@ class Imu(SensorBase):
         """
         # Initialize parent class
         super()._initialize_impl()
-        # create simulation view
-        self._physics_sim_view = physx.create_simulation_view(self._backend)
-        self._physics_sim_view.set_subspace_roots("/")
+        # obtain global simulation view
+        self._physics_sim_view = SimulationManager.get_physics_sim_view()
         # check if the prim at path is a rigid prim
         prim = sim_utils.find_first_matching_prim(self.cfg.prim_path)
         if prim is None:

@@ -84,13 +84,13 @@ If you encounter any issues, please report them to the
 
          .. code-block:: bash
 
-            pip install torch==2.5.1 --index-url https://download.pytorch.org/whl/cu118
+            pip install torch==2.5.1 torchvision==0.20.1 --index-url https://download.pytorch.org/whl/cu118
 
       .. tab-item:: CUDA 12
 
          .. code-block:: bash
 
-            pip install torch==2.5.1 --index-url https://download.pytorch.org/whl/cu121
+            pip install torch==2.5.1 torchvision==0.20.1 --index-url https://download.pytorch.org/whl/cu121
 
 -  Before installing Isaac Sim, ensure the latest pip version is installed. To update pip, run
 
@@ -306,7 +306,7 @@ Installation
 
    .. code:: bash
 
-      pip install --upgrade --pre torch --index-url https://download.pytorch.org/whl/nightly/cu128
+      pip install --upgrade --pre torch torchvision --index-url https://download.pytorch.org/whl/nightly/cu128
 
 Verifying the Isaac Lab installation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

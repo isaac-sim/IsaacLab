@@ -67,8 +67,8 @@ application and play the animation.
   ./isaaclab.sh -s  # Opens Isaac Sim application through _isaac_sim/isaac-sim.sh
 
 On a new stage, add the ``Stage.usd`` as a sublayer and then add the ``TimeSample_tk001.usd`` as a sublayer.
-You can do this by dragging and dropping the files from the file explorer to the stage. Please check out
-the `tutorial on layering in Omniverse`_ for more details.
+You can do this by opening the ``Layers`` window on the top right and then dragging and dropping the files from the file explorer to the stage (or finding the files in the ``Content`` window on the bottom left, right clicking and selecting ``Insert As Sublayer``).
+Please check out the `tutorial on layering in Omniverse`_ for more details.
 
 You can then play the animation by pressing the play button.
 

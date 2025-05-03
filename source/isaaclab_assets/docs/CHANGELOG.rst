@@ -1,6 +1,14 @@
 Changelog
 ---------
 
+0.2.2 (2025-03-10)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added configuration for the Fourier GR1T2 robot.
+
 0.2.1 (2025-01-14)
 ~~~~~~~~~~~~~~~~~~
 

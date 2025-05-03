@@ -1,7 +1,7 @@
 Extension Development
 =======================
 
-Everything in Omniverse is either an extension, or a collection of extensions (an application). They are
+Everything in Omniverse is either an extension or a collection of extensions (an application). They are
 modularized packages that form the atoms of the Omniverse ecosystem. Each extension
 provides a set of functionalities that can be used by other extensions or
 standalone applications. A folder is recognized as an extension if it contains
@@ -32,12 +32,12 @@ for the extension with more detailed information about the extension and a CHANG
 file that contains the changes made to the extension in each version.
 
 The ``<extension-name>`` directory contains the main python package for the extension.
-It may also contains the ``scripts`` directory for keeping python-based applications
-that are loaded into Omniverse when then extension is enabled using the
+It may also contain the ``scripts`` directory for keeping python-based applications
+that are loaded into Omniverse when the extension is enabled using the
 `Extension Manager <https://docs.omniverse.nvidia.com/kit/docs/kit-manual/latest/guide/extensions_basic.html>`__.
 
 More specifically, when an extension is enabled, the python module specified in the
-``config/extension.toml`` file is loaded and scripts that contains children of the
+``config/extension.toml`` file is loaded and scripts that contain children of the
 :class:`omni.ext.IExt` class are executed.
 
 .. code:: python
@@ -60,7 +60,7 @@ More specifically, when an extension is enabled, the python module specified in 
 
 While loading extensions into Omniverse happens automatically, using the python package
 in standalone applications requires additional steps. To simplify the build process and
-avoiding the need to understand the `premake <https://premake.github.io/>`__
+avoid the need to understand the `premake <https://premake.github.io/>`__
 build system used by Omniverse, we directly use the `setuptools <https://setuptools.readthedocs.io/en/latest/>`__
 python package to build the python module provided by the extensions. This is done by the
 ``setup.py`` file in the extension directory.

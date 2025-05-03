@@ -175,13 +175,13 @@ class FeatureExtractor:
                     pose_loss.backward()
                     self.optimizer.step()
 
-                    self.step_count += 1
-
                     if self.step_count % 50000 == 0:
                         torch.save(
                             self.feature_extractor.state_dict(),
                             os.path.join(self.log_dir, f"cnn_{self.step_count}_{pose_loss.detach().cpu().numpy()}.pth"),
                         )
+
+                    self.step_count += 1
 
                     return pose_loss, predicted_pose
         else:

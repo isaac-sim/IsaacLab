@@ -47,7 +47,11 @@ class ManagerBasedRLMimicEnv(ManagerBasedRLEnv):
         raise NotImplementedError
 
     def target_eef_pose_to_action(
-        self, target_eef_pose_dict: dict, gripper_action_dict: dict, noise: float | None = None, env_id: int = 0
+        self,
+        target_eef_pose_dict: dict,
+        gripper_action_dict: dict,
+        action_noise_dict: dict | None = None,
+        env_id: int = 0,
     ) -> torch.Tensor:
         """
         Takes a target pose and gripper action for the end effector controller and returns an action
@@ -57,7 +61,7 @@ class ManagerBasedRLMimicEnv(ManagerBasedRLEnv):
         Args:
             target_eef_pose_dict: Dictionary of 4x4 target eef pose for each end-effector.
             gripper_action_dict: Dictionary of gripper actions for each end-effector.
-            noise: Noise to add to the action. If None, no noise is added.
+            action_noise_dict: Noise to add to the action. If None, no noise is added.
             env_id: Environment index to compute the action for.
 
         Returns:

@@ -15,6 +15,7 @@ import omni.kit.app
 import omni.log
 import omni.physics.tensors.impl.api as physx
 import omni.timeline
+from isaacsim.core.simulation_manager import SimulationManager
 from pxr import UsdPhysics
 
 import isaaclab.sim as sim_utils
@@ -529,9 +530,8 @@ class RigidObjectCollection(AssetBase):
     """
 
     def _initialize_impl(self):
-        # create simulation view
-        self._physics_sim_view = physx.create_simulation_view(self._backend)
-        self._physics_sim_view.set_subspace_roots("/")
+        # obtain global simulation view
+        self._physics_sim_view = SimulationManager.get_physics_sim_view()
         root_prim_path_exprs = []
         for name, rigid_object_cfg in self.cfg.rigid_objects.items():
             # obtain the first prim in the regex expression (all others are assumed to be a copy of this)
@@ -687,5 +687,4 @@ class RigidObjectCollection(AssetBase):
         # call parent
         super()._invalidate_initialize_callback(event)
         # set all existing views to None to invalidate them
-        self._physics_sim_view = None
         self._root_physx_view = None

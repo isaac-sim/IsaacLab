@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING
 
 import carb
 import omni.physics.tensors.impl.api as physx
+from isaacsim.core.simulation_manager import SimulationManager
 from pxr import PhysxSchema
 
 import isaaclab.sim as sim_utils
@@ -249,9 +250,8 @@ class ContactSensor(SensorBase):
 
     def _initialize_impl(self):
         super()._initialize_impl()
-        # create simulation view
-        self._physics_sim_view = physx.create_simulation_view(self._backend)
-        self._physics_sim_view.set_subspace_roots("/")
+        # obtain global simulation view
+        self._physics_sim_view = SimulationManager.get_physics_sim_view()
         # check that only rigid bodies are selected
         leaf_pattern = self.cfg.prim_path.rsplit("/", 1)[-1]
         template_prim_path = self._parent_prims[0].GetPath().pathString
@@ -418,6 +418,5 @@ class ContactSensor(SensorBase):
         # call parent
         super()._invalidate_initialize_callback(event)
         # set all existing views to None to invalidate them
-        self._physics_sim_view = None
         self._body_physx_view = None
         self._contact_physx_view = None

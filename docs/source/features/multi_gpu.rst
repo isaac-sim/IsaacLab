@@ -4,7 +4,7 @@ Multi-GPU and Multi-Node Training
 .. currentmodule:: isaaclab
 
 Isaac Lab supports multi-GPU and multi-node reinforcement learning. Currently, this feature is only
-available for RL-Games and skrl libraries workflows. We are working on extending this feature to
+available for RL-Games, RSL-RL and skrl libraries workflows. We are working on extending this feature to
 other workflows.
 
 .. attention::
@@ -57,6 +57,13 @@ To train with multiple GPUs, use the following command, where ``--nproc_per_node
 
             python -m torch.distributed.run --nnodes=1 --nproc_per_node=2 scripts/reinforcement_learning/rl_games/train.py --task=Isaac-Cartpole-v0 --headless --distributed
 
+    .. tab-item:: rsl_rl
+        :sync: rsl_rl
+
+        .. code-block:: shell
+
+            python -m torch.distributed.run --nnodes=1 --nproc_per_node=2 scripts/reinforcement_learning/rsl_rl/train.py --task=Isaac-Cartpole-v0 --headless --distributed
+
     .. tab-item:: skrl
         :sync: skrl
 
@@ -95,6 +102,13 @@ For the master node, use the following command, where ``--nproc_per_node`` repre
 
             python -m torch.distributed.run --nproc_per_node=2 --nnodes=2 --node_rank=0 --rdzv_id=123 --rdzv_backend=c10d --rdzv_endpoint=localhost:5555 scripts/reinforcement_learning/rl_games/train.py --task=Isaac-Cartpole-v0 --headless --distributed
 
+    .. tab-item:: rsl_rl
+        :sync: rsl_rl
+
+        .. code-block:: shell
+
+            python -m torch.distributed.run --nproc_per_node=2 --nnodes=2 --node_rank=0 --rdzv_id=123 --rdzv_backend=c10d --rdzv_endpoint=localhost:5555 scripts/reinforcement_learning/rsl_rl/train.py --task=Isaac-Cartpole-v0 --headless --distributed
+
     .. tab-item:: skrl
         :sync: skrl
 
@@ -127,6 +141,13 @@ For non-master nodes, use the following command, replacing ``--node_rank`` with 
         .. code-block:: shell
 
             python -m torch.distributed.run --nproc_per_node=2 --nnodes=2 --node_rank=1 --rdzv_id=123 --rdzv_backend=c10d --rdzv_endpoint=ip_of_master_machine:5555 scripts/reinforcement_learning/rl_games/train.py --task=Isaac-Cartpole-v0 --headless --distributed
+
+    .. tab-item:: rsl_rl
+        :sync: rsl_rl
+
+        .. code-block:: shell
+
+            python -m torch.distributed.run --nproc_per_node=2 --nnodes=2 --node_rank=1 --rdzv_id=123 --rdzv_backend=c10d --rdzv_endpoint=ip_of_master_machine:5555 scripts/reinforcement_learning/rsl_rl/train.py --task=Isaac-Cartpole-v0 --headless --distributed
 
     .. tab-item:: skrl
         :sync: skrl
