@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.38.0 (2025-04-01)
+~~~~~~~~~~~~~~~~~~
+
+Added
+~~~~~
+
+* Added the :meth:`~isaaclab.env.mdp.observations.joint_effort`
+
+
 0.37.0 (2025-04-01)
 ~~~~~~~~~~~~~~~~~~~
 
