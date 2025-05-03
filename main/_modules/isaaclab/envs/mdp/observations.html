@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.1.0" />
-    <meta name="docbuild:last-update" content="Apr 29, 2025"/>
+    <meta name="docbuild:last-update" content="May 03, 2025"/>
   </head>
   
   
@@ -633,6 +633,58 @@
 
 
 <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Body state</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+
+<div class="viewcode-block" id="body_pose_w"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.observations.body_pose_w">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">body_pose_w</span><span class="p">(</span>
+    <span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedEnv</span><span class="p">,</span>
+    <span class="n">asset_cfg</span><span class="p">:</span> <span class="n">SceneEntityCfg</span> <span class="o">=</span> <span class="n">SceneEntityCfg</span><span class="p">(</span><span class="s2">&quot;robot&quot;</span><span class="p">),</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The flattened body poses of the asset w.r.t the env.scene.origin.</span>
+
+<span class="sd">    Note: Only the bodies configured in :attr:`asset_cfg.body_ids` will have their poses returned.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        env: The environment.</span>
+<span class="sd">        asset_cfg: The SceneEntity associated with this observation.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        The poses of bodies in articulation [num_env, 7*num_bodies]. Pose order is [x,y,z,qw,qx,qy,qz]. Output is</span>
+<span class="sd">            stacked horizontally per body.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># extract the used quantities (to enable type-hinting)</span>
+    <span class="n">asset</span><span class="p">:</span> <span class="n">Articulation</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">scene</span><span class="p">[</span><span class="n">asset_cfg</span><span class="o">.</span><span class="n">name</span><span class="p">]</span>
+    <span class="n">pose</span> <span class="o">=</span> <span class="n">asset</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">body_state_w</span><span class="p">[:,</span> <span class="n">asset_cfg</span><span class="o">.</span><span class="n">body_ids</span><span class="p">,</span> <span class="p">:</span><span class="mi">7</span><span class="p">]</span>
+    <span class="n">pose</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="p">:</span><span class="mi">3</span><span class="p">]</span> <span class="o">=</span> <span class="n">pose</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="p">:</span><span class="mi">3</span><span class="p">]</span> <span class="o">-</span> <span class="n">env</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">env_origins</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">pose</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">env</span><span class="o">.</span><span class="n">num_envs</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="body_projected_gravity_b"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.observations.body_projected_gravity_b">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">body_projected_gravity_b</span><span class="p">(</span>
+    <span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedEnv</span><span class="p">,</span>
+    <span class="n">asset_cfg</span><span class="p">:</span> <span class="n">SceneEntityCfg</span> <span class="o">=</span> <span class="n">SceneEntityCfg</span><span class="p">(</span><span class="s2">&quot;robot&quot;</span><span class="p">),</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The direction of gravity projected on to bodies of an Articulation.</span>
+
+<span class="sd">    Note: Only the bodies configured in :attr:`asset_cfg.body_ids` will have their poses returned.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        env: The environment.</span>
+<span class="sd">        asset_cfg: The Articulation associated with this observation.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        The unit vector direction of gravity projected onto body_name&#39;s frame. Gravity projection vector order is</span>
+<span class="sd">            [x,y,z]. Output is stacked horizontally per body.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># extract the used quantities (to enable type-hinting)</span>
+    <span class="n">asset</span><span class="p">:</span> <span class="n">Articulation</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">scene</span><span class="p">[</span><span class="n">asset_cfg</span><span class="o">.</span><span class="n">name</span><span class="p">]</span>
+
+    <span class="n">body_quat</span> <span class="o">=</span> <span class="n">asset</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">body_quat_w</span><span class="p">[:,</span> <span class="n">asset_cfg</span><span class="o">.</span><span class="n">body_ids</span><span class="p">]</span>
+    <span class="n">gravity_dir</span> <span class="o">=</span> <span class="n">asset</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">GRAVITY_VEC_W</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">math_utils</span><span class="o">.</span><span class="n">quat_rotate_inverse</span><span class="p">(</span><span class="n">body_quat</span><span class="p">,</span> <span class="n">gravity_dir</span><span class="p">)</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="n">env</span><span class="o">.</span><span class="n">num_envs</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span></div>
+
+
+<span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">Joint state.</span>
 <span class="sd">&quot;&quot;&quot;</span>
 
@@ -1112,7 +1164,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Apr 29, 2025.
+  Last updated on May 03, 2025.
   <br/>
 </p>
   </div>
