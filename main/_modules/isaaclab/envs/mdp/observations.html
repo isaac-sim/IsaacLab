@@ -745,6 +745,23 @@
     <span class="k">return</span> <span class="n">asset</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">joint_vel</span><span class="p">[:,</span> <span class="n">asset_cfg</span><span class="o">.</span><span class="n">joint_ids</span><span class="p">]</span> <span class="o">-</span> <span class="n">asset</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_joint_vel</span><span class="p">[:,</span> <span class="n">asset_cfg</span><span class="o">.</span><span class="n">joint_ids</span><span class="p">]</span></div>
 
 
+<div class="viewcode-block" id="joint_effort"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.observations.joint_effort">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">joint_effort</span><span class="p">(</span><span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedEnv</span><span class="p">,</span> <span class="n">asset_cfg</span><span class="p">:</span> <span class="n">SceneEntityCfg</span> <span class="o">=</span> <span class="n">SceneEntityCfg</span><span class="p">(</span><span class="s2">&quot;robot&quot;</span><span class="p">))</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The joint applied effort of the robot.</span>
+
+<span class="sd">    NOTE: Only the joints configured in :attr:`asset_cfg.joint_ids` will have their effort returned.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        env: The environment.</span>
+<span class="sd">        asset_cfg: The SceneEntity associated with this observation.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        The joint effort (N or N-m) for joint_names in asset_cfg, shape is [num_env,num_joints].</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># extract the used quantities (to enable type-hinting)</span>
+    <span class="n">asset</span><span class="p">:</span> <span class="n">Articulation</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">scene</span><span class="p">[</span><span class="n">asset_cfg</span><span class="o">.</span><span class="n">name</span><span class="p">]</span>
+    <span class="k">return</span> <span class="n">asset</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">applied_torque</span><span class="p">[:,</span> <span class="n">asset_cfg</span><span class="o">.</span><span class="n">joint_ids</span><span class="p">]</span></div>
+
+
 <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">Sensors.</span>
 <span class="sd">&quot;&quot;&quot;</span>
@@ -769,8 +786,8 @@
     <span class="c1"># extract the used quantities (to enable type-hinting)</span>
     <span class="n">asset</span><span class="p">:</span> <span class="n">Articulation</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">scene</span><span class="p">[</span><span class="n">asset_cfg</span><span class="o">.</span><span class="n">name</span><span class="p">]</span>
     <span class="c1"># obtain the link incoming forces in world frame</span>
-    <span class="n">link_incoming_forces</span> <span class="o">=</span> <span class="n">asset</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">get_link_incoming_joint_force</span><span class="p">()[:,</span> <span class="n">asset_cfg</span><span class="o">.</span><span class="n">body_ids</span><span class="p">]</span>
-    <span class="k">return</span> <span class="n">link_incoming_forces</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="n">env</span><span class="o">.</span><span class="n">num_envs</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span></div>
+    <span class="n">body_incoming_joint_wrench_b</span> <span class="o">=</span> <span class="n">asset</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">body_incoming_joint_wrench_b</span><span class="p">[:,</span> <span class="n">asset_cfg</span><span class="o">.</span><span class="n">body_ids</span><span class="p">]</span>
+    <span class="k">return</span> <span class="n">body_incoming_joint_wrench_b</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="n">env</span><span class="o">.</span><span class="n">num_envs</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span></div>
 
 
 <div class="viewcode-block" id="imu_orientation"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.observations.imu_orientation">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">imu_orientation</span><span class="p">(</span><span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedEnv</span><span class="p">,</span> <span class="n">asset_cfg</span><span class="p">:</span> <span class="n">SceneEntityCfg</span> <span class="o">=</span> <span class="n">SceneEntityCfg</span><span class="p">(</span><span class="s2">&quot;imu&quot;</span><span class="p">))</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>

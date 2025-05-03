@@ -610,6 +610,7 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">_joint_pos</span> <span class="o">=</span> <span class="n">TimestampedBuffer</span><span class="p">()</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_joint_acc</span> <span class="o">=</span> <span class="n">TimestampedBuffer</span><span class="p">()</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_joint_vel</span> <span class="o">=</span> <span class="n">TimestampedBuffer</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_body_incoming_joint_wrench_b</span> <span class="o">=</span> <span class="n">TimestampedBuffer</span><span class="p">()</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">update</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dt</span><span class="p">:</span> <span class="nb">float</span><span class="p">):</span>
         <span class="c1"># update the simulation timestamp</span>
@@ -1044,6 +1045,22 @@
 
             <span class="bp">self</span><span class="o">.</span><span class="n">_body_acc_w</span><span class="o">.</span><span class="n">timestamp</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sim_timestamp</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_body_acc_w</span><span class="o">.</span><span class="n">data</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">body_incoming_joint_wrench_b</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Joint reaction wrench applied from body parent to child body in parent body frame.</span>
+
+<span class="sd">        Shape is (num_instances, num_bodies, 6). All body reaction wrenches are provided including the root body to the</span>
+<span class="sd">        world of an articulation.</span>
+
+<span class="sd">        For more information on joint wrenches, please check the`PhysX documentation &lt;https://nvidia-omniverse.github.io/PhysX/physx/5.5.1/docs/Articulations.html#link-incoming-joint-force&gt;`__</span>
+<span class="sd">        and the underlying `PhysX Tensor API &lt;https://docs.omniverse.nvidia.com/kit/docs/omni_physics/latest/extensions/runtime/source/omni.physics.tensors/docs/api/python.html#omni.physics.tensors.impl.api.ArticulationView.get_link_incoming_joint_force&gt;`__ .</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_body_incoming_joint_wrench_b</span><span class="o">.</span><span class="n">timestamp</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sim_timestamp</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_body_incoming_joint_wrench_b</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_root_physx_view</span><span class="o">.</span><span class="n">get_link_incoming_joint_force</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_body_incoming_joint_wrench_b</span><span class="o">.</span><span class="n">time_stamp</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sim_timestamp</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_body_incoming_joint_wrench_b</span><span class="o">.</span><span class="n">data</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">projected_gravity_b</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>

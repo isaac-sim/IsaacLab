@@ -915,6 +915,7 @@
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.assets.ArticulationData.body_link_state_w"><code class="docutils literal notranslate"><span class="pre">ArticulationData.body_link_state_w</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.assets.ArticulationData.body_com_state_w"><code class="docutils literal notranslate"><span class="pre">ArticulationData.body_com_state_w</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.assets.ArticulationData.body_acc_w"><code class="docutils literal notranslate"><span class="pre">ArticulationData.body_acc_w</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.assets.ArticulationData.body_incoming_joint_wrench_b"><code class="docutils literal notranslate"><span class="pre">ArticulationData.body_incoming_joint_wrench_b</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.assets.ArticulationData.projected_gravity_b"><code class="docutils literal notranslate"><span class="pre">ArticulationData.projected_gravity_b</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.assets.ArticulationData.heading_w"><code class="docutils literal notranslate"><span class="pre">ArticulationData.heading_w</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.assets.ArticulationData.joint_pos"><code class="docutils literal notranslate"><span class="pre">ArticulationData.joint_pos</span></code></a></li>
@@ -4608,160 +4609,163 @@ can be interpreted as the link frame.</p>
 <tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.assets.ArticulationData.body_acc_w" title="isaaclab.assets.ArticulationData.body_acc_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">body_acc_w</span></code></a></p></td>
 <td><p>Acceleration of all bodies (center of mass).</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.assets.ArticulationData.projected_gravity_b" title="isaaclab.assets.ArticulationData.projected_gravity_b"><code class="xref py py-obj docutils literal notranslate"><span class="pre">projected_gravity_b</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.assets.ArticulationData.body_incoming_joint_wrench_b" title="isaaclab.assets.ArticulationData.body_incoming_joint_wrench_b"><code class="xref py py-obj docutils literal notranslate"><span class="pre">body_incoming_joint_wrench_b</span></code></a></p></td>
+<td><p>Joint reaction wrench applied from body parent to child body in parent body frame.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.assets.ArticulationData.projected_gravity_b" title="isaaclab.assets.ArticulationData.projected_gravity_b"><code class="xref py py-obj docutils literal notranslate"><span class="pre">projected_gravity_b</span></code></a></p></td>
 <td><p>Projection of the gravity direction on base frame.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.assets.ArticulationData.heading_w" title="isaaclab.assets.ArticulationData.heading_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">heading_w</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.assets.ArticulationData.heading_w" title="isaaclab.assets.ArticulationData.heading_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">heading_w</span></code></a></p></td>
 <td><p>Yaw heading of the base frame (in radians).</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.assets.ArticulationData.joint_pos" title="isaaclab.assets.ArticulationData.joint_pos"><code class="xref py py-obj docutils literal notranslate"><span class="pre">joint_pos</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.assets.ArticulationData.joint_pos" title="isaaclab.assets.ArticulationData.joint_pos"><code class="xref py py-obj docutils literal notranslate"><span class="pre">joint_pos</span></code></a></p></td>
 <td><p>Joint positions of all joints.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.assets.ArticulationData.joint_vel" title="isaaclab.assets.ArticulationData.joint_vel"><code class="xref py py-obj docutils literal notranslate"><span class="pre">joint_vel</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.assets.ArticulationData.joint_vel" title="isaaclab.assets.ArticulationData.joint_vel"><code class="xref py py-obj docutils literal notranslate"><span class="pre">joint_vel</span></code></a></p></td>
 <td><p>Joint velocities of all joints.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.assets.ArticulationData.joint_acc" title="isaaclab.assets.ArticulationData.joint_acc"><code class="xref py py-obj docutils literal notranslate"><span class="pre">joint_acc</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.assets.ArticulationData.joint_acc" title="isaaclab.assets.ArticulationData.joint_acc"><code class="xref py py-obj docutils literal notranslate"><span class="pre">joint_acc</span></code></a></p></td>
 <td><p>Joint acceleration of all joints.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.assets.ArticulationData.root_pos_w" title="isaaclab.assets.ArticulationData.root_pos_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">root_pos_w</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.assets.ArticulationData.root_pos_w" title="isaaclab.assets.ArticulationData.root_pos_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">root_pos_w</span></code></a></p></td>
 <td><p>Root position in simulation world frame.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.assets.ArticulationData.root_quat_w" title="isaaclab.assets.ArticulationData.root_quat_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">root_quat_w</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.assets.ArticulationData.root_quat_w" title="isaaclab.assets.ArticulationData.root_quat_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">root_quat_w</span></code></a></p></td>
 <td><p>Root orientation (w, x, y, z) in simulation world frame.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.assets.ArticulationData.root_vel_w" title="isaaclab.assets.ArticulationData.root_vel_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">root_vel_w</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.assets.ArticulationData.root_vel_w" title="isaaclab.assets.ArticulationData.root_vel_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">root_vel_w</span></code></a></p></td>
 <td><p>Root velocity in simulation world frame.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.assets.ArticulationData.root_lin_vel_w" title="isaaclab.assets.ArticulationData.root_lin_vel_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">root_lin_vel_w</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.assets.ArticulationData.root_lin_vel_w" title="isaaclab.assets.ArticulationData.root_lin_vel_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">root_lin_vel_w</span></code></a></p></td>
 <td><p>Root linear velocity in simulation world frame.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.assets.ArticulationData.root_ang_vel_w" title="isaaclab.assets.ArticulationData.root_ang_vel_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">root_ang_vel_w</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.assets.ArticulationData.root_ang_vel_w" title="isaaclab.assets.ArticulationData.root_ang_vel_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">root_ang_vel_w</span></code></a></p></td>
 <td><p>Root angular velocity in simulation world frame.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.assets.ArticulationData.root_lin_vel_b" title="isaaclab.assets.ArticulationData.root_lin_vel_b"><code class="xref py py-obj docutils literal notranslate"><span class="pre">root_lin_vel_b</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.assets.ArticulationData.root_lin_vel_b" title="isaaclab.assets.ArticulationData.root_lin_vel_b"><code class="xref py py-obj docutils literal notranslate"><span class="pre">root_lin_vel_b</span></code></a></p></td>
 <td><p>Root linear velocity in base frame.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.assets.ArticulationData.root_ang_vel_b" title="isaaclab.assets.ArticulationData.root_ang_vel_b"><code class="xref py py-obj docutils literal notranslate"><span class="pre">root_ang_vel_b</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.assets.ArticulationData.root_ang_vel_b" title="isaaclab.assets.ArticulationData.root_ang_vel_b"><code class="xref py py-obj docutils literal notranslate"><span class="pre">root_ang_vel_b</span></code></a></p></td>
 <td><p>Root angular velocity in base world frame.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.assets.ArticulationData.root_link_pos_w" title="isaaclab.assets.ArticulationData.root_link_pos_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">root_link_pos_w</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.assets.ArticulationData.root_link_pos_w" title="isaaclab.assets.ArticulationData.root_link_pos_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">root_link_pos_w</span></code></a></p></td>
 <td><p>Root link position in simulation world frame.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.assets.ArticulationData.root_link_quat_w" title="isaaclab.assets.ArticulationData.root_link_quat_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">root_link_quat_w</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.assets.ArticulationData.root_link_quat_w" title="isaaclab.assets.ArticulationData.root_link_quat_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">root_link_quat_w</span></code></a></p></td>
 <td><p>Root link orientation (w, x, y, z) in simulation world frame.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.assets.ArticulationData.root_link_vel_w" title="isaaclab.assets.ArticulationData.root_link_vel_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">root_link_vel_w</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.assets.ArticulationData.root_link_vel_w" title="isaaclab.assets.ArticulationData.root_link_vel_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">root_link_vel_w</span></code></a></p></td>
 <td><p>Root link velocity in simulation world frame.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.assets.ArticulationData.root_link_lin_vel_w" title="isaaclab.assets.ArticulationData.root_link_lin_vel_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">root_link_lin_vel_w</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.assets.ArticulationData.root_link_lin_vel_w" title="isaaclab.assets.ArticulationData.root_link_lin_vel_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">root_link_lin_vel_w</span></code></a></p></td>
 <td><p>Root linear velocity in simulation world frame.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.assets.ArticulationData.root_link_ang_vel_w" title="isaaclab.assets.ArticulationData.root_link_ang_vel_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">root_link_ang_vel_w</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.assets.ArticulationData.root_link_ang_vel_w" title="isaaclab.assets.ArticulationData.root_link_ang_vel_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">root_link_ang_vel_w</span></code></a></p></td>
 <td><p>Root link angular velocity in simulation world frame.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.assets.ArticulationData.root_link_lin_vel_b" title="isaaclab.assets.ArticulationData.root_link_lin_vel_b"><code class="xref py py-obj docutils literal notranslate"><span class="pre">root_link_lin_vel_b</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.assets.ArticulationData.root_link_lin_vel_b" title="isaaclab.assets.ArticulationData.root_link_lin_vel_b"><code class="xref py py-obj docutils literal notranslate"><span class="pre">root_link_lin_vel_b</span></code></a></p></td>
 <td><p>Root link linear velocity in base frame.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.assets.ArticulationData.root_link_ang_vel_b" title="isaaclab.assets.ArticulationData.root_link_ang_vel_b"><code class="xref py py-obj docutils literal notranslate"><span class="pre">root_link_ang_vel_b</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.assets.ArticulationData.root_link_ang_vel_b" title="isaaclab.assets.ArticulationData.root_link_ang_vel_b"><code class="xref py py-obj docutils literal notranslate"><span class="pre">root_link_ang_vel_b</span></code></a></p></td>
 <td><p>Root link angular velocity in base world frame.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.assets.ArticulationData.root_com_pos_w" title="isaaclab.assets.ArticulationData.root_com_pos_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">root_com_pos_w</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.assets.ArticulationData.root_com_pos_w" title="isaaclab.assets.ArticulationData.root_com_pos_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">root_com_pos_w</span></code></a></p></td>
 <td><p>Root center of mass position in simulation world frame.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.assets.ArticulationData.root_com_quat_w" title="isaaclab.assets.ArticulationData.root_com_quat_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">root_com_quat_w</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.assets.ArticulationData.root_com_quat_w" title="isaaclab.assets.ArticulationData.root_com_quat_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">root_com_quat_w</span></code></a></p></td>
 <td><p>Root center of mass orientation (w, x, y, z) in simulation world frame.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.assets.ArticulationData.root_com_vel_w" title="isaaclab.assets.ArticulationData.root_com_vel_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">root_com_vel_w</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.assets.ArticulationData.root_com_vel_w" title="isaaclab.assets.ArticulationData.root_com_vel_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">root_com_vel_w</span></code></a></p></td>
 <td><p>Root center of mass velocity in simulation world frame.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.assets.ArticulationData.root_com_lin_vel_w" title="isaaclab.assets.ArticulationData.root_com_lin_vel_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">root_com_lin_vel_w</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.assets.ArticulationData.root_com_lin_vel_w" title="isaaclab.assets.ArticulationData.root_com_lin_vel_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">root_com_lin_vel_w</span></code></a></p></td>
 <td><p>Root center of mass linear velocity in simulation world frame.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.assets.ArticulationData.root_com_ang_vel_w" title="isaaclab.assets.ArticulationData.root_com_ang_vel_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">root_com_ang_vel_w</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.assets.ArticulationData.root_com_ang_vel_w" title="isaaclab.assets.ArticulationData.root_com_ang_vel_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">root_com_ang_vel_w</span></code></a></p></td>
 <td><p>Root center of mass angular velocity in simulation world frame.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.assets.ArticulationData.root_com_lin_vel_b" title="isaaclab.assets.ArticulationData.root_com_lin_vel_b"><code class="xref py py-obj docutils literal notranslate"><span class="pre">root_com_lin_vel_b</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.assets.ArticulationData.root_com_lin_vel_b" title="isaaclab.assets.ArticulationData.root_com_lin_vel_b"><code class="xref py py-obj docutils literal notranslate"><span class="pre">root_com_lin_vel_b</span></code></a></p></td>
 <td><p>Root center of mass linear velocity in base frame.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.assets.ArticulationData.root_com_ang_vel_b" title="isaaclab.assets.ArticulationData.root_com_ang_vel_b"><code class="xref py py-obj docutils literal notranslate"><span class="pre">root_com_ang_vel_b</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.assets.ArticulationData.root_com_ang_vel_b" title="isaaclab.assets.ArticulationData.root_com_ang_vel_b"><code class="xref py py-obj docutils literal notranslate"><span class="pre">root_com_ang_vel_b</span></code></a></p></td>
 <td><p>Root center of mass angular velocity in base world frame.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.assets.ArticulationData.body_pos_w" title="isaaclab.assets.ArticulationData.body_pos_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">body_pos_w</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.assets.ArticulationData.body_pos_w" title="isaaclab.assets.ArticulationData.body_pos_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">body_pos_w</span></code></a></p></td>
 <td><p>Positions of all bodies in simulation world frame.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.assets.ArticulationData.body_quat_w" title="isaaclab.assets.ArticulationData.body_quat_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">body_quat_w</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.assets.ArticulationData.body_quat_w" title="isaaclab.assets.ArticulationData.body_quat_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">body_quat_w</span></code></a></p></td>
 <td><p>Orientation (w, x, y, z) of all bodies in simulation world frame.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.assets.ArticulationData.body_vel_w" title="isaaclab.assets.ArticulationData.body_vel_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">body_vel_w</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.assets.ArticulationData.body_vel_w" title="isaaclab.assets.ArticulationData.body_vel_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">body_vel_w</span></code></a></p></td>
 <td><p>Velocity of all bodies in simulation world frame.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.assets.ArticulationData.body_lin_vel_w" title="isaaclab.assets.ArticulationData.body_lin_vel_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">body_lin_vel_w</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.assets.ArticulationData.body_lin_vel_w" title="isaaclab.assets.ArticulationData.body_lin_vel_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">body_lin_vel_w</span></code></a></p></td>
 <td><p>Linear velocity of all bodies in simulation world frame.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.assets.ArticulationData.body_ang_vel_w" title="isaaclab.assets.ArticulationData.body_ang_vel_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">body_ang_vel_w</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.assets.ArticulationData.body_ang_vel_w" title="isaaclab.assets.ArticulationData.body_ang_vel_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">body_ang_vel_w</span></code></a></p></td>
 <td><p>Angular velocity of all bodies in simulation world frame.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.assets.ArticulationData.body_lin_acc_w" title="isaaclab.assets.ArticulationData.body_lin_acc_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">body_lin_acc_w</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.assets.ArticulationData.body_lin_acc_w" title="isaaclab.assets.ArticulationData.body_lin_acc_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">body_lin_acc_w</span></code></a></p></td>
 <td><p>Linear acceleration of all bodies in simulation world frame.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.assets.ArticulationData.body_ang_acc_w" title="isaaclab.assets.ArticulationData.body_ang_acc_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">body_ang_acc_w</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.assets.ArticulationData.body_ang_acc_w" title="isaaclab.assets.ArticulationData.body_ang_acc_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">body_ang_acc_w</span></code></a></p></td>
 <td><p>Angular acceleration of all bodies in simulation world frame.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.assets.ArticulationData.body_link_pos_w" title="isaaclab.assets.ArticulationData.body_link_pos_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">body_link_pos_w</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.assets.ArticulationData.body_link_pos_w" title="isaaclab.assets.ArticulationData.body_link_pos_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">body_link_pos_w</span></code></a></p></td>
 <td><p>Positions of all bodies in simulation world frame.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.assets.ArticulationData.body_link_quat_w" title="isaaclab.assets.ArticulationData.body_link_quat_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">body_link_quat_w</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.assets.ArticulationData.body_link_quat_w" title="isaaclab.assets.ArticulationData.body_link_quat_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">body_link_quat_w</span></code></a></p></td>
 <td><p>Orientation (w, x, y, z) of all bodies in simulation world frame.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.assets.ArticulationData.body_link_vel_w" title="isaaclab.assets.ArticulationData.body_link_vel_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">body_link_vel_w</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.assets.ArticulationData.body_link_vel_w" title="isaaclab.assets.ArticulationData.body_link_vel_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">body_link_vel_w</span></code></a></p></td>
 <td><p>Velocity of all bodies in simulation world frame.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.assets.ArticulationData.body_link_lin_vel_w" title="isaaclab.assets.ArticulationData.body_link_lin_vel_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">body_link_lin_vel_w</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.assets.ArticulationData.body_link_lin_vel_w" title="isaaclab.assets.ArticulationData.body_link_lin_vel_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">body_link_lin_vel_w</span></code></a></p></td>
 <td><p>Linear velocity of all bodies in simulation world frame.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.assets.ArticulationData.body_link_ang_vel_w" title="isaaclab.assets.ArticulationData.body_link_ang_vel_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">body_link_ang_vel_w</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.assets.ArticulationData.body_link_ang_vel_w" title="isaaclab.assets.ArticulationData.body_link_ang_vel_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">body_link_ang_vel_w</span></code></a></p></td>
 <td><p>Angular velocity of all bodies in simulation world frame.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.assets.ArticulationData.body_com_pos_w" title="isaaclab.assets.ArticulationData.body_com_pos_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">body_com_pos_w</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.assets.ArticulationData.body_com_pos_w" title="isaaclab.assets.ArticulationData.body_com_pos_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">body_com_pos_w</span></code></a></p></td>
 <td><p>Positions of all bodies in simulation world frame.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.assets.ArticulationData.body_com_quat_w" title="isaaclab.assets.ArticulationData.body_com_quat_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">body_com_quat_w</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.assets.ArticulationData.body_com_quat_w" title="isaaclab.assets.ArticulationData.body_com_quat_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">body_com_quat_w</span></code></a></p></td>
 <td><p>Orientation (w, x, y, z) of the prinicple axies of inertia of all bodies in simulation world frame.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.assets.ArticulationData.body_com_vel_w" title="isaaclab.assets.ArticulationData.body_com_vel_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">body_com_vel_w</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.assets.ArticulationData.body_com_vel_w" title="isaaclab.assets.ArticulationData.body_com_vel_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">body_com_vel_w</span></code></a></p></td>
 <td><p>Velocity of all bodies in simulation world frame.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.assets.ArticulationData.body_com_lin_vel_w" title="isaaclab.assets.ArticulationData.body_com_lin_vel_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">body_com_lin_vel_w</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.assets.ArticulationData.body_com_lin_vel_w" title="isaaclab.assets.ArticulationData.body_com_lin_vel_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">body_com_lin_vel_w</span></code></a></p></td>
 <td><p>Linear velocity of all bodies in simulation world frame.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.assets.ArticulationData.body_com_ang_vel_w" title="isaaclab.assets.ArticulationData.body_com_ang_vel_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">body_com_ang_vel_w</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.assets.ArticulationData.body_com_ang_vel_w" title="isaaclab.assets.ArticulationData.body_com_ang_vel_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">body_com_ang_vel_w</span></code></a></p></td>
 <td><p>Angular velocity of all bodies in simulation world frame.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.assets.ArticulationData.com_pos_b" title="isaaclab.assets.ArticulationData.com_pos_b"><code class="xref py py-obj docutils literal notranslate"><span class="pre">com_pos_b</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.assets.ArticulationData.com_pos_b" title="isaaclab.assets.ArticulationData.com_pos_b"><code class="xref py py-obj docutils literal notranslate"><span class="pre">com_pos_b</span></code></a></p></td>
 <td><p>Center of mass of all of the bodies in simulation world frame.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.assets.ArticulationData.com_quat_b" title="isaaclab.assets.ArticulationData.com_quat_b"><code class="xref py py-obj docutils literal notranslate"><span class="pre">com_quat_b</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.assets.ArticulationData.com_quat_b" title="isaaclab.assets.ArticulationData.com_quat_b"><code class="xref py py-obj docutils literal notranslate"><span class="pre">com_quat_b</span></code></a></p></td>
 <td><p>Orientation (w,x,y,z) of the principle axies of inertia of all of the bodies in simulation world frame.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.assets.ArticulationData.joint_limits" title="isaaclab.assets.ArticulationData.joint_limits"><code class="xref py py-obj docutils literal notranslate"><span class="pre">joint_limits</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.assets.ArticulationData.joint_limits" title="isaaclab.assets.ArticulationData.joint_limits"><code class="xref py py-obj docutils literal notranslate"><span class="pre">joint_limits</span></code></a></p></td>
 <td><p>Deprecated property.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.assets.ArticulationData.default_joint_limits" title="isaaclab.assets.ArticulationData.default_joint_limits"><code class="xref py py-obj docutils literal notranslate"><span class="pre">default_joint_limits</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.assets.ArticulationData.default_joint_limits" title="isaaclab.assets.ArticulationData.default_joint_limits"><code class="xref py py-obj docutils literal notranslate"><span class="pre">default_joint_limits</span></code></a></p></td>
 <td><p>Deprecated property.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.assets.ArticulationData.joint_velocity_limits" title="isaaclab.assets.ArticulationData.joint_velocity_limits"><code class="xref py py-obj docutils literal notranslate"><span class="pre">joint_velocity_limits</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.assets.ArticulationData.joint_velocity_limits" title="isaaclab.assets.ArticulationData.joint_velocity_limits"><code class="xref py py-obj docutils literal notranslate"><span class="pre">joint_velocity_limits</span></code></a></p></td>
 <td><p>Deprecated property.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.assets.ArticulationData.joint_friction" title="isaaclab.assets.ArticulationData.joint_friction"><code class="xref py py-obj docutils literal notranslate"><span class="pre">joint_friction</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.assets.ArticulationData.joint_friction" title="isaaclab.assets.ArticulationData.joint_friction"><code class="xref py py-obj docutils literal notranslate"><span class="pre">joint_friction</span></code></a></p></td>
 <td><p>Deprecated property.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.assets.ArticulationData.default_joint_friction" title="isaaclab.assets.ArticulationData.default_joint_friction"><code class="xref py py-obj docutils literal notranslate"><span class="pre">default_joint_friction</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.assets.ArticulationData.default_joint_friction" title="isaaclab.assets.ArticulationData.default_joint_friction"><code class="xref py py-obj docutils literal notranslate"><span class="pre">default_joint_friction</span></code></a></p></td>
 <td><p>Deprecated property.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.assets.ArticulationData.fixed_tendon_limit" title="isaaclab.assets.ArticulationData.fixed_tendon_limit"><code class="xref py py-obj docutils literal notranslate"><span class="pre">fixed_tendon_limit</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.assets.ArticulationData.fixed_tendon_limit" title="isaaclab.assets.ArticulationData.fixed_tendon_limit"><code class="xref py py-obj docutils literal notranslate"><span class="pre">fixed_tendon_limit</span></code></a></p></td>
 <td><p>Deprecated property.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.assets.ArticulationData.default_fixed_tendon_limit" title="isaaclab.assets.ArticulationData.default_fixed_tendon_limit"><code class="xref py py-obj docutils literal notranslate"><span class="pre">default_fixed_tendon_limit</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.assets.ArticulationData.default_fixed_tendon_limit" title="isaaclab.assets.ArticulationData.default_fixed_tendon_limit"><code class="xref py py-obj docutils literal notranslate"><span class="pre">default_fixed_tendon_limit</span></code></a></p></td>
 <td><p>Deprecated property.</p></td>
 </tr>
 </tbody>
@@ -5132,6 +5136,16 @@ principle inertia.</p>
 <em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">body_acc_w</span></span><a class="headerlink" href="#isaaclab.assets.ArticulationData.body_acc_w" title="Permalink to this definition">#</a></dt>
 <dd><p>Acceleration of all bodies (center of mass). Shape is (num_instances, num_bodies, 6).</p>
 <p>All values are relative to the world.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="isaaclab.assets.ArticulationData.body_incoming_joint_wrench_b">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">body_incoming_joint_wrench_b</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.7)"><span class="pre">torch.Tensor</span></a></em><a class="headerlink" href="#isaaclab.assets.ArticulationData.body_incoming_joint_wrench_b" title="Permalink to this definition">#</a></dt>
+<dd><p>Joint reaction wrench applied from body parent to child body in parent body frame.</p>
+<p>Shape is (num_instances, num_bodies, 6). All body reaction wrenches are provided including the root body to the
+world of an articulation.</p>
+<p>For more information on joint wrenches, please check the`PhysX documentation &lt;<a class="reference external" href="https://nvidia-omniverse.github.io/PhysX/physx/5.5.1/docs/Articulations.html#link-incoming-joint-force">https://nvidia-omniverse.github.io/PhysX/physx/5.5.1/docs/Articulations.html#link-incoming-joint-force</a>&gt;`__
+and the underlying <a class="reference external" href="https://docs.omniverse.nvidia.com/kit/docs/omni_physics/latest/extensions/runtime/source/omni.physics.tensors/docs/api/python.html#omni.physics.tensors.impl.api.ArticulationView.get_link_incoming_joint_force">PhysX Tensor API</a> .</p>
 </dd></dl>
 
 <dl class="py property">
@@ -6701,6 +6715,7 @@ asset is already present in the scene.</p>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.assets.ArticulationData.body_link_state_w"><code class="docutils literal notranslate"><span class="pre">ArticulationData.body_link_state_w</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.assets.ArticulationData.body_com_state_w"><code class="docutils literal notranslate"><span class="pre">ArticulationData.body_com_state_w</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.assets.ArticulationData.body_acc_w"><code class="docutils literal notranslate"><span class="pre">ArticulationData.body_acc_w</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.assets.ArticulationData.body_incoming_joint_wrench_b"><code class="docutils literal notranslate"><span class="pre">ArticulationData.body_incoming_joint_wrench_b</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.assets.ArticulationData.projected_gravity_b"><code class="docutils literal notranslate"><span class="pre">ArticulationData.projected_gravity_b</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.assets.ArticulationData.heading_w"><code class="docutils literal notranslate"><span class="pre">ArticulationData.heading_w</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.assets.ArticulationData.joint_pos"><code class="docutils literal notranslate"><span class="pre">ArticulationData.joint_pos</span></code></a></li>
