@@ -15,7 +15,7 @@ from isaaclab.app import AppLauncher
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Replay demonstrations in Isaac Lab environments.")
 parser.add_argument("--num_envs", type=int, default=1, help="Number of environments to replay episodes.")
-parser.add_argument("--task", type=str, default=None, help="Force to use the specified task.")
+parser.add_argument("--task", type=str, default="Cabinet-anubis-teleop-v0", help="Force to use the specified task.")
 parser.add_argument(
     "--select_episodes",
     type=int,

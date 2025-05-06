@@ -32,16 +32,18 @@ import contextlib
 import gymnasium as gym
 import numpy as np
 import os
+os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
 import time
 import torch
+torch.cuda.empty_cache()
 
 # Isaac Lab AppLauncher
 from isaaclab.app import AppLauncher
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Record demonstrations for Isaac Lab environments.")
-parser.add_argument("--task", type=str, default=None, help="Name of the task.")
-parser.add_argument("--teleop_device", type=str, default="keyboard", help="Device for interacting with environment.")
+parser.add_argument("--task", type=str, default="Cabinet-anubis-teleop-v0", help="Name of the task.")
+parser.add_argument("--teleop_device", type=str, default="keyboard_bmm", help="Device for interacting with environment.")
 parser.add_argument(
     "--dataset_file", type=str, default="./datasets/dataset.hdf5", help="File path to export recorded demos."
 )
@@ -142,7 +144,7 @@ class RateLimiter:
 
 
 def pre_process_actions(
-    teleop_data: tuple[np.ndarray, bool] | list[tuple[np.ndarray, np.ndarray, np.ndarray]], num_envs: int, device: str
+    teleop_data: tuple[np.ndarray, bool] | list[tuple[np.ndarray, np.ndarray, np.ndarray]], num_envs: int, device: str, env: gym.Env
 ) -> torch.Tensor:
     """Convert teleop data to the format expected by the environment action space.
 
@@ -178,11 +180,16 @@ def pre_process_actions(
         return actions
     elif "anubis" in args_cli.task:
         # devide the teleop data into bimanual mobile manipulation
-        delta_pose_L = teleop_data[:, 0:6]
-        gripper_command_L = teleop_data[:,6]
-        delta_pose_R = teleop_data[:, 7:13]
-        gripper_command_R = teleop_data[:,13]
-        delta_pose_base = teleop_data[:,14:]
+
+        # unpack the tuple
+        delta_pose_L, gripper_command_L, delta_pose_R, gripper_command_R, delta_pose_base = teleop_data
+        delta_pose_L = delta_pose_L.astype("float32")
+        delta_pose_R = delta_pose_R.astype("float32")
+        delta_pose_base = delta_pose_base.astype("float32")
+        # convert to torch
+        delta_pose_L = torch.tensor(delta_pose_L, device=env.device).repeat(env.num_envs, 1)
+        delta_pose_R = torch.tensor(delta_pose_R, device=env.device).repeat(env.num_envs, 1)
+        delta_pose_base = torch.tensor(delta_pose_base, device=env.device).repeat(env.num_envs, 1)
         
         # resolve gripper command
         gripper_vel_L = torch.zeros(delta_pose_L.shape[0], 1, device=delta_pose_L.device)
@@ -392,19 +399,17 @@ def main():
 
     teleop_interface = create_teleop_device(args_cli.teleop_device, env)
     teleop_interface.add_callback("R", reset_recording_instance)
-    ipdb.set_trace()
 
     # reset before starting
     env.sim.reset()
     env.reset()
     teleop_interface.reset()
-    ipdb.set_trace()
+
     # simulate environment -- run everything in inference mode
     current_recorded_demo_count = 0
     success_step_count = 0
 
     label_text = f"Recorded {current_recorded_demo_count} successful demonstrations."
-    ipdb.set_trace()
 
     instruction_display = InstructionDisplay(args_cli.teleop_device)
     if args_cli.teleop_device.lower() != "handtracking":
@@ -420,13 +425,11 @@ def main():
         while simulation_app.is_running():
             # get data from teleop device
             teleop_data = teleop_interface.advance()
-            ipdb.set_trace()
             # perform action on environment
             if running_recording_instance:
                 # compute actions based on environment
-                actions = pre_process_actions(teleop_data, env.num_envs, env.device)
+                actions = pre_process_actions(teleop_data, env.num_envs, env.device, env=env)
                 obv = env.step(actions)
-                ipdb.set_trace()
                 if subtasks is not None:
                     if subtasks == {}:
                         subtasks = obv[0].get("subtask_terms")

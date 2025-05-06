@@ -161,7 +161,6 @@ def main():
         with torch.inference_mode():
             # get keyboard command
             delta_pose_L, gripper_command_L, delta_pose_R, gripper_command_R, delta_pose_base = teleop_interface.advance()
-            # print(delta_pose_L, gripper_command_L, delta_pose_R, gripper_command_R, delta_pose_base)
             delta_pose_L = delta_pose_L.astype("float32")
             delta_pose_R = delta_pose_R.astype("float32")
             delta_pose_base = delta_pose_base.astype("float32")

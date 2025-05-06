@@ -105,7 +105,7 @@ class AnubisCabinetEnvCfg(CabinetEnvCfg):
                     prim_path="{ENV_REGEX_NS}/Robot/ee_link1",
                     name="ee_tcp",
                     offset=OffsetCfg(
-                        pos=(0.0, 0.0, 0.1034),
+                        pos=(0.0, 0.0, -0.1034),
                     ),
                 ),
                 FrameTransformerCfg.FrameCfg(
@@ -133,7 +133,7 @@ class AnubisCabinetEnvCfg(CabinetEnvCfg):
                     prim_path="{ENV_REGEX_NS}/Robot/ee_link2",
                     name="ee_tcp",
                     offset=OffsetCfg(
-                        pos=(0.0, 0.0, 0.1034),
+                        pos=(0.0, 0.0, -0.1034),
                     ),
                 ),
                 FrameTransformerCfg.FrameCfg(
