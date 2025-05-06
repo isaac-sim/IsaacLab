@@ -321,10 +321,10 @@ class AppLauncher:
             "--rendering_mode",
             type=str,
             action=ExplicitAction,
-            choices={"performance", "balanced", "quality", "xr"},
+            choices={"performance", "balanced", "quality"},
             help=(
                 "Sets the rendering mode. Preset settings files can be found in apps/rendering_modes."
-                ' Can be "performance", "balanced", "quality", or "xr".'
+                ' Can be "performance", "balanced", or "quality".'
                 " Individual settings can be overwritten by using the RenderCfg class."
             ),
         )
@@ -859,14 +859,6 @@ class AppLauncher:
         # default to balanced mode
         if rendering_mode is None:
             rendering_mode = "balanced"
-
-        rendering_mode_explicitly_passed = launcher_args.pop("rendering_mode_explicit", False)
-        if self._xr and not rendering_mode_explicitly_passed:
-            # If no rendering mode is specified, default to the xr mode if we are running in XR
-            rendering_mode = "xr"
-
-            # Overwrite for downstream consumers
-            launcher_args["rendering_mode"] = "xr"
 
         # parse preset file
         repo_path = os.path.join(carb.tokens.get_tokens_interface().resolve("${app}"), "..")

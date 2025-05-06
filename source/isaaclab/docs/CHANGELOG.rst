@@ -391,6 +391,15 @@ Added
 * Added :meth:`~isaaclab.envs.mdp.observations.body_projected_gravity_b`
 
 
+0.37.1 (2025-05-05)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Removed xr rendering mode.
+
+
 0.37.0 (2025-04-24)
 ~~~~~~~~~~~~~~~~~~~~
 

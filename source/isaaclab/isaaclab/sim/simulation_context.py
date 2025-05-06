@@ -303,7 +303,7 @@ class SimulationContext(_SimulationContext):
         rendering_mode = self.cfg.render.rendering_mode
         if rendering_mode is not None:
             # check if preset is supported
-            supported_rendering_modes = ["performance", "balanced", "quality", "xr"]
+            supported_rendering_modes = ["performance", "balanced", "quality"]
             if rendering_mode not in supported_rendering_modes:
                 raise ValueError(
                     f"RenderCfg rendering mode '{rendering_mode}' not in supported modes {supported_rendering_modes}."
