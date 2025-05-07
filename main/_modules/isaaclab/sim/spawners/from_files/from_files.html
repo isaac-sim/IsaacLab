@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.1.0" />
-    <meta name="docbuild:last-update" content="May 05, 2025"/>
+    <meta name="docbuild:last-update" content="May 07, 2025"/>
   </head>
   
   
@@ -547,7 +547,7 @@
 <span class="kn">import</span><span class="w"> </span><span class="nn">isaacsim.core.utils.stage</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">stage_utils</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">omni.kit.commands</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">omni.log</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">pxr</span><span class="w"> </span><span class="kn">import</span> <span class="n">Gf</span><span class="p">,</span> <span class="n">Sdf</span><span class="p">,</span> <span class="n">Usd</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pxr</span><span class="w"> </span><span class="kn">import</span> <span class="n">Gf</span><span class="p">,</span> <span class="n">Sdf</span><span class="p">,</span> <span class="n">Semantics</span><span class="p">,</span> <span class="n">Usd</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.sim</span><span class="w"> </span><span class="kn">import</span> <span class="n">converters</span><span class="p">,</span> <span class="n">schemas</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.sim.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">bind_physics_material</span><span class="p">,</span> <span class="n">bind_visual_material</span><span class="p">,</span> <span class="n">clone</span><span class="p">,</span> <span class="n">select_usd_variants</span>
@@ -709,8 +709,22 @@
     <span class="c1"># It isn&#39;t bright enough and messes up with the user&#39;s lighting settings</span>
     <span class="n">omni</span><span class="o">.</span><span class="n">kit</span><span class="o">.</span><span class="n">commands</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">&quot;ToggleVisibilitySelectedPrims&quot;</span><span class="p">,</span> <span class="n">selected_paths</span><span class="o">=</span><span class="p">[</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">prim_path</span><span class="si">}</span><span class="s2">/SphereLight&quot;</span><span class="p">])</span>
 
+    <span class="n">prim</span> <span class="o">=</span> <span class="n">prim_utils</span><span class="o">.</span><span class="n">get_prim_at_path</span><span class="p">(</span><span class="n">prim_path</span><span class="p">)</span>
+    <span class="c1"># Apply semantic tags</span>
+    <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="s2">&quot;semantic_tags&quot;</span><span class="p">)</span> <span class="ow">and</span> <span class="n">cfg</span><span class="o">.</span><span class="n">semantic_tags</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="c1"># note: taken from replicator scripts.utils.utils.py</span>
+        <span class="k">for</span> <span class="n">semantic_type</span><span class="p">,</span> <span class="n">semantic_value</span> <span class="ow">in</span> <span class="n">cfg</span><span class="o">.</span><span class="n">semantic_tags</span><span class="p">:</span>
+            <span class="c1"># deal with spaces by replacing them with underscores</span>
+            <span class="n">semantic_type_sanitized</span> <span class="o">=</span> <span class="n">semantic_type</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot; &quot;</span><span class="p">,</span> <span class="s2">&quot;_&quot;</span><span class="p">)</span>
+            <span class="n">semantic_value_sanitized</span> <span class="o">=</span> <span class="n">semantic_value</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot; &quot;</span><span class="p">,</span> <span class="s2">&quot;_&quot;</span><span class="p">)</span>
+            <span class="c1"># set the semantic API for the instance</span>
+            <span class="n">instance_name</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">semantic_type_sanitized</span><span class="si">}</span><span class="s2">_</span><span class="si">{</span><span class="n">semantic_value_sanitized</span><span class="si">}</span><span class="s2">&quot;</span>
+            <span class="n">sem</span> <span class="o">=</span> <span class="n">Semantics</span><span class="o">.</span><span class="n">SemanticsAPI</span><span class="o">.</span><span class="n">Apply</span><span class="p">(</span><span class="n">prim</span><span class="p">,</span> <span class="n">instance_name</span><span class="p">)</span>
+            <span class="c1"># create semantic type and data attributes</span>
+            <span class="n">sem</span><span class="o">.</span><span class="n">CreateSemanticTypeAttr</span><span class="p">()</span><span class="o">.</span><span class="n">Set</span><span class="p">(</span><span class="n">semantic_type</span><span class="p">)</span>
+            <span class="n">sem</span><span class="o">.</span><span class="n">CreateSemanticDataAttr</span><span class="p">()</span><span class="o">.</span><span class="n">Set</span><span class="p">(</span><span class="n">semantic_value</span><span class="p">)</span>
     <span class="c1"># return the prim</span>
-    <span class="k">return</span> <span class="n">prim_utils</span><span class="o">.</span><span class="n">get_prim_at_path</span><span class="p">(</span><span class="n">prim_path</span><span class="p">)</span></div>
+    <span class="k">return</span> <span class="n">prim</span></div>
 
 
 <span class="sd">&quot;&quot;&quot;</span>
@@ -854,7 +868,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on May 05, 2025.
+  Last updated on May 07, 2025.
   <br/>
 </p>
   </div>
