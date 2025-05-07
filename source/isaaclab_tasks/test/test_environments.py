@@ -5,6 +5,16 @@
 
 """Launch Isaac Sim Simulator first."""
 
+import sys
+
+# Omniverse logger
+import omni.log
+
+# Import pinocchio in the main script to force the use of the dependencies installed by IsaacLab and not the one installed by Isaac Sim
+# pinocchio is required by the Pink IK controller
+if sys.platform != "win32":
+    import pinocchio  # noqa: F401
+
 from isaaclab.app import AppLauncher, run_tests
 
 # launch the simulator
@@ -46,6 +56,7 @@ class TestEnvironments(unittest.TestCase):
             "Isaac-Stack-Cube-Franka-IK-Rel-Blueprint-v0",
             "Isaac-Stack-Cube-Instance-Randomize-Franka-IK-Rel-v0",
             "Isaac-Stack-Cube-Instance-Randomize-Franka-v0",
+            "Isaac-Stack-Cube-Franka-IK-Rel-Visuomotor-v0",
         ]
 
         # this flag is necessary to prevent a bug where the simulation gets stuck randomly when running the
