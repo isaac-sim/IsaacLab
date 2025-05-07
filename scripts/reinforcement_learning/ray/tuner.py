@@ -171,13 +171,21 @@ class IsaacLabTuneTrainable(tune.Trainable):
 
 
 class LogExtractionErrorStopper(tune.Stopper):
-    """Stopper that stops all trials if many log extraction error occurs."""
+    """Stopper that stops all trials if multiple LogExtractionErrors occur.
+
+    Args:
+        max_errors: The maximum number of LogExtractionErrors allowed before terminating the experiment.
+    """
 
     def __init__(self, max_errors: int):
         self.max_errors = max_errors
         self.error_count = 0
 
     def __call__(self, trial_id, result):
+        """Increments the error count if trial has encountered a LogExtractionError.
+
+        It does not stop the trial based on the metrics, always returning False.
+        """
         if result.get("LOG_EXTRACTION_ERROR_STOPPER_FLAG", False):
             self.error_count += 1
             print(
@@ -187,6 +195,7 @@ class LogExtractionErrorStopper(tune.Stopper):
         return False
 
     def stop_all(self):
+        """Returns true if number of LogExtractionErrors exceeds the maximum allowed, terminating the experiment."""
         if self.error_count > self.max_errors:
             print("[FATAL]: Encountered LogExtractionError more than allowed, aborting entire tuning run... ")
             return True
