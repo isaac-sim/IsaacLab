@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.10.32 (2025-05-07)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Added a dummy joint randomization event term in ``Isaac-Velocity-Flat-Anymal-C-Direct-v0`` to keep the joint friction/armature randomization tested.
+
+
 0.10.31 (2025-04-02)
 ~~~~~~~~~~~~~~~~~~~~
 
