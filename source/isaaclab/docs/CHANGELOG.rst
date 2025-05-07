@@ -2,19 +2,28 @@ Changelog
 ---------
 
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> 82cb3206 (Applies semantic_tags to ground (#2410))
 0.39.0 (2025-05-03)
 ~~~~~~~~~~~~~~~~~~~
 
 Added
 ^^^^^
 
+<<<<<<< HEAD
 * Added check in RecorderManager to ensure that the success indicator is only set if the termination manager is present.
+=======
+>>>>>>> 82cb3206 (Applies semantic_tags to ground (#2410))
 * Added semantic tags in :func:`isaaclab.sim.spawners.from_files.spawn_ground_plane`.
   This allows for :attr:`semantic_segmentation_mapping` to be used when using the ground plane spawner.
 
 
+<<<<<<< HEAD
 =======
 >>>>>>> 70a5ffcd (Adds joint effort observation (#2211))
+=======
+>>>>>>> 82cb3206 (Applies semantic_tags to ground (#2410))
 0.38.0 (2025-04-01)
 ~~~~~~~~~~~~~~~~~~
 

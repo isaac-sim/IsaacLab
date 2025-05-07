@@ -2,10 +2,14 @@
 
 # Note: Semantic Versioning is used: https://semver.org/
 <<<<<<< HEAD
+<<<<<<< HEAD
 version = "0.39.0"
 =======
 version = "0.38.0"
 >>>>>>> 70a5ffcd (Adds joint effort observation (#2211))
+=======
+version = "0.39.0"
+>>>>>>> 82cb3206 (Applies semantic_tags to ground (#2410))
 
 # Description
 title = "Isaac Lab framework for Robot Learning"
