@@ -11,7 +11,7 @@ import isaacsim.core.utils.prims as prim_utils
 import isaacsim.core.utils.stage as stage_utils
 import omni.kit.commands
 import omni.log
-from pxr import Gf, Sdf, Usd, Semantics
+from pxr import Gf, Sdf, Semantics, Usd
 
 from isaaclab.sim import converters, schemas
 from isaaclab.sim.utils import bind_physics_material, bind_visual_material, clone, select_usd_variants
