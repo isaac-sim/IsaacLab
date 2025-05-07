@@ -185,7 +185,7 @@ There are two options to run the CloudXR Runtime Docker container:
 
          docker run -it --rm --name cloudxr-runtime \
              --user $(id -u):$(id -g) \
-             --runtime=nvidia \
+             --gpus=all \
              -e "ACCEPT_EULA=Y" \
              --mount type=bind,src=$(pwd)/openxr,dst=/openxr \
              -p 48010:48010 \
@@ -196,6 +196,10 @@ There are two options to run the CloudXR Runtime Docker container:
              -p 48008:48008/udp \
              -p 48012:48012/udp \
              nvcr.io/nvidia/cloudxr-runtime:0.1.0-isaac
+
+      .. note::
+         If you choose a particular GPU instead of ``all``, you need to make sure Isaac Lab also runs
+         on that GPU.
 
    #. In a new terminal where you intend to run Isaac Lab, export the following environment
       variables, which reference the directory created above:
