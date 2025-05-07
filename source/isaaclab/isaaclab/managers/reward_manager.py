@@ -140,9 +140,7 @@ class RewardManager(ManagerBase):
         # reset computation
         self._reward_buf[:] = 0.0
         # iterate over all the reward terms
-        for name, term_cfg in zip(self._term_names, self._term_cfgs):
-            # get index of term
-            term_idx = self._term_names.index(name)
+        for term_idx, (name, term_cfg) in enumerate(zip(self._term_names, self._term_cfgs)):
             # skip if weight is zero (kind of a micro-optimization)
             if term_cfg.weight == 0.0:
                 self._step_reward[:, term_idx] = 0.0
