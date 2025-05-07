@@ -13,4 +13,3 @@ These include:
 """
 
 from .app_launcher import AppLauncher  # noqa: F401, F403
-from .runners import run_tests  # noqa: F401, F403

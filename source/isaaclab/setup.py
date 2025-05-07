@@ -39,6 +39,9 @@ INSTALL_REQUIRES = [
     "pillow==11.0.0",
     # livestream
     "starlette==0.46.0",
+    # testing
+    "pytest",
+    "pytest-mock",
     "flatdict==4.0.1",
 ]
 
