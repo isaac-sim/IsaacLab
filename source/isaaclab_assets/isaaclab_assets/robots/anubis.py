@@ -63,10 +63,10 @@ ANUBIS_CFG = ArticulationCfg(
     actuators={
         "base": ImplicitActuatorCfg(
             joint_names_expr=["dummy_base_.*"],
-            velocity_limit=100.0,
-            effort_limit=1000.0,
+            effort_limit_sim=1e10,
+            velocity_limit_sim=100.0,
             stiffness=0.0,
-            damping=1e20,  # tip:: For velocity control of the base with dummy mechanism, we recommend setting high damping gains to the joints. This ensures that the base remains unperturbed from external disturbances, such as an arm mounted on the base.
+            damping=1e10,  # tip:: For velocity control of the base with dummy mechanism, we recommend setting high damping gains to the joints. This ensures that the base remains unperturbed from external disturbances, such as an arm mounted on the base.
         ),
         "arm_base": ImplicitActuatorCfg(
             joint_names_expr=["arm.*"],
@@ -84,10 +84,11 @@ ANUBIS_CFG = ArticulationCfg(
         ),
         "anubis_hand": ImplicitActuatorCfg(
             joint_names_expr=["gripper.*"],
-            effort_limit=100.0,
-            velocity_limit=0.1,
-            stiffness=2e4,
+            effort_limit_sim=1e3,
+            velocity_limit_sim=0.1,
+            stiffness=6e4,
             damping=1e3,
+            friction=1.0,
         ),
     },
 )

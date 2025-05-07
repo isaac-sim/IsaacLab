@@ -15,8 +15,8 @@ def cube_in_cabinet(
     cube_1_cfg: SceneEntityCfg = SceneEntityCfg("object"),
     cabinet_cfg: SceneEntityCfg = SceneEntityCfg("cabinet"),
 
-    top_cabinet_height: float = 0.3,
-    ztol=0.1,
+    top_cabinet_height: float = 0.4,
+    ztol=0.0001,
 ):
     robot: Articulation = env.scene[robot_cfg.name]
     cube_1: RigidObject = env.scene[cube_1_cfg.name]
@@ -34,13 +34,22 @@ def cube_in_cabinet(
     cabinet_x_min, cabinet_y_min, cabinet_z_min = cabinet_min  # Shape (3,)
     cabinet_x_max, cabinet_y_max, cabinet_z_max = cabinet_max  # Shape (3,)
 
+    print(f"cabinet_min: {cabinet_min}")
+    print(f"cabinet_max: {cabinet_max}")
+    print(f"cabinet_x_min: {cabinet_x_min}")
+    print(f"cabinet_x_max: {cabinet_x_max}")
+    print(f"cabinet_y_min: {cabinet_y_min}")
+    print(f"cabinet_y_max: {cabinet_y_max}")
+    print(f"cabinet_z_min: { cabinet_z_min + top_cabinet_height}")
+    print(f"cabinet_z_max: {cabinet_z_max - ztol}")
+    print(f"cube_pos: {cube_pos}")
     
     # x
     inside_cabinet =torch.logical_and(
-        cube_pos[:, 0] > cabinet_x_min,
+        cube_pos[:, 0] > cabinet_x_min-0.1,
         cube_pos[:, 0] < cabinet_x_max,
     )
-    
+    print(f"inside_cabinet x : {inside_cabinet}")
     # y
     inside_cabinet =torch.logical_and(
         cube_pos[:, 1] > cabinet_y_min,
@@ -50,16 +59,16 @@ def cube_in_cabinet(
         cube_pos[:, 1] < cabinet_y_max,
         inside_cabinet,
     )
-    
+    print(f"inside_cabinet y : {inside_cabinet}")
     # z
     inside_cabinet =torch.logical_and(
-        cube_pos[:, 2] > cabinet_z_max - top_cabinet_height,
+        cube_pos[:, 2] > cabinet_z_min + top_cabinet_height,
         inside_cabinet,
     )
     inside_cabinet =torch.logical_and(
         cube_pos[:, 2] < cabinet_z_max - ztol,
         inside_cabinet,
     )
-    
+    print(f"inside_cabinet z : {inside_cabinet}")
 
     return inside_cabinet
