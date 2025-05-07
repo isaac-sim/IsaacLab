@@ -17,7 +17,7 @@ if AppLauncher.instance():
 def test_livestream_launch_with_argparser(mocker):
     """Test launching with argparser arguments."""
     # Mock the parse_args method
-    mocker.patch("argparse.ArgumentParser.parse_args", return_value=argparse.Namespace(livestream=1))
+    mocker.patch("argparse.ArgumentParser.parse_args", return_value=argparse.Namespace(livestream=1, headless=True))
     # create argparser
     parser = argparse.ArgumentParser()
     # add app launcher arguments
