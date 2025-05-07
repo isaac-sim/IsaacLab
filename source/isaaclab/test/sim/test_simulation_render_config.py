@@ -18,9 +18,12 @@ elif AppLauncher.instance() and AppLauncher.instance()._enable_cameras is False:
 
 """Rest everything follows."""
 
+import toml
+
 import carb
-import omni.timeline
+import flatdict
 import pytest
+from isaacsim.core.utils.carb import get_carb_setting
 
 from isaaclab.sim.simulation_cfg import RenderCfg, SimulationCfg
 from isaaclab.sim.simulation_context import SimulationContext
@@ -58,8 +61,8 @@ def test_render_cfg():
     cfg = SimulationCfg(render=render_cfg)
 
     # FIXME: when running all tests, the timeline is not stopped, force stop it here but also that does not the timeline
-    omni.timeline.get_timeline_interface().stop()
-    
+    # omni.timeline.get_timeline_interface().stop()
+
     sim = SimulationContext(cfg)
 
     assert sim.cfg.render.enable_translucency == enable_translucency
@@ -89,6 +92,51 @@ def test_render_cfg():
     assert carb_settings_iface.get("/rtx/shadows/enabled") == sim.cfg.render.enable_shadows
     assert carb_settings_iface.get("/rtx/ambientOcclusion/enabled") == sim.cfg.render.enable_ambient_occlusion
     assert carb_settings_iface.get("/rtx/post/aa/op") == 4  # dlss = 3, dlaa=4
+
+    def test_render_cfg_presets(self):
+        """Test that the simulation context is created with the correct render cfg preset with overrides."""
+
+        # carb setting dictionary overrides
+        carb_settings = {"/rtx/raytracing/subpixel/mode": 3, "/rtx/pathtracing/maxSamplesPerLaunch": 999999}
+        # user-friendly setting overrides
+        dlss_mode = ("/rtx/post/dlss/execMode", 5)
+
+        rendering_modes = ["performance", "balanced", "quality", "xr"]
+
+        for rendering_mode in rendering_modes:
+            # grab groundtruth preset settings
+            preset_filename = f"apps/rendering_modes/{rendering_mode}.kit"
+            with open(preset_filename) as file:
+                preset_dict = toml.load(file)
+            preset_dict = dict(flatdict.FlatDict(preset_dict, delimiter="."))
+
+            render_cfg = RenderCfg(
+                rendering_mode=rendering_mode,
+                dlss_mode=dlss_mode[1],
+                carb_settings=carb_settings,
+            )
+
+            cfg = SimulationCfg(render=render_cfg)
+
+            SimulationContext(cfg)
+
+            carb_settings_iface = carb.settings.get_settings()
+            for key, val in preset_dict.items():
+                setting_name = "/" + key.replace(".", "/")  # convert to carb setting format
+
+                if setting_name in carb_settings:
+                    # grab groundtruth from carb setting dictionary overrides
+                    setting_gt = carb_settings[setting_name]
+                elif setting_name == dlss_mode[0]:
+                    # grab groundtruth from user-friendly setting overrides
+                    setting_gt = dlss_mode[1]
+                else:
+                    # grab groundtruth from preset
+                    setting_gt = val
+
+                setting_val = get_carb_setting(carb_settings_iface, setting_name)
+
+                self.assertEqual(setting_gt, setting_val)
 
 
 @pytest.mark.skip(reason="Timeline not stopped")

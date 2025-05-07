@@ -141,6 +141,7 @@ def test_camera_init_offset(setup_sim_camera):
     # define the same offset in all conventions
     # -- ROS convention
     cam_cfg_offset_ros = copy.deepcopy(camera_cfg)
+    cam_cfg_offset_ros.update_latest_camera_pose = True
     cam_cfg_offset_ros.offset = CameraCfg.OffsetCfg(
         pos=POSITION,
         rot=QUAT_ROS,
@@ -150,6 +151,7 @@ def test_camera_init_offset(setup_sim_camera):
     camera_ros = Camera(cam_cfg_offset_ros)
     # -- OpenGL convention
     cam_cfg_offset_opengl = copy.deepcopy(camera_cfg)
+    cam_cfg_offset_opengl.update_latest_camera_pose = True
     cam_cfg_offset_opengl.offset = CameraCfg.OffsetCfg(
         pos=POSITION,
         rot=QUAT_OPENGL,
@@ -159,6 +161,7 @@ def test_camera_init_offset(setup_sim_camera):
     camera_opengl = Camera(cam_cfg_offset_opengl)
     # -- World convention
     cam_cfg_offset_world = copy.deepcopy(camera_cfg)
+    cam_cfg_offset_world.update_latest_camera_pose = True
     cam_cfg_offset_world.offset = CameraCfg.OffsetCfg(
         pos=POSITION,
         rot=QUAT_WORLD,
@@ -335,6 +338,9 @@ def test_camera_init_intrinsic_matrix(setup_sim_camera):
 def test_camera_set_world_poses(setup_sim_camera):
     """Test camera function to set specific world pose."""
     sim, camera_cfg, dt = setup_sim_camera
+    # enable update latest camera pose
+    camera_cfg.update_latest_camera_pose = True
+    # init camera
     camera = Camera(camera_cfg)
     # play sim
     sim.reset()
@@ -359,6 +365,9 @@ def test_camera_set_world_poses(setup_sim_camera):
 def test_camera_set_world_poses_from_view(setup_sim_camera):
     """Test camera function to set specific world pose from view."""
     sim, camera_cfg, dt = setup_sim_camera
+    # enable update latest camera pose
+    camera_cfg.update_latest_camera_pose = True
+    # init camera
     camera = Camera(camera_cfg)
     # play sim
     sim.reset()
@@ -384,6 +393,9 @@ def test_camera_set_world_poses_from_view(setup_sim_camera):
 def test_intrinsic_matrix(setup_sim_camera):
     """Checks that the camera's set and retrieve methods work for intrinsic matrix."""
     sim, camera_cfg, dt = setup_sim_camera
+    # enable update latest camera pose
+    camera_cfg.update_latest_camera_pose = True
+    # init camera
     camera = Camera(camera_cfg)
     # play sim
     sim.reset()

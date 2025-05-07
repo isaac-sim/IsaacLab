@@ -13,6 +13,8 @@ if not AppLauncher.instance():
 
 """Rest everything follows."""
 
+import math
+
 import isaacsim.core.utils.prims as prim_utils
 import isaacsim.core.utils.stage as stage_utils
 import pytest
@@ -69,7 +71,9 @@ def setup_simulation():
         torsional_patch_radius=1.0,
     )
     mass_cfg = schemas.MassPropertiesCfg(mass=1.0, density=100.0)
-    joint_cfg = schemas.JointDrivePropertiesCfg(drive_type="acceleration")
+    joint_cfg = schemas.JointDrivePropertiesCfg(
+        drive_type="acceleration", max_effort=80.0, max_velocity=10.0, stiffness=10.0, damping=0.1
+    )
     yield sim, arti_cfg, rigid_cfg, collision_cfg, mass_cfg, joint_cfg
     # Teardown
     sim.stop()
@@ -349,16 +353,40 @@ def _validate_joint_drive_properties_on_prim(prim_path: str, joint_cfg, verbose:
                     # skip names we know are not present
                     if attr_name == "func":
                         continue
-                    # manually check joint type
+                    # resolve the drive (linear or angular)
+                    drive_model = "linear" if joint_prim.IsA(UsdPhysics.PrismaticJoint) else "angular"
+
+                    # manually check joint type since it is a string type
                     if attr_name == "drive_type":
-                        if joint_prim.IsA(UsdPhysics.PrismaticJoint):
-                            prim_attr_name = "drive:linear:physics:type"
-                        elif joint_prim.IsA(UsdPhysics.RevoluteJoint):
-                            prim_attr_name = "drive:angular:physics:type"
-                        else:
-                            raise ValueError(f"Unknown joint type for prim {joint_prim.GetPrimPath()}")
+                        prim_attr_name = f"drive:{drive_model}:physics:type"
                         # check the value
                         assert attr_value == joint_prim.GetAttribute(prim_attr_name).Get()
                         continue
+
+                    # non-string attributes
+                    if attr_name == "max_velocity":
+                        prim_attr_name = "physxJoint:maxJointVelocity"
+                    elif attr_name == "max_effort":
+                        prim_attr_name = f"drive:{drive_model}:physics:maxForce"
+                    else:
+                        prim_attr_name = f"drive:{drive_model}:physics:{to_camel_case(attr_name, to='cC')}"
+
+                    # obtain value from USD API (for angular, these follow degrees unit)
+                    prim_attr_value = joint_prim.GetAttribute(prim_attr_name).Get()
+
+                    # for angular drives, we expect user to set in radians
+                    # the values reported by USD are in degrees
+                    if drive_model == "angular":
+                        if attr_name == "max_velocity":
+                            # deg / s --> rad / s
+                            prim_attr_value = prim_attr_value * math.pi / 180.0
+                        elif attr_name in ["stiffness", "damping"]:
+                            # N-m/deg or N-m-s/deg --> N-m/rad or N-m-s/rad
+                            prim_attr_value = prim_attr_value * 180.0 / math.pi
+
+                    # validate the values
+                    assert prim_attr_value == pytest.approx(
+                        attr_value, abs=1e-5
+                    ), f"Failed setting for {prim_attr_name}"
             elif verbose:
                 print(f"Skipping prim {joint_prim.GetPrimPath()} as it is not a joint drive api.")

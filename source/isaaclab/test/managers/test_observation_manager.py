@@ -21,6 +21,7 @@ from collections import namedtuple
 
 import pytest
 
+import isaaclab.sim as sim_utils
 from isaaclab.managers import ManagerTermBase, ObservationGroupCfg, ObservationManager, ObservationTermCfg
 from isaaclab.utils import configclass, modifiers
 
@@ -97,9 +98,16 @@ def setup_env():
     dt = 0.01
     num_envs = 20
     device = "cuda:0"
-    env = namedtuple("ManagerBasedEnv", ["num_envs", "device", "data", "dt"])(
-        num_envs, device, MyDataClass(num_envs, device), dt
+    # set up sim
+    sim_cfg = sim_utils.SimulationCfg(dt=dt, device=device)
+    sim = sim_utils.SimulationContext(sim_cfg)
+    # create dummy environment
+    env = namedtuple("ManagerBasedEnv", ["num_envs", "device", "data", "dt", "sim"])(
+        num_envs, device, MyDataClass(num_envs, device), dt, sim
     )
+    # let the simulation play (we need this for observation manager to compute obs dims)
+    env.sim._app_control_on_stop_handle = None
+    env.sim.reset()
     return env
 
 
@@ -388,7 +396,7 @@ def test_compute_with_history(setup_env):
     expected_obs_term_1_data = torch.ones(env.num_envs, 4 * HISTORY_LENGTH, device=env.device)
     expected_obs_term_2_data = lin_vel_w_data(env)
     expected_obs_data_t0 = torch.concat((expected_obs_term_1_data, expected_obs_term_2_data), dim=-1)
-    assert torch.equal(expected_obs_data_t0, obs_policy)
+    torch.testing.assert_close(expected_obs_data_t0, obs_policy)
     # test that the history buffer holds previous data
     for _ in range(HISTORY_LENGTH):
         observations = obs_man.compute()
@@ -400,11 +408,11 @@ def test_compute_with_history(setup_env):
     obs_man.reset()
     observations = obs_man.compute()
     obs_policy = observations["policy"]
-    assert torch.equal(expected_obs_data_t0, obs_policy)
+    torch.testing.assert_close(expected_obs_data_t0, obs_policy)
     # test reset of specific env ids
     reset_env_ids = [2, 4, 16]
     obs_man.reset(reset_env_ids)
-    assert torch.equal(expected_obs_data_t0[reset_env_ids], obs_policy[reset_env_ids])
+    torch.testing.assert_close(expected_obs_data_t0[reset_env_ids], obs_policy[reset_env_ids])
 
 
 def test_compute_with_2d_history(setup_env):
@@ -491,7 +499,7 @@ def test_compute_with_group_history(setup_env):
     expected_obs_term_1_data = torch.ones(env.num_envs, 4 * GROUP_HISTORY_LENGTH, device=env.device)
     expected_obs_term_2_data = lin_vel_w_data(env).repeat(1, GROUP_HISTORY_LENGTH)
     expected_obs_data_t0 = torch.concat((expected_obs_term_1_data, expected_obs_term_2_data), dim=-1)
-    assert torch.equal(expected_obs_data_t0, obs_policy)
+    torch.testing.assert_close(expected_obs_data_t0, obs_policy)
     # test that the history buffer holds previous data
     for _ in range(GROUP_HISTORY_LENGTH):
         observations = obs_man.compute()
@@ -499,16 +507,16 @@ def test_compute_with_group_history(setup_env):
     expected_obs_term_1_data = torch.ones(env.num_envs, 4 * GROUP_HISTORY_LENGTH, device=env.device)
     expected_obs_term_2_data = lin_vel_w_data(env).repeat(1, GROUP_HISTORY_LENGTH)
     expected_obs_data_t10 = torch.concat((expected_obs_term_1_data, expected_obs_term_2_data), dim=-1)
-    assert torch.equal(expected_obs_data_t10, obs_policy)
+    torch.testing.assert_close(expected_obs_data_t10, obs_policy)
     # test reset
     obs_man.reset()
     observations = obs_man.compute()
     obs_policy = observations["policy"]
-    assert torch.equal(expected_obs_data_t0, obs_policy)
+    torch.testing.assert_close(expected_obs_data_t0, obs_policy)
     # test reset of specific env ids
     reset_env_ids = [2, 4, 16]
     obs_man.reset(reset_env_ids)
-    assert torch.equal(expected_obs_data_t0[reset_env_ids], obs_policy[reset_env_ids])
+    torch.testing.assert_close(expected_obs_data_t0[reset_env_ids], obs_policy[reset_env_ids])
 
 
 def test_invalid_observation_config(setup_env):

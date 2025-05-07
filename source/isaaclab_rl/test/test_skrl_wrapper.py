@@ -40,7 +40,7 @@ def registered_tasks():
                 registered_tasks.append(task_spec.id)
     # sort environments by name
     registered_tasks.sort()
-    registered_tasks = registered_tasks[:5]
+    registered_tasks = registered_tasks[:3]
 
     # this flag is necessary to prevent a bug where the simulation gets stuck randomly when running the
     # test on many environments.

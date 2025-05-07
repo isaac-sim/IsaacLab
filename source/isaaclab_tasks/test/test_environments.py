@@ -5,6 +5,16 @@
 
 """Launch Isaac Sim Simulator first."""
 
+import sys
+
+# Omniverse logger
+import omni.log
+
+# Import pinocchio in the main script to force the use of the dependencies installed by IsaacLab and not the one installed by Isaac Sim
+# pinocchio is required by the Pink IK controller
+if sys.platform != "win32":
+    import pinocchio  # noqa: F401
+
 from isaaclab.app import AppLauncher
 
 # launch the simulator
@@ -38,7 +48,6 @@ def setup_environment():
             registered_tasks.append(task_spec.id)
     # sort environments by name
     registered_tasks.sort()
-
     # this flag is necessary to prevent a bug where the simulation gets stuck randomly when running the
     # test on many environments.
     carb_settings_iface = carb.settings.get_settings()
@@ -51,6 +60,14 @@ def setup_environment():
 @pytest.mark.parametrize("task_name", setup_environment())
 def test_environments(task_name, num_envs, device):
     """Run all environments and check environments return valid signals."""
+    # skip these environments as they cannot be run with 32 environments within reasonable VRAM
+    if num_envs == 32 and task_name in [
+        "Isaac-Stack-Cube-Franka-IK-Rel-Blueprint-v0",
+        "Isaac-Stack-Cube-Instance-Randomize-Franka-IK-Rel-v0",
+        "Isaac-Stack-Cube-Instance-Randomize-Franka-v0",
+        "Isaac-Stack-Cube-Franka-IK-Rel-Visuomotor-v0",
+    ]:
+        return
     print(f">>> Running test for environment: {task_name}")
     _check_random_actions(task_name, device, num_envs, num_steps=100)
     print(f">>> Closing environment: {task_name}")

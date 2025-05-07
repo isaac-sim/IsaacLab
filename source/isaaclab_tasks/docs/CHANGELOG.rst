@@ -1,11 +1,67 @@
 Changelog
 ---------
 
-0.10.25 (2025-03-10)
+0.10.31 (2025-04-02)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Adds an idle action parameter to the ``Isaac-PickPlace-GR1T2-Abs-v0`` environment configuration.
+
+
+0.10.30 (2025-03-25)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed environment test failure for ``Isaac-Stack-Cube-Franka-IK-Rel-Blueprint-v0``.
+
+
+0.10.29 (2025-03-18)
 ~~~~~~~~~~~~~~~~~~~~
 
 Added
 ^^^^^
+
+* Added Gymnasium spaces showcase tasks (``Isaac-Cartpole-Showcase-*-Direct-v0``, and ``Isaac-Cartpole-Camera-Showcase-*-Direct-v0``).
+
+
+0.10.28 (2025-03-19)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated the ``Isaac-PickPlace-GR1T2-Abs-v0`` environment with auto termination when the object falls off the table
+  and refined the success criteria to be more accurate.
+
+
+0.10.27 (2025-03-13)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Blacklisted pick_place task from being imported automatically by isaaclab_tasks. It now has to be imported
+  manually by the script due to dependencies on the pinocchio import.
+
+
+0.10.26 (2025-03-10)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added the ``Isaac-PickPlace-GR1T2-Abs-v0`` environment that implements a humanoid arm picking and placing a steering wheel task using the PinkIKController.
+
+
+0.10.25 (2025-03-06)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^^^
 
 * Added ``Isaac-Stack-Cube-Franka-IK-Rel-Blueprint-v0`` stacking environment with camera inputs.
 

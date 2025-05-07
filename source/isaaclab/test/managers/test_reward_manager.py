@@ -19,6 +19,7 @@ from collections import namedtuple
 import pytest
 
 from isaaclab.managers import RewardManager, RewardTermCfg
+from isaaclab.sim import SimulationContext
 from isaaclab.utils import configclass
 
 
@@ -40,7 +41,8 @@ def grilled_chicken_with_yoghurt(env, hot: bool, bland: float):
 
 @pytest.fixture
 def env():
-    return namedtuple("ManagerBasedRLEnv", ["num_envs", "dt", "device"])(20, 0.1, "cpu")
+    sim = SimulationContext()
+    return namedtuple("ManagerBasedRLEnv", ["num_envs", "dt", "device", "sim"])(20, 0.1, "cpu", sim)
 
 
 def test_str(env):

@@ -663,7 +663,7 @@ def test_output_equal_to_usdcamera_prim_offset(setup_sim):
     under an XForm prim that is translated and rotated from the world origin
     ."""
     sim, camera_cfg, dt = setup_sim
-    offset_rot = [-0.1251, 0.3617, 0.8731, -0.3020]
+    offset_rot = (-0.1251, 0.3617, 0.8731, -0.3020)
 
     # gf quat
     gf_quatf = Gf.Quatd()
@@ -684,9 +684,7 @@ def test_output_equal_to_usdcamera_prim_offset(setup_sim):
         prim_path="/World/Camera_warp",
         mesh_prim_paths=["/World/defaultGroundPlane"],
         update_period=0,
-        offset=RayCasterCameraCfg.OffsetCfg(
-            pos=(0, 0, 2.0), rot=(offset_rot[0], offset_rot[1], offset_rot[2], offset_rot[3]), convention="ros"
-        ),
+        offset=RayCasterCameraCfg.OffsetCfg(pos=(0, 0, 2.0), rot=offset_rot, convention="ros"),
         debug_vis=False,
         pattern_cfg=camera_pattern_cfg,
         data_types=["distance_to_image_plane", "distance_to_camera", "normals"],
@@ -704,9 +702,8 @@ def test_output_equal_to_usdcamera_prim_offset(setup_sim):
         spawn=PinholeCameraCfg(
             focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(1e-6, 1.0e5)
         ),
-        offset=CameraCfg.OffsetCfg(
-            pos=(0, 0, 2.0), rot=(offset_rot[0], offset_rot[1], offset_rot[2], offset_rot[3]), convention="ros"
-        ),
+        offset=CameraCfg.OffsetCfg(pos=(0, 0, 2.0), rot=offset_rot, convention="ros"),
+        update_latest_camera_pose=True,
     )
     prim_usd = prim_utils.create_prim("/World/Camera_usd", "Xform")
     prim_usd.GetAttribute("xformOp:translate").Set(tuple(POSITION))
@@ -763,7 +760,7 @@ def test_output_equal_to_usd_camera_intrinsics(setup_sim, focal_length):
 
     sim, camera_cfg, dt = setup_sim
     # create cameras
-    offset_rot = [-0.1251, 0.3617, 0.8731, -0.3020]
+    offset_rot = (-0.1251, 0.3617, 0.8731, -0.3020)
     offset_pos = (2.5, 2.5, 4.0)
     intrinsics = [380.0831, 0.0, 480.0, 0.0, 380.0831, 270.0, 0.0, 0.0, 1.0]
     prim_utils.create_prim("/World/Camera_warp", "Xform")
@@ -771,7 +768,7 @@ def test_output_equal_to_usd_camera_intrinsics(setup_sim, focal_length):
     camera_warp_cfg = RayCasterCameraCfg(
         prim_path="/World/Camera_warp",
         mesh_prim_paths=["/World/defaultGroundPlane"],
-        offset=RayCasterCameraCfg.OffsetCfg(pos=offset_pos, rot=tuple(offset_rot), convention="ros"),
+        offset=RayCasterCameraCfg.OffsetCfg(pos=offset_pos, rot=offset_rot, convention="ros"),
         debug_vis=False,
         pattern_cfg=patterns.PinholeCameraPatternCfg.from_intrinsic_matrix(
             intrinsic_matrix=intrinsics,
@@ -785,7 +782,7 @@ def test_output_equal_to_usd_camera_intrinsics(setup_sim, focal_length):
     )
     camera_usd_cfg = CameraCfg(
         prim_path="/World/Camera_usd",
-        offset=CameraCfg.OffsetCfg(pos=offset_pos, rot=tuple(offset_rot), convention="ros"),
+        offset=CameraCfg.OffsetCfg(pos=offset_pos, rot=offset_rot, convention="ros"),
         spawn=PinholeCameraCfg.from_intrinsic_matrix(
             intrinsic_matrix=intrinsics,
             height=540,

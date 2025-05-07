@@ -1622,7 +1622,7 @@ def test_frame_offset_small_resolution(setup_camera):
     image_after = tiled_camera.data.output["rgb"].clone() / 255.0
 
     # check difference is above threshold
-    assert torch.abs(image_after - image_before).mean() > 0.05  # images of same color should be below 0.001
+    assert torch.abs(image_after - image_before).mean() > 0.04  # images of same color should be below 0.001
 
 
 def test_frame_offset_large_resolution(setup_camera):

@@ -36,9 +36,9 @@ elif AppLauncher.instance() and AppLauncher.instance()._enable_cameras is False:
 
 import gymnasium as gym
 import sys
-import pytest
 
 import omni.usd
+import pytest
 
 from isaaclab.envs import DirectRLEnv, DirectRLEnvCfg, ManagerBasedRLEnv, ManagerBasedRLEnvCfg
 from isaaclab.sensors import save_images_to_file

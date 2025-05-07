@@ -28,6 +28,7 @@ import pytest
 
 from isaaclab.envs import ManagerBasedEnv
 from isaaclab.managers import DatasetExportMode, RecorderManager, RecorderManagerBaseCfg, RecorderTerm, RecorderTermCfg
+from isaaclab.sim import SimulationContext
 from isaaclab.utils import configclass
 
 
@@ -86,8 +87,9 @@ def create_dummy_env(device: str = "cpu") -> ManagerBasedEnv:
         active_terms = []
 
     dummy_termination_manager = DummyTerminationManager()
-    return namedtuple("ManagerBasedEnv", ["num_envs", "device", "cfg", "termination_manager"])(
-        20, device, dict(), dummy_termination_manager
+    sim = SimulationContext()
+    return namedtuple("ManagerBasedEnv", ["num_envs", "device", "sim", "cfg", "termination_manager"])(
+        20, device, sim, dict(), dummy_termination_manager
     )
 
 

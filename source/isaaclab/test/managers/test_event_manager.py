@@ -7,6 +7,7 @@
 # pyright: reportPrivateUsage=none
 
 """Launch Isaac Sim Simulator first."""
+from collections.abc import Sequence
 
 from isaaclab.app import AppLauncher
 
@@ -22,10 +23,12 @@ from collections import namedtuple
 
 import pytest
 
-from isaaclab.managers import EventManager, EventTermCfg
+from isaaclab.envs import ManagerBasedEnv
+from isaaclab.managers import EventManager, EventTermCfg, ManagerTermBase, ManagerTermBaseCfg
+from isaaclab.sim import SimulationContext
 from isaaclab.utils import configclass
 
-DummyEnv = namedtuple("ManagerBasedRLEnv", ["num_envs", "dt", "device", "dummy1", "dummy2"])
+DummyEnv = namedtuple("ManagerBasedRLEnv", ["num_envs", "dt", "device", "sim", "dummy1", "dummy2"])
 """Dummy environment for testing."""
 
 
@@ -49,6 +52,36 @@ def increment_dummy2_by_one(env, env_ids: torch.Tensor):
     env.dummy2[env_ids] += 1
 
 
+class reset_dummy2_to_zero_class(ManagerTermBase):
+    def __init__(self, cfg: ManagerTermBaseCfg, env: ManagerBasedEnv):
+        super().__init__(cfg, env)
+
+    def reset(self, env_ids: Sequence[int] | None = None) -> None:
+        pass
+
+    def __call__(
+        self,
+        env: ManagerBasedEnv,
+        env_ids: torch.Tensor,
+    ) -> None:
+        env.dummy2[env_ids] = 0
+
+
+class increment_dummy2_by_one_class(ManagerTermBase):
+    def __init__(self, cfg: ManagerTermBaseCfg, env: ManagerBasedEnv):
+        super().__init__(cfg, env)
+
+    def reset(self, env_ids: Sequence[int] | None = None) -> None:
+        pass
+
+    def __call__(
+        self,
+        env: ManagerBasedEnv,
+        env_ids: torch.Tensor,
+    ) -> None:
+        env.dummy2[env_ids] += 1
+
+
 @pytest.fixture
 def env():
     num_envs = 32
@@ -56,8 +89,10 @@ def env():
     # create dummy tensors
     dummy1 = torch.zeros((num_envs, 2), device=device)
     dummy2 = torch.zeros((num_envs, 10), device=device)
+    # create sim
+    sim = SimulationContext()
     # create dummy environment
-    return DummyEnv(num_envs, 0.01, device, dummy1, dummy2)
+    return DummyEnv(num_envs, 0.01, device, sim, dummy1, dummy2)
 
 
 def test_str(env):
@@ -134,6 +169,22 @@ def test_active_terms(env):
     assert len(event_man.active_terms["interval"]) == 1
     assert len(event_man.active_terms["reset"]) == 1
     assert len(event_man.active_terms["custom"]) == 2
+
+
+def test_class_terms(env):
+    """Test the correct preparation of function and class event terms."""
+    cfg = {
+        "term_1": EventTermCfg(func=reset_dummy2_to_zero, mode="reset"),
+        "term_2": EventTermCfg(func=increment_dummy2_by_one_class, mode="interval", interval_range_s=(0.1, 0.1)),
+        "term_3": EventTermCfg(func=reset_dummy2_to_zero_class, mode="reset"),
+    }
+
+    event_man = EventManager(cfg, env)
+    assert len(event_man.active_terms) == 2
+    assert len(event_man.active_terms["interval"]) == 1
+    assert len(event_man.active_terms["reset"]) == 2
+    assert len(event_man._mode_class_term_cfgs) == 2
+    assert len(event_man._mode_class_term_cfgs["reset"]) == 1
 
 
 def test_config_empty(env):

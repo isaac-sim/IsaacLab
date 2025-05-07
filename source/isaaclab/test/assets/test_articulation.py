@@ -27,7 +27,7 @@ import pytest
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
 import isaaclab.utils.string as string_utils
-from isaaclab.actuators import IdealPDActuatorCfg, ImplicitActuatorCfg
+from isaaclab.actuators import ActuatorBase, IdealPDActuatorCfg, ImplicitActuatorCfg
 from isaaclab.assets import Articulation, ArticulationCfg
 from isaaclab.sim import build_simulation_context
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
@@ -84,7 +84,11 @@ def generate_articulation_cfg(
         articulation_cfg = SHADOW_HAND_CFG
     elif articulation_type == "single_joint_implicit":
         articulation_cfg = ArticulationCfg(
-            spawn=sim_utils.UsdFileCfg(usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/Simple/revolute_articulation.usd"),
+            # we set 80.0 default for max force because default in USD is 10e10 which makes testing annoying.
+            spawn=sim_utils.UsdFileCfg(
+                usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/Simple/revolute_articulation.usd",
+                joint_drive_props=sim_utils.JointDrivePropertiesCfg(max_effort=80.0, max_velocity=5.0),
+            ),
             actuators={
                 "joint": ImplicitActuatorCfg(
                     joint_names_expr=[".*"],
@@ -92,14 +96,23 @@ def generate_articulation_cfg(
                     velocity_limit_sim=velocity_limit_sim,
                     effort_limit=effort_limit,
                     velocity_limit=velocity_limit,
-                    stiffness=0.0,
-                    damping=10.0,
+                    stiffness=2000.0,
+                    damping=100.0,
                 ),
             },
+            init_state=ArticulationCfg.InitialStateCfg(
+                pos=(0.0, 0.0, 0.0),
+                joint_pos=({"RevoluteJoint": 1.5708}),
+                rot=(0.7071055, 0.7071081, 0, 0),
+            ),
         )
     elif articulation_type == "single_joint_explicit":
+        # we set 80.0 default for max force because default in USD is 10e10 which makes testing annoying.
         articulation_cfg = ArticulationCfg(
-            spawn=sim_utils.UsdFileCfg(usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/Simple/revolute_articulation.usd"),
+            spawn=sim_utils.UsdFileCfg(
+                usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/Simple/revolute_articulation.usd",
+                joint_drive_props=sim_utils.JointDrivePropertiesCfg(max_effort=80.0, max_velocity=5.0),
+            ),
             actuators={
                 "joint": IdealPDActuatorCfg(
                     joint_names_expr=[".*"],
@@ -115,7 +128,7 @@ def generate_articulation_cfg(
     else:
         raise ValueError(
             f"Invalid articulation type: {articulation_type}, valid options are 'humanoid', 'panda', 'anymal',"
-            " 'shadow_hand' and 'single_joint'."
+            " 'shadow_hand', 'single_joint_implicit' or 'single_joint_explicit'."
         )
 
     return articulation_cfg
@@ -649,7 +662,7 @@ def test_joint_pos_limits(sim, num_articulations, device, add_ground_plane):
     # Play sim
     sim.reset()
     # Check if articulation is initialized
-    assert articulation._is_initialized
+    assert articulation.is_initialized
 
     # Get current default joint pos
     default_joint_pos = articulation._data.default_joint_pos.clone()
@@ -1238,30 +1251,23 @@ def test_setting_effort_limit_explicit(sim, num_articulations, device, effort_li
     torch.testing.assert_close(actuator_effort_limit_sim, physx_effort_limit)
 
     if effort_limit is not None:
-        expected_actuator_effort_limit = torch.full(
-            (articulation.num_instances, articulation.num_joints),
-            effort_limit,
-            device=articulation.device,
-        )
+        expected_actuator_effort_limit = torch.full_like(actuator_effort_limit, effort_limit)
         # check actuator is set
         torch.testing.assert_close(actuator_effort_limit, expected_actuator_effort_limit)
-        # check physx is not effort_limit
-        assert physx_effort_limit[0].item() > effort_limit
+        # check physx effort limit does not match the one explicit actuator has
+        assert torch.allclose(actuator_effort_limit, physx_effort_limit)
     else:
         # check actuator effort_limit is the same as the PhysX default
         torch.testing.assert_close(actuator_effort_limit, physx_effort_limit)
 
+    # when using explicit actuators, the limits are set to high unless user overrides
     if effort_limit_sim is not None:
-        expected_effort_limit = torch.full(
-            (articulation.num_instances, articulation.num_joints),
-            effort_limit_sim,
-            device=articulation.device,
-        )
-        # check physx is set to expected value
-        torch.testing.assert_close(physx_effort_limit, expected_effort_limit)
+        limit = effort_limit_sim
     else:
-        # check physx is not set by vel_limit_sim
-        assert physx_effort_limit[0].item() == pytest.approx(1.0e9)
+        limit = ActuatorBase._DEFAULT_MAX_EFFORT_SIM  # type: ignore
+    # check physx internal value matches the expected sim value
+    expected_effort_limit = torch.full_like(physx_effort_limit, limit)
+    torch.testing.assert_close(physx_effort_limit, expected_effort_limit)
 
 
 @pytest.mark.parametrize("num_articulations", [1, 2])
@@ -1512,6 +1518,87 @@ def test_write_root_state(sim, num_articulations, device, with_offset, state_loc
             torch.testing.assert_close(rand_state, articulation.data.root_com_state_w)
         elif state_location == "link":
             torch.testing.assert_close(rand_state, articulation.data.root_link_state_w)
+
+
+@pytest.mark.parametrize("num_articulations", [1, 2])
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+def test_body_incoming_joint_wrench_b_single_joint(sim, num_articulations, device):
+    """Test the data.body_incoming_joint_wrench_b buffer is populated correctly and statically correct for single joint.
+
+    This test verifies that:
+    1. The body incoming joint wrench buffer has correct shape
+    2. The wrench values are statically correct for a single joint
+    3. The wrench values match expected values from gravity and external forces
+
+    Args:
+        sim: The simulation fixture
+        num_articulations: Number of articulations to test
+        device: The device to run the simulation on
+    """
+    articulation_cfg = generate_articulation_cfg(articulation_type="single_joint_implicit")
+    articulation, _ = generate_articulation(
+        articulation_cfg=articulation_cfg, num_articulations=num_articulations, device=device
+    )
+
+    # Play the simulator
+    sim.reset()
+    # apply external force
+    external_force_vector_b = torch.zeros((num_articulations, articulation.num_bodies, 3), device=device)
+    external_force_vector_b[:, 1, 1] = 10.0  # 10 N in Y direction
+    external_torque_vector_b = torch.zeros((num_articulations, articulation.num_bodies, 3), device=device)
+    external_torque_vector_b[:, 1, 2] = 10.0  # 10 Nm in z direction
+
+    # apply action to the articulation
+    joint_pos = torch.ones_like(articulation.data.joint_pos) * 1.5708 / 2.0
+    articulation.write_joint_state_to_sim(
+        torch.ones_like(articulation.data.joint_pos), torch.zeros_like(articulation.data.joint_vel)
+    )
+    articulation.set_joint_position_target(joint_pos)
+    articulation.write_data_to_sim()
+    for _ in range(50):
+        articulation.set_external_force_and_torque(forces=external_force_vector_b, torques=external_torque_vector_b)
+        articulation.write_data_to_sim()
+        # perform step
+        sim.step()
+        # update buffers
+        articulation.update(sim.cfg.dt)
+
+        # check shape
+        assert articulation.data.body_incoming_joint_wrench_b.shape == (num_articulations, articulation.num_bodies, 6)
+
+    # calculate expected static
+    mass = articulation.data.default_mass
+    pos_w = articulation.data.body_pos_w
+    quat_w = articulation.data.body_quat_w
+
+    mass_link2 = mass[:, 1].view(num_articulations, -1)
+    gravity = torch.tensor(sim.cfg.gravity, device="cpu").repeat(num_articulations, 1).view((num_articulations, 3))
+
+    # NOTE: the com and link pose for single joint are colocated
+    weight_vector_w = mass_link2 * gravity
+    # expected wrench from link mass and external wrench
+    expected_wrench = torch.zeros((num_articulations, 6), device=device)
+    expected_wrench[:, :3] = math_utils.quat_apply(
+        math_utils.quat_conjugate(quat_w[:, 0, :]),
+        weight_vector_w.to(device) + math_utils.quat_apply(quat_w[:, 1, :], external_force_vector_b[:, 1, :]),
+    )
+    expected_wrench[:, 3:] = math_utils.quat_apply(
+        math_utils.quat_conjugate(quat_w[:, 0, :]),
+        torch.cross(
+            pos_w[:, 1, :].to(device) - pos_w[:, 0, :].to(device),
+            weight_vector_w.to(device) + math_utils.quat_apply(quat_w[:, 1, :], external_force_vector_b[:, 1, :]),
+            dim=-1,
+        )
+        + math_utils.quat_apply(quat_w[:, 1, :], external_torque_vector_b[:, 1, :]),
+    )
+
+    # check value of last joint wrench
+    torch.testing.assert_close(
+        expected_wrench,
+        articulation.data.body_incoming_joint_wrench_b[:, 1, :].squeeze(1),
+        atol=1e-2,
+        rtol=1e-3,
+    )
 
 
 if __name__ == "__main__":

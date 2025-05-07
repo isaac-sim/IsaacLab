@@ -29,7 +29,7 @@ class ArticulationRootPropertiesCfg:
     """Solver position iteration counts for the body."""
 
     solver_velocity_iteration_count: int | None = None
-    """Solver position iteration counts for the body."""
+    """Solver velocity iteration counts for the body."""
 
     sleep_threshold: float | None = None
     """Mass-normalized kinetic energy threshold below which an actor may go to sleep."""
@@ -197,6 +197,36 @@ class JointDrivePropertiesCfg:
 
     If the drive type is "force", then the joint is driven by a force. If the drive type is "acceleration",
     then the joint is driven by an acceleration (usually used for kinematic joints).
+    """
+
+    max_effort: float | None = None
+    """Maximum effort that can be applied to the joint (in kg-m^2/s^2)."""
+
+    max_velocity: float | None = None
+    """Maximum velocity of the joint.
+
+    The unit depends on the joint model:
+
+    * For linear joints, the unit is m/s.
+    * For angular joints, the unit is rad/s.
+    """
+
+    stiffness: float | None = None
+    """Stiffness of the joint drive.
+
+    The unit depends on the joint model:
+
+    * For linear joints, the unit is kg-m/s^2 (N/m).
+    * For angular joints, the unit is kg-m^2/s^2/rad (N-m/rad).
+    """
+
+    damping: float | None = None
+    """Damping of the joint drive.
+
+    The unit depends on the joint model:
+
+    * For linear joints, the unit is kg-m/s (N-s/m).
+    * For angular joints, the unit is kg-m^2/s/rad (N-m-s/rad).
     """
 
 
