@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING
 
 import omni.log
 
-from .manager_base import ManagerBase, ManagerTermBase
+from .manager_base import ManagerBase
 from .manager_term_cfg import EventTermCfg
 
 if TYPE_CHECKING:
@@ -134,7 +134,7 @@ class EventManager(ManagerBase):
         # if we are doing interval based events then we need to reset the time left
         # when the episode starts. otherwise the counter will start from the last time
         # for that environment
-        if "interval" in self._mode_class_term_cfgs:
+        if "interval" in self._mode_term_cfgs:
             for index, term_cfg in enumerate(self._mode_class_term_cfgs["interval"]):
                 # sample a new interval and set that as time left
                 # note: global time events are based on simulation time and not episode time
@@ -384,7 +384,7 @@ class EventManager(ManagerBase):
             self._mode_term_cfgs[term_cfg.mode].append(term_cfg)
 
             # check if the term is a class
-            if isinstance(term_cfg.func, ManagerTermBase):
+            if inspect.isclass(term_cfg.func):
                 self._mode_class_term_cfgs[term_cfg.mode].append(term_cfg)
 
             # resolve the mode of the events

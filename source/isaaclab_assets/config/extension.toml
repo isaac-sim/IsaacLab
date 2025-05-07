@@ -1,6 +1,6 @@
 [package]
 # Semantic Versioning is used: https://semver.org/
-version = "0.2.1"
+version = "0.2.2"
 
 # Description
 title =  "Isaac Lab Assets"
