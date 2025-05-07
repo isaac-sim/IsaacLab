@@ -75,9 +75,8 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         # -- counter for curriculum
         self.common_step_counter = 0
 
-        # initialize the episode length buffer BEFORE loading the managers so it is available for use by mdp functions.
-        self.cfg = cfg
-        self.episode_length_buf = torch.zeros(self.cfg.scene.num_envs, device=self.cfg.sim.device, dtype=torch.long)
+        # initialize the episode length buffer BEFORE loading the managers to use it in mdp functions.
+        self.episode_length_buf = torch.zeros(cfg.scene.num_envs, device=cfg.sim.device, dtype=torch.long)
 
         # initialize the base class to setup the scene.
         super().__init__(cfg=cfg)
@@ -109,7 +108,6 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
     """
 
     def load_managers(self):
-
         # note: this order is important since observation manager needs to know the command and action managers
         # and the reward manager needs to know the termination manager
         # -- command manager
