@@ -4,7 +4,6 @@
     "version": "2.0.0",
     "tasks": [
         {
-            // setup python env
             "label": "setup_python_env",
             "type": "shell",
             "linux": {
@@ -15,7 +14,6 @@
             }
         },
         {
-            // run formatter
             "label": "run_formatter",
             "type": "shell",
             "linux": {
@@ -23,7 +21,8 @@
             },
             "windows": {
                 "command": "${workspaceFolder}/isaaclab.bat --format"
-            }
+            },
+            "problemMatcher": []
         }
     ]
 }
