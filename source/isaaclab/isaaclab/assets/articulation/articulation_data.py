@@ -9,6 +9,8 @@ import weakref
 import omni.log
 import omni.physics.tensors.impl.api as physx
 from isaacsim.core.simulation_manager import SimulationManager
+from isaaclab.sim._impl.newton_manager import NewtonManager
+import warp as wp
 
 import isaaclab.utils.math as math_utils
 from isaaclab.utils.buffers import TimestampedBuffer
@@ -32,7 +34,7 @@ class ArticulationData:
     can be interpreted as the link frame.
     """
 
-    def __init__(self, root_physx_view: physx.ArticulationView, device: str):
+    def __init__(self, root_physx_view: physx.ArticulationView, root_newton_view, device: str):
         """Initializes the articulation data.
 
         Args:
@@ -45,6 +47,7 @@ class ArticulationData:
         # note: this is stored as a weak reference to avoid circular references between the asset class
         #  and the data container. This is important to avoid memory leaks.
         self._root_physx_view: physx.ArticulationView = weakref.proxy(root_physx_view)
+        self._root_newton_view = weakref.proxy(root_newton_view)
 
         # Set initial time stamp
         self._sim_timestamp = 0.0
@@ -61,7 +64,7 @@ class ArticulationData:
         self.FORWARD_VEC_B = torch.tensor((1.0, 0.0, 0.0), device=self.device).repeat(self._root_physx_view.count, 1)
 
         # Initialize history for finite differencing
-        self._previous_joint_vel = self._root_physx_view.get_dof_velocities().clone()
+        self._previous_joint_vel = wp.to_torch(self._root_newton_view.get_attribute("joint_qd", NewtonManager.get_state_0()))
 
         # Initialize the lazy buffers.
         self._root_state_w = TimestampedBuffer()
@@ -371,9 +374,12 @@ class ArticulationData:
         """
         if self._root_state_w.timestamp < self._sim_timestamp:
             # read data from simulation
-            pose = self._root_physx_view.get_root_transforms().clone()
+            pose = wp.to_torch(self._root_newton_view.get_root_transforms(NewtonManager.get_state_0())).clone()
+            # pose = self._root_physx_view.get_root_transforms().clone()
             pose[:, 3:7] = math_utils.convert_quat(pose[:, 3:7], to="wxyz")
-            velocity = self._root_physx_view.get_root_velocities()
+            # print(pose)
+            # velocity = self._root_physx_view.get_root_velocities()
+            velocity = wp.to_torch(self._root_newton_view.get_root_velocities(NewtonManager.get_state_0()))
             # set the buffer data and timestamp
             self._root_state_w.data = torch.cat((pose, velocity), dim=-1)
             self._root_state_w.timestamp = self._sim_timestamp
@@ -388,10 +394,11 @@ class ArticulationData:
         """
         if self._root_link_state_w.timestamp < self._sim_timestamp:
             # read data from simulation
-            pose = self._root_physx_view.get_root_transforms().clone()
+            pose = wp.to_torch(self._root_newton_view.get_root_transforms(NewtonManager.get_state_0())).clone()
+            # pose = self._root_physx_view.get_root_transforms().clone()
             pose[:, 3:7] = math_utils.convert_quat(pose[:, 3:7], to="wxyz")
-            velocity = self._root_physx_view.get_root_velocities().clone()
-
+            # velocity = self._root_physx_view.get_root_velocities().clone()
+            velocity = wp.to_torch(self._root_newton_view.get_root_velocities(NewtonManager.get_state_0())).clone()
             # adjust linear velocity to link from center of mass
             velocity[:, :3] += torch.linalg.cross(
                 velocity[:, 3:], math_utils.quat_rotate(pose[:, 3:7], -self.com_pos_b[:, 0, :]), dim=-1
@@ -412,10 +419,11 @@ class ArticulationData:
         """
         if self._root_com_state_w.timestamp < self._sim_timestamp:
             # read data from simulation (pose is of link)
-            pose = self._root_physx_view.get_root_transforms().clone()
+            pose = wp.to_torch(self._root_newton_view.get_root_transforms(NewtonManager.get_state_0())).clone()
+            # pose = self._root_physx_view.get_root_transforms().clone()
             pose[:, 3:7] = math_utils.convert_quat(pose[:, 3:7], to="wxyz")
-            velocity = self._root_physx_view.get_root_velocities()
-
+            # velocity = self._root_physx_view.get_root_velocities()
+            velocity = wp.to_torch(self._root_newton_view.get_root_velocities(NewtonManager.get_state_0()))
             # adjust pose to center of mass
             pos, quat = math_utils.combine_frame_transforms(
                 pose[:, :3], pose[:, 3:7], self.com_pos_b[:, 0, :], self.com_quat_b[:, 0, :]
@@ -530,7 +538,7 @@ class ArticulationData:
         """Joint positions of all joints. Shape is (num_instances, num_joints)."""
         if self._joint_pos.timestamp < self._sim_timestamp:
             # read data from simulation and set the buffer data and timestamp
-            self._joint_pos.data = self._root_physx_view.get_dof_positions()
+            self._joint_pos.data = wp.to_torch(self._root_newton_view.get_attribute("joint_q", NewtonManager.get_state_0()))
             self._joint_pos.timestamp = self._sim_timestamp
         return self._joint_pos.data
 
@@ -539,7 +547,7 @@ class ArticulationData:
         """Joint velocities of all joints. Shape is (num_instances, num_joints)."""
         if self._joint_vel.timestamp < self._sim_timestamp:
             # read data from simulation and set the buffer data and timestamp
-            self._joint_vel.data = self._root_physx_view.get_dof_velocities()
+            self._joint_vel.data = wp.to_torch(self._root_newton_view.get_attribute("joint_qd", NewtonManager.get_state_0()))
             self._joint_vel.timestamp = self._sim_timestamp
         return self._joint_vel.data
 
@@ -630,7 +638,8 @@ class ArticulationData:
         """
         if self._root_link_state_w.timestamp < self._sim_timestamp:
             # read data from simulation (pose is of link)
-            pose = self._root_physx_view.get_root_transforms()
+            # pose = self._root_physx_view.get_root_transforms()
+            pose = wp.to_torch(self._root_newton_view.get_root_transforms(NewtonManager.get_state_0()))
             return pose[:, :3]
         return self.root_link_state_w[:, :3]
 
@@ -642,7 +651,8 @@ class ArticulationData:
         """
         if self._root_link_state_w.timestamp < self._sim_timestamp:
             # read data from simulation (pose is of link)
-            pose = self._root_physx_view.get_root_transforms().clone()
+            pose = wp.to_torch(self._root_newton_view.get_root_transforms(NewtonManager.get_state_0())).clone()
+            # pose = self._root_physx_view.get_root_transforms().clone()
             pose[:, 3:7] = math_utils.convert_quat(pose[:, 3:7], to="wxyz")
             return pose[:, 3:7]
         return self.root_link_state_w[:, 3:7]
@@ -718,7 +728,8 @@ class ArticulationData:
         """
         if self._root_com_state_w.timestamp < self._sim_timestamp:
             # read data from simulation (pose is of link)
-            velocity = self._root_physx_view.get_root_velocities()
+            # velocity = self._root_physx_view.get_root_velocities()
+            velocity = wp.to_torch(self._root_newton_view.get_root_velocities(NewtonManager.get_state_0()))
             return velocity
         return self.root_com_state_w[:, 7:13]
 
@@ -730,7 +741,8 @@ class ArticulationData:
         """
         if self._root_com_state_w.timestamp < self._sim_timestamp:
             # read data from simulation (pose is of link)
-            velocity = self._root_physx_view.get_root_velocities()
+            # velocity = self._root_physx_view.get_root_velocities()
+            velocity = wp.to_torch(self._root_newton_view.get_root_velocities(NewtonManager.get_state_0()))
             return velocity[:, 0:3]
         return self.root_com_state_w[:, 7:10]
 
@@ -743,7 +755,8 @@ class ArticulationData:
         if self._root_com_state_w.timestamp < self._sim_timestamp:
             self._physics_sim_view.update_articulations_kinematic()
             # read data from simulation (pose is of link)
-            velocity = self._root_physx_view.get_root_velocities()
+            # velocity = self._root_physx_view.get_root_velocities()
+            velocity = wp.to_torch(self._root_newton_view.get_root_velocities(NewtonManager.get_state_0()))
             return velocity[:, 3:6]
         return self.root_com_state_w[:, 10:13]
 

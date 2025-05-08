@@ -24,7 +24,8 @@ app.version = "5.0.0"
 "omni.physx" = {}
 "omni.physx.tensors" = {}
 "omni.physx.fabric" = {}
-"omni.warp.core" = {}
+"omni.warp" = { version = "1.8.0-beta.1", exact = true }
+"omni.warp.core" = { version = "1.8.0-beta.1", exact = true }
 "usdrt.scenegraph" = {}
 "omni.kit.telemetry" = {}
 "omni.kit.loop" = {}
@@ -90,11 +91,18 @@ isaac.startup.ros_bridge_extension = ""
 # Extensions
 ###############################
 [settings.exts."omni.kit.registry.nucleus"]
+
 registries = [
-    { name = "kit/default", url = "https://ovextensionsprod.blob.core.windows.net/exts/kit/prod/106/shared" },
-    { name = "kit/sdk", url = "https://ovextensionsprod.blob.core.windows.net/exts/kit/prod/sdk/${kit_version_short}/${kit_git_hash}" },
-    { name = "kit/community", url = "https://dw290v42wisod.cloudfront.net/exts/kit/community" },
+    { name = "kit/default", url = "omniverse://kit-extensions.ov.nvidia.com/exts/kit/default" },
+    { name = "kit/sdk", url = "omniverse://kit-extensions.ov.nvidia.com/exts/kit/sdk/${kit_version_short}/${kit_git_hash}" },
 ]
+
+#FOR PRODUCTION
+#registries = [
+#    { name = "kit/default", url = "https://ovextensionsprod.blob.core.windows.net/exts/kit/prod/106/shared" },
+#    { name = "kit/sdk", url = "https://ovextensionsprod.blob.core.windows.net/exts/kit/prod/sdk/${kit_version_short}/${kit_git_hash}" },
+#    { name = "kit/community", url = "https://dw290v42wisod.cloudfront.net/exts/kit/community" },   
+#]
 
 [settings.app.extensions]
 skipPublishVerification = false

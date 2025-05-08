@@ -16,7 +16,7 @@ simulation_app = AppLauncher(headless=True).app
 import unittest
 
 import omni
-from isaacsim.core.cloner import GridCloner
+from isaaclab.cloner import GridCloner
 
 from isaaclab_assets import ANYMAL_D_CFG, CARTPOLE_CFG
 

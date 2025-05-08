@@ -38,7 +38,7 @@ import torch
 
 import isaacsim.core.utils.prims as prim_utils
 from isaacsim.core.api.simulation_context import SimulationContext
-from isaacsim.core.cloner import GridCloner
+from isaaclab.cloner import GridCloner
 from isaacsim.core.utils.carb import set_carb_setting
 from isaacsim.core.utils.viewports import set_camera_view
 

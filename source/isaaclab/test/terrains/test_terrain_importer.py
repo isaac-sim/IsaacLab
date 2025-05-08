@@ -23,7 +23,7 @@ import omni.kit
 import omni.kit.commands
 from isaacsim.core.api.materials import PhysicsMaterial, PreviewSurface
 from isaacsim.core.api.objects import DynamicSphere
-from isaacsim.core.cloner import GridCloner
+from isaaclab.cloner import GridCloner
 from isaacsim.core.prims import RigidPrim, SingleGeometryPrim, SingleRigidPrim
 from isaacsim.core.utils.extensions import enable_extension
 from pxr import UsdGeom

@@ -9,7 +9,7 @@ from typing import Any
 
 import carb
 import omni.usd
-from isaacsim.core.cloner import GridCloner
+from isaaclab.cloner import GridCloner
 from isaacsim.core.prims import XFormPrim
 from pxr import PhysxSchema
 

@@ -25,6 +25,9 @@ args_cli = parser.parse_args()
 
 # launch omniverse app
 app_launcher = AppLauncher(args_cli)
+import warp as wp
+print(wp.__version__)
+print(wp.__file__)
 simulation_app = app_launcher.app
 
 """Rest everything follows."""
@@ -34,7 +37,7 @@ import torch
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import parse_env_cfg
-
+from isaaclab.sim._impl.newton_manager import NewtonManager
 # PLACEHOLDER: Extension template (do not remove this comment)
 
 
@@ -60,6 +63,7 @@ def main():
             actions = torch.zeros(env.action_space.shape, device=env.unwrapped.device)
             # apply actions
             env.step(actions)
+            NewtonManager.render()
 
     # close the simulator
     env.close()

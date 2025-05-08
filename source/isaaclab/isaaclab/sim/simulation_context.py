@@ -24,6 +24,7 @@ from isaacsim.core.api.simulation_context import SimulationContext as _Simulatio
 from isaacsim.core.utils.carb import get_carb_setting, set_carb_setting
 from isaacsim.core.utils.viewports import set_camera_view
 from isaacsim.core.version import get_version
+from isaaclab.sim._impl.newton_manager import NewtonManager
 from pxr import Gf, PhysxSchema, Usd, UsdPhysics
 
 from .simulation_cfg import SimulationCfg
@@ -239,6 +240,7 @@ class SimulationContext(_SimulationContext):
             physics_prim_path=self.cfg.physics_prim_path,
             device=self.cfg.device,
         )
+        NewtonManager.set_simulation_dt(self.cfg.dt, 1)
 
     def _apply_physics_settings(self):
         """Sets various carb physics settings."""
@@ -501,11 +503,12 @@ class SimulationContext(_SimulationContext):
 
     def forward(self) -> None:
         """Updates articulation kinematics and fabric for rendering."""
-        if self._fabric_iface is not None:
-            if self.physics_sim_view is not None and self.is_playing():
-                # Update the articulations' link's poses before rendering
-                self.physics_sim_view.update_articulations_kinematic()
-            self._update_fabric(0.0, 0.0)
+        # if self._fabric_iface is not None:
+        #     if self.physics_sim_view is not None and self.is_playing():
+        #         # Update the articulations' link's poses before rendering
+        #         self.physics_sim_view.update_articulations_kinematic()
+        #     self._update_fabric(0.0, 0.0)
+        NewtonManager.sync_fabric_transforms()
 
     """
     Operations - Override (standalone)
@@ -513,7 +516,13 @@ class SimulationContext(_SimulationContext):
 
     def reset(self, soft: bool = False):
         self._disable_app_control_on_stop_handle = True
-        super().reset(soft=soft)
+        if not soft:
+            if not self.is_stopped():
+                self.stop()
+            NewtonManager.start_simulation()
+            self.play()
+            self.set_setting("/app/player/playSimulations", False)
+            
         # app.update() may be changing the cuda device in reset, so we force it back to our desired device here
         if "cuda" in self.device:
             torch.cuda.set_device(self.device)
@@ -552,7 +561,23 @@ class SimulationContext(_SimulationContext):
             self.app.update()
 
         # step the simulation
-        super().step(render=render)
+        if self.stage is None:
+            raise Exception("There is no stage currently opened, init_stage needed before calling this func")
+        if render:
+            # physics dt is zero, no need to step physics, just render
+            if self.get_physics_dt() == 0:
+                SimulationContext.render(self)
+            # rendering dt is zero, but physics is not, call step and then render
+            elif self.get_rendering_dt() == 0 and self.get_physics_dt() != 0:
+                # if self.is_playing():
+                    # self._physics_context._step(current_time=self.current_time)
+                SimulationContext.render(self)
+            else:
+                self._app.update()
+        else:
+            if self.is_playing():
+                # self._physics_context._step(current_time=self.current_time)
+                NewtonManager.step()
 
         # app.update() may be changing the cuda device in step, so we force it back to our desired device here
         if "cuda" in self.device:
@@ -586,7 +611,6 @@ class SimulationContext(_SimulationContext):
                 # note: we don't call super().render() anymore because they do flush the fabric data
                 self.set_setting("/app/player/playSimulations", False)
                 self._app.update()
-                self.set_setting("/app/player/playSimulations", True)
         else:
             # manually flush the fabric data to update Hydra textures
             self.forward()
@@ -595,7 +619,6 @@ class SimulationContext(_SimulationContext):
             #  and we don't want to do it twice. We may remove it once we drop support for Isaac Sim 2022.2.
             self.set_setting("/app/player/playSimulations", False)
             self._app.update()
-            self.set_setting("/app/player/playSimulations", True)
 
         # app.update() may be changing the cuda device, so we force it back to our desired device here
         if "cuda" in self.device:
@@ -626,7 +649,7 @@ class SimulationContext(_SimulationContext):
         # set additional physx parameters and bind material
         self._set_additional_physx_params()
         # load flatcache/fabric interface
-        self._load_fabric_interface()
+        # self._load_fabric_interface()
         # return the stage
         return self.stage
 
@@ -635,7 +658,7 @@ class SimulationContext(_SimulationContext):
         # set additional physx parameters and bind material
         self._set_additional_physx_params()
         # load flatcache/fabric interface
-        self._load_fabric_interface()
+        # self._load_fabric_interface()
         # return the stage
         return self.stage
 

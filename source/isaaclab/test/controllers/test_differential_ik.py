@@ -17,7 +17,7 @@ import unittest
 
 import isaacsim.core.utils.prims as prim_utils
 import isaacsim.core.utils.stage as stage_utils
-from isaacsim.core.cloner import GridCloner
+from isaaclab.cloner import GridCloner
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation

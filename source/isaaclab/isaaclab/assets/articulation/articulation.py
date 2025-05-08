@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import torch
+import warp as wp
 from collections.abc import Sequence
 from prettytable import PrettyTable
 from typing import TYPE_CHECKING
@@ -17,6 +18,7 @@ import isaacsim.core.utils.stage as stage_utils
 import omni.log
 import omni.physics.tensors.impl.api as physx
 from isaacsim.core.simulation_manager import SimulationManager
+from isaaclab.sim._impl.newton_manager import NewtonManager
 from pxr import PhysxSchema, UsdPhysics
 
 import isaaclab.sim as sim_utils
@@ -24,6 +26,8 @@ import isaaclab.utils.math as math_utils
 import isaaclab.utils.string as string_utils
 from isaaclab.actuators import ActuatorBase, ActuatorBaseCfg, ImplicitActuator
 from isaaclab.utils.types import ArticulationActions
+from newton.utils.selection import ArticulationView as NewtonArticulationView
+
 
 from ..asset_base import AssetBase
 from .articulation_data import ArticulationData
@@ -194,6 +198,7 @@ class Articulation(AssetBase):
         self._apply_actuator_model()
         # write actions into simulation
         self.root_physx_view.set_dof_actuation_forces(self._joint_effort_target_sim, self._ALL_INDICES)
+        self._root_newton_view.set_attribute("joint_act", NewtonManager.get_control(), self._joint_effort_target_sim)
         # position and velocity targets only for implicit actuators
         if self._has_implicit_actuators:
             self.root_physx_view.set_dof_position_targets(self._joint_pos_target_sim, self._ALL_INDICES)
@@ -339,7 +344,8 @@ class Articulation(AssetBase):
         self._data._body_link_state_w.timestamp = -1.0
         self._data._body_com_state_w.timestamp = -1.0
         # set into simulation
-        self.root_physx_view.set_root_transforms(root_poses_xyzw, indices=physx_env_ids)
+        # self.root_physx_view.set_root_transforms(root_poses_xyzw, indices=physx_env_ids)
+        self._root_newton_view.set_root_transforms(NewtonManager.get_state_0(), root_poses_xyzw)
 
     def write_root_link_pose_to_sim(self, root_pose: torch.Tensor, env_ids: Sequence[int] | None = None):
         """Set the root link pose over selected environment indices into the simulation.
@@ -367,7 +373,8 @@ class Articulation(AssetBase):
         self._data._body_link_state_w.timestamp = -1.0
         self._data._body_com_state_w.timestamp = -1.0
         # set into simulation
-        self.root_physx_view.set_root_transforms(root_poses_xyzw, indices=physx_env_ids)
+        # self.root_physx_view.set_root_transforms(root_poses_xyzw, indices=physx_env_ids)
+        self._root_newton_view.set_root_transforms(NewtonManager.get_state_0(), root_poses_xyzw)
 
     def write_root_com_pose_to_sim(self, root_pose: torch.Tensor, env_ids: Sequence[int] | None = None):
         """Set the root center of mass pose over selected environment indices into the simulation.
@@ -418,7 +425,9 @@ class Articulation(AssetBase):
         self._data.root_state_w[env_ids, 7:] = root_velocity.clone()
         self._data.body_acc_w[env_ids] = 0.0
         # set into simulation
-        self.root_physx_view.set_root_velocities(self._data.root_state_w[:, 7:], indices=physx_env_ids)
+        # self.root_physx_view.set_root_velocities(self._data.root_state_w[:, 7:], indices=physx_env_ids)
+        self._root_newton_view.set_root_velocities(NewtonManager.get_state_0(), self._data.root_state_w[:, 7:])
+        
 
     def write_root_com_velocity_to_sim(self, root_velocity: torch.Tensor, env_ids: Sequence[int] | None = None):
         """Set the root center of mass velocity over selected environment indices into the simulation.
@@ -442,7 +451,8 @@ class Articulation(AssetBase):
         self._data.root_state_w[env_ids, 7:] = self._data.root_com_state_w[env_ids, 7:]
         self._data.body_acc_w[env_ids] = 0.0
         # set into simulation
-        self.root_physx_view.set_root_velocities(self._data.root_com_state_w[:, 7:], indices=physx_env_ids)
+        # self.root_physx_view.set_root_velocities(self._data.root_com_state_w[:, 7:], indices=physx_env_ids)
+        self._root_newton_view.set_root_velocities(NewtonManager.get_state_0(), self._data.root_state_w[:, 7:])
 
     def write_root_link_velocity_to_sim(self, root_velocity: torch.Tensor, env_ids: Sequence[int] | None = None):
         """Set the root link velocity over selected environment indices into the simulation.
@@ -519,7 +529,8 @@ class Articulation(AssetBase):
         self._data._body_link_state_w.timestamp = -1.0
         self._data._body_com_state_w.timestamp = -1.0
         # set into simulation
-        self.root_physx_view.set_dof_positions(self._data.joint_pos, indices=physx_env_ids)
+        # self.root_physx_view.set_dof_positions(self._data.joint_pos, indices=physx_env_ids)
+        self._root_newton_view.set_attribute("joint_q", NewtonManager.get_state_0(), self._data.joint_pos)
 
     def write_joint_velocity_to_sim(
         self,
@@ -549,7 +560,7 @@ class Articulation(AssetBase):
         self._data._previous_joint_vel[env_ids, joint_ids] = velocity
         self._data.joint_acc[env_ids, joint_ids] = 0.0
         # set into simulation
-        self.root_physx_view.set_dof_velocities(self._data.joint_vel, indices=physx_env_ids)
+        self._root_newton_view.set_attribute("joint_qd", NewtonManager.get_state_0(), self._data.joint_vel)
 
     """
     Operations - Simulation Parameters Writers.
@@ -950,7 +961,7 @@ class Articulation(AssetBase):
             env_ids = env_ids[:, None]
         # set targets
         self._data.joint_effort_target[env_ids, joint_ids] = target
-
+        
     """
     Operations - Tendons.
     """
@@ -1174,8 +1185,9 @@ class Articulation(AssetBase):
         root_prim_path_expr = self.cfg.prim_path + root_prim_path[len(template_prim_path) :]
         # -- articulation
         self._root_physx_view = self._physics_sim_view.create_articulation_view(root_prim_path_expr.replace(".*", "*"))
-
-        # check if the articulation was created
+        # print(root_prim_path_expr.replace(".*", "*").repl ace("env_*", "*"))
+        # print(NewtonManager.get_model().articulation_key)
+        self._root_newton_view = NewtonArticulationView(NewtonManager.get_model(), root_prim_path_expr.replace(".*", "*").replace("env_*", "*"), include_free_joint=False, env_offsets=None)
         if self._root_physx_view._backend is None:
             raise RuntimeError(f"Failed to create articulation at: {self.cfg.prim_path}. Please check PhysX logs.")
 
@@ -1189,7 +1201,7 @@ class Articulation(AssetBase):
         omni.log.info(f"Number of fixed tendons: {self.num_fixed_tendons}")
 
         # container for data access
-        self._data = ArticulationData(self.root_physx_view, self.device)
+        self._data = ArticulationData(self.root_physx_view, self._root_newton_view,self.device)
 
         # create buffers
         self._create_buffers()

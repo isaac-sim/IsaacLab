@@ -21,6 +21,7 @@ import isaacsim.core.utils.torch as torch_utils
 import omni.kit.app
 import omni.log
 from isaacsim.core.simulation_manager import SimulationManager
+from isaaclab.sim._impl.newton_manager import NewtonManager
 from isaacsim.core.version import get_version
 
 from isaaclab.managers import EventManager
@@ -434,7 +435,7 @@ class DirectRLEnv(gym.Env):
             NotImplementedError: If an unsupported rendering mode is specified.
         """
         # run a rendering step of the simulator
-        # if we have rtx sensors, we do not need to render again sin
+        # if we have rtx sensors, we do not need to render again sim
         if not self.sim.has_rtx_sensors() and not recompute:
             self.sim.render()
         # decide the rendering mode

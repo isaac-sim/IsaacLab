@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING, Any
 import isaacsim.core.utils.stage as stage_utils
 import omni.kit.commands
 import omni.log
-from isaacsim.core.cloner import Cloner
+from isaaclab.cloner import Cloner
 from pxr import PhysxSchema, Sdf, Usd, UsdGeom, UsdPhysics, UsdShade
 
 # from Isaac Sim 4.2 onwards, pxr.Semantics is deprecated

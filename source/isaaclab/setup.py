@@ -30,7 +30,7 @@ INSTALL_REQUIRES = [
     "gymnasium",
     # procedural-generation
     "trimesh",
-    "pyglet<2",
+    "pyglet>=2.1.6",
     # image processing
     "transformers",
     "einops",  # needed for transformers, doesn't always auto-install
@@ -40,6 +40,7 @@ INSTALL_REQUIRES = [
     # livestream
     "starlette==0.46.0",
     "flatdict==4.0.1",
+    "usd-core==25.05.0"
 ]
 
 # Additional dependencies that are only available on Linux platforms
