@@ -51,9 +51,6 @@ import torch
 
 import omni.log
 
-if "handtracking" in args_cli.teleop_device.lower():
-    from isaacsim.xr.openxr import OpenXRSpec
-
 from isaaclab.devices import OpenXRDevice, Se3Gamepad, Se3Keyboard, Se3SpaceMouse
 
 if args_cli.enable_pinocchio:
@@ -197,7 +194,7 @@ def main():
         # Create GR1T2 retargeter with desired configuration
         gr1t2_retargeter = GR1T2Retargeter(
             enable_visualization=True,
-            num_open_xr_hand_joints=2 * (int(OpenXRSpec.HandJointEXT.XR_HAND_JOINT_LITTLE_TIP_EXT) + 1),
+            num_open_xr_hand_joints=2 * 26,  # OpenXR hand tracking spec has 26 joints
             device=env.unwrapped.device,
             hand_joint_names=env.scene["robot"].data.joint_names[-22:],
         )

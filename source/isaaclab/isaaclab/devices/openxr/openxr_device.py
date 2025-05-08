@@ -20,9 +20,7 @@ from ..device_base import DeviceBase
 from .xr_cfg import XrCfg
 
 with contextlib.suppress(ModuleNotFoundError):
-    from isaacsim.xr.openxr import OpenXR, OpenXRSpec
-    from omni.kit.xr.core import XRCore
-
+    from omni.kit.xr.core import XRCore, XRPoseValidityFlags
 from isaacsim.core.prims import SingleXFormPrim
 
 
@@ -77,7 +75,6 @@ class OpenXRDevice(DeviceBase):
                         If None or empty list, raw tracking data will be returned.
         """
         super().__init__(retargeters)
-        self._openxr = OpenXR()
         self._xr_cfg = xr_cfg or XrCfg()
         self._additional_callbacks = dict()
         self._vc_subscription = (
@@ -87,9 +84,12 @@ class OpenXRDevice(DeviceBase):
                 carb.events.type_from_string(self.TELEOP_COMMAND_EVENT_TYPE), self._on_teleop_command
             )
         )
-        self._previous_joint_poses_left = np.full((26, 7), [0, 0, 0, 1, 0, 0, 0], dtype=np.float32)
-        self._previous_joint_poses_right = np.full((26, 7), [0, 0, 0, 1, 0, 0, 0], dtype=np.float32)
-        self._previous_headpose = np.array([0, 0, 0, 1, 0, 0, 0], dtype=np.float32)
+
+        # Initialize dictionaries instead of arrays
+        default_pose = np.array([0, 0, 0, 1, 0, 0, 0], dtype=np.float32)
+        self._previous_joint_poses_left = {name: default_pose.copy() for name in HAND_JOINT_NAMES}
+        self._previous_joint_poses_right = {name: default_pose.copy() for name in HAND_JOINT_NAMES}
+        self._previous_headpose = default_pose.copy()
 
         # Specify the placement of the simulation when viewed in an XR device using a prim.
         xr_anchor = SingleXFormPrim("/XRAnchor", position=self._xr_cfg.anchor_pos, orientation=self._xr_cfg.anchor_rot)
@@ -157,9 +157,10 @@ class OpenXRDevice(DeviceBase):
     """
 
     def reset(self):
-        self._previous_joint_poses_left = np.full((26, 7), [0, 0, 0, 1, 0, 0, 0], dtype=np.float32)
-        self._previous_joint_poses_right = np.full((26, 7), [0, 0, 0, 1, 0, 0, 0], dtype=np.float32)
-        self._previous_headpose = np.array([0, 0, 0, 1, 0, 0, 0], dtype=np.float32)
+        default_pose = np.array([0, 0, 0, 1, 0, 0, 0], dtype=np.float32)
+        self._previous_joint_poses_left = {name: default_pose.copy() for name in HAND_JOINT_NAMES}
+        self._previous_joint_poses_right = {name: default_pose.copy() for name in HAND_JOINT_NAMES}
+        self._previous_headpose = default_pose.copy()
 
     def add_callback(self, key: str, func: Callable):
         """Add additional functions to bind to client messages.
@@ -185,11 +186,11 @@ class OpenXRDevice(DeviceBase):
         """
         return {
             self.TrackingTarget.HAND_LEFT: self._calculate_joint_poses(
-                self._openxr.locate_hand_joints(OpenXRSpec.XrHandEXT.XR_HAND_LEFT_EXT),
+                XRCore.get_singleton().get_input_device("/user/hand/left"),
                 self._previous_joint_poses_left,
             ),
             self.TrackingTarget.HAND_RIGHT: self._calculate_joint_poses(
-                self._openxr.locate_hand_joints(OpenXRSpec.XrHandEXT.XR_HAND_RIGHT_EXT),
+                XRCore.get_singleton().get_input_device("/user/hand/right"),
                 self._previous_joint_poses_right,
             ),
             self.TrackingTarget.HEAD: self._calculate_headpose(),
@@ -199,25 +200,54 @@ class OpenXRDevice(DeviceBase):
     Internal helpers.
     """
 
-    def _calculate_joint_poses(self, hand_joints, previous_joint_poses) -> dict[str, np.ndarray]:
-        if hand_joints is None:
-            return self._joints_to_dict(previous_joint_poses)
+    def _calculate_joint_poses(
+        self, hand_device: Any, previous_joint_poses: dict[str, np.ndarray]
+    ) -> dict[str, np.ndarray]:
+        """Calculate and update joint poses for a hand device.
 
-        hand_joints = np.array(hand_joints)
-        positions = np.array([[j.pose.position.x, j.pose.position.y, j.pose.position.z] for j in hand_joints])
-        orientations = np.array([
-            [j.pose.orientation.w, j.pose.orientation.x, j.pose.orientation.y, j.pose.orientation.z]
-            for j in hand_joints
-        ])
-        location_flags = np.array([j.locationFlags for j in hand_joints])
+        This function retrieves the current joint poses from the OpenXR hand device and updates
+        the previous joint poses with the new data. If a joint's position or orientation is not
+        valid, it will use the previous values.
 
-        pos_mask = (location_flags & OpenXRSpec.XR_SPACE_LOCATION_POSITION_VALID_BIT) != 0
-        ori_mask = (location_flags & OpenXRSpec.XR_SPACE_LOCATION_ORIENTATION_VALID_BIT) != 0
+        Args:
+            hand_device: The OpenXR input device for a hand (/user/hand/left or /user/hand/right).
+            previous_joint_poses: Dictionary mapping joint names to their previous poses.
+                Each pose is a 7-element array: [x, y, z, qw, qx, qy, qz].
 
-        previous_joint_poses[pos_mask, 0:3] = positions[pos_mask]
-        previous_joint_poses[ori_mask, 3:7] = orientations[ori_mask]
+        Returns:
+            Updated dictionary of joint poses with the same structure as previous_joint_poses.
+            Each pose is represented as a 7-element numpy array: [x, y, z, qw, qx, qy, qz]
+            where the first 3 elements are position and the last 4 are quaternion orientation.
+        """
+        if hand_device is None:
+            return previous_joint_poses
 
-        return self._joints_to_dict(previous_joint_poses)
+        joint_poses = hand_device.get_all_virtual_world_poses()
+
+        # Update each joint that is present in the current data
+        for joint_name, joint_pose in joint_poses.items():
+            if joint_name in HAND_JOINT_NAMES:
+                # Extract translation and rotation
+                if joint_pose.validity_flags & XRPoseValidityFlags.POSITION_VALID:
+                    position = joint_pose.pose_matrix.ExtractTranslation()
+                else:
+                    position = previous_joint_poses[joint_name][:3]
+
+                if joint_pose.validity_flags & XRPoseValidityFlags.ORIENTATION_VALID:
+                    quat = joint_pose.pose_matrix.ExtractRotationQuat()
+                    quati = quat.GetImaginary()
+                    quatw = quat.GetReal()
+                else:
+                    quatw = previous_joint_poses[joint_name][3]
+                    quati = previous_joint_poses[joint_name][4:]
+
+                # Directly update the dictionary with new data
+                previous_joint_poses[joint_name] = np.array(
+                    [position[0], position[1], position[2], quatw, quati[0], quati[1], quati[2]], dtype=np.float32
+                )
+
+        # No need for conversion, just return the updated dictionary
+        return previous_joint_poses
 
     def _calculate_headpose(self) -> np.ndarray:
         """Calculate the head pose from OpenXR.
@@ -225,7 +255,7 @@ class OpenXRDevice(DeviceBase):
         Returns:
             numpy.ndarray: 7-element array containing head position (xyz) and orientation (wxyz)
         """
-        head_device = XRCore.get_singleton().get_input_device("displayDevice")
+        head_device = XRCore.get_singleton().get_input_device("/user/head")
         if head_device:
             hmd = head_device.get_virtual_world_pose("")
             position = hmd.ExtractTranslation()
@@ -245,17 +275,6 @@ class OpenXRDevice(DeviceBase):
             ])
 
         return self._previous_headpose
-
-    def _joints_to_dict(self, joint_data: np.ndarray) -> dict[str, np.ndarray]:
-        """Convert joint array to dictionary using standard joint names.
-
-        Args:
-            joint_data: Array of joint data (Nx6 for N joints)
-
-        Returns:
-            Dictionary mapping joint names to their data
-        """
-        return {joint_name: joint_data[i] for i, joint_name in enumerate(HAND_JOINT_NAMES)}
 
     def _on_teleop_command(self, event: carb.events.IEvent):
         msg = event.payload["message"]

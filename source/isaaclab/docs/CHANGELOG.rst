@@ -391,6 +391,15 @@ Added
 * Added :meth:`~isaaclab.envs.mdp.observations.body_projected_gravity_b`
 
 
+0.37.2 (2025-05-06)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Migrated OpenXR device to use the new OpenXR handtracking API from omni.kit.xr.core.
+
+
 0.37.1 (2025-05-05)
 ~~~~~~~~~~~~~~~~~~~~
 
