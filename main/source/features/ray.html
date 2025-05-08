@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.1.0" />
-    <meta name="docbuild:last-update" content="May 07, 2025"/>
+    <meta name="docbuild:last-update" content="May 08, 2025"/>
   </head>
   
   
@@ -843,8 +843,9 @@ job processing on local/virtual multi-GPU machines. Tuning jobs assume homogeneo
 <span class="kn">import</span><span class="w"> </span><span class="nn">argparse</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">importlib.util</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">subprocess</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">sys</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">time</span><span class="w"> </span><span class="kn">import</span> <span class="n">sleep</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">time</span><span class="w"> </span><span class="kn">import</span> <span class="n">sleep</span><span class="p">,</span> <span class="n">time</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">ray</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">util</span>
@@ -852,8 +853,8 @@ job processing on local/virtual multi-GPU machines. Tuning jobs assume homogeneo
 <span class="kn">from</span><span class="w"> </span><span class="nn">ray.tune.search.optuna</span><span class="w"> </span><span class="kn">import</span> <span class="n">OptunaSearch</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">ray.tune.search.repeater</span><span class="w"> </span><span class="kn">import</span> <span class="n">Repeater</span>
 
-<span class="sd">&quot;&quot;&quot;</span>
-<span class="hll"><span class="sd">This script breaks down an aggregate tuning job, as defined by a hyperparameter sweep configuration,</span>
+<span class="hll"><span class="sd">&quot;&quot;&quot;</span>
+</span><span class="hll"><span class="sd">This script breaks down an aggregate tuning job, as defined by a hyperparameter sweep configuration,</span>
 </span><span class="hll"><span class="sd">into individual jobs (shell commands) to run on the GPU-enabled nodes of the cluster.</span>
 </span><span class="hll"><span class="sd">By default, one worker is created for each GPU-enabled node in the cluster for each individual job.</span>
 </span><span class="hll"><span class="sd">To use more than one worker per node (likely the case for multi-GPU machines), supply the</span>
@@ -888,13 +889,16 @@ job processing on local/virtual multi-GPU machines. Tuning jobs assume homogeneo
 </span><span class="hll"><span class="sd">    --cfg_file hyperparameter_tuning/vision_cartpole_cfg.py \</span>
 </span><span class="hll"><span class="sd">    --cfg_class CartpoleTheiaJobCfg --mlflow_uri &lt;MLFLOW_URI_FROM_GROK_OR_MANUAL&gt;</span>
 </span><span class="hll">
-</span><span class="hll"><span class="sd">&quot;&quot;&quot;</span>
-</span>
+</span><span class="sd">&quot;&quot;&quot;</span>
+
 <span class="n">DOCKER_PREFIX</span> <span class="o">=</span> <span class="s2">&quot;/workspace/isaaclab/&quot;</span>
 <span class="n">BASE_DIR</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">expanduser</span><span class="p">(</span><span class="s2">&quot;~&quot;</span><span class="p">)</span>
 <span class="n">PYTHON_EXEC</span> <span class="o">=</span> <span class="s2">&quot;./isaaclab.sh -p&quot;</span>
 <span class="n">WORKFLOW</span> <span class="o">=</span> <span class="s2">&quot;scripts/reinforcement_learning/rl_games/train.py&quot;</span>
 <span class="n">NUM_WORKERS_PER_NODE</span> <span class="o">=</span> <span class="mi">1</span>  <span class="c1"># needed for local parallelism</span>
+<span class="n">PROCESS_RESPONSE_TIMEOUT</span> <span class="o">=</span> <span class="mf">200.0</span>  <span class="c1"># seconds to wait before killing the process when it stops responding</span>
+<span class="n">MAX_LINES_TO_SEARCH_EXPERIMENT_LOGS</span> <span class="o">=</span> <span class="mi">1000</span>  <span class="c1"># maximum number of lines to read from the training process logs</span>
+<span class="n">MAX_LOG_EXTRACTION_ERRORS</span> <span class="o">=</span> <span class="mi">2</span>  <span class="c1"># maximum allowed LogExtractionErrors before we abort the whole training</span>
 
 
 <span class="k">class</span><span class="w"> </span><span class="nc">IsaacLabTuneTrainable</span><span class="p">(</span><span class="n">tune</span><span class="o">.</span><span class="n">Trainable</span><span class="p">):</span>
@@ -908,6 +912,7 @@ job processing on local/virtual multi-GPU machines. Tuning jobs assume homogeneo
     <span class="k">def</span><span class="w"> </span><span class="nf">setup</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">config</span><span class="p">:</span> <span class="nb">dict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Get the invocation command, return quick for easy scheduling.&quot;&quot;&quot;</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">time_since_last_proc_response</span> <span class="o">=</span> <span class="mf">0.0</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">invoke_cmd</span> <span class="o">=</span> <span class="n">util</span><span class="o">.</span><span class="n">get_invocation_command_from_cfg</span><span class="p">(</span><span class="n">cfg</span><span class="o">=</span><span class="n">config</span><span class="p">,</span> <span class="n">python_cmd</span><span class="o">=</span><span class="n">PYTHON_EXEC</span><span class="p">,</span> <span class="n">workflow</span><span class="o">=</span><span class="n">WORKFLOW</span><span class="p">)</span>
         <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;[INFO]: Recovered invocation with </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">invoke_cmd</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">experiment</span> <span class="o">=</span> <span class="kc">None</span>
@@ -922,12 +927,21 @@ job processing on local/virtual multi-GPU machines. Tuning jobs assume homogeneo
             <span class="c1"># When including this as first step instead of setup, experiments get scheduled faster</span>
             <span class="c1"># Don&#39;t want to block the scheduler while the experiment spins up</span>
             <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;[INFO]: Invoking experiment as first step with </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">invoke_cmd</span><span class="si">}</span><span class="s2">...&quot;</span><span class="p">)</span>
-            <span class="n">experiment</span> <span class="o">=</span> <span class="n">util</span><span class="o">.</span><span class="n">execute_job</span><span class="p">(</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">invoke_cmd</span><span class="p">,</span>
-                <span class="n">identifier_string</span><span class="o">=</span><span class="s2">&quot;&quot;</span><span class="p">,</span>
-                <span class="n">extract_experiment</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
-                <span class="n">persistent_dir</span><span class="o">=</span><span class="n">BASE_DIR</span><span class="p">,</span>
-            <span class="p">)</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">experiment</span> <span class="o">=</span> <span class="n">util</span><span class="o">.</span><span class="n">execute_job</span><span class="p">(</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">invoke_cmd</span><span class="p">,</span>
+                    <span class="n">identifier_string</span><span class="o">=</span><span class="s2">&quot;&quot;</span><span class="p">,</span>
+                    <span class="n">extract_experiment</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>  <span class="c1"># Keep this as True to return a valid dictionary</span>
+                    <span class="n">persistent_dir</span><span class="o">=</span><span class="n">BASE_DIR</span><span class="p">,</span>
+                    <span class="n">max_lines_to_search_logs</span><span class="o">=</span><span class="n">MAX_LINES_TO_SEARCH_EXPERIMENT_LOGS</span><span class="p">,</span>
+                    <span class="n">max_time_to_search_logs</span><span class="o">=</span><span class="n">PROCESS_RESPONSE_TIMEOUT</span><span class="p">,</span>
+                <span class="p">)</span>
+            <span class="k">except</span> <span class="n">util</span><span class="o">.</span><span class="n">LogExtractionError</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="p">{</span>
+                    <span class="s2">&quot;LOG_EXTRACTION_ERROR_STOPPER_FLAG&quot;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+                    <span class="s2">&quot;done&quot;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+                <span class="p">}</span>
+                <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">experiment</span> <span class="o">=</span> <span class="n">experiment</span>
             <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;[INFO]: Tuner recovered experiment info </span><span class="si">{</span><span class="n">experiment</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">proc</span> <span class="o">=</span> <span class="n">experiment</span><span class="p">[</span><span class="s2">&quot;proc&quot;</span><span class="p">]</span>
@@ -947,11 +961,35 @@ job processing on local/virtual multi-GPU machines. Tuning jobs assume homogeneo
 
             <span class="k">while</span> <span class="n">data</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
                 <span class="n">data</span> <span class="o">=</span> <span class="n">util</span><span class="o">.</span><span class="n">load_tensorboard_logs</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">tensorboard_logdir</span><span class="p">)</span>
+                <span class="n">proc_status</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">proc</span><span class="o">.</span><span class="n">poll</span><span class="p">()</span>
+                <span class="k">if</span> <span class="n">proc_status</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="k">break</span>
                 <span class="n">sleep</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>  <span class="c1"># Lazy report metrics to avoid performance overhead</span>
 
             <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-                <span class="k">while</span> <span class="n">util</span><span class="o">.</span><span class="n">_dicts_equal</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">):</span>
+                <span class="n">data_</span> <span class="o">=</span> <span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="n">v</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="n">k</span> <span class="o">!=</span> <span class="s2">&quot;done&quot;</span><span class="p">}</span>
+                <span class="n">self_data_</span> <span class="o">=</span> <span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="n">v</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="n">k</span> <span class="o">!=</span> <span class="s2">&quot;done&quot;</span><span class="p">}</span>
+                <span class="n">unresponsiveness_start_time</span> <span class="o">=</span> <span class="n">time</span><span class="p">()</span>
+                <span class="k">while</span> <span class="n">util</span><span class="o">.</span><span class="n">_dicts_equal</span><span class="p">(</span><span class="n">data_</span><span class="p">,</span> <span class="n">self_data_</span><span class="p">):</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">time_since_last_proc_response</span> <span class="o">=</span> <span class="n">time</span><span class="p">()</span> <span class="o">-</span> <span class="n">unresponsiveness_start_time</span>
                     <span class="n">data</span> <span class="o">=</span> <span class="n">util</span><span class="o">.</span><span class="n">load_tensorboard_logs</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">tensorboard_logdir</span><span class="p">)</span>
+                    <span class="n">data_</span> <span class="o">=</span> <span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="n">v</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="n">k</span> <span class="o">!=</span> <span class="s2">&quot;done&quot;</span><span class="p">}</span>
+                    <span class="n">proc_status</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">proc</span><span class="o">.</span><span class="n">poll</span><span class="p">()</span>
+                    <span class="k">if</span> <span class="n">proc_status</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                        <span class="k">break</span>
+                    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">time_since_last_proc_response</span> <span class="o">&gt;</span> <span class="n">PROCESS_RESPONSE_TIMEOUT</span><span class="p">:</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">time_since_last_proc_response</span> <span class="o">=</span> <span class="mf">0.0</span>
+                        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[WARNING]: Training workflow process is not responding, terminating...&quot;</span><span class="p">)</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">proc</span><span class="o">.</span><span class="n">terminate</span><span class="p">()</span>
+                        <span class="k">try</span><span class="p">:</span>
+                            <span class="bp">self</span><span class="o">.</span><span class="n">proc</span><span class="o">.</span><span class="n">wait</span><span class="p">(</span><span class="n">timeout</span><span class="o">=</span><span class="mi">20</span><span class="p">)</span>
+                        <span class="k">except</span> <span class="n">subprocess</span><span class="o">.</span><span class="n">TimeoutExpired</span><span class="p">:</span>
+                            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[ERROR]: The process did not terminate within timeout duration.&quot;</span><span class="p">)</span>
+                            <span class="bp">self</span><span class="o">.</span><span class="n">proc</span><span class="o">.</span><span class="n">kill</span><span class="p">()</span>
+                            <span class="bp">self</span><span class="o">.</span><span class="n">proc</span><span class="o">.</span><span class="n">wait</span><span class="p">()</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="n">data</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="s2">&quot;done&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
+                        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span>
                     <span class="n">sleep</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>  <span class="c1"># Lazy report metrics to avoid performance overhead</span>
 
             <span class="bp">self</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="n">data</span>
@@ -968,6 +1006,39 @@ job processing on local/virtual multi-GPU machines. Tuning jobs assume homogeneo
             <span class="p">[{</span><span class="s2">&quot;CPU&quot;</span><span class="p">:</span> <span class="n">resources</span><span class="p">[</span><span class="s2">&quot;CPU&quot;</span><span class="p">]</span> <span class="o">/</span> <span class="n">NUM_WORKERS_PER_NODE</span><span class="p">,</span> <span class="s2">&quot;GPU&quot;</span><span class="p">:</span> <span class="n">resources</span><span class="p">[</span><span class="s2">&quot;GPU&quot;</span><span class="p">]</span> <span class="o">/</span> <span class="n">NUM_WORKERS_PER_NODE</span><span class="p">}],</span>
             <span class="n">strategy</span><span class="o">=</span><span class="s2">&quot;STRICT_PACK&quot;</span><span class="p">,</span>
         <span class="p">)</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">LogExtractionErrorStopper</span><span class="p">(</span><span class="n">tune</span><span class="o">.</span><span class="n">Stopper</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Stopper that stops all trials if multiple LogExtractionErrors occur.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        max_errors: The maximum number of LogExtractionErrors allowed before terminating the experiment.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">max_errors</span><span class="p">:</span> <span class="nb">int</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">max_errors</span> <span class="o">=</span> <span class="n">max_errors</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">error_count</span> <span class="o">=</span> <span class="mi">0</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">trial_id</span><span class="p">,</span> <span class="n">result</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Increments the error count if trial has encountered a LogExtractionError.</span>
+
+<span class="sd">        It does not stop the trial based on the metrics, always returning False.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">result</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;LOG_EXTRACTION_ERROR_STOPPER_FLAG&quot;</span><span class="p">,</span> <span class="kc">False</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">error_count</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="nb">print</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;[ERROR]: Encountered LogExtractionError </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">error_count</span><span class="si">}</span><span class="s2"> times. &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;Maximum allowed is </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">max_errors</span><span class="si">}</span><span class="s2">.&quot;</span>
+            <span class="p">)</span>
+        <span class="k">return</span> <span class="kc">False</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">stop_all</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Returns true if number of LogExtractionErrors exceeds the maximum allowed, terminating the experiment.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">error_count</span> <span class="o">&gt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">max_errors</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[FATAL]: Encountered LogExtractionError more than allowed, aborting entire tuning run... &quot;</span><span class="p">)</span>
+            <span class="k">return</span> <span class="kc">True</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">False</span>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">invoke_tuning_run</span><span class="p">(</span><span class="n">cfg</span><span class="p">:</span> <span class="nb">dict</span><span class="p">,</span> <span class="n">args</span><span class="p">:</span> <span class="n">argparse</span><span class="o">.</span><span class="n">Namespace</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
@@ -1013,6 +1084,7 @@ job processing on local/virtual multi-GPU machines. Tuning jobs assume homogeneo
                 <span class="n">checkpoint_frequency</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>  <span class="c1"># Disable periodic checkpointing</span>
                 <span class="n">checkpoint_at_end</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>  <span class="c1"># Disable final checkpoint</span>
             <span class="p">),</span>
+            <span class="n">stop</span><span class="o">=</span><span class="n">LogExtractionErrorStopper</span><span class="p">(</span><span class="n">max_errors</span><span class="o">=</span><span class="n">MAX_LOG_EXTRACTION_ERRORS</span><span class="p">),</span>
         <span class="p">)</span>
 
     <span class="k">elif</span> <span class="n">args</span><span class="o">.</span><span class="n">run_mode</span> <span class="o">==</span> <span class="s2">&quot;remote&quot;</span><span class="p">:</span>  <span class="c1"># MLFlow, to MLFlow server</span>
@@ -1028,6 +1100,7 @@ job processing on local/virtual multi-GPU machines. Tuning jobs assume homogeneo
             <span class="n">storage_path</span><span class="o">=</span><span class="s2">&quot;/tmp/ray&quot;</span><span class="p">,</span>
             <span class="n">callbacks</span><span class="o">=</span><span class="p">[</span><span class="n">mlflow_callback</span><span class="p">],</span>
             <span class="n">checkpoint_config</span><span class="o">=</span><span class="n">ray</span><span class="o">.</span><span class="n">train</span><span class="o">.</span><span class="n">CheckpointConfig</span><span class="p">(</span><span class="n">checkpoint_frequency</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">checkpoint_at_end</span><span class="o">=</span><span class="kc">False</span><span class="p">),</span>
+            <span class="n">stop</span><span class="o">=</span><span class="n">LogExtractionErrorStopper</span><span class="p">(</span><span class="n">max_errors</span><span class="o">=</span><span class="n">MAX_LOG_EXTRACTION_ERRORS</span><span class="p">),</span>
         <span class="p">)</span>
     <span class="k">else</span><span class="p">:</span>
         <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Unrecognized run mode.&quot;</span><span class="p">)</span>
@@ -1037,6 +1110,8 @@ job processing on local/virtual multi-GPU machines. Tuning jobs assume homogeneo
         <span class="n">IsaacLabTuneTrainable</span><span class="p">,</span>
         <span class="n">param_space</span><span class="o">=</span><span class="n">cfg</span><span class="p">,</span>
         <span class="n">tune_config</span><span class="o">=</span><span class="n">tune</span><span class="o">.</span><span class="n">TuneConfig</span><span class="p">(</span>
+            <span class="n">metric</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">metric</span><span class="p">,</span>
+            <span class="n">mode</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">mode</span><span class="p">,</span>
             <span class="n">search_alg</span><span class="o">=</span><span class="n">repeat_search</span><span class="p">,</span>
             <span class="n">num_samples</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">num_samples</span><span class="p">,</span>
             <span class="n">reuse_actors</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
@@ -1144,8 +1219,39 @@ job processing on local/virtual multi-GPU machines. Tuning jobs assume homogeneo
         <span class="n">default</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span>
         <span class="n">help</span><span class="o">=</span><span class="s2">&quot;How many times to repeat each hyperparameter config.&quot;</span><span class="p">,</span>
     <span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
+        <span class="s2">&quot;--process_response_timeout&quot;</span><span class="p">,</span>
+        <span class="nb">type</span><span class="o">=</span><span class="nb">float</span><span class="p">,</span>
+        <span class="n">default</span><span class="o">=</span><span class="n">PROCESS_RESPONSE_TIMEOUT</span><span class="p">,</span>
+        <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Training workflow process response timeout.&quot;</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
+        <span class="s2">&quot;--max_lines_to_search_experiment_logs&quot;</span><span class="p">,</span>
+        <span class="nb">type</span><span class="o">=</span><span class="nb">float</span><span class="p">,</span>
+        <span class="n">default</span><span class="o">=</span><span class="n">MAX_LINES_TO_SEARCH_EXPERIMENT_LOGS</span><span class="p">,</span>
+        <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Max number of lines to search for experiment logs before terminating the training workflow process.&quot;</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
+        <span class="s2">&quot;--max_log_extraction_errors&quot;</span><span class="p">,</span>
+        <span class="nb">type</span><span class="o">=</span><span class="nb">float</span><span class="p">,</span>
+        <span class="n">default</span><span class="o">=</span><span class="n">MAX_LOG_EXTRACTION_ERRORS</span><span class="p">,</span>
+        <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Max number number of LogExtractionError failures before we abort the whole tuning run.&quot;</span><span class="p">,</span>
+    <span class="p">)</span>
 
     <span class="n">args</span> <span class="o">=</span> <span class="n">parser</span><span class="o">.</span><span class="n">parse_args</span><span class="p">()</span>
+    <span class="n">PROCESS_RESPONSE_TIMEOUT</span> <span class="o">=</span> <span class="n">args</span><span class="o">.</span><span class="n">process_response_timeout</span>
+    <span class="n">MAX_LINES_TO_SEARCH_EXPERIMENT_LOGS</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">max_lines_to_search_experiment_logs</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span>
+        <span class="s2">&quot;[INFO]: The max number of lines to search for experiment logs before (early) terminating the training &quot;</span>
+        <span class="sa">f</span><span class="s2">&quot;workflow process is set to </span><span class="si">{</span><span class="n">MAX_LINES_TO_SEARCH_EXPERIMENT_LOGS</span><span class="si">}</span><span class="s2">.</span><span class="se">\n</span><span class="s2">&quot;</span>
+        <span class="s2">&quot;[INFO]: The process response timeout, used while updating tensorboard scalars and searching for &quot;</span>
+        <span class="sa">f</span><span class="s2">&quot;experiment logs, is set to </span><span class="si">{</span><span class="n">PROCESS_RESPONSE_TIMEOUT</span><span class="si">}</span><span class="s2"> seconds.&quot;</span>
+    <span class="p">)</span>
+    <span class="n">MAX_LOG_EXTRACTION_ERRORS</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">max_log_extraction_errors</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span>
+        <span class="s2">&quot;[INFO]: Max number of LogExtractionError failures before we abort the whole tuning run is &quot;</span>
+        <span class="sa">f</span><span class="s2">&quot;set to </span><span class="si">{</span><span class="n">MAX_LOG_EXTRACTION_ERRORS</span><span class="si">}</span><span class="s2">.</span><span class="se">\n</span><span class="s2">&quot;</span>
+    <span class="p">)</span>
     <span class="n">NUM_WORKERS_PER_NODE</span> <span class="o">=</span> <span class="n">args</span><span class="o">.</span><span class="n">num_workers_per_node</span>
     <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;[INFO]: Using </span><span class="si">{</span><span class="n">NUM_WORKERS_PER_NODE</span><span class="si">}</span><span class="s2"> workers per node.&quot;</span><span class="p">)</span>
     <span class="k">if</span> <span class="n">args</span><span class="o">.</span><span class="n">run_mode</span> <span class="o">==</span> <span class="s2">&quot;remote&quot;</span><span class="p">:</span>
@@ -3263,7 +3369,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on May 07, 2025.
+  Last updated on May 08, 2025.
   <br/>
 </p>
   </div>
