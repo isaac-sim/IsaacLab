@@ -43,9 +43,9 @@ from isaaclab.app import AppLauncher
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Record demonstrations for Isaac Lab environments.")
 parser.add_argument("--task", type=str, default="Cabinet-anubis-teleop-v0", help="Name of the task.")
-parser.add_argument("--teleop_device", type=str, default="keyboard_bmm", help="Device for interacting with environment.")
+parser.add_argument("--teleop_device", type=str, default="oculus", help="Device for interacting with environment.")
 parser.add_argument(
-    "--dataset_file", type=str, default="./datasets/dataset.hdf5", help="File path to export recorded demos."
+    "--dataset_file", type=str, default="./datasets/anubis/cabinet.hdf5", help="File path to export recorded demos."
 )
 parser.add_argument("--step_hz", type=int, default=30, help="Environment stepping rate in Hz.")
 parser.add_argument(
@@ -341,9 +341,9 @@ def main():
             )
         elif device_name == "oculus":
             return Oculus_mobile(
-                pos_sensitivity=0.8,
-                rot_sensitivity=0.5,
-                base_sensitivity=0.1,
+                pos_sensitivity=1.0,
+                rot_sensitivity=0.8,
+                base_sensitivity=0.5,
                 )
         elif device_name == "spacemouse":
             return Se3SpaceMouse(pos_sensitivity=0.2, rot_sensitivity=0.5)
@@ -396,9 +396,15 @@ def main():
                 f"Invalid device interface '{device_name}'. Supported: 'keyboard', 'spacemouse', 'handtracking',"
                 " 'handtracking_abs', 'dualhandtracking_abs'."
             )
+    
+    teleop_interface2 = Se3Keyboard_BMM(
+            pos_sensitivity=0.005 , rot_sensitivity=0.01
+            )
+        
 
+    teleop_interface2.add_callback("R", reset_recording_instance)
     teleop_interface = create_teleop_device(args_cli.teleop_device, env)
-    teleop_interface.add_callback("R", reset_recording_instance)
+
 
     # reset before starting
     env.sim.reset()
