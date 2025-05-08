@@ -1,12 +1,24 @@
 Changelog
 ---------
 
-0.39.0 (2025-05-03)
+0.39.1 (2025-05-07)
 ~~~~~~~~~~~~~~~~~~~
 
 Added
 ^^^^^
 
+* Added time observation functions to ~isaaclab.envs.mdp.observations module,
+  :func:`~isaaclab.envs.mdp.observations.current_time_s` and :func:`~isaaclab.envs.mdp.observations.remaining_time_s`.
+
+
+0.39.0 (2025-05-03)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Moved initialization of ``episode_length_buf`` outside of :meth:`load_managers()` of :class:`~isaaclab.envs.ManagerBasedRLEnv`
+  to make it available for mdp functions.
 * Added semantic tags in :func:`isaaclab.sim.spawners.from_files.spawn_ground_plane`.
   This allows for :attr:`semantic_segmentation_mapping` to be used when using the ground plane spawner.
 

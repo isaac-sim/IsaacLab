@@ -99,6 +99,7 @@ Guidelines for modifications:
 * Ryley McCarroll
 * Shafeef Omar
 * Shundo Kishi
+* Stefan Van de Mosselaer
 * Stephan Pleines
 * Tyler Lum
 * Victor Khaustov
