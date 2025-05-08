@@ -115,7 +115,7 @@ def main():
         )
     elif args_cli.teleop_device.lower() == "oculus":
         teleop_interface = Oculus_mobile(
-            pos_sensitivity=0.8 * args_cli.sensitivity, rot_sensitivity=0.7 * args_cli.sensitivity, base_sensitivity = 0.10 * args_cli.sensitivity
+            pos_sensitivity=1.0 * args_cli.sensitivity, rot_sensitivity=0.8 * args_cli.sensitivity, base_sensitivity = 0.3 * args_cli.sensitivity
         )
     elif args_cli.teleop_device.lower() == "spacemouse":
         teleop_interface = Se3SpaceMouse(
