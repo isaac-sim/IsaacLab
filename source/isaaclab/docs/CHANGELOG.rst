@@ -7,6 +7,7 @@ Changelog
 Added
 ^^^^^
 
+* Added check in RecorderManager to ensure that the success indicator is only set if the termination manager is present.
 * Added semantic tags in :func:`isaaclab.sim.spawners.from_files.spawn_ground_plane`.
   This allows for :attr:`semantic_segmentation_mapping` to be used when using the ground plane spawner.
 
@@ -122,7 +123,7 @@ Added
 Changed
 ^^^^^^^
 
-* Definition of render settings in :class:`~isaaclab.sim.SimulationCfg` is changed to None, which means that
+* Changed default render settings in :class:`~isaaclab.sim.SimulationCfg` to None, which means that
   the default settings will be used from the experience files and the double definition is removed.
 
 

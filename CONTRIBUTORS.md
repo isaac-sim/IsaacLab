@@ -112,6 +112,7 @@ Guidelines for modifications:
 * Yun Liu
 * Zhengyu Zhang
 * Ziqi Fan
+* Zoe McCarthy
 
 ## Acknowledgements
 
