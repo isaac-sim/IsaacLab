@@ -39,6 +39,7 @@ Guidelines for modifications:
 * Amr Mousa
 * Andrej Orsula
 * Anton Bjørndahl Mortensen
+* Antonin Raffin
 * Arjun Bhardwaj
 * Ashwin Varghese Kuruttukulam
 * Bikram Pandit
