@@ -32,6 +32,7 @@ import isaaclab.terrains as terrain_gen
 from isaaclab.sim import PreviewSurfaceCfg, SimulationContext, build_simulation_context, get_first_matching_child_prim
 from isaaclab.terrains import TerrainImporter, TerrainImporterCfg
 from isaaclab.terrains.config.rough import ROUGH_TERRAINS_CFG
+from isaaclab.terrains.utils import create_mesh_from_prim
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 
@@ -89,7 +90,7 @@ class TestTerrainImporter(unittest.TestCase):
                 self.assertIn(mesh_prim_path, terrain_importer.terrain_prim_paths)
 
                 # obtain underling mesh
-                mesh = self._obtain_collision_mesh(mesh_prim_path, mesh_type="Mesh")
+                mesh = create_mesh_from_prim(mesh_prim_path)
                 self.assertIsNotNone(mesh)
 
                 # calculate expected size from config
@@ -124,13 +125,22 @@ class TestTerrainImporter(unittest.TestCase):
                     )
                     terrain_importer = TerrainImporter(terrain_importer_cfg)
 
+                    # expected size of an infinite plane
+                    expectedSizeX = 2.0e6
+                    expectedSizeY = 2.0e6
+
                     # check if mesh prim path exists
                     mesh_prim_path = terrain_importer.cfg.prim_path + "/terrain"
                     self.assertIn(mesh_prim_path, terrain_importer.terrain_prim_paths)
 
-                    # obtain underling mesh
-                    mesh = self._obtain_collision_mesh(mesh_prim_path, mesh_type="Plane")
-                    self.assertIsNone(mesh)
+                    # obtain mesh prim path
+                    mesh = create_mesh_from_prim(mesh_prim_path)
+                    self.assertIsNotNone(mesh)
+
+                    # get size from mesh bounds
+                    bounds = mesh.bounds
+                    actualSize = abs(bounds[1] - bounds[0])
+
 
     def test_usd(self) -> None:
         """Imports terrain from a usd and tests that the resulting mesh has the correct size."""
@@ -152,7 +162,7 @@ class TestTerrainImporter(unittest.TestCase):
                 self.assertIn(mesh_prim_path, terrain_importer.terrain_prim_paths)
 
                 # obtain underling mesh
-                mesh = self._obtain_collision_mesh(mesh_prim_path, mesh_type="Mesh")
+                mesh = create_mesh_from_prim(mesh_prim_path)
                 self.assertIsNotNone(mesh)
 
                 # expect values from USD file
