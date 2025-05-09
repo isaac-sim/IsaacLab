@@ -275,6 +275,26 @@ class TestMathUtilities(unittest.TestCase):
                     # Check that the wrapped angle is close to the expected value
                     torch.testing.assert_close(wrapped_angle, expected_angle)
 
+    def test_yaw_quat(self):
+        """
+        Test for yaw_quat methods.
+        """
+        # 90-degree (n/2 radians) rotations about the Y-axis
+        quat_input = torch.Tensor([0.7071, 0, 0.7071, 0])
+        cloned_quat_input = quat_input.clone()
+
+        # Calculated output that the function should return
+        expected_output = torch.Tensor([1, 0, 0, 0])
+
+        # Compute the result using the existing implementation
+        result = math_utils.yaw_quat(quat_input)
+
+        # Verify original quat is not being modified
+        torch.testing.assert_close(quat_input, cloned_quat_input)
+
+        # check that the output is equivalent to the expected output
+        torch.testing.assert_close(result, expected_output)
+
     def test_quat_rotate_and_quat_rotate_inverse(self):
         """Test for quat_rotate and quat_rotate_inverse methods.
 
