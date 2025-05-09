@@ -7,17 +7,13 @@
 Configuration for the Valkyrie robot from IHMC Robotics.
 """
 
-import os
-
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets.articulation import ArticulationCfg
-
-# get valkyrie usd path
-VAL_ASSET_DIR = os.getenv("VAL_ASSET_DIR") + "/valkyrie.usd"
+from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
 spawn_usd = sim_utils.UsdFileCfg(
-    usd_path=VAL_ASSET_DIR,
+    usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/Valkyrie/valkyrie.usd",
     activate_contact_sensors=True,
     rigid_props=sim_utils.RigidBodyPropertiesCfg(
         disable_gravity=False,
