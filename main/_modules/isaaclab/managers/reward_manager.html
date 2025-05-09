@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.1.0" />
-    <meta name="docbuild:last-update" content="May 08, 2025"/>
+    <meta name="docbuild:last-update" content="May 09, 2025"/>
   </head>
   
   
@@ -676,9 +676,10 @@
         <span class="c1"># reset computation</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_reward_buf</span><span class="p">[:]</span> <span class="o">=</span> <span class="mf">0.0</span>
         <span class="c1"># iterate over all the reward terms</span>
-        <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">term_cfg</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_term_names</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_term_cfgs</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">term_idx</span><span class="p">,</span> <span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">term_cfg</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_term_names</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_term_cfgs</span><span class="p">)):</span>
             <span class="c1"># skip if weight is zero (kind of a micro-optimization)</span>
             <span class="k">if</span> <span class="n">term_cfg</span><span class="o">.</span><span class="n">weight</span> <span class="o">==</span> <span class="mf">0.0</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_step_reward</span><span class="p">[:,</span> <span class="n">term_idx</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.0</span>
                 <span class="k">continue</span>
             <span class="c1"># compute term&#39;s value</span>
             <span class="n">value</span> <span class="o">=</span> <span class="n">term_cfg</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_env</span><span class="p">,</span> <span class="o">**</span><span class="n">term_cfg</span><span class="o">.</span><span class="n">params</span><span class="p">)</span> <span class="o">*</span> <span class="n">term_cfg</span><span class="o">.</span><span class="n">weight</span> <span class="o">*</span> <span class="n">dt</span>
@@ -688,7 +689,7 @@
             <span class="bp">self</span><span class="o">.</span><span class="n">_episode_sums</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">+=</span> <span class="n">value</span>
 
             <span class="c1"># Update current reward for this step.</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_step_reward</span><span class="p">[:,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_term_names</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">name</span><span class="p">)]</span> <span class="o">=</span> <span class="n">value</span> <span class="o">/</span> <span class="n">dt</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_step_reward</span><span class="p">[:,</span> <span class="n">term_idx</span><span class="p">]</span> <span class="o">=</span> <span class="n">value</span> <span class="o">/</span> <span class="n">dt</span>
 
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_reward_buf</span></div>
 
@@ -826,7 +827,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on May 08, 2025.
+  Last updated on May 09, 2025.
   <br/>
 </p>
   </div>

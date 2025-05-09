@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.1.0" />
-    <meta name="docbuild:last-update" content="May 08, 2025"/>
+    <meta name="docbuild:last-update" content="May 09, 2025"/>
   </head>
   
   
@@ -849,16 +849,30 @@ docker<span class="w"> </span>volume<span class="w"> </span>inspect<span class="
 <p>The produced image depends on the arguments passed to <code class="docutils literal notranslate"><span class="pre">container.py</span> <span class="pre">start</span></code> and <code class="docutils literal notranslate"><span class="pre">container.py</span> <span class="pre">stop</span></code>. These
 commands accept an image extension parameter as an additional argument. If no argument is passed, then this
 parameter defaults to <code class="docutils literal notranslate"><span class="pre">base</span></code>. Currently, the only valid values are (<code class="docutils literal notranslate"><span class="pre">base</span></code>, <code class="docutils literal notranslate"><span class="pre">ros2</span></code>).
-Only one image extension can be passed at a time. The produced container will be named <code class="docutils literal notranslate"><span class="pre">isaac-lab-${profile}</span></code>,
-where <code class="docutils literal notranslate"><span class="pre">${profile}</span></code> is the image extension name.</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># start base by default</span>
+Only one image extension can be passed at a time.  The produced image and container will be named
+<code class="docutils literal notranslate"><span class="pre">isaac-lab-${profile}</span></code>, where <code class="docutils literal notranslate"><span class="pre">${profile}</span></code> is the image extension name.</p>
+<p><code class="docutils literal notranslate"><span class="pre">suffix</span></code> is an optional string argument to <code class="docutils literal notranslate"><span class="pre">container.py</span></code> that specifies a docker image and
+container name suffix, which can be useful for development purposes. By default <code class="docutils literal notranslate"><span class="pre">${suffix}</span></code> is the empty string.
+If <code class="docutils literal notranslate"><span class="pre">${suffix}</span></code> is a nonempty string, then the produced docker image and container will be named
+<code class="docutils literal notranslate"><span class="pre">isaac-lab-${profile}-${suffix}</span></code>, where a hyphen is inserted between <code class="docutils literal notranslate"><span class="pre">${profile}</span></code> and <code class="docutils literal notranslate"><span class="pre">${suffix}</span></code> in
+the name. <code class="docutils literal notranslate"><span class="pre">suffix</span></code> should not be used with cluster deployments.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># start base by default, named isaac-lab-base</span>
 ./docker/container.py<span class="w"> </span>start
-<span class="c1"># stop base explicitly</span>
+<span class="c1"># stop base explicitly, named isaac-lab-base</span>
 ./docker/container.py<span class="w"> </span>stop<span class="w"> </span>base
-<span class="c1"># start ros2 container</span>
+<span class="c1"># start ros2 container named isaac-lab-ros2</span>
 ./docker/container.py<span class="w"> </span>start<span class="w"> </span>ros2
-<span class="c1"># stop ros2 container</span>
+<span class="c1"># stop ros2 container named isaac-lab-ros2</span>
 ./docker/container.py<span class="w"> </span>stop<span class="w"> </span>ros2
+
+<span class="c1"># start base container named isaac-lab-base-custom</span>
+./docker/container.py<span class="w"> </span>start<span class="w"> </span>base<span class="w"> </span>--suffix<span class="w"> </span>custom
+<span class="c1"># stop base container named isaac-lab-base-custom</span>
+./docker/container.py<span class="w"> </span>stop<span class="w"> </span>base<span class="w"> </span>--suffix<span class="w"> </span>custom
+<span class="c1"># start ros2 container named isaac-lab-ros2-custom</span>
+./docker/container.py<span class="w"> </span>start<span class="w"> </span>ros2<span class="w"> </span>--suffix<span class="w"> </span>custom
+<span class="c1"># stop ros2 container named isaac-lab-ros2-custom</span>
+./docker/container.py<span class="w"> </span>stop<span class="w"> </span>ros2<span class="w"> </span>--suffix<span class="w"> </span>custom
 </pre></div>
 </div>
 <p>The passed image extension argument will build the image defined in <code class="docutils literal notranslate"><span class="pre">Dockerfile.${image_extension}</span></code>,
@@ -886,6 +900,9 @@ including variables defining the <a class="reference external" href="https://doc
 <span class="nv">FASTRTPS_DEFAULT_PROFILES_FILE</span><span class="o">=</span><span class="si">${</span><span class="nv">DOCKER_USER_HOME</span><span class="si">}</span>/.ros/fastdds.xml
 <span class="c1"># Path to cyclonedds.xml file to use (only needed when using cyclonedds)</span>
 <span class="nv">CYCLONEDDS_URI</span><span class="o">=</span><span class="si">${</span><span class="nv">DOCKER_USER_HOME</span><span class="si">}</span>/.ros/cyclonedds.xml
+<span class="c1"># Docker image and container name suffix (default &quot;&quot;, set by the container_interface.py script)</span>
+<span class="c1"># Example: &quot;-custom&quot;</span>
+<span class="nv">DOCKER_NAME_SUFFIX</span><span class="o">=</span><span class="s2">&quot;&quot;</span>
 </pre></div>
 </div>
 </div>
@@ -1038,7 +1055,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on May 08, 2025.
+  Last updated on May 09, 2025.
   <br/>
 </p>
   </div>

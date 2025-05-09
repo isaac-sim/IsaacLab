@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.1.0" />
-    <meta name="docbuild:last-update" content="May 08, 2025"/>
+    <meta name="docbuild:last-update" content="May 09, 2025"/>
   </head>
   
   
@@ -1065,13 +1065,13 @@
 <span class="sd">        A quaternion with only yaw component.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">shape</span> <span class="o">=</span> <span class="n">quat</span><span class="o">.</span><span class="n">shape</span>
-    <span class="n">quat_yaw</span> <span class="o">=</span> <span class="n">quat</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">4</span><span class="p">)</span>
+    <span class="n">quat_yaw</span> <span class="o">=</span> <span class="n">quat</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">4</span><span class="p">)</span>
     <span class="n">qw</span> <span class="o">=</span> <span class="n">quat_yaw</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]</span>
     <span class="n">qx</span> <span class="o">=</span> <span class="n">quat_yaw</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">]</span>
     <span class="n">qy</span> <span class="o">=</span> <span class="n">quat_yaw</span><span class="p">[:,</span> <span class="mi">2</span><span class="p">]</span>
     <span class="n">qz</span> <span class="o">=</span> <span class="n">quat_yaw</span><span class="p">[:,</span> <span class="mi">3</span><span class="p">]</span>
     <span class="n">yaw</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">atan2</span><span class="p">(</span><span class="mi">2</span> <span class="o">*</span> <span class="p">(</span><span class="n">qw</span> <span class="o">*</span> <span class="n">qz</span> <span class="o">+</span> <span class="n">qx</span> <span class="o">*</span> <span class="n">qy</span><span class="p">),</span> <span class="mi">1</span> <span class="o">-</span> <span class="mi">2</span> <span class="o">*</span> <span class="p">(</span><span class="n">qy</span> <span class="o">*</span> <span class="n">qy</span> <span class="o">+</span> <span class="n">qz</span> <span class="o">*</span> <span class="n">qz</span><span class="p">))</span>
-    <span class="n">quat_yaw</span><span class="p">[:]</span> <span class="o">=</span> <span class="mf">0.0</span>
+    <span class="n">quat_yaw</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="n">quat_yaw</span><span class="p">)</span>
     <span class="n">quat_yaw</span><span class="p">[:,</span> <span class="mi">3</span><span class="p">]</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">yaw</span> <span class="o">/</span> <span class="mi">2</span><span class="p">)</span>
     <span class="n">quat_yaw</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">yaw</span> <span class="o">/</span> <span class="mi">2</span><span class="p">)</span>
     <span class="n">quat_yaw</span> <span class="o">=</span> <span class="n">normalize</span><span class="p">(</span><span class="n">quat_yaw</span><span class="p">)</span>
@@ -2465,7 +2465,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on May 08, 2025.
+  Last updated on May 09, 2025.
   <br/>
 </p>
   </div>
