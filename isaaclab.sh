@@ -141,7 +141,10 @@ setup_conda_env() {
         echo -e "[INFO] Conda environment named '${env_name}' already exists."
     else
         echo -e "[INFO] Creating conda environment named '${env_name}'..."
-        conda create -y --name ${env_name} python=3.10
+        echo -e "[INFO] Installing dependencies from ${ISAACLAB_PATH}/environment.yml"
+
+        # Create environment from YAML file with specified name
+        conda env create -y --file ${ISAACLAB_PATH}/environment.yml -n ${env_name}
     fi
 
     # cache current paths for later
@@ -208,10 +211,6 @@ setup_conda_env() {
             '' >> ${CONDA_PREFIX}/etc/conda/deactivate.d/unsetenv.sh
     fi
 
-    # install some extra dependencies
-    echo -e "[INFO] Installing extra dependencies (this might take a few minutes)..."
-    conda install -c conda-forge -y importlib_metadata &> /dev/null
-
     # deactivate the environment
     conda deactivate
     # add information to the user about alias
@@ -241,7 +240,7 @@ update_vscode_settings() {
 
 # print the usage description
 print_help () {
-    echo -e "\nusage: $(basename "$0") [-h] [-i] [-f] [-p] [-s] [-t] [-o] [-v] [-d] [-c] -- Utility to manage Isaac Lab."
+    echo -e "\nusage: $(basename "$0") [-h] [-i] [-f] [-p] [-s] [-t] [-o] [-v] [-d] [-n] [-c] -- Utility to manage Isaac Lab."
     echo -e "\noptional arguments:"
     echo -e "\t-h, --help           Display the help content."
     echo -e "\t-i, --install [LIB]  Install the extensions inside Isaac Lab and learning frameworks as extra dependencies. Default is 'all'."
@@ -252,6 +251,7 @@ print_help () {
     echo -e "\t-o, --docker         Run the docker container helper script (docker/container.sh)."
     echo -e "\t-v, --vscode         Generate the VSCode settings file from template."
     echo -e "\t-d, --docs           Build the documentation from source using sphinx."
+    echo -e "\t-n, --new            Create a new external project or internal task from template."
     echo -e "\t-c, --conda [NAME]   Create the conda environment for Isaac Lab. Default name is 'env_isaaclab'."
     echo -e "\n" >&2
 }
@@ -372,6 +372,17 @@ while [[ $# -gt 0 ]]; do
             echo "[INFO] Running isaac-sim from: ${isaacsim_exe}"
             shift # past argument
             ${isaacsim_exe} --ext-folder ${ISAACLAB_PATH}/source $@
+            # exit neatly
+            break
+            ;;
+        -n|--new)
+            # run the template generator script
+            python_exe=$(extract_python_exe)
+            shift # past argument
+            echo "[INFO] Installing template dependencies..."
+            ${python_exe} -m pip install -q -r ${ISAACLAB_PATH}/tools/template/requirements.txt
+            echo -e "\n[INFO] Running template generator...\n"
+            ${python_exe} ${ISAACLAB_PATH}/tools/template/cli.py $@
             # exit neatly
             break
             ;;

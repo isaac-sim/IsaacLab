@@ -248,7 +248,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         log_rl_policy_rewards(benchmark, log_data["rewards/iter"])
         log_rl_policy_episode_lengths(benchmark, log_data["episode_lengths/iter"])
 
-    benchmark.stop()
+        benchmark.stop()
 
     # close the simulator
     env.close()

@@ -129,6 +129,7 @@ class TestCamera(unittest.TestCase):
         # define the same offset in all conventions
         # -- ROS convention
         cam_cfg_offset_ros = copy.deepcopy(self.camera_cfg)
+        cam_cfg_offset_ros.update_latest_camera_pose = True
         cam_cfg_offset_ros.offset = CameraCfg.OffsetCfg(
             pos=POSITION,
             rot=QUAT_ROS,
@@ -138,6 +139,7 @@ class TestCamera(unittest.TestCase):
         camera_ros = Camera(cam_cfg_offset_ros)
         # -- OpenGL convention
         cam_cfg_offset_opengl = copy.deepcopy(self.camera_cfg)
+        cam_cfg_offset_opengl.update_latest_camera_pose = True
         cam_cfg_offset_opengl.offset = CameraCfg.OffsetCfg(
             pos=POSITION,
             rot=QUAT_OPENGL,
@@ -147,6 +149,7 @@ class TestCamera(unittest.TestCase):
         camera_opengl = Camera(cam_cfg_offset_opengl)
         # -- World convention
         cam_cfg_offset_world = copy.deepcopy(self.camera_cfg)
+        cam_cfg_offset_world.update_latest_camera_pose = True
         cam_cfg_offset_world.offset = CameraCfg.OffsetCfg(
             pos=POSITION,
             rot=QUAT_WORLD,
@@ -317,6 +320,8 @@ class TestCamera(unittest.TestCase):
 
     def test_camera_set_world_poses(self):
         """Test camera function to set specific world pose."""
+        # enable update latest camera pose
+        self.camera_cfg.update_latest_camera_pose = True
         camera = Camera(self.camera_cfg)
         # play sim
         self.sim.reset()
@@ -339,6 +344,8 @@ class TestCamera(unittest.TestCase):
 
     def test_camera_set_world_poses_from_view(self):
         """Test camera function to set specific world pose from view."""
+        # enable update latest camera pose
+        self.camera_cfg.update_latest_camera_pose = True
         camera = Camera(self.camera_cfg)
         # play sim
         self.sim.reset()

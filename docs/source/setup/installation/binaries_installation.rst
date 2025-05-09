@@ -203,7 +203,7 @@ Clone the Isaac Lab repository into your workspace:
 
             ./isaaclab.sh --help
 
-            usage: isaaclab.sh [-h] [-i] [-f] [-p] [-s] [-t] [-o] [-v] [-d] [-c] -- Utility to manage Isaac Lab.
+            usage: isaaclab.sh [-h] [-i] [-f] [-p] [-s] [-t] [-o] [-v] [-d] [-n] [-c] -- Utility to manage Isaac Lab.
 
             optional arguments:
                -h, --help           Display the help content.
@@ -215,6 +215,7 @@ Clone the Isaac Lab repository into your workspace:
                -o, --docker         Run the docker container helper script (docker/container.sh).
                -v, --vscode         Generate the VSCode settings file from template.
                -d, --docs           Build the documentation from source using sphinx.
+               -n, --new            Create a new external project or internal task from template.
                -c, --conda [NAME]   Create the conda environment for Isaac Lab. Default name is 'env_isaaclab'.
 
       .. tab-item:: :icon:`fa-brands fa-windows` Windows
@@ -224,7 +225,7 @@ Clone the Isaac Lab repository into your workspace:
 
             isaaclab.bat --help
 
-            usage: isaaclab.bat [-h] [-i] [-f] [-p] [-s] [-v] [-d] [-c] -- Utility to manage Isaac Lab.
+            usage: isaaclab.bat [-h] [-i] [-f] [-p] [-s] [-v] [-d] [-n] [-c] -- Utility to manage Isaac Lab.
 
             optional arguments:
                -h, --help           Display the help content.
@@ -235,6 +236,7 @@ Clone the Isaac Lab repository into your workspace:
                -t, --test           Run all python unittest tests.
                -v, --vscode         Generate the VSCode settings file from template.
                -d, --docs           Build the documentation from source using sphinx.
+               -n, --new            Create a new external project or internal task from template.
                -c, --conda [NAME]   Create the conda environment for Isaac Lab. Default name is 'env_isaaclab'.
 
 
@@ -393,14 +395,14 @@ Installation
 
          .. code:: bash
 
-            ./isaaclab.sh -p -m pip install --upgrade --pre torch --index-url https://download.pytorch.org/whl/nightly/cu128
+            ./isaaclab.sh -p -m pip install --upgrade --pre torch torchvision --index-url https://download.pytorch.org/whl/nightly/cu128
 
       .. tab-item:: :icon:`fa-brands fa-windows` Windows
          :sync: windows
 
          .. code:: batch
 
-            isaaclab.bat -p -m pip install --upgrade --pre torch --index-url https://download.pytorch.org/whl/nightly/cu128
+            isaaclab.bat -p -m pip install --upgrade --pre torch torchvision --index-url https://download.pytorch.org/whl/nightly/cu128
 
 Verifying the Isaac Lab installation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

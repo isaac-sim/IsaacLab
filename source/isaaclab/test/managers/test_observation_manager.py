@@ -19,6 +19,7 @@ import torch
 import unittest
 from collections import namedtuple
 
+import isaaclab.sim as sim_utils
 from isaaclab.managers import ManagerTermBase, ObservationGroupCfg, ObservationManager, ObservationTermCfg
 from isaaclab.utils import configclass, modifiers
 
@@ -98,10 +99,16 @@ class TestObservationManager(unittest.TestCase):
         self.dt = 0.01
         self.num_envs = 20
         self.device = "cuda:0"
+        # set up sim
+        sim_cfg = sim_utils.SimulationCfg(dt=self.dt, device=self.device)
+        sim = sim_utils.SimulationContext(sim_cfg)
         # create dummy environment
-        self.env = namedtuple("ManagerBasedEnv", ["num_envs", "device", "data", "dt"])(
-            self.num_envs, self.device, MyDataClass(self.num_envs, self.device), self.dt
+        self.env = namedtuple("ManagerBasedEnv", ["num_envs", "device", "data", "dt", "sim"])(
+            self.num_envs, self.device, MyDataClass(self.num_envs, self.device), self.dt, sim
         )
+        # let the simulation play (we need this for observation manager to compute obs dims)
+        self.env.sim._app_control_on_stop_handle = None
+        self.env.sim.reset()
 
     def test_str(self):
         """Test the string representation of the observation manager."""
@@ -379,24 +386,25 @@ class TestObservationManager(unittest.TestCase):
         expected_obs_term_1_data = torch.ones(self.env.num_envs, 4 * HISTORY_LENGTH, device=self.env.device)
         expected_obs_term_2_data = lin_vel_w_data(self.env)
         expected_obs_data_t0 = torch.concat((expected_obs_term_1_data, expected_obs_term_2_data), dim=-1)
-        print(expected_obs_data_t0, obs_policy)
-        self.assertTrue(torch.equal(expected_obs_data_t0, obs_policy))
+        torch.testing.assert_close(expected_obs_data_t0, obs_policy)
+
         # test that the history buffer holds previous data
         for _ in range(HISTORY_LENGTH):
             observations = self.obs_man.compute()
             obs_policy = observations["policy"]
         expected_obs_term_1_data = torch.ones(self.env.num_envs, 4 * HISTORY_LENGTH, device=self.env.device)
         expected_obs_data_t5 = torch.concat((expected_obs_term_1_data, expected_obs_term_2_data), dim=-1)
-        self.assertTrue(torch.equal(expected_obs_data_t5, obs_policy))
+        torch.testing.assert_close(expected_obs_data_t5, obs_policy)
+
         # test reset
         self.obs_man.reset()
         observations = self.obs_man.compute()
         obs_policy = observations["policy"]
-        self.assertTrue(torch.equal(expected_obs_data_t0, obs_policy))
+        torch.testing.assert_close(expected_obs_data_t0, obs_policy)
         # test reset of specific env ids
         reset_env_ids = [2, 4, 16]
         self.obs_man.reset(reset_env_ids)
-        self.assertTrue(torch.equal(expected_obs_data_t0[reset_env_ids], obs_policy[reset_env_ids]))
+        torch.testing.assert_close(expected_obs_data_t0[reset_env_ids], obs_policy[reset_env_ids])
 
     def test_compute_with_2d_history(self):
         """Test the observation computation with history buffers for 2D observations."""
@@ -479,7 +487,7 @@ class TestObservationManager(unittest.TestCase):
         expected_obs_term_1_data = torch.ones(self.env.num_envs, 4 * GROUP_HISTORY_LENGTH, device=self.env.device)
         expected_obs_term_2_data = lin_vel_w_data(self.env).repeat(1, GROUP_HISTORY_LENGTH)
         expected_obs_data_t0 = torch.concat((expected_obs_term_1_data, expected_obs_term_2_data), dim=-1)
-        self.assertTrue(torch.equal(expected_obs_data_t0, obs_policy))
+        torch.testing.assert_close(expected_obs_data_t0, obs_policy)
         # test that the history buffer holds previous data
         for _ in range(GROUP_HISTORY_LENGTH):
             observations = self.obs_man.compute()
@@ -487,16 +495,16 @@ class TestObservationManager(unittest.TestCase):
         expected_obs_term_1_data = torch.ones(self.env.num_envs, 4 * GROUP_HISTORY_LENGTH, device=self.env.device)
         expected_obs_term_2_data = lin_vel_w_data(self.env).repeat(1, GROUP_HISTORY_LENGTH)
         expected_obs_data_t10 = torch.concat((expected_obs_term_1_data, expected_obs_term_2_data), dim=-1)
-        self.assertTrue(torch.equal(expected_obs_data_t10, obs_policy))
+        torch.testing.assert_close(expected_obs_data_t10, obs_policy)
         # test reset
         self.obs_man.reset()
         observations = self.obs_man.compute()
         obs_policy = observations["policy"]
-        self.assertTrue(torch.equal(expected_obs_data_t0, obs_policy))
+        torch.testing.assert_close(expected_obs_data_t0, obs_policy)
         # test reset of specific env ids
         reset_env_ids = [2, 4, 16]
         self.obs_man.reset(reset_env_ids)
-        self.assertTrue(torch.equal(expected_obs_data_t0[reset_env_ids], obs_policy[reset_env_ids]))
+        torch.testing.assert_close(expected_obs_data_t0[reset_env_ids], obs_policy[reset_env_ids])
 
     def test_invalid_observation_config(self):
         """Test the invalid observation config."""

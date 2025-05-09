@@ -1,3 +1,5 @@
+.. _rl-frameworks:
+
 Reinforcement Learning Library Comparison
 =========================================
 
@@ -25,7 +27,7 @@ Feature Comparison
      - Stable Baselines3
    * - Algorithms Included
      - PPO, SAC, A2C
-     - PPO
+     - PPO, Distillation
      - `Extensive List <https://skrl.readthedocs.io/en/latest/#agents>`__
      - `Extensive List <https://github.com/DLR-RM/stable-baselines3?tab=readme-ov-file#implemented-algorithms>`__
    * - Vectorized Training
@@ -35,7 +37,7 @@ Feature Comparison
      - No
    * - Distributed Training
      - Yes
-     - No
+     - Yes
      - Yes
      - No
    * - ML Frameworks Supported

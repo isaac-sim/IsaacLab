@@ -99,6 +99,10 @@ class ManagerBasedEnv:
                 raise RuntimeError("Simulation context already exists. Cannot create a new one.")
             self.sim: SimulationContext = SimulationContext.instance()
 
+        # make sure torch is running on the correct device
+        if "cuda" in self.device:
+            torch.cuda.set_device(self.device)
+
         # print useful information
         print("[INFO]: Base environment:")
         print(f"\tEnvironment device    : {self.device}")
@@ -118,6 +122,9 @@ class ManagerBasedEnv:
         # counter for simulation steps
         self._sim_step_counter = 0
 
+        # allocate dictionary to store metrics
+        self.extras = {}
+
         # generate scene
         with Timer("[INFO]: Time taken for scene creation", "scene_creation"):
             self.scene = InteractiveScene(self.cfg.scene)
@@ -131,6 +138,15 @@ class ManagerBasedEnv:
             self.viewport_camera_controller = ViewportCameraController(self, self.cfg.viewer)
         else:
             self.viewport_camera_controller = None
+
+        # create event manager
+        # note: this is needed here (rather than after simulation play) to allow USD-related randomization events
+        #   that must happen before the simulation starts. Example: randomizing mesh scale
+        self.event_manager = EventManager(self.cfg.events, self)
+
+        # apply USD-related randomization events
+        if "prestartup" in self.event_manager.available_modes:
+            self.event_manager.apply(mode="prestartup")
 
         # play the simulator to activate physics handles
         # note: this activates the physics simulation view that exposes TensorAPIs
@@ -146,10 +162,6 @@ class ManagerBasedEnv:
             # add timeline event to load managers
             self.load_managers()
 
-        # make sure torch is running on the correct device
-        if "cuda" in self.device:
-            torch.cuda.set_device(self.device)
-
         # extend UI elements
         # we need to do this here after all the managers are initialized
         # this is because they dictate the sensors and commands right now
@@ -160,9 +172,6 @@ class ManagerBasedEnv:
         else:
             # if no window, then we don't need to store the window
             self._window = None
-
-        # allocate dictionary to store metrics
-        self.extras = {}
 
         # initialize observation buffers
         self.obs_buf = {}
@@ -222,6 +231,8 @@ class ManagerBasedEnv:
 
         """
         # prepare the managers
+        # -- event manager (we print it here to make the logging consistent)
+        print("[INFO] Event Manager: ", self.event_manager)
         # -- recorder manager
         self.recorder_manager = RecorderManager(self.cfg.recorders, self)
         print("[INFO] Recorder Manager: ", self.recorder_manager)
@@ -231,9 +242,6 @@ class ManagerBasedEnv:
         # -- observation manager
         self.observation_manager = ObservationManager(self.cfg.observations, self)
         print("[INFO] Observation Manager:", self.observation_manager)
-        # -- event manager
-        self.event_manager = EventManager(self.cfg.events, self)
-        print("[INFO] Event Manager: ", self.event_manager)
 
         # perform events at the start of the simulation
         # in-case a child implementation creates other managers, the randomization should happen
@@ -312,16 +320,23 @@ class ManagerBasedEnv:
         env_ids: Sequence[int] | None,
         seed: int | None = None,
         is_relative: bool = False,
-    ) -> None:
-        """Resets specified environments to known states.
+    ):
+        """Resets specified environments to provided states.
 
-        Note that this is different from reset() function as it resets the environments to specific states
+        This function resets the environments to the provided states. The state is a dictionary
+        containing the state of the scene entities. Please refer to :meth:`InteractiveScene.get_state`
+        for the format.
+
+        The function is different from the :meth:`reset` function as it resets the environments to specific states,
+        instead of using the randomization events for resetting the environments.
 
         Args:
-            state: The state to reset the specified environments to.
+            state: The state to reset the specified environments to. Please refer to
+                :meth:`InteractiveScene.get_state` for the format.
             env_ids: The environment ids to reset. Defaults to None, in which case all environments are reset.
             seed: The seed to use for randomization. Defaults to None, in which case the seed is not set.
-            is_relative: If set to True, the state is considered relative to the environment origins. Defaults to False.
+            is_relative: If set to True, the state is considered relative to the environment origins.
+                Defaults to False.
         """
         # reset all envs in the scene if env_ids is None
         if env_ids is None:
