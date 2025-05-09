@@ -133,7 +133,7 @@ class CabinetSceneCfg(InteractiveSceneCfg):
                 prim_path="{ENV_REGEX_NS}/Cabinet/drawer_handle_top",
                 name="drawer_handle_top",
                 offset=OffsetCfg(
-                    pos=(0.0, 0.0, 0.0),
+                    pos=(2, 0.0, 0.0),
                     rot=(0.5, 0.5, -0.5, -0.5),  # align with end-effector frame
                 ),
             ),
@@ -204,8 +204,8 @@ class EventCfg:
         mode="startup",
         params={
             "asset_cfg": SceneEntityCfg("cabinet", body_names="drawer_handle_top"),
-            "static_friction_range": (1.0, 1.25),
-            "dynamic_friction_range": (1.25, 1.5),
+            "static_friction_range": (1.5, 1.75),
+            "dynamic_friction_range": (1.75, 2.0),
             "restitution_range": (0.0, 0.0),
             "num_buckets": 16,
         },
