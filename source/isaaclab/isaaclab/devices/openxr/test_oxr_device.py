@@ -8,7 +8,7 @@
 
 from __future__ import annotations
 
-from isaaclab.app import AppLauncher, run_tests
+from isaaclab.app import AppLauncher
 
 # Can set this to False to see the GUI for debugging.
 HEADLESS = True
@@ -138,7 +138,3 @@ class TestOpenXRDevice(unittest.TestCase):
         device_1.reset()
         device_2.reset()
         env.close()
-
-
-if __name__ == "__main__":
-    run_tests()

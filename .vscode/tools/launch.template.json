@@ -33,6 +33,25 @@
             "args" : ["--task", "Isaac-Reach-Franka-v0", "--num_envs", "32"],
             "program": "${workspaceFolder}/scripts/reinforcement_learning/rsl_rl/play.py",
             "console": "integratedTerminal"
+        },
+        {
+            "name": "Python: SinglePytest",
+            "type": "python",
+            "request": "launch",
+            "module": "pytest",
+            "args": [
+              "${file}"
+            ],
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Python: ALL Pytest",
+            "type": "python",
+            "request": "launch",
+            "module": "pytest",
+            "args": ["source/isaaclab/test"],
+            "console": "integratedTerminal",
+            "justMyCode": false
         }
     ]
 }
