@@ -12,30 +12,19 @@ simulation_app = AppLauncher(headless=HEADLESS).app
 
 """Rest of imports follows"""
 
-import math
 import torch
 
 import pytest
 
-from isaaclab.actuators import DCMotorCfg, IdealPDActuatorCfg
-from isaaclab.sim import build_simulation_context
+from isaaclab.actuators import IdealPDActuatorCfg
 from isaaclab.utils.types import ArticulationActions
-
-
-@pytest.fixture
-def sim(request):
-    """Create simulation context with the specified device."""
-    device = request.getfixturevalue("device")
-    with build_simulation_context(device=device) as sim:
-        sim._app_control_on_stop_handle = None
-        yield sim
 
 
 @pytest.mark.parametrize("num_envs", [1, 2])
 @pytest.mark.parametrize("num_joints", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("usd_default", [False, True])
-def test_ideal_pd_actuator_init_minimum(sim, num_envs, num_joints, device, usd_default):
+def test_ideal_pd_actuator_init_minimum(num_envs, num_joints, device, usd_default):
     """Test initialization of ideal pd actuator with minimum configuration."""
 
     joint_names = [f"joint_{d}" for d in range(num_joints)]
@@ -111,7 +100,7 @@ def test_ideal_pd_actuator_init_minimum(sim, num_envs, num_joints, device, usd_d
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("effort_lim", [None, 300])
 @pytest.mark.parametrize("effort_lim_sim", [None, 400])
-def test_ideal_pd_actuator_init_effort_limits(sim, num_envs, num_joints, device, effort_lim, effort_lim_sim):
+def test_ideal_pd_actuator_init_effort_limits(num_envs, num_joints, device, effort_lim, effort_lim_sim):
     """Test initialization of ideal pd actuator with effort limits."""
     # used as a standin for the usd default value read in by articulation.
     # This value should not be propagated for ideal pd actuators
@@ -168,7 +157,7 @@ def test_ideal_pd_actuator_init_effort_limits(sim, num_envs, num_joints, device,
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("velocity_lim", [None, 300])
 @pytest.mark.parametrize("velocity_lim_sim", [None, 400])
-def test_ideal_pd_actuator_init_velocity_limits(sim, num_envs, num_joints, device, velocity_lim, velocity_lim_sim):
+def test_ideal_pd_actuator_init_velocity_limits(num_envs, num_joints, device, velocity_lim, velocity_lim_sim):
     """Test initialization of ideal pd actuator with velocity limits.
 
     Note Ideal PD actuator does not use velocity limits in computation, they are passed to physics via articulations.
@@ -220,7 +209,7 @@ def test_ideal_pd_actuator_init_velocity_limits(sim, num_envs, num_joints, devic
 @pytest.mark.parametrize("num_joints", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("effort_lim", [None, 300])
-def test_ideal_pd_compute(sim, num_envs, num_joints, device, effort_lim):
+def test_ideal_pd_compute(num_envs, num_joints, device, effort_lim):
     """Test the computation of the ideal pd actuator."""
 
     joint_names = [f"joint_{d}" for d in range(num_joints)]
@@ -278,116 +267,6 @@ def test_ideal_pd_compute(sim, num_envs, num_joints, device, effort_lim):
     torch.testing.assert_close(
         actuator.applied_effort,
         computed_control_action.joint_efforts,
-    )
-
-
-@pytest.mark.parametrize("num_envs", [1, 2])
-@pytest.mark.parametrize("num_joints", [1, 2])
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
-@pytest.mark.parametrize("negate_t_s", [1.0, -1.0])
-@pytest.mark.parametrize("test_point", range(9))
-def test_dc_motor_clip(sim, num_envs, num_joints, device, negate_t_s, test_point):
-    r"""Test the computation of the dc motor actuator 4 quadrant torque speed curve.
-
-    torque_speed_pairs of interest:
-    0 - fully inside torque speed curve and effort limit (quadrant 1)
-    1 - greater than effort limit but under torque-speed curve (quadrant 1)
-    2 - greater than effort limit and outside torque-speed curve (quadrant 1)
-    3 - less than effort limit but outside torque speed curve (quadrant 1)
-    4 - less than effort limit but outside torque speed curve (quadrant 2)
-    5 - fully inside torque speed curve and effort limit (quadrant 2)
-    6 - fully outside torque speed curve and -effort limit (quadrant 2)
-    7 - fully inside torque speed curve, outside -effort limit, and inside corner velocity (quadrant 2)
-    8 - fully inside torque speed curves, outside -effort limit, and outside corner velocity (quadrant2)
-
-    e - effort_limit
-    s - saturation_effort
-    v - velocity_limit
-    c - corner velocity
-    \ - torque-speed linear boundary between v and s
-
-    each torque_speed_point will be tested in quadrant 3 and 4
-
-    =======================================================
-                          Torque
-                         \  (+)
-                           \ |
-            Q2               s                   Q1
-                             | \         2
-    \                        | 1 \
-      c ---------------------e-----\
-        \                    |       \
-          \                  |  0      \ 3
-            \                |           \
-    (-)-------v -------------o-------------v --------------(+) Speed
-                \            |               \        4
-                  \          |    5            \
-                    \        |                   \
-                      \ -----e---------------------c
-                        \    |                       \    6
-            Q3            \  |              7    Q4    \
-                            \s                           \
-                             |\                        8   \
-                            (-) \
-    ========================================================
-    """
-    torque_speed_pairs = [
-        (30.0, 10.0),  # 0
-        (70.0, 10.0),  # 1
-        (80.0, 40.0),  # 2
-        (30.0, 40.0),  # 3
-        (-20.0, 90.0),  # 4
-        (-30.0, 10.0),  # 5
-        (-80.0, 110.0),  # 6
-        (-80.0, 50.0),  # 7
-        (-120.0, 90.0),  # 8
-    ]
-
-    joint_names = [f"joint_{d}" for d in range(num_joints)]
-    joint_ids = [d for d in range(num_joints)]
-    stiffness = 200
-    damping = 10
-    effort_lim = 60
-    saturation_effort = 100.0
-    velocity_limit = 50
-    actuator_cfg = DCMotorCfg(
-        joint_names_expr=joint_names,
-        stiffness=stiffness,
-        damping=damping,
-        effort_limit=effort_lim,
-        velocity_limit=velocity_limit,
-        saturation_effort=saturation_effort,
-    )
-
-    actuator = actuator_cfg.class_type(
-        actuator_cfg,
-        joint_names=joint_names,
-        joint_ids=joint_ids,
-        num_envs=num_envs,
-        device=device,
-        stiffness=actuator_cfg.stiffness,
-        damping=actuator_cfg.damping,
-    )
-
-    i = test_point
-    ts = torque_speed_pairs[test_point]
-    torque = ts[0] * negate_t_s
-    speed = ts[1] * negate_t_s
-    actuator._joint_vel[:] = speed * torch.ones(num_envs, num_joints, device=device)
-    effort = torque * torch.ones(num_envs, num_joints, device=device)
-    clipped_effort = actuator._clip_effort(effort)
-
-    torque_speed_curve = saturation_effort * (negate_t_s * 1 - speed / velocity_limit)
-
-    if i in [0, 5]:
-        expected_clipped_effort = torque
-    elif i in [1, 7]:
-        expected_clipped_effort = math.copysign(effort_lim, torque)
-    elif i in [2, 3, 4, 6, 8]:
-        expected_clipped_effort = torque_speed_curve
-
-    torch.testing.assert_close(
-        expected_clipped_effort * torch.ones(num_envs, num_joints, device=device), clipped_effort
     )
 
 
