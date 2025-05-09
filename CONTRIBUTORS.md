@@ -41,6 +41,7 @@ Guidelines for modifications:
 * Anton Bjørndahl Mortensen
 * Arjun Bhardwaj
 * Ashwin Varghese Kuruttukulam
+* Bikram Pandit
 * Brayden Zhang
 * Cameron Upright
 * Calvin Yu
