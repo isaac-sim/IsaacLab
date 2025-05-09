@@ -35,6 +35,7 @@ Guidelines for modifications:
 
 ## Contributors
 
+* Akira Suzuki
 * Alice Zhou
 * Amr Mousa
 * Andrej Orsula
