@@ -3,13 +3,20 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from __future__ import annotations
+
 from dataclasses import MISSING
 from typing import Literal
 
 from isaaclab.utils import configclass
 
+from .distillation_cfg import RslRlDistillationAlgorithmCfg, RslRlDistillationStudentTeacherCfg
 from .rnd_cfg import RslRlRndCfg
 from .symmetry_cfg import RslRlSymmetryCfg
+
+#########################
+# Policy configurations #
+#########################
 
 
 @configclass
@@ -36,23 +43,33 @@ class RslRlPpoActorCriticCfg:
 
 
 @configclass
+class RslRlPpoActorCriticRecurrentCfg(RslRlPpoActorCriticCfg):
+    """Configuration for the PPO actor-critic networks with recurrent layers."""
+
+    class_name: str = "ActorCriticRecurrent"
+    """The policy class name. Default is ActorCriticRecurrent."""
+
+    rnn_type: str = MISSING
+    """The type of RNN to use. Either "lstm" or "gru"."""
+
+    rnn_hidden_dim: int = MISSING
+    """The dimension of the RNN layers."""
+
+    rnn_num_layers: int = MISSING
+    """The number of RNN layers."""
+
+
+############################
+# Algorithm configurations #
+############################
+
+
+@configclass
 class RslRlPpoAlgorithmCfg:
     """Configuration for the PPO algorithm."""
 
     class_name: str = "PPO"
     """The algorithm class name. Default is PPO."""
-
-    value_loss_coef: float = MISSING
-    """The coefficient for the value loss."""
-
-    use_clipped_value_loss: bool = MISSING
-    """Whether to use clipped value loss."""
-
-    clip_param: float = MISSING
-    """The clipping parameter for the policy."""
-
-    entropy_coef: float = MISSING
-    """The coefficient for the entropy loss."""
 
     num_learning_epochs: int = MISSING
     """The number of learning epochs per update."""
@@ -72,17 +89,29 @@ class RslRlPpoAlgorithmCfg:
     lam: float = MISSING
     """The lambda parameter for Generalized Advantage Estimation (GAE)."""
 
+    entropy_coef: float = MISSING
+    """The coefficient for the entropy loss."""
+
     desired_kl: float = MISSING
     """The desired KL divergence."""
 
     max_grad_norm: float = MISSING
     """The maximum gradient norm."""
 
+    value_loss_coef: float = MISSING
+    """The coefficient for the value loss."""
+
+    use_clipped_value_loss: bool = MISSING
+    """Whether to use clipped value loss."""
+
+    clip_param: float = MISSING
+    """The clipping parameter for the policy."""
+
     normalize_advantage_per_mini_batch: bool = False
     """Whether to normalize the advantage per mini-batch. Default is False.
 
-    If True, the advantage is normalized over the entire collected trajectories.
-    Otherwise, the advantage is normalized over the mini-batches only.
+    If True, the advantage is normalized over the mini-batches only.
+    Otherwise, the advantage is normalized over the entire collected trajectories.
     """
 
     symmetry_cfg: RslRlSymmetryCfg | None = None
@@ -92,6 +121,11 @@ class RslRlPpoAlgorithmCfg:
     """The configuration for the Random Network Distillation (RND) module. Default is None,
     in which case RND is not used.
     """
+
+
+#########################
+# Runner configurations #
+#########################
 
 
 @configclass
@@ -113,10 +147,10 @@ class RslRlOnPolicyRunnerCfg:
     empirical_normalization: bool = MISSING
     """Whether to use empirical normalization."""
 
-    policy: RslRlPpoActorCriticCfg = MISSING
+    policy: RslRlPpoActorCriticCfg | RslRlDistillationStudentTeacherCfg = MISSING
     """The policy configuration."""
 
-    algorithm: RslRlPpoAlgorithmCfg = MISSING
+    algorithm: RslRlPpoAlgorithmCfg | RslRlDistillationAlgorithmCfg = MISSING
     """The algorithm configuration."""
 
     clip_actions: float | None = None
@@ -125,10 +159,6 @@ class RslRlOnPolicyRunnerCfg:
     .. note::
         This clipping is performed inside the :class:`RslRlVecEnvWrapper` wrapper.
     """
-
-    ##
-    # Checkpointing parameters
-    ##
 
     save_interval: int = MISSING
     """The number of iterations between saves."""
@@ -144,10 +174,6 @@ class RslRlOnPolicyRunnerCfg:
     ``{time-stamp}_{run_name}``.
     """
 
-    ##
-    # Logging parameters
-    ##
-
     logger: Literal["tensorboard", "neptune", "wandb"] = "tensorboard"
     """The logger to use. Default is tensorboard."""
 
@@ -156,10 +182,6 @@ class RslRlOnPolicyRunnerCfg:
 
     wandb_project: str = "isaaclab"
     """The wandb project name. Default is "isaaclab"."""
-
-    ##
-    # Loading parameters
-    ##
 
     resume: bool = False
     """Whether to resume. Default is False."""

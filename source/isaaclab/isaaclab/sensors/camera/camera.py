@@ -124,7 +124,7 @@ class Camera(SensorBase):
             rot_offset = convert_camera_frame_orientation_convention(
                 rot, origin=self.cfg.offset.convention, target="opengl"
             )
-            rot_offset = rot_offset.squeeze(0).numpy()
+            rot_offset = rot_offset.squeeze(0).cpu().numpy()
             # ensure vertical aperture is set, otherwise replace with default for squared pixels
             if self.cfg.spawn.vertical_aperture is None:
                 self.cfg.spawn.vertical_aperture = self.cfg.spawn.horizontal_aperture * self.cfg.height / self.cfg.width
@@ -510,7 +510,8 @@ class Camera(SensorBase):
         # Increment frame count
         self._frame[env_ids] += 1
         # -- pose
-        self._update_poses(env_ids)
+        if self.cfg.update_latest_camera_pose:
+            self._update_poses(env_ids)
         # -- read the data from annotator registry
         # check if buffer is called for the first time. If so then, allocate the memory
         if len(self._data.output) == 0:
