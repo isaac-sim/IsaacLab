@@ -12,30 +12,6 @@ from . import agents, flat_env_cfg, rough_env_cfg
 ##
 
 gym.register(
-    id="Isaac-Velocity-Rough-Valkyrie-v0",
-    entry_point="isaaclab.envs:ManagerBasedRLEnv",
-    disable_env_checker=True,
-    kwargs={
-        "env_cfg_entry_point": rough_env_cfg.ValkyrieRoughEnvCfg,
-        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:ValkyrieRoughPPORunnerCfg",
-        "skrl_cfg_entry_point": f"{agents.__name__}:skrl_rough_ppo_cfg.yaml",
-    },
-)
-
-
-gym.register(
-    id="Isaac-Velocity-Rough-Valkyrie-Play-v0",
-    entry_point="isaaclab.envs:ManagerBasedRLEnv",
-    disable_env_checker=True,
-    kwargs={
-        "env_cfg_entry_point": rough_env_cfg.ValkyrieRoughEnvCfg_PLAY,
-        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:ValkyrieRoughPPORunnerCfg",
-        "skrl_cfg_entry_point": f"{agents.__name__}:skrl_rough_ppo_cfg.yaml",
-    },
-)
-
-
-gym.register(
     id="Isaac-Velocity-Flat-Valkyrie-v0",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
