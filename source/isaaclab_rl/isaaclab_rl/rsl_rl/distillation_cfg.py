@@ -79,5 +79,5 @@ class RslRlDistillationAlgorithmCfg:
     gradient_length: int = MISSING
     """The number of environment steps the gradient flows back."""
 
-    max_grad_norm: float = 1.0
+    max_grad_norm: None | float = None
     """The maximum gradient norm used for distillation"""
