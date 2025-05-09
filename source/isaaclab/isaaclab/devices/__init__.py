@@ -25,4 +25,4 @@ from .keyboard import Se2Keyboard, Se3Keyboard, Se3Keyboard_BMM
 from .openxr import OpenXRDevice
 from .retargeter_base import RetargeterBase
 from .spacemouse import Se2SpaceMouse, Se3SpaceMouse
-from .oculus import Oculus_mobile
+from .oculus import Oculus_mobile, Oculus_abs

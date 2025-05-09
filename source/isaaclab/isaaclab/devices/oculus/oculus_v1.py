@@ -230,18 +230,21 @@ class OculusReader:
 
 
 
-class Oculus_mobile(DeviceBase):
-    """A joystick controller for sending SE(3) commands as delta poses and binary command (open/close).
+class Oculus_abs(DeviceBase):
+    """
+    Changes
+    1. Relative to Absolute
+    2. DROID setup
 
-    This class is designed to provide a joystick controller for a bi-manual mobile manipulator.
-    It uses the rail oculus reader to listen to joystick events and map them to robot's
-    task-space commands.
+    
 
     The command comprises of three parts:
 
     * delta control for mobile base: a 3D vector of (vx, vy, vz) in meters per second.
-    * delta pose for each arms: a 6D vector of (x, y, z, roll, pitch, yaw) in meters and radians.
+    * abs pose for each arms: a 7D vector of position (x, y, z) and quaternion (w, x, y, z) in meters and radians.
     * gripper for each arms: a binary command to open or close the gripper.
+    * RJ for resetting absolute pose of the arms.
+    * LG/RG for moving the arm (DROID setup)
 
     Key bindings:
         ============================== ================= 
@@ -251,11 +254,11 @@ class Oculus_mobile(DeviceBase):
         Toggle gripperL (open/close)   LTr (index finger)
         Move along xy plane            leftJS xy position
         Rotate along yaw               RightJS x         
-        Move right arm                 IK of right joystick SE(3) 4x4 matrix
-        Move left arm                  IK of left joystick SE(3) 4x4 matrix
+        Move right arm                 RG
+        Move left arm                  LG
         ============================== ================= 
     """
-    def __init__(self, pos_sensitivity: float = 0.01, rot_sensitivity: float = 0.01, base_sensitivity: float = 0.05):
+    def __init__(self, pos_sensitivity: float = 1.0 , rot_sensitivity: float = 1.0, base_sensitivity: float = 1.0):
         """
         Args:
             pos_sensitivity: Magnitude of input position command scaling for arms.
@@ -277,15 +280,16 @@ class Oculus_mobile(DeviceBase):
         # command buffers
         self._close_gripper_left = False
         self._close_gripper_right = False
-        self._delta_pos_left = np.zeros(3)  # (x, y, z) for left arm
-        self._delta_rot_left = np.zeros(3)  # (roll, pitch, yaw) for left arm
-        self._delta_pos_right = np.zeros(3)  # (x, y, z) for right arm
-        self._delta_rot_right = np.zeros(3)  # (roll, pitch, yaw) for right arm
+        self._abs_pos_left = np.zeros(3)  # (x, y, z) for left arm
+        self._abs_rot_left = np.zeros(4)  # quaternion (w, x, y, z) for left arm
+        self._abs_pos_right = np.zeros(3)  # (x, y, z) for right arm
+        self._abs_rot_right = np.zeros(4)  # quaternion (w, x, y, z) for right arm
         self._delta_base = np.zeros(3)  # (x, y, yaw) for mobile base
         
         # arm
-        self._last_transform_left = np.eye(4)
-        self._last_transform_right = np.eye(4)
+        self._origin_left = np.eye(4)
+        self._origin_right = np.eye(4)
+
 
         # gripper
         self._prev_LTr_state = False
@@ -293,7 +297,7 @@ class Oculus_mobile(DeviceBase):
 
         # xy
         self._last_leftJS = (0.0, 0.0)
-        self._js_threshold = 0.4  # tune this to taste
+        self._js_threshold = 0.1  # tune this to taste
         
         # yaw
         self.rotation_divisor = 1.2037685675
@@ -308,22 +312,21 @@ class Oculus_mobile(DeviceBase):
     
     def reset(self):
         """Reset all commands."""
-        # self._close_gripper_left = False
-        # self._close_gripper_right = False
-        self._delta_pos_left = np.zeros(3)
-        self._delta_rot_left = np.zeros(3)
-        self._delta_pos_right = np.zeros(3)
-        self._delta_rot_right = np.zeros(3)
+        self._close_gripper_left = False
+        self._close_gripper_right = False
+        self._abs_pos_left = np.zeros(3)
+        self._abs_rot_left = np.zeros(4)
+        self._abs_pos_right = np.zeros(3)
+        self._abs_rot_right = np.zeros(4)
         self._delta_base = np.zeros(3)
-        # self._base_z_accum = 0.0
-        # self._key_hold_start = {}  # Reset key hold tracking
+        self._base_z_accum = 0.0
+        self._key_hold_start = {}  # Reset key hold tracking
 
     def __str__(self) -> str:
         """Returns: A string containing the information of joystick."""
         msg = f"Joystick Controller for SE(3): {self.__class__.__name__}\n"
         msg += "\t----------------------------------------------\n"
 
-    #[TODO: Reset event in add_callback]
     def add_callback(self, key: str, func: Callable):
         """Add additional functions to bind keyboard.
 
@@ -351,40 +354,33 @@ class Oculus_mobile(DeviceBase):
         """
         # fetch latest controller data
         transforms, buttons = self.oculus_reader.get_valid_transforms_and_buttons()  # returns dict with 'leftJS', 'rightJS'
-        # ipdb.set_trace()
-        # print(transforms)
-        # Delta pose for arms
-        print(buttons)
+
         # 1. grab current
         T_l = transforms["l"]
         T_r = transforms["r"]
 
-        # 2. TRANSLATION DELTA: just position difference
-        #    (new_pos - old_pos), then axis‐swap & sensitivity
-        dp_l_raw = T_l[:3, 3] - self._last_transform_left[:3, 3]
-        dp_r_raw = T_r[:3, 3] - self._last_transform_right[:3, 3]
-
-        self._delta_pos_left  = np.array([-dp_l_raw[2], -dp_l_raw[0], dp_l_raw[1]]) * self.pos_sensitivity
-        self._delta_pos_right = np.array([-dp_r_raw[2], -dp_r_raw[0], dp_r_raw[1]]) * self.pos_sensitivity
+        # 2. arm absolute pose
+        self._abs_pos_left  = np.array(T_l[:3, 3] - self._origin_left[:3,3]) * self.pos_sensitivity
+        self._abs_pos_right = np.array(T_l[:3, 3] - self._origin_right[:3,3])  * self.pos_sensitivity
 
         # 3. ROTATION DELTA: same as before, via delta‐matrix
-        R_l_delta = T_l[:3, :3] @ self._last_transform_left[:3, :3].T
-        R_r_delta = T_r[:3, :3] @ self._last_transform_right[:3, :3].T
+        # self._abs_rot_left  = Rotation.from_matrix(T_l[:3, :3] - self._origin_left[:3,:3]).as_quat()* self.rot_sensitivity
+        # self._abs_rot_right = Rotation.from_matrix(T_r[:3, :3] - self._origin_right[:3,:3]).as_quat()* self.rot_sensitivity
 
-        rv_l = Rotation.from_matrix(R_l_delta).as_rotvec() * self.rot_sensitivity
-        rv_r = Rotation.from_matrix(R_r_delta).as_rotvec() * self.rot_sensitivity
+        delta_rot_left = self._origin_left[:3, :3].T @ T_l[:3, :3]
+        self._abs_rot_left = Rotation.from_matrix(delta_rot_left).as_quat() * self.rot_sensitivity
+
+        
+        delta_rot_right = self._origin_right[:3, :3].T @ T_r[:3, :3]
+        self._abs_rot_right = Rotation.from_matrix(delta_rot_right).as_quat() * self.rot_sensitivity
 
         # re‐order [z, x, y] and flip signs on first two
-        self._delta_rot_left  = rv_l[[2, 0, 1]] * np.array([-1, -1, 1])
-        self._delta_rot_right = rv_r[[2, 0, 1]] * np.array([-1, -1, 1])
-
-        # 4. save current for next frame
-        self._last_transform_left  = T_l.copy()
-        self._last_transform_right = T_r.copy()
-
-        # 5. reset on button X
-        if buttons.get("X", False):
-            self.reset()
+        # self._abs_rot_left  = self._abs_rot_left[[2, 0, 1]] * np.array([-1, -1, 1])
+        # self._abs_rot_right = self._abs_rot_right[[2, 0, 1]] * np.array([-1, -1, 1])
+        
+        if buttons['RJ']:
+            self._origin_left = T_l.copy()
+            self._origin_right = T_r.copy()
 
         # Gripper
         # Somewhere in your class, add:
@@ -478,10 +474,22 @@ class Oculus_mobile(DeviceBase):
                 self._last_leftJS = new_js
             
         # return the commands
+        if not buttons['LG']:
+            self._abs_pos_left = np.zeros(3)
+            self._abs_rot_left = np.zeros(4)
+        if not buttons['RG']:
+            self._abs_pos_right = np.zeros(3)
+            self._abs_rot_right = np.zeros(4)
+
+        print("Left arm position:", self._abs_pos_left)
+        print("Left arm rotation:", self._abs_rot_left)
+        print("Right arm position:", self._abs_pos_right)
+        print("Right arm rotation:", self._abs_rot_right)
+
         return (
-            np.concatenate([self._delta_pos_left, self._delta_rot_left]),  # Left arm
+            np.concatenate([self._abs_pos_left, self._abs_rot_left]),  # Left arm
             self._close_gripper_left,  # Left gripper
-            np.concatenate([self._delta_pos_right, self._delta_rot_right ]),  # Right arm
+            np.concatenate([self._abs_pos_right, self._abs_rot_right ]),  # Right arm
             self._close_gripper_right,  # Right gripper
             self._delta_base,  # Mobile base
         )
