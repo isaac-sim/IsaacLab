@@ -111,6 +111,21 @@ class TestSpawningMeshGeometries(unittest.TestCase):
         # Check properties
         prim = prim_utils.get_prim_at_path("/World/Sphere/geometry/mesh")
         self.assertEqual(prim.GetPrimTypeInfo().GetTypeName(), "Mesh")
+        
+    def test_spawn_meshfile(self):
+        """Test spawning of UsdGeomMesh as a mesh prim from file."""
+        # Spawn mesh
+        cfg = sim_utils.MeshFileCfg(
+            file_path="_isaac_sim/standalone_examples/data/torus/torus.stl"
+        )
+        prim = cfg.func("/World/Torus", cfg)
+        # Check validity
+        self.assertTrue(prim.IsValid())
+        self.assertTrue(prim_utils.is_prim_path_valid("/World/Torus"))
+        self.assertEqual(prim.GetPrimTypeInfo().GetTypeName(), "Xform")
+        # Check properties
+        prim = prim_utils.get_prim_at_path("/World/Torus/geometry/mesh")
+        self.assertEqual(prim.GetPrimTypeInfo().GetTypeName(), "Mesh")
 
     """
     Physics properties.

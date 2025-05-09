@@ -106,6 +106,7 @@ Guidelines for modifications:
 * Vladimir Fokow
 * Wei Yang
 * Xavier Nal
+* Xudong Han
 * Yang Jin
 * Yanzi Zhu
 * Yujian Zhang

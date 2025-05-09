@@ -110,6 +110,7 @@ Meshes
     MeshCuboidCfg
     MeshCylinderCfg
     MeshSphereCfg
+    MeshFileCfg
 
 .. autoclass:: MeshCfg
     :members:
@@ -146,6 +147,13 @@ Meshes
 .. autofunction:: spawn_mesh_sphere
 
 .. autoclass:: MeshSphereCfg
+    :members:
+    :show-inheritance:
+    :exclude-members: __init__, func
+
+.. autofunction:: spawn_mesh_file
+
+.. autoclass:: MeshFileCfg
     :members:
     :show-inheritance:
     :exclude-members: __init__, func
