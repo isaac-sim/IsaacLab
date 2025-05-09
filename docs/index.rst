@@ -80,6 +80,8 @@ Table of Contents
    source/setup/quickstart
    source/setup/installation/index
    source/setup/installation/cloud_installation
+   source/setup/walkthrough/index
+   source/refs/reference_architecture/index
 
 .. toctree::
    :maxdepth: 3
@@ -133,7 +135,7 @@ Table of Contents
    :maxdepth: 1
    :caption: References
 
-   source/refs/reference_architecture/index
+
    source/refs/additional_resources
    source/refs/contributing
    source/refs/troubleshooting
