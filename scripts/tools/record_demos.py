@@ -27,13 +27,6 @@ optional arguments:
 import argparse
 import contextlib
 
-# Third-party imports
-import gymnasium as gym
-import numpy as np
-import os
-import time
-import torch
-
 # Isaac Lab AppLauncher
 from isaaclab.app import AppLauncher
 
@@ -79,6 +72,16 @@ if "handtracking" in args_cli.teleop_device.lower():
 app_launcher = AppLauncher(args_cli)
 simulation_app = app_launcher.app
 
+"""Rest everything follows."""
+
+
+# Third-party imports
+import gymnasium as gym
+import numpy as np
+import os
+import time
+import torch
+
 # Omniverse logger
 import omni.log
 import omni.ui as ui
@@ -94,9 +97,11 @@ if args_cli.enable_pinocchio:
     import isaaclab_tasks.manager_based.manipulation.pick_place  # noqa: F401
 
 from isaaclab.devices.openxr.retargeters.manipulator import GripperRetargeter, Se3AbsRetargeter, Se3RelRetargeter
+from isaaclab.envs import ManagerBasedEnvCfg
 from isaaclab.envs.mdp.recorders.recorders_cfg import ActionStateRecorderManagerCfg
 from isaaclab.envs.ui import EmptyWindow
-from isaaclab.managers import DatasetExportMode
+from isaaclab.managers import DatasetExportMode, SceneEntityCfg
+from isaaclab.sensors import CameraCfg
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
@@ -156,7 +161,7 @@ def pre_process_actions(
         # note: reach is the only one that uses a different action space
         # compute actions
         return delta_pose
-    elif "PickPlace-GR1T2" in args_cli.task:
+    elif "GR1T2" in args_cli.task:
         (left_wrist_pose, right_wrist_pose, hand_joints) = teleop_data[0]
         # Reconstruct actions_arms tensor with converted positions and rotations
         actions = torch.tensor(
@@ -179,6 +184,25 @@ def pre_process_actions(
         gripper_vel[:] = -1 if gripper_command else 1
         # compute actions
         return torch.concat([delta_pose, gripper_vel], dim=1)
+
+
+def remove_camera_configs(env_cfg: ManagerBasedEnvCfg):
+    for attr_name in dir(env_cfg.scene):
+        attr = getattr(env_cfg.scene, attr_name)
+        if isinstance(attr, CameraCfg):
+            delattr(env_cfg.scene, attr_name)
+            omni.log.info(f"Removed camera config: {attr_name}")
+
+            # Remove any ObsTerms for the camera
+            for obs_name in dir(env_cfg.observations.policy):
+                obsterm = getattr(env_cfg.observations.policy, obs_name)
+                if hasattr(obsterm, "params") and obsterm.params:
+                    for param_value in obsterm.params.values():
+                        if isinstance(param_value, SceneEntityCfg) and param_value.name == attr_name:
+                            delattr(env_cfg.observations.policy, attr_name)
+                            omni.log.info(f"Removed camera observation term: {attr_name}")
+                            break
+    return env_cfg
 
 
 def main():
@@ -212,6 +236,12 @@ def main():
             "No success termination term was found in the environment."
             " Will not be able to mark recorded demos as successful."
         )
+
+    if "handtracking" in args_cli.teleop_device.lower():
+        # External cameras are not supported with XR teleop
+        # Check for any camera configs and disable them
+        env_cfg = remove_camera_configs(env_cfg)
+        env_cfg.sim.render.antialiasing_mode = "DLSS"
 
     # modify configuration such that the environment runs indefinitely until
     # the goal is reached or other termination conditions are met
@@ -357,7 +387,7 @@ def main():
     label_text = f"Recorded {current_recorded_demo_count} successful demonstrations."
 
     instruction_display = InstructionDisplay(args_cli.teleop_device)
-    if args_cli.teleop_device.lower() != "handtracking":
+    if "handtracking" not in args_cli.teleop_device.lower():
         window = EmptyWindow(env, "Instruction")
         with window.ui_window_elements["main_vstack"]:
             demo_label = ui.Label(label_text)
