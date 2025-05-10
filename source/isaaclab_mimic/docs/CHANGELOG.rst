@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+1.0.8 (2025-05-01)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`NutPourGR1T2MimicEnv` and :class:`ExhaustPipeGR1T2MimicEnv` for the GR1T2 nut pouring and exhaust pipe tasks.
+* Updated instruction display to support all XR handtracking devices.
+
+
 1.0.7 (2025-03-19)
 ~~~~~~~~~~~~~~~~~~
 
@@ -14,7 +24,7 @@ Changed
 ~~~~~~~~~~~~~~~~~~
 
 Added
-^^^^^^^
+^^^^^
 
 * Added :class:`FrankaCubeStackIKAbsMimicEnv` and support for the GR1T2 robot task (:class:`PickPlaceGR1T2MimicEnv`).
 

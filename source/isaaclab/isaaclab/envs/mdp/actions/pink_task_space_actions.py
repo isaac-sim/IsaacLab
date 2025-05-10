@@ -197,10 +197,12 @@ class PinkInverseKinematicsAction(ActionTerm):
             joint_pos_des = ik_controller.compute(curr_joint_pos, self._sim_dt)
             all_envs_joint_pos_des.append(joint_pos_des)
         all_envs_joint_pos_des = torch.stack(all_envs_joint_pos_des)
+
         # Combine IK joint positions with hand joint positions
         all_envs_joint_pos_des = torch.cat((all_envs_joint_pos_des, self._target_hand_joint_positions), dim=1)
+        self._processed_actions = all_envs_joint_pos_des
 
-        self._asset.set_joint_position_target(all_envs_joint_pos_des, self._joint_ids)
+        self._asset.set_joint_position_target(self._processed_actions, self._joint_ids)
 
     def reset(self, env_ids: Sequence[int] | None = None) -> None:
         """Reset the action term for specified environments.

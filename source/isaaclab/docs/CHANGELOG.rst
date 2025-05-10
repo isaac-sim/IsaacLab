@@ -391,6 +391,16 @@ Added
 * Added :meth:`~isaaclab.envs.mdp.observations.body_projected_gravity_b`
 
 
+0.37.3 (2025-05-08)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Updated PINK task space action to record processed actions.
+* Added new recorder term for recording post step processed actions.
+
+
 0.37.2 (2025-05-06)
 ~~~~~~~~~~~~~~~~~~~~
 
