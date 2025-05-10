@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.39.1 (2025-05-10)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Updated gymnasium to >= 1.0
+* Added support for specifying module:task_name as task name to avoid module import for ``gym.make``
+
+
 0.39.0 (2025-05-03)
 ~~~~~~~~~~~~~~~~~~~
 
