@@ -650,6 +650,7 @@ class AppLauncher:
             self.global_rank = int(os.getenv("RANK", "0")) + int(os.getenv("JAX_RANK", "0"))
 
             self.device_id = self.local_rank
+            device = "cuda:" + str(self.device_id)
             launcher_args["multi_gpu"] = False
             # limit CPU threads to minimize thread context switching
             # this ensures processes do not take up all available threads and fight for resources
