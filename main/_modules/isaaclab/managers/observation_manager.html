@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.1.0" />
-    <meta name="docbuild:last-update" content="May 09, 2025"/>
+    <meta name="docbuild:last-update" content="May 10, 2025"/>
   </head>
   
   
@@ -550,7 +550,7 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">prettytable</span><span class="w"> </span><span class="kn">import</span> <span class="n">PrettyTable</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TYPE_CHECKING</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">modifiers</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">class_to_dict</span><span class="p">,</span> <span class="n">modifiers</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils.buffers</span><span class="w"> </span><span class="kn">import</span> <span class="n">CircularBuffer</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">.manager_base</span><span class="w"> </span><span class="kn">import</span> <span class="n">ManagerBase</span><span class="p">,</span> <span class="n">ManagerTermBase</span>
@@ -870,6 +870,29 @@
         <span class="k">else</span><span class="p">:</span>
             <span class="k">return</span> <span class="n">group_obs</span></div>
 
+<div class="viewcode-block" id="ObservationManager.serialize"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.managers.html#isaaclab.managers.ObservationManager.serialize">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">serialize</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Serialize the observation term configurations for all active groups.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            A dictionary where each group name maps to its serialized observation term configurations.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">output</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="n">group_name</span><span class="p">:</span> <span class="p">{</span>
+                <span class="n">term_name</span><span class="p">:</span> <span class="p">(</span>
+                    <span class="n">term_cfg</span><span class="o">.</span><span class="n">func</span><span class="o">.</span><span class="n">serialize</span><span class="p">()</span>
+                    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">term_cfg</span><span class="o">.</span><span class="n">func</span><span class="p">,</span> <span class="n">ManagerTermBase</span><span class="p">)</span>
+                    <span class="k">else</span> <span class="p">{</span><span class="s2">&quot;cfg&quot;</span><span class="p">:</span> <span class="n">class_to_dict</span><span class="p">(</span><span class="n">term_cfg</span><span class="p">)}</span>
+                <span class="p">)</span>
+                <span class="k">for</span> <span class="n">term_name</span><span class="p">,</span> <span class="n">term_cfg</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_group_obs_term_names</span><span class="p">[</span><span class="n">group_name</span><span class="p">],</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_group_obs_term_cfgs</span><span class="p">[</span><span class="n">group_name</span><span class="p">],</span>
+                <span class="p">)</span>
+            <span class="p">}</span>
+            <span class="k">for</span> <span class="n">group_name</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">active_terms</span><span class="o">.</span><span class="n">keys</span><span class="p">()</span>
+        <span class="p">}</span>
+
+        <span class="k">return</span> <span class="n">output</span></div>
+
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Helper functions.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
@@ -1085,7 +1108,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on May 09, 2025.
+  Last updated on May 10, 2025.
   <br/>
 </p>
   </div>
