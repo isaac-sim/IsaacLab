@@ -17,12 +17,22 @@ simulation_app = AppLauncher(headless=True).app
 
 import torch
 from collections import namedtuple
+from typing import TYPE_CHECKING
 
 import pytest
 
 import isaaclab.sim as sim_utils
-from isaaclab.managers import ManagerTermBase, ObservationGroupCfg, ObservationManager, ObservationTermCfg
+from isaaclab.managers import (
+    ManagerTermBase,
+    ObservationGroupCfg,
+    ObservationManager,
+    ObservationTermCfg,
+    RewardTermCfg,
+)
 from isaaclab.utils import configclass, modifiers
+
+if TYPE_CHECKING:
+    from isaaclab.envs import ManagerBasedEnv
 
 
 def grilled_chicken(env):
@@ -656,6 +666,42 @@ def test_modifier_compute(setup_env):
     assert torch.equal(2.0 * (obs_critic["term_1"] + 1.0), obs_critic["term_3"])
     assert torch.min(obs_critic["term_4"]) >= -0.5
     assert torch.max(obs_critic["term_4"]) <= 0.5
+
+    def test_serialize(self):
+        """Test serialize call for ManagerTermBase terms."""
+
+        serialize_data = {"test": 0}
+
+        class test_serialize_term(ManagerTermBase):
+
+            def __init__(self, cfg: RewardTermCfg, env: ManagerBasedEnv):
+                super().__init__(cfg, env)
+
+            def __call__(self, env: ManagerBasedEnv) -> torch.Tensor:
+                return grilled_chicken(env)
+
+            def serialize(self) -> dict:
+                return serialize_data
+
+        @configclass
+        class MyObservationManagerCfg:
+            """Test config class for observation manager."""
+
+            @configclass
+            class PolicyCfg(ObservationGroupCfg):
+                """Test config class for policy observation group."""
+
+                concatenate_terms = False
+                term_1 = ObservationTermCfg(func=test_serialize_term)
+
+            policy: ObservationGroupCfg = PolicyCfg()
+
+        # create observation manager
+        cfg = MyObservationManagerCfg()
+        self.obs_man = ObservationManager(cfg, self.env)
+
+        # check expected output
+        self.assertEqual(self.obs_man.serialize(), {"policy": {"term_1": serialize_data}})
 
 
 def test_modifier_invalid_config(setup_env):
