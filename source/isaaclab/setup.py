@@ -42,6 +42,7 @@ INSTALL_REQUIRES = [
     # testing
     "pytest",
     "pytest-mock",
+    "junitparser",
     "flatdict==4.0.1",
 ]
 

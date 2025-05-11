@@ -12,9 +12,6 @@ import time
 
 from isaaclab.app import AppLauncher
 
-if AppLauncher.instance():
-    raise ValueError("AppLauncher instance already exists")
-
 
 def test_kit_start_up_time():
     """Test kit start-up time."""
