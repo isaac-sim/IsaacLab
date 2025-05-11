@@ -9,9 +9,6 @@ import pytest
 
 from isaaclab.app import AppLauncher
 
-if AppLauncher.instance():
-    raise ValueError("AppLauncher instance already exists")
-
 
 @pytest.mark.usefixtures("mocker")
 def test_livestream_launch_with_argparser(mocker):

@@ -5,16 +5,16 @@
 
 import os
 
+import pytest
+
 from isaaclab.app import AppLauncher
 
-if AppLauncher.instance():
-    raise ValueError("AppLauncher instance already exists")
 
-
-def test_livestream_launch_with_env_var():
-    """Test launching with no-keyword args but environment variables."""
-    # manually set the settings as well to make sure they are set correctly
-    os.environ["LIVESTREAM"] = "1"
+@pytest.mark.usefixtures("mocker")
+def test_livestream_launch_with_env_vars(mocker):
+    """Test launching with environment variables."""
+    # Mock the environment variables
+    mocker.patch.dict(os.environ, {"LIVESTREAM": "1", "HEADLESS": "1"})
     # everything defaults to None
     app = AppLauncher().app
 

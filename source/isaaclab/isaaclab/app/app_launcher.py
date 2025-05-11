@@ -11,7 +11,6 @@ clients. Some of these require the extensions to be loaded in a specific order, 
 fault occurs. The launched :class:`isaacsim.simulation_app.SimulationApp` instance is accessible via the
 :attr:`AppLauncher.app` property.
 """
-from __future__ import annotations
 
 import argparse
 import contextlib
@@ -61,9 +60,6 @@ class AppLauncher:
 
     """
 
-    _instance = None
-    _initialized = False
-
     def __init__(self, launcher_args: argparse.Namespace | dict | None = None, **kwargs):
         """Create a `SimulationApp`_ instance based on the input settings.
 
@@ -98,10 +94,6 @@ class AppLauncher:
         #
         # @hunter: I feel that this is cumbersome and could introduce error, and would prefer to do
         # some sanity checking in the add_app_launcher_args function
-        if AppLauncher._initialized:
-            return
-        AppLauncher._initialized = True
-
         if launcher_args is None:
             launcher_args = {}
         elif isinstance(launcher_args, argparse.Namespace):
@@ -167,60 +159,6 @@ class AppLauncher:
         # -- during segfaults
         signal.signal(signal.SIGABRT, self._abort_signal_handle_callback)
         signal.signal(signal.SIGSEGV, self._abort_signal_handle_callback)
-
-    def __new__(cls, *args, **kwargs) -> AppLauncher:
-        """Makes the class a singleton.
-
-        Returns:
-            AppLauncher: The instance of the app launcher.
-        """
-        if AppLauncher._instance is None:
-            AppLauncher._instance = super().__new__(cls)
-        else:
-            import carb
-
-            carb.log_info("AppLauncher is defined already, returning the previously defined one")
-        return AppLauncher._instance
-
-    """
-    Instance handling.
-    """
-
-    @classmethod
-    def instance(cls) -> AppLauncher:
-        """Get the instance of the class, if it was instantiated before
-
-        Returns:
-            AppLauncher: AppLauncher object or None
-
-        Example:
-
-        .. code-block:: python
-
-            >>> # given that the class has already been instantiated before
-            >>> app_launcher = AppLauncher.instance()
-            >>> app_launcher
-            <isaaclab.app.app_launcher.AppLauncher object at 0x...>
-        """
-        return AppLauncher._instance
-
-    @classmethod
-    def clear_instance(cls) -> None:
-        """Delete the simulation context object, if it was instantiated before, and destroy any subscribed callback
-
-        Example:
-
-        .. code-block:: python
-
-            >>> AppLauncher.clear_instance()
-        """
-        if AppLauncher._instance is not None:
-            # close the app
-            AppLauncher._instance._app.close()
-            # mark launcher as uninitialized
-            AppLauncher._initialized = False
-            # clear the instance
-        AppLauncher._instance = None
 
     """
     Properties.
@@ -950,10 +888,6 @@ class AppLauncher:
         """Handle the interrupt signal from the keyboard."""
         # close the app
         self._app.close()
-        # mark launcher as uninitialized
-        AppLauncher._initialized = False
-        # clear the instance
-        AppLauncher._instance = None
         # raise the error for keyboard interrupt
         raise KeyboardInterrupt
 
@@ -978,10 +912,6 @@ class AppLauncher:
         """Handle the abort/segmentation/kill signals."""
         # close the app
         self._app.close()
-        # mark launcher as uninitialized
-        AppLauncher._initialized = False
-        # clear the instance
-        AppLauncher._instance = None
 
     def __patch_simulation_start_app(self, launcher_args: dict):
         if not launcher_args.get("enable_pinocchio", False):

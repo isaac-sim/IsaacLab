@@ -3,14 +3,14 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+import pytest
+
 from isaaclab.app import AppLauncher
 
-if AppLauncher.instance():
-    raise ValueError("AppLauncher instance already exists")
 
-
-def test_livestream_launch_with_kwarg():
-    """Test launching with headless and livestreaming arguments."""
+@pytest.mark.usefixtures("mocker")
+def test_livestream_launch_with_kwargs(mocker):
+    """Test launching with keyword arguments."""
     # everything defaults to None
     app = AppLauncher(headless=True, livestream=1).app
 
