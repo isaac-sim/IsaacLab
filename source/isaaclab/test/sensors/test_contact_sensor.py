@@ -221,153 +221,151 @@ def setup_simulation():
     return sim_dt, durations, terrains, devices, carb_settings_iface
 
 
-def test_cube_contact_time(setup_simulation):
+@pytest.mark.parametrize("disable_contact_processing", [True, False])
+def test_cube_contact_time(setup_simulation, disable_contact_processing):
     """Checks contact sensor values for contact time and air time for a cube collision primitive."""
     # check for both contact processing enabled and disabled
     # internally, the contact sensor should enable contact processing so it should always work.
     sim_dt, durations, terrains, devices, carb_settings_iface = setup_simulation
-    for disable_contact_processing in [True, False]:
-        carb_settings_iface.set_bool("/physics/disableContactProcessing", disable_contact_processing)
-        _run_contact_sensor_test(CUBE_CFG, sim_dt, devices, terrains, carb_settings_iface, durations)
+    carb_settings_iface.set_bool("/physics/disableContactProcessing", disable_contact_processing)
+    _run_contact_sensor_test(CUBE_CFG, sim_dt, devices, terrains, carb_settings_iface, durations)
 
 
-def test_sphere_contact_time(setup_simulation):
+@pytest.mark.parametrize("disable_contact_processing", [True, False])
+def test_sphere_contact_time(setup_simulation, disable_contact_processing):
     """Checks contact sensor values for contact time and air time for a sphere collision primitive."""
     # check for both contact processing enabled and disabled
     # internally, the contact sensor should enable contact processing so it should always work.
     sim_dt, durations, terrains, devices, carb_settings_iface = setup_simulation
-    for disable_contact_processing in [True, False]:
-        carb_settings_iface.set_bool("/physics/disableContactProcessing", disable_contact_processing)
-        _run_contact_sensor_test(SPHERE_CFG, sim_dt, devices, terrains, carb_settings_iface, durations)
+    carb_settings_iface.set_bool("/physics/disableContactProcessing", disable_contact_processing)
+    _run_contact_sensor_test(SPHERE_CFG, sim_dt, devices, terrains, carb_settings_iface, durations)
 
 
-def test_cube_stack_contact_filtering(setup_simulation):
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("num_envs", [1, 6, 24])
+def test_cube_stack_contact_filtering(setup_simulation, device, num_envs):
     """Checks contact sensor reporting for filtering stacked cube prims."""
     sim_dt, durations, terrains, devices, carb_settings_iface = setup_simulation
-    for device in devices:
-        for num_envs in [1, 6, 24]:
-            with build_simulation_context(device=device, dt=sim_dt, add_lighting=True) as sim:
-                sim._app_control_on_stop_handle = None
-                # Instance new scene for the current terrain and contact prim.
-                scene_cfg = ContactSensorSceneCfg(num_envs=num_envs, env_spacing=1.0, lazy_sensor_update=False)
-                scene_cfg.terrain = FLAT_TERRAIN_CFG.replace(prim_path="/World/ground")
-                # -- cube 1
-                scene_cfg.shape = CUBE_CFG.replace(prim_path="{ENV_REGEX_NS}/Cube_1")
-                scene_cfg.shape.init_state.pos = (0, -1.0, 1.0)
-                # -- cube 2 (on top of cube 1)
-                scene_cfg.shape_2 = CUBE_CFG.replace(prim_path="{ENV_REGEX_NS}/Cube_2")
-                scene_cfg.shape_2.init_state.pos = (0, -1.0, 1.525)
-                # -- contact sensor 1
-                scene_cfg.contact_sensor = ContactSensorCfg(
-                    prim_path="{ENV_REGEX_NS}/Cube_1",
-                    track_pose=True,
-                    debug_vis=False,
-                    update_period=0.0,
-                    filter_prim_paths_expr=["{ENV_REGEX_NS}/Cube_2"],
-                )
-                # -- contact sensor 2
-                scene_cfg.contact_sensor_2 = ContactSensorCfg(
-                    prim_path="{ENV_REGEX_NS}/Cube_2",
-                    track_pose=True,
-                    debug_vis=False,
-                    update_period=0.0,
-                    filter_prim_paths_expr=["{ENV_REGEX_NS}/Cube_1"],
-                )
-                scene = InteractiveScene(scene_cfg)
+    with build_simulation_context(device=device, dt=sim_dt, add_lighting=True) as sim:
+        sim._app_control_on_stop_handle = None
+        # Instance new scene for the current terrain and contact prim.
+        scene_cfg = ContactSensorSceneCfg(num_envs=num_envs, env_spacing=1.0, lazy_sensor_update=False)
+        scene_cfg.terrain = FLAT_TERRAIN_CFG.replace(prim_path="/World/ground")
+        # -- cube 1
+        scene_cfg.shape = CUBE_CFG.replace(prim_path="{ENV_REGEX_NS}/Cube_1")
+        scene_cfg.shape.init_state.pos = (0, -1.0, 1.0)
+        # -- cube 2 (on top of cube 1)
+        scene_cfg.shape_2 = CUBE_CFG.replace(prim_path="{ENV_REGEX_NS}/Cube_2")
+        scene_cfg.shape_2.init_state.pos = (0, -1.0, 1.525)
+        # -- contact sensor 1
+        scene_cfg.contact_sensor = ContactSensorCfg(
+            prim_path="{ENV_REGEX_NS}/Cube_1",
+            track_pose=True,
+            debug_vis=False,
+            update_period=0.0,
+            filter_prim_paths_expr=["{ENV_REGEX_NS}/Cube_2"],
+        )
+        # -- contact sensor 2
+        scene_cfg.contact_sensor_2 = ContactSensorCfg(
+            prim_path="{ENV_REGEX_NS}/Cube_2",
+            track_pose=True,
+            debug_vis=False,
+            update_period=0.0,
+            filter_prim_paths_expr=["{ENV_REGEX_NS}/Cube_1"],
+        )
+        scene = InteractiveScene(scene_cfg)
 
-                # Check that contact processing is enabled
-                assert not carb_settings_iface.get("/physics/disableContactProcessing")
+        # Check that contact processing is enabled
+        assert not carb_settings_iface.get("/physics/disableContactProcessing")
 
-                # Set variables internally for reference
-                sim.reset()
+        # Set variables internally for reference
+        sim.reset()
 
-                contact_sensor = scene["contact_sensor"]
-                contact_sensor_2 = scene["contact_sensor_2"]
+        contact_sensor = scene["contact_sensor"]
+        contact_sensor_2 = scene["contact_sensor_2"]
 
-                # Check that contact processing is enabled
-                assert contact_sensor.contact_physx_view.filter_count == 1
-                assert contact_sensor_2.contact_physx_view.filter_count == 1
+        # Check that contact processing is enabled
+        assert contact_sensor.contact_physx_view.filter_count == 1
+        assert contact_sensor_2.contact_physx_view.filter_count == 1
 
-                # Play the simulation
-                scene.reset()
-                for _ in range(500):
-                    _perform_sim_step(sim, scene, sim_dt)
+        # Play the simulation
+        scene.reset()
+        for _ in range(500):
+            _perform_sim_step(sim, scene, sim_dt)
 
-                # Check values for cube 2 --> cube 1 is the only collision for cube 2
-                torch.testing.assert_close(
-                    contact_sensor_2.data.force_matrix_w[:, :, 0], contact_sensor_2.data.net_forces_w
-                )
-                # Check that forces are opposite and equal
-                torch.testing.assert_close(
-                    contact_sensor_2.data.force_matrix_w[:, :, 0], -contact_sensor.data.force_matrix_w[:, :, 0]
-                )
-                # Check values are non-zero (contacts are happening and are getting reported)
-                assert contact_sensor_2.data.net_forces_w.sum().item() > 0.0
-                assert contact_sensor.data.net_forces_w.sum().item() > 0.0
+        # Check values for cube 2 --> cube 1 is the only collision for cube 2
+        torch.testing.assert_close(contact_sensor_2.data.force_matrix_w[:, :, 0], contact_sensor_2.data.net_forces_w)
+        # Check that forces are opposite and equal
+        torch.testing.assert_close(
+            contact_sensor_2.data.force_matrix_w[:, :, 0], -contact_sensor.data.force_matrix_w[:, :, 0]
+        )
+        # Check values are non-zero (contacts are happening and are getting reported)
+        assert contact_sensor_2.data.net_forces_w.sum().item() > 0.0
+        assert contact_sensor.data.net_forces_w.sum().item() > 0.0
 
 
-def test_no_contact_reporting(setup_simulation):
+@pytest.mark.parametrize("device", "cpu")
+def test_no_contact_reporting(setup_simulation, device):
     """Test that forcing the disable of contact processing results in no contact reporting.
 
     We borrow the test :func:`test_cube_stack_contact_filtering` to test this and force disable contact processing.
     """
     # TODO: This test only works on CPU. For GPU, it seems the contact processing is not disabled.
     sim_dt, durations, terrains, devices, carb_settings_iface = setup_simulation
-    for device in ["cpu"]:
-        with build_simulation_context(device=device, dt=sim_dt, add_lighting=True) as sim:
-            sim._app_control_on_stop_handle = None
-            # Instance new scene for the current terrain and contact prim.
-            scene_cfg = ContactSensorSceneCfg(num_envs=32, env_spacing=1.0, lazy_sensor_update=False)
-            scene_cfg.terrain = FLAT_TERRAIN_CFG
-            # -- cube 1
-            scene_cfg.shape = CUBE_CFG.replace(prim_path="{ENV_REGEX_NS}/Cube_1")
-            scene_cfg.shape.init_state.pos = (0, -1.0, 1.0)
-            # -- cube 2 (on top of cube 1)
-            scene_cfg.shape_2 = CUBE_CFG.replace(prim_path="{ENV_REGEX_NS}/Cube_2")
-            scene_cfg.shape_2.init_state.pos = (0, -1.0, 1.525)
-            # -- contact sensor 1
-            scene_cfg.contact_sensor = ContactSensorCfg(
-                prim_path="{ENV_REGEX_NS}/Cube_1",
-                track_pose=True,
-                debug_vis=False,
-                update_period=0.0,
-                filter_prim_paths_expr=["{ENV_REGEX_NS}/Cube_2"],
-            )
-            # -- contact sensor 2
-            scene_cfg.contact_sensor_2 = ContactSensorCfg(
-                prim_path="{ENV_REGEX_NS}/Cube_2",
-                track_pose=True,
-                debug_vis=False,
-                update_period=0.0,
-                filter_prim_paths_expr=["{ENV_REGEX_NS}/Cube_1"],
-            )
-            scene = InteractiveScene(scene_cfg)
+    with build_simulation_context(device=device, dt=sim_dt, add_lighting=True) as sim:
+        sim._app_control_on_stop_handle = None
+        # Instance new scene for the current terrain and contact prim.
+        scene_cfg = ContactSensorSceneCfg(num_envs=32, env_spacing=1.0, lazy_sensor_update=False)
+        scene_cfg.terrain = FLAT_TERRAIN_CFG
+        # -- cube 1
+        scene_cfg.shape = CUBE_CFG.replace(prim_path="{ENV_REGEX_NS}/Cube_1")
+        scene_cfg.shape.init_state.pos = (0, -1.0, 1.0)
+        # -- cube 2 (on top of cube 1)
+        scene_cfg.shape_2 = CUBE_CFG.replace(prim_path="{ENV_REGEX_NS}/Cube_2")
+        scene_cfg.shape_2.init_state.pos = (0, -1.0, 1.525)
+        # -- contact sensor 1
+        scene_cfg.contact_sensor = ContactSensorCfg(
+            prim_path="{ENV_REGEX_NS}/Cube_1",
+            track_pose=True,
+            debug_vis=False,
+            update_period=0.0,
+            filter_prim_paths_expr=["{ENV_REGEX_NS}/Cube_2"],
+        )
+        # -- contact sensor 2
+        scene_cfg.contact_sensor_2 = ContactSensorCfg(
+            prim_path="{ENV_REGEX_NS}/Cube_2",
+            track_pose=True,
+            debug_vis=False,
+            update_period=0.0,
+            filter_prim_paths_expr=["{ENV_REGEX_NS}/Cube_1"],
+        )
+        scene = InteractiveScene(scene_cfg)
 
-            # Force disable contact processing
-            carb_settings_iface.set_bool("/physics/disableContactProcessing", True)
+        # Force disable contact processing
+        carb_settings_iface.set_bool("/physics/disableContactProcessing", True)
 
-            # Set variables internally for reference
-            sim.reset()
+        # Set variables internally for reference
+        sim.reset()
 
-            # Extract from scene for type hinting
-            contact_sensor: ContactSensor = scene["contact_sensor"]
-            contact_sensor_2: ContactSensor = scene["contact_sensor_2"]
+        # Extract from scene for type hinting
+        contact_sensor: ContactSensor = scene["contact_sensor"]
+        contact_sensor_2: ContactSensor = scene["contact_sensor_2"]
 
-            # Check buffers have the right size
-            assert contact_sensor.contact_physx_view.filter_count == 1
-            assert contact_sensor_2.contact_physx_view.filter_count == 1
+        # Check buffers have the right size
+        assert contact_sensor.contact_physx_view.filter_count == 1
+        assert contact_sensor_2.contact_physx_view.filter_count == 1
 
-            # Reset the contact sensors
-            scene.reset()
-            # Let the scene come to a rest
-            for _ in range(500):
-                _perform_sim_step(sim, scene, sim_dt)
+        # Reset the contact sensors
+        scene.reset()
+        # Let the scene come to a rest
+        for _ in range(500):
+            _perform_sim_step(sim, scene, sim_dt)
 
-            # check values are zero (contacts are happening but not reported)
-            assert contact_sensor.data.net_forces_w.sum().item() == 0.0
-            assert contact_sensor.data.force_matrix_w.sum().item() == 0.0
-            assert contact_sensor_2.data.net_forces_w.sum().item() == 0.0
-            assert contact_sensor_2.data.force_matrix_w.sum().item() == 0.0
+        # check values are zero (contacts are happening but not reported)
+        assert contact_sensor.data.net_forces_w.sum().item() == 0.0
+        assert contact_sensor.data.force_matrix_w.sum().item() == 0.0
+        assert contact_sensor_2.data.net_forces_w.sum().item() == 0.0
+        assert contact_sensor_2.data.force_matrix_w.sum().item() == 0.0
 
 
 def test_sensor_print(setup_simulation):

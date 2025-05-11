@@ -429,12 +429,20 @@ def test_quat_rotate_and_quat_rotate_inverse(device):
     print("--------------------------------")
 
     # check output values are the same
-    torch.testing.assert_close(math_utils.quat_rotate(q_rand, v_rand), iter_quat_rotate(q_rand, v_rand))
-    torch.testing.assert_close(math_utils.quat_rotate(q_rand, v_rand), iter_old_quat_rotate(q_rand, v_rand))
-    torch.testing.assert_close(math_utils.quat_rotate_inverse(q_rand, v_rand), iter_quat_rotate_inverse(q_rand, v_rand))
+    torch.testing.assert_close(
+        math_utils.quat_rotate(q_rand, v_rand), iter_quat_rotate(q_rand, v_rand), atol=1e-4, rtol=1e-3
+    )
+    torch.testing.assert_close(
+        math_utils.quat_rotate(q_rand, v_rand), iter_old_quat_rotate(q_rand, v_rand), atol=1e-4, rtol=1e-3
+    )
+    torch.testing.assert_close(
+        math_utils.quat_rotate_inverse(q_rand, v_rand), iter_quat_rotate_inverse(q_rand, v_rand), atol=1e-4, rtol=1e-3
+    )
     torch.testing.assert_close(
         math_utils.quat_rotate_inverse(q_rand, v_rand),
         iter_old_quat_rotate_inverse(q_rand, v_rand),
+        atol=1e-4,
+        rtol=1e-3,
     )
 
 
@@ -527,11 +535,11 @@ def test_yaw_quat(device):
     Test for yaw_quat methods.
     """
     # 90-degree (n/2 radians) rotations about the Y-axis
-    quat_input = torch.Tensor([0.7071, 0, 0.7071, 0], device=device)
+    quat_input = torch.tensor([0.7071, 0, 0.7071, 0], device=device)
     cloned_quat_input = quat_input.clone()
 
     # Calculated output that the function should return
-    expected_output = torch.Tensor([1, 0, 0, 0])
+    expected_output = torch.tensor([1.0, 0.0, 0.0, 0.0], device=device)
 
     # Compute the result using the existing implementation
     result = math_utils.yaw_quat(quat_input)

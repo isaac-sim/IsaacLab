@@ -19,6 +19,7 @@ import tempfile
 
 import isaacsim.core.utils.prims as prim_utils
 import isaacsim.core.utils.stage as stage_utils
+import omni
 import pytest
 from isaacsim.core.api.simulation_context import SimulationContext
 from pxr import UsdGeom, UsdPhysics
@@ -57,7 +58,7 @@ def assets():
     return assets
 
 
-@pytest.fixture
+@pytest.fixture(autouse=True)
 def sim():
     """Create a blank new stage for each test."""
     # Create a new stage
@@ -82,29 +83,59 @@ def check_mesh_conversion(mesh_converter: MeshConverter):
     prim_utils.create_prim(prim_path, usd_path=mesh_converter.usd_path)
     # Check prim can be properly spawned
     assert prim_utils.is_prim_path_valid(prim_path)
-    # Check that the mesh has the correct transform
-    xform = UsdGeom.Xformable(prim_utils.get_prim_at_path(prim_path))
-    assert xform is not None
-    # Check that the mesh has the correct material
-    material = UsdGeom.MaterialBindingAPI(prim_utils.get_prim_at_path(prim_path))
-    assert material is not None
+    # Load a second time
+    prim_path = "/World/Object2"
+    prim_utils.create_prim(prim_path, usd_path=mesh_converter.usd_path)
+    # Check prim can be properly spawned
+    assert prim_utils.is_prim_path_valid(prim_path)
+
+    stage = omni.usd.get_context().get_stage()
+    # Check axis is z-up
+    axis = UsdGeom.GetStageUpAxis(stage)
+    assert axis == "Z"
+    # Check units is meters
+    units = UsdGeom.GetStageMetersPerUnit(stage)
+    assert units == 1.0
+
+    # Check mesh settings
+    pos = tuple(prim_utils.get_prim_at_path("/World/Object/geometry").GetAttribute("xformOp:translate").Get())
+    assert pos == mesh_converter.cfg.translation
+    quat = prim_utils.get_prim_at_path("/World/Object/geometry").GetAttribute("xformOp:orient").Get()
+    quat = (quat.GetReal(), quat.GetImaginary()[0], quat.GetImaginary()[1], quat.GetImaginary()[2])
+    assert quat == mesh_converter.cfg.rotation
+    scale = tuple(prim_utils.get_prim_at_path("/World/Object/geometry").GetAttribute("xformOp:scale").Get())
+    assert scale == mesh_converter.cfg.scale
 
 
 def check_mesh_collider_settings(mesh_converter: MeshConverter):
     """Check that mesh collider settings are correct."""
-    # Load the mesh
+    # Check prim can be properly spawned
     prim_path = "/World/Object"
     prim_utils.create_prim(prim_path, usd_path=mesh_converter.usd_path)
-    # Check prim can be properly spawned
     assert prim_utils.is_prim_path_valid(prim_path)
-    # Check that the mesh has the correct collider settings
-    collider = UsdPhysics.CollisionAPI(prim_utils.get_prim_at_path(prim_path))
-    assert collider is not None
-    # Check that the mesh has the correct collision approximation
-    if mesh_converter.cfg.collision_props.collision_enabled:
-        assert collider.GetCollisionEnabledAttr().Get() is True
-    else:
-        assert collider.GetCollisionEnabledAttr().Get() is False
+
+    # Make uninstanceable to check collision settings
+    geom_prim = prim_utils.get_prim_at_path(prim_path + "/geometry")
+    # Check that instancing worked!
+    assert geom_prim.IsInstanceable() == mesh_converter.cfg.make_instanceable
+    # Obtain mesh settings
+    geom_prim.SetInstanceable(False)
+    mesh_prim = prim_utils.get_prim_at_path(prim_path + "/geometry/mesh")
+
+    # Check collision settings
+    # -- if collision is enabled, check that API is present
+    exp_collision_enabled = (
+        mesh_converter.cfg.collision_props is not None and mesh_converter.cfg.collision_props.collision_enabled
+    )
+    collision_api = UsdPhysics.CollisionAPI(mesh_prim)
+    collision_enabled = collision_api.GetCollisionEnabledAttr().Get()
+    assert collision_enabled == exp_collision_enabled, "Collision enabled is not the same!"
+    # -- if collision is enabled, check that collision approximation is correct
+    if exp_collision_enabled:
+        exp_collision_approximation = mesh_converter.cfg.collision_approximation
+        mesh_collision_api = UsdPhysics.MeshCollisionAPI(mesh_prim)
+        collision_approximation = mesh_collision_api.GetApproximationAttr().Get()
+        assert collision_approximation == exp_collision_approximation, "Collision approximation is not the same!"
 
 
 def test_no_change(assets):

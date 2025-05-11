@@ -365,7 +365,8 @@ def test_set_object_state(sim, num_envs, num_cubes, device, gravity_enabled):
 @pytest.mark.parametrize("num_cubes", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("with_offset", [True, False])
-def test_object_state_properties(sim, num_envs, num_cubes, device, with_offset):
+@pytest.mark.parametrize("gravity_enabled", [False])
+def test_object_state_properties(sim, num_envs, num_cubes, device, with_offset, gravity_enabled):
     """Test the object_com_state_w and object_link_state_w properties."""
     cube_object, env_pos = generate_cubes_scene(num_envs=num_envs, num_cubes=num_cubes, height=0.0, device=device)
     view_ids = torch.tensor([x for x in range(num_cubes * num_envs)])
@@ -455,7 +456,8 @@ def test_object_state_properties(sim, num_envs, num_cubes, device, with_offset):
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("with_offset", [True, False])
 @pytest.mark.parametrize("state_location", ["com", "link"])
-def test_write_object_state(sim, num_envs, num_cubes, device, with_offset, state_location):
+@pytest.mark.parametrize("gravity_enabled", [False])
+def test_write_object_state(sim, num_envs, num_cubes, device, with_offset, state_location, gravity_enabled):
     """Test the setters for object_state using both the link frame and center of mass as reference frame."""
     # Create a scene with random cubes
     cube_object, env_pos = generate_cubes_scene(num_envs=num_envs, num_cubes=num_cubes, height=0.0, device=device)

@@ -64,7 +64,7 @@ def pytest_sessionstart(session):
                 continue
 
             for file in files:
-                if file.endswith("_test.py") or file.startswith("test_"):
+                if file.startswith("test_") and file.endswith(".py"):
                     # Skip if the file is in SKIP_TESTS
                     if file in SKIP_TESTS:
                         print(f"Skipping {file} as it's in the skip list")

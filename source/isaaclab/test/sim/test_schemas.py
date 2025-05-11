@@ -106,7 +106,7 @@ def test_modify_properties_on_articulation_instanced_usd(setup_simulation):
 
     In this case, modifying collision properties on the articulation instanced usd will fail.
     """
-    sim, arti_cfg, rigid_cfg, mass_cfg, joint_cfg = setup_simulation
+    sim, arti_cfg, rigid_cfg, collision_cfg, mass_cfg, joint_cfg = setup_simulation
     # spawn asset to the stage
     asset_usd_file = f"{ISAAC_NUCLEUS_DIR}/Robots/ANYbotics/anymal_instanceable.usd"
     prim_utils.create_prim("/World/asset_instanced", usd_path=asset_usd_file, translation=(0.0, 0.0, 0.62))
@@ -189,7 +189,7 @@ def test_defining_rigid_body_properties_on_prim(setup_simulation):
 
 def test_defining_articulation_properties_on_prim(setup_simulation):
     """Test defining articulation properties on a prim."""
-    sim, arti_cfg, rigid_cfg, mass_cfg, _ = setup_simulation
+    sim, arti_cfg, rigid_cfg, collision_cfg, mass_cfg, _ = setup_simulation
     # create a parent articulation
     prim_utils.create_prim("/World/parent", prim_type="Xform")
     schemas.define_articulation_root_properties("/World/parent", arti_cfg)
