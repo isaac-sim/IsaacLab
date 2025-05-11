@@ -8,8 +8,7 @@
 from isaaclab.app import AppLauncher
 
 # launch the simulator
-if not AppLauncher.instance():
-    simulation_app = AppLauncher(headless=True).app
+simulation_app = AppLauncher(headless=True).app
 
 
 """Rest everything follows."""

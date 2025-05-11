@@ -17,8 +17,7 @@ from isaaclab.app import AppLauncher
 
 # launch omniverse app
 # note: we only need to do this because of `TerrainImporter` which uses Omniverse functions
-if not AppLauncher.instance():
-    simulation_app = AppLauncher(headless=True).app
+simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows."""
 

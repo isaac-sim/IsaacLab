@@ -13,8 +13,7 @@ from isaaclab.app import AppLauncher
 HEADLESS = True
 
 # launch omniverse app
-if not AppLauncher.instance():
-    simulation_app = AppLauncher(headless=HEADLESS).app
+simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows."""
 
@@ -489,7 +488,7 @@ def test_initialization_floating_base_made_fixed_base(sim, num_articulations, de
         sim: The simulation fixture
         num_articulations: Number of articulations to test
     """
-    articulation_cfg = generate_articulation_cfg(articulation_type="anymal")
+    articulation_cfg = generate_articulation_cfg(articulation_type="anymal").copy()
     # Fix root link by making it kinematic
     articulation_cfg.spawn.articulation_props.fix_root_link = True
     articulation, translations = generate_articulation(articulation_cfg, num_articulations, device=device)
@@ -598,7 +597,7 @@ def test_out_of_range_default_joint_pos(sim, num_articulations, device, add_grou
         num_articulations: Number of articulations to test
     """
     # Create articulation
-    articulation_cfg = generate_articulation_cfg(articulation_type="panda")
+    articulation_cfg = generate_articulation_cfg(articulation_type="panda").copy()
     articulation_cfg.init_state.joint_pos = {
         "panda_joint1": 10.0,
         "panda_joint[2, 4]": -20.0,
@@ -1035,7 +1034,8 @@ def test_setting_gains_from_cfg_dict(sim, num_articulations, device):
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("vel_limit_sim", [1e5, None])
 @pytest.mark.parametrize("vel_limit", [1e2, None])
-def test_setting_velocity_limit_implicit(sim, num_articulations, device, vel_limit_sim, vel_limit):
+@pytest.mark.parametrize("add_ground_plane", [False])
+def test_setting_velocity_limit_implicit(sim, num_articulations, device, vel_limit_sim, vel_limit, add_ground_plane):
     """Test setting of velocity limit for implicit actuators.
 
     This test verifies that:
@@ -1077,41 +1077,27 @@ def test_setting_velocity_limit_implicit(sim, num_articulations, device, vel_lim
     torch.testing.assert_close(articulation.data.joint_velocity_limits, physx_vel_limit)
     # check actuator has simulation velocity limit
     torch.testing.assert_close(articulation.actuators["joint"].velocity_limit_sim, physx_vel_limit)
+    # check that both values match for velocity limit
+    torch.testing.assert_close(
+        articulation.actuators["joint"].velocity_limit_sim,
+        articulation.actuators["joint"].velocity_limit,
+    )
 
     if vel_limit_sim is None:
         # Case 2: both velocity limit and velocity limit sim are not set
-        #  This is the case where the velocity limit is set to the USD default value
+        #  This is the case where the velocity limit keeps its USD default value
         # Case 3: velocity limit sim is not set but velocity limit is set
         #   For backwards compatibility, we do not set velocity limit to simulation
         #   Thus, both default to USD default value.
-
-        # check to make sure the root_physx_view dof limit is not modified
-        assert physx_vel_limit[0].item() > 1e10
-
-        # check the two are parsed and equal
-        torch.testing.assert_close(
-            articulation.actuators["joint"].velocity_limit_sim,
-            articulation.actuators["joint"].velocity_limit,
-        )
-        # check the value is set to USD default
-        torch.testing.assert_close(articulation.actuators["joint"].velocity_limit, physx_vel_limit)
-
+        limit = articulation_cfg.spawn.joint_drive_props.max_velocity
     else:
         # Case 4: only velocity limit sim is set
-        #   In this case, the velocity limit is set to the USD default value
-        # read the values set into the simulation
-        expected_velocity_limit = torch.full(
-            (articulation.num_instances, articulation.num_joints),
-            vel_limit_sim,
-            device=articulation.device,
-        )
-        # check root_physx_view
-        torch.testing.assert_close(physx_vel_limit, expected_velocity_limit)
+        #   In this case, the velocity limit is set to the USD value
+        limit = vel_limit_sim
 
-        torch.testing.assert_close(
-            articulation.actuators["joint"].velocity_limit_sim,
-            articulation.actuators["joint"].velocity_limit,
-        )
+    # check max velocity is what we set
+    expected_velocity_limit = torch.full_like(physx_vel_limit, limit)
+    torch.testing.assert_close(physx_vel_limit, expected_velocity_limit)
 
 
 @pytest.mark.parametrize("num_articulations", [1, 2])
@@ -1157,18 +1143,14 @@ def test_setting_velocity_limit_explicit(sim, num_articulations, device, vel_lim
         # check actuator velocity_limit is the same as the PhysX default
         torch.testing.assert_close(actuator_vel_limit, physx_vel_limit)
 
+    # simulation velocity limit is set to USD value unless user overrides
     if vel_limit_sim is not None:
-        expected_vel_limit = torch.full(
-            (articulation.num_instances, articulation.num_joints),
-            vel_limit_sim,
-            device=articulation.device,
-        )
-        # check actuator is set
-        # check physx is set to expected value
-        torch.testing.assert_close(physx_vel_limit, expected_vel_limit)
+        limit = vel_limit_sim
     else:
-        # check physx is not set by vel_limit_sim
-        assert physx_vel_limit[0].item() > 1.0e9
+        limit = articulation_cfg.spawn.joint_drive_props.max_velocity
+    # check physx is set to expected value
+    expected_vel_limit = torch.full_like(physx_vel_limit, limit)
+    torch.testing.assert_close(physx_vel_limit, expected_vel_limit)
 
 
 @pytest.mark.parametrize("num_articulations", [1, 2])
@@ -1205,22 +1187,17 @@ def test_setting_effort_limit_implicit(sim, num_articulations, device, effort_li
     )
     torch.testing.assert_close(articulation.actuators["joint"].effort_limit_sim, physx_effort_limit)
 
+    # decide the limit based on what is set
     if effort_limit_sim is None and effort_limit is None:
-        # check to make sure the root_physx_view does not match either:
-        # effort_limit or effort_limit_sim
-        assert physx_effort_limit[0].item() != effort_limit_sim
-        assert physx_effort_limit[0].item() != effort_limit
-    else:
-        # decide the limit based on what is set
-        limit = effort_limit_sim if effort_limit_sim is not None else effort_limit
+        limit = articulation_cfg.spawn.joint_drive_props.max_effort
+    elif effort_limit_sim is not None and effort_limit is None:
+        limit = effort_limit_sim
+    elif effort_limit_sim is None and effort_limit is not None:
+        limit = effort_limit
 
-        expected_effort_limit = torch.full(
-            (articulation.num_instances, articulation.num_joints),
-            limit,
-            device=articulation.device,
-        )
-        # check root_physx_view
-        torch.testing.assert_close(physx_effort_limit, expected_effort_limit)
+    # check that the max force is what we set
+    expected_effort_limit = torch.full_like(physx_effort_limit, limit)
+    torch.testing.assert_close(physx_effort_limit, expected_effort_limit)
 
 
 @pytest.mark.parametrize("num_articulations", [1, 2])
@@ -1254,8 +1231,9 @@ def test_setting_effort_limit_explicit(sim, num_articulations, device, effort_li
         expected_actuator_effort_limit = torch.full_like(actuator_effort_limit, effort_limit)
         # check actuator is set
         torch.testing.assert_close(actuator_effort_limit, expected_actuator_effort_limit)
+
         # check physx effort limit does not match the one explicit actuator has
-        assert torch.allclose(actuator_effort_limit, physx_effort_limit)
+        assert not (torch.allclose(actuator_effort_limit, physx_effort_limit))
     else:
         # check actuator effort_limit is the same as the PhysX default
         torch.testing.assert_close(actuator_effort_limit, physx_effort_limit)
@@ -1373,10 +1351,10 @@ def test_body_root_state(sim, num_articulations, device, with_offset):
     link_offset = [1.0, 0.0, 0.0]  # the offset from CenterPivot to Arm frames
     new_com = torch.tensor(offset, device=device).repeat(num_articulations, 1, 1)
     com[:, 1, :3] = new_com.squeeze(-2)
-    articulation.root_physx_view.set_coms(com, env_idx)
+    articulation.root_physx_view.set_coms(com.cpu(), env_idx.cpu())
 
     # check they are set
-    torch.testing.assert_close(articulation.root_physx_view.get_coms(), com)
+    torch.testing.assert_close(articulation.root_physx_view.get_coms(), com.cpu())
 
     for i in range(50):
         # perform step

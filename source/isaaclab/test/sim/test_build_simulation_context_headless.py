@@ -16,8 +16,7 @@ If you need to make a change to this test, please make sure to also make the sam
 from isaaclab.app import AppLauncher
 
 # launch omniverse app
-if not AppLauncher.instance():
-    simulation_app = AppLauncher(headless=True).app
+simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows."""
 

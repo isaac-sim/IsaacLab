@@ -11,8 +11,7 @@ This is only needed because of warp dependency.
 from isaaclab.app import AppLauncher
 
 # launch omniverse app in headless mode
-if not AppLauncher.instance():
-    simulation_app = AppLauncher(headless=True).app
+simulation_app = AppLauncher(headless=True).app
 
 
 """Rest everything follows."""
@@ -523,7 +522,7 @@ def test_interpolate_poses(device):
 
 
 @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
-def test_yaw_quat(self):
+def test_yaw_quat(device):
     """
     Test for yaw_quat methods.
     """
@@ -542,32 +541,6 @@ def test_yaw_quat(self):
 
     # check that the output is equivalent to the expected output
     torch.testing.assert_close(result, expected_output)
-
-
-def test_quat_rotate_and_quat_rotate_inverse(self):
-    """Test for quat_rotate and quat_rotate_inverse methods.
-
-    This test checks the output from the :meth:`~isaaclab.utils.math_utils.pose_inv` function against
-    the output from :func:`np.linalg.inv`. Two test cases are performed:
-
-    1. Checking the inverse of a random transformation matrix matches Numpy's built-in inverse.
-    2. Checking the inverse of a batch of random transformation matrices matches Numpy's built-in inverse.
-    """
-    # Check against a single matrix
-    for _ in range(100):
-        test_mat = math_utils.generate_random_transformation_matrix(pos_boundary=10, rot_boundary=(2 * np.pi))
-        result = np.array(math_utils.pose_inv(test_mat))
-        expected = np.linalg.inv(np.array(test_mat))
-        np.testing.assert_array_almost_equal(result, expected, decimal=DECIMAL_PRECISION)
-
-    # Check against a batch of matrices
-    test_mats = torch.stack([
-        math_utils.generate_random_transformation_matrix(pos_boundary=10, rot_boundary=(2 * math.pi))
-        for _ in range(100)
-    ])
-    result = np.array(math_utils.pose_inv(test_mats))
-    expected = np.linalg.inv(np.array(test_mats))
-    np.testing.assert_array_almost_equal(result, expected, decimal=DECIMAL_PRECISION)
 
 
 @pytest.mark.parametrize("device", ["cpu", "cuda:0"])

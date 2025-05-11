@@ -10,8 +10,7 @@
 from isaaclab.app import AppLauncher
 
 # launch omniverse app
-if not AppLauncher.instance():
-    simulation_app = AppLauncher(headless=True).app
+simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows."""
 

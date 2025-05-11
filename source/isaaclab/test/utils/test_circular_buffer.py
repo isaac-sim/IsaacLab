@@ -12,8 +12,7 @@ import pytest
 from isaaclab.app import AppLauncher
 
 # launch omniverse app in headless mode
-if not AppLauncher.instance():
-    simulation_app = AppLauncher(headless=True).app
+simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows from here."""
 

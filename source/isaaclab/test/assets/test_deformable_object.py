@@ -12,8 +12,7 @@
 from isaaclab.app import AppLauncher
 
 # launch omniverse app
-if not AppLauncher.instance():
-    simulation_app = AppLauncher(headless=True).app
+simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows."""
 
@@ -259,49 +258,49 @@ def test_set_nodal_state(sim, num_cubes):
 
 
 @pytest.mark.parametrize("num_cubes", [1, 2])
-def test_set_nodal_state_with_applied_transform(sim, num_cubes):
+@pytest.mark.parametrize("randomize_pos", [True, False])
+@pytest.mark.parametrize("randomize_rot", [True, False])
+def test_set_nodal_state_with_applied_transform(sim, num_cubes, randomize_pos, randomize_rot):
     """Test setting the state of the deformable object with applied transform."""
     carb_settings_iface = carb.settings.get_settings()
     carb_settings_iface.set_bool("/physics/cooking/ujitsoCollisionCooking", False)
 
-    cube_object = generate_cubes_scene(num_cubes=num_cubes)
+    # Create a new simulation context with gravity disabled
+    with build_simulation_context(auto_add_lighting=True, gravity_enabled=False) as sim:
+        sim._app_control_on_stop_handle = None
+        cube_object = generate_cubes_scene(num_cubes=num_cubes)
+        sim.reset()
 
-    sim.reset()
+        for _ in range(5):
+            nodal_state = cube_object.data.default_nodal_state_w.clone()
+            mean_nodal_pos_default = nodal_state[..., :3].mean(dim=1)
 
-    for randomize_pos in [True, False]:
-        for randomize_rot in [True, False]:
-            for _ in range(5):
-                nodal_state = cube_object.data.default_nodal_state_w.clone()
-                mean_nodal_pos_default = nodal_state[..., :3].mean(dim=1)
+            if randomize_pos:
+                pos_w = torch.rand(cube_object.num_instances, 3, device=sim.device)
+                pos_w[:, 2] += 0.5
+            else:
+                pos_w = None
+            if randomize_rot:
+                quat_w = math_utils.random_orientation(cube_object.num_instances, device=sim.device)
+            else:
+                quat_w = None
 
-                if randomize_pos:
-                    pos_w = torch.rand(cube_object.num_instances, 3, device=sim.device)
-                    pos_w[:, 2] += 0.5
-                else:
-                    pos_w = None
-                if randomize_rot:
-                    quat_w = math_utils.random_orientation(cube_object.num_instances, device=sim.device)
-                else:
-                    quat_w = None
+            nodal_state[..., :3] = cube_object.transform_nodal_pos(nodal_state[..., :3], pos_w, quat_w)
+            mean_nodal_pos_init = nodal_state[..., :3].mean(dim=1)
 
-                nodal_state[..., :3] = cube_object.transform_nodal_pos(nodal_state[..., :3], pos_w, quat_w)
-                mean_nodal_pos_init = nodal_state[..., :3].mean(dim=1)
+            if pos_w is None:
+                torch.testing.assert_close(mean_nodal_pos_init, mean_nodal_pos_default, rtol=1e-5, atol=1e-5)
+            else:
+                torch.testing.assert_close(mean_nodal_pos_init, mean_nodal_pos_default + pos_w, rtol=1e-5, atol=1e-5)
 
-                if pos_w is None:
-                    torch.testing.assert_close(mean_nodal_pos_init, mean_nodal_pos_default, rtol=1e-5, atol=1e-5)
-                else:
-                    torch.testing.assert_close(
-                        mean_nodal_pos_init, mean_nodal_pos_default + pos_w, rtol=1e-5, atol=1e-5
-                    )
+            cube_object.write_nodal_state_to_sim(nodal_state)
+            cube_object.reset()
 
-                cube_object.write_nodal_state_to_sim(nodal_state)
-                cube_object.reset()
+            for _ in range(50):
+                sim.step()
+                cube_object.update(sim.cfg.dt)
 
-                for _ in range(50):
-                    sim.step()
-                    cube_object.update(sim.cfg.dt)
-
-                torch.testing.assert_close(cube_object.data.root_pos_w, mean_nodal_pos_init, rtol=1e-5, atol=1e-5)
+            torch.testing.assert_close(cube_object.data.root_pos_w, mean_nodal_pos_init, rtol=1e-5, atol=1e-5)
 
 
 @pytest.mark.parametrize("num_cubes", [2, 4])
