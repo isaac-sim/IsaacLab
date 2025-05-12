@@ -390,7 +390,7 @@ while [[ $# -gt 0 ]]; do
             # run the python provided by isaacsim
             python_exe=$(extract_python_exe)
             shift # past argument
-            ${python_exe} -m pytest ${ISAACLAB_PATH}/source/isaaclab/test $@
+            ${python_exe} -m pytest ${ISAACLAB_PATH}/tools $@
             # exit neatly
             break
             ;;
