@@ -54,18 +54,6 @@ def pre_process_actions_abs(env, abs_pose_L: torch.Tensor, gripper_command_L: bo
         return delta_pose_base
     else:
         # resolve gripper command
-        init_pos = env.scene["ee_L_frame"].data.target_pos_source[0,0]
-        init_rot = env.scene["ee_L_frame"].data.target_quat_source[0,0]
-        ee_l_state = torch.cat([init_pos, init_rot], dim=0).unsqueeze(0)
-        
-        init_pos = env.scene["ee_R_frame"].data.target_pos_source[0,0]
-        init_rot = env.scene["ee_R_frame"].data.target_quat_source[0,0]
-        ee_r_state = torch.cat([init_pos, init_rot], dim=0).unsqueeze(0)
-
-
-        # print("ee_r pos", ee_r_state[:3])
-        # print("ee_r rot", ee_l_state[3:7])
-        # print("abs pose_R", abs_pose_R)
         gripper_vel_L = torch.zeros(abs_pose_L.shape[0], 1, device=abs_pose_L.device)
         gripper_vel_L[:] = -1.0 if gripper_command_L else 1.0
 
@@ -96,19 +84,13 @@ def pre_process_actions(env, delta_pose_L: torch.Tensor, gripper_command_L: bool
         # compute actions
         return delta_pose_base
     else:
-        ee_r = env.scene["robot"].body_names.index("ee_link1")
-        ee_l = env.scene["robot"].body_names.index("ee_link2")
-
-        ee_r_state = env.scene["robot"].data.body_state_w[0, ee_r, 0:7]
-        ee_l_state = env.scene["robot"].data.body_state_w[0, ee_l, 0:7]
+        init_pos = env.scene["ee_L_frame"].data.target_pos_source[0,0]
+        init_rot = env.scene["ee_L_frame"].data.target_quat_source[0,0]
+        ee_l_state = torch.cat([init_pos, init_rot], dim=0).unsqueeze(0)
         
-        # print("Left relative transforms:", env.scene["ee_L_frame"].data.target_pos_source[0,0])
-        # print("Left relative transforms:", env.scene["ee_L_frame"].data.target_quat_source[0,0])
-        # pose = torch.cat([pos, quat], dim=0)
-        # print("--------------------------------------")
-        # print("Right relative transforms:", env.scene["ee_R_frame"].data.target_pos_source[0,0])
-        # print("Right relative transforms:", env.scene["ee_R_frame"].data.target_quat_source[0,0])
-        
+        init_pos = env.scene["ee_R_frame"].data.target_pos_source[0,0]
+        init_rot = env.scene["ee_R_frame"].data.target_quat_source[0,0]
+        ee_r_state = torch.cat([init_pos, init_rot], dim=0).unsqueeze(0)
         
         # resolve gripper command
         gripper_vel_L = torch.zeros(delta_pose_L.shape[0], 1, device=delta_pose_L.device)
