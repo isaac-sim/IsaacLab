@@ -6,10 +6,11 @@
 import os
 import subprocess
 import sys
+
 import pytest
 
 # Tests that should be skipped (if any)
-SKIP_TESTS = set([
+SKIP_TESTS = {
     # lab
     "test_argparser_launch.py",  # app.close issue
     "test_build_simulation_context_nonheadless.py",  # headless
@@ -19,7 +20,8 @@ SKIP_TESTS = set([
     # lab_tasks
     "test_record_video.py",  # Failing
     "test_tiled_camera_env.py",  # Need to improve the logic
-])
+}
+
 
 def pytest_ignore_collect(collection_path, config):
     # Skip collection and run each test script individually
@@ -31,6 +33,7 @@ def pytest_ignore_collect(collection_path, config):
     # # Get just the filename from the path
     # test_name = os.path.basename(str(path))
     # return test_name in SKIP_TESTS  # Skip tests in the skip list
+
 
 def run_individual_tests(test_files, workspace_root):
     """Run each test file separately, ensuring one finishes before starting the next."""
@@ -44,7 +47,15 @@ def run_individual_tests(test_files, workspace_root):
 
         # Run each test file with pytest but skip collection
         process = subprocess.run(
-            [sys.executable, "-m", "pytest", "--no-header", f"--junitxml=tests/test-reports-{str(file_name)}.xml", str(test_file), "-v"],
+            [
+                sys.executable,
+                "-m",
+                "pytest",
+                "--no-header",
+                f"--junitxml=tests/test-reports-{str(file_name)}.xml",
+                str(test_file),
+                "-v",
+            ],
             env=env,
         )
 
@@ -53,12 +64,13 @@ def run_individual_tests(test_files, workspace_root):
 
     return failed_tests
 
+
 def pytest_sessionstart(session):
     """Intercept pytest startup to execute tests in the correct order."""
     # Get the workspace root directory (one level up from tools)
     workspace_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     source_dir = os.path.join(workspace_root, "source")
-    
+
     if not os.path.exists(source_dir):
         print(f"Error: source directory not found at {source_dir}")
         pytest.exit("Source directory not found", returncode=1)
@@ -72,7 +84,7 @@ def pytest_sessionstart(session):
                 if file in SKIP_TESTS:
                     print(f"Skipping {file} as it's in the skip list")
                     continue
-                    
+
                 full_path = os.path.join(root, file)
                 test_files.append(full_path)
 
@@ -89,12 +101,12 @@ def pytest_sessionstart(session):
     # create new full report
     full_report = JUnitXml()
     # read all reports and merge them
-    for report in os.listdir('tests'):
-        if report.endswith('.xml'):
-            report_file = JUnitXml.fromfile(f'tests/{report}')
+    for report in os.listdir("tests"):
+        if report.endswith(".xml"):
+            report_file = JUnitXml.fromfile(f"tests/{report}")
             full_report += report_file
     # write content to full report
-    full_report_path = 'tests/full_report.xml'
+    full_report_path = "tests/full_report.xml"
     full_report.write(full_report_path)
 
     # If any tests failed, mark the session as failed
@@ -102,4 +114,4 @@ def pytest_sessionstart(session):
         print("\nFailed tests:")
         for test in failed_tests:
             print(f"  - {test}")
-        pytest.exit("Test failures occurred", returncode=1) 
+        pytest.exit("Test failures occurred", returncode=1)

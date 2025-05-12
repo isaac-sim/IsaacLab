@@ -15,6 +15,8 @@ simulation_app = AppLauncher(headless=True).app
 import torch
 from dataclasses import MISSING
 
+import pytest
+
 import isaaclab.utils.modifiers as modifiers
 from isaaclab.utils import configclass
 
@@ -149,54 +151,76 @@ def test_torch_relu_modifier():
         assert torch.allclose(output, test_cfg.result)
 
 
-def test_digital_filter():
+@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+def test_digital_filter(device):
     """Test digital filter modifier."""
     # create test data
-    init_data = torch.tensor([1.0, 2.0, 3.0])
+    init_data = torch.tensor([0.0, 0.0, 0.0], device=device)
     A = [0.0, 0.1]
     B = [0.5, 0.5]
-    result = torch.tensor([-0.45661893, -0.45661893, -0.45661893])
+    result = torch.tensor([-0.45661893, -0.45661893, -0.45661893], device=device)
 
     # create test config
     test_cfg = ModifierTestCfg(
-        cfg=modifiers.DigitalFilterCfg(A=A, B=B),
-        init_data=init_data,
-        result=result,
+        cfg=modifiers.DigitalFilterCfg(A=A, B=B), init_data=init_data, result=result, num_iter=16
     )
 
-    # test modifier
-    modifier_obj = test_cfg.cfg.func(test_cfg.cfg, test_cfg.init_data.shape, device="cpu")
-    output = modifier_obj(test_cfg.init_data)
-    assert torch.allclose(output, test_cfg.result)
+    # create a modifier instance
+    modifier_obj = test_cfg.cfg.func(test_cfg.cfg, test_cfg.init_data.shape, device=device)
 
-    # test modifier with history
-    for _ in range(test_cfg.num_iter):
+    # test the modifier
+    theta = torch.tensor([0.0], device=device)
+    delta = torch.pi / torch.tensor([8.0, 8.0, 8.0], device=device)
+
+    for _ in range(5):
+        # reset the modifier
         modifier_obj.reset()
-        output = modifier_obj(test_cfg.init_data)
-        assert torch.allclose(output, test_cfg.result)
+
+        # apply the modifier multiple times
+        for i in range(test_cfg.num_iter):
+            data = torch.sin(theta + i * delta)
+            processed_data = modifier_obj(data)
+
+            assert data.shape == processed_data.shape, "Modified data shape does not equal original"
+
+        # check if the modified data is close to the expected result
+        torch.testing.assert_close(processed_data, test_cfg.result)
 
 
-def test_integral():
+@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+def test_integral(device):
     """Test integral modifier."""
     # create test data
-    init_data = torch.tensor([1.0, 2.0, 3.0])
-    dt = 0.1
-    result = torch.tensor([0.1, 0.3, 0.6])
+    init_data = torch.tensor([0.0], device=device)
+    dt = 1.0
+    result = torch.tensor([12.5], device=device)
 
     # create test config
     test_cfg = ModifierTestCfg(
         cfg=modifiers.IntegratorCfg(dt=dt),
         init_data=init_data,
         result=result,
+        num_iter=6,
     )
 
-    # test modifier
-    modifier_obj = test_cfg.cfg.func(test_cfg.cfg, test_cfg.init_data.shape, device="cpu")
-    output = modifier_obj(test_cfg.init_data)
-    assert torch.allclose(output, test_cfg.result)
+    # create a modifier instance
+    modifier_obj = test_cfg.cfg.func(test_cfg.cfg, test_cfg.init_data.shape, device=device)
 
-    # test modifier with history
-    for _ in range(test_cfg.num_iter):
+    # test the modifier
+    delta = torch.tensor(1.0, device=device)
+
+    for _ in range(5):
+        # reset the modifier
         modifier_obj.reset()
-        output = modifier_obj(test_cfg.init_data)
-        assert torch.allclose(output, test_cfg.result)
+
+        # clone the data to avoid modifying the original
+        data = test_cfg.init_data.clone()
+        # apply the modifier multiple times
+        for _ in range(test_cfg.num_iter):
+            processed_data = modifier_obj(data)
+            data = data + delta
+
+            assert data.shape == processed_data.shape, "Modified data shape does not equal original"
+
+        # check if the modified data is close to the expected result
+        torch.testing.assert_close(processed_data, test_cfg.result)
