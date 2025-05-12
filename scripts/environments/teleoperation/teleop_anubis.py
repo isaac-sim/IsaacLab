@@ -14,7 +14,7 @@ parser.add_argument(
 )
 parser.add_argument("--num_envs", type=int, default=1, help="Number of environments to simulate.")
 parser.add_argument("--teleop_device", type=str, default="oculus_mobile", help="Device for interacting with environment")
-parser.add_argument("--task", type=str, default="Cabinet-anubis-teleop-v0", help="Name of the task.")
+parser.add_argument("--task", type=str, default="Cabinet-anubis-teleop-abs-v0", help="Name of the task.")
 parser.add_argument("--sensitivity", type=float, default=1.0, help="Sensitivity factor.")
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
@@ -53,6 +53,18 @@ def pre_process_actions_abs(env, abs_pose_L: torch.Tensor, gripper_command_L: bo
         # compute actions
         return delta_pose_base
     else:
+        init_pos = env.scene["ee_L_frame"].data.target_pos_source[0,0]
+        init_rot = env.scene["ee_L_frame"].data.target_quat_source[0,0]
+        ee_l_state = torch.cat([init_pos, init_rot], dim=0).unsqueeze(0)
+        
+        init_pos = env.scene["ee_R_frame"].data.target_pos_source[0,0]
+        init_rot = env.scene["ee_R_frame"].data.target_quat_source[0,0]
+        ee_r_state = torch.cat([init_pos, init_rot], dim=0).unsqueeze(0)
+        print("------------------------")
+        print("ee_l_state", ee_l_state)
+        print("ee_r_state", ee_r_state)
+        print("------------------------")
+        
         # resolve gripper command
         gripper_vel_L = torch.zeros(abs_pose_L.shape[0], 1, device=abs_pose_L.device)
         gripper_vel_L[:] = -1.0 if gripper_command_L else 1.0
@@ -74,7 +86,7 @@ def pre_process_actions_abs(env, abs_pose_L: torch.Tensor, gripper_command_L: bo
         
         # Concatenate the zeroed out poses with the velocities and base movement
         # return torch.concat([delta_pose_L_zeroed, delta_pose_R_zeroed, gripper_vel_L, gripper_vel_R, delta_pose_base], dim=1)
-        return torch.concat([ee_l_state.unsqueeze(0), ee_r_state.unsqueeze(0), gripper_vel_L, gripper_vel_R, delta_pose_base], dim=1)
+        return torch.concat([ee_l_state, ee_r_state, gripper_vel_L, gripper_vel_R, delta_pose_base], dim=1)
     
 def pre_process_actions(env, delta_pose_L: torch.Tensor, gripper_command_L: bool, delta_pose_R, gripper_command_R: bool, delta_pose_base) -> torch.Tensor:
     """Pre-process actions for the environment."""

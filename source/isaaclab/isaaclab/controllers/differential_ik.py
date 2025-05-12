@@ -165,6 +165,13 @@ class DifferentialIKController:
             jacobian_pos = jacobian[:, 0:3]
             delta_joint_pos = self._compute_delta_joint_pos(delta_pose=position_error, jacobian=jacobian_pos)
         else:
+            # print("ee_pos", ee_pos)
+            # print("ee_quat", ee_quat)
+            # print("----------------------")
+            # print("ee_pos_des", self.ee_pos_des)
+            # print("ee_quat_des", self.ee_quat_des)
+            # print("----------------------")
+            
             position_error, axis_angle_error = compute_pose_error(
                 ee_pos, ee_quat, self.ee_pos_des, self.ee_quat_des, rot_error_type="axis_angle"
             )
