@@ -360,19 +360,18 @@ class Oculus_abs(DeviceBase):
         T_r = transforms["r"]
 
         # 2. arm absolute pose
-        self._abs_pos_left  = np.array(T_l[:3, 3] - self._origin_left[:3,3]) * self.pos_sensitivity
-        self._abs_pos_right = np.array(T_l[:3, 3] - self._origin_right[:3,3])  * self.pos_sensitivity
+        self._abs_pos_left  = np.array(T_l[:3, 3] - self._origin_left[:3,3])
+        self._abs_pos_right = np.array(T_r[:3, 3] - self._origin_right[:3,3])
 
         # 3. ROTATION DELTA: same as before, via delta‐matrix
-        # self._abs_rot_left  = Rotation.from_matrix(T_l[:3, :3] - self._origin_left[:3,:3]).as_quat()* self.rot_sensitivity
-        # self._abs_rot_right = Rotation.from_matrix(T_r[:3, :3] - self._origin_right[:3,:3]).as_quat()* self.rot_sensitivity
 
         delta_rot_left = self._origin_left[:3, :3].T @ T_l[:3, :3]
-        self._abs_rot_left = Rotation.from_matrix(delta_rot_left).as_quat() * self.rot_sensitivity
+        self._abs_rot_left = Rotation.from_matrix(delta_rot_left).as_quat()
 
         
         delta_rot_right = self._origin_right[:3, :3].T @ T_r[:3, :3]
-        self._abs_rot_right = Rotation.from_matrix(delta_rot_right).as_quat() * self.rot_sensitivity
+        self._abs_rot_right = Rotation.from_matrix(delta_rot_right).as_quat()
+
 
         # re‐order [z, x, y] and flip signs on first two
         # self._abs_rot_left  = self._abs_rot_left[[2, 0, 1]] * np.array([-1, -1, 1])
@@ -480,11 +479,6 @@ class Oculus_abs(DeviceBase):
         if not buttons['RG']:
             self._abs_pos_right = np.zeros(3)
             self._abs_rot_right = np.zeros(4)
-
-        print("Left arm position:", self._abs_pos_left)
-        print("Left arm rotation:", self._abs_rot_left)
-        print("Right arm position:", self._abs_pos_right)
-        print("Right arm rotation:", self._abs_rot_right)
 
         return (
             np.concatenate([self._abs_pos_left, self._abs_rot_left]),  # Left arm

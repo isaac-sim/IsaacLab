@@ -82,8 +82,16 @@ ANUBIS_CFG = ArticulationCfg(
             stiffness=1e10,
             damping=1e5,
         ),
-        "anubis_hand": ImplicitActuatorCfg(
-            joint_names_expr=["gripper.*"],
+        "anubis_left_hand": ImplicitActuatorCfg(
+            joint_names_expr=["gripper1.*"],
+            effort_limit_sim=1e3,
+            velocity_limit_sim=0.1,
+            stiffness=6e4,
+            damping=1e3,
+            friction=1.0,
+        ),
+        "anubis_right_hand": ImplicitActuatorCfg(
+            joint_names_expr=["gripper2.*"],
             effort_limit_sim=1e3,
             velocity_limit_sim=0.1,
             stiffness=6e4,

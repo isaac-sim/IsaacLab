@@ -13,8 +13,8 @@ parser.add_argument(
     "--disable_fabric", action="store_true", default=False, help="Disable fabric and use USD I/O operations."
 )
 parser.add_argument("--num_envs", type=int, default=1, help="Number of environments to simulate.")
-parser.add_argument("--teleop_device", type=str, default="oculus", help="Device for interacting with environment")
-parser.add_argument("--task", type=str, default="Cabinet-anubis-teleop-abs-v0", help="Name of the task.")
+parser.add_argument("--teleop_device", type=str, default="oculus_mobile", help="Device for interacting with environment")
+parser.add_argument("--task", type=str, default="Cabinet-anubis-teleop-v0", help="Name of the task.")
 parser.add_argument("--sensitivity", type=float, default=1.0, help="Sensitivity factor.")
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
@@ -57,13 +57,13 @@ def pre_process_actions_abs(env, abs_pose_L: torch.Tensor, gripper_command_L: bo
         ee_r = env.scene["robot"].body_names.index("ee_link1")
         ee_l = env.scene["robot"].body_names.index("ee_link2")
 
-        ee_r_state = env.scene["robot"].data.body_state_w[0, ee_r]
-        ee_l_state = env.scene["robot"].data.body_state_w[0, ee_l]
+        ee_r_state = env.scene["robot"].data.body_state_w[0, ee_r, 0:7]
+        ee_l_state = env.scene["robot"].data.body_state_w[0, ee_l, 0:7]
 
 
         print("ee_r pos", ee_r_state[:3])
         print("ee_r rot", ee_l_state[3:7])
-        print("abs pose_R", abs_pose_R)
+        # print("abs pose_R", abs_pose_R)
         gripper_vel_L = torch.zeros(abs_pose_L.shape[0], 1, device=abs_pose_L.device)
         gripper_vel_L[:] = -1.0 if gripper_command_L else 1.0
 
@@ -85,9 +85,9 @@ def pre_process_actions_abs(env, abs_pose_L: torch.Tensor, gripper_command_L: bo
         
         # Concatenate the zeroed out poses with the velocities and base movement
         # return torch.concat([delta_pose_L_zeroed, delta_pose_R_zeroed, gripper_vel_L, gripper_vel_R, delta_pose_base], dim=1)
-        return torch.concat([ee_l_state[:7].unsqueeze(0), ee_r_state[:7].unsqueeze(0), gripper_vel_L, gripper_vel_R, delta_pose_base], dim=1)
+        return torch.concat([ee_l_state.unsqueeze(0), ee_r_state.unsqueeze(0), gripper_vel_L, gripper_vel_R, delta_pose_base], dim=1)
     
-def pre_process_actions(delta_pose_L: torch.Tensor, gripper_command_L: bool, delta_pose_R, gripper_command_R: bool, delta_pose_base) -> torch.Tensor:
+def pre_process_actions(env, delta_pose_L: torch.Tensor, gripper_command_L: bool, delta_pose_R, gripper_command_R: bool, delta_pose_base) -> torch.Tensor:
     """Pre-process actions for the environment."""
     # compute actions based on environment
     if "Reach" in args_cli.task:
@@ -95,6 +95,15 @@ def pre_process_actions(delta_pose_L: torch.Tensor, gripper_command_L: bool, del
         # compute actions
         return delta_pose_base
     else:
+        ee_r = env.scene["robot"].body_names.index("ee_link1")
+        ee_l = env.scene["robot"].body_names.index("ee_link2")
+
+        ee_r_state = env.scene["robot"].data.body_state_w[0, ee_r, 0:7]
+        ee_l_state = env.scene["robot"].data.body_state_w[0, ee_l, 0:7]
+
+
+        print("ee_r pos", ee_r_state[:3])
+        print("ee_r rot", ee_l_state[3:7])
         # resolve gripper command
         gripper_vel_L = torch.zeros(delta_pose_L.shape[0], 1, device=delta_pose_L.device)
         gripper_vel_L[:] = -1.0 if gripper_command_L else 1.0
@@ -154,9 +163,13 @@ def main():
         teleop_interface = Se3Keyboard_BMM(
             pos_sensitivity=0.005 * args_cli.sensitivity, rot_sensitivity=0.08 * args_cli.sensitivity, base_sensitivity = 0.5 * args_cli.sensitivity
         )
-    elif args_cli.teleop_device.lower() == "oculus":
+    elif args_cli.teleop_device.lower() == "oculus_mobile":
+        teleop_interface = Oculus_mobile(
+            pos_sensitivity=2.15 * args_cli.sensitivity, rot_sensitivity=1.0 * args_cli.sensitivity, base_sensitivity = 0.3 * args_cli.sensitivity
+        )
+    elif args_cli.teleop_device.lower() == "oculus_abs":
         teleop_interface = Oculus_abs(
-            pos_sensitivity=1.0 * args_cli.sensitivity, rot_sensitivity=0.8 * args_cli.sensitivity, base_sensitivity = 0.3 * args_cli.sensitivity
+            pos_sensitivity=2.15 * args_cli.sensitivity, rot_sensitivity=1.0 * args_cli.sensitivity, base_sensitivity = 0.3 * args_cli.sensitivity
         )
     elif args_cli.teleop_device.lower() == "spacemouse":
         teleop_interface = Se3SpaceMouse(
@@ -213,7 +226,7 @@ def main():
             if "abs" in args_cli.task:
                 actions = pre_process_actions_abs(env,pose_L, gripper_command_L, pose_R, gripper_command_R, delta_pose_base)
             else: # Delta
-                actions = pre_process_actions(pose_L, gripper_command_L, pose_R, gripper_command_R, delta_pose_base)
+                actions = pre_process_actions(env, pose_L, gripper_command_L, pose_R, gripper_command_R, delta_pose_base)
             # apply actions
             # print(actions)
             env.step(actions)

@@ -323,7 +323,7 @@ class Oculus_mobile(DeviceBase):
         msg = f"Joystick Controller for SE(3): {self.__class__.__name__}\n"
         msg += "\t----------------------------------------------\n"
 
-    #[TODO: Reset event in add_callback]
+
     def add_callback(self, key: str, func: Callable):
         """Add additional functions to bind keyboard.
 
@@ -351,10 +351,9 @@ class Oculus_mobile(DeviceBase):
         """
         # fetch latest controller data
         transforms, buttons = self.oculus_reader.get_valid_transforms_and_buttons()  # returns dict with 'leftJS', 'rightJS'
-        # ipdb.set_trace()
-        # print(transforms)
+
         # Delta pose for arms
-        print(buttons)
+
         # 1. grab current
         T_l = transforms["l"]
         T_r = transforms["r"]
