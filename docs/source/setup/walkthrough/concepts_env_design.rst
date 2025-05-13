@@ -208,7 +208,7 @@ direct workflow exists and where most of our modifications will take place as we
 Currently, all of the member functions of ``IsaacLabTutorialEnv`` are directly inherited from the :class:`DirectRLEnv`. This
 known interface is how Isaac Lab and its supported RL frameworks interact with the environment.
 
-When the environment is initialized it receives its own config as an argument, which is then immediately passed to super in order
+When the environment is initialized, it receives its own config as an argument, which is then immediately passed to super in order
 to initialize the ``DirectRLEnv``.  This super call also calls ``_setup_scene``, which actually constructs the scene and and clones
 it appropriately. Notably is how the robot is create and registered to the scene in ``_setup_scene``.  First, the robot articulation
 is created by using the ``robot_config`` we defined in ``IsaacLabTutorialEnvCfg``: it doesn't exist before this point! When the
