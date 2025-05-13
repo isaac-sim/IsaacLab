@@ -233,19 +233,34 @@ Isaac Lab Image Extensions
 The produced image depends on the arguments passed to ``container.py start`` and ``container.py stop``. These
 commands accept an image extension parameter as an additional argument. If no argument is passed, then this
 parameter defaults to ``base``. Currently, the only valid values are (``base``, ``ros2``).
-Only one image extension can be passed at a time. The produced container will be named ``isaac-lab-${profile}``,
-where ``${profile}`` is the image extension name.
+Only one image extension can be passed at a time.  The produced image and container will be named
+``isaac-lab-${profile}``, where ``${profile}`` is the image extension name.
+
+``suffix`` is an optional string argument to ``container.py`` that specifies a docker image and
+container name suffix, which can be useful for development purposes. By default ``${suffix}`` is the empty string.
+If ``${suffix}`` is a nonempty string, then the produced docker image and container will be named
+``isaac-lab-${profile}-${suffix}``, where a hyphen is inserted between ``${profile}`` and ``${suffix}`` in
+the name. ``suffix`` should not be used with cluster deployments.
 
 .. code:: bash
 
-    # start base by default
+    # start base by default, named isaac-lab-base
     ./docker/container.py start
-    # stop base explicitly
+    # stop base explicitly, named isaac-lab-base
     ./docker/container.py stop base
-    # start ros2 container
+    # start ros2 container named isaac-lab-ros2
     ./docker/container.py start ros2
-    # stop ros2 container
+    # stop ros2 container named isaac-lab-ros2
     ./docker/container.py stop ros2
+
+    # start base container named isaac-lab-base-custom
+    ./docker/container.py start base --suffix custom
+    # stop base container named isaac-lab-base-custom
+    ./docker/container.py stop base --suffix custom
+    # start ros2 container named isaac-lab-ros2-custom
+    ./docker/container.py start ros2 --suffix custom
+    # stop ros2 container named isaac-lab-ros2-custom
+    ./docker/container.py stop ros2 --suffix custom
 
 The passed image extension argument will build the image defined in ``Dockerfile.${image_extension}``,
 with the corresponding `profile`_ in the ``docker-compose.yaml`` and the envars from ``.env.${image_extension}``

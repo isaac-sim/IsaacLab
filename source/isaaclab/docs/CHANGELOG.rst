@@ -1,14 +1,44 @@
 Changelog
 ---------
 
-0.36.24 (2025-04-28)
-~~~~~~~~~~~~~~~~~~~~
+0.39.1 (2025-05-13)
+~~~~~~~~~~~~~~~~~~~
 
 Added
 ^^^^^
 
 * Adds option to add terrain border as "wall" above the ground or as terrain extension below the ground in
   :class:`~isaaclab.terrains.terrain_generator.TerrainGeneratorCfg`.
+
+
+0.39.0 (2025-05-03)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added check in RecorderManager to ensure that the success indicator is only set if the termination manager is present.
+* Added semantic tags in :func:`isaaclab.sim.spawners.from_files.spawn_ground_plane`.
+  This allows for :attr:`semantic_segmentation_mapping` to be used when using the ground plane spawner.
+
+
+0.38.0 (2025-04-01)
+~~~~~~~~~~~~~~~~~~
+
+Added
+~~~~~
+
+* Added the :meth:`~isaaclab.env.mdp.observations.joint_effort`
+
+
+0.37.0 (2025-04-01)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :meth:`~isaaclab.envs.mdp.observations.body_pose_w`
+* Added :meth:`~isaaclab.envs.mdp.observations.body_projected_gravity_b`
 
 
 0.36.23 (2025-04-24)
@@ -103,7 +133,7 @@ Added
 Changed
 ^^^^^^^
 
-* Definition of render settings in :class:`~isaaclab.sim.SimulationCfg` is changed to None, which means that
+* Changed default render settings in :class:`~isaaclab.sim.SimulationCfg` to None, which means that
   the default settings will be used from the experience files and the double definition is removed.
 
 
