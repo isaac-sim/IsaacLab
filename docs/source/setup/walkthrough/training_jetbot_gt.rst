@@ -293,7 +293,7 @@ product will be large and positive, but if they are aligned and in opposite dire
 perpendicular, the inner product is zero. This means that the inner product between the forward vector and the command vector can tell us
 how much we are facing towards or away from the command, but not which direction we need to turn to improve alignment.
 
-the cross product also tells us how aligned two vectors are, but it expresses this relationship as a vector.  The cross product between any
+The cross product also tells us how aligned two vectors are, but it expresses this relationship as a vector.  The cross product between any
 two vectors defines an axis that is perpendicular to the plane containing the two argument vectors, where the direction of the result vector along this axis is
 determined by the chirality (dimension ordering, or handedness) of the coordinate system. In our case, we can exploit the fact that we are operating in 2D to only
 examine the z component of the result of :math:`\vec{forward} \times \vec{command}`. This component will be zero if the vectors are colinear, positive if the
