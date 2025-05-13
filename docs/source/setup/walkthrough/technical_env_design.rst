@@ -185,7 +185,7 @@ Finally, we can write the write the parts of the environment to handle terminati
 
 Like the actions, termination and resetting are handled in two parts.  First is the ``_get_dones`` method, the goal of which is simply to mark which environments need to be reset and why.
 Traditionally in reinforcement learning, an "episode" ends in one of two ways: either the agent reaches a terminal state, or the episode reaches a maximum duration.
-Isaac Lab is kind of us, because it manages all of this episode duration tracking behind the scenes.  The configuration parameter ``episode_length_s`` defines this maximum episode length in
+Isaac Lab is kind to us, because it manages all of this episode duration tracking behind the scenes.  The configuration parameter ``episode_length_s`` defines this maximum episode length in
 seconds and the parameters ``episode_length_buff`` and ``max_episode_length`` contain the number of steps taken by individual scenes (allowing for asynchronous running of the environment) and the
 maximum length of the episode as converted from ``episode_length_s``. The boolean operation computing ``time_out`` just compares the current buffer size to the max and returns true if it's greater, thus
 indicating which scenes are at the episode length limit. Since our current environment is a dummy, we don't define terminal states and so just return ``False`` for the first tensor (this gets projected automatically
