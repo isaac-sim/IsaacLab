@@ -65,6 +65,20 @@ class FileCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
     Note:
         If None, then no visual material will be added.
     """
+    
+    physics_material_path: str = "material"
+    """Path to the physics material to use for the prim. Defaults to "material".
+
+    If the path is relative, then it will be relative to the prim's path.
+    This parameter is ignored if `physics_material` is not None.
+    """
+
+    physics_material: materials.PhysicsMaterialCfg | None = None
+    """Physics material properties.
+    
+    Note:
+        If None, then no physics material will be added.
+    """
 
 
 @configclass
@@ -128,6 +142,29 @@ class UrdfFileCfg(FileCfg, converters.UrdfConverterCfg):
 
     func: Callable = from_files.spawn_from_urdf
 
+
+@configclass
+class MeshFileCfg(FileCfg):
+    """Mesh file to spawn asset from.
+
+    See :meth:`spawn_mesh_file` for more information.
+
+    .. note::
+        The configuration parameters include various properties. If not `None`, these properties
+        are modified on the spawned prim in a nested manner.
+
+        If they are set to a value, then the properties are modified on the spawned prim in a nested manner.
+        This is done by calling the respective function with the specified properties.
+
+    """
+
+    func: Callable = from_files.spawn_mesh_file
+
+    file_path: str = MISSING
+    """Path to the mesh file (in OBJ, STL, or FBX format)."""
+    
+    scale: tuple[float, float, float] = (1.0, 1.0, 1.0)
+    """Scale of the mesh (in m)."""
 
 """
 Spawning ground plane.

@@ -142,18 +142,3 @@ class MeshConeCfg(MeshCfg):
     """Height of the v (in m)."""
     axis: Literal["X", "Y", "Z"] = "Z"
     """Axis of the cone. Defaults to "Z"."""
-
-
-@configclass
-class MeshFileCfg(MeshCfg):
-    """Configuration parameters for a mesh prim with deformable properties.
-
-    See :meth:`spawn_mesh_file` for more information.
-    """
-
-    func: Callable = meshes.spawn_mesh_file
-
-    file_path: str = MISSING
-    """Path to the mesh file (in OBJ, STL, or FBX format)."""
-    scale: tuple[float, float, float] = (1.0, 1.0, 1.0)
-    """Scale of the mesh (in m)."""

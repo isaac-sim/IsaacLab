@@ -21,4 +21,4 @@ configurations to spawn different types of meshes. Based on the configuration, t
 """
 
 from .meshes import spawn_mesh_capsule, spawn_mesh_cone, spawn_mesh_cuboid, spawn_mesh_cylinder, spawn_mesh_sphere
-from .meshes_cfg import MeshCapsuleCfg, MeshCfg, MeshConeCfg, MeshCuboidCfg, MeshCylinderCfg, MeshFileCfg, MeshSphereCfg
+from .meshes_cfg import MeshCapsuleCfg, MeshCfg, MeshConeCfg, MeshCuboidCfg, MeshCylinderCfg, MeshSphereCfg

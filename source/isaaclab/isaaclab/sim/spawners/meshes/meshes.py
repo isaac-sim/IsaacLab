@@ -87,7 +87,8 @@ def spawn_mesh_cuboid(
 
     Raises:
         ValueError: If a prim already exists at the given path.
-    """  # create a trimesh box
+    """  
+    # create a trimesh box
     box = trimesh.creation.box(cfg.size)
     # spawn the cuboid as a mesh
     _spawn_mesh_geom_from_mesh(prim_path, cfg, box, translation, orientation, None)
@@ -226,43 +227,6 @@ def spawn_mesh_cone(
     cone = trimesh.creation.cone(radius=cfg.radius, height=cfg.height, transform=transform)
     # spawn cone if it doesn't exist.
     _spawn_mesh_geom_from_mesh(prim_path, cfg, cone, translation, orientation)
-    # return the prim
-    return prim_utils.get_prim_at_path(prim_path)
-
-
-@clone
-def spawn_mesh_file(
-    prim_path: str,
-    cfg: meshes_cfg.MeshFileCfg,
-    translation: tuple[float, float, float] | None = None,
-    orientation: tuple[float, float, float, float] | None = None,
-) -> Usd.Prim:
-    """Create a USD-Mesh prim from the given mesh file.
-
-    .. note::
-        This function is decorated with :func:`clone` that resolves prim path into list of paths
-        if the input prim path is a regex pattern. This is done to support spawning multiple assets
-        from a single and cloning the USD prim at the given path expression.
-
-    Args:
-        prim_path: The prim path or pattern to spawn the asset at. If the prim path is a regex pattern,
-            then the asset is spawned at all the matching prim paths.
-        cfg: The configuration instance.
-        translation: The translation to apply to the prim w.r.t. its parent prim. Defaults to None, in which case
-            this is set to the origin.
-        orientation: The orientation in (w, x, y, z) to apply to the prim w.r.t. its parent prim. Defaults to None,
-            in which case this is set to identity.
-
-    Returns:
-        The created prim.
-
-    Raises:
-        ValueError: If a prim already exists at the given path.
-    """
-    # load the mesh from file
-    mesh = trimesh.load_mesh(cfg.file_path)
-    # spawn mesh if it doesn't exist.
-    _spawn_mesh_geom_from_mesh(prim_path, cfg, mesh, translation, orientation, cfg.scale)
     # return the prim
     return prim_utils.get_prim_at_path(prim_path)
 
