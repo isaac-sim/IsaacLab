@@ -22,7 +22,7 @@ The **World** is defined by the origin of a cartesian coordinate system and the 
 near or how far?  The answers to questions like these can only be defined *relative* to some contextual reference frame, and that
 reference frame is what defines the world.
 
-"Above" the world in structure is the **Sim**\ ulation and the **App**\ licaiton.  The **Application** is "the thing responsible for
+"Above" the world in structure is the **Sim**\ ulation and the **App**\ lication.  The **Application** is "the thing responsible for
 everything else": It governs all resource management as well as launching and destroying the simulation when we are done with it.
 When we :ref:`launched training with the template<walkthrough_project_setup>`, the window that appears with the viewport of cartpoles
 training is the Application window.  The application is not defined by the GUI however, and even when running in headless mode all
