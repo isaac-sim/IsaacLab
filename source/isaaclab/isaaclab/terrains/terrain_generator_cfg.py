@@ -136,7 +136,12 @@ class TerrainGeneratorCfg:
     """The width of the border around the terrain (in m). Defaults to 0.0."""
 
     border_height: float = 1.0
-    """The height of the border around the terrain (in m). Defaults to 1.0."""
+    """The height of the border around the terrain (in m). Defaults to 1.0.
+
+    .. note::
+      The border height should never be negative as this inverts the face orientation which breaks the collision mesh
+      and results in the robot penetrating the border.
+    """
 
     border_below_ground: bool = True
     """Whether to place the border below the ground. Defaults to True.
