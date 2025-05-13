@@ -4,7 +4,15 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from typing import Any
+
+
+@dataclass
+class RetargeterCfg:
+    """Base configuration for hand tracking retargeters."""
+
+    sim_device: str = "cpu"
 
 
 class RetargeterBase(ABC):
@@ -17,6 +25,14 @@ class RetargeterBase(ABC):
     - Input device commands to robot movements
     - Sensor data to control signals
     """
+
+    def __init__(self, cfg: RetargeterCfg):
+        """Initialize the retargeter.
+
+        Args:
+            cfg: Configuration for the retargeter
+        """
+        self._sim_device = cfg.sim_device
 
     @abstractmethod
     def retarget(self, data: Any) -> Any:

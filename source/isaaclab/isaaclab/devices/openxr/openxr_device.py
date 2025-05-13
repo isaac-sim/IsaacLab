@@ -8,6 +8,7 @@
 import contextlib
 import numpy as np
 from collections.abc import Callable
+from dataclasses import dataclass
 from enum import Enum
 from typing import Any
 
@@ -16,24 +17,37 @@ import carb
 from isaaclab.devices.openxr.common import HAND_JOINT_NAMES
 from isaaclab.devices.retargeter_base import RetargeterBase
 
-from ..device_base import DeviceBase
+from ..device_base import DeviceBase, DeviceCfg
 from .xr_cfg import XrCfg
+
+# For testing purposes, we need to mock the XRCore, XRPoseValidityFlags classes
+XRCore = None
+XRPoseValidityFlags = None
 
 with contextlib.suppress(ModuleNotFoundError):
     from omni.kit.xr.core import XRCore, XRPoseValidityFlags
 from isaacsim.core.prims import SingleXFormPrim
 
 
+@dataclass
+class OpenXRDeviceCfg(DeviceCfg):
+    """Configuration for OpenXR devices."""
+
+    xr_cfg: XrCfg | None = None
+
+
 class OpenXRDevice(DeviceBase):
     """An OpenXR-powered device for teleoperation and interaction.
 
     This device tracks hand joints using OpenXR and makes them available as:
-    1. A dictionary of joint poses (when used directly)
-    2. Retargeted commands for robot control (when a retargeter is provided)
+    1. A dictionary of tracking data (when used without retargeters)
+    2. Retargeted commands for robot control (when retargeters are provided)
 
-    Data format:
-    * Joint poses: Each pose is a 7D vector (x, y, z, qw, qx, qy, qz) in meters and quaternion units
-    * Dictionary keys: Joint names from HAND_JOINT_NAMES in isaaclab.devices.openxr.common
+    Raw data format (_get_raw_data output):
+    * A dictionary with keys matching TrackingTarget enum values (HAND_LEFT, HAND_RIGHT, HEAD)
+    * Each hand tracking entry contains a dictionary of joint poses
+    * Each joint pose is a 7D vector (x, y, z, qw, qx, qy, qz) in meters and quaternion units
+    * Joint names are defined in HAND_JOINT_NAMES from isaaclab.devices.openxr.common
     * Supported joints include palm, wrist, and joints for thumb, index, middle, ring and little fingers
 
     Teleop commands:
@@ -42,7 +56,7 @@ class OpenXRDevice(DeviceBase):
     * "STOP": Pause hand tracking data flow
     * "RESET": Reset the tracking and signal simulation reset
 
-    The device can track the left hand, right hand, head position, or any combination of these
+    The device tracks the left hand, right hand, head position, or any combination of these
     based on the TrackingTarget enum values. When retargeters are provided, the raw tracking
     data is transformed into robot control commands suitable for teleoperation.
     """
@@ -64,18 +78,17 @@ class OpenXRDevice(DeviceBase):
 
     def __init__(
         self,
-        xr_cfg: XrCfg | None,
+        cfg: OpenXRDeviceCfg,
         retargeters: list[RetargeterBase] | None = None,
     ):
         """Initialize the OpenXR device.
 
         Args:
-            xr_cfg: Configuration object for OpenXR settings. If None, default settings are used.
-            retargeters: List of retargeters to transform tracking data into robot commands.
-                        If None or empty list, raw tracking data will be returned.
+            cfg: Configuration object for OpenXR settings.
+            retargeters: List of retargeter instances to use for transforming raw tracking data.
         """
         super().__init__(retargeters)
-        self._xr_cfg = xr_cfg or XrCfg()
+        self._xr_cfg = cfg.xr_cfg or XrCfg()
         self._additional_callbacks = dict()
         self._vc_subscription = (
             XRCore.get_singleton()
@@ -91,7 +104,6 @@ class OpenXRDevice(DeviceBase):
         self._previous_joint_poses_right = {name: default_pose.copy() for name in HAND_JOINT_NAMES}
         self._previous_headpose = default_pose.copy()
 
-        # Specify the placement of the simulation when viewed in an XR device using a prim.
         xr_anchor = SingleXFormPrim("/XRAnchor", position=self._xr_cfg.anchor_pos, orientation=self._xr_cfg.anchor_rot)
         carb.settings.get_settings().set_float("/persistent/xr/profile/ar/render/nearPlane", self._xr_cfg.near_plane)
         carb.settings.get_settings().set_string("/persistent/xr/profile/ar/anchorMode", "custom anchor")
@@ -176,10 +188,10 @@ class OpenXRDevice(DeviceBase):
         """Get the latest tracking data from the OpenXR runtime.
 
         Returns:
-            Dictionary containing tracking data for:
-                - Left hand joint poses (26 joints with position and orientation)
-                - Right hand joint poses (26 joints with position and orientation)
-                - Head pose (position and orientation)
+            Dictionary with TrackingTarget enum keys (HAND_LEFT, HAND_RIGHT, HEAD) containing:
+                - Left hand joint poses: Dictionary of 26 joints with position and orientation
+                - Right hand joint poses: Dictionary of 26 joints with position and orientation
+                - Head pose: Single 7-element array with position and orientation
 
         Each pose is represented as a 7-element array: [x, y, z, qw, qx, qy, qz]
         where the first 3 elements are position and the last 4 are quaternion orientation.
