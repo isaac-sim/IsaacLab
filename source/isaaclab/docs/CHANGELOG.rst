@@ -376,7 +376,7 @@ Added
 ~~~~~~~~~~~~~~~~~~~
 
 Added
-~~~~~
+^^^^^
 
 * Added the :meth:`~isaaclab.env.mdp.observations.joint_effort`
 
@@ -389,6 +389,17 @@ Added
 
 * Added :meth:`~isaaclab.envs.mdp.observations.body_pose_w`
 * Added :meth:`~isaaclab.envs.mdp.observations.body_projected_gravity_b`
+
+
+0.37.5 (2025-05-12)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added a new teleop configuration class :class:`~isaaclab.devices.DevicesCfg` to support multiple teleoperation
+  devices declared in the environment configuration file.
+* Implemented a factory function to create teleoperation devices based on the device configuration.
 
 
 0.37.4 (2025-05-12)

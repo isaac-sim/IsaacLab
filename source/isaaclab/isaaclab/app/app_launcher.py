@@ -590,7 +590,7 @@ class AppLauncher:
     def _resolve_xr_settings(self, launcher_args: dict):
         """Resolve XR related settings."""
         xr_env = int(os.environ.get("XR", 0))
-        xr_arg = launcher_args.pop("xr", AppLauncher._APPLAUNCHER_CFG_INFO["xr"][1])
+        xr_arg = launcher_args.get("xr", AppLauncher._APPLAUNCHER_CFG_INFO["xr"][1])
         xr_valid_vals = {0, 1}
         if xr_env not in xr_valid_vals:
             raise ValueError(f"Invalid value for environment variable `XR`: {xr_env} .Expected: {xr_valid_vals} .")

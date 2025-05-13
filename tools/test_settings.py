@@ -33,6 +33,7 @@ PER_TEST_TIMEOUTS = {
     "test_sb3_wrapper.py": 200,
     "test_skrl_wrapper.py": 200,
     "test_operational_space.py": 300,
+    "test_device_constructors.py": 200,
     "test_terrain_importer.py": 200,
     "test_environments_training.py": 5000,
 }

@@ -7,6 +7,9 @@ from pink.tasks import FrameTask
 
 import isaaclab.controllers.utils as ControllerUtils
 from isaaclab.controllers.pink_ik_cfg import PinkIKControllerCfg
+from isaaclab.devices import DevicesCfg
+from isaaclab.devices.openxr import OpenXRDeviceCfg
+from isaaclab.devices.openxr.retargeters import GR1T2RetargeterCfg
 from isaaclab.envs.mdp.actions.pink_actions_cfg import PinkInverseKinematicsActionCfg
 from isaaclab.utils import configclass
 
@@ -150,3 +153,21 @@ class NutPourGR1T2PinkIKEnvCfg(NutPourGR1T2BaseEnvCfg):
         # Set the URDF and mesh paths for the IK controller
         self.actions.gr1_action.controller.urdf_path = temp_urdf_output_path
         self.actions.gr1_action.controller.mesh_path = temp_urdf_meshes_output_path
+
+        self.teleop_devices = DevicesCfg(
+            devices={
+                "handtracking": OpenXRDeviceCfg(
+                    retargeters=[
+                        GR1T2RetargeterCfg(
+                            enable_visualization=True,
+                            # OpenXR hand tracking has 26 joints per hand
+                            num_open_xr_hand_joints=2 * 26,
+                            sim_device=self.sim.device,
+                            hand_joint_names=self.actions.gr1_action.hand_joint_names,
+                        ),
+                    ],
+                    sim_device=self.sim.device,
+                    xr_cfg=self.xr,
+                ),
+            }
+        )
