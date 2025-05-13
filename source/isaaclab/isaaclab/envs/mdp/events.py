@@ -1203,7 +1203,10 @@ class randomize_visual_texture_material(ManagerTermBase):
             # This pattern (e.g., /World/envs/env_.*/Table/.*) should match visual prims
             # whether they end in /visuals or have other structures.
             prim_path = f"{asset_main_prim_path}/.*"
-            carb.log_info(f"Pattern '{pattern_with_visuals}' found no prims. Falling back to '{prim_path}' for texture randomization.")
+            carb.log_info(
+                f"Pattern '{pattern_with_visuals}' found no prims. Falling back to '{prim_path}' for texture"
+                " randomization."
+            )
 
         # Create the omni-graph node for the randomization term
         def rep_texture_randomization():
