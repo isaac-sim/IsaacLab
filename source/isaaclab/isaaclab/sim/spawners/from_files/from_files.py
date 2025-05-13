@@ -106,7 +106,7 @@ def spawn_from_urdf(
     return _spawn_from_usd_file(prim_path, urdf_loader.usd_path, cfg, translation, orientation)
 
 @clone
-def spawn_mesh_file(
+def spawn_from_mesh_file(
     prim_path: str,
     cfg: from_files_cfg.MeshFileCfg,
     translation: tuple[float, float, float] | None = None,

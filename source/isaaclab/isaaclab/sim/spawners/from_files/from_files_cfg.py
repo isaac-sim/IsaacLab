@@ -158,7 +158,7 @@ class MeshFileCfg(FileCfg):
 
     """
 
-    func: Callable = from_files.spawn_mesh_file
+    func: Callable = from_files.spawn_from_mesh_file
 
     file_path: str = MISSING
     """Path to the mesh file (in OBJ, STL, or FBX format)."""
