@@ -53,9 +53,9 @@ def pre_process_actions_abs(env, abs_pose_L: torch.Tensor, gripper_command_L: bo
         # compute actions
         return delta_pose_base
     else:
-        # init_pos = env.scene["ee_L_frame"].data.target_pos_source[0,0]
-        # init_rot = env.scene["ee_L_frame"].data.target_quat_source[0,0]
-        # ee_l_state = torch.cat([init_pos, init_rot], dim=0).unsqueeze(0)
+        init_pos = env.scene["ee_L_frame"].data.target_pos_source[0,0]
+        init_rot = env.scene["ee_L_frame"].data.target_quat_source[0,0]
+        ee_l_state = torch.cat([init_pos, init_rot], dim=0).unsqueeze(0)
         
         init_pos = env.scene["ee_R_frame"].data.target_pos_source[0,0]
         init_rot = env.scene["ee_R_frame"].data.target_quat_source[0,0]
