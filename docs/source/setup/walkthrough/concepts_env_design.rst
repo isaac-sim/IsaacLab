@@ -217,7 +217,7 @@ copies ``env_0`` appropriately.  At this point the robot exists as many copies o
 object of the existence of this articulation to be tracked.  The articulations of the scene are kept as a dictionary, so ``scene.articulations["robot"] = self.robot``
 creates a new ``robot`` element of the ``articulations`` dictionary and sets the value to be ``self.robot``.
 
-Notice also that the remaining functions do not take additional arguments save ``_reset_idx``.  This is because the environment only manages the application of
+Notice also that the remaining functions do not take additional arguments except ``_reset_idx``.  This is because the environment only manages the application of
 actions to the agent being simulated, and then updating the sim.  This is what the ``_pre_physics_step`` and ``_apply_action`` steps are for: we set the drive commands
 to the robot so that when the simulation steps forward, the actions are applied and the joints are driven to new targets. This process is broken into steps like this
 in order to ensure systematic control over how the environment is executed, and is especially important in the manager workflow. A similar relationship exists between the
