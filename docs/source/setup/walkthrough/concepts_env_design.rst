@@ -114,7 +114,7 @@ for anything you do within the corresponding environment.
 .. currentmodule:: isaaclab.envs
 
 The first thing to note is the presence of the ``@configclass`` decorator. This defines a class as a configuration class, which holds
-a special places in Isaac Lab. Configuration classes are part of how Isaac Lab determines what to "care" about when it comes to cloning
+a special place in Isaac Lab. Configuration classes are part of how Isaac Lab determines what to "care" about when it comes to cloning
 the environment to scale up training. Isaac Lab provides different base configuration classes depending on your goals, and in this
 case we are using the :class:`DirectRLEnvCfg` class because we are interested in performing reinforcement learning in the direct workflow.
 
