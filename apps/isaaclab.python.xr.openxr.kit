@@ -28,7 +28,6 @@ renderer.gpuEnumeration.glInterop.enabled = true # Allow Kit XR OpenXR to render
 
 [dependencies]
 "isaaclab.python" = {}
-"isaacsim.xr.openxr" = {}
 
 # Kit extensions
 "omni.kit.xr.system.openxr" = {}
@@ -40,9 +39,9 @@ app.xr.enabled = true
 # xr settings
 xr.ui.enabled = false
 xr.depth.aov = "GBufferDepth"
-defaults.xr.profile.ar.renderQuality = "off"
 defaults.xr.profile.ar.anchorMode = "custom anchor"
 rtx.rendermode = "RaytracedLighting"
+persistent.xr.profile.ar.renderQuality = "performance"
 persistent.xr.profile.ar.render.nearPlane = 0.15
 xr.openxr.components."omni.kit.xr.openxr.ext.hand_tracking".enabled = true
 xr.openxr.components."isaacsim.xr.openxr.hand_tracking".enabled = true

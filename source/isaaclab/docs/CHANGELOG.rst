@@ -171,7 +171,7 @@ Added
 
 
 0.39.0 (2025-04-01)
-~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~
 
 Added
 ~~~~~
@@ -187,6 +187,16 @@ Added
 
 * Added :meth:`~isaaclab.envs.mdp.observations.body_pose_w`
 * Added :meth:`~isaaclab.envs.mdp.observations.body_projected_gravity_b`
+
+
+0.37.4 (2025-05-12)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Remove isaacsim.xr.openxr from openxr experience file.
+* Use Performance AR profile for XR rendering.
 
 
 0.37.3 (2025-05-08)
