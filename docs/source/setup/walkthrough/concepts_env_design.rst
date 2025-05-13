@@ -210,7 +210,7 @@ known interface is how Isaac Lab and its supported RL frameworks interact with t
 
 When the environment is initialized, it receives its own config as an argument, which is then immediately passed to super in order
 to initialize the ``DirectRLEnv``.  This super call also calls ``_setup_scene``, which actually constructs the scene and clones
-it appropriately. Notably is how the robot is create and registered to the scene in ``_setup_scene``.  First, the robot articulation
+it appropriately. Notably is how the robot is created and registered to the scene in ``_setup_scene``.  First, the robot articulation
 is created by using the ``robot_config`` we defined in ``IsaacLabTutorialEnvCfg``: it doesn't exist before this point! When the
 articulation is created, the robot exists on the stage at ``/World/envs/env_0/Robot``.  The call to ``scene.clone_environments`` then
 copies ``env_0`` appropriately.  At this point the robot exists as many copies on the stage, so all that's left is to notify the ``scene``
