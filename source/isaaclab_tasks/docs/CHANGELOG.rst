@@ -1,7 +1,7 @@
 Changelog
 ---------
 
-0.10.37 (2025-06-26)
+0.10.38 (2025-06-26)
 ~~~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -10,7 +10,7 @@ Fixed
 * Relaxed upper range pin for protobuf python dependency for more permissive installation.
 
 
-0.10.36 (2025-05-22)
+0.10.37 (2025-05-22)
 ~~~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -19,7 +19,7 @@ Fixed
 * Fixed redundant body_names assignment in rough_env_cfg.py for H1 robot.
 
 
-0.10.35 (2025-06-16)
+0.10.36 (2025-06-16)
 ~~~~~~~~~~~~~~~~~~~~
 
 Changed
@@ -28,7 +28,7 @@ Changed
 * Show available RL library configs on error message when an entry point key is not available for a given task.
 
 
-0.10.34 (2025-05-15)
+0.10.35 (2025-05-15)
 ~~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -38,7 +38,7 @@ Added
   implements assembly tasks to insert pegs into their corresponding sockets.
 
 
-0.10.33 (2025-05-21)
+0.10.34 (2025-05-21)
 ~~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -48,7 +48,17 @@ Added
   can be pushed to a visualization dashboard to track improvements or regressions.
 
 
-0.10.32 (2025-05-21)
+0.10.33 (2025-05-12)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Increase ``Isaac-PickPlace-GR1T2-Abs-v0`` sim dt to 120Hz for improved stability.
+* Fix object initial state in ``Isaac-PickPlace-GR1T2-Abs-v0`` to be above the table.
+
+
+0.10.32 (2025-05-01)
 ~~~~~~~~~~~~~~~~~~~~
 
 Added

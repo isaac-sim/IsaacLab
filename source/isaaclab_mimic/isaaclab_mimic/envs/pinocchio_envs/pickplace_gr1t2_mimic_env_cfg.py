@@ -55,7 +55,7 @@ class PickPlaceGR1T2MimicEnvCfg(PickPlaceGR1T2EnvCfg, MimicEnvCfg):
                 # Optional parameters for the selection strategy function
                 selection_strategy_kwargs={"nn_k": 3},
                 # Amount of action noise to apply during this subtask
-                action_noise=0.005,
+                action_noise=0.003,
                 # Number of interpolation steps to bridge to this subtask segment
                 num_interpolation_steps=0,
                 # Additional fixed steps for the robot to reach the necessary pose
@@ -77,7 +77,7 @@ class PickPlaceGR1T2MimicEnvCfg(PickPlaceGR1T2EnvCfg, MimicEnvCfg):
                 # Optional parameters for the selection strategy function
                 selection_strategy_kwargs={"nn_k": 3},
                 # Amount of action noise to apply during this subtask
-                action_noise=0.005,
+                action_noise=0.003,
                 # Number of interpolation steps to bridge to this subtask segment
                 num_interpolation_steps=3,
                 # Additional fixed steps for the robot to reach the necessary pose
@@ -102,7 +102,7 @@ class PickPlaceGR1T2MimicEnvCfg(PickPlaceGR1T2EnvCfg, MimicEnvCfg):
                 # Optional parameters for the selection strategy function
                 selection_strategy_kwargs={"nn_k": 3},
                 # Amount of action noise to apply during this subtask
-                action_noise=0.005,
+                action_noise=0.003,
                 # Number of interpolation steps to bridge to this subtask segment
                 num_interpolation_steps=0,
                 # Additional fixed steps for the robot to reach the necessary pose
