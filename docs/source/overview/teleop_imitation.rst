@@ -343,7 +343,7 @@ The Isaac Lab Mimic Env GR-1 humanoid robot is set up such that the left hand ha
 The first subtask involves the right hand remaining idle while the left hand picks up and moves the object to the position where the right hand will grasp it.
 This setup allows Isaac Lab Mimic to interpolate the right hand's trajectory accurately by using the object's pose, especially when poses are randomized during data generation.
 Therefore, avoid moving the right hand while the left hand picks up the object and brings it to a stable position.
-We recommend 10 successful demonstrations for good data generation results. An example of a successful demonstration is shown below:
+We recommend at least 5 successful demonstrations for good data generation results. An example of a successful demonstration is shown below:
 
 .. figure:: ../_static/tasks/manipulation/gr-1_pick_place.gif
    :width: 100%
@@ -446,7 +446,7 @@ Place the file under ``IsaacLab/datasets`` and run the following command to gene
 .. code:: bash
 
    ./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
-   --device cuda --headless --num_envs 10 --generation_num_trials 1000 --enable_pinocchio \
+   --device cpu --headless --num_envs 20 --generation_num_trials 1000 --enable_pinocchio \
    --input_file ./datasets/dataset_annotated_gr1.hdf5 --output_file ./datasets/generated_dataset_gr1.hdf5
 
 Train a policy
@@ -476,10 +476,11 @@ Visualize the results of the trained policy by running the following command, us
 .. code:: bash
 
    ./isaaclab.sh -p scripts/imitation_learning/robomimic/play.py \
-   --device cuda \
+   --device cpu \
    --enable_pinocchio \
    --task Isaac-PickPlace-GR1T2-Abs-v0 \
    --num_rollouts 50 \
+   --horizon 250 \
    --norm_factor_min <NORM_FACTOR_MIN> \
    --norm_factor_max <NORM_FACTOR_MAX> \
    --checkpoint /PATH/TO/desired_model_checkpoint.pth

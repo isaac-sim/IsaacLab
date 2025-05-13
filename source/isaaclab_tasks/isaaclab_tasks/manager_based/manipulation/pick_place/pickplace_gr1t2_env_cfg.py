@@ -55,7 +55,7 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
     # Object
     object = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/Object",
-        init_state=RigidObjectCfg.InitialStateCfg(pos=[-0.35, 0.40, 1.0413], rot=[1, 0, 0, 0]),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=[-0.35, 0.40, 1.1691], rot=[1, 0, 0, 0]),
         spawn=sim_utils.CylinderCfg(
             radius=0.018,
             height=0.35,
@@ -393,10 +393,10 @@ class PickPlaceGR1T2EnvCfg(ManagerBasedRLEnvCfg):
     def __post_init__(self):
         """Post initialization."""
         # general settings
-        self.decimation = 5
+        self.decimation = 6
         self.episode_length_s = 20.0
         # simulation settings
-        self.sim.dt = 1 / 60  # 100Hz
+        self.sim.dt = 1 / 120  # 120Hz
         self.sim.render_interval = 2
 
         # Convert USD to URDF and change revolute joints to fixed
