@@ -163,7 +163,7 @@ class HDF5DatasetFileHandler(DatasetFileHandlerBase):
                 for sub_key, sub_value in value.items():
                     create_dataset_helper(key_group, sub_key, sub_value)
             else:
-                group.create_dataset(key, data=value.cpu().numpy())
+                group.create_dataset(key, data=value.cpu().numpy(), compression="gzip")
 
         for key, value in episode.data.items():
             create_dataset_helper(h5_episode_group, key, value)
