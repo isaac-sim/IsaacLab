@@ -5,11 +5,16 @@
 
 import numpy as np
 from matplotlib import cm
+from contextlib import suppress
 from typing import TYPE_CHECKING, Optional
 
 import carb
 import omni
 import omni.log
+
+with suppress(ImportError):
+    # isaacsim.gui is not available when running in headless mode.
+    import isaacsim.gui.components.ui_utils
 
 from .ui_widget_wrapper import UIWidgetWrapper
 
