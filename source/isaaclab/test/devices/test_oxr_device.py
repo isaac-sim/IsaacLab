@@ -19,7 +19,7 @@ from isaaclab.app import AppLauncher
 HEADLESS = True
 
 # Launch omniverse app.
-app_launcher = AppLauncher(headless=HEADLESS, kit_args="--enable isaacsim.xr.openxr")
+app_launcher = AppLauncher(headless=HEADLESS)
 simulation_app = app_launcher.app
 
 import numpy as np
