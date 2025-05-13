@@ -5,7 +5,7 @@ Environment Design Background
 
 Now that we have our project installed, we can start designing the environment. In the traditional description
 of a reinforcement learning (RL) problem, the environment is responsible for using the actions produced by the agent to
-update the the state of the "world", and finally compute and return the observations and the reward signal. However, there are
+update the state of the "world", and finally compute and return the observations and the reward signal. However, there are
 some additional concepts that are unique to Isaac Sim and Lab regarding the mechanics of the simulation itself.
 The traditional description of a reinforcement learning problem presumes a "world", but we get no such luxury; we must define
 the world ourselves, and success depends on understanding on how to construct that world and how it will fit into the simulation.
