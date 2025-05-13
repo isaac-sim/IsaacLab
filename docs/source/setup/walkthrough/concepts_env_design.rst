@@ -120,7 +120,7 @@ case we are using the :class:`DirectRLEnvCfg` class because we are interested in
 
 .. currentmodule:: isaaclab.sim
 
-The second thing to note is the content of of the configuration class. As the author, you can specify any fields you desire but, generally speaking, there are three things you
+The second thing to note is the content of the configuration class. As the author, you can specify any fields you desire but, generally speaking, there are three things you
 will always define here: The **sim**, the **scene**, and the **robot**. Notice that these fields are also configuration classes! Configuration classes
 are compositional in this way as a solution for cloning arbitrarily complex environments.
 
