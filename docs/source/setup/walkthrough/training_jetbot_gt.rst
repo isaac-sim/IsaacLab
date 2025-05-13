@@ -216,7 +216,7 @@ And that's it! We now generate commands and can visualize it the heading of the 
 Exploring the RL problem
 --------------------------
 
-The command to the Jetbot is a unit vector in specifying the desired drive direction and we must make the agent aware of this some how
+The command to the Jetbot is a unit vector in specifying the desired drive direction and we must make the agent aware of this somehow
 so it can adjust its actions accordingly.  There are many possible ways to do this, with the "zeroth order" approach to simply change the observation space to include
 this command. To start, **edit the ``IsaacLabTutorialEnvCfg`` to set the observation space to 9**: the world velocity vector contains the linear and angular velocities
 of the robot, which is 6 dimensions and if we append the command to this vector, that's 9 dimensions for the observation space in total.
