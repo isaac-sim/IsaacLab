@@ -19,10 +19,11 @@ There are two main components in this package:
   * :meth:`TerrainImporter.import_usd`: spawn a prim as reference to input USD file.
 
 """
+from .sub_terrain_cfg import SubTerrainBaseCfg, FlatPatchSamplingCfg
+from .terrain_generator_cfg import TerrainGeneratorCfg
 
 from .height_field import *  # noqa: F401, F403
 from .terrain_generator import TerrainGenerator
-from .terrain_generator_cfg import FlatPatchSamplingCfg, SubTerrainBaseCfg, TerrainGeneratorCfg
 from .terrain_importer import TerrainImporter
 from .terrain_importer_cfg import TerrainImporterCfg
 from .trimesh import *  # noqa: F401, F403
