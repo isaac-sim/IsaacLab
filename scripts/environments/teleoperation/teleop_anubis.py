@@ -13,8 +13,8 @@ parser.add_argument(
     "--disable_fabric", action="store_true", default=False, help="Disable fabric and use USD I/O operations."
 )
 parser.add_argument("--num_envs", type=int, default=1, help="Number of environments to simulate.")
-parser.add_argument("--teleop_device", type=str, default="oculus_abs", help="Device for interacting with environment")
-parser.add_argument("--task", type=str, default="Cabinet-anubis-teleop-abs-v0", help="Name of the task.")
+parser.add_argument("--teleop_device", type=str, default="oculus_mobile", help="Device for interacting with environment")
+parser.add_argument("--task", type=str, default="Cabinet-anubis-teleop-v0", help="Name of the task.")
 parser.add_argument("--sensitivity", type=float, default=1.0, help="Sensitivity factor.")
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
@@ -63,7 +63,6 @@ def pre_process_actions_abs(env, abs_pose_L: torch.Tensor, gripper_command_L: bo
         print("------------------------")
         print("ee_l_state", ee_l_state)
         print("ee_r_state", ee_r_state)
-
         print("------------------------")
 
         # resolve gripper command
