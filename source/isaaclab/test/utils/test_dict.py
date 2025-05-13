@@ -19,12 +19,12 @@ import random
 import isaaclab.utils.dict as dict_utils
 
 
-def test_function(x):
+def _test_function(x):
     """Test function for string <-> callable conversion."""
     return x**2
 
 
-def test_lambda_function(x):
+def _test_lambda_function(x):
     """Test function for string <-> callable conversion."""
     return x**2
 
@@ -48,22 +48,22 @@ def test_string_callable_function_conversion():
     """Test string <-> callable conversion for function."""
 
     # convert function to string
-    test_string = dict_utils.callable_to_string(test_function)
+    test_string = dict_utils.callable_to_string(_test_function)
     # convert string to function
     test_function_2 = dict_utils.string_to_callable(test_string)
     # check that functions are the same
-    assert test_function(2) == test_function_2(2)
+    assert _test_function(2) == test_function_2(2)
 
 
 def test_string_callable_function_with_lambda_in_name_conversion():
     """Test string <-> callable conversion for function which has lambda in its name."""
 
     # convert function to string
-    test_string = dict_utils.callable_to_string(test_lambda_function)
+    test_string = dict_utils.callable_to_string(_test_lambda_function)
     # convert string to function
     test_function_2 = dict_utils.string_to_callable(test_string)
     # check that functions are the same
-    assert test_function(2) == test_function_2(2)
+    assert _test_function(2) == test_function_2(2)
 
 
 def test_string_callable_lambda_conversion():
