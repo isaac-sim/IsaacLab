@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING
 
 import omni.log
 from pxr import UsdPhysics
+import ipdb
 
 import isaaclab.utils.math as math_utils
 import isaaclab.utils.string as string_utils
@@ -144,6 +145,7 @@ class DifferentialInverseKinematicsAction(ActionTerm):
         else:
             joint_pos_des = joint_pos.clone()
         self._asset.set_joint_position_target(joint_pos_des, self._joint_ids)
+        ipdb.set_trace()
 
     def reset(self, env_ids: Sequence[int] | None = None) -> None:
         self._raw_actions[env_ids] = 0.0
@@ -152,6 +154,11 @@ class DifferentialInverseKinematicsAction(ActionTerm):
         ee_pos_w = self._asset.data.body_pos_w[:, self._body_idx]
         ee_quat_w = self._asset.data.body_quat_w[:, self._body_idx]
         base_pos_w = self._asset.data.body_pos_w[:, self._base_body_idx]
+        if ee_pos_w[0][1] > 0.0:
+            offset = torch.tensor([-0.0896, 0.051, -0.009], device=base_pos_w.device).unsqueeze(0)
+        else:
+            offset = torch.tensor([-0.0896, -0.051, -0.009], device=base_pos_w.device).unsqueeze(0)
+        base_pos_w = base_pos_w + offset
         base_quat_w = self._asset.data.body_quat_w[:, self._base_body_idx]
         ee_pose_b, ee_quat_b = math_utils.subtract_frame_transforms(
             base_pos_w, base_quat_w, ee_pos_w, ee_quat_w

@@ -27,7 +27,7 @@ class AnubisCabinetEnvCfg(joint_pos_env_cfg.AnubisCabinetEnvCfg):
             joint_names=["link1.*", "arm1.*"],
             body_name="ee_link1",
             controller=DifferentialIKControllerCfg(command_type="pose", use_relative_mode=False, ik_method="dls"),
-            scale=0.5,
+            scale=1.0,
             body_offset=DifferentialInverseKinematicsActionCfg.OffsetCfg(pos=[0.0, 0.0, 0.0]),
         )
 
@@ -36,7 +36,7 @@ class AnubisCabinetEnvCfg(joint_pos_env_cfg.AnubisCabinetEnvCfg):
             joint_names=["link2.*", "arm2.*"],
             body_name="ee_link2",
             controller=DifferentialIKControllerCfg(command_type="pose", use_relative_mode=False, ik_method="dls"),
-            scale=0.5,
+            scale=1.0,
             body_offset=DifferentialInverseKinematicsActionCfg.OffsetCfg(pos=[0.0, 0.0, 0.0]),
         )
 
