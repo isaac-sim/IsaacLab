@@ -30,7 +30,7 @@ simulations have an application that governs them.
 
 The **Simulation** controls the "rules" of the world.  It defines the laws of physics, such as how time and gravity should work, and how frequently to perform
 rendering. If the application holds the sim, then the sim holds the world. The simulation governs a single step through time by dividing it into many different
-sub-steps, each devoted to a specific aspect of updating the world into a the state. Many of the APIs in Isaac Lab are written to specifically hook into
+sub-steps, each devoted to a specific aspect of updating the world into a state. Many of the APIs in Isaac Lab are written to specifically hook into
 these various steps and you will often see functions named things like ``_pre_XYZ_step`` and ``_post_XYZ_step`` where ``XYZ_step`` is the name of one of these sub-steps of
 the simulation, such as the ``physics_step`` or the ``render_step``.
 
