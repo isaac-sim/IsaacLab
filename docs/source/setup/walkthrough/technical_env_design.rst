@@ -164,7 +164,7 @@ The rewards are more straightforward. For each clone of the scene, we need to co
 magnitude of the linear velocity of the Jetbot in the body frame. With this reward and observation space, the agent should learn to drive the Jetbot forward or backward, with the direction determined at random
 shortly after training starts.
 
-Finally, we can write the write the parts of the environment to handle termination and resetting.  Replace the contents of ``_get_dones`` and ``_reset_idx`` with the following.
+Finally, we can write the parts of the environment to handle termination and resetting.  Replace the contents of ``_get_dones`` and ``_reset_idx`` with the following.
 
 .. code-block:: python
 
