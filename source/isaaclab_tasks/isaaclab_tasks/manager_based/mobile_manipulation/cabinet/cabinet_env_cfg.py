@@ -95,7 +95,7 @@ class CabinetSceneCfg(InteractiveSceneCfg):
             scale=(1.5, 1.5, 1.2), 
         ),
         init_state=ArticulationCfg.InitialStateCfg(
-            pos=(1.5, 0, 0.46),
+            pos=(1.5, 0, 0.475),
             rot=(0.0, 0.0, 0.0, 1.0),
             joint_pos={
                 "door_left_joint": 0.0,

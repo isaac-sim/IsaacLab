@@ -53,17 +53,17 @@ def pre_process_actions_abs(env, abs_pose_L: torch.Tensor, gripper_command_L: bo
         # compute actions
         return delta_pose_base
     else:
-        init_pos = env.scene["ee_L_frame"].data.target_pos_source[0,0]
-        init_rot = env.scene["ee_L_frame"].data.target_quat_source[0,0]
-        ee_l_state = torch.cat([init_pos, init_rot], dim=0).unsqueeze(0)
+        # init_pos = env.scene["ee_L_frame"].data.target_pos_source[0,0]
+        # init_rot = env.scene["ee_L_frame"].data.target_quat_source[0,0]
+        # ee_l_state = torch.cat([init_pos, init_rot], dim=0).unsqueeze(0)
         
-        init_pos = env.scene["ee_R_frame"].data.target_pos_source[0,0]
-        init_rot = env.scene["ee_R_frame"].data.target_quat_source[0,0]
-        ee_r_state = torch.cat([init_pos, init_rot], dim=0).unsqueeze(0)
-        print("------------------------")
-        print("ee_l_state", ee_l_state)
-        print("ee_r_state", ee_r_state)
-        print("------------------------")
+        # init_pos = env.scene["ee_R_frame"].data.target_pos_source[0,0]
+        # init_rot = env.scene["ee_R_frame"].data.target_quat_source[0,0]
+        # ee_r_state = torch.cat([init_pos, init_rot], dim=0).unsqueeze(0)
+        # print("------------------------")
+        # print("ee_l_state", ee_l_state)
+        # print("ee_r_state", ee_r_state)
+        # print("------------------------")
         
         # resolve gripper command
         gripper_vel_L = torch.zeros(abs_pose_L.shape[0], 1, device=abs_pose_L.device)
@@ -84,11 +84,13 @@ def pre_process_actions_abs(env, abs_pose_L: torch.Tensor, gripper_command_L: bo
         gripper_vel_L = gripper_vel_L.reshape(-1, 1)  # Shape: (batch_size, 1)
         gripper_vel_R = gripper_vel_R.reshape(-1, 1)  # Shape: (batch_size, 1)
         
+        print("abs_pose_L", abs_pose_L)
+        print("abs_pose_R", abs_pose_R)
         # Concatenate the zeroed out poses with the velocities and base movement
         # return torch.concat([delta_pose_L_zeroed, delta_pose_R_zeroed, gripper_vel_L, gripper_vel_R, delta_pose_base], dim=1)
-        return torch.concat([ee_l_state, ee_r_state, gripper_vel_L, gripper_vel_R, delta_pose_base], dim=1)
+        return torch.concat([abs_pose_L, abs_pose_R, gripper_vel_L, gripper_vel_R, delta_pose_base], dim=1)
     
-def pre_process_actions(env, delta_pose_L: torch.Tensor, gripper_command_L: bool, delta_pose_R, gripper_command_R: bool, delta_pose_base) -> torch.Tensor:
+def pre_process_actions(delta_pose_L: torch.Tensor, gripper_command_L: bool, delta_pose_R, gripper_command_R: bool, delta_pose_base) -> torch.Tensor:
     """Pre-process actions for the environment."""
     # compute actions based on environment
     if "Reach" in args_cli.task:
@@ -96,13 +98,6 @@ def pre_process_actions(env, delta_pose_L: torch.Tensor, gripper_command_L: bool
         # compute actions
         return delta_pose_base
     else:
-        init_pos = env.scene["ee_L_frame"].data.target_pos_source[0,0]
-        init_rot = env.scene["ee_L_frame"].data.target_quat_source[0,0]
-        ee_l_state = torch.cat([init_pos, init_rot], dim=0).unsqueeze(0)
-        
-        init_pos = env.scene["ee_R_frame"].data.target_pos_source[0,0]
-        init_rot = env.scene["ee_R_frame"].data.target_quat_source[0,0]
-        ee_r_state = torch.cat([init_pos, init_rot], dim=0).unsqueeze(0)
         
         # resolve gripper command
         gripper_vel_L = torch.zeros(delta_pose_L.shape[0], 1, device=delta_pose_L.device)

@@ -145,7 +145,7 @@ class DifferentialInverseKinematicsAction(ActionTerm):
         else:
             joint_pos_des = joint_pos.clone()
         self._asset.set_joint_position_target(joint_pos_des, self._joint_ids)
-        ipdb.set_trace()
+        # ipdb.set_trace()
 
     def reset(self, env_ids: Sequence[int] | None = None) -> None:
         self._raw_actions[env_ids] = 0.0
