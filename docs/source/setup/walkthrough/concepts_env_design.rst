@@ -132,7 +132,7 @@ render every other frame).
 
 .. currentmodule:: isaaclab.scene
 
-the **scene** is an instance of :class:`InteractiveSceneCfg`. The scene describes what goes "on the stage" and manages those simulation entities to be cloned across environments.
+The **scene** is an instance of :class:`InteractiveSceneCfg`. The scene describes what goes "on the stage" and manages those simulation entities to be cloned across environments.
 The scene is also a member of the base class ``DirectRLEnvCfg``, but unlike the sim it has no default and must be defined in every ``DirectRLEnvCfg``.  The ``InteractiveSceneCfg``
 describes how many copies of the scene we want to create for training purposes, as well as how far apart they should be spaced on the stage.
 
