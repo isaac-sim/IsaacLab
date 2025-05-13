@@ -157,7 +157,7 @@ vectors (like ``robot.data.FORWARD_VEC_B``).
 Notice how in the ``_apply_action`` method, we are calling a method of ``self.robot`` which is a method of ``Articulation``. The actions being applied are in the form of a 2D tensor
 of shape ``[num_envs, num_actions]``. We are applying actions to **all** robots on the stage at once! Here, when we need to get the observations, we need the body frame velocity for all robots on the
 stage, and so access ``self.robot.data`` to get that information. The ``root_com_lin_vel_b`` is a property of the ``ArticulationData`` that handles the conversion of the center-of-mass linear velocity from the world frame
-to the body frame for us. Finally, Isaac Lab expects the observations to be returned as a dictionary, with ``policy`` defining those observations ofr the policy model and ``critic`` defining those observations for
+to the body frame for us. Finally, Isaac Lab expects the observations to be returned as a dictionary, with ``policy`` defining those observations for the policy model and ``critic`` defining those observations for
 the critic model (in the case of asymmetric actor critic training). Since we are not doing asymmetric actor critic, we only need to define ``policy``.
 
 The rewards are more straightforward. For each clone of the scene, we need to compute a reward value and return it as a tensor of shape ``[num_envs, 1]``. As a place holder, we will make the reward the
