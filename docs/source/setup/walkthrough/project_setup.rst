@@ -79,7 +79,7 @@ of a git repository.   If you examine the project root with hidden files visible
 the behavior of the project with respect to git. The ``scripts`` directory contains the ``train.py`` and ``play.py`` scripts for the
 various RL libraries you chose when generating the template, while the source directory contains the python packages for the project.
 
-The **Extension** is the name of the python package we installed via pip!. By default, the template generates a project
+The **Extension** is the name of the python package we installed via pip. By default, the template generates a project
 with a single extension of the same name. A project can have multiple extensions, and so they are kept in a common ``source``
 directory. Traditional python packages are defined by the presence of a ``pyproject.toml`` file that describes the package
 metadata, but packages using Isaac Lab must also be Isaac Sim extensions and so require a ``config`` directory and an accompanying
