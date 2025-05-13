@@ -4,8 +4,8 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import numpy as np
-from matplotlib import cm
 from contextlib import suppress
+from matplotlib import cm
 from typing import TYPE_CHECKING, Optional
 
 import carb
