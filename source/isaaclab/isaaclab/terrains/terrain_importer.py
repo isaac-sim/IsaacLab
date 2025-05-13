@@ -83,7 +83,9 @@ class TerrainImporter:
             if self.cfg.terrain_generator is None:
                 raise ValueError("Input terrain type is 'generator' but no value provided for 'terrain_generator'.")
             # generate the terrain
-            terrain_generator = self.cfg.terrain_generator.class_type(cfg=self.cfg.terrain_generator, device=self.device)
+            terrain_generator = self.cfg.terrain_generator.class_type(
+                cfg=self.cfg.terrain_generator, device=self.device
+            )
             self.import_mesh("terrain", terrain_generator.terrain_mesh)
             # configure the terrain origins based on the terrain generator
             self.configure_env_origins(terrain_generator.terrain_origins)

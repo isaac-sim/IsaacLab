@@ -14,16 +14,14 @@ inherit from ``isaaclab.terrains.terrains_cfg.TerrainConfig`` and define the fol
 
 from __future__ import annotations
 
-import numpy as np
-import trimesh
-from collections.abc import Callable
 from dataclasses import MISSING
 from typing import Literal
 
 from isaaclab.utils import configclass
 
-from .terrain_generator import TerrainGenerator
 from .sub_terrain_cfg import SubTerrainBaseCfg
+from .terrain_generator import TerrainGenerator
+
 
 @configclass
 class TerrainGeneratorCfg:

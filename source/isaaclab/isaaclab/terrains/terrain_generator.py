@@ -17,12 +17,14 @@ from isaaclab.utils.dict import dict_to_md5_hash
 from isaaclab.utils.io import dump_yaml
 from isaaclab.utils.timer import Timer
 from isaaclab.utils.warp import convert_to_warp_mesh
+
 from .trimesh.utils import make_border
 from .utils import color_meshes_by_height, find_flat_patches
 
 if TYPE_CHECKING:
     from .sub_terrain_cfg import FlatPatchSamplingCfg, SubTerrainBaseCfg
     from .terrain_generator_cfg import TerrainGeneratorCfg
+
 
 class TerrainGenerator:
     r"""Terrain generator to handle different terrain generation functions.
@@ -112,6 +114,7 @@ class TerrainGenerator:
 
         # set common values to all sub-terrains config
         from .height_field import HfTerrainBaseCfg  # prevent circular import
+
         for sub_cfg in self.cfg.sub_terrains.values():
             # size of all terrains
             sub_cfg.size = self.cfg.size
