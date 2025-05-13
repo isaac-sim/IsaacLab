@@ -96,7 +96,7 @@ to python for Isaac Lab to find them.
 Finally, the **Task** is the heart of the direct workflow. By default, the template generates a single task with the same name
 as the project. The environment and configuration files are stored here, as well as placeholder, RL library dependent ``agents``.
 Critically, note the contents of the ``__init__.py``! Specifically, the ``gym.register`` function needs to be called at least once
-function needs to be called at least once before an environment and task can be used with the Isaac Lab ``train.py`` and ``play.py`` scripts.
+before an environment and task can be used with the Isaac Lab ``train.py`` and ``play.py`` scripts.
 This function should be included in one of the module ``__init__.py`` files so it is called at installation. The path to
 this init file is what defines the entry point for the task!
 
