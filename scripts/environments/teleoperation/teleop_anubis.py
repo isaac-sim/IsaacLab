@@ -13,7 +13,7 @@ parser.add_argument(
     "--disable_fabric", action="store_true", default=False, help="Disable fabric and use USD I/O operations."
 )
 parser.add_argument("--num_envs", type=int, default=1, help="Number of environments to simulate.")
-parser.add_argument("--teleop_device", type=str, default="oculus_mobile", help="Device for interacting with environment")
+parser.add_argument("--teleop_device", type=str, default="oculus_abs", help="Device for interacting with environment")
 parser.add_argument("--task", type=str, default="Cabinet-anubis-teleop-abs-v0", help="Name of the task.")
 parser.add_argument("--sensitivity", type=float, default=1.0, help="Sensitivity factor.")
 # append AppLauncher cli args
@@ -53,18 +53,19 @@ def pre_process_actions_abs(env, abs_pose_L: torch.Tensor, gripper_command_L: bo
         # compute actions
         return delta_pose_base
     else:
-        # init_pos = env.scene["ee_L_frame"].data.target_pos_source[0,0]
-        # init_rot = env.scene["ee_L_frame"].data.target_quat_source[0,0]
-        # ee_l_state = torch.cat([init_pos, init_rot], dim=0).unsqueeze(0)
+        init_pos = env.scene["ee_L_frame"].data.target_pos_source[0,0]
+        init_rot = env.scene["ee_L_frame"].data.target_quat_source[0,0]
+        ee_l_state = torch.cat([init_pos, init_rot], dim=0).unsqueeze(0)
         
-        # init_pos = env.scene["ee_R_frame"].data.target_pos_source[0,0]
-        # init_rot = env.scene["ee_R_frame"].data.target_quat_source[0,0]
-        # ee_r_state = torch.cat([init_pos, init_rot], dim=0).unsqueeze(0)
-        # print("------------------------")
-        # print("ee_l_state", ee_l_state)
-        # print("ee_r_state", ee_r_state)
-        # print("------------------------")
-        
+        init_pos = env.scene["ee_R_frame"].data.target_pos_source[0,0]
+        init_rot = env.scene["ee_R_frame"].data.target_quat_source[0,0]
+        ee_r_state = torch.cat([init_pos, init_rot], dim=0).unsqueeze(0)
+        print("------------------------")
+        print("ee_l_state", ee_l_state)
+        print("ee_r_state", ee_r_state)
+
+        print("------------------------")
+
         # resolve gripper command
         gripper_vel_L = torch.zeros(abs_pose_L.shape[0], 1, device=abs_pose_L.device)
         gripper_vel_L[:] = -1.0 if gripper_command_L else 1.0
@@ -84,8 +85,12 @@ def pre_process_actions_abs(env, abs_pose_L: torch.Tensor, gripper_command_L: bo
         gripper_vel_L = gripper_vel_L.reshape(-1, 1)  # Shape: (batch_size, 1)
         gripper_vel_R = gripper_vel_R.reshape(-1, 1)  # Shape: (batch_size, 1)
         
-        print("abs_pose_L", abs_pose_L)
-        print("abs_pose_R", abs_pose_R)
+        # Check if the absolute poses are zeroed out
+        if torch.all(abs_pose_L == 0):
+            abs_pose_L = ee_l_state
+        if torch.all(abs_pose_R == 0):
+            abs_pose_R = ee_r_state
+
         # Concatenate the zeroed out poses with the velocities and base movement
         # return torch.concat([delta_pose_L_zeroed, delta_pose_R_zeroed, gripper_vel_L, gripper_vel_R, delta_pose_base], dim=1)
         return torch.concat([abs_pose_L, abs_pose_R, gripper_vel_L, gripper_vel_R, delta_pose_base], dim=1)
@@ -221,7 +226,7 @@ def main():
             if "abs" in args_cli.task:
                 actions = pre_process_actions_abs(env,pose_L, gripper_command_L, pose_R, gripper_command_R, delta_pose_base)
             else: # Delta
-                actions = pre_process_actions(env, pose_L, gripper_command_L, pose_R, gripper_command_R, delta_pose_base)
+                actions = pre_process_actions(pose_L, gripper_command_L, pose_R, gripper_command_R, delta_pose_base)
             # apply actions
             # print(actions)
             env.step(actions)

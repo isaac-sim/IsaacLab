@@ -471,7 +471,15 @@ class Oculus_abs(DeviceBase):
 
                 # 3) remember it
                 self._last_leftJS = new_js
-            
+        print("-----------------------")
+        print("abs_pos_left", self._abs_pos_left)
+        print("abs_rot_left", self._abs_rot_left)
+        print("-----------------------")
+        print("abs_pos_right", self._abs_pos_right)
+        print("abs_rot_right", self._abs_rot_right)
+        print("-----------------------")
+
+
         # return the commands
         if not buttons['LG']:
             self._abs_pos_left = np.zeros(3)
