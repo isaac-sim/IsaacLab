@@ -6,7 +6,6 @@
 import torch
 import weakref
 
-import omni.log
 import omni.physics.tensors.impl.api as physx
 
 import isaaclab.utils.math as math_utils
@@ -181,11 +180,6 @@ class RigidObjectData:
         The position and orientation are of the rigid bodies' actor frame. Meanwhile, the linear and angular
         velocities are of the rigid bodies' center of mass frame.
         """
-
-        omni.log.warn(
-            "DeprecationWarning: body_state_w and it's derived properties will be deprecated in a future release."
-            " Please use body_link_state_w or body_com_state_w."
-        )
 
         return self.root_state_w.view(-1, 1, 13)
 

@@ -49,7 +49,6 @@ import os
 import random
 from datetime import datetime
 
-from isaaclab_rl.sb3 import Sb3VecEnvWrapper, process_sb3_cfg
 from stable_baselines3 import PPO
 from stable_baselines3.common.callbacks import CheckpointCallback
 from stable_baselines3.common.logger import configure
@@ -65,8 +64,12 @@ from isaaclab.envs import (
 from isaaclab.utils.dict import print_dict
 from isaaclab.utils.io import dump_pickle, dump_yaml
 
+from isaaclab_rl.sb3 import Sb3VecEnvWrapper, process_sb3_cfg
+
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.hydra import hydra_task_config
+
+# PLACEHOLDER: Extension template (do not remove this comment)
 
 
 @hydra_task_config(args_cli.task, "sb3_cfg_entry_point")
@@ -92,6 +95,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     run_info = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     log_root_path = os.path.abspath(os.path.join("logs", "sb3", args_cli.task))
     print(f"[INFO] Logging experiment in directory: {log_root_path}")
+    # The Ray Tune workflow extracts experiment name using the logging line below, hence, do not change it (see PR #2346, comment-2819298849)
     print(f"Exact experiment name requested from command line: {run_info}")
     log_dir = os.path.join(log_root_path, run_info)
     # dump the configuration into log-directory

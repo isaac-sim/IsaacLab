@@ -14,7 +14,7 @@ from collections.abc import Sequence
 from prettytable import PrettyTable
 from typing import TYPE_CHECKING
 
-from isaaclab.utils import modifiers
+from isaaclab.utils import class_to_dict, modifiers
 from isaaclab.utils.buffers import CircularBuffer
 
 from .manager_base import ManagerBase, ManagerTermBase
@@ -334,6 +334,29 @@ class ObservationManager(ManagerBase):
         else:
             return group_obs
 
+    def serialize(self) -> dict:
+        """Serialize the observation term configurations for all active groups.
+
+        Returns:
+            A dictionary where each group name maps to its serialized observation term configurations.
+        """
+        output = {
+            group_name: {
+                term_name: (
+                    term_cfg.func.serialize()
+                    if isinstance(term_cfg.func, ManagerTermBase)
+                    else {"cfg": class_to_dict(term_cfg)}
+                )
+                for term_name, term_cfg in zip(
+                    self._group_obs_term_names[group_name],
+                    self._group_obs_term_cfgs[group_name],
+                )
+            }
+            for group_name in self.active_terms.keys()
+        }
+
+        return output
+
     """
     Helper functions.
     """
@@ -351,6 +374,14 @@ class ObservationManager(ManagerBase):
         # create a list to store modifiers that are classes
         # we store it as a separate list to only call reset on them and prevent unnecessary calls
         self._group_obs_class_modifiers: list[modifiers.ModifierBase] = list()
+
+        # make sure the simulation is playing since we compute obs dims which needs asset quantities
+        if not self._env.sim.is_playing():
+            raise RuntimeError(
+                "Simulation is not playing. Observation manager requires the simulation to be playing"
+                " to compute observation dimensions. Please start the simulation before using the"
+                " observation manager."
+            )
 
         # check if config is dict already
         if isinstance(self.cfg, dict):
@@ -407,8 +438,10 @@ class ObservationManager(ManagerBase):
                 # add term config to list to list
                 self._group_obs_term_names[group_name].append(term_name)
                 self._group_obs_term_cfgs[group_name].append(term_cfg)
+
                 # call function the first time to fill up dimensions
                 obs_dims = tuple(term_cfg.func(self._env, **term_cfg.params).shape)
+
                 # create history buffers and calculate history term dimensions
                 if term_cfg.history_length > 0:
                     group_entry_history_buffer[term_name] = CircularBuffer(

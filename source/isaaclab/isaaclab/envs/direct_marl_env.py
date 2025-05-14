@@ -95,6 +95,10 @@ class DirectMARLEnv(gym.Env):
         else:
             raise RuntimeError("Simulation context already exists. Cannot create a new one.")
 
+        # make sure torch is running on the correct device
+        if "cuda" in self.device:
+            torch.cuda.set_device(self.device)
+
         # print useful information
         print("[INFO]: Base environment:")
         print(f"\tEnvironment device    : {self.device}")
@@ -126,6 +130,16 @@ class DirectMARLEnv(gym.Env):
         else:
             self.viewport_camera_controller = None
 
+        # create event manager
+        # note: this is needed here (rather than after simulation play) to allow USD-related randomization events
+        #   that must happen before the simulation starts. Example: randomizing mesh scale
+        if self.cfg.events:
+            self.event_manager = EventManager(self.cfg.events, self)
+
+            # apply USD-related randomization events
+            if "prestartup" in self.event_manager.available_modes:
+                self.event_manager.apply(mode="prestartup")
+
         # play the simulator to activate physics handles
         # note: this activates the physics simulation view that exposes TensorAPIs
         # note: when started in extension mode, first call sim.reset_async() and then initialize the managers
@@ -133,15 +147,10 @@ class DirectMARLEnv(gym.Env):
             print("[INFO]: Starting the simulation. This may take a few seconds. Please wait...")
             with Timer("[INFO]: Time taken for simulation start", "simulation_start"):
                 self.sim.reset()
-
-        # -- event manager used for randomization
-        if self.cfg.events:
-            self.event_manager = EventManager(self.cfg.events, self)
-            print("[INFO] Event Manager: ", self.event_manager)
-
-        # make sure torch is running on the correct device
-        if "cuda" in self.device:
-            torch.cuda.set_device(self.device)
+                # update scene to pre populate data buffers for assets and sensors.
+                # this is needed for the observation manager to get valid tensors for initialization.
+                # this shouldn't cause an issue since later on, users do a reset over all the environments so the lazy buffers would be reset.
+                self.scene.update(dt=self.physics_dt)
 
         # check if debug visualization is has been implemented by the environment
         source_code = inspect.getsource(self._set_debug_vis_impl)
@@ -188,6 +197,9 @@ class DirectMARLEnv(gym.Env):
 
         # perform events at the start of the simulation
         if self.cfg.events:
+            # we print it here to make the logging consistent
+            print("[INFO] Event Manager: ", self.event_manager)
+
             if "startup" in self.event_manager.available_modes:
                 self.event_manager.apply(mode="startup")
 

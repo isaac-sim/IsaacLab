@@ -34,10 +34,3 @@ class FrankaCubeStackEnvCfg(stack_joint_pos_env_cfg.FrankaCubeStackEnvCfg):
             scale=0.5,
             body_offset=DifferentialInverseKinematicsActionCfg.OffsetCfg(pos=[0.0, 0.0, 0.107]),
         )
-
-        # Set the simulation parameters
-        self.sim.dt = 1 / 60
-        self.sim.render_interval = 1
-
-        self.decimation = 3
-        self.episode_length_s = 20.0

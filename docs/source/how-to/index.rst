@@ -67,6 +67,15 @@ This guide demonstrates how to estimate the number of cameras one can run on the
 
     estimate_how_many_cameras_can_run
 
+Configure Rendering
+-------------------
+
+This guide demonstrates how to select rendering mode presets and overwrite preset rendering settings.
+
+.. toctree::
+    :maxdepth: 1
+
+    configure_rendering
 
 Drawing Markers
 ---------------
@@ -113,3 +122,28 @@ additional resources that help you use Omniverse features in Isaac Lab.
     :maxdepth: 1
 
     master_omniverse
+
+
+Setting up CloudXR Teleoperation
+--------------------------------
+
+This guide explains how to use CloudXR and Apple Vision Pro for immersive streaming and
+teleoperation in Isaac Lab.
+
+.. toctree::
+    :maxdepth: 1
+
+    cloudxr_teleoperation
+
+
+Understanding Simulation Performance
+------------------------------------
+
+This guide provides tips on optimizing simulation performance for different simulation use cases.
+Additional resources are also linked to provide relevant performance guides for Isaac Sim and
+Omniverse Physics.
+
+.. toctree::
+    :maxdepth: 1
+
+    simulation_performance

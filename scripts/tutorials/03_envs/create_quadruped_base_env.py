@@ -13,7 +13,7 @@ the terrain.
 .. code-block:: bash
 
     # Run the script
-    ./isaaclab.sh -p scripts/tutorials/04_envs/quadruped_base_env.py --num_envs 32
+    ./isaaclab.sh -p scripts/tutorials/03_envs/create_quadruped_base_env.py --num_envs 32
 
 """
 
@@ -194,6 +194,7 @@ class QuadrupedEnvCfg(ManagerBasedEnvCfg):
         # simulation settings
         self.sim.dt = 0.005  # simulation timestep -> 200 Hz physics
         self.sim.physics_material = self.scene.terrain.physics_material
+        self.sim.device = args_cli.device
         # update sensor update periods
         # we tick all the sensors based on the smallest update period (physics update period)
         if self.scene.height_scanner is not None:
