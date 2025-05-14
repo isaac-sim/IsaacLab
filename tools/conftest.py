@@ -59,7 +59,21 @@ def run_individual_tests(test_files, workspace_root):
             failed_tests.append(test_file)
 
         # check report for any failures
-        report = JUnitXml.fromfile(f"tests/test-reports-{str(file_name)}.xml")
+        report_file = f"tests/test-reports-{str(file_name)}.xml"
+        if not os.path.exists(report_file):
+            print(f"Warning: Test report not found at {report_file}")
+            failed_tests.append(test_file)
+            test_status[test_file] = {
+                "errors": 1,  # Assume error since we can't read the report
+                "failures": 0,
+                "skipped": 0,
+                "tests": 0,
+                "result": "FAILED",
+                "time_elapsed": 0.0,
+            }
+            continue
+
+        report = JUnitXml.fromfile(report_file)
 
         # Parse the integer values
         errors = int(report.errors)
