@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.1.4 (2025-04-10)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added configurations for distillation implementation in RSL-RL.
+* Added configuration for recurrent actor-critic in RSL-RL.
+
+
 0.1.3 (2025-03-31)
 ~~~~~~~~~~~~~~~~~~
 

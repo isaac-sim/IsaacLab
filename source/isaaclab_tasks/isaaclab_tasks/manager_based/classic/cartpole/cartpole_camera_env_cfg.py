@@ -134,7 +134,7 @@ class TheiaTinyObservationCfg:
 class CartpoleRGBCameraEnvCfg(CartpoleEnvCfg):
     """Configuration for the cartpole environment with RGB camera."""
 
-    scene: CartpoleRGBCameraSceneCfg = CartpoleRGBCameraSceneCfg(num_envs=1024, env_spacing=20)
+    scene: CartpoleRGBCameraSceneCfg = CartpoleRGBCameraSceneCfg(num_envs=512, env_spacing=20)
     observations: RGBObservationsCfg = RGBObservationsCfg()
 
     def __post_init__(self):
@@ -150,7 +150,7 @@ class CartpoleRGBCameraEnvCfg(CartpoleEnvCfg):
 class CartpoleDepthCameraEnvCfg(CartpoleEnvCfg):
     """Configuration for the cartpole environment with depth camera."""
 
-    scene: CartpoleDepthCameraSceneCfg = CartpoleDepthCameraSceneCfg(num_envs=1024, env_spacing=20)
+    scene: CartpoleDepthCameraSceneCfg = CartpoleDepthCameraSceneCfg(num_envs=512, env_spacing=20)
     observations: DepthObservationsCfg = DepthObservationsCfg()
 
     def __post_init__(self):

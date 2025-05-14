@@ -91,7 +91,7 @@ To learn about how to set up your own project on top of Isaac Lab, see :ref:`tem
 
    .. code-block:: none
 
-      pip install isaaclab[isaacsim,all]==2.0.2 --extra-index-url https://pypi.nvidia.com
+      pip install isaaclab[isaacsim,all]==2.1.0 --extra-index-url https://pypi.nvidia.com
 
 
 .. attention::
@@ -100,7 +100,7 @@ To learn about how to set up your own project on top of Isaac Lab, see :ref:`tem
 
    .. code:: bash
 
-      pip install --upgrade --pre torch --index-url https://download.pytorch.org/whl/nightly/cu128
+      pip install --upgrade --pre torch torchvision --index-url https://download.pytorch.org/whl/nightly/cu128
 
 
 Verifying the Isaac Sim installation
