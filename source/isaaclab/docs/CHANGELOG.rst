@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.39.1 (2025-05-13)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed potential issues in :func:`~isaaclab.envs.mdp.events.randomize_visual_texture_material` related to handling visual prims during texture randomization.
+
+
 0.39.0 (2025-05-03)
 ~~~~~~~~~~~~~~~~~~~
 
