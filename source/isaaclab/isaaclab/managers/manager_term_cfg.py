@@ -208,7 +208,8 @@ class ObservationGroupCfg:
     """
 
     concatenate_dim: int = -1
-    """Dimension along to concatenate the different oberservation terms. Defaults to -1.
+    """Dimension along to concatenate the different observation terms. Defaults to -1, which
+    means the last dimension of the observation terms.
 
     If concatenate_terms is True, this specifies the dimension along which the observation terms are concatenated.
     The indicated dimension is the one of the observations, i.e. for a 2D RGB image (H, W, C), the dimension
