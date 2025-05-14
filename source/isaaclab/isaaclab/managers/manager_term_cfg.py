@@ -211,9 +211,9 @@ class ObservationGroupCfg:
     """Dimension along to concatenate the different observation terms. Defaults to -1, which
     means the last dimension of the observation terms.
 
-    If concatenate_terms is True, this specifies the dimension along which the observation terms are concatenated.
-    The indicated dimension is the one of the observations, i.e. for a 2D RGB image (H, W, C), the dimension
-    0 means concatenating along the height, 1 along the width and 2 along the channels. The offset due
+    If :attr:`concatenate_terms` is True, this parameter specifies the dimension along which the observation terms are concatenated.
+    The indicated dimension depends on the shape of the observations. For instance, for a 2D RGB image of shape (H, W, C), the dimension
+    0 means concatenating along the height, 1 along the width, and 2 along the channels. The offset due
     to the batched environment is handled automatically.
     """
 
