@@ -63,3 +63,6 @@ _build
 
 # Teleop Recorded Dataset
 datasets
+
+# Tests
+tests/
