@@ -74,14 +74,24 @@ Table of Contents
 
 .. toctree::
    :maxdepth: 2
-   :caption: Getting Started
+   :caption: Isaac Lab
 
    source/setup/ecosystem
-   source/setup/quickstart
    source/setup/installation/index
    source/setup/installation/cloud_installation
-   source/setup/walkthrough/index
    source/refs/reference_architecture/index
+
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Getting Started
+   :titlesonly:
+
+   source/setup/quickstart
+   source/setup/walkthrough/index
+   source/tutorials/index
+   source/how-to/index
+
 
 .. toctree::
    :maxdepth: 3
@@ -111,8 +121,6 @@ Table of Contents
    :caption: Resources
    :titlesonly:
 
-   source/tutorials/index
-   source/how-to/index
    source/deployment/index
    source/policy_deployment/index
 
