@@ -5,6 +5,7 @@
 
 from dataclasses import MISSING
 
+from isaaclab.devices.openxr import XrCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.utils import configclass
@@ -221,3 +222,6 @@ class DirectMARLEnvCfg:
 
     The contents of the list cannot be modified during the entire training process.
     """
+
+    xr: XrCfg | None = None
+    """Configuration for viewing and interacting with the environment through an XR device."""
