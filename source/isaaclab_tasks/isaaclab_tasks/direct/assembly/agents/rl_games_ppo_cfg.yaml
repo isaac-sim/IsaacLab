@@ -86,7 +86,7 @@ params:
       network:
         name: actor_critic
         central_value: True
-    
+
         mlp:
           units: [256, 128, 64]
           activation: elu

@@ -1,5 +1,9 @@
-import isaaclab.sim as sim_utils
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
 
+import isaaclab.sim as sim_utils
 from isaaclab.actuators.actuator_cfg import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg
 from isaaclab.envs import DirectRLEnvCfg
@@ -8,34 +12,36 @@ from isaaclab.sim import PhysxCfg, SimulationCfg
 from isaaclab.sim.spawners.materials.physics_materials_cfg import RigidBodyMaterialCfg
 from isaaclab.utils import configclass
 
-from .disassembly_tasks_cfg import Extraction, ASSET_DIR
+from .disassembly_tasks_cfg import ASSET_DIR, Extraction
 
 OBS_DIM_CFG = {
-    'joint_pos': 7,
-    'fingertip_pos': 3,
-    'fingertip_quat': 4,
-    'fingertip_goal_pos': 3,
-    'fingertip_goal_quat': 4,
-    'delta_pos': 3, 
+    "joint_pos": 7,
+    "fingertip_pos": 3,
+    "fingertip_quat": 4,
+    "fingertip_goal_pos": 3,
+    "fingertip_goal_quat": 4,
+    "delta_pos": 3,
 }
 
 STATE_DIM_CFG = {
-    'joint_pos': 7,
-    'joint_vel': 7,
-    'fingertip_pos': 3,
-    'fingertip_quat': 4,
-    'ee_linvel': 3,
-    'ee_angvel': 3,
-    'fingertip_goal_pos': 3,
-    'fingertip_goal_quat': 4,
-    'held_pos': 3,
-    'held_quat': 4,
-    'delta_pos': 3, 
+    "joint_pos": 7,
+    "joint_vel": 7,
+    "fingertip_pos": 3,
+    "fingertip_quat": 4,
+    "ee_linvel": 3,
+    "ee_angvel": 3,
+    "fingertip_goal_pos": 3,
+    "fingertip_goal_quat": 4,
+    "held_pos": 3,
+    "held_quat": 4,
+    "delta_pos": 3,
 }
+
 
 @configclass
 class ObsRandCfg:
     fixed_asset_pos = [0.001, 0.001, 0.001]
+
 
 @configclass
 class CtrlCfg:
@@ -60,6 +66,7 @@ class CtrlCfg:
     kp_null = 10.0
     kd_null = 6.3246
 
+
 @configclass
 class DisassemblyEnvCfg(DirectRLEnvCfg):
     decimation = 8
@@ -68,29 +75,29 @@ class DisassemblyEnvCfg(DirectRLEnvCfg):
     observation_space = 24
     state_space = 44
     obs_order: list = [
-        'joint_pos',
-        'fingertip_pos',
-        'fingertip_quat',
-        'fingertip_goal_pos',
-        'fingertip_goal_quat',
-        'delta_pos']
+        "joint_pos",
+        "fingertip_pos",
+        "fingertip_quat",
+        "fingertip_goal_pos",
+        "fingertip_goal_quat",
+        "delta_pos",
+    ]
     state_order: list = [
-        'joint_pos',
-        'joint_vel',
-        'fingertip_pos',
-        'fingertip_quat',
-        'ee_linvel',
-        'ee_angvel',
-        'fingertip_goal_pos',
-        'fingertip_goal_quat',
-        'held_pos',
-        'held_quat',
-        'delta_pos']
-    
-    task_name: str = 'extraction'  # peg_insertion, gear_meshing, nut_threading
-    tasks: dict = {
-        'extraction': Extraction()
-    }
+        "joint_pos",
+        "joint_vel",
+        "fingertip_pos",
+        "fingertip_quat",
+        "ee_linvel",
+        "ee_angvel",
+        "fingertip_goal_pos",
+        "fingertip_goal_quat",
+        "held_pos",
+        "held_quat",
+        "delta_pos",
+    ]
+
+    task_name: str = "extraction"  # peg_insertion, gear_meshing, nut_threading
+    tasks: dict = {"extraction": Extraction()}
     obs_rand: ObsRandCfg = ObsRandCfg()
     ctrl: CtrlCfg = CtrlCfg()
 
@@ -98,7 +105,7 @@ class DisassemblyEnvCfg(DirectRLEnvCfg):
     episode_length_s = 5.0
     sim: SimulationCfg = SimulationCfg(
         device="cuda:0",
-        dt=1/120,
+        dt=1 / 120,
         gravity=(0.0, 0.0, -9.81),
         physx=PhysxCfg(
             solver_type=1,
@@ -109,7 +116,7 @@ class DisassemblyEnvCfg(DirectRLEnvCfg):
             friction_correlation_distance=0.00625,
             gpu_max_rigid_contact_count=2**23,
             gpu_max_rigid_patch_count=2**23,
-            gpu_max_num_partitions=1  # Important for stable simulation.
+            gpu_max_num_partitions=1,  # Important for stable simulation.
         ),
         physics_material=RigidBodyMaterialCfg(
             static_friction=1.0,
@@ -117,15 +124,12 @@ class DisassemblyEnvCfg(DirectRLEnvCfg):
         ),
     )
 
-    scene: InteractiveSceneCfg = InteractiveSceneCfg(
-        num_envs=128,
-        env_spacing=2.0
-    )
+    scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=128, env_spacing=2.0)
 
     robot = ArticulationCfg(
         prim_path="/World/envs/env_.*/Robot",
         spawn=sim_utils.UsdFileCfg(
-            usd_path=f'{ASSET_DIR}/franka_mimic.usd',
+            usd_path=f"{ASSET_DIR}/franka_mimic.usd",
             activate_contact_sensors=True,
             rigid_props=sim_utils.RigidBodyPropertiesCfg(
                 disable_gravity=True,
@@ -144,18 +148,15 @@ class DisassemblyEnvCfg(DirectRLEnvCfg):
                 solver_position_iteration_count=192,
                 solver_velocity_iteration_count=1,
             ),
-            collision_props=sim_utils.CollisionPropertiesCfg(
-                contact_offset=0.005,
-                rest_offset=0.0
-            ),
+            collision_props=sim_utils.CollisionPropertiesCfg(contact_offset=0.005, rest_offset=0.0),
         ),
         init_state=ArticulationCfg.InitialStateCfg(
             joint_pos={
-                "panda_joint1": 0.00871, 
-                "panda_joint2": -0.10368, 
-                "panda_joint3": -0.00794, 
-                "panda_joint4": -1.49139, 
-                "panda_joint5": -0.00083, 
+                "panda_joint1": 0.00871,
+                "panda_joint2": -0.10368,
+                "panda_joint3": -0.00794,
+                "panda_joint4": -1.49139,
+                "panda_joint5": -0.00083,
                 "panda_joint6": 1.38774,
                 "panda_joint7": 0.0,
                 "panda_finger_joint2": 0.04,
@@ -171,7 +172,7 @@ class DisassemblyEnvCfg(DirectRLEnvCfg):
                 friction=0.0,
                 armature=0.0,
                 effort_limit=87,
-                velocity_limit=124.6
+                velocity_limit=124.6,
             ),
             "panda_arm2": ImplicitActuatorCfg(
                 joint_names_expr=["panda_joint[5-7]"],
@@ -180,7 +181,7 @@ class DisassemblyEnvCfg(DirectRLEnvCfg):
                 friction=0.0,
                 armature=0.0,
                 effort_limit=12,
-                velocity_limit=149.5
+                velocity_limit=149.5,
             ),
             "panda_hand": ImplicitActuatorCfg(
                 joint_names_expr=["panda_finger_joint[1-2]"],

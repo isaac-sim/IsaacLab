@@ -1,3 +1,8 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 # Copyright (c) 2023, NVIDIA Corporation
 # All rights reserved.
 #
@@ -33,28 +38,32 @@ Contains functions that implement Simulation-Aware Policy Update (SAPU), SDF-Bas
 Not intended to be executed as a standalone script.
 """
 
-import os
 import numpy as np
+import os
+
 # from pysdf import SDF
 import torch
 import trimesh
 from trimesh.exchange.load import load
+
 # from urdfpy import URDF
 import warp as wp
+
 from isaaclab.utils.assets import retrieve_file_path
 
 """
 Simulation-Aware Policy Update (SAPU)
 """
 
+
 def load_asset_mesh_in_warp(held_asset_obj, fixed_asset_obj, num_samples, device):
     """Create mesh objects in Warp for all environments."""
-    retrieve_file_path(held_asset_obj, download_dir='./')
+    retrieve_file_path(held_asset_obj, download_dir="./")
     plug_trimesh = load(os.path.basename(held_asset_obj))
-    #plug_trimesh = load(held_asset_obj)
-    retrieve_file_path(fixed_asset_obj, download_dir='./')
+    # plug_trimesh = load(held_asset_obj)
+    retrieve_file_path(fixed_asset_obj, download_dir="./")
     socket_trimesh = load(os.path.basename(fixed_asset_obj))
-    #socket_trimesh = load(fixed_asset_obj)
+    # socket_trimesh = load(fixed_asset_obj)
 
     plug_wp_mesh = wp.Mesh(
         points=wp.array(plug_trimesh.vertices, dtype=wp.vec3, device=device),
@@ -72,110 +81,18 @@ def load_asset_mesh_in_warp(held_asset_obj, fixed_asset_obj, num_samples, device
 
     return plug_wp_mesh, wp_mesh_sampled_points, socket_wp_mesh
 
-def get_max_interpen_dists(
-    plug_pos,
-    plug_quat,
-    socket_pos,
-    socket_quat,
-    wp_mesh_sampled_points,
-    socket_wp_mesh,
-    wp_device,
-    device,
-):
-    """Get maximum interpenetration distances between plugs and sockets."""
-
-    num_envs = len(plug_pos)
-    max_interpen_dists = torch.zeros((num_envs,), dtype=torch.float32, device=device)
-
-    for i in range(num_envs):
-        wp.clone(wp_mesh_sampled_points)
-
-        # Compute transform from plug frame to socket frame
-        plug_transform = wp.transform(plug_pos[i], plug_quat[i])
-        socket_transform = wp.transform(socket_pos[i], socket_quat[i])
-
-        # Transform plug mesh vertices to socket frame
-        plug_points = wp.clone(wp_plug_meshes_sampled_points)
-        wp.launch(
-            kernel=transform_points,
-            dim=len(plug_points),
-            inputs=[plug_points, plug_points, plug_transform],
-            device=wp_device,
-        )
-
-        # Compute max interpenetration distance between plug and socket
-        interpen_dist_plug_socket = wp.zeros(
-            (len(plug_points),), dtype=wp.float32, device=wp_device
-        )
-        wp.launch(
-            kernel=get_interpen_dist,
-            dim=len(plug_points),
-            inputs=[
-                plug_points,
-                wp_socket_meshes[asset_idx].id,
-                interpen_dist_plug_socket,
-            ],
-            device=wp_device,
-        )
-
-        max_interpen_dist = -torch.min(wp.to_torch(interpen_dist_plug_socket))
-
-        # Store interpenetration flag and max interpenetration distance
-        if max_interpen_dist > 0.0:
-            max_interpen_dists[i] = max_interpen_dist
-
-    return max_interpen_dists
-
-
-def get_sapu_reward_scale(
-    asset_indices,
-    plug_pos,
-    plug_quat,
-    socket_pos,
-    socket_quat,
-    wp_plug_meshes_sampled_points,
-    wp_socket_meshes,
-    interpen_thresh,
-    wp_device,
-    device,
-):
-    """Compute reward scale for SAPU."""
-
-    # Get max interpenetration distances
-    max_interpen_dists = get_max_interpen_dists(
-        asset_indices=asset_indices,
-        plug_pos=plug_pos,
-        plug_quat=plug_quat,
-        socket_pos=socket_pos,
-        socket_quat=socket_quat,
-        wp_plug_meshes_sampled_points=wp_plug_meshes_sampled_points,
-        wp_socket_meshes=wp_socket_meshes,
-        wp_device=wp_device,
-        device=device,
-    )
-
-    # Determine if envs have low interpenetration or high interpenetration
-    low_interpen_envs = torch.nonzero(max_interpen_dists <= interpen_thresh)
-    high_interpen_envs = torch.nonzero(max_interpen_dists > interpen_thresh)
-
-    # Compute reward scale
-    reward_scale = 1 - torch.tanh(
-        max_interpen_dists[low_interpen_envs] / interpen_thresh
-    )
-
-    return low_interpen_envs, high_interpen_envs, reward_scale
-
 
 """
 SDF-Based Reward
 """
+
 
 def get_sdf_reward(
     wp_plug_mesh,
     wp_plug_mesh_sampled_points,
     plug_pos,
     plug_quat,
-    socket_pos, 
+    socket_pos,
     socket_quat,
     wp_device,
     device,
@@ -224,7 +141,7 @@ def get_sdf_reward(
             kernel=get_batch_sdf,
             dim=len(sampled_points),
             inputs=[mesh_copy.id, sampled_points, sdf_dist],
-            device=wp_device
+            device=wp_device,
         )
         sdf_dist = wp.to_torch(sdf_dist)
 
@@ -253,9 +170,7 @@ def get_curriculum_reward_scale(cfg_task, curr_max_disp):
 
     # Compute difference between max downward displacement at beginning of training (easiest condition)
     # and min downward displacement (hardest condition)
-    final_stage_diff = (
-        cfg_task.curriculum_height_bound[1] - cfg_task.curriculum_height_bound[0]
-    )
+    final_stage_diff = cfg_task.curriculum_height_bound[1] - cfg_task.curriculum_height_bound[0]
 
     # Compute reward scale
     reward_scale = curr_stage_diff / final_stage_diff + 1.0
@@ -280,7 +195,7 @@ def get_new_max_disp(curr_success, cfg_task, curr_max_disp):
         new_max_disp = min(
             curr_max_disp + cfg_task.curriculum_height_step[1],
             cfg_task.curriculum_height_bound[1],
-        )  
+        )
 
     else:
         # Maintain current max downward displacement
@@ -298,16 +213,12 @@ def get_keypoint_offsets(num_keypoints, device):
     """Get uniformly-spaced keypoints along a line of unit length, centered at 0."""
 
     keypoint_offsets = torch.zeros((num_keypoints, 3), device=device)
-    keypoint_offsets[:, -1] = (
-        torch.linspace(0.0, 1.0, num_keypoints, device=device) - 0.5
-    )
+    keypoint_offsets[:, -1] = torch.linspace(0.0, 1.0, num_keypoints, device=device) - 0.5
 
     return keypoint_offsets
 
 
-def check_plug_close_to_socket(
-    keypoints_plug, keypoints_socket, dist_threshold, progress_buf
-):
+def check_plug_close_to_socket(keypoints_plug, keypoints_socket, dist_threshold, progress_buf):
     """Check if plug is close to socket."""
 
     # Compute keypoint distance between plug and socket
@@ -324,20 +235,12 @@ def check_plug_close_to_socket(
 
 
 def check_plug_inserted_in_socket(
-    plug_pos, 
-    socket_pos, 
-    keypoints_plug, 
-    keypoints_socket, 
-    success_height_thresh, 
-    close_error_thresh, 
-    progress_buf
+    plug_pos, socket_pos, keypoints_plug, keypoints_socket, success_height_thresh, close_error_thresh, progress_buf
 ):
     """Check if plug is inserted in socket."""
 
     # Check if plug is within threshold distance of assembled state
-    is_plug_below_insertion_height = (
-        plug_pos[:, 2] < socket_pos[:, 2] + success_height_thresh
-    )
+    is_plug_below_insertion_height = plug_pos[:, 2] < socket_pos[:, 2] + success_height_thresh
 
     # Check if plug is close to socket
     # NOTE: This check addresses edge case where plug is within threshold distance of
@@ -350,16 +253,12 @@ def check_plug_inserted_in_socket(
     )
 
     # Combine both checks
-    is_plug_inserted_in_socket = torch.logical_and(
-        is_plug_below_insertion_height, is_plug_close_to_socket
-    )
+    is_plug_inserted_in_socket = torch.logical_and(is_plug_below_insertion_height, is_plug_close_to_socket)
 
     return is_plug_inserted_in_socket
 
 
-def get_engagement_reward_scale(
-    plug_pos, socket_pos, is_plug_engaged_w_socket, success_height_thresh, device
-):
+def get_engagement_reward_scale(plug_pos, socket_pos, is_plug_engaged_w_socket, success_height_thresh, device):
     """Compute scale on reward. If plug is not engaged with socket, scale is zero.
     If plug is engaged, scale is proportional to distance between plug and bottom of socket."""
 
@@ -376,25 +275,29 @@ def get_engagement_reward_scale(
 
     return reward_scale
 
+
 """
 Warp Functions
 """
 
+
 @wp.func
 def mesh_sdf(mesh: wp.uint64, point: wp.vec3, max_dist: float):
     face_index = int(0)
-    face_u = float(0.0)  
+    face_u = float(0.0)
     face_v = float(0.0)
     sign = float(0.0)
     res = wp.mesh_query_point(mesh, point, max_dist, sign, face_index, face_u, face_v)
-    if (res):
+    if res:
         closest = wp.mesh_eval_position(mesh, face_index, face_u, face_v)
         return wp.length(point - closest) * sign
     return max_dist
 
+
 """
 Warp Kernels
 """
+
 
 @wp.kernel
 def get_batch_sdf(
@@ -411,11 +314,10 @@ def get_batch_sdf(
     # sdf_dist[tid] = wp.mesh_query_point_sign_normal(mesh, q, max_dist)
     sdf_dist[tid] = mesh_sdf(mesh, q, max_dist)
 
+
 # Transform points from source coordinate frame to destination coordinate frame
 @wp.kernel
-def transform_points(
-    src: wp.array(dtype=wp.vec3), dest: wp.array(dtype=wp.vec3), xform: wp.transform
-):
+def transform_points(src: wp.array(dtype=wp.vec3), dest: wp.array(dtype=wp.vec3), xform: wp.transform):
     tid = wp.tid()
 
     p = src[tid]
@@ -447,9 +349,7 @@ def get_interpen_dist(
     face_v = float(0.0)  # barycentric v-coordinate of closest point
 
     # Get closest point on mesh to query point
-    closest_mesh_point_exists = wp.mesh_query_point(
-        mesh, q, max_dist, sign, face_idx, face_u, face_v
-    )
+    closest_mesh_point_exists = wp.mesh_query_point(mesh, q, max_dist, sign, face_idx, face_u, face_v)
 
     # If point exists within max_dist
     if closest_mesh_point_exists:
