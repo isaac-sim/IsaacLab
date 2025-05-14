@@ -201,7 +201,7 @@ class ObservationGroupCfg:
     concatenate_terms: bool = True
     """Whether to concatenate the observation terms in the group. Defaults to True.
 
-    If true, the observation terms in the group are concatenated along the dimension specified in concatenate_dim.
+    If true, the observation terms in the group are concatenated along the dimension specified through :attr:`concatenate_dim`.
     Otherwise, they are kept separate and returned as a dictionary.
 
     If the observation group contains terms of different dimensions, it must be set to False.
