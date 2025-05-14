@@ -4,11 +4,10 @@ Changelog
 0.39.1 (2025-05-13)
 ~~~~~~~~~~~~~~~~~~~
 
-Added
+Fixed
 ^^^^^
 
-* Adds option to add terrain border as "wall" above the ground or as terrain extension below the ground in
-  :class:`~isaaclab.terrains.terrain_generator.TerrainGeneratorCfg`.
+* Fixed penetration issue for negative border height in :class:`~isaaclab.terrains.terrain_generator.TerrainGeneratorCfg`.
 
 
 0.39.0 (2025-05-03)

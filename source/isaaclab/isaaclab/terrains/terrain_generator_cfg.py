@@ -139,17 +139,7 @@ class TerrainGeneratorCfg:
     """The height of the border around the terrain (in m). Defaults to 1.0.
 
     .. note::
-      The border height should never be negative as this inverts the face orientation which breaks the collision mesh
-      and results in the robot penetrating the border.
-    """
-
-    border_below_ground: bool = True
-    """Whether to place the border below the ground. Defaults to True.
-
-    If True, the highest point of the border is at the height 0.0. This extends the terrain and is typically used in
-    locomotion tasks.
-    If False, the lowest point of the border is at the height 0.0. This is typically used in navigation tasks and acts
-    as a wall to prevent the robot from falling off the terrain.
+      The default border extends below the ground. If you want to make the border above the ground, choose a negative value.
     """
 
     num_rows: int = 1
