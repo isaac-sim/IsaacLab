@@ -548,8 +548,7 @@ def quat_box_plus(q: torch.Tensor, delta: torch.Tensor, eps: float = 1.0e-6) -> 
     Args:
         q: The initial quaternion in (w, x, y, z). Shape is (N, 4).
         delta: The axis-angle perturbation. Shape is (N, 3).
-
-    eps: A small value to avoid division by zero. Defaults to 1e-6.
+            eps: A small value to avoid division by zero. Defaults to 1e-6.
 
     Returns:
         The updated quaternion after applying the perturbation. Shape is (N, 4).
@@ -807,12 +806,17 @@ def rigid_body_twist_transform(
 ) -> tuple[torch.Tensor, torch.Tensor]:
     r"""Transform the linear and angular velocity of a rigid body between reference frames.
 
-    Given the twist of 0 relative to frame 0, this function computes the twist of 1 relative to frame 1 from the position and orientation of frame 1 relative to frame 0. The transformation follows the equations:
+    Given the twist of 0 relative to frame 0, this function computes the twist of 1 relative to frame 1
+    from the position and orientation of frame 1 relative to frame 0. The transformation follows the
+    equations:
+    
     .. math::
         w_11 = R_{10} w_00 = R_{01}^{-1} w_00
         v_11 = R_{10} v_00 + R_{10} (w_00 \times t_01) = R_{01}^{-1} (v_00 + (w_00 \times t_01))
-    where:
-        - :math:`R_{01}` is the rotation matrix from frame 0 to frame 1 derived from quaternion :math:`q_{01}`
+    
+    where
+    
+        - :math:`R_{01}` is the rotation matrix from frame 0 to frame 1 derived from quaternion :math:`q_{01}`.
         - :math:`t_{01}` is the position of frame 1 relative to frame 0 expressed in frame 0
         - :math:`w_0` is the angular velocity of 0 in frame 0
         - :math:`v_0` is the linear velocity of 0 in frame 0

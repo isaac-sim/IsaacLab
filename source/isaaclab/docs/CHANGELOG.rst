@@ -12,7 +12,7 @@ Changed
 Added
 ^^^^^
 
-* Added :meth:`~isaaclab.utils.math.quat_box_minus`
+* Added :meth:`~isaaclab.utils.math.quat_box_plus`
 * Added :meth:`~isaaclab.utils.math.rigid_body_twist_transform`
 
 
