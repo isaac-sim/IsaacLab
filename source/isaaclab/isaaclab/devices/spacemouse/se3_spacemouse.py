@@ -104,10 +104,13 @@ class Se3SpaceMouse(DeviceBase):
         self._delta_rot = np.zeros(3)  # (roll, pitch, yaw)
 
     def add_callback(self, key: str, func: Callable):
-        # check keys supported by callback
-        if key not in ["L", "R"]:
-            raise ValueError(f"Only left (L) and right (R) buttons supported. Provided: {key}.")
-        # TODO: Improve this to allow multiple buttons on same key.
+        """Add additional functions to bind spacemouse.
+
+        Args:
+            key: The keyboard button to check against.
+            func: The function to call when key is pressed. The callback function should not
+                take any arguments.
+        """
         self._additional_callbacks[key] = func
 
     def advance(self) -> torch.Tensor:
