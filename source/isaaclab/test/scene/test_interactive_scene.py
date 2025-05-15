@@ -5,14 +5,14 @@
 
 """Launch Isaac Sim Simulator first."""
 
-from isaaclab.app import AppLauncher, run_tests
+from isaaclab.app import AppLauncher
 
 # launch omniverse app
 simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows."""
 
-import unittest
+import pytest
 
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
@@ -68,45 +68,42 @@ class MySceneCfg(InteractiveSceneCfg):
     )
 
 
-class TestInteractiveScene(unittest.TestCase):
-    """Test cases for InteractiveScene."""
-
-    def setUp(self) -> None:
-        self.devices = ["cuda:0", "cpu"]
-        self.sim_dt = 0.001
-        self.scene_cfg = MySceneCfg(num_envs=1, env_spacing=1)
-
-    def test_scene_entity_isolation(self):
-        """Tests that multiple instances of InteractiveScene does not share any data.
-
-        In this test, two InteractiveScene instances are created in a loop and added to a list.
-        The scene at index 0 of the list will have all of its entities cleared manually, and
-        the test compares that the data held in the scene at index 1 remained intact.
-        """
-        for device in self.devices:
-            scene_list = []
-            # create two InteractiveScene instances
-            for _ in range(2):
-                with build_simulation_context(device=device, dt=self.sim_dt) as _:
-                    scene = InteractiveScene(MySceneCfg(num_envs=1, env_spacing=1))
-                    scene_list.append(scene)
-            scene_0 = scene_list[0]
-            scene_1 = scene_list[1]
-            # clear entities for scene_0 - this should not affect any data in scene_1
-            scene_0.articulations.clear()
-            scene_0.rigid_objects.clear()
-            scene_0.sensors.clear()
-            scene_0.extras.clear()
-            # check that scene_0 and scene_1 do not share entity data via dictionary comparison
-            self.assertEqual(scene_0.articulations, dict())
-            self.assertNotEqual(scene_0.articulations, scene_1.articulations)
-            self.assertEqual(scene_0.rigid_objects, dict())
-            self.assertNotEqual(scene_0.rigid_objects, scene_1.rigid_objects)
-            self.assertEqual(scene_0.sensors, dict())
-            self.assertNotEqual(scene_0.sensors, scene_1.sensors)
-            self.assertEqual(scene_0.extras, dict())
-            self.assertNotEqual(scene_0.extras, scene_1.extras)
+@pytest.fixture(scope="module")
+def setup_scene():
+    """Fixture to set up scene parameters."""
+    sim_dt = 0.001
+    scene_cfg = MySceneCfg(num_envs=1, env_spacing=1)
+    return sim_dt, scene_cfg
 
 
-if __name__ == "__main__":
-    run_tests()
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+def test_scene_entity_isolation(device, setup_scene):
+    """Tests that multiple instances of InteractiveScene do not share any data.
+
+    In this test, two InteractiveScene instances are created in a loop and added to a list.
+    The scene at index 0 of the list will have all of its entities cleared manually, and
+    the test compares that the data held in the scene at index 1 remained intact.
+    """
+    sim_dt, scene_cfg = setup_scene
+    scene_list = []
+    # create two InteractiveScene instances
+    for _ in range(2):
+        with build_simulation_context(device=device, dt=sim_dt) as _:
+            scene = InteractiveScene(scene_cfg)
+            scene_list.append(scene)
+    scene_0 = scene_list[0]
+    scene_1 = scene_list[1]
+    # clear entities for scene_0 - this should not affect any data in scene_1
+    scene_0.articulations.clear()
+    scene_0.rigid_objects.clear()
+    scene_0.sensors.clear()
+    scene_0.extras.clear()
+    # check that scene_0 and scene_1 do not share entity data via dictionary comparison
+    assert scene_0.articulations == dict()
+    assert scene_0.articulations != scene_1.articulations
+    assert scene_0.rigid_objects == dict()
+    assert scene_0.rigid_objects != scene_1.rigid_objects
+    assert scene_0.sensors == dict()
+    assert scene_0.sensors != scene_1.sensors
+    assert scene_0.extras == dict()
+    assert scene_0.extras != scene_1.extras
