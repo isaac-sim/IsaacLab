@@ -1,7 +1,7 @@
 Changelog
 ---------
 
-0.39.2 (2025-03-24)
+0.39.2 (2025-05-15)
 ~~~~~~~~~~~~~~~~~~~
 
 Changed
@@ -9,9 +9,9 @@ Changed
 
 * Changed all calls to :meth:`~isaaclab.utils.math.quat_rotate` and :meth:`~isaaclab.utils.math.quat_rotate_inverse` to
   :meth:`~isaaclab.utils.math.quat_apply` and :meth:`~isaaclab.utils.math.quat_apply_inverse` for speed.
-  
+
 Added
-^^^^^  
+^^^^^
 
 * Added deprecation warning for :meth:`~isaaclab.utils.math.quat_rotate` and
   :meth:`~isaaclab.utils.math.quat_rotate_inverse`
