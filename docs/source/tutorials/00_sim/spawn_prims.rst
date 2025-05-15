@@ -4,23 +4,23 @@
 Spawning prims into the scene
 =============================
 
-.. currentmodule:: omni.isaac.lab
+.. currentmodule:: isaaclab
 
 This tutorial explores how to spawn various objects (or prims) into the scene in Isaac Lab from Python.
-It builds upon the previous tutorial on running the simulator from a standalone script and
+It builds on the previous tutorial on running the simulator from a standalone script and
 demonstrates how to spawn a ground plane, lights, primitive shapes, and meshes from USD files.
 
 
 The Code
 ~~~~~~~~
 
-The tutorial corresponds to the ``spawn_prims.py`` script in the ``source/standalone/tutorials/00_sim`` directory.
+The tutorial corresponds to the ``spawn_prims.py`` script in the ``scripts/tutorials/00_sim`` directory.
 Let's take a look at the Python script:
 
 .. dropdown:: Code for spawn_prims.py
    :icon: code
 
-   .. literalinclude:: ../../../../source/standalone/tutorials/00_sim/spawn_prims.py
+   .. literalinclude:: ../../../../scripts/tutorials/00_sim/spawn_prims.py
       :language: python
       :emphasize-lines: 40-88, 100-101
       :linenos:
@@ -85,7 +85,7 @@ Spawning a ground plane
 The :class:`~sim.spawners.from_files.GroundPlaneCfg` configures a grid-like ground plane with
 modifiable properties such as its appearance and size.
 
-.. literalinclude:: ../../../../source/standalone/tutorials/00_sim/spawn_prims.py
+.. literalinclude:: ../../../../scripts/tutorials/00_sim/spawn_prims.py
    :language: python
    :start-at: # Ground-plane
    :end-at: cfg_ground.func("/World/defaultGroundPlane", cfg_ground)
@@ -98,7 +98,7 @@ It is possible to spawn `different light prims`_ into the stage. These include d
 lights, and cylinder lights. In this tutorial, we spawn a distant light which is a light that is infinitely far away
 from the scene and shines in a single direction.
 
-.. literalinclude:: ../../../../source/standalone/tutorials/00_sim/spawn_prims.py
+.. literalinclude:: ../../../../scripts/tutorials/00_sim/spawn_prims.py
    :language: python
    :start-at: # spawn distant light
    :end-at: cfg_light_distant.func("/World/lightDistant", cfg_light_distant, translation=(1, 0, 10))
@@ -111,7 +111,7 @@ Before spawning primitive shapes, we introduce the concept of a transform prim o
 contains only transformation properties. It is used to group other prims under it and to transform them as a group.
 Here we make an Xform prim to group all the primitive shapes under it.
 
-.. literalinclude:: ../../../../source/standalone/tutorials/00_sim/spawn_prims.py
+.. literalinclude:: ../../../../scripts/tutorials/00_sim/spawn_prims.py
    :language: python
    :start-at: # create a new xform prim for all objects to be spawned under
    :end-at: prim_utils.create_prim("/World/Objects", "Xform")
@@ -122,7 +122,7 @@ properties are disabled.
 
 The first two cones we spawn ``Cone1`` and ``Cone2`` are visual elements and do not have physics enabled.
 
-.. literalinclude:: ../../../../source/standalone/tutorials/00_sim/spawn_prims.py
+.. literalinclude:: ../../../../scripts/tutorials/00_sim/spawn_prims.py
    :language: python
    :start-at: # spawn a red cone
    :end-at: cfg_cone.func("/World/Objects/Cone2", cfg_cone, translation=(-1.0, -1.0, 1.0))
@@ -131,7 +131,7 @@ For the third cone ``ConeRigid``, we add rigid body physics to it by setting the
 class. Through these attributes, we can specify the mass, friction, and restitution of the cone. If unspecified, they
 default to the default values set by USD Physics.
 
-.. literalinclude:: ../../../../source/standalone/tutorials/00_sim/spawn_prims.py
+.. literalinclude:: ../../../../scripts/tutorials/00_sim/spawn_prims.py
    :language: python
    :start-at: # spawn a green cone with colliders and rigid body
    :end-before: # spawn a blue cuboid with deformable body
@@ -141,7 +141,7 @@ rigid body simulation, a deformable body can have relative motion between its ve
 soft bodies like cloth, rubber, or jello. It is important to note that deformable bodies are only supported in
 GPU simulation and require a mesh object to be spawned with the deformable body physics properties.
 
-.. literalinclude:: ../../../../source/standalone/tutorials/00_sim/spawn_prims.py
+.. literalinclude:: ../../../../scripts/tutorials/00_sim/spawn_prims.py
    :language: python
    :start-at: # spawn a blue cuboid with deformable body
    :end-before: # spawn a usd file of a table into the scene
@@ -153,7 +153,7 @@ Lastly, it is possible to spawn prims from other file formats such as other USD,
 we spawn a USD file of a table into the scene. The table is a mesh prim and has a material prim associated with it.
 All of this information is stored in its USD file.
 
-.. literalinclude:: ../../../../source/standalone/tutorials/00_sim/spawn_prims.py
+.. literalinclude:: ../../../../scripts/tutorials/00_sim/spawn_prims.py
    :language: python
    :start-at: # spawn a usd file of a table into the scene
    :end-at: cfg.func("/World/Objects/Table", cfg, translation=(0.0, 0.0, 1.05))
@@ -171,7 +171,7 @@ Similar to the tutorial before, to run the script, execute the following command
 
 .. code-block:: bash
 
-  ./isaaclab.sh -p source/standalone/tutorials/00_sim/spawn_prims.py
+  ./isaaclab.sh -p scripts/tutorials/00_sim/spawn_prims.py
 
 Once the simulation starts, you should see a window with a ground plane, a light, some cones, and a table.
 The green cone, which has rigid body physics enabled, should fall and collide with the table and the ground
