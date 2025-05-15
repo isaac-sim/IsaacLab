@@ -81,7 +81,7 @@ def main():
 
     # Setup output paths and get env name
     output_dir, output_file_name = setup_output_paths(args_cli.output_file)
-    env_name = args_cli.task or get_env_name_from_dataset(args_cli.input_file)
+    env_name = args_cli.task.split(":")[-1] or get_env_name_from_dataset(args_cli.input_file)
 
     # Configure environment
     env_cfg, success_term = setup_env_config(
