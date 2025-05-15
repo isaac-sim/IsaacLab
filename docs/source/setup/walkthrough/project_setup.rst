@@ -102,4 +102,4 @@ this init file is what defines the entry point for the task!
 
 For the template, ``gym.register`` is called within ``isaac_lab_tutorial/source/isaac_lab_tutorial/isaac_lab_tutorial/tasks/direct/isaac_lab_tutorial/__init__.py``.
 The repeated name is a consequence of needing default names for the template, but now we can see the structure of the project.
-``**Project**/source/**Extension**/**Module**/tasks/direct/**Task**/__init__.py``.
+**Project**/source/**Extension**/**Module**/tasks/direct/**Task**/__init__.py
