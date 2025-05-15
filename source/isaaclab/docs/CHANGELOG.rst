@@ -1,7 +1,7 @@
 Changelog
 ---------
 
-0.39.1 (2025-03-24)
+0.39.2 (2025-03-24)
 ~~~~~~~~~~~~~~~~~~~
 
 Changed
@@ -9,8 +9,23 @@ Changed
 
 * Changed all calls to :meth:`~isaaclab.utils.math.quat_rotate` and :meth:`~isaaclab.utils.math.quat_rotate_inverse` to
   :meth:`~isaaclab.utils.math.quat_apply` and :meth:`~isaaclab.utils.math.quat_apply_inverse` for speed.
+  
+Added
+^^^^^  
+
 * Added deprecation warning for :meth:`~isaaclab.utils.math.quat_rotate` and
   :meth:`~isaaclab.utils.math.quat_rotate_inverse`
+
+
+
+0.39.1 (2025-05-14)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added a new attribute :attr:`articulation_root_prim_path` to the :class:`~isaaclab.assets.ArticulationCfg` class
+  to allow explicitly specifying the prim path of the articulation root.
 
 
 0.39.0 (2025-05-03)
