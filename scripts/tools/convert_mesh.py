@@ -57,7 +57,7 @@ parser.add_argument(
     "--collision-approximation",
     type=str,
     default="convexDecomposition",
-    choices=["convexDecomposition", "convexHull", "none"],
+    choices=["convexDecomposition", "convexHull", "boundingCube", "boundingSphere", "meshSimplification", "none"],
     help=(
         'The method used for approximating collision mesh. Set to "none" '
         "to not add a collision mesh to the converted mesh."
