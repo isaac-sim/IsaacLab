@@ -985,6 +985,7 @@
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.assets.ArticulationCfg.spawn"><code class="docutils literal notranslate"><span class="pre">ArticulationCfg.spawn</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.assets.ArticulationCfg.collision_group"><code class="docutils literal notranslate"><span class="pre">ArticulationCfg.collision_group</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.assets.ArticulationCfg.debug_vis"><code class="docutils literal notranslate"><span class="pre">ArticulationCfg.debug_vis</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.assets.ArticulationCfg.articulation_root_prim_path"><code class="docutils literal notranslate"><span class="pre">ArticulationCfg.articulation_root_prim_path</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.assets.ArticulationCfg.init_state"><code class="docutils literal notranslate"><span class="pre">ArticulationCfg.init_state</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.assets.ArticulationCfg.soft_joint_pos_limit_factor"><code class="docutils literal notranslate"><span class="pre">ArticulationCfg.soft_joint_pos_limit_factor</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.assets.ArticulationCfg.actuators"><code class="docutils literal notranslate"><span class="pre">ArticulationCfg.actuators</span></code></a></li>
@@ -5547,13 +5548,16 @@ relative to the world.</p>
 <tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.assets.ArticulationCfg.debug_vis" title="isaaclab.assets.ArticulationCfg.debug_vis"><code class="xref py py-obj docutils literal notranslate"><span class="pre">debug_vis</span></code></a></p></td>
 <td><p>Whether to enable debug visualization for the asset.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.assets.ArticulationCfg.init_state" title="isaaclab.assets.ArticulationCfg.init_state"><code class="xref py py-obj docutils literal notranslate"><span class="pre">init_state</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.assets.ArticulationCfg.articulation_root_prim_path" title="isaaclab.assets.ArticulationCfg.articulation_root_prim_path"><code class="xref py py-obj docutils literal notranslate"><span class="pre">articulation_root_prim_path</span></code></a></p></td>
+<td><p>Path to the articulation root prim in the USD file.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.assets.ArticulationCfg.init_state" title="isaaclab.assets.ArticulationCfg.init_state"><code class="xref py py-obj docutils literal notranslate"><span class="pre">init_state</span></code></a></p></td>
 <td><p>Initial state of the articulated object.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.assets.ArticulationCfg.soft_joint_pos_limit_factor" title="isaaclab.assets.ArticulationCfg.soft_joint_pos_limit_factor"><code class="xref py py-obj docutils literal notranslate"><span class="pre">soft_joint_pos_limit_factor</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.assets.ArticulationCfg.soft_joint_pos_limit_factor" title="isaaclab.assets.ArticulationCfg.soft_joint_pos_limit_factor"><code class="xref py py-obj docutils literal notranslate"><span class="pre">soft_joint_pos_limit_factor</span></code></a></p></td>
 <td><p>Fraction specifying the range of joint position limits (parsed from the asset) to use.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.assets.ArticulationCfg.actuators" title="isaaclab.assets.ArticulationCfg.actuators"><code class="xref py py-obj docutils literal notranslate"><span class="pre">actuators</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.assets.ArticulationCfg.actuators" title="isaaclab.assets.ArticulationCfg.actuators"><code class="xref py py-obj docutils literal notranslate"><span class="pre">actuators</span></code></a></p></td>
 <td><p>Actuators for the robot with corresponding joint names.</p></td>
 </tr>
 </tbody>
@@ -5661,6 +5665,13 @@ asset is already present in the scene.</p>
 <dt class="sig sig-object py" id="isaaclab.assets.ArticulationCfg.debug_vis">
 <span class="sig-name descname"><span class="pre">debug_vis</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a></em><a class="headerlink" href="#isaaclab.assets.ArticulationCfg.debug_vis" title="Permalink to this definition">#</a></dt>
 <dd><p>Whether to enable debug visualization for the asset. Defaults to <code class="docutils literal notranslate"><span class="pre">False</span></code>.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab.assets.ArticulationCfg.articulation_root_prim_path">
+<span class="sig-name descname"><span class="pre">articulation_root_prim_path</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></em><a class="headerlink" href="#isaaclab.assets.ArticulationCfg.articulation_root_prim_path" title="Permalink to this definition">#</a></dt>
+<dd><p>Path to the articulation root prim in the USD file.</p>
+<p>If not provided will search for a prim with the ArticulationRootAPI. Should start with a slash.</p>
 </dd></dl>
 
 <dl class="py attribute">
@@ -6785,6 +6796,7 @@ asset is already present in the scene.</p>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.assets.ArticulationCfg.spawn"><code class="docutils literal notranslate"><span class="pre">ArticulationCfg.spawn</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.assets.ArticulationCfg.collision_group"><code class="docutils literal notranslate"><span class="pre">ArticulationCfg.collision_group</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.assets.ArticulationCfg.debug_vis"><code class="docutils literal notranslate"><span class="pre">ArticulationCfg.debug_vis</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.assets.ArticulationCfg.articulation_root_prim_path"><code class="docutils literal notranslate"><span class="pre">ArticulationCfg.articulation_root_prim_path</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.assets.ArticulationCfg.init_state"><code class="docutils literal notranslate"><span class="pre">ArticulationCfg.init_state</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.assets.ArticulationCfg.soft_joint_pos_limit_factor"><code class="docutils literal notranslate"><span class="pre">ArticulationCfg.soft_joint_pos_limit_factor</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.assets.ArticulationCfg.actuators"><code class="docutils literal notranslate"><span class="pre">ArticulationCfg.actuators</span></code></a></li>

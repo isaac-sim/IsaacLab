@@ -1684,37 +1684,48 @@
     <span class="k">def</span><span class="w"> </span><span class="nf">_initialize_impl</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="c1"># obtain global simulation view</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_physics_sim_view</span> <span class="o">=</span> <span class="n">SimulationManager</span><span class="o">.</span><span class="n">get_physics_sim_view</span><span class="p">()</span>
-        <span class="c1"># obtain the first prim in the regex expression (all others are assumed to be a copy of this)</span>
-        <span class="n">template_prim</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">find_first_matching_prim</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">prim_path</span><span class="p">)</span>
-        <span class="k">if</span> <span class="n">template_prim</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Failed to find prim for expression: &#39;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">prim_path</span><span class="si">}</span><span class="s2">&#39;.&quot;</span><span class="p">)</span>
-        <span class="n">template_prim_path</span> <span class="o">=</span> <span class="n">template_prim</span><span class="o">.</span><span class="n">GetPath</span><span class="p">()</span><span class="o">.</span><span class="n">pathString</span>
 
-        <span class="c1"># find articulation root prims</span>
-        <span class="n">root_prims</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">get_all_matching_child_prims</span><span class="p">(</span>
-            <span class="n">template_prim_path</span><span class="p">,</span> <span class="n">predicate</span><span class="o">=</span><span class="k">lambda</span> <span class="n">prim</span><span class="p">:</span> <span class="n">prim</span><span class="o">.</span><span class="n">HasAPI</span><span class="p">(</span><span class="n">UsdPhysics</span><span class="o">.</span><span class="n">ArticulationRootAPI</span><span class="p">)</span>
-        <span class="p">)</span>
-        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">root_prims</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
-            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span>
-                <span class="sa">f</span><span class="s2">&quot;Failed to find an articulation when resolving &#39;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">prim_path</span><span class="si">}</span><span class="s2">&#39;.&quot;</span>
-                <span class="s2">&quot; Please ensure that the prim has &#39;USD ArticulationRootAPI&#39; applied.&quot;</span>
-            <span class="p">)</span>
-        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">root_prims</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
-            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span>
-                <span class="sa">f</span><span class="s2">&quot;Failed to find a single articulation when resolving &#39;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">prim_path</span><span class="si">}</span><span class="s2">&#39;.&quot;</span>
-                <span class="sa">f</span><span class="s2">&quot; Found multiple &#39;</span><span class="si">{</span><span class="n">root_prims</span><span class="si">}</span><span class="s2">&#39; under &#39;</span><span class="si">{</span><span class="n">template_prim_path</span><span class="si">}</span><span class="s2">&#39;.&quot;</span>
-                <span class="s2">&quot; Please ensure that there is only one articulation in the prim path tree.&quot;</span>
-            <span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">articulation_root_prim_path</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="c1"># The articulation root prim path is specified explicitly, so we can just use this.</span>
+            <span class="n">root_prim_path_expr</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">prim_path</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">articulation_root_prim_path</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># No articulation root prim path was specified, so we need to search</span>
+            <span class="c1"># for it. We search for this in the first environment and then</span>
+            <span class="c1"># create a regex that matches all environments.</span>
+            <span class="n">first_env_matching_prim</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">find_first_matching_prim</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">prim_path</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">first_env_matching_prim</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Failed to find prim for expression: &#39;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">prim_path</span><span class="si">}</span><span class="s2">&#39;.&quot;</span><span class="p">)</span>
+            <span class="n">first_env_matching_prim_path</span> <span class="o">=</span> <span class="n">first_env_matching_prim</span><span class="o">.</span><span class="n">GetPath</span><span class="p">()</span><span class="o">.</span><span class="n">pathString</span>
 
-        <span class="c1"># resolve articulation root prim back into regex expression</span>
-        <span class="n">root_prim_path</span> <span class="o">=</span> <span class="n">root_prims</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">GetPath</span><span class="p">()</span><span class="o">.</span><span class="n">pathString</span>
-        <span class="n">root_prim_path_expr</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">prim_path</span> <span class="o">+</span> <span class="n">root_prim_path</span><span class="p">[</span><span class="nb">len</span><span class="p">(</span><span class="n">template_prim_path</span><span class="p">)</span> <span class="p">:]</span>
+            <span class="c1"># Find all articulation root prims in the first environment.</span>
+            <span class="n">first_env_root_prims</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">get_all_matching_child_prims</span><span class="p">(</span>
+                <span class="n">first_env_matching_prim_path</span><span class="p">,</span>
+                <span class="n">predicate</span><span class="o">=</span><span class="k">lambda</span> <span class="n">prim</span><span class="p">:</span> <span class="n">prim</span><span class="o">.</span><span class="n">HasAPI</span><span class="p">(</span><span class="n">UsdPhysics</span><span class="o">.</span><span class="n">ArticulationRootAPI</span><span class="p">),</span>
+            <span class="p">)</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">first_env_root_prims</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;Failed to find an articulation when resolving &#39;</span><span class="si">{</span><span class="n">first_env_matching_prim_path</span><span class="si">}</span><span class="s2">&#39;.&quot;</span>
+                    <span class="s2">&quot; Please ensure that the prim has &#39;USD ArticulationRootAPI&#39; applied.&quot;</span>
+                <span class="p">)</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">first_env_root_prims</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;Failed to find a single articulation when resolving &#39;</span><span class="si">{</span><span class="n">first_env_matching_prim_path</span><span class="si">}</span><span class="s2">&#39;.&quot;</span>
+                    <span class="sa">f</span><span class="s2">&quot; Found multiple &#39;</span><span class="si">{</span><span class="n">first_env_root_prims</span><span class="si">}</span><span class="s2">&#39; under &#39;</span><span class="si">{</span><span class="n">first_env_matching_prim_path</span><span class="si">}</span><span class="s2">&#39;.&quot;</span>
+                    <span class="s2">&quot; Please ensure that there is only one articulation in the prim path tree.&quot;</span>
+                <span class="p">)</span>
+
+            <span class="c1"># Now we convert the found articulation root from the first</span>
+            <span class="c1"># environment back into a regex that matches all environments.</span>
+            <span class="n">first_env_root_prim_path</span> <span class="o">=</span> <span class="n">first_env_root_prims</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">GetPath</span><span class="p">()</span><span class="o">.</span><span class="n">pathString</span>
+            <span class="n">root_prim_path_relative_to_prim_path</span> <span class="o">=</span> <span class="n">first_env_root_prim_path</span><span class="p">[</span><span class="nb">len</span><span class="p">(</span><span class="n">first_env_matching_prim_path</span><span class="p">)</span> <span class="p">:]</span>
+            <span class="n">root_prim_path_expr</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">prim_path</span> <span class="o">+</span> <span class="n">root_prim_path_relative_to_prim_path</span>
+
         <span class="c1"># -- articulation</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_root_physx_view</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_physics_sim_view</span><span class="o">.</span><span class="n">create_articulation_view</span><span class="p">(</span><span class="n">root_prim_path_expr</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;.*&quot;</span><span class="p">,</span> <span class="s2">&quot;*&quot;</span><span class="p">))</span>
 
         <span class="c1"># check if the articulation was created</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_root_physx_view</span><span class="o">.</span><span class="n">_backend</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Failed to create articulation at: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">prim_path</span><span class="si">}</span><span class="s2">. Please check PhysX logs.&quot;</span><span class="p">)</span>
+            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Failed to create articulation at: </span><span class="si">{</span><span class="n">root_prim_path_expr</span><span class="si">}</span><span class="s2">. Please check PhysX logs.&quot;</span><span class="p">)</span>
 
         <span class="c1"># log information about the articulation</span>
         <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Articulation initialized at: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">prim_path</span><span class="si">}</span><span class="s2"> with root &#39;</span><span class="si">{</span><span class="n">root_prim_path_expr</span><span class="si">}</span><span class="s2">&#39;.&quot;</span><span class="p">)</span>
