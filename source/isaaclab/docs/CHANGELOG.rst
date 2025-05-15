@@ -1,7 +1,7 @@
 Changelog
 ---------
 
-0.39.1 (2025-05-14)
+0.39.2 (2025-05-14)
 ~~~~~~~~~~~~~~~~~~~
 
 Changed
@@ -14,6 +14,16 @@ Added
 
 * Added :meth:`~isaaclab.utils.math.quat_box_plus`
 * Added :meth:`~isaaclab.utils.math.rigid_body_twist_transform`
+
+
+0.39.1 (2025-05-14)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added a new attribute :attr:`articulation_root_prim_path` to the :class:`~isaaclab.assets.ArticulationCfg` class
+  to allow explicitly specifying the prim path of the articulation root.
 
 
 0.39.0 (2025-05-03)
