@@ -91,6 +91,7 @@ Table of Contents
    source/setup/walkthrough/index
    source/tutorials/index
    source/how-to/index
+   source/overview/developer-guide/index
 
 
 .. toctree::
@@ -98,7 +99,7 @@ Table of Contents
    :caption: Overview
    :titlesonly:
 
-   source/overview/developer-guide/index
+
    source/overview/core-concepts/index
    source/overview/environments
    source/overview/reinforcement-learning/index
