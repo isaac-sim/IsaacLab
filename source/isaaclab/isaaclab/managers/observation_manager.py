@@ -14,7 +14,7 @@ from collections.abc import Sequence
 from prettytable import PrettyTable
 from typing import TYPE_CHECKING
 
-from isaaclab.utils import modifiers
+from isaaclab.utils import class_to_dict, modifiers
 from isaaclab.utils.buffers import CircularBuffer
 
 from .manager_base import ManagerBase, ManagerTermBase
@@ -333,6 +333,29 @@ class ObservationManager(ManagerBase):
             return torch.cat(list(group_obs.values()), dim=-1)
         else:
             return group_obs
+
+    def serialize(self) -> dict:
+        """Serialize the observation term configurations for all active groups.
+
+        Returns:
+            A dictionary where each group name maps to its serialized observation term configurations.
+        """
+        output = {
+            group_name: {
+                term_name: (
+                    term_cfg.func.serialize()
+                    if isinstance(term_cfg.func, ManagerTermBase)
+                    else {"cfg": class_to_dict(term_cfg)}
+                )
+                for term_name, term_cfg in zip(
+                    self._group_obs_term_names[group_name],
+                    self._group_obs_term_cfgs[group_name],
+                )
+            }
+            for group_name in self.active_terms.keys()
+        }
+
+        return output
 
     """
     Helper functions.
