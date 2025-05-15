@@ -11,18 +11,7 @@ from prettytable import PrettyTable
 import pytest
 from junitparser import JUnitXml
 
-# Tests that should be skipped (if any)
-SKIP_TESTS = {
-    # lab
-    "test_argparser_launch.py",  # app.close issue
-    "test_build_simulation_context_nonheadless.py",  # headless
-    "test_env_var_launch.py",  # app.close issue
-    "test_kwarg_launch.py",  # app.close issue
-    "test_differential_ik.py",  # Failing
-    # lab_tasks
-    "test_record_video.py",  # Failing
-    "test_tiled_camera_env.py",  # Need to improve the logic
-}
+import tools.test_settings as test_settings
 
 
 def pytest_ignore_collect(collection_path, config):
@@ -33,7 +22,7 @@ def pytest_ignore_collect(collection_path, config):
 def run_individual_tests(test_files, workspace_root):
     """Run each test file separately, ensuring one finishes before starting the next."""
     failed_tests = []
-    test_status = dict()
+    test_status = {}
 
     for test_file in test_files:
         print(f"\n\n🚀 Running {test_file} independently...\n")
@@ -41,32 +30,82 @@ def run_individual_tests(test_files, workspace_root):
         file_name = os.path.basename(test_file)
         env = os.environ.copy()
 
-        # Run each test file with pytest but skip collection
-        process = subprocess.run(
-            [
-                sys.executable,
-                "-m",
-                "pytest",
-                "--no-header",
-                f"--junitxml=tests/test-reports-{str(file_name)}.xml",
-                str(test_file),
-                "-v",
-            ],
-            env=env,
-        )
+        try:
+            # Run each test file with pytest but skip collection
+            process = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "pytest",
+                    "--no-header",
+                    f"--junitxml=tests/test-reports-{str(file_name)}.xml",
+                    str(test_file),
+                    "-v",
+                ],
+                env=env,
+                timeout=(
+                    test_settings.PER_TEST_TIMEOUTS[file_name]
+                    if file_name in test_settings.PER_TEST_TIMEOUTS
+                    else test_settings.DEFAULT_TIMEOUT
+                ),
+            )
 
-        if process.returncode != 0:
+            if process.returncode != 0:
+                failed_tests.append(test_file)
+
+        except subprocess.TimeoutExpired:
+            print(f"Test {test_file} timed out...")
             failed_tests.append(test_file)
+            test_status[test_file] = {
+                "errors": 1,
+                "failures": 0,
+                "skipped": 0,
+                "tests": 0,
+                "result": "TIMEOUT",
+                "time_elapsed": (
+                    test_settings.PER_TEST_TIMEOUTS[file_name]
+                    if file_name in test_settings.PER_TEST_TIMEOUTS
+                    else test_settings.DEFAULT_TIMEOUT
+                ),
+            }
+            continue
 
         # check report for any failures
-        report = JUnitXml.fromfile(f"tests/test-reports-{str(file_name)}.xml")
+        report_file = f"tests/test-reports-{str(file_name)}.xml"
+        if not os.path.exists(report_file):
+            print(f"Warning: Test report not found at {report_file}")
+            failed_tests.append(test_file)
+            test_status[test_file] = {
+                "errors": 1,  # Assume error since we can't read the report
+                "failures": 0,
+                "skipped": 0,
+                "tests": 0,
+                "result": "FAILED",
+                "time_elapsed": 0.0,
+            }
+            continue
 
-        # Parse the integer values
-        errors = int(report.errors)
-        failures = int(report.failures)
-        skipped = int(report.skipped)
-        tests = int(report.tests)
-        time_elapsed = float(report.time)
+        try:
+            report = JUnitXml.fromfile(report_file)
+            # Parse the integer values
+            errors = int(report.errors)
+            failures = int(report.failures)
+            skipped = int(report.skipped)
+            tests = int(report.tests)
+            time_elapsed = float(report.time)
+        except Exception as e:
+            print(f"Error reading test report {report_file}: {e}")
+            failed_tests.append(test_file)
+            test_status[test_file] = {
+                "errors": 1,
+                "failures": 0,
+                "skipped": 0,
+                "tests": 0,
+                "result": "FAILED",
+                "time_elapsed": 0.0,
+            }
+            continue
+
         # Check if there were any failures
         if errors > 0 or failures > 0:
             failed_tests.append(test_file)
@@ -98,8 +137,8 @@ def pytest_sessionstart(session):
     for root, _, files in os.walk(source_dir):
         for file in files:
             if file.startswith("test_") and file.endswith(".py"):
-                # Skip if the file is in SKIP_TESTS
-                if file in SKIP_TESTS:
+                # Skip if the file is in TESTS_TO_SKIP
+                if file in test_settings.TESTS_TO_SKIP:
                     print(f"Skipping {file} as it's in the skip list")
                     continue
 
@@ -131,6 +170,7 @@ def pytest_sessionstart(session):
     num_tests = len(test_status)
     num_passing = len([test_path for test_path in test_files if test_status[test_path]["result"] == "passed"])
     num_failing = len([test_path for test_path in test_files if test_status[test_path]["result"] == "FAILED"])
+    num_timeout = len([test_path for test_path in test_files if test_status[test_path]["result"] == "TIMEOUT"])
 
     if num_tests == 0:
         passing_percentage = 100
@@ -146,7 +186,7 @@ def pytest_sessionstart(session):
     summary_str += f"Total: {num_tests}\n"
     summary_str += f"Passing: {num_passing}\n"
     summary_str += f"Failing: {num_failing}\n"
-
+    summary_str += f"Timeout: {num_timeout}\n"
     summary_str += f"Passing Percentage: {passing_percentage:.2f}%\n"
 
     # Print time elapsed in hours, minutes, seconds
