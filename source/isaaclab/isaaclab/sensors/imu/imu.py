@@ -140,17 +140,13 @@ class Imu(SensorBase):
 
     def _update_buffers_impl(self, env_ids: Sequence[int]):
         """Fills the buffers of the sensor data."""
-        # check if self._dt is set (this is set in the update function)
-        if not hasattr(self, "_dt"):
-            raise RuntimeError(
-                "The update function must be called before the data buffers are accessed the first time."
-            )
+
         # default to all sensors
         if len(env_ids) == self._num_envs:
             env_ids = slice(None)
         # obtain the poses of the sensors
         pos_w, quat_w = self._view.get_transforms()[env_ids].split([3, 4], dim=-1)
-        quat_w = math_utils.convert_quat(quat_w, to="wxyz")
+        quat_w = quat_w.roll(1, dims=-1)
 
         # store the poses
         self._data.pos_w[env_ids] = pos_w + math_utils.quat_apply(quat_w, self._offset_pos_b[env_ids])
@@ -170,12 +166,17 @@ class Imu(SensorBase):
         # numerical derivative
         lin_acc_w = (lin_vel_w - self._prev_lin_vel_w[env_ids]) / self._dt + self._gravity_bias_w[env_ids]
         ang_acc_w = (ang_vel_w - self._prev_ang_vel_w[env_ids]) / self._dt
-        # store the velocities
-        self._data.lin_vel_b[env_ids] = math_utils.quat_apply_inverse(self._data.quat_w[env_ids], lin_vel_w)
-        self._data.ang_vel_b[env_ids] = math_utils.quat_apply_inverse(self._data.quat_w[env_ids], ang_vel_w)
+        # stack data in world frame and batch rotate
+        dynamics_data = torch.stack((lin_vel_w, ang_vel_w, lin_acc_w, ang_acc_w), dim=0)
+        dynamics_data_rot = math_utils.quat_apply_inverse(self._data.quat_w[env_ids].repeat(4, 1), dynamics_data).chunk(
+            4, dim=0
+        )
+        # store the velocities.
+        self._data.lin_vel_b[env_ids] = dynamics_data_rot[0]
+        self._data.ang_vel_b[env_ids] = dynamics_data_rot[1]
         # store the accelerations
-        self._data.lin_acc_b[env_ids] = math_utils.quat_apply_inverse(self._data.quat_w[env_ids], lin_acc_w)
-        self._data.ang_acc_b[env_ids] = math_utils.quat_apply_inverse(self._data.quat_w[env_ids], ang_acc_w)
+        self._data.lin_acc_b[env_ids] = dynamics_data_rot[2]
+        self._data.ang_acc_b[env_ids] = dynamics_data_rot[3]
 
         self._prev_lin_vel_w[env_ids] = lin_vel_w
         self._prev_ang_vel_w[env_ids] = ang_vel_w
