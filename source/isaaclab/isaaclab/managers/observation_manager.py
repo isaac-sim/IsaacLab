@@ -14,7 +14,7 @@ from collections.abc import Sequence
 from prettytable import PrettyTable
 from typing import TYPE_CHECKING
 
-from isaaclab.utils import modifiers
+from isaaclab.utils import class_to_dict, modifiers
 from isaaclab.utils.buffers import CircularBuffer
 
 from .manager_base import ManagerBase, ManagerTermBase
@@ -334,6 +334,29 @@ class ObservationManager(ManagerBase):
         else:
             return group_obs
 
+    def serialize(self) -> dict:
+        """Serialize the observation term configurations for all active groups.
+
+        Returns:
+            A dictionary where each group name maps to its serialized observation term configurations.
+        """
+        output = {
+            group_name: {
+                term_name: (
+                    term_cfg.func.serialize()
+                    if isinstance(term_cfg.func, ManagerTermBase)
+                    else {"cfg": class_to_dict(term_cfg)}
+                )
+                for term_name, term_cfg in zip(
+                    self._group_obs_term_names[group_name],
+                    self._group_obs_term_cfgs[group_name],
+                )
+            }
+            for group_name in self.active_terms.keys()
+        }
+
+        return output
+
     """
     Helper functions.
     """
@@ -419,19 +442,6 @@ class ObservationManager(ManagerBase):
                 # call function the first time to fill up dimensions
                 obs_dims = tuple(term_cfg.func(self._env, **term_cfg.params).shape)
 
-                # create history buffers and calculate history term dimensions
-                if term_cfg.history_length > 0:
-                    group_entry_history_buffer[term_name] = CircularBuffer(
-                        max_len=term_cfg.history_length, batch_size=self._env.num_envs, device=self._env.device
-                    )
-                    old_dims = list(obs_dims)
-                    old_dims.insert(1, term_cfg.history_length)
-                    obs_dims = tuple(old_dims)
-                    if term_cfg.flatten_history_dim:
-                        obs_dims = (obs_dims[0], np.prod(obs_dims[1:]))
-
-                self._group_obs_term_dim[group_name].append(obs_dims[1:])
-
                 # if scale is set, check if single float or tuple
                 if term_cfg.scale is not None:
                     if not isinstance(term_cfg.scale, (float, int, tuple)):
@@ -494,6 +504,19 @@ class ObservationManager(ManagerBase):
                                     f" mandatory parameters: {args_without_defaults[1:]}"
                                     f" and optional parameters: {args_with_defaults}, but received: {term_params}."
                                 )
+
+                # create history buffers and calculate history term dimensions
+                if term_cfg.history_length > 0:
+                    group_entry_history_buffer[term_name] = CircularBuffer(
+                        max_len=term_cfg.history_length, batch_size=self._env.num_envs, device=self._env.device
+                    )
+                    old_dims = list(obs_dims)
+                    old_dims.insert(1, term_cfg.history_length)
+                    obs_dims = tuple(old_dims)
+                    if term_cfg.flatten_history_dim:
+                        obs_dims = (obs_dims[0], np.prod(obs_dims[1:]))
+
+                self._group_obs_term_dim[group_name].append(obs_dims[1:])
 
                 # add term in a separate list if term is a class
                 if isinstance(term_cfg.func, ManagerTermBase):
