@@ -376,7 +376,7 @@ def test_interpolate_poses(device):
         np.testing.assert_array_almost_equal(result_pos, expected_pos, decimal=DECIMAL_PRECISION)
 
 
-def test_pose_inv(self):
+def test_pose_inv():
     """Test pose_inv function.
 
     This test checks the output from the :meth:`~isaaclab.utils.math_utils.pose_inv` function against
@@ -505,7 +505,7 @@ def test_quat_apply_inverse(device):
     torch.testing.assert_close(scipy_result.to(device=device), apply_result, atol=2e-4, rtol=2e-4)
 
 
-def test_quat_apply_benchmarks(self):
+def test_quat_apply_benchmarks():
     """Test for quat_apply and quat_apply_inverse methods compared to old methods using torch.bmm and torch.einsum.
     The new implementation uses :meth:`torch.einsum` instead of `torch.bmm` which allows
     for more flexibility in the input dimensions and is faster than `torch.bmm`.
