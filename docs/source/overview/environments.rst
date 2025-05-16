@@ -193,6 +193,29 @@ For example:
 .. |factory-gear-link| replace:: `Isaac-Factory-GearMesh-Direct-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/direct/factory/factory_env_cfg.py>`__
 .. |factory-nut-link| replace:: `Isaac-Factory-NutThread-Direct-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/direct/factory/factory_env_cfg.py>`__
 
+Assembly
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+Environments based on 100 assembly tasks with diverse parts.
+
+These tasks share the same task configurations and control options. You can switch between them by specifying the assembly id.
+
+We have 100 assembly tasks with ids: '00004', '00007', '00014', '00015', '00016', '00021', '00028', '00030', '00032', '00042', '00062', '00074', '00077', '00078', '00081', '00083', '00103', '00110', '00117', '00133', '00138', '00141', '00143', '00163', '00175', '00186', '00187', '00190', '00192', '00210', '00211', '00213', '00255', '00256', '00271', '00293', '00296', '00301', '00308', '00318', '00319', '00320', '00329', '00340', '00345', '00346', '00360', '00388', '00410', '00417', '00422', '00426', '00437', '00444', '00446', '00470', '00471', '00480', '00486', '00499', '00506', '00514', '00537', '00553', '00559', '00581', '00597', '00614', '00615', '00638', '00648', '00649', '00652', '00659', '00681', '00686', '00700', '00703', '00726', '00731', '00741', '00755', '00768', '00783', '00831', '00855', '00860', '00863', '01026', '01029', '01036', '01041', '01053', '01079', '01092', '01102', '01125', '01129', '01132', '01136'. 
+
+.. table::
+    :widths: 33 37 30
+
+    +--------------------+-------------------------+-----------------------------------------------------------------------------+
+    | World              | Environment ID          | Description                                                                 |
+    +====================+=========================+=============================================================================+
+    | |assembly|         | |assembly-link|         | Insert a plug into its corresponding socket with the Franka robot           |
+    +--------------------+-------------------------+-----------------------------------------------------------------------------+
+
+.. |assembly| image:: ../_static/tasks/assembly/00004.jpg
+
+.. |assembly-link| replace:: `Isaac-Assembly-Direct-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/direct/assembly/assembly_env_cfg.py>`__
+
+
 Locomotion
 ~~~~~~~~~~
 
@@ -664,6 +687,10 @@ Comprehensive List of Environments
       - Direct
       - **rl_games** (PPO)
     * - Isaac-Factory-PegInsert-Direct-v0
+      -
+      - Direct
+      - **rl_games** (PPO)
+    * - Isaac-Assembly-Direct-v0
       -
       - Direct
       - **rl_games** (PPO)

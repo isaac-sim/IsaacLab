@@ -14,7 +14,7 @@ from .disassembly_env import DisassemblyEnv, DisassemblyEnvCfg
 ##
 
 gym.register(
-    id="Assembly-Direct-v0",
+    id="Isaac-Assembly-Direct-v0",
     entry_point="isaaclab_tasks.direct.assembly:AssemblyEnv",
     disable_env_checker=True,
     kwargs={
@@ -25,7 +25,7 @@ gym.register(
 
 
 gym.register(
-    id="Disassembly-Direct-v0",
+    id="Isaac-Disassembly-Direct-v0",
     entry_point="isaaclab_tasks.direct.assembly:DisassemblyEnv",
     disable_env_checker=True,
     kwargs={

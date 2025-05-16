@@ -59,12 +59,16 @@ def main():
 
     bash_command = None
     if args.train:
-        bash_command = "./isaaclab.sh -p scripts/reinforcement_learning/rl_games/train.py --task=Assembly-Direct-v0"
+        bash_command = (
+            "./isaaclab.sh -p scripts/reinforcement_learning/rl_games/train.py --task=Isaac-Assembly-Direct-v0"
+        )
         bash_command += f" --seed={str(args.seed)}"
     else:
         if not args.checkpoint:
             raise ValueError("No checkpoint provided for evaluation.")
-        bash_command = "./isaaclab.sh -p scripts/reinforcement_learning/rl_games/play.py --task=Assembly-Direct-v0"
+        bash_command = (
+            "./isaaclab.sh -p scripts/reinforcement_learning/rl_games/play.py --task=Isaac-Assembly-Direct-v0"
+        )
 
     bash_command += f" --num_envs={str(args.num_envs)}"
 

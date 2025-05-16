@@ -61,7 +61,9 @@ def main():
         args.disassembly_dir,
     )
 
-    bash_command = "./isaaclab.sh -p scripts/reinforcement_learning/rl_games/train.py --task=Disassembly-Direct-v0"
+    bash_command = (
+        "./isaaclab.sh -p scripts/reinforcement_learning/rl_games/train.py --task=Isaac-Disassembly-Direct-v0"
+    )
 
     bash_command += f" --num_envs={str(args.num_envs)}"
     bash_command += f" --seed={str(args.seed)}"
