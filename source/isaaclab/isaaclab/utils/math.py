@@ -141,6 +141,22 @@ Rotation
 
 
 @torch.jit.script
+def quat_unique(q: torch.Tensor) -> torch.Tensor:
+    """Convert a unit quaternion to a standard form where the real part is non-negative.
+
+    Quaternion representations have a singularity since ``q`` and ``-q`` represent the same
+    rotation. This function ensures the real part of the quaternion is non-negative.
+
+    Args:
+        q: The quaternion orientation in (w, x, y, z). Shape is (..., 4).
+
+    Returns:
+        Standardized quaternions. Shape is (..., 4).
+    """
+    return torch.where(q[..., 0:1] < 0, -q, q)
+
+
+@torch.jit.script
 def matrix_from_quat(quaternions: torch.Tensor) -> torch.Tensor:
     """Convert rotations given as quaternions to rotation matrices.
 
@@ -445,19 +461,52 @@ def euler_xyz_from_quat(quat: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor,
 
 
 @torch.jit.script
-def quat_unique(q: torch.Tensor) -> torch.Tensor:
-    """Convert a unit quaternion to a standard form where the real part is non-negative.
-
-    Quaternion representations have a singularity since ``q`` and ``-q`` represent the same
-    rotation. This function ensures the real part of the quaternion is non-negative.
+def axis_angle_from_quat(quat: torch.Tensor, eps: float = 1.0e-6) -> torch.Tensor:
+    """Convert rotations given as quaternions to axis/angle.
 
     Args:
-        q: The quaternion orientation in (w, x, y, z). Shape is (..., 4).
+        quat: The quaternion orientation in (w, x, y, z). Shape is (..., 4).
+        eps: The tolerance for Taylor approximation. Defaults to 1.0e-6.
 
     Returns:
-        Standardized quaternions. Shape is (..., 4).
+        Rotations given as a vector in axis angle form. Shape is (..., 3).
+        The vector's magnitude is the angle turned anti-clockwise in radians around the vector's direction.
+
+    Reference:
+        https://github.com/facebookresearch/pytorch3d/blob/main/pytorch3d/transforms/rotation_conversions.py#L526-L554
     """
-    return torch.where(q[..., 0:1] < 0, -q, q)
+    # Modified to take in quat as [q_w, q_x, q_y, q_z]
+    # Quaternion is [q_w, q_x, q_y, q_z] = [cos(theta/2), n_x * sin(theta/2), n_y * sin(theta/2), n_z * sin(theta/2)]
+    # Axis-angle is [a_x, a_y, a_z] = [theta * n_x, theta * n_y, theta * n_z]
+    # Thus, axis-angle is [q_x, q_y, q_z] / (sin(theta/2) / theta)
+    # When theta = 0, (sin(theta/2) / theta) is undefined
+    # However, as theta --> 0, we can use the Taylor approximation 1/2 - theta^2 / 48
+    quat = quat * (1.0 - 2.0 * (quat[..., 0:1] < 0.0))
+    mag = torch.linalg.norm(quat[..., 1:], dim=-1)
+    half_angle = torch.atan2(mag, quat[..., 0])
+    angle = 2.0 * half_angle
+    # check whether to apply Taylor approximation
+    sin_half_angles_over_angles = torch.where(
+        angle.abs() > eps, torch.sin(half_angle) / angle, 0.5 - angle * angle / 48
+    )
+    return quat[..., 1:4] / sin_half_angles_over_angles.unsqueeze(-1)
+
+
+@torch.jit.script
+def quat_from_angle_axis(angle: torch.Tensor, axis: torch.Tensor) -> torch.Tensor:
+    """Convert rotations given as angle-axis to quaternions.
+
+    Args:
+        angle: The angle turned anti-clockwise in radians around the vector's direction. Shape is (N,).
+        axis: The axis of rotation. Shape is (N, 3).
+
+    Returns:
+        The quaternion in (w, x, y, z). Shape is (N, 4).
+    """
+    theta = (angle / 2).unsqueeze(-1)
+    xyz = normalize(axis) * theta.sin()
+    w = theta.cos()
+    return normalize(torch.cat([w, xyz], dim=-1))
 
 
 @torch.jit.script
@@ -643,55 +692,6 @@ def quat_rotate_inverse(q: torch.Tensor, v: torch.Tensor) -> torch.Tensor:
     else:
         c = q_vec * torch.einsum("...i,...i->...", q_vec, v).unsqueeze(-1) * 2.0
     return a - b + c
-
-
-@torch.jit.script
-def quat_from_angle_axis(angle: torch.Tensor, axis: torch.Tensor) -> torch.Tensor:
-    """Convert rotations given as angle-axis to quaternions.
-
-    Args:
-        angle: The angle turned anti-clockwise in radians around the vector's direction. Shape is (N,).
-        axis: The axis of rotation. Shape is (N, 3).
-
-    Returns:
-        The quaternion in (w, x, y, z). Shape is (N, 4).
-    """
-    theta = (angle / 2).unsqueeze(-1)
-    xyz = normalize(axis) * theta.sin()
-    w = theta.cos()
-    return normalize(torch.cat([w, xyz], dim=-1))
-
-
-@torch.jit.script
-def axis_angle_from_quat(quat: torch.Tensor, eps: float = 1.0e-6) -> torch.Tensor:
-    """Convert rotations given as quaternions to axis/angle.
-
-    Args:
-        quat: The quaternion orientation in (w, x, y, z). Shape is (..., 4).
-        eps: The tolerance for Taylor approximation. Defaults to 1.0e-6.
-
-    Returns:
-        Rotations given as a vector in axis angle form. Shape is (..., 3).
-        The vector's magnitude is the angle turned anti-clockwise in radians around the vector's direction.
-
-    Reference:
-        https://github.com/facebookresearch/pytorch3d/blob/main/pytorch3d/transforms/rotation_conversions.py#L526-L554
-    """
-    # Modified to take in quat as [q_w, q_x, q_y, q_z]
-    # Quaternion is [q_w, q_x, q_y, q_z] = [cos(theta/2), n_x * sin(theta/2), n_y * sin(theta/2), n_z * sin(theta/2)]
-    # Axis-angle is [a_x, a_y, a_z] = [theta * n_x, theta * n_y, theta * n_z]
-    # Thus, axis-angle is [q_x, q_y, q_z] / (sin(theta/2) / theta)
-    # When theta = 0, (sin(theta/2) / theta) is undefined
-    # However, as theta --> 0, we can use the Taylor approximation 1/2 - theta^2 / 48
-    quat = quat * (1.0 - 2.0 * (quat[..., 0:1] < 0.0))
-    mag = torch.linalg.norm(quat[..., 1:], dim=-1)
-    half_angle = torch.atan2(mag, quat[..., 0])
-    angle = 2.0 * half_angle
-    # check whether to apply Taylor approximation
-    sin_half_angles_over_angles = torch.where(
-        angle.abs() > eps, torch.sin(half_angle) / angle, 0.5 - angle * angle / 48
-    )
-    return quat[..., 1:4] / sin_half_angles_over_angles.unsqueeze(-1)
 
 
 @torch.jit.script
