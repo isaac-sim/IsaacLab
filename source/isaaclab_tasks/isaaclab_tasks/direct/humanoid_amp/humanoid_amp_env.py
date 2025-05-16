@@ -13,7 +13,7 @@ import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation
 from isaaclab.envs import DirectRLEnv
 from isaaclab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_plane
-from isaaclab.utils.math import quat_rotate
+from isaaclab.utils.math import quat_apply
 
 from .humanoid_amp_env_cfg import HumanoidAmpEnvCfg
 from .motions import MotionLoader
@@ -208,8 +208,8 @@ def quaternion_to_tangent_and_normal(q: torch.Tensor) -> torch.Tensor:
     ref_normal = torch.zeros_like(q[..., :3])
     ref_tangent[..., 0] = 1
     ref_normal[..., -1] = 1
-    tangent = quat_rotate(q, ref_tangent)
-    normal = quat_rotate(q, ref_normal)
+    tangent = quat_apply(q, ref_tangent)
+    normal = quat_apply(q, ref_normal)
     return torch.cat([tangent, normal], dim=len(tangent.shape) - 1)
 
 
