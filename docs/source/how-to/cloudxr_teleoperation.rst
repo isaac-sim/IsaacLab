@@ -152,7 +152,7 @@ There are two options to run the CloudXR Runtime Docker container:
 
          ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
              --task Isaac-PickPlace-GR1T2-Abs-v0 \
-             --teleop_device dualhandtracking_abs \
+             --teleop_device handtracking \
              --enable_pinocchio
 
    #. You'll want to leave the container running for the next steps. But once you are finished, you can
@@ -217,7 +217,7 @@ There are two options to run the CloudXR Runtime Docker container:
 
          ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
              --task Isaac-PickPlace-GR1T2-Abs-v0 \
-             --teleop_device dualhandtracking_abs \
+             --teleop_device handtracking \
              --enable_pinocchio
 
 With Isaac Lab and the CloudXR Runtime running:
@@ -291,7 +291,7 @@ On your Isaac Lab workstation:
 
       ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
           --task Isaac-PickPlace-GR1T2-Abs-v0 \
-          --teleop_device dualhandtracking_abs \
+          --teleop_device handtracking \
           --enable_pinocchio
 
    .. note::

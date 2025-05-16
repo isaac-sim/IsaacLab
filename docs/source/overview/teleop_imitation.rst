@@ -1,7 +1,7 @@
 .. _teleoperation-imitation-learning:
 
-Teleoperation and Imitation Learning
-====================================
+Teleoperation and Imitation Learning with Isaac Lab Mimic
+=========================================================
 
 
 Teleoperation
@@ -16,13 +16,13 @@ To play inverse kinematics (IK) control with a keyboard device:
 
 .. code:: bash
 
-   ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py --task Isaac-Lift-Cube-Franka-IK-Rel-v0 --num_envs 1 --teleop_device keyboard
+   ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py --task Isaac-Stack-Cube-Franka-IK-Rel-v0 --num_envs 1 --teleop_device keyboard
 
 For smoother operation and off-axis operation, we recommend using a SpaceMouse as the input device. Providing smoother demonstrations will make it easier for the policy to clone the behavior. To use a SpaceMouse, simply change the teleop device accordingly:
 
 .. code:: bash
 
-   ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py --task Isaac-Lift-Cube-Franka-IK-Rel-v0 --num_envs 1 --teleop_device spacemouse
+   ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py --task Isaac-Stack-Cube-Franka-IK-Rel-v0 --num_envs 1 --teleop_device spacemouse
 
 .. note::
 
@@ -49,11 +49,11 @@ For smoother operation and off-axis operation, we recommend using a SpaceMouse a
    Isaac Lab is only compatible with the SpaceMouse Wireless and SpaceMouse Compact models from 3Dconnexion.
 
 
-For tasks that benefit from the use of an extended reality (XR) device with hand tracking, Isaac Lab supports using NVIDIA CloudXR to immersively stream the scene to compatible XR devices for teleoperation. Note that when using hand tracking we recommend using the absolute variant of the task (``Isaac-Stack-Cube-Franka-IK-Abs-v0``), which requires the ``handtracking_abs`` device:
+For tasks that benefit from the use of an extended reality (XR) device with hand tracking, Isaac Lab supports using NVIDIA CloudXR to immersively stream the scene to compatible XR devices for teleoperation. Note that when using hand tracking we recommend using the absolute variant of the task (``Isaac-Stack-Cube-Franka-IK-Abs-v0``), which requires the ``handtracking`` device:
 
 .. code:: bash
 
-   ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py --task Isaac-Stack-Cube-Franka-IK-Abs-v0 --teleop_device handtracking_abs --device cpu
+   ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py --task Isaac-Stack-Cube-Franka-IK-Abs-v0 --teleop_device handtracking --device cpu
 
 .. note::
 
@@ -89,8 +89,8 @@ For SpaceMouse, these are as follows:
 The next section describes how teleoperation devices can be used for data collection for imitation learning.
 
 
-Imitation Learning
-~~~~~~~~~~~~~~~~~~
+Imitation Learning with Isaac Lab Mimic
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Using the teleoperation devices, it is also possible to collect data for
 learning from demonstrations (LfD). For this, we provide scripts to collect data into the open HDF5 format.
@@ -105,7 +105,7 @@ To collect demonstrations with teleoperation for the environment ``Isaac-Stack-C
    # step a: create folder for datasets
    mkdir -p datasets
    # step b: collect data with a selected teleoperation device. Replace <teleop_device> with your preferred input device.
-   # Available options: spacemouse, keyboard, handtracking, handtracking_abs, dualhandtracking_abs
+   # Available options: spacemouse, keyboard, handtracking
    ./isaaclab.sh -p scripts/tools/record_demos.py --task Isaac-Stack-Cube-Franka-IK-Rel-v0 --teleop_device <teleop_device> --dataset_file ./datasets/dataset.hdf5 --num_demos 10
    # step a: replay the collected dataset
    ./isaaclab.sh -p scripts/tools/replay_demos.py --task Isaac-Stack-Cube-Franka-IK-Rel-v0 --dataset_file ./datasets/dataset.hdf5
@@ -117,7 +117,7 @@ To collect demonstrations with teleoperation for the environment ``Isaac-Stack-C
 
 .. tip::
 
-   When using an XR device, we suggest collecting demonstrations with the ``Isaac-Stack-Cube-Frank-IK-Abs-v0`` version of the task and ``--teleop_device handtracking_abs``, which controls the end effector using the absolute position of the hand.
+   When using an XR device, we suggest collecting demonstrations with the ``Isaac-Stack-Cube-Frank-IK-Abs-v0`` version of the task and ``--teleop_device handtracking``, which controls the end effector using the absolute position of the hand.
 
 About 10 successful demonstrations are required in order for the following steps to succeed.
 
@@ -136,14 +136,14 @@ Pre-recorded demonstrations
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 We provide a pre-recorded ``dataset.hdf5`` containing 10 human demonstrations for ``Isaac-Stack-Cube-Franka-IK-Rel-v0``
-`here <https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/4.5/Isaac/IsaacLab/Mimic/dataset.hdf5>`_.
+`here <https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.0/Isaac/IsaacLab/Mimic/dataset.hdf5>`_.
 This dataset may be downloaded and used in the remaining tutorial steps if you do not wish to collect your own demonstrations.
 
 .. note::
    Use of the pre-recorded dataset is optional.
 
-Generating additional demonstrations
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Generating additional demonstrations with Isaac Lab Mimic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Additional demonstrations can be generated using Isaac Lab Mimic.
 
@@ -310,6 +310,12 @@ By inferencing using the generated model, we can visualize the results of the po
 Demo: Data Generation and Policy Training for a Humanoid Robot
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+.. figure:: https://github-production-user-asset-6210df.s3.amazonaws.com/179507785/444313317-1e1e490f-875d-49a3-a36b-9ce08614f808.gif?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIAVCODYLSA53PQK4ZA%2F20250515%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20250515T222351Z&X-Amz-Expires=300&X-Amz-Signature=2b239f9137756d7e7d71e8a21ee26247dccf169967fe4d3948dd77ed11bc7651&X-Amz-SignedHeaders=host
+   :width: 100%
+   :align: center
+   :alt: GR-1 humanoid robot performing a pick and place task
+   :figclass: align-center
+
 
 Isaac Lab Mimic supports data generation for robots with multiple end effectors. In the following demonstration, we will show how to generate data
 to train a Fourier GR-1 humanoid robot to perform a pick and place task.
@@ -330,36 +336,45 @@ Collect human demonstrations
    The differential IK controller requires the user's wrist pose to be close to the robot's initial or current pose for optimal performance.
    Rapid movements of the user's wrist may cause it to deviate significantly from the goal state, which could prevent the IK controller from finding the optimal solution.
    This may result in a mismatch between the user's wrist and the robot's wrist.
-   You can increase the gain of the all `Pink-IK controller's FrameTasks <https://github.com/isaac-sim/IsaacLab-Internal/blob/devel/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/pick_place/pickplace_gr1t2_env_cfg.py>`__ to track the AVP wrist poses with lower latency.
+   You can increase the gain of all the `Pink-IK controller's FrameTasks <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/pick_place/pickplace_gr1t2_env_cfg.py>`__ to track the AVP wrist poses with lower latency.
    However, this may lead to more jerky motion.
    Separately, the finger joints of the robot are retargeted to the user's finger joints using the `dex-retargeting <https://github.com/dexsuite/dex-retargeting>`_ library.
 
 Set up the CloudXR Runtime and Apple Vision Pro for teleoperation by following the steps in :ref:`cloudxr-teleoperation`.
 CPU simulation is used in the following steps for better XR performance when running a single environment.
 
-Collect a set of human demonstrations using the command below.
+Collect a set of human demonstrations.
 A success demo requires the object to be placed in the bin and for the robot's right arm to be retracted to the starting position.
+
 The Isaac Lab Mimic Env GR-1 humanoid robot is set up such that the left hand has a single subtask, while the right hand has two subtasks.
 The first subtask involves the right hand remaining idle while the left hand picks up and moves the object to the position where the right hand will grasp it.
 This setup allows Isaac Lab Mimic to interpolate the right hand's trajectory accurately by using the object's pose, especially when poses are randomized during data generation.
 Therefore, avoid moving the right hand while the left hand picks up the object and brings it to a stable position.
-We recommend at least 5 successful demonstrations for good data generation results. An example of a successful demonstration is shown below:
 
-.. figure:: ../_static/tasks/manipulation/gr-1_pick_place.gif
-   :width: 100%
-   :align: center
-   :alt: GR-1 humanoid robot performing a pick and place task
 
-Collect demonstrations by running the following command:
+.. |good_demo| image:: https://github-production-user-asset-6210df.s3.amazonaws.com/179507785/444313191-f1a79ca8-52ab-4dbb-8361-5a7e7a4c786b.gif?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIAVCODYLSA53PQK4ZA%2F20250515%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20250515T222307Z&X-Amz-Expires=300&X-Amz-Signature=ba7b02f66e9534a593147ad9af0669cc28240cb673b929666391b9e65ab46dcf&X-Amz-SignedHeaders=host
+   :width: 49%
+   :alt: GR-1 humanoid robot performing a good pick and place demonstration
+
+.. |bad_demo| image:: https://github-production-user-asset-6210df.s3.amazonaws.com/179507785/444313205-c1e7f079-020b-4668-9ebb-1b3b75e7ce30.gif?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIAVCODYLSA53PQK4ZA%2F20250515%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20250515T222320Z&X-Amz-Expires=300&X-Amz-Signature=d1a7bd6430ffb5a38f1549869b1c47ca14f307aae9908c3b3d453f90aac37e29&X-Amz-SignedHeaders=host
+   :width: 49%
+   :alt: GR-1 humanoid robot performing a bad pick and place demonstration
+
+|good_demo| |bad_demo|
+
+.. centered:: Left: A good human demonstration with smooth and steady motion. Right: A bad demonstration with jerky and exaggerated motion.
+
+
+Collect five demonstrations by running the following command:
 
 .. code:: bash
 
    ./isaaclab.sh -p scripts/tools/record_demos.py \
    --device cpu \
    --task Isaac-PickPlace-GR1T2-Abs-v0 \
-   --teleop_device dualhandtracking_abs \
+   --teleop_device handtracking \
    --dataset_file ./datasets/dataset_gr1.hdf5 \
-   --num_demos 10 --enable_pinocchio
+   --num_demos 5 --enable_pinocchio
 
 .. tip::
    If a demo fails during data collection, the environment can be reset using the teleoperation controls panel in the XR teleop client
@@ -399,6 +414,10 @@ Annotate the demonstrations
 """""""""""""""""""""""""""
 
 Unlike the prior Franka stacking task, the GR-1 pick and place task uses manual annotation to define subtasks.
+
+The pick and place task has one subtask for the left arm (pick) and two subtasks for the right arm (idle, place).
+Annotations denote the end of a subtask. For the pick and place task, this means there are no annotations for the left arm and one annotation for the right arm (the end of the final subtask is always implicit).
+
 Each demo requires a single annotation between the first and second subtask of the right arm. This annotation ("S" button press) should be done when the right robot arm finishes the "idle" subtask and begins to
 move towards the target object. An example of a correct annotation is shown below:
 
@@ -440,7 +459,7 @@ Generate the dataset
 ^^^^^^^^^^^^^^^^^^^^
 
 If you skipped the prior collection and annotation step, download the pre-recorded annotated dataset ``dataset_annotated_gr1.hdf5`` from
-`here <https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/4.5/Isaac/IsaacLab/Mimic/dataset_annotated_gr1.hdf5>`_.
+`here <https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.0/Isaac/IsaacLab/Mimic/dataset_annotated_gr1.hdf5>`_.
 Place the file under ``IsaacLab/datasets`` and run the following command to generate a new dataset with 1000 demonstrations.
 
 .. code:: bash
@@ -452,7 +471,7 @@ Place the file under ``IsaacLab/datasets`` and run the following command to gene
 Train a policy
 ^^^^^^^^^^^^^^
 
-Use Robomimic to train a policy for the generated dataset.
+Use `Robomimic <https://robomimic.github.io/>`__ to train a policy for the generated dataset.
 
 .. code:: bash
 
@@ -487,6 +506,75 @@ Visualize the results of the trained policy by running the following command, us
 
 .. note::
    Change the ``NORM_FACTOR`` in the above command with the values generated in the training step.
+
+.. figure:: https://github-production-user-asset-6210df.s3.amazonaws.com/179507785/444313046-37601475-fd15-4c12-92a7-59bede0d4f40.gif?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIAVCODYLSA53PQK4ZA%2F20250515%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20250515T222220Z&X-Amz-Expires=300&X-Amz-Signature=ed093dba850352169df3aa5f7249d3b886f5016755a495c63b594890ce5f72fe&X-Amz-SignedHeaders=host
+   :width: 100%
+   :align: center
+   :alt: GR-1 humanoid robot performing a pick and place task
+   :figclass: align-center
+
+   The trained policy performing the pick and place task in Isaac Lab.
+
+
+Demo: Visuomotor Policy for a Humanoid Robot
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Download the Dataset
+^^^^^^^^^^^^^^^^^^^^
+
+Download the pre-generated dataset from `here <https://download.isaacsim.omniverse.nvidia.com/isaaclab/dataset/generated_dataset_gr1_nut_pouring.hdf5>`_ and place it under ``IsaacLab/datasets/generated_dataset_gr1_nut_pouring.hdf5``.
+The dataset contains 1000 demonstrations of a humanoid robot performing a pouring/placing task that was
+generated using Isaac Lab Mimic for the ``Isaac-NutPour-GR1T2-Pink-IK-Abs-Mimic-v0`` task.
+
+
+Train a policy
+^^^^^^^^^^^^^^
+
+Use `Robomimic <https://robomimic.github.io/>`__ to train a visuomotor BC agent for the task.
+
+.. code:: bash
+
+   ./isaaclab.sh -p scripts/imitation_learning/robomimic/train.py \
+   --task Isaac-NutPour-GR1T2-Pink-IK-Abs-v0 --algo bc \
+   --normalize_training_actions \
+   --dataset ./datasets/generated_dataset_gr1_nut_pouring.hdf5
+
+The training script will normalize the actions in the dataset to the range [-1, 1].
+The normalization parameters are saved in the model directory under ``PATH_TO_MODEL_DIRECTORY/logs/normalization_params.txt``.
+Record the normalization parameters for later use in the visualization step.
+
+.. note::
+   By default the trained models and logs will be saved to ``IsaacLab/logs/robomimic``.
+
+Visualize the results
+^^^^^^^^^^^^^^^^^^^^^
+
+Visualize the results of the trained policy by running the following command, using the normalization parameters recorded in the prior training step:
+
+.. code:: bash
+
+   ./isaaclab.sh -p scripts/imitation_learning/robomimic/play.py \
+   --device cpu \
+   --enable_pinocchio \
+   --enable_cameras \
+   --rendering_mode balanced \
+   --task Isaac-NutPour-GR1T2-Pink-IK-Abs-v0 \
+   --num_rollouts 50 \
+   --horizon 350 \
+   --norm_factor_min <NORM_FACTOR_MIN> \
+   --norm_factor_max <NORM_FACTOR_MAX> \
+   --checkpoint /PATH/TO/desired_model_checkpoint.pth
+
+.. note::
+   Change the ``NORM_FACTOR`` in the above command with the values generated in the training step.
+
+.. figure:: https://github-production-user-asset-6210df.s3.amazonaws.com/179507785/444312961-d6c888ca-0933-4371-85e3-2bfcbfb058c0.gif?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIAVCODYLSA53PQK4ZA%2F20250515%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20250515T222152Z&X-Amz-Expires=300&X-Amz-Signature=8cf5494dfd6f34e78016d4b3def6bb69cc8737ad45714b14899ab10b2d9b6a9e&X-Amz-SignedHeaders=host
+   :width: 100%
+   :align: center
+   :alt: GR-1 humanoid robot performing a pouring task
+   :figclass: align-center
+
+   The trained visuomotor policy performing the pouring task in Isaac Lab.
 
 Common Pitfalls when Generating Data
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -594,3 +682,55 @@ Registering the environment
 Once both Mimic compatible environment and environment config classes have been created, a new Mimic compatible environment can be registered using ``gym.register``. For the Franka stacking task in the examples above, the Mimic environment is registered as ``Isaac-Stack-Cube-Franka-IK-Rel-Mimic-v0``.
 
 The registered environment is now ready to be used with Isaac Lab Mimic.
+
+
+Tips for Successful Data Generation with Isaac Lab Mimic
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Splitting subtasks
+^^^^^^^^^^^^^^^^^^
+
+A general rule of thumb is to split the task into as few subtasks as possible, while still being able to complete the task. Isaac Lab Mimic data generation uses linear interpolation to bridge and stitch together subtask segments.
+More subtasks result in more stitching of trajectories which can result in less smooth motions and more failed demonstrations. For this reason, it is often best to annoatate subtask boundaries where the robot's motion is unlikely to collide with other objects.
+
+For example, in the scenario below, there is a subtask partition after the robot's left arm grasps the object. On the left, the subtask annotation is marked immediately after the grasp, while on the right, the annotation is marked after the robot has grasped and lifted the object.
+In the left case, the interpolation causes the robot's left arm to collide with the table and it's motion lags while on the right the motion is continuous and smooth.
+
+.. figure:: https://github-production-user-asset-6210df.s3.amazonaws.com/179507785/444312866-6c095130-2361-4bed-86d6-d41077ca3799.gif?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIAVCODYLSA53PQK4ZA%2F20250515%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20250515T222115Z&X-Amz-Expires=300&X-Amz-Signature=44c86abba00dd5cf384f50c96c5e610c5105329bf473bb651d2a965311bca5e9&X-Amz-SignedHeaders=host
+   :width: 99%
+   :align: center
+   :alt: Subtask splitting example
+   :figclass: align-center
+
+.. centered:: Motion lag/collision caused by poor subtask splitting (left)
+
+
+Selecting number of interpolation steps
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The number of interpolation steps between subtask segments can be specified in the :class:`~isaaclab.envs.SubTaskConfig` class. Once transformed, the subtask segments don't start/end at the same spot, thus to create a continuous motion, Isaac Lab Mimic
+will apply linear interpolation between the last point of the previous subtask and the first point of the next subtask.
+
+The number of interpolation steps can be tuned to control the smoothness of the generated demonstrations during this stitching process.
+The appropriate number of interpolation steps depends on the speed of the robot and the complexity of the task. A complex task with a large object reset distribution will have larger gaps between subtask segments and require more interpolation steps to create a smooth motion.
+Alternatively, a task with small gaps between subtask segments should use a small number of interpolation steps to avoid unnecessary motion lag caused by too many steps.
+
+An example of how the number of interpolation steps can affect the generated demonstrations is shown below.
+In the example, an interpolation is applied to the right arm of the robot to bridge the gap between the left arm's grasp and the right arm's placement. With 0 steps, the right arm exhibits a jerky jump in motion while with 20 steps, the motion is laggy. With 5 steps, the motion is
+smooth and natural.
+
+.. |0_interp_steps| image:: https://github-production-user-asset-6210df.s3.amazonaws.com/179507785/444312467-68a3425c-75a4-4f99-aa10-b8374c718ef3.gif?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIAVCODYLSA53PQK4ZA%2F20250515%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20250515T221951Z&X-Amz-Expires=300&X-Amz-Signature=e479691dcc90d83812dfd50d6742572078dcfee093bb6aa932c121a0762d99aa&X-Amz-SignedHeaders=host
+   :width: 32%
+   :alt: GR-1 robot with 0 interpolation steps
+
+.. |5_interp_steps| image:: https://github-production-user-asset-6210df.s3.amazonaws.com/179507785/444312504-be438cac-6031-4443-8cdb-5c7fe6289f52.gif?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIAVCODYLSA53PQK4ZA%2F20250515%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20250515T222014Z&X-Amz-Expires=300&X-Amz-Signature=9d174e905496fb6515b5a54070fe2584686e911030c9aa51859469c31d4ca158&X-Amz-SignedHeaders=host
+   :width: 32%
+   :alt: GR-1 robot with 5 interpolation steps
+
+.. |20_interp_steps| image:: https://github-production-user-asset-6210df.s3.amazonaws.com/179507785/444312519-b647c1db-0008-4b3d-ab2b-6e81e4413a6f.gif?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIAVCODYLSA53PQK4ZA%2F20250515%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20250515T222034Z&X-Amz-Expires=300&X-Amz-Signature=3dff200e31babc68c8e3fc52de07fde33057d3ea41d9542ad8385bda0ed1145b&X-Amz-SignedHeaders=host
+   :width: 32%
+   :alt: GR-1 robot with 20 interpolation steps
+
+|0_interp_steps| |5_interp_steps| |20_interp_steps|
+
+.. centered:: Left: 0 steps. Middle: 5 steps. Right: 20 steps.
