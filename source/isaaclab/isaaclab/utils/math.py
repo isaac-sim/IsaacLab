@@ -811,6 +811,7 @@ def rigid_body_twist_transform(
     equations:
 
     .. math::
+
         w_11 = R_{10} w_00 = R_{01}^{-1} w_00
         v_11 = R_{10} v_00 + R_{10} (w_00 \times t_01) = R_{01}^{-1} (v_00 + (w_00 \times t_01))
 
