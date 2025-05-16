@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.1.0" />
-    <meta name="docbuild:last-update" content="May 15, 2025"/>
+    <meta name="docbuild:last-update" content="May 16, 2025"/>
   </head>
   
   
@@ -979,19 +979,6 @@
                 <span class="c1"># call function the first time to fill up dimensions</span>
                 <span class="n">obs_dims</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">term_cfg</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_env</span><span class="p">,</span> <span class="o">**</span><span class="n">term_cfg</span><span class="o">.</span><span class="n">params</span><span class="p">)</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
 
-                <span class="c1"># create history buffers and calculate history term dimensions</span>
-                <span class="k">if</span> <span class="n">term_cfg</span><span class="o">.</span><span class="n">history_length</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
-                    <span class="n">group_entry_history_buffer</span><span class="p">[</span><span class="n">term_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">CircularBuffer</span><span class="p">(</span>
-                        <span class="n">max_len</span><span class="o">=</span><span class="n">term_cfg</span><span class="o">.</span><span class="n">history_length</span><span class="p">,</span> <span class="n">batch_size</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_env</span><span class="o">.</span><span class="n">num_envs</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_env</span><span class="o">.</span><span class="n">device</span>
-                    <span class="p">)</span>
-                    <span class="n">old_dims</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">obs_dims</span><span class="p">)</span>
-                    <span class="n">old_dims</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">term_cfg</span><span class="o">.</span><span class="n">history_length</span><span class="p">)</span>
-                    <span class="n">obs_dims</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">old_dims</span><span class="p">)</span>
-                    <span class="k">if</span> <span class="n">term_cfg</span><span class="o">.</span><span class="n">flatten_history_dim</span><span class="p">:</span>
-                        <span class="n">obs_dims</span> <span class="o">=</span> <span class="p">(</span><span class="n">obs_dims</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">np</span><span class="o">.</span><span class="n">prod</span><span class="p">(</span><span class="n">obs_dims</span><span class="p">[</span><span class="mi">1</span><span class="p">:]))</span>
-
-                <span class="bp">self</span><span class="o">.</span><span class="n">_group_obs_term_dim</span><span class="p">[</span><span class="n">group_name</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">obs_dims</span><span class="p">[</span><span class="mi">1</span><span class="p">:])</span>
-
                 <span class="c1"># if scale is set, check if single float or tuple</span>
                 <span class="k">if</span> <span class="n">term_cfg</span><span class="o">.</span><span class="n">scale</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
                     <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">term_cfg</span><span class="o">.</span><span class="n">scale</span><span class="p">,</span> <span class="p">(</span><span class="nb">float</span><span class="p">,</span> <span class="nb">int</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">)):</span>
@@ -1055,6 +1042,19 @@
                                     <span class="sa">f</span><span class="s2">&quot; and optional parameters: </span><span class="si">{</span><span class="n">args_with_defaults</span><span class="si">}</span><span class="s2">, but received: </span><span class="si">{</span><span class="n">term_params</span><span class="si">}</span><span class="s2">.&quot;</span>
                                 <span class="p">)</span>
 
+                <span class="c1"># create history buffers and calculate history term dimensions</span>
+                <span class="k">if</span> <span class="n">term_cfg</span><span class="o">.</span><span class="n">history_length</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                    <span class="n">group_entry_history_buffer</span><span class="p">[</span><span class="n">term_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">CircularBuffer</span><span class="p">(</span>
+                        <span class="n">max_len</span><span class="o">=</span><span class="n">term_cfg</span><span class="o">.</span><span class="n">history_length</span><span class="p">,</span> <span class="n">batch_size</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_env</span><span class="o">.</span><span class="n">num_envs</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_env</span><span class="o">.</span><span class="n">device</span>
+                    <span class="p">)</span>
+                    <span class="n">old_dims</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">obs_dims</span><span class="p">)</span>
+                    <span class="n">old_dims</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">term_cfg</span><span class="o">.</span><span class="n">history_length</span><span class="p">)</span>
+                    <span class="n">obs_dims</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">old_dims</span><span class="p">)</span>
+                    <span class="k">if</span> <span class="n">term_cfg</span><span class="o">.</span><span class="n">flatten_history_dim</span><span class="p">:</span>
+                        <span class="n">obs_dims</span> <span class="o">=</span> <span class="p">(</span><span class="n">obs_dims</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">np</span><span class="o">.</span><span class="n">prod</span><span class="p">(</span><span class="n">obs_dims</span><span class="p">[</span><span class="mi">1</span><span class="p">:]))</span>
+
+                <span class="bp">self</span><span class="o">.</span><span class="n">_group_obs_term_dim</span><span class="p">[</span><span class="n">group_name</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">obs_dims</span><span class="p">[</span><span class="mi">1</span><span class="p">:])</span>
+
                 <span class="c1"># add term in a separate list if term is a class</span>
                 <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">term_cfg</span><span class="o">.</span><span class="n">func</span><span class="p">,</span> <span class="n">ManagerTermBase</span><span class="p">):</span>
                     <span class="bp">self</span><span class="o">.</span><span class="n">_group_obs_class_term_cfgs</span><span class="p">[</span><span class="n">group_name</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">term_cfg</span><span class="p">)</span>
@@ -1109,7 +1109,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on May 15, 2025.
+  Last updated on May 16, 2025.
   <br/>
 </p>
   </div>
