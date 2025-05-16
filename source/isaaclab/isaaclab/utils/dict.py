@@ -98,6 +98,14 @@ def update_class_from_dict(obj, data: dict[str, Any], _ns: str = "") -> None:
                 update_class_from_dict(obj_mem, value, _ns=key_ns)
                 continue
             if isinstance(value, Iterable) and not isinstance(value, str):
+                # if flat iterable, replace wholesale
+                if all(not isinstance(el, Mapping) for el in value):
+                    out_val = tuple(value) if isinstance(obj_mem, tuple) else value
+                    if isinstance(obj, dict):
+                        obj[key] = out_val
+                    else:
+                        setattr(obj, key, out_val)
+                    continue
                 # check length of value to be safe
                 if len(obj_mem) != len(value) and obj_mem is not None:
                     raise ValueError(
