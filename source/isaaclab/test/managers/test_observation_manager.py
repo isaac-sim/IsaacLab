@@ -667,6 +667,7 @@ def test_modifier_compute(setup_env):
     assert torch.min(obs_critic["term_4"]) >= -0.5
     assert torch.max(obs_critic["term_4"]) <= 0.5
 
+
 def test_serialize(setup_env):
     """Test serialize call for ManagerTermBase terms."""
     env = setup_env
@@ -729,6 +730,7 @@ def test_modifier_invalid_config(setup_env):
 
     with pytest.raises(ValueError):
         ObservationManager(cfg, env)
+
 
 def test_concatenate_dim(setup_env):
     """Test concatenation of observations along different dimensions."""
