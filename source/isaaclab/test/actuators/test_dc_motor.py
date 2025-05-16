@@ -22,7 +22,7 @@ from isaaclab.actuators import DCMotorCfg
 @pytest.mark.parametrize("num_envs", [1, 2])
 @pytest.mark.parametrize("num_joints", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
-def test_dc_motor_init_minimum(num_envs, num_joints, device, usd_default):
+def test_dc_motor_init_minimum(num_envs, num_joints, device):
     joint_names = [f"joint_{d}" for d in range(num_joints)]
     joint_ids = [d for d in range(num_joints)]
     stiffness = 200
@@ -66,7 +66,7 @@ def test_dc_motor_init_minimum(num_envs, num_joints, device, usd_default):
 @pytest.mark.parametrize("num_joints", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("test_point", range(18))
-def test_dc_motor_clip(num_envs, num_joints, device, negate_t_s, test_point):
+def test_dc_motor_clip(num_envs, num_joints, device, test_point):
     r"""Test the computation of the dc motor actuator 4 quadrant torque speed curve.
     torque_speed_pairs of interest:
 
