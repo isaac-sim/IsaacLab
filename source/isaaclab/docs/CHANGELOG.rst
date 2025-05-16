@@ -1,7 +1,7 @@
 Changelog
 ---------
 
-0.39.2 (2025-05-15)
+0.40.0 (2025-05-16)
 ~~~~~~~~~~~~~~~~~~~
 
 Changed
@@ -16,6 +16,19 @@ Added
 * Added deprecation warning for :meth:`~isaaclab.utils.math.quat_rotate` and
   :meth:`~isaaclab.utils.math.quat_rotate_inverse`
 
+
+0.39.2 (2025-05-15)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :meth:`omni.isaac.lab.sensors.camera.camera.Camera.set_intrinsic_matrices` preventing setting of unused USD
+  camera parameters.
+* Fixed :meth:`omni.isaac.lab.sensors.camera.camera.Camera._update_intrinsic_matrices` preventing unused USD camera
+  parameters from being used to calculate :attr:`omni.isaac.lab.sensors.camera.CameraData.intrinsic_matrices`
+* Fixed :meth:`omni.isaac.lab.spawners.sensors.sensors_cfg.PinholeCameraCfg.from_intrinsic_matrix` preventing setting of
+  unused USD camera parameters.
 
 
 0.39.1 (2025-05-14)
