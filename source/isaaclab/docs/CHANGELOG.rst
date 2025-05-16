@@ -1,6 +1,23 @@
 Changelog
 ---------
 
+
+0.39.3 (2025-05-16)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^^^
+
+* Added unit tests for :class:`~isaaclab.actuator.ImplicitActuator`, :class:`~isaaclab.actuator.IdealPDActuator`,
+  and :class:`~isaaclab.actuator.DCMotor` independent of :class:`~isaaclab.assets.Articulation`
+
+Changed
+^^^^^^^
+
+* Changed the way clipping is handled for :class:`~isaaclab.actuator.DCMotor` for torque-speed points in when in
+  negative power regions.
+
+
 0.39.2 (2025-05-15)
 ~~~~~~~~~~~~~~~~~~~
 
