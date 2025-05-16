@@ -1,6 +1,7 @@
 Changelog
 ---------
 
+
 0.39.3 (2025-05-16)
 ~~~~~~~~~~~~~~~~~~~
 
@@ -15,8 +16,8 @@ Changed
 
 * Changed the way clipping is handled for :class:`~isaaclab.actuator.DCMotor` for torque-speed points in when in
   negative power regions.
-  
-  
+
+
 0.39.2 (2025-05-15)
 ~~~~~~~~~~~~~~~~~~~
 
