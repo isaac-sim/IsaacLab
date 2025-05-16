@@ -353,6 +353,14 @@ def test_single_dof_pendulum(setup_sim):
         if idx < 2:
             continue
 
+        # compare imu projected gravity
+        gravity_dir_w = torch.tensor((0.0, 0.0, -1.0), device=scene.device).repeat(2, 1)
+        gravity_dir_b = math_utils.quat_apply_inverse(imu_data.quat_w, gravity_dir_w)
+        torch.testing.assert_close(
+            imu_data.projected_gravity_b,
+            gravity_dir_b,
+        )
+
         # compare imu angular velocity with joint velocity
         torch.testing.assert_close(
             joint_vel,
@@ -492,6 +500,13 @@ def test_offset_calculation(setup_sim):
         torch.testing.assert_close(
             scene.sensors["imu_robot_base"].data.pos_w,
             scene.sensors["imu_robot_imu_link"].data.pos_w,
+            rtol=1e-4,
+            atol=1e-4,
+        )
+        # check the projected gravity
+        torch.testing.assert_close(
+            scene.sensors["imu_robot_base"].data.projected_gravity_b,
+            scene.sensors["imu_robot_imu_link"].data.projected_gravity_b,
             rtol=1e-4,
             atol=1e-4,
         )
