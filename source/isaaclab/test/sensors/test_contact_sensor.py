@@ -304,15 +304,14 @@ def test_cube_stack_contact_filtering(setup_simulation, device, num_envs):
         assert contact_sensor.data.net_forces_w.sum().item() > 0.0
 
 
-@pytest.mark.parametrize("device", "cpu")
-def test_no_contact_reporting(setup_simulation, device):
+def test_no_contact_reporting(setup_simulation):
     """Test that forcing the disable of contact processing results in no contact reporting.
 
     We borrow the test :func:`test_cube_stack_contact_filtering` to test this and force disable contact processing.
     """
     # TODO: This test only works on CPU. For GPU, it seems the contact processing is not disabled.
     sim_dt, durations, terrains, devices, carb_settings_iface = setup_simulation
-    with build_simulation_context(device=device, dt=sim_dt, add_lighting=True) as sim:
+    with build_simulation_context(device="cpu", dt=sim_dt, add_lighting=True) as sim:
         sim._app_control_on_stop_handle = None
         # Instance new scene for the current terrain and contact prim.
         scene_cfg = ContactSensorSceneCfg(num_envs=32, env_spacing=1.0, lazy_sensor_update=False)
@@ -500,21 +499,21 @@ def _test_sensor_contact(
         # Check the data inside the contact sensor
         if mode == ContactTestMode.IN_CONTACT:
             _check_prim_contact_state_times(
-                sensor,
-                0.0,
-                durations[idx],
-                expected_last_test_contact_time,
-                expected_last_reset_contact_time,
-                duration + sim_dt,
+                sensor=sensor,
+                expected_air_time=0.0,
+                expected_contact_time=durations[idx],
+                expected_last_contact_time=expected_last_test_contact_time,
+                expected_last_air_time=expected_last_reset_contact_time,
+                dt=duration + sim_dt,
             )
         elif mode == ContactTestMode.NON_CONTACT:
             _check_prim_contact_state_times(
-                sensor,
-                durations[idx],
-                0.0,
-                expected_last_reset_contact_time,
-                expected_last_test_contact_time,
-                duration + sim_dt,
+                sensor=sensor,
+                expected_air_time=durations[idx],
+                expected_contact_time=0.0,
+                expected_last_contact_time=expected_last_reset_contact_time,
+                expected_last_air_time=expected_last_test_contact_time,
+                dt=duration + sim_dt,
             )
         # switch the contact mode for 1 dt step before the next contact test begins.
         shape.write_root_pose_to_sim(root_pose=reset_pose)
