@@ -137,7 +137,7 @@ class AssemblyTask:
     # Logging evaluation results
     if_logging_eval: bool = False
     num_eval_trials: int = 100
-    eval_filename: str = 'evaluation_00015.h5'
+    eval_filename: str = "evaluation_00015.h5"
 
     # Fine-tuning
     sample_from: str = "rand"  # gp, gmm, idv, rand
@@ -166,7 +166,7 @@ class Hole8mm(FixedAssetCfg):
 class Insertion(AssemblyTask):
     name = "insertion"
 
-    assembly_id = '00015'
+    assembly_id = "00015"
     assembly_dir = f"{ASSET_DIR}/{assembly_id}/"
 
     fixed_asset_cfg = Hole8mm()
