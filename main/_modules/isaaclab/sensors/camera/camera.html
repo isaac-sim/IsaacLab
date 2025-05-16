@@ -558,6 +558,7 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">pxr</span><span class="w"> </span><span class="kn">import</span> <span class="n">Sdf</span><span class="p">,</span> <span class="n">UsdGeom</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab.sim</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">sim_utils</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab.utils.sensors</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">sensor_utils</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">to_camel_case</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils.array</span><span class="w"> </span><span class="kn">import</span> <span class="n">convert_to_torch</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils.math</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
@@ -758,11 +759,11 @@
 <span class="sd">    &quot;&quot;&quot;</span>
 
 <div class="viewcode-block" id="Camera.set_intrinsic_matrices"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.sensors.html#isaaclab.sensors.Camera.set_intrinsic_matrices">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">set_intrinsic_matrices</span><span class="p">(</span>
-        <span class="bp">self</span><span class="p">,</span> <span class="n">matrices</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">focal_length</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">matrices</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">focal_length</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
     <span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Set parameters of the USD camera from its intrinsic matrix.</span>
 
-<span class="sd">        The intrinsic matrix and focal length are used to set the following parameters to the USD camera:</span>
+<span class="sd">        The intrinsic matrix is used to set the following parameters to the USD camera:</span>
 
 <span class="sd">        - ``focal_length``: The focal length of the camera.</span>
 <span class="sd">        - ``horizontal_aperture``: The horizontal aperture of the camera.</span>
@@ -778,7 +779,8 @@
 
 <span class="sd">        Args:</span>
 <span class="sd">            matrices: The intrinsic matrices for the camera. Shape is (N, 3, 3).</span>
-<span class="sd">            focal_length: Focal length to use when computing aperture values (in cm). Defaults to 1.0.</span>
+<span class="sd">            focal_length: Perspective focal length (in cm) used to calculate pixel size. Defaults to None. If None,</span>
+<span class="sd">                focal_length will be calculated 1 / width.</span>
 <span class="sd">            env_ids: A sensor ids to manipulate. Defaults to None, which means all sensor indices.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="c1"># resolve env_ids</span>
@@ -791,27 +793,12 @@
             <span class="n">matrices</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">matrices</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
         <span class="c1"># iterate over env_ids</span>
         <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">intrinsic_matrix</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">env_ids</span><span class="p">,</span> <span class="n">matrices</span><span class="p">):</span>
-            <span class="c1"># extract parameters from matrix</span>
-            <span class="n">f_x</span> <span class="o">=</span> <span class="n">intrinsic_matrix</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span>
-            <span class="n">c_x</span> <span class="o">=</span> <span class="n">intrinsic_matrix</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">2</span><span class="p">]</span>
-            <span class="n">f_y</span> <span class="o">=</span> <span class="n">intrinsic_matrix</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span>
-            <span class="n">c_y</span> <span class="o">=</span> <span class="n">intrinsic_matrix</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">]</span>
-            <span class="c1"># get viewport parameters</span>
-            <span class="n">height</span><span class="p">,</span> <span class="n">width</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">image_shape</span>
-            <span class="n">height</span><span class="p">,</span> <span class="n">width</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">height</span><span class="p">),</span> <span class="nb">float</span><span class="p">(</span><span class="n">width</span><span class="p">)</span>
-            <span class="c1"># resolve parameters for usd camera</span>
-            <span class="n">params</span> <span class="o">=</span> <span class="p">{</span>
-                <span class="s2">&quot;focal_length&quot;</span><span class="p">:</span> <span class="n">focal_length</span><span class="p">,</span>
-                <span class="s2">&quot;horizontal_aperture&quot;</span><span class="p">:</span> <span class="n">width</span> <span class="o">*</span> <span class="n">focal_length</span> <span class="o">/</span> <span class="n">f_x</span><span class="p">,</span>
-                <span class="s2">&quot;vertical_aperture&quot;</span><span class="p">:</span> <span class="n">height</span> <span class="o">*</span> <span class="n">focal_length</span> <span class="o">/</span> <span class="n">f_y</span><span class="p">,</span>
-                <span class="s2">&quot;horizontal_aperture_offset&quot;</span><span class="p">:</span> <span class="p">(</span><span class="n">c_x</span> <span class="o">-</span> <span class="n">width</span> <span class="o">/</span> <span class="mi">2</span><span class="p">)</span> <span class="o">/</span> <span class="n">f_x</span><span class="p">,</span>
-                <span class="s2">&quot;vertical_aperture_offset&quot;</span><span class="p">:</span> <span class="p">(</span><span class="n">c_y</span> <span class="o">-</span> <span class="n">height</span> <span class="o">/</span> <span class="mi">2</span><span class="p">)</span> <span class="o">/</span> <span class="n">f_y</span><span class="p">,</span>
-            <span class="p">}</span>
 
-            <span class="c1"># TODO: Adjust to handle aperture offsets once supported by omniverse</span>
-            <span class="c1">#   Internal ticket from rendering team: OM-42611</span>
-            <span class="k">if</span> <span class="n">params</span><span class="p">[</span><span class="s2">&quot;horizontal_aperture_offset&quot;</span><span class="p">]</span> <span class="o">&gt;</span> <span class="mf">1e-4</span> <span class="ow">or</span> <span class="n">params</span><span class="p">[</span><span class="s2">&quot;vertical_aperture_offset&quot;</span><span class="p">]</span> <span class="o">&gt;</span> <span class="mf">1e-4</span><span class="p">:</span>
-                <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="s2">&quot;Camera aperture offsets are not supported by Omniverse. These parameters are ignored.&quot;</span><span class="p">)</span>
+            <span class="n">height</span><span class="p">,</span> <span class="n">width</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">image_shape</span>
+
+            <span class="n">params</span> <span class="o">=</span> <span class="n">sensor_utils</span><span class="o">.</span><span class="n">convert_camera_intrinsics_to_usd</span><span class="p">(</span>
+                <span class="n">intrinsic_matrix</span><span class="o">=</span><span class="n">intrinsic_matrix</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">),</span> <span class="n">height</span><span class="o">=</span><span class="n">height</span><span class="p">,</span> <span class="n">width</span><span class="o">=</span><span class="n">width</span><span class="p">,</span> <span class="n">focal_length</span><span class="o">=</span><span class="n">focal_length</span>
+            <span class="p">)</span>
 
             <span class="c1"># change data for corresponding camera index</span>
             <span class="n">sensor_prim</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sensor_prims</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
@@ -1136,18 +1123,17 @@
             <span class="c1"># Get corresponding sensor prim</span>
             <span class="n">sensor_prim</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sensor_prims</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
             <span class="c1"># get camera parameters</span>
+            <span class="c1"># currently rendering does not use aperture offsets or vertical aperture</span>
             <span class="n">focal_length</span> <span class="o">=</span> <span class="n">sensor_prim</span><span class="o">.</span><span class="n">GetFocalLengthAttr</span><span class="p">()</span><span class="o">.</span><span class="n">Get</span><span class="p">()</span>
             <span class="n">horiz_aperture</span> <span class="o">=</span> <span class="n">sensor_prim</span><span class="o">.</span><span class="n">GetHorizontalApertureAttr</span><span class="p">()</span><span class="o">.</span><span class="n">Get</span><span class="p">()</span>
-            <span class="n">vert_aperture</span> <span class="o">=</span> <span class="n">sensor_prim</span><span class="o">.</span><span class="n">GetVerticalApertureAttr</span><span class="p">()</span><span class="o">.</span><span class="n">Get</span><span class="p">()</span>
-            <span class="n">horiz_aperture_offset</span> <span class="o">=</span> <span class="n">sensor_prim</span><span class="o">.</span><span class="n">GetHorizontalApertureOffsetAttr</span><span class="p">()</span><span class="o">.</span><span class="n">Get</span><span class="p">()</span>
-            <span class="n">vert_aperture_offset</span> <span class="o">=</span> <span class="n">sensor_prim</span><span class="o">.</span><span class="n">GetVerticalApertureOffsetAttr</span><span class="p">()</span><span class="o">.</span><span class="n">Get</span><span class="p">()</span>
+
             <span class="c1"># get viewport parameters</span>
             <span class="n">height</span><span class="p">,</span> <span class="n">width</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">image_shape</span>
             <span class="c1"># extract intrinsic parameters</span>
             <span class="n">f_x</span> <span class="o">=</span> <span class="p">(</span><span class="n">width</span> <span class="o">*</span> <span class="n">focal_length</span><span class="p">)</span> <span class="o">/</span> <span class="n">horiz_aperture</span>
-            <span class="n">f_y</span> <span class="o">=</span> <span class="p">(</span><span class="n">height</span> <span class="o">*</span> <span class="n">focal_length</span><span class="p">)</span> <span class="o">/</span> <span class="n">vert_aperture</span>
-            <span class="n">c_x</span> <span class="o">=</span> <span class="n">width</span> <span class="o">*</span> <span class="mf">0.5</span> <span class="o">+</span> <span class="n">horiz_aperture_offset</span> <span class="o">*</span> <span class="n">f_x</span>
-            <span class="n">c_y</span> <span class="o">=</span> <span class="n">height</span> <span class="o">*</span> <span class="mf">0.5</span> <span class="o">+</span> <span class="n">vert_aperture_offset</span> <span class="o">*</span> <span class="n">f_y</span>
+            <span class="n">f_y</span> <span class="o">=</span> <span class="n">f_x</span>
+            <span class="n">c_x</span> <span class="o">=</span> <span class="n">width</span> <span class="o">*</span> <span class="mf">0.5</span>
+            <span class="n">c_y</span> <span class="o">=</span> <span class="n">height</span> <span class="o">*</span> <span class="mf">0.5</span>
             <span class="c1"># create intrinsic matrix for depth linear</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">intrinsic_matrices</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">f_x</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">intrinsic_matrices</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">2</span><span class="p">]</span> <span class="o">=</span> <span class="n">c_x</span>
