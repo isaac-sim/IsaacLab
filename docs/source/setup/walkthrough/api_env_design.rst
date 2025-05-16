@@ -3,7 +3,7 @@
 Classes and Configs
 ====================================
 
-To begin, navigate to the task: ``source/isaac_lab_tutorial/isaac_lab_tutorial/tasks/direct/isaac_lab_tutorial`` , and take a look
+To begin, navigate to the task: ``source/isaac_lab_tutorial/isaac_lab_tutorial/tasks/direct/isaac_lab_tutorial``, and take a look
 and the contents of ``isaac_lab_tutorial_env_cfg.py``.  You should see something that looks like the following
 
 .. code-block:: python
