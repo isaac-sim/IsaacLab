@@ -10,8 +10,12 @@ import numpy as np
 import torch
 import trimesh
 
+import isaacsim.core.utils.stage as stage_utils
+import omni.usd
 import warp as wp
+from pxr import Usd, UsdGeom
 
+from isaaclab.sim.utils import get_first_matching_child_prim
 from isaaclab.utils.warp import raycast_mesh
 
 
@@ -130,6 +134,63 @@ def create_prim_from_mesh(prim_path: str, mesh: trimesh.Trimesh, **kwargs):
         # spawn the material
         physics_material_cfg.func(f"{prim_path}/physicsMaterial", physics_material_cfg)
         sim_utils.bind_physics_material(prim.GetPrimPath(), f"{prim_path}/physicsMaterial")
+
+
+def create_mesh_from_prim(prim_path: str, stage: Usd.Stage | None = None) -> trimesh.Trimesh:
+    """Create a mesh from a USD prim.
+
+    This function creates a trimesh mesh from a USD prim. It iterates over all the children of the prim and
+    returns the first mesh or plane found. If the prim is a plane, an infinite mesh is created. Otherwise, the mesh
+    information is read from the prim.
+
+    .. note::
+        Only the first mesh or plane under the prim path is considered.
+
+    Args:
+        prim_path: The path of the USD prim.
+        stage: The USD stage. Defaults to None, in which case, the current stage is used.
+
+    Returns:
+        The mesh read from the prim. If the prim is a plane, an infinite mesh is created.
+
+    Raises:
+        ValueError: If the prim at the specified path is not valid.
+        RuntimeError: If no mesh or plane prim is found under the specified path.
+    """
+    from .trimesh.utils import make_plane
+
+    # Resolve stage
+    if stage is None:
+        stage = stage_utils.get_current_stage()
+    # check if prim exists
+    prim = stage.GetPrimAtPath(prim_path)
+    if not prim.IsValid():
+        raise ValueError(f"Prim at path '{prim_path}' is not valid.")
+    # check if the prim is a plane - handle PhysX plane as a special case
+    # if a plane exists then we need to create an infinite mesh that is a plane
+    mesh_prim = get_first_matching_child_prim(prim_path, lambda prim: prim.GetTypeName() == "Plane")
+    # if we did not find a plane then we need to read the mesh
+    if mesh_prim is None:
+        # obtain the mesh prim
+        mesh_prim = get_first_matching_child_prim(prim_path, lambda prim: prim.GetTypeName() == "Mesh")
+        # check if valid
+        if mesh_prim is None:
+            raise RuntimeError(f"Could not find any prim of type 'Mesh' or 'Plane' at path '{prim_path}'.")
+
+        # cast into UsdGeomMesh
+        mesh_prim = UsdGeom.Mesh(mesh_prim)
+
+        # read the vertices and faces
+        points = np.asarray(mesh_prim.GetPointsAttr().Get())
+        transform_matrix = np.array(omni.usd.get_world_transform_matrix(mesh_prim)).T
+        points = np.matmul(points, transform_matrix[:3, :3].T)
+        points += transform_matrix[:3, 3]
+        indices = np.asarray(mesh_prim.GetFaceVertexIndicesAttr().Get())
+
+        # convert to warp mesh
+        return trimesh.Trimesh(vertices=points, faces=indices)
+    else:
+        return make_plane(size=(2e6, 2e6), height=0.0, center_zero=True)
 
 
 def find_flat_patches(

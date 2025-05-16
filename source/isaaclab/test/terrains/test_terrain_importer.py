@@ -32,6 +32,7 @@ import isaaclab.terrains as terrain_gen
 from isaaclab.sim import PreviewSurfaceCfg, SimulationContext, build_simulation_context, get_first_matching_child_prim
 from isaaclab.terrains import TerrainImporter, TerrainImporterCfg
 from isaaclab.terrains.config.rough import ROUGH_TERRAINS_CFG
+from isaaclab.terrains.utils import create_mesh_from_prim
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 
@@ -81,7 +82,7 @@ def test_terrain_generation(device):
         assert mesh_prim_path in terrain_importer.terrain_prim_paths
 
         # obtain underling mesh
-        mesh = _obtain_collision_mesh(mesh_prim_path, mesh_type="Mesh")
+        mesh = create_mesh_from_prim(mesh_prim_path)
         assert mesh is not None
 
         # calculate expected size from config
@@ -117,13 +118,24 @@ def test_plane(device, use_custom_material):
         )
         terrain_importer = TerrainImporter(terrain_importer_cfg)
 
+        # expected size of an infinite plane
+        expectedSizeX = 2.0e6
+        expectedSizeY = 2.0e6
+
         # check if mesh prim path exists
         mesh_prim_path = terrain_importer.cfg.prim_path + "/terrain"
         assert mesh_prim_path in terrain_importer.terrain_prim_paths
 
-        # obtain underling mesh
-        mesh = _obtain_collision_mesh(mesh_prim_path, mesh_type="Plane")
-        assert mesh is None
+        # obtain mesh prim path
+        mesh = create_mesh_from_prim(mesh_prim_path)
+        assert mesh is not None
+
+        # get size from mesh bounds
+        bounds = mesh.bounds
+        actualSize = abs(bounds[1] - bounds[0])
+
+        assert actualSize[0] == pytest.approx(expectedSizeX)
+        assert actualSize[1] == pytest.approx(expectedSizeY)
 
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
@@ -146,7 +158,7 @@ def test_usd(device):
         assert mesh_prim_path in terrain_importer.terrain_prim_paths
 
         # obtain underling mesh
-        mesh = _obtain_collision_mesh(mesh_prim_path, mesh_type="Mesh")
+        mesh = create_mesh_from_prim(mesh_prim_path)
         assert mesh is not None
 
         # expect values from USD file
