@@ -91,7 +91,7 @@ def update_class_from_dict(obj, data: dict[str, Any], _ns: str = "") -> None:
         # key_ns is the full namespace of the key
         key_ns = _ns + "/" + key
         # check if key is present in the object
-        if hasattr(obj, key) or isinstance(obj, dict):
+        if hasattr(obj, key) or (isinstance(obj, dict) and key in obj):
             obj_mem = obj[key] if isinstance(obj, dict) else getattr(obj, key)
             if isinstance(value, Mapping):
                 # recursively call if it is a dictionary
@@ -106,8 +106,12 @@ def update_class_from_dict(obj, data: dict[str, Any], _ns: str = "") -> None:
                     else:
                         setattr(obj, key, out_val)
                     continue
+                if obj_mem is None:
+                    raise ValueError(
+                        f"[Config]: Cannot merge list under namespace: {key_ns} because the existing value is None."
+                    )
                 # check length of value to be safe
-                if len(obj_mem) != len(value) and obj_mem is not None:
+                if len(obj_mem) != len(value):
                     raise ValueError(
                         f"[Config]: Incorrect length under namespace: {key_ns}."
                         f" Expected: {len(obj_mem)}, Received: {len(value)}."
@@ -118,7 +122,7 @@ def update_class_from_dict(obj, data: dict[str, Any], _ns: str = "") -> None:
                     set_obj = True
                     # recursively call if iterable contains dictionaries
                     for i in range(len(obj_mem)):
-                        if isinstance(value[i], dict):
+                        if isinstance(value[i], Mapping):
                             update_class_from_dict(obj_mem[i], value[i], _ns=key_ns)
                             set_obj = False
                     # do not set value to obj, otherwise it overwrites the cfg class with the dict
@@ -127,7 +131,7 @@ def update_class_from_dict(obj, data: dict[str, Any], _ns: str = "") -> None:
             elif callable(obj_mem):
                 # update function name
                 value = string_to_callable(value)
-            elif isinstance(value, type(obj_mem)) or value is None:
+            elif value is None or isinstance(value, type(obj_mem)):
                 pass
             else:
                 raise ValueError(
