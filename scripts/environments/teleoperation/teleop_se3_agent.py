@@ -58,6 +58,7 @@ import torch
 import omni.log
 
 from isaaclab.devices import Se3Gamepad, Se3GamepadCfg, Se3Keyboard, Se3KeyboardCfg, Se3SpaceMouse, Se3SpaceMouseCfg
+from isaaclab.devices.openxr import remove_camera_configs
 from isaaclab.devices.teleop_device_factory import create_teleop_device
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 
@@ -89,6 +90,12 @@ def main() -> None:
         env_cfg.commands.object_pose.resampling_time_range = (1.0e9, 1.0e9)
         # add termination condition for reaching the goal otherwise the environment won't reset
         env_cfg.terminations.object_reached_goal = DoneTerm(func=mdp.object_reached_goal)
+
+    if args_cli.xr:
+        # External cameras are not supported with XR teleop
+        # Check for any camera configs and disable them
+        env_cfg = remove_camera_configs(env_cfg)
+        env_cfg.sim.render.antialiasing_mode = "DLSS"
 
     try:
         # create environment
