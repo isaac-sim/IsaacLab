@@ -90,6 +90,7 @@ import omni.log
 import omni.ui as ui
 
 from isaaclab.devices import Se3Keyboard, Se3KeyboardCfg, Se3SpaceMouse, Se3SpaceMouseCfg
+from isaaclab.devices.openxr import remove_camera_configs
 from isaaclab.devices.teleop_device_factory import create_teleop_device
 
 import isaaclab_mimic.envs  # noqa: F401
@@ -100,11 +101,10 @@ if args_cli.enable_pinocchio:
 
 from collections.abc import Callable
 
-from isaaclab.envs import DirectRLEnvCfg, ManagerBasedEnvCfg, ManagerBasedRLEnvCfg
+from isaaclab.envs import DirectRLEnvCfg, ManagerBasedRLEnvCfg
 from isaaclab.envs.mdp.recorders.recorders_cfg import ActionStateRecorderManagerCfg
 from isaaclab.envs.ui import EmptyWindow
-from isaaclab.managers import DatasetExportMode, SceneEntityCfg
-from isaaclab.sensors import CameraCfg
+from isaaclab.managers import DatasetExportMode
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
@@ -164,26 +164,6 @@ def setup_output_directories() -> tuple[str, str]:
         omni.log.info(f"Created output directory: {output_dir}")
 
     return output_dir, output_file_name
-
-
-def remove_camera_configs(env_cfg: ManagerBasedEnvCfg):
-    """Removes cameras from environments when recording since XR does not work together with rendering."""
-    for attr_name in dir(env_cfg.scene):
-        attr = getattr(env_cfg.scene, attr_name)
-        if isinstance(attr, CameraCfg):
-            delattr(env_cfg.scene, attr_name)
-            omni.log.info(f"Removed camera config: {attr_name}")
-
-            # Remove any ObsTerms for the camera
-            for obs_name in dir(env_cfg.observations.policy):
-                obsterm = getattr(env_cfg.observations.policy, obs_name)
-                if hasattr(obsterm, "params") and obsterm.params:
-                    for param_value in obsterm.params.values():
-                        if isinstance(param_value, SceneEntityCfg) and param_value.name == attr_name:
-                            delattr(env_cfg.observations.policy, attr_name)
-                            omni.log.info(f"Removed camera observation term: {attr_name}")
-                            break
-    return env_cfg
 
 
 def create_environment_config(

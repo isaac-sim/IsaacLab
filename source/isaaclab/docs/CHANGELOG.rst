@@ -79,17 +79,17 @@ Changed
   :meth:`~isaaclab.utils.math.quat_apply` and :meth:`~isaaclab.utils.math.quat_apply_inverse` for speed.
 
 
-0.40.8 (2025-05-19)
+0.40.9 (2025-05-19)
 ~~~~~~~~~~~~~~~~~~~
 
 Fixed
-^^^^^^
+^^^^^
 
 * Raising exceptions in step, render and reset if they occurred inside the initialization callbacks
   of assets and sensors.used from the experience files and the double definition is removed.
 
 
-0.40.7 (2025-01-30)
+0.40.8 (2025-01-30)
 ~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -99,7 +99,7 @@ Added
   in the simulation.
 
 
-0.40.6 (2025-05-16)
+0.40.7 (2025-05-16)
 ~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -114,7 +114,7 @@ Changed
   resampling call.
 
 
-0.40.5 (2025-05-16)
+0.40.6 (2025-05-16)
 ~~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -123,7 +123,7 @@ Fixed
 * Fixed penetration issue for negative border height in :class:`~isaaclab.terrains.terrain_generator.TerrainGeneratorCfg`.
 
 
-0.40.4 (2025-05-16)
+0.40.5 (2025-05-16)
 ~~~~~~~~~~~~~~~~~~~
 
 Changed
@@ -138,7 +138,7 @@ Added
 * Added :meth:`~isaaclab.utils.math.rigid_body_twist_transform`
 
 
-0.40.3 (2025-05-15)
+0.40.4 (2025-05-15)
 ~~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -152,11 +152,20 @@ Fixed
   unused USD camera parameters.
 
 
-0.40.2 (2025-05-14)
+0.40.3 (2025-05-14)
 ~~~~~~~~~~~~~~~~~~~
 
 * Added a new attribute :attr:`articulation_root_prim_path` to the :class:`~isaaclab.assets.ArticulationCfg` class
   to allow explicitly specifying the prim path of the articulation root.
+
+
+0.40.2 (2025-05-14)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Refactored remove_camera_configs to be a function that can be used in the record_demos and teleop scripts.
 
 
 0.40.1 (2025-05-14)
