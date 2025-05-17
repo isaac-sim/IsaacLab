@@ -12,7 +12,7 @@ from .h1_env import H1Env, H1EnvCfg
 # [start-init-register]
 gym.register(
     id="Isaac-H1-Direct-v0",
-    entry_point="omni.isaac.lab_tasks.direct.humanoid:H1Env",
+    entry_point="isaaclab_tasks.direct.humanoid:H1Env",
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": H1EnvCfg,
@@ -24,7 +24,7 @@ gym.register(
 # [end-init-register]
 
 # [start-h1_env-import]
-from omni.isaac.lab_assets import H1_CFG
+from isaaclab_assets import H1_CFG
 # [end-h1_env-import]
 
 # [start-h1_env-spaces]

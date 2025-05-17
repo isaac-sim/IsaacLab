@@ -38,7 +38,7 @@ repos:
       - id: pyupgrade
         args: ["--py310-plus"]
         # FIXME: This is a hack because Pytorch does not like: torch.Tensor | dict aliasing
-        exclude: "source/extensions/omni.isaac.lab/omni/isaac/lab/envs/common.py|source/extensions/omni.isaac.lab/omni/isaac/lab/ui/widgets/image_plot.py"
+        exclude: "source/isaaclab/isaaclab/envs/common.py|source/isaaclab/isaaclab/ui/widgets/image_plot.py|source/isaaclab_tasks/isaaclab_tasks/direct/humanoid_amp/motions/motion_loader.py"
   - repo: https://github.com/codespell-project/codespell
     rev: v2.2.6
     hooks:
@@ -60,6 +60,18 @@ repos:
           # - --remove-header    # Remove existing license headers. Useful when updating license.
           - --license-filepath
           - .github/LICENSE_HEADER.txt
+          - --use-current-year
+        exclude: "source/isaaclab_mimic/|scripts/imitation_learning/isaaclab_mimic/"
+  # Apache 2.0 license for mimic files
+  - repo: https://github.com/Lucas-C/pre-commit-hooks
+    rev: v1.5.1
+    hooks:
+      - id: insert-license
+        files: ^(source/isaaclab_mimic|scripts/imitation_learning/isaaclab_mimic)/.*\.py$
+        args:
+          # - --remove-header    # Remove existing license headers. Useful when updating license.
+          - --license-filepath
+          - .github/LICENSE_HEADER_MIMIC.txt
           - --use-current-year
   - repo: https://github.com/pre-commit/pygrep-hooks
     rev: v1.10.0

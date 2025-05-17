@@ -2,7 +2,7 @@
 Ray Job Dispatch and Tuning
 ===========================
 
-.. currentmodule:: omni.isaac.lab
+.. currentmodule:: isaaclab
 
 Isaac Lab supports `Ray <https://docs.ray.io/en/latest/index.html>`_ for streamlining dispatching multiple training jobs (in parallel and in series),
 and hyperparameter tuning, both on local and remote configurations.
@@ -20,8 +20,8 @@ the general workflow is the same.
   :depth: 3
   :local:
 
-**Overview**
-------------
+Overview
+--------
 
 The Ray integration is useful for the following.
 
@@ -48,17 +48,17 @@ job processing on local/virtual multi-GPU machines. Tuning jobs assume homogeneo
 
 The two following files contain the core functionality of the Ray integration.
 
-.. dropdown:: source/standalone/workflows/ray/wrap_resources.py
+.. dropdown:: scripts/reinforcement_learning/ray/wrap_resources.py
   :icon: code
 
-  .. literalinclude:: ../../../source/standalone/workflows/ray/wrap_resources.py
+  .. literalinclude:: ../../../scripts/reinforcement_learning/ray/wrap_resources.py
     :language: python
     :emphasize-lines: 14-66
 
-.. dropdown:: source/standalone/workflows/ray/tuner.py
+.. dropdown:: scripts/reinforcement_learning/ray/tuner.py
   :icon: code
 
-  .. literalinclude:: ../../../source/standalone/workflows/ray/tuner.py
+  .. literalinclude:: ../../../scripts/reinforcement_learning/ray/tuner.py
     :language: python
     :emphasize-lines: 18-53
 
@@ -68,33 +68,33 @@ jobs to one or more Ray cluster(s), which can be used for
 running jobs on a remote cluster or simultaneous jobs with heterogeneous
 resource requirements.
 
-.. dropdown:: source/standalone/workflows/ray/submit_job.py
+.. dropdown:: scripts/reinforcement_learning/ray/submit_job.py
   :icon: code
 
-  .. literalinclude:: ../../../source/standalone/workflows/ray/submit_job.py
+  .. literalinclude:: ../../../scripts/reinforcement_learning/ray/submit_job.py
     :language: python
     :emphasize-lines: 12-53
 
 The following script can be used to extract KubeRay cluster information for aggregate job submission.
 
-.. dropdown:: source/standalone/workflows/ray/grok_cluster_with_kubectl.py
+.. dropdown:: scripts/reinforcement_learning/ray/grok_cluster_with_kubectl.py
   :icon: code
 
-  .. literalinclude:: ../../../source/standalone/workflows/ray/grok_cluster_with_kubectl.py
+  .. literalinclude:: ../../../scripts/reinforcement_learning/ray/grok_cluster_with_kubectl.py
     :language: python
     :emphasize-lines: 14-26
 
 The following script can be used to easily create clusters on Google GKE.
 
-.. dropdown:: source/standalone/workflows/ray/launch.py
+.. dropdown:: scripts/reinforcement_learning/ray/launch.py
   :icon: code
 
-  .. literalinclude:: ../../../source/standalone/workflows/ray/launch.py
+  .. literalinclude:: ../../../scripts/reinforcement_learning/ray/launch.py
     :language: python
     :emphasize-lines: 16-37
 
-**Docker-based Local Quickstart**
------------------------------------
+Docker-based Local Quickstart
+-----------------------------
 
 First, follow the `Docker Guide <https://isaac-sim.github.io/IsaacLab/main/source/deployment/docker.html>`_
 to set up the NVIDIA Container Toolkit and Docker Compose.
@@ -106,7 +106,7 @@ Then, run the following steps to start a tuning run.
   # Build the base image, but we don't need to run it
   python3 docker/container.py start && python3 docker/container.py stop
   # Build the tuning image with extra deps
-  docker build -t isaacray -f source/standalone/workflows/ray/cluster_configs/Dockerfile .
+  docker build -t isaacray -f scripts/reinforcement_learning/ray/cluster_configs/Dockerfile .
   # Start the tuning image - symlink so that changes in the source folder show up in the container
   docker run -v $(pwd)/source:/workspace/isaaclab/source -it --gpus all --net=host --entrypoint /bin/bash isaacray
   # Start the Ray server within the tuning image
@@ -123,11 +123,11 @@ In a different terminal, run the following.
   docker container ps
   docker exec -it <ISAAC_RAY_IMAGE_ID_FROM_CONTAINER_PS> /bin/bash
   # Start a tuning run, with one parallel worker per GPU
-  ./isaaclab.sh -p source/standalone/workflows/ray/tuner.py \
-    --cfg_file source/standalone/workflows/ray/hyperparameter_tuning/vision_cartpole_cfg.py \
+  ./isaaclab.sh -p scripts/reinforcement_learning/ray/tuner.py \
+    --cfg_file scripts/reinforcement_learning/ray/hyperparameter_tuning/vision_cartpole_cfg.py \
     --cfg_class CartpoleTheiaJobCfg \
     --run_mode local \
-    --workflow source/standalone/workflows/rl_games/train.py \
+    --workflow scripts/reinforcement_learning/rl_games/train.py \
     --num_workers_per_node <NUMBER_OF_GPUS_IN_COMPUTER>
 
 
@@ -144,10 +144,10 @@ To view the training logs, in a different terminal, run the following and visit 
 
 Submitting resource-wrapped individual jobs instead of automatic tuning runs is described in the following file.
 
-.. dropdown:: source/standalone/workflows/ray/wrap_resources.py
+.. dropdown:: scripts/reinforcement_learning/ray/wrap_resources.py
   :icon: code
 
-  .. literalinclude:: ../../../source/standalone/workflows/ray/wrap_resources.py
+  .. literalinclude:: ../../../scripts/reinforcement_learning/ray/wrap_resources.py
     :language: python
     :emphasize-lines: 14-66
 
@@ -164,25 +164,25 @@ The included :class:`JobCfg` only supports the ``rl_games`` workflow due to diff
 environment entrypoints and hydra arguments, although other workflows will work if provided a compatible
 :class:`JobCfg`.
 
-.. dropdown:: source/standalone/workflows/ray/tuner.py (JobCfg definition)
+.. dropdown:: scripts/reinforcement_learning/ray/tuner.py (JobCfg definition)
   :icon: code
 
-  .. literalinclude:: ../../../source/standalone/workflows/ray/tuner.py
+  .. literalinclude:: ../../../scripts/reinforcement_learning/ray/tuner.py
     :language: python
     :start-at: class JobCfg
     :end-at: self.cfg = cfg
 
 For example, see the following Cartpole Example configurations.
 
-.. dropdown:: source/standalone/workflows/ray/hyperparameter_tuning/vision_cartpole_cfg.py
+.. dropdown:: scripts/reinforcement_learning/ray/hyperparameter_tuning/vision_cartpole_cfg.py
   :icon: code
 
-  .. literalinclude:: ../../../source/standalone/workflows/ray/hyperparameter_tuning/vision_cartpole_cfg.py
+  .. literalinclude:: ../../../scripts/reinforcement_learning/ray/hyperparameter_tuning/vision_cartpole_cfg.py
     :language: python
 
 
-**Remote Clusters**
--------------------------
+Remote Clusters
+---------------
 
 Select one of the following methods to create a Ray cluster to accept and execute dispatched jobs.
 
@@ -255,7 +255,7 @@ Shared Steps Between KubeRay and Pure Ray Part I
   # Login with NGC (nvcr.io) registry first, see docker steps in repo.
   python3 docker/container.py start
   # Build the special Isaac Lab Ray Image
-  docker build -t <REGISTRY/IMAGE_NAME> -f source/standalone/workflows/ray/cluster_configs/Dockerfile .
+  docker build -t <REGISTRY/IMAGE_NAME> -f scripts/reinforcement_learning/ray/cluster_configs/Dockerfile .
   # Push the image to your registry of choice.
   docker push <REGISTRY/IMAGE_NAME>
 
@@ -285,10 +285,10 @@ that your cluster has access to.
 This can be done automatically for Google GKE,
 where instructions are included in the following creation file.
 
-.. dropdown:: source/standalone/workflows/ray/launch.py
+.. dropdown:: scripts/reinforcement_learning/ray/launch.py
   :icon: code
 
-  .. literalinclude:: ../../../source/standalone/workflows/ray/launch.py
+  .. literalinclude:: ../../../scripts/reinforcement_learning/ray/launch.py
     :language: python
     :emphasize-lines: 15-37
 
@@ -296,10 +296,10 @@ For other cloud services, the ``kuberay.yaml.ninja`` will be similar to that of
 Google's.
 
 
-.. dropdown:: source/standalone/workflows/ray/cluster_configs/google_cloud/kuberay.yaml.ninja
+.. dropdown:: scripts/reinforcement_learning/ray/cluster_configs/google_cloud/kuberay.yaml.ninja
   :icon: code
 
-  .. literalinclude:: ../../../source/standalone/workflows/ray/cluster_configs/google_cloud/kuberay.yaml.jinja
+  .. literalinclude:: ../../../scripts/reinforcement_learning/ray/cluster_configs/google_cloud/kuberay.yaml.jinja
       :language: python
 
 
@@ -310,10 +310,10 @@ where instructions are included in the following fetching file.
 The KubeRay clusters are saved to a file, but the MLFLow Server IP is
 printed.
 
-.. dropdown:: source/standalone/workflows/ray/grok_cluster_with_kubectl.py
+.. dropdown:: scripts/reinforcement_learning/ray/grok_cluster_with_kubectl.py
   :icon: code
 
-  .. literalinclude:: ../../../source/standalone/workflows/ray/grok_cluster_with_kubectl.py
+  .. literalinclude:: ../../../scripts/reinforcement_learning/ray/grok_cluster_with_kubectl.py
     :language: python
     :emphasize-lines: 14-26
 
@@ -338,14 +338,14 @@ Dispatching Steps Shared Between KubeRay and Pure Ray Part II
 .. code-block:: bash
 
   # Test that NVIDIA GPUs are visible and that Ray is operation with the following command:
-  python3 source/standalone/workflows/ray/submit_job.py --aggregate_jobs wrap_resources.py --test
+  python3 scripts/reinforcement_learning/ray/submit_job.py --aggregate_jobs wrap_resources.py --test
 
 2.) Submitting tuning and/or resource-wrapped jobs is described in the :file:`submit_job.py` file.
 
-.. dropdown:: source/standalone/workflows/ray/submit_job.py
+.. dropdown:: scripts/reinforcement_learning/ray/submit_job.py
   :icon: code
 
-  .. literalinclude:: ../../../source/standalone/workflows/ray/submit_job.py
+  .. literalinclude:: ../../../scripts/reinforcement_learning/ray/submit_job.py
     :language: python
     :emphasize-lines: 12-53
 
@@ -354,20 +354,20 @@ The included :class:`JobCfg` only supports the ``rl_games`` workflow due to diff
 environment entrypoints and hydra arguments, although other workflows will work if provided a compatible
 :class:`JobCfg`.
 
-.. dropdown:: source/standalone/workflows/ray/tuner.py (JobCfg definition)
+.. dropdown:: scripts/reinforcement_learning/ray/tuner.py (JobCfg definition)
   :icon: code
 
-  .. literalinclude:: ../../../source/standalone/workflows/ray/tuner.py
+  .. literalinclude:: ../../../scripts/reinforcement_learning/ray/tuner.py
     :language: python
     :start-at: class JobCfg
     :end-at: self.cfg = cfg
 
 For example, see the following Cartpole Example configurations.
 
-.. dropdown:: source/standalone/workflows/ray/hyperparameter_tuning/vision_cartpole_cfg.py
+.. dropdown:: scripts/reinforcement_learning/ray/hyperparameter_tuning/vision_cartpole_cfg.py
   :icon: code
 
-  .. literalinclude:: ../../../source/standalone/workflows/ray/hyperparameter_tuning/vision_cartpole_cfg.py
+  .. literalinclude:: ../../../scripts/reinforcement_learning/ray/hyperparameter_tuning/vision_cartpole_cfg.py
     :language: python
 
 
@@ -383,7 +383,7 @@ Then visit the following address in a browser.
 If the MLFlow port is forwarded like above, it can be converted into tensorboard logs with
 this following command.
 
-``./isaaclab.sh -p source/standalone/workflows/ray/mlflow_to_local_tensorboard.py \
+``./isaaclab.sh -p scripts/reinforcement_learning/ray/mlflow_to_local_tensorboard.py \
 --uri http://localhost:5000 --experiment-name IsaacRay-<CLASS_JOB_CFG>-tune --download-dir test``
 
 

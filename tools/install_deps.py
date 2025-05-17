@@ -52,17 +52,17 @@ def install_apt_packages(paths: list[str]):
         paths: A list of paths to the extension's root.
 
     Raises:
-        FileNotFoundError: If the extension.toml file is not found.
         SystemError: If 'apt' is not a known command. This is a system error.
     """
     for path in paths:
         if shutil.which("apt"):
             # Check if the extension.toml file exists
             if not os.path.exists(f"{path}/config/extension.toml"):
-                raise FileNotFoundError(
-                    "During the installation of 'apt' dependencies, unable to find a"
+                print(
+                    "[WARN] During the installation of 'apt' dependencies, unable to find a"
                     f" valid file at: {path}/config/extension.toml."
                 )
+                continue
             # Load the extension.toml file and check for apt_deps
             with open(f"{path}/config/extension.toml") as fd:
                 ext_toml = toml.load(fd)
@@ -94,7 +94,6 @@ def install_rosdep_packages(paths: list[str], ros_distro: str = "humble"):
         ros_distro: The ROS distribution to use for rosdep. Default is 'humble'.
 
     Raises:
-        FileNotFoundError: If the extension.toml file is not found under the path.
         FileNotFoundError: If a valid ROS workspace is not found while installing ROS dependencies.
         SystemError: If 'rosdep' is not a known command. This is raised if 'rosdep' is not installed on the system.
     """
@@ -102,10 +101,11 @@ def install_rosdep_packages(paths: list[str], ros_distro: str = "humble"):
         if shutil.which("rosdep"):
             # Check if the extension.toml file exists
             if not os.path.exists(f"{path}/config/extension.toml"):
-                raise FileNotFoundError(
-                    "During the installation of 'rosdep' dependencies, unable to find a"
+                print(
+                    "[WARN] During the installation of 'rosdep' dependencies, unable to find a"
                     f" valid file at: {path}/config/extension.toml."
                 )
+                continue
             # Load the extension.toml file and check for ros_ws
             with open(f"{path}/config/extension.toml") as fd:
                 ext_toml = toml.load(fd)
