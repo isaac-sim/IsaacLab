@@ -423,9 +423,13 @@ class FrameTransformer(SensorBase):
             if not hasattr(self, "frame_visualizer"):
                 self.frame_visualizer = VisualizationMarkers(self.cfg.visualizer_cfg)
 
-                import isaacsim.util.debug_draw._debug_draw as isaac_debug_draw
+                try:
+                    # isaacsim.util is not available in headless mode
+                    import isaacsim.util.debug_draw._debug_draw as isaac_debug_draw
 
-                self.debug_draw = isaac_debug_draw.acquire_debug_draw_interface()
+                    self.debug_draw = isaac_debug_draw.acquire_debug_draw_interface()
+                except ImportError:
+                    omni.log.info("isaacsim.util.debug_draw module not found. Debug visualization will be limited.")
 
             # set their visibility to true
             self.frame_visualizer.set_visibility(True)
@@ -433,7 +437,8 @@ class FrameTransformer(SensorBase):
             if hasattr(self, "frame_visualizer"):
                 self.frame_visualizer.set_visibility(False)
                 # clear the lines
-                self.debug_draw.clear_lines()
+                if hasattr(self, "debug_draw"):
+                    self.debug_draw.clear_lines()
 
     def _debug_vis_callback(self, event):
         # Update the visualized markers
@@ -441,14 +446,15 @@ class FrameTransformer(SensorBase):
         all_quat = torch.cat([self._data.source_quat_w, self._data.target_quat_w.view(-1, 4)], dim=0)
         self.frame_visualizer.visualize(all_pos, all_quat)
 
-        # Draw lines connecting the source frame to the target frames
-        self.debug_draw.clear_lines()
-        # make the lines color yellow
-        source_pos = self._data.source_pos_w.cpu().tolist()
-        colors = [[1, 1, 0, 1]] * self._num_envs
-        for frame_index in range(len(self._target_frame_names)):
-            target_pos = self._data.target_pos_w[:, frame_index].cpu().tolist()
-            self.debug_draw.draw_lines(source_pos, target_pos, colors, [1.5] * self._num_envs)
+        if hasattr(self, "debug_draw"):
+            # Draw lines connecting the source frame to the target frames
+            self.debug_draw.clear_lines()
+            # make the lines color yellow
+            source_pos = self._data.source_pos_w.cpu().tolist()
+            colors = [[1, 1, 0, 1]] * self._num_envs
+            for frame_index in range(len(self._target_frame_names)):
+                target_pos = self._data.target_pos_w[:, frame_index].cpu().tolist()
+                self.debug_draw.draw_lines(source_pos, target_pos, colors, [1.5] * self._num_envs)
 
     """
     Internal simulation callbacks.
