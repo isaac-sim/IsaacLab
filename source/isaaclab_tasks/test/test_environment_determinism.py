@@ -97,6 +97,7 @@ def _obtain_transition_tuples(task_name: str, num_envs: int, device: str, num_st
     try:
         # parse configuration
         env_cfg = parse_env_cfg(task_name, device=device, num_envs=num_envs)
+        env_cfg = copy.deepcopy(env_cfg)
         # set seed
         env_cfg.seed = 42
         # create environment
