@@ -1,7 +1,7 @@
 Changelog
 ---------
 
-0.39.3 (2025-05-16)
+0.39.4 (2025-05-16)
 ~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -14,6 +14,21 @@ Changed
 
 * Updated the :class:`~isaaclab.managers.command_manager.CommandManager` to update the command counter after the
   resampling call.
+
+
+0.39.3 (2025-05-16)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the implementation of :meth:`~isaaclab.utils.math.quat_box_minus`
+
+Added
+^^^^^
+
+* Added :meth:`~isaaclab.utils.math.quat_box_plus`
+* Added :meth:`~isaaclab.utils.math.rigid_body_twist_transform`
 
 
 0.39.2 (2025-05-15)
