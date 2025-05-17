@@ -530,6 +530,94 @@ def test_interpolate_poses(device):
 
 
 @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+def test_quat_box_minus(device):
+    """Test quat_box_minus method.
+
+    Ensures that quat_box_minus correctly computes the axis-angle difference
+    between two quaternions representing rotations around the same axis.
+    """
+    axis_angles = torch.tensor([0.0, 0.0, 1.0], device=device)
+    angle_a = math.pi - 0.1
+    angle_b = -math.pi + 0.1
+    quat_a = math_utils.quat_from_angle_axis(torch.tensor([angle_a], device=device), axis_angles)
+    quat_b = math_utils.quat_from_angle_axis(torch.tensor([angle_b], device=device), axis_angles)
+
+    axis_diff = math_utils.quat_box_minus(quat_a, quat_b).squeeze(0)
+    expected_diff = axis_angles * math_utils.wrap_to_pi(torch.tensor(angle_a - angle_b, device=device))
+    torch.testing.assert_close(expected_diff, axis_diff, atol=1e-06, rtol=1e-06)
+
+
+@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+def test_quat_box_minus_and_quat_box_plus(device):
+    """Test consistency of quat_box_plus and quat_box_minus.
+
+    Checks that applying quat_box_plus to accumulate rotations and then using
+    quat_box_minus to retrieve differences results in expected values.
+    """
+
+    # Perform closed-loop integration using quat_box_plus to accumulate rotations,
+    # and then use quat_box_minus to compute the incremental differences between quaternions.
+    # NOTE: Accuracy may decrease for very small angle increments due to numerical precision limits.
+    for n in (2, 10, 100, 1000):
+        # Define small incremental rotations around principal axes
+        delta_angle = torch.tensor(
+            [
+                [0, 0, -math.pi / n],
+                [0, -math.pi / n, 0],
+                [-math.pi / n, 0, 0],
+                [0, 0, math.pi / n],
+                [0, math.pi / n, 0],
+                [math.pi / n, 0, 0],
+            ],
+            device=device,
+        )
+
+        # Initialize quaternion trajectory starting from identity quaternion
+        quat_trajectory = torch.zeros((len(delta_angle), 2 * n + 1, 4), device=device)
+        quat_trajectory[:, 0, :] = torch.tensor([[1.0, 0.0, 0.0, 0.0]], device=device).repeat(len(delta_angle), 1)
+
+        # Integrate incremental rotations forward to form a closed loop trajectory
+        for i in range(1, 2 * n + 1):
+            quat_trajectory[:, i] = math_utils.quat_box_plus(quat_trajectory[:, i - 1], delta_angle)
+
+        # Validate the loop closure: start and end quaternions should be approximately equal
+        torch.testing.assert_close(quat_trajectory[:, 0], quat_trajectory[:, -1], atol=1e-04, rtol=1e-04)
+
+        # Validate that the differences between consecutive quaternions match the original increments
+        for i in range(2 * n):
+            delta_result = math_utils.quat_box_minus(quat_trajectory[:, i + 1], quat_trajectory[:, i])
+            torch.testing.assert_close(delta_result, delta_angle, atol=1e-04, rtol=1e-04)
+
+
+@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+def test_rigid_body_twist_transform(device):
+    """Test rigid_body_twist_transform method.
+
+    Verifies correct transformation of twists (linear and angular velocity) between coordinate frames.
+    """
+    num_bodies = 100
+    # Frame A to B
+    t_AB = torch.randn((num_bodies, 3), device=device)
+    q_AB = math_utils.random_orientation(num=num_bodies, device=device)
+
+    # Twists in A in frame A
+    v_AA = torch.randn((num_bodies, 3), device=device)
+    w_AA = torch.randn((num_bodies, 3), device=device)
+
+    # Get twists in B in frame B
+    v_BB, w_BB = math_utils.rigid_body_twist_transform(v_AA, w_AA, t_AB, q_AB)
+
+    # Get back twists in A in frame A
+    t_BA = -math_utils.quat_rotate_inverse(q_AB, t_AB)
+    q_BA = math_utils.quat_conjugate(q_AB)
+    v_AA_, w_AA_ = math_utils.rigid_body_twist_transform(v_BB, w_BB, t_BA, q_BA)
+
+    # Check
+    torch.testing.assert_close(v_AA_, v_AA)
+    torch.testing.assert_close(w_AA_, w_AA)
+
+
+@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
 def test_yaw_quat(device):
     """
     Test for yaw_quat methods.
