@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.39.4 (2025-05-16)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed penetration issue for negative border height in :class:`~isaaclab.terrains.terrain_generator.TerrainGeneratorCfg`.
+
+
 0.39.3 (2025-05-16)
 ~~~~~~~~~~~~~~~~~~~
 
