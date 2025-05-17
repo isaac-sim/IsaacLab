@@ -32,8 +32,11 @@ Isaac Lab offers a comprehensive set of tools and environments designed to facil
 **On WatCloud:**
 - SSH into WatCloud and git clone this repo
 - Use wato_asd_tooling repo to start ssh session in the slurm nodes (See link: https://wiki.watonomous.ca/autonomous_software_general/watcloud_dev#one-time-setup) (See link for minimum spec on slurm nodes: https://docs.isaacsim.omniverse.nvidia.com/latest/installation/requirements.html)
-- On a new terminal, run ssh -L 5900:localhost:5900 asd-dev-session to enable ssh tunneling from slurm nodes to local computer
-- CD into the Isaac Lab repo and run ./docker/container.py start & ./docker/container.py enter base to start Isaac Lab
+- On a new terminal, run `ssh -L 5900:localhost:5900 asd-dev-session` to enable ssh tunneling from slurm nodes to local computer
+- Run `cd IsaacLab`
+- Run `export DISPLAY=:0`
+- Run `./docker/container.py start`
+- Run `./docker/container.py enter base`
 - Download VNC Viewer and choose localhost:5900 to open Isaac Lab (See link: https://www.realvnc.com/en/connect/download/viewer/?lai_vid=63V0dbyEai1ON&lai_sr=5-9&lai_sl=l&lai_p=1)
 
 Our [documentation page](https://isaac-sim.github.io/IsaacLab) provides everything you need to get started, including detailed tutorials and step-by-step guides. Follow these links to learn more about:
