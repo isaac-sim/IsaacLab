@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.39.7 (2025-05-15)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^^
+
+* Raising exceptions in step, render and reset if they occurred inside the initialization callbacks
+  of assets and sensors.used from the experience files and the double definition is removed.
+
+
 0.39.6 (2025-01-30)
 ~~~~~~~~~~~~~~~~~~~
 
@@ -72,6 +82,7 @@ Added
 
 * Added a new attribute :attr:`articulation_root_prim_path` to the :class:`~isaaclab.assets.ArticulationCfg` class
   to allow explicitly specifying the prim path of the articulation root.
+
 
 
 0.39.0 (2025-05-03)

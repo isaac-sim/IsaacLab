@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import builtins
 import inspect
 import re
 import torch
@@ -16,7 +17,7 @@ from typing import TYPE_CHECKING, Any
 import isaacsim.core.utils.prims as prim_utils
 import omni.kit.app
 import omni.timeline
-from isaacsim.core.simulation_manager import SimulationManager
+from isaacsim.core.simulation_manager import IsaacEvents, SimulationManager
 
 import isaaclab.sim as sim_utils
 
@@ -102,6 +103,9 @@ class AssetBase(ABC):
             lambda event, obj=weakref.proxy(self): obj._invalidate_initialize_callback(event),
             order=10,
         )
+        self._prim_deletion_callback_id = SimulationManager.register_callback(
+            self._on_prim_deletion, event=IsaacEvents.PRIM_DELETION
+        )
         # add handle for debug visualization (this is set to a valid handle inside set_debug_vis)
         self._debug_vis_handle = None
         # set initial state of debug visualization
@@ -109,17 +113,8 @@ class AssetBase(ABC):
 
     def __del__(self):
         """Unsubscribe from the callbacks."""
-        # clear physics events handles
-        if self._initialize_handle:
-            self._initialize_handle.unsubscribe()
-            self._initialize_handle = None
-        if self._invalidate_initialize_handle:
-            self._invalidate_initialize_handle.unsubscribe()
-            self._invalidate_initialize_handle = None
-        # clear debug visualization
-        if self._debug_vis_handle:
-            self._debug_vis_handle.unsubscribe()
-            self._debug_vis_handle = None
+        # clear events handles
+        self._clear_callbacks()
 
     """
     Properties
@@ -288,10 +283,15 @@ class AssetBase(ABC):
             called whenever the simulator "plays" from a "stop" state.
         """
         if not self._is_initialized:
+            # obtain simulation related information
             self._backend = SimulationManager.get_backend()
             self._device = SimulationManager.get_physics_sim_device()
             # initialize the asset
-            self._initialize_impl()
+            try:
+                self._initialize_impl()
+            except Exception as e:
+                if builtins.ISAACLAB_CALLBACK_EXCEPTION is None:
+                    builtins.ISAACLAB_CALLBACK_EXCEPTION = e
             # set flag
             self._is_initialized = True
 
@@ -299,5 +299,39 @@ class AssetBase(ABC):
         """Invalidates the scene elements."""
         self._is_initialized = False
         if self._debug_vis_handle is not None:
+            self._debug_vis_handle.unsubscribe()
+            self._debug_vis_handle = None
+
+    def _on_prim_deletion(self, prim_path: str) -> None:
+        """Invalidates and deletes the callbacks when the prim is deleted.
+
+        Args:
+            prim_path: The path to the prim that is being deleted.
+
+        Note:
+            This function is called when the prim is deleted.
+        """
+        if prim_path == "/":
+            self._clear_callbacks()
+            return
+        result = re.match(
+            pattern="^" + "/".join(self.cfg.prim_path.split("/")[: prim_path.count("/") + 1]) + "$", string=prim_path
+        )
+        if result:
+            self._clear_callbacks()
+
+    def _clear_callbacks(self) -> None:
+        """Clears the callbacks."""
+        if self._prim_deletion_callback_id:
+            SimulationManager.deregister_callback(self._prim_deletion_callback_id)
+            self._prim_deletion_callback_id = None
+        if self._initialize_handle:
+            self._initialize_handle.unsubscribe()
+            self._initialize_handle = None
+        if self._invalidate_initialize_handle:
+            self._invalidate_initialize_handle.unsubscribe()
+            self._invalidate_initialize_handle = None
+        # clear debug visualization
+        if self._debug_vis_handle:
             self._debug_vis_handle.unsubscribe()
             self._debug_vis_handle = None
