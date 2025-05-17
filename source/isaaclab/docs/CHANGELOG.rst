@@ -1,7 +1,7 @@
 Changelog
 ---------
 
-0.39.4 (2025-01-30)
+0.39.5 (2025-01-30)
 ~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -9,6 +9,15 @@ Added
 
 * Added method :meth:`omni.isaac.lab.assets.AssetBase.set_visibility` to set the visibility of the asset
   in the simulation.
+
+
+0.39.4 (2025-05-16)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed penetration issue for negative border height in :class:`~isaaclab.terrains.terrain_generator.TerrainGeneratorCfg`.
 
 
 0.39.3 (2025-05-16)
