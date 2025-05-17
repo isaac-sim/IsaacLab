@@ -13,7 +13,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
-import omni.isaac.core.utils.prims as prim_utils
+import isaacsim.core.utils.prims as prim_utils
 import omni.kit.app
 import omni.timeline
 from isaacsim.core.simulation_manager import SimulationManager
