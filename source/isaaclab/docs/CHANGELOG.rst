@@ -1,6 +1,30 @@
 Changelog
 ---------
 
+0.39.4 (2025-05-16)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed penetration issue for negative border height in :class:`~isaaclab.terrains.terrain_generator.TerrainGeneratorCfg`.
+
+
+0.39.3 (2025-05-16)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the implementation of :meth:`~isaaclab.utils.math.quat_box_minus`
+
+Added
+^^^^^
+
+* Added :meth:`~isaaclab.utils.math.quat_box_plus`
+* Added :meth:`~isaaclab.utils.math.rigid_body_twist_transform`
+
+
 0.39.2 (2025-05-15)
 ~~~~~~~~~~~~~~~~~~~
 
