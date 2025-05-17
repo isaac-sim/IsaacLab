@@ -10,18 +10,14 @@ import torch
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
-import omni.isaac.lab.sim as sim_utils
-import omni.isaac.lab.utils.string as string_utils
 import omni.log
 from isaacsim.core.simulation_manager import SimulationManager
-from omni.isaac.lab.markers import VisualizationMarkers
-from omni.isaac.lab.utils.math import (
-    combine_frame_transforms,
-    convert_quat,
-    is_identity_pose,
-    subtract_frame_transforms,
-)
 from pxr import UsdPhysics
+
+import isaaclab.sim as sim_utils
+import isaaclab.utils.string as string_utils
+from isaaclab.markers import VisualizationMarkers
+from isaaclab.utils.math import combine_frame_transforms, convert_quat, is_identity_pose, subtract_frame_transforms
 
 from ..sensor_base import SensorBase
 from .frame_transformer_data import FrameTransformerData
@@ -427,7 +423,7 @@ class FrameTransformer(SensorBase):
             if not hasattr(self, "frame_visualizer"):
                 self.frame_visualizer = VisualizationMarkers(self.cfg.visualizer_cfg)
 
-                import omni.isaac.debug_draw._debug_draw as isaac_debug_draw
+                import isaacsim.util.debug_draw._debug_draw as isaac_debug_draw
 
                 self.debug_draw = isaac_debug_draw.acquire_debug_draw_interface()
 
