@@ -14,7 +14,6 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
-import copy
 import gymnasium as gym
 import torch
 
@@ -60,6 +59,28 @@ def test_locomotion_env_determinism(task_name, device):
     """Check deterministic environment creation for locomotion."""
     _test_environment_determinism(task_name, device)
 
+@pytest.mark.parametrize(
+    "task_name",
+    [
+        "Isaac-Velocity-Rough-Anymal-C-Direct-v0",
+    ],
+)
+@pytest.mark.parametrize("device", ["cuda", "cpu"])
+def test_anymal_direct_env_determinism(task_name, device):
+    """Check deterministic environment creation for locomotion."""
+    _test_environment_determinism(task_name, device)
+
+@pytest.mark.parametrize(
+    "task_name",
+    [
+        "Isaac-Velocity-Rough-Anymal-C-v0",
+    ],
+)
+@pytest.mark.parametrize("device", ["cuda", "cpu"])
+def test_anymal_manager_env_determinism(task_name, device):
+    """Check deterministic environment creation for locomotion."""
+    _test_environment_determinism(task_name, device)
+
 
 @pytest.mark.parametrize(
     "task_name",
@@ -98,7 +119,6 @@ def _obtain_transition_tuples(task_name: str, num_envs: int, device: str, num_st
     try:
         # parse configuration
         env_cfg = parse_env_cfg(task_name, device=device, num_envs=num_envs)
-        env_cfg = copy.deepcopy(env_cfg)
         # set seed
         env_cfg.seed = 42
         # create environment
@@ -126,9 +146,5 @@ def _obtain_transition_tuples(task_name: str, num_envs: int, device: str, num_st
 
     # close the environment
     env.close()
-
-    # destroy env and config
-    del env_cfg
-    del env
 
     return obs, rewards
