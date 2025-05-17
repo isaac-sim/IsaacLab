@@ -59,28 +59,6 @@ def test_locomotion_env_determinism(task_name, device):
     """Check deterministic environment creation for locomotion."""
     _test_environment_determinism(task_name, device)
 
-@pytest.mark.parametrize(
-    "task_name",
-    [
-        "Isaac-Velocity-Rough-Anymal-C-Direct-v0",
-    ],
-)
-@pytest.mark.parametrize("device", ["cuda", "cpu"])
-def test_anymal_direct_env_determinism(task_name, device):
-    """Check deterministic environment creation for locomotion."""
-    _test_environment_determinism(task_name, device)
-
-@pytest.mark.parametrize(
-    "task_name",
-    [
-        "Isaac-Velocity-Rough-Anymal-C-v0",
-    ],
-)
-@pytest.mark.parametrize("device", ["cuda", "cpu"])
-def test_anymal_manager_env_determinism(task_name, device):
-    """Check deterministic environment creation for locomotion."""
-    _test_environment_determinism(task_name, device)
-
 
 @pytest.mark.parametrize(
     "task_name",

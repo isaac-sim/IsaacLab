@@ -259,6 +259,8 @@ def _validate(obj: object, prefix: str = "") -> list[str]:
     """
     missing_fields = []
 
+    print(type(obj))
+
     if type(obj) is type(MISSING):
         missing_fields.append(prefix)
         return missing_fields
@@ -279,6 +281,7 @@ def _validate(obj: object, prefix: str = "") -> list[str]:
         if key.startswith("__"):
             continue
         current_path = f"{prefix}.{key}" if prefix else key
+        print(current_path)
         missing_fields.extend(_validate(value, prefix=current_path))
 
     # raise an error only once at the top-level call
