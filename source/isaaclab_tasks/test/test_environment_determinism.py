@@ -14,6 +14,7 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
+import copy
 import gymnasium as gym
 import torch
 
