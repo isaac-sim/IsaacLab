@@ -552,6 +552,7 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">pxr</span><span class="w"> </span><span class="kn">import</span> <span class="n">UsdPhysics</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab.sim</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">sim_utils</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab.utils.string</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">string_utils</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.markers</span><span class="w"> </span><span class="kn">import</span> <span class="n">VisualizationMarkers</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils.math</span><span class="w"> </span><span class="kn">import</span> <span class="n">combine_frame_transforms</span><span class="p">,</span> <span class="n">convert_quat</span><span class="p">,</span> <span class="n">is_identity_pose</span><span class="p">,</span> <span class="n">subtract_frame_transforms</span>
 
@@ -620,6 +621,26 @@
         <span class="c1"># return the data</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data</span>
 
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">num_bodies</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Returns the number of target bodies being tracked.</span>
+
+<span class="sd">        Note:</span>
+<span class="sd">            This is an alias used for consistency with other sensors. Otherwise, we recommend using</span>
+<span class="sd">            :attr:`len(data.target_frame_names)` to access the number of target frames.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_target_frame_body_names</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">body_names</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Returns the names of the target bodies being tracked.</span>
+
+<span class="sd">        Note:</span>
+<span class="sd">            This is an alias used for consistency with other sensors. Otherwise, we recommend using</span>
+<span class="sd">            :attr:`data.target_frame_names` to access the target frame names.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_target_frame_body_names</span>
+
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Operations</span>
 <span class="sd">    &quot;&quot;&quot;</span>
@@ -630,6 +651,18 @@
         <span class="c1"># resolve None</span>
         <span class="k">if</span> <span class="n">env_ids</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="n">env_ids</span> <span class="o">=</span> <span class="o">...</span></div>
+
+<div class="viewcode-block" id="FrameTransformer.find_bodies"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.sensors.html#isaaclab.sensors.FrameTransformer.find_bodies">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">find_bodies</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name_keys</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span> <span class="n">preserve_order</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">],</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Find bodies in the articulation based on the name keys.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            name_keys: A regular expression or a list of regular expressions to match the body names.</span>
+<span class="sd">            preserve_order: Whether to preserve the order of the name keys in the output. Defaults to False.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            A tuple of lists containing the body indices and names.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">string_utils</span><span class="o">.</span><span class="n">resolve_matching_names</span><span class="p">(</span><span class="n">name_keys</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_target_frame_names</span><span class="p">,</span> <span class="n">preserve_order</span><span class="p">)</span></div>
 
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Implementation.</span>
@@ -926,16 +959,39 @@
         <span class="k">if</span> <span class="n">debug_vis</span><span class="p">:</span>
             <span class="k">if</span> <span class="ow">not</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">&quot;frame_visualizer&quot;</span><span class="p">):</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">frame_visualizer</span> <span class="o">=</span> <span class="n">VisualizationMarkers</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">visualizer_cfg</span><span class="p">)</span>
+
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="c1"># isaacsim.util is not available in headless mode</span>
+                    <span class="kn">import</span><span class="w"> </span><span class="nn">isaacsim.util.debug_draw._debug_draw</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">isaac_debug_draw</span>
+
+                    <span class="bp">self</span><span class="o">.</span><span class="n">debug_draw</span> <span class="o">=</span> <span class="n">isaac_debug_draw</span><span class="o">.</span><span class="n">acquire_debug_draw_interface</span><span class="p">()</span>
+                <span class="k">except</span> <span class="ne">ImportError</span><span class="p">:</span>
+                    <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;isaacsim.util.debug_draw module not found. Debug visualization will be limited.&quot;</span><span class="p">)</span>
+
             <span class="c1"># set their visibility to true</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">frame_visualizer</span><span class="o">.</span><span class="n">set_visibility</span><span class="p">(</span><span class="kc">True</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">&quot;frame_visualizer&quot;</span><span class="p">):</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">frame_visualizer</span><span class="o">.</span><span class="n">set_visibility</span><span class="p">(</span><span class="kc">False</span><span class="p">)</span>
+                <span class="c1"># clear the lines</span>
+                <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">&quot;debug_draw&quot;</span><span class="p">):</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">debug_draw</span><span class="o">.</span><span class="n">clear_lines</span><span class="p">()</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_debug_vis_callback</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">event</span><span class="p">):</span>
         <span class="c1"># Update the visualized markers</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">frame_visualizer</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">frame_visualizer</span><span class="o">.</span><span class="n">visualize</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">target_pos_w</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">target_quat_w</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">4</span><span class="p">))</span>
+        <span class="n">all_pos</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">([</span><span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">source_pos_w</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">target_pos_w</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">)],</span> <span class="n">dim</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+        <span class="n">all_quat</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">([</span><span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">source_quat_w</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">target_quat_w</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">4</span><span class="p">)],</span> <span class="n">dim</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">frame_visualizer</span><span class="o">.</span><span class="n">visualize</span><span class="p">(</span><span class="n">all_pos</span><span class="p">,</span> <span class="n">all_quat</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">&quot;debug_draw&quot;</span><span class="p">):</span>
+            <span class="c1"># Draw lines connecting the source frame to the target frames</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">debug_draw</span><span class="o">.</span><span class="n">clear_lines</span><span class="p">()</span>
+            <span class="c1"># make the lines color yellow</span>
+            <span class="n">source_pos</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">source_pos_w</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span>
+            <span class="n">colors</span> <span class="o">=</span> <span class="p">[[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">]]</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">_num_envs</span>
+            <span class="k">for</span> <span class="n">frame_index</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_target_frame_names</span><span class="p">)):</span>
+                <span class="n">target_pos</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">target_pos_w</span><span class="p">[:,</span> <span class="n">frame_index</span><span class="p">]</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">debug_draw</span><span class="o">.</span><span class="n">draw_lines</span><span class="p">(</span><span class="n">source_pos</span><span class="p">,</span> <span class="n">target_pos</span><span class="p">,</span> <span class="n">colors</span><span class="p">,</span> <span class="p">[</span><span class="mf">1.5</span><span class="p">]</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">_num_envs</span><span class="p">)</span>
 
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Internal simulation callbacks.</span>

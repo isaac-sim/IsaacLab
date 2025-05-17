@@ -777,7 +777,10 @@
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.FrameTransformer.cfg"><code class="docutils literal notranslate"><span class="pre">FrameTransformer.cfg</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.FrameTransformer.__init__"><code class="docutils literal notranslate"><span class="pre">FrameTransformer.__init__()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.FrameTransformer.data"><code class="docutils literal notranslate"><span class="pre">FrameTransformer.data</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.FrameTransformer.num_bodies"><code class="docutils literal notranslate"><span class="pre">FrameTransformer.num_bodies</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.FrameTransformer.body_names"><code class="docutils literal notranslate"><span class="pre">FrameTransformer.body_names</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.FrameTransformer.reset"><code class="docutils literal notranslate"><span class="pre">FrameTransformer.reset()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.FrameTransformer.find_bodies"><code class="docutils literal notranslate"><span class="pre">FrameTransformer.find_bodies()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.FrameTransformer.device"><code class="docutils literal notranslate"><span class="pre">FrameTransformer.device</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.FrameTransformer.has_debug_vis_implementation"><code class="docutils literal notranslate"><span class="pre">FrameTransformer.has_debug_vis_implementation</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.FrameTransformer.is_initialized"><code class="docutils literal notranslate"><span class="pre">FrameTransformer.is_initialized</span></code></a></li>
@@ -3069,6 +3072,12 @@ manipulator.</p>
 <tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sensors.FrameTransformer.data" title="isaaclab.sensors.FrameTransformer.data"><code class="xref py py-obj docutils literal notranslate"><span class="pre">data</span></code></a></p></td>
 <td><p>Data from the sensor.</p></td>
 </tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sensors.FrameTransformer.num_bodies" title="isaaclab.sensors.FrameTransformer.num_bodies"><code class="xref py py-obj docutils literal notranslate"><span class="pre">num_bodies</span></code></a></p></td>
+<td><p>Returns the number of target bodies being tracked.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sensors.FrameTransformer.body_names" title="isaaclab.sensors.FrameTransformer.body_names"><code class="xref py py-obj docutils literal notranslate"><span class="pre">body_names</span></code></a></p></td>
+<td><p>Returns the names of the target bodies being tracked.</p></td>
+</tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sensors.FrameTransformer.device" title="isaaclab.sensors.FrameTransformer.device"><code class="xref py py-obj docutils literal notranslate"><span class="pre">device</span></code></a></p></td>
 <td><p>Memory device for computation.</p></td>
 </tr>
@@ -3093,7 +3102,10 @@ manipulator.</p>
 <tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sensors.FrameTransformer.reset" title="isaaclab.sensors.FrameTransformer.reset"><code class="xref py py-obj docutils literal notranslate"><span class="pre">reset</span></code></a>([env_ids])</p></td>
 <td><p>Resets the sensor internals.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sensors.FrameTransformer.set_debug_vis" title="isaaclab.sensors.FrameTransformer.set_debug_vis"><code class="xref py py-obj docutils literal notranslate"><span class="pre">set_debug_vis</span></code></a>(debug_vis)</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sensors.FrameTransformer.find_bodies" title="isaaclab.sensors.FrameTransformer.find_bodies"><code class="xref py py-obj docutils literal notranslate"><span class="pre">find_bodies</span></code></a>(name_keys[, preserve_order])</p></td>
+<td><p>Find bodies in the articulation based on the name keys.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sensors.FrameTransformer.set_debug_vis" title="isaaclab.sensors.FrameTransformer.set_debug_vis"><code class="xref py py-obj docutils literal notranslate"><span class="pre">set_debug_vis</span></code></a>(debug_vis)</p></td>
 <td><p>Sets whether to visualize the sensor data.</p></td>
 </tr>
 </tbody>
@@ -3132,6 +3144,28 @@ code snippet in your sensor implementation:</p>
 </div>
 </dd></dl>
 
+<dl class="py property">
+<dt class="sig sig-object py" id="isaaclab.sensors.FrameTransformer.num_bodies">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">num_bodies</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><span class="pre">int</span></a></em><a class="headerlink" href="#isaaclab.sensors.FrameTransformer.num_bodies" title="Permalink to this definition">#</a></dt>
+<dd><p>Returns the number of target bodies being tracked.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>This is an alias used for consistency with other sensors. Otherwise, we recommend using
+<code class="xref py py-attr docutils literal notranslate"><span class="pre">len(data.target_frame_names)</span></code> to access the number of target frames.</p>
+</div>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="isaaclab.sensors.FrameTransformer.body_names">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">body_names</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.13)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#isaaclab.sensors.FrameTransformer.body_names" title="Permalink to this definition">#</a></dt>
+<dd><p>Returns the names of the target bodies being tracked.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>This is an alias used for consistency with other sensors. Otherwise, we recommend using
+<code class="xref py py-attr docutils literal notranslate"><span class="pre">data.target_frame_names</span></code> to access the target frame names.</p>
+</div>
+</dd></dl>
+
 <dl class="py method">
 <dt class="sig sig-object py" id="isaaclab.sensors.FrameTransformer.reset">
 <span class="sig-name descname"><span class="pre">reset</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">env_ids</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Sequence" title="(in Python v3.13)"><span class="pre">Sequence</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><span class="pre">int</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/isaaclab/sensors/frame_transformer/frame_transformer.html#FrameTransformer.reset"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.sensors.FrameTransformer.reset" title="Permalink to this definition">#</a></dt>
@@ -3139,6 +3173,23 @@ code snippet in your sensor implementation:</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><p><strong>env_ids</strong> – The sensor ids to reset. Defaults to None.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="isaaclab.sensors.FrameTransformer.find_bodies">
+<span class="sig-name descname"><span class="pre">find_bodies</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">name_keys</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Sequence" title="(in Python v3.13)"><span class="pre">Sequence</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">preserve_order</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.13)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><span class="pre">int</span></a><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.13)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../../../_modules/isaaclab/sensors/frame_transformer/frame_transformer.html#FrameTransformer.find_bodies"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.sensors.FrameTransformer.find_bodies" title="Permalink to this definition">#</a></dt>
+<dd><p>Find bodies in the articulation based on the name keys.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>name_keys</strong> – A regular expression or a list of regular expressions to match the body names.</p></li>
+<li><p><strong>preserve_order</strong> – Whether to preserve the order of the name keys in the output. Defaults to False.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A tuple of lists containing the body indices and names.</p>
 </dd>
 </dl>
 </dd></dl>
@@ -4764,7 +4815,10 @@ which results in a positive acceleration reading in the world Z.</p>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.FrameTransformer.cfg"><code class="docutils literal notranslate"><span class="pre">FrameTransformer.cfg</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.FrameTransformer.__init__"><code class="docutils literal notranslate"><span class="pre">FrameTransformer.__init__()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.FrameTransformer.data"><code class="docutils literal notranslate"><span class="pre">FrameTransformer.data</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.FrameTransformer.num_bodies"><code class="docutils literal notranslate"><span class="pre">FrameTransformer.num_bodies</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.FrameTransformer.body_names"><code class="docutils literal notranslate"><span class="pre">FrameTransformer.body_names</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.FrameTransformer.reset"><code class="docutils literal notranslate"><span class="pre">FrameTransformer.reset()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.FrameTransformer.find_bodies"><code class="docutils literal notranslate"><span class="pre">FrameTransformer.find_bodies()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.FrameTransformer.device"><code class="docutils literal notranslate"><span class="pre">FrameTransformer.device</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.FrameTransformer.has_debug_vis_implementation"><code class="docutils literal notranslate"><span class="pre">FrameTransformer.has_debug_vis_implementation</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.FrameTransformer.is_initialized"><code class="docutils literal notranslate"><span class="pre">FrameTransformer.is_initialized</span></code></a></li>
