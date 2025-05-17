@@ -49,9 +49,9 @@ def test_manipulation_env_determinism(task_name, device):
 @pytest.mark.parametrize(
     "task_name",
     [
-        # "Isaac-Velocity-Flat-Anymal-C-v0",
+        "Isaac-Velocity-Flat-Anymal-C-v0",
         "Isaac-Velocity-Rough-Anymal-C-v0",
-        # "Isaac-Velocity-Rough-Anymal-C-Direct-v0",
+        "Isaac-Velocity-Rough-Anymal-C-Direct-v0",
     ],
 )
 @pytest.mark.parametrize("device", ["cuda", "cpu"])
@@ -60,17 +60,17 @@ def test_locomotion_env_determinism(task_name, device):
     _test_environment_determinism(task_name, device)
 
 
-# @pytest.mark.parametrize(
-#     "task_name",
-#     [
-#         "Isaac-Repose-Cube-Allegro-v0",
-#         # "Isaac-Repose-Cube-Allegro-Direct-v0",  # FIXME: @kellyg, any idea why it is not deterministic?
-#     ],
-# )
-# @pytest.mark.parametrize("device", ["cuda", "cpu"])
-# def test_dextrous_env_determinism(task_name, device):
-#     """Check deterministic environment creation for dextrous manipulation."""
-#     _test_environment_determinism(task_name, device)
+@pytest.mark.parametrize(
+    "task_name",
+    [
+        "Isaac-Repose-Cube-Allegro-v0",
+        # "Isaac-Repose-Cube-Allegro-Direct-v0",  # FIXME: @kellyg, any idea why it is not deterministic?
+    ],
+)
+@pytest.mark.parametrize("device", ["cuda", "cpu"])
+def test_dextrous_env_determinism(task_name, device):
+    """Check deterministic environment creation for dextrous manipulation."""
+    _test_environment_determinism(task_name, device)
 
 
 def _test_environment_determinism(task_name: str, device: str):
