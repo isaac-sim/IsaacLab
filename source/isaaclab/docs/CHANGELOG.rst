@@ -1,6 +1,119 @@
 Changelog
 ---------
 
+0.39.5 (2025-05-16)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added support for concatenation of observations along different dimensions in :class:`~isaaclab.managers.observation_manager.ObservationManager`.
+
+Changed
+^^^^^^^
+
+* Updated the :class:`~isaaclab.managers.command_manager.CommandManager` to update the command counter after the
+  resampling call.
+
+
+0.39.4 (2025-05-16)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed penetration issue for negative border height in :class:`~isaaclab.terrains.terrain_generator.TerrainGeneratorCfg`.
+
+
+0.39.3 (2025-05-16)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the implementation of :meth:`~isaaclab.utils.math.quat_box_minus`
+
+Added
+^^^^^
+
+* Added :meth:`~isaaclab.utils.math.quat_box_plus`
+* Added :meth:`~isaaclab.utils.math.rigid_body_twist_transform`
+
+
+0.39.2 (2025-05-15)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :meth:`omni.isaac.lab.sensors.camera.camera.Camera.set_intrinsic_matrices` preventing setting of unused USD
+  camera parameters.
+* Fixed :meth:`omni.isaac.lab.sensors.camera.camera.Camera._update_intrinsic_matrices` preventing unused USD camera
+  parameters from being used to calculate :attr:`omni.isaac.lab.sensors.camera.CameraData.intrinsic_matrices`
+* Fixed :meth:`omni.isaac.lab.spawners.sensors.sensors_cfg.PinholeCameraCfg.from_intrinsic_matrix` preventing setting of
+  unused USD camera parameters.
+
+
+0.39.1 (2025-05-14)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added a new attribute :attr:`articulation_root_prim_path` to the :class:`~isaaclab.assets.ArticulationCfg` class
+  to allow explicitly specifying the prim path of the articulation root.
+
+
+0.39.0 (2025-05-03)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added check in RecorderManager to ensure that the success indicator is only set if the termination manager is present.
+* Added semantic tags in :func:`isaaclab.sim.spawners.from_files.spawn_ground_plane`.
+  This allows for :attr:`semantic_segmentation_mapping` to be used when using the ground plane spawner.
+
+
+0.38.0 (2025-04-01)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+~~~~~
+
+* Added the :meth:`~isaaclab.env.mdp.observations.joint_effort`
+
+
+0.37.0 (2025-04-01)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :meth:`~isaaclab.envs.mdp.observations.body_pose_w`
+* Added :meth:`~isaaclab.envs.mdp.observations.body_projected_gravity_b`
+
+
+0.36.23 (2025-04-24)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed ``return_latest_camera_pose`` option in :class:`~isaaclab.sensors.TiledCameraCfg` from not being used to the
+  argument ``update_latest_camera_pose`` in :class:`~isaaclab.sensors.CameraCfg` with application in both
+  :class:`~isaaclab.sensors.Camera` and :class:`~isaaclab.sensors.TiledCamera`.
+
+
+0.36.22 (2025-04-23)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^^^
+
+* Adds correct type check for ManagerTermBase class in event_manager.py.
+
+
 0.36.21 (2025-04-15)
 ~~~~~~~~~~~~~~~~~~~~
 
@@ -73,7 +186,7 @@ Added
 Changed
 ^^^^^^^
 
-* Definition of render settings in :class:`~isaaclab.sim.SimulationCfg` is changed to None, which means that
+* Changed default render settings in :class:`~isaaclab.sim.SimulationCfg` to None, which means that
   the default settings will be used from the experience files and the double definition is removed.
 
 
