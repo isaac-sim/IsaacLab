@@ -1,7 +1,7 @@
 Changelog
 ---------
 
-0.39.5 (2025-01-30)
+0.39.6 (2025-01-30)
 ~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -9,6 +9,21 @@ Added
 
 * Added method :meth:`omni.isaac.lab.assets.AssetBase.set_visibility` to set the visibility of the asset
   in the simulation.
+
+
+0.39.5 (2025-05-16)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added support for concatenation of observations along different dimensions in :class:`~isaaclab.managers.observation_manager.ObservationManager`.
+
+Changed
+^^^^^^^
+
+* Updated the :class:`~isaaclab.managers.command_manager.CommandManager` to update the command counter after the
+  resampling call.
 
 
 0.39.4 (2025-05-16)
