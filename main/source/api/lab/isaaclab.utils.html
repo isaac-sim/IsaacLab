@@ -63,7 +63,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.1.0" />
-    <meta name="docbuild:last-update" content="May 16, 2025"/>
+    <meta name="docbuild:last-update" content="May 17, 2025"/>
   </head>
   
   
@@ -687,6 +687,7 @@
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.math.normalize"><code class="docutils literal notranslate"><span class="pre">normalize()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.math.wrap_to_pi"><code class="docutils literal notranslate"><span class="pre">wrap_to_pi()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.math.copysign"><code class="docutils literal notranslate"><span class="pre">copysign()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.math.quat_unique"><code class="docutils literal notranslate"><span class="pre">quat_unique()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.math.matrix_from_quat"><code class="docutils literal notranslate"><span class="pre">matrix_from_quat()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.math.convert_quat"><code class="docutils literal notranslate"><span class="pre">convert_quat()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.math.quat_conjugate"><code class="docutils literal notranslate"><span class="pre">quat_conjugate()</span></code></a></li>
@@ -695,20 +696,21 @@
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.math.quat_from_matrix"><code class="docutils literal notranslate"><span class="pre">quat_from_matrix()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.math.matrix_from_euler"><code class="docutils literal notranslate"><span class="pre">matrix_from_euler()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.math.euler_xyz_from_quat"><code class="docutils literal notranslate"><span class="pre">euler_xyz_from_quat()</span></code></a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.math.quat_unique"><code class="docutils literal notranslate"><span class="pre">quat_unique()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.math.axis_angle_from_quat"><code class="docutils literal notranslate"><span class="pre">axis_angle_from_quat()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.math.quat_from_angle_axis"><code class="docutils literal notranslate"><span class="pre">quat_from_angle_axis()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.math.quat_mul"><code class="docutils literal notranslate"><span class="pre">quat_mul()</span></code></a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.math.quat_box_minus"><code class="docutils literal notranslate"><span class="pre">quat_box_minus()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.math.yaw_quat"><code class="docutils literal notranslate"><span class="pre">yaw_quat()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.math.quat_box_minus"><code class="docutils literal notranslate"><span class="pre">quat_box_minus()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.math.quat_box_plus"><code class="docutils literal notranslate"><span class="pre">quat_box_plus()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.math.quat_apply"><code class="docutils literal notranslate"><span class="pre">quat_apply()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.math.quat_apply_yaw"><code class="docutils literal notranslate"><span class="pre">quat_apply_yaw()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.math.quat_rotate"><code class="docutils literal notranslate"><span class="pre">quat_rotate()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.math.quat_rotate_inverse"><code class="docutils literal notranslate"><span class="pre">quat_rotate_inverse()</span></code></a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.math.quat_from_angle_axis"><code class="docutils literal notranslate"><span class="pre">quat_from_angle_axis()</span></code></a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.math.axis_angle_from_quat"><code class="docutils literal notranslate"><span class="pre">axis_angle_from_quat()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.math.quat_error_magnitude"><code class="docutils literal notranslate"><span class="pre">quat_error_magnitude()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.math.skew_symmetric_matrix"><code class="docutils literal notranslate"><span class="pre">skew_symmetric_matrix()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.math.is_identity_pose"><code class="docutils literal notranslate"><span class="pre">is_identity_pose()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.math.combine_frame_transforms"><code class="docutils literal notranslate"><span class="pre">combine_frame_transforms()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.math.rigid_body_twist_transform"><code class="docutils literal notranslate"><span class="pre">rigid_body_twist_transform()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.math.subtract_frame_transforms"><code class="docutils literal notranslate"><span class="pre">subtract_frame_transforms()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.math.compute_pose_error"><code class="docutils literal notranslate"><span class="pre">compute_pose_error()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.math.apply_delta_pose"><code class="docutils literal notranslate"><span class="pre">apply_delta_pose()</span></code></a></li>
@@ -1963,71 +1965,77 @@ Shape is (num_samples,)</p></li>
 <tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.utils.math.copysign" title="isaaclab.utils.math.copysign"><code class="xref py py-obj docutils literal notranslate"><span class="pre">copysign</span></code></a></p></td>
 <td><p>Create a new floating-point tensor with the magnitude of input and the sign of other, element-wise.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.utils.math.matrix_from_quat" title="isaaclab.utils.math.matrix_from_quat"><code class="xref py py-obj docutils literal notranslate"><span class="pre">matrix_from_quat</span></code></a></p></td>
-<td><p>Convert rotations given as quaternions to rotation matrices.</p></td>
-</tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.utils.math.convert_quat" title="isaaclab.utils.math.convert_quat"><code class="xref py py-obj docutils literal notranslate"><span class="pre">convert_quat</span></code></a>(quat[, to])</p></td>
-<td><p>Converts quaternion from one convention to another.</p></td>
-</tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.utils.math.quat_conjugate" title="isaaclab.utils.math.quat_conjugate"><code class="xref py py-obj docutils literal notranslate"><span class="pre">quat_conjugate</span></code></a></p></td>
-<td><p>Computes the conjugate of a quaternion.</p></td>
-</tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.utils.math.quat_inv" title="isaaclab.utils.math.quat_inv"><code class="xref py py-obj docutils literal notranslate"><span class="pre">quat_inv</span></code></a></p></td>
-<td><p>Compute the inverse of a quaternion.</p></td>
-</tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.utils.math.quat_from_euler_xyz" title="isaaclab.utils.math.quat_from_euler_xyz"><code class="xref py py-obj docutils literal notranslate"><span class="pre">quat_from_euler_xyz</span></code></a></p></td>
-<td><p>Convert rotations given as Euler angles in radians to Quaternions.</p></td>
-</tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.utils.math.quat_from_matrix" title="isaaclab.utils.math.quat_from_matrix"><code class="xref py py-obj docutils literal notranslate"><span class="pre">quat_from_matrix</span></code></a></p></td>
-<td><p>Convert rotations given as rotation matrices to quaternions.</p></td>
-</tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.utils.math.matrix_from_euler" title="isaaclab.utils.math.matrix_from_euler"><code class="xref py py-obj docutils literal notranslate"><span class="pre">matrix_from_euler</span></code></a>(euler_angles, convention)</p></td>
-<td><p>Convert rotations given as Euler angles in radians to rotation matrices.</p></td>
-</tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.utils.math.euler_xyz_from_quat" title="isaaclab.utils.math.euler_xyz_from_quat"><code class="xref py py-obj docutils literal notranslate"><span class="pre">euler_xyz_from_quat</span></code></a></p></td>
-<td><p>Convert rotations given as quaternions to Euler angles in radians.</p></td>
-</tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.utils.math.quat_unique" title="isaaclab.utils.math.quat_unique"><code class="xref py py-obj docutils literal notranslate"><span class="pre">quat_unique</span></code></a></p></td>
 <td><p>Convert a unit quaternion to a standard form where the real part is non-negative.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.utils.math.quat_mul" title="isaaclab.utils.math.quat_mul"><code class="xref py py-obj docutils literal notranslate"><span class="pre">quat_mul</span></code></a></p></td>
-<td><p>Multiply two quaternions together.</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.utils.math.matrix_from_quat" title="isaaclab.utils.math.matrix_from_quat"><code class="xref py py-obj docutils literal notranslate"><span class="pre">matrix_from_quat</span></code></a></p></td>
+<td><p>Convert rotations given as quaternions to rotation matrices.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.utils.math.quat_box_minus" title="isaaclab.utils.math.quat_box_minus"><code class="xref py py-obj docutils literal notranslate"><span class="pre">quat_box_minus</span></code></a></p></td>
-<td><p>The box-minus operator (quaternion difference) between two quaternions.</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.utils.math.convert_quat" title="isaaclab.utils.math.convert_quat"><code class="xref py py-obj docutils literal notranslate"><span class="pre">convert_quat</span></code></a>(quat[, to])</p></td>
+<td><p>Converts quaternion from one convention to another.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.utils.math.yaw_quat" title="isaaclab.utils.math.yaw_quat"><code class="xref py py-obj docutils literal notranslate"><span class="pre">yaw_quat</span></code></a></p></td>
-<td><p>Extract the yaw component of a quaternion.</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.utils.math.quat_conjugate" title="isaaclab.utils.math.quat_conjugate"><code class="xref py py-obj docutils literal notranslate"><span class="pre">quat_conjugate</span></code></a></p></td>
+<td><p>Computes the conjugate of a quaternion.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.utils.math.quat_apply" title="isaaclab.utils.math.quat_apply"><code class="xref py py-obj docutils literal notranslate"><span class="pre">quat_apply</span></code></a></p></td>
-<td><p>Apply a quaternion rotation to a vector.</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.utils.math.quat_inv" title="isaaclab.utils.math.quat_inv"><code class="xref py py-obj docutils literal notranslate"><span class="pre">quat_inv</span></code></a></p></td>
+<td><p>Compute the inverse of a quaternion.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.utils.math.quat_apply_yaw" title="isaaclab.utils.math.quat_apply_yaw"><code class="xref py py-obj docutils literal notranslate"><span class="pre">quat_apply_yaw</span></code></a></p></td>
-<td><p>Rotate a vector only around the yaw-direction.</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.utils.math.quat_from_euler_xyz" title="isaaclab.utils.math.quat_from_euler_xyz"><code class="xref py py-obj docutils literal notranslate"><span class="pre">quat_from_euler_xyz</span></code></a></p></td>
+<td><p>Convert rotations given as Euler angles in radians to Quaternions.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.utils.math.quat_rotate" title="isaaclab.utils.math.quat_rotate"><code class="xref py py-obj docutils literal notranslate"><span class="pre">quat_rotate</span></code></a></p></td>
-<td><p>Rotate a vector by a quaternion along the last dimension of q and v.</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.utils.math.quat_from_matrix" title="isaaclab.utils.math.quat_from_matrix"><code class="xref py py-obj docutils literal notranslate"><span class="pre">quat_from_matrix</span></code></a></p></td>
+<td><p>Convert rotations given as rotation matrices to quaternions.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.utils.math.quat_rotate_inverse" title="isaaclab.utils.math.quat_rotate_inverse"><code class="xref py py-obj docutils literal notranslate"><span class="pre">quat_rotate_inverse</span></code></a></p></td>
-<td><p>Rotate a vector by the inverse of a quaternion along the last dimension of q and v.</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.utils.math.matrix_from_euler" title="isaaclab.utils.math.matrix_from_euler"><code class="xref py py-obj docutils literal notranslate"><span class="pre">matrix_from_euler</span></code></a>(euler_angles, convention)</p></td>
+<td><p>Convert rotations given as Euler angles in radians to rotation matrices.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.utils.math.quat_from_angle_axis" title="isaaclab.utils.math.quat_from_angle_axis"><code class="xref py py-obj docutils literal notranslate"><span class="pre">quat_from_angle_axis</span></code></a></p></td>
-<td><p>Convert rotations given as angle-axis to quaternions.</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.utils.math.euler_xyz_from_quat" title="isaaclab.utils.math.euler_xyz_from_quat"><code class="xref py py-obj docutils literal notranslate"><span class="pre">euler_xyz_from_quat</span></code></a></p></td>
+<td><p>Convert rotations given as quaternions to Euler angles in radians.</p></td>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.utils.math.axis_angle_from_quat" title="isaaclab.utils.math.axis_angle_from_quat"><code class="xref py py-obj docutils literal notranslate"><span class="pre">axis_angle_from_quat</span></code></a></p></td>
 <td><p>Convert rotations given as quaternions to axis/angle.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.utils.math.quat_error_magnitude" title="isaaclab.utils.math.quat_error_magnitude"><code class="xref py py-obj docutils literal notranslate"><span class="pre">quat_error_magnitude</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.utils.math.quat_from_angle_axis" title="isaaclab.utils.math.quat_from_angle_axis"><code class="xref py py-obj docutils literal notranslate"><span class="pre">quat_from_angle_axis</span></code></a></p></td>
+<td><p>Convert rotations given as angle-axis to quaternions.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.utils.math.quat_mul" title="isaaclab.utils.math.quat_mul"><code class="xref py py-obj docutils literal notranslate"><span class="pre">quat_mul</span></code></a></p></td>
+<td><p>Multiply two quaternions together.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.utils.math.yaw_quat" title="isaaclab.utils.math.yaw_quat"><code class="xref py py-obj docutils literal notranslate"><span class="pre">yaw_quat</span></code></a></p></td>
+<td><p>Extract the yaw component of a quaternion.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.utils.math.quat_box_minus" title="isaaclab.utils.math.quat_box_minus"><code class="xref py py-obj docutils literal notranslate"><span class="pre">quat_box_minus</span></code></a></p></td>
+<td><p>The box-minus operator (quaternion difference) between two quaternions.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.utils.math.quat_box_plus" title="isaaclab.utils.math.quat_box_plus"><code class="xref py py-obj docutils literal notranslate"><span class="pre">quat_box_plus</span></code></a></p></td>
+<td><p>The box-plus operator (quaternion update) to apply an increment to a quaternion.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.utils.math.quat_apply" title="isaaclab.utils.math.quat_apply"><code class="xref py py-obj docutils literal notranslate"><span class="pre">quat_apply</span></code></a></p></td>
+<td><p>Apply a quaternion rotation to a vector.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.utils.math.quat_apply_yaw" title="isaaclab.utils.math.quat_apply_yaw"><code class="xref py py-obj docutils literal notranslate"><span class="pre">quat_apply_yaw</span></code></a></p></td>
+<td><p>Rotate a vector only around the yaw-direction.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.utils.math.quat_rotate" title="isaaclab.utils.math.quat_rotate"><code class="xref py py-obj docutils literal notranslate"><span class="pre">quat_rotate</span></code></a></p></td>
+<td><p>Rotate a vector by a quaternion along the last dimension of q and v.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.utils.math.quat_rotate_inverse" title="isaaclab.utils.math.quat_rotate_inverse"><code class="xref py py-obj docutils literal notranslate"><span class="pre">quat_rotate_inverse</span></code></a></p></td>
+<td><p>Rotate a vector by the inverse of a quaternion along the last dimension of q and v.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.utils.math.quat_error_magnitude" title="isaaclab.utils.math.quat_error_magnitude"><code class="xref py py-obj docutils literal notranslate"><span class="pre">quat_error_magnitude</span></code></a></p></td>
 <td><p>Computes the rotation difference between two quaternions.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.utils.math.skew_symmetric_matrix" title="isaaclab.utils.math.skew_symmetric_matrix"><code class="xref py py-obj docutils literal notranslate"><span class="pre">skew_symmetric_matrix</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.utils.math.skew_symmetric_matrix" title="isaaclab.utils.math.skew_symmetric_matrix"><code class="xref py py-obj docutils literal notranslate"><span class="pre">skew_symmetric_matrix</span></code></a></p></td>
 <td><p>Computes the skew-symmetric matrix of a vector.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.utils.math.is_identity_pose" title="isaaclab.utils.math.is_identity_pose"><code class="xref py py-obj docutils literal notranslate"><span class="pre">is_identity_pose</span></code></a>(pos, rot)</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.utils.math.is_identity_pose" title="isaaclab.utils.math.is_identity_pose"><code class="xref py py-obj docutils literal notranslate"><span class="pre">is_identity_pose</span></code></a>(pos, rot)</p></td>
 <td><p>Checks if input poses are identity transforms.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.utils.math.combine_frame_transforms" title="isaaclab.utils.math.combine_frame_transforms"><code class="xref py py-obj docutils literal notranslate"><span class="pre">combine_frame_transforms</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.utils.math.combine_frame_transforms" title="isaaclab.utils.math.combine_frame_transforms"><code class="xref py py-obj docutils literal notranslate"><span class="pre">combine_frame_transforms</span></code></a></p></td>
 <td><p>Combine transformations between two reference frames into a stationary frame.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.utils.math.rigid_body_twist_transform" title="isaaclab.utils.math.rigid_body_twist_transform"><code class="xref py py-obj docutils literal notranslate"><span class="pre">rigid_body_twist_transform</span></code></a>(v0, w0, t01, q01)</p></td>
+<td><p>Transform the linear and angular velocity of a rigid body between reference frames.</p></td>
 </tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.utils.math.subtract_frame_transforms" title="isaaclab.utils.math.subtract_frame_transforms"><code class="xref py py-obj docutils literal notranslate"><span class="pre">subtract_frame_transforms</span></code></a>(t01, q01[, t02, q02])</p></td>
 <td><p>Subtract transformations between two reference frames into a stationary frame.</p></td>
@@ -2238,6 +2246,22 @@ function.</p>
 </dd></dl>
 
 <dl class="py function">
+<dt class="sig sig-object py" id="isaaclab.utils.math.quat_unique">
+<span class="sig-prename descclassname"><span class="pre">isaaclab.utils.math.</span></span><span class="sig-name descname"><span class="pre">quat_unique</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">q</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.7)"><span class="pre">torch.Tensor</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.7)"><span class="pre">torch.Tensor</span></a></span></span><a class="headerlink" href="#isaaclab.utils.math.quat_unique" title="Permalink to this definition">#</a></dt>
+<dd><p>Convert a unit quaternion to a standard form where the real part is non-negative.</p>
+<p>Quaternion representations have a singularity since <code class="docutils literal notranslate"><span class="pre">q</span></code> and <code class="docutils literal notranslate"><span class="pre">-q</span></code> represent the same
+rotation. This function ensures the real part of the quaternion is non-negative.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>q</strong> – The quaternion orientation in (w, x, y, z). Shape is (…, 4).</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Standardized quaternions. Shape is (…, 4).</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
 <dt class="sig sig-object py" id="isaaclab.utils.math.matrix_from_quat">
 <span class="sig-prename descclassname"><span class="pre">isaaclab.utils.math.</span></span><span class="sig-name descname"><span class="pre">matrix_from_quat</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">quaternions</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.7)"><span class="pre">torch.Tensor</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.7)"><span class="pre">torch.Tensor</span></a></span></span><a class="headerlink" href="#isaaclab.utils.math.matrix_from_quat" title="Permalink to this definition">#</a></dt>
 <dd><p>Convert rotations given as quaternions to rotation matrices.</p>
@@ -2394,17 +2418,40 @@ then y, then z.</p></li>
 </dd></dl>
 
 <dl class="py function">
-<dt class="sig sig-object py" id="isaaclab.utils.math.quat_unique">
-<span class="sig-prename descclassname"><span class="pre">isaaclab.utils.math.</span></span><span class="sig-name descname"><span class="pre">quat_unique</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">q</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.7)"><span class="pre">torch.Tensor</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.7)"><span class="pre">torch.Tensor</span></a></span></span><a class="headerlink" href="#isaaclab.utils.math.quat_unique" title="Permalink to this definition">#</a></dt>
-<dd><p>Convert a unit quaternion to a standard form where the real part is non-negative.</p>
-<p>Quaternion representations have a singularity since <code class="docutils literal notranslate"><span class="pre">q</span></code> and <code class="docutils literal notranslate"><span class="pre">-q</span></code> represent the same
-rotation. This function ensures the real part of the quaternion is non-negative.</p>
+<dt class="sig sig-object py" id="isaaclab.utils.math.axis_angle_from_quat">
+<span class="sig-prename descclassname"><span class="pre">isaaclab.utils.math.</span></span><span class="sig-name descname"><span class="pre">axis_angle_from_quat</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">quat</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.7)"><span class="pre">torch.Tensor</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">eps</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">1e-06</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.7)"><span class="pre">torch.Tensor</span></a></span></span><a class="headerlink" href="#isaaclab.utils.math.axis_angle_from_quat" title="Permalink to this definition">#</a></dt>
+<dd><p>Convert rotations given as quaternions to axis/angle.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>q</strong> – The quaternion orientation in (w, x, y, z). Shape is (…, 4).</p>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>quat</strong> – The quaternion orientation in (w, x, y, z). Shape is (…, 4).</p></li>
+<li><p><strong>eps</strong> – The tolerance for Taylor approximation. Defaults to 1.0e-6.</p></li>
+</ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>Standardized quaternions. Shape is (…, 4).</p>
+<dd class="field-even"><p>Rotations given as a vector in axis angle form. Shape is (…, 3).
+The vector’s magnitude is the angle turned anti-clockwise in radians around the vector’s direction.</p>
+</dd>
+</dl>
+<dl class="simple">
+<dt>Reference:</dt><dd><p><a class="github reference external" href="https://github.com/facebookresearch/pytorch3d/blob/main/pytorch3d/transforms/rotation_conversions.py#L526-L554">facebookresearch/pytorch3d</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="isaaclab.utils.math.quat_from_angle_axis">
+<span class="sig-prename descclassname"><span class="pre">isaaclab.utils.math.</span></span><span class="sig-name descname"><span class="pre">quat_from_angle_axis</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">angle</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.7)"><span class="pre">torch.Tensor</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">axis</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.7)"><span class="pre">torch.Tensor</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.7)"><span class="pre">torch.Tensor</span></a></span></span><a class="headerlink" href="#isaaclab.utils.math.quat_from_angle_axis" title="Permalink to this definition">#</a></dt>
+<dd><p>Convert rotations given as angle-axis to quaternions.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>angle</strong> – The angle turned anti-clockwise in radians around the vector’s direction. Shape is (N,).</p></li>
+<li><p><strong>axis</strong> – The axis of rotation. Shape is (N, 3).</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The quaternion in (w, x, y, z). Shape is (N, 4).</p>
 </dd>
 </dl>
 </dd></dl>
@@ -2430,6 +2477,20 @@ rotation. This function ensures the real part of the quaternion is non-negative.
 </dd></dl>
 
 <dl class="py function">
+<dt class="sig sig-object py" id="isaaclab.utils.math.yaw_quat">
+<span class="sig-prename descclassname"><span class="pre">isaaclab.utils.math.</span></span><span class="sig-name descname"><span class="pre">yaw_quat</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">quat</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.7)"><span class="pre">torch.Tensor</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.7)"><span class="pre">torch.Tensor</span></a></span></span><a class="headerlink" href="#isaaclab.utils.math.yaw_quat" title="Permalink to this definition">#</a></dt>
+<dd><p>Extract the yaw component of a quaternion.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>quat</strong> – The orientation in (w, x, y, z). Shape is (…, 4)</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A quaternion with only yaw component.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
 <dt class="sig sig-object py" id="isaaclab.utils.math.quat_box_minus">
 <span class="sig-prename descclassname"><span class="pre">isaaclab.utils.math.</span></span><span class="sig-name descname"><span class="pre">quat_box_minus</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">q1</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.7)"><span class="pre">torch.Tensor</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">q2</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.7)"><span class="pre">torch.Tensor</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.7)"><span class="pre">torch.Tensor</span></a></span></span><a class="headerlink" href="#isaaclab.utils.math.quat_box_minus" title="Permalink to this definition">#</a></dt>
 <dd><p>The box-minus operator (quaternion difference) between two quaternions.</p>
@@ -2444,18 +2505,30 @@ rotation. This function ensures the real part of the quaternion is non-negative.
 <dd class="field-even"><p>The difference between the two quaternions. Shape is (N, 3).</p>
 </dd>
 </dl>
+<dl class="simple">
+<dt>Reference:</dt><dd><p><a class="github reference external" href="https://github.com/ANYbotics/kindr/blob/master/doc/cheatsheet/cheatsheet_latest.pdf">ANYbotics/kindr</a></p>
+</dd>
+</dl>
 </dd></dl>
 
 <dl class="py function">
-<dt class="sig sig-object py" id="isaaclab.utils.math.yaw_quat">
-<span class="sig-prename descclassname"><span class="pre">isaaclab.utils.math.</span></span><span class="sig-name descname"><span class="pre">yaw_quat</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">quat</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.7)"><span class="pre">torch.Tensor</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.7)"><span class="pre">torch.Tensor</span></a></span></span><a class="headerlink" href="#isaaclab.utils.math.yaw_quat" title="Permalink to this definition">#</a></dt>
-<dd><p>Extract the yaw component of a quaternion.</p>
+<dt class="sig sig-object py" id="isaaclab.utils.math.quat_box_plus">
+<span class="sig-prename descclassname"><span class="pre">isaaclab.utils.math.</span></span><span class="sig-name descname"><span class="pre">quat_box_plus</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">q</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.7)"><span class="pre">torch.Tensor</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">delta</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.7)"><span class="pre">torch.Tensor</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">eps</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">1e-06</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.7)"><span class="pre">torch.Tensor</span></a></span></span><a class="headerlink" href="#isaaclab.utils.math.quat_box_plus" title="Permalink to this definition">#</a></dt>
+<dd><p>The box-plus operator (quaternion update) to apply an increment to a quaternion.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>quat</strong> – The orientation in (w, x, y, z). Shape is (…, 4)</p>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>q</strong> – The initial quaternion in (w, x, y, z). Shape is (N, 4).</p></li>
+<li><p><strong>delta</strong> – The axis-angle perturbation. Shape is (N, 3).
+eps: A small value to avoid division by zero. Defaults to 1e-6.</p></li>
+</ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>A quaternion with only yaw component.</p>
+<dd class="field-even"><p>The updated quaternion after applying the perturbation. Shape is (N, 4).</p>
+</dd>
+</dl>
+<dl class="simple">
+<dt>Reference:</dt><dd><p><a class="github reference external" href="https://github.com/ANYbotics/kindr/blob/master/doc/cheatsheet/cheatsheet_latest.pdf">ANYbotics/kindr</a></p>
 </dd>
 </dl>
 </dd></dl>
@@ -2524,45 +2597,6 @@ rotation. This function ensures the real part of the quaternion is non-negative.
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
 <dd class="field-even"><p>The rotated vector in (x, y, z). Shape is (…, 3).</p>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py function">
-<dt class="sig sig-object py" id="isaaclab.utils.math.quat_from_angle_axis">
-<span class="sig-prename descclassname"><span class="pre">isaaclab.utils.math.</span></span><span class="sig-name descname"><span class="pre">quat_from_angle_axis</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">angle</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.7)"><span class="pre">torch.Tensor</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">axis</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.7)"><span class="pre">torch.Tensor</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.7)"><span class="pre">torch.Tensor</span></a></span></span><a class="headerlink" href="#isaaclab.utils.math.quat_from_angle_axis" title="Permalink to this definition">#</a></dt>
-<dd><p>Convert rotations given as angle-axis to quaternions.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>angle</strong> – The angle turned anti-clockwise in radians around the vector’s direction. Shape is (N,).</p></li>
-<li><p><strong>axis</strong> – The axis of rotation. Shape is (N, 3).</p></li>
-</ul>
-</dd>
-<dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>The quaternion in (w, x, y, z). Shape is (N, 4).</p>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py function">
-<dt class="sig sig-object py" id="isaaclab.utils.math.axis_angle_from_quat">
-<span class="sig-prename descclassname"><span class="pre">isaaclab.utils.math.</span></span><span class="sig-name descname"><span class="pre">axis_angle_from_quat</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">quat</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.7)"><span class="pre">torch.Tensor</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">eps</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">1e-06</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.7)"><span class="pre">torch.Tensor</span></a></span></span><a class="headerlink" href="#isaaclab.utils.math.axis_angle_from_quat" title="Permalink to this definition">#</a></dt>
-<dd><p>Convert rotations given as quaternions to axis/angle.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>quat</strong> – The quaternion orientation in (w, x, y, z). Shape is (…, 4).</p></li>
-<li><p><strong>eps</strong> – The tolerance for Taylor approximation. Defaults to 1.0e-6.</p></li>
-</ul>
-</dd>
-<dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>Rotations given as a vector in axis angle form. Shape is (…, 3).
-The vector’s magnitude is the angle turned anti-clockwise in radians around the vector’s direction.</p>
-</dd>
-</dl>
-<dl class="simple">
-<dt>Reference:</dt><dd><p><a class="github reference external" href="https://github.com/facebookresearch/pytorch3d/blob/main/pytorch3d/transforms/rotation_conversions.py#L526-L554">facebookresearch/pytorch3d</a></p>
 </dd>
 </dl>
 </dd></dl>
@@ -2640,6 +2674,47 @@ Defaults to None, in which case the orientation is assumed to be identity.</p></
 <dt class="field-even">Returns<span class="colon">:</span></dt>
 <dd class="field-even"><p>A tuple containing the position and orientation of frame 2 w.r.t. frame 0.
 Shape of the tensors are (N, 3) and (N, 4) respectively.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="isaaclab.utils.math.rigid_body_twist_transform">
+<span class="sig-prename descclassname"><span class="pre">isaaclab.utils.math.</span></span><span class="sig-name descname"><span class="pre">rigid_body_twist_transform</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">v0</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.7)"><span class="pre">torch.Tensor</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">w0</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.7)"><span class="pre">torch.Tensor</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">t01</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.7)"><span class="pre">torch.Tensor</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">q01</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.7)"><span class="pre">torch.Tensor</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.7)"><span class="pre">torch.Tensor</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.7)"><span class="pre">torch.Tensor</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../../../_modules/isaaclab/utils/math.html#rigid_body_twist_transform"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.utils.math.rigid_body_twist_transform" title="Permalink to this definition">#</a></dt>
+<dd><p>Transform the linear and angular velocity of a rigid body between reference frames.</p>
+<p>Given the twist of 0 relative to frame 0, this function computes the twist of 1 relative to frame 1
+from the position and orientation of frame 1 relative to frame 0. The transformation follows the
+equations:</p>
+<div class="math notranslate nohighlight">
+\[w_11 = R_{10} w_00 = R_{01}^{-1} w_00
+v_11 = R_{10} v_00 + R_{10} (w_00 \times t_01) = R_{01}^{-1} (v_00 + (w_00 \times t_01))\]</div>
+<p>where</p>
+<blockquote>
+<div><ul class="simple">
+<li><p><span class="math notranslate nohighlight">\(R_{01}\)</span> is the rotation matrix from frame 0 to frame 1 derived from quaternion <span class="math notranslate nohighlight">\(q_{01}\)</span>.</p></li>
+<li><p><span class="math notranslate nohighlight">\(t_{01}\)</span> is the position of frame 1 relative to frame 0 expressed in frame 0</p></li>
+<li><p><span class="math notranslate nohighlight">\(w_0\)</span> is the angular velocity of 0 in frame 0</p></li>
+<li><p><span class="math notranslate nohighlight">\(v_0\)</span> is the linear velocity of 0 in frame 0</p></li>
+</ul>
+</div></blockquote>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>v0</strong> – Linear velocity of 0 in frame 0. Shape is (N, 3).</p></li>
+<li><p><strong>w0</strong> – Angular velocity of 0 in frame 0. Shape is (N, 3).</p></li>
+<li><p><strong>t01</strong> – Position of frame 1 w.r.t. frame 0. Shape is (N, 3).</p></li>
+<li><p><strong>q01</strong> – Quaternion orientation of frame 1 w.r.t. frame 0 in (w, x, y, z). Shape is (N, 4).</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p>The transformed linear velocity in frame 1. Shape is (N, 3).</p></li>
+<li><p>The transformed angular velocity in frame 1. Shape is (N, 3).</p></li>
+</ul>
+</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>A tuple containing</p>
 </dd>
 </dl>
 </dd></dl>
@@ -4871,6 +4946,7 @@ The returned tensor contains <code class="xref py py-obj docutils literal notran
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.math.normalize"><code class="docutils literal notranslate"><span class="pre">normalize()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.math.wrap_to_pi"><code class="docutils literal notranslate"><span class="pre">wrap_to_pi()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.math.copysign"><code class="docutils literal notranslate"><span class="pre">copysign()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.math.quat_unique"><code class="docutils literal notranslate"><span class="pre">quat_unique()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.math.matrix_from_quat"><code class="docutils literal notranslate"><span class="pre">matrix_from_quat()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.math.convert_quat"><code class="docutils literal notranslate"><span class="pre">convert_quat()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.math.quat_conjugate"><code class="docutils literal notranslate"><span class="pre">quat_conjugate()</span></code></a></li>
@@ -4879,20 +4955,21 @@ The returned tensor contains <code class="xref py py-obj docutils literal notran
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.math.quat_from_matrix"><code class="docutils literal notranslate"><span class="pre">quat_from_matrix()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.math.matrix_from_euler"><code class="docutils literal notranslate"><span class="pre">matrix_from_euler()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.math.euler_xyz_from_quat"><code class="docutils literal notranslate"><span class="pre">euler_xyz_from_quat()</span></code></a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.math.quat_unique"><code class="docutils literal notranslate"><span class="pre">quat_unique()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.math.axis_angle_from_quat"><code class="docutils literal notranslate"><span class="pre">axis_angle_from_quat()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.math.quat_from_angle_axis"><code class="docutils literal notranslate"><span class="pre">quat_from_angle_axis()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.math.quat_mul"><code class="docutils literal notranslate"><span class="pre">quat_mul()</span></code></a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.math.quat_box_minus"><code class="docutils literal notranslate"><span class="pre">quat_box_minus()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.math.yaw_quat"><code class="docutils literal notranslate"><span class="pre">yaw_quat()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.math.quat_box_minus"><code class="docutils literal notranslate"><span class="pre">quat_box_minus()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.math.quat_box_plus"><code class="docutils literal notranslate"><span class="pre">quat_box_plus()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.math.quat_apply"><code class="docutils literal notranslate"><span class="pre">quat_apply()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.math.quat_apply_yaw"><code class="docutils literal notranslate"><span class="pre">quat_apply_yaw()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.math.quat_rotate"><code class="docutils literal notranslate"><span class="pre">quat_rotate()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.math.quat_rotate_inverse"><code class="docutils literal notranslate"><span class="pre">quat_rotate_inverse()</span></code></a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.math.quat_from_angle_axis"><code class="docutils literal notranslate"><span class="pre">quat_from_angle_axis()</span></code></a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.math.axis_angle_from_quat"><code class="docutils literal notranslate"><span class="pre">axis_angle_from_quat()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.math.quat_error_magnitude"><code class="docutils literal notranslate"><span class="pre">quat_error_magnitude()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.math.skew_symmetric_matrix"><code class="docutils literal notranslate"><span class="pre">skew_symmetric_matrix()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.math.is_identity_pose"><code class="docutils literal notranslate"><span class="pre">is_identity_pose()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.math.combine_frame_transforms"><code class="docutils literal notranslate"><span class="pre">combine_frame_transforms()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.math.rigid_body_twist_transform"><code class="docutils literal notranslate"><span class="pre">rigid_body_twist_transform()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.math.subtract_frame_transforms"><code class="docutils literal notranslate"><span class="pre">subtract_frame_transforms()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.math.compute_pose_error"><code class="docutils literal notranslate"><span class="pre">compute_pose_error()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.math.apply_delta_pose"><code class="docutils literal notranslate"><span class="pre">apply_delta_pose()</span></code></a></li>
@@ -5084,7 +5161,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on May 16, 2025.
+  Last updated on May 17, 2025.
   <br/>
 </p>
   </div>

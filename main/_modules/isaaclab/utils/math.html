@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.1.0" />
-    <meta name="docbuild:last-update" content="May 16, 2025"/>
+    <meta name="docbuild:last-update" content="May 17, 2025"/>
   </head>
   
   
@@ -678,6 +678,22 @@
 
 
 <span class="nd">@torch</span><span class="o">.</span><span class="n">jit</span><span class="o">.</span><span class="n">script</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">quat_unique</span><span class="p">(</span><span class="n">q</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Convert a unit quaternion to a standard form where the real part is non-negative.</span>
+
+<span class="sd">    Quaternion representations have a singularity since ``q`` and ``-q`` represent the same</span>
+<span class="sd">    rotation. This function ensures the real part of the quaternion is non-negative.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        q: The quaternion orientation in (w, x, y, z). Shape is (..., 4).</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        Standardized quaternions. Shape is (..., 4).</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">q</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">:</span><span class="mi">1</span><span class="p">]</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">,</span> <span class="o">-</span><span class="n">q</span><span class="p">,</span> <span class="n">q</span><span class="p">)</span>
+
+
+<span class="nd">@torch</span><span class="o">.</span><span class="n">jit</span><span class="o">.</span><span class="n">script</span>
 <span class="k">def</span><span class="w"> </span><span class="nf">matrix_from_quat</span><span class="p">(</span><span class="n">quaternions</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Convert rotations given as quaternions to rotation matrices.</span>
 
@@ -982,19 +998,52 @@
 
 
 <span class="nd">@torch</span><span class="o">.</span><span class="n">jit</span><span class="o">.</span><span class="n">script</span>
-<span class="k">def</span><span class="w"> </span><span class="nf">quat_unique</span><span class="p">(</span><span class="n">q</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Convert a unit quaternion to a standard form where the real part is non-negative.</span>
-
-<span class="sd">    Quaternion representations have a singularity since ``q`` and ``-q`` represent the same</span>
-<span class="sd">    rotation. This function ensures the real part of the quaternion is non-negative.</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">axis_angle_from_quat</span><span class="p">(</span><span class="n">quat</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">eps</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0e-6</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Convert rotations given as quaternions to axis/angle.</span>
 
 <span class="sd">    Args:</span>
-<span class="sd">        q: The quaternion orientation in (w, x, y, z). Shape is (..., 4).</span>
+<span class="sd">        quat: The quaternion orientation in (w, x, y, z). Shape is (..., 4).</span>
+<span class="sd">        eps: The tolerance for Taylor approximation. Defaults to 1.0e-6.</span>
 
 <span class="sd">    Returns:</span>
-<span class="sd">        Standardized quaternions. Shape is (..., 4).</span>
+<span class="sd">        Rotations given as a vector in axis angle form. Shape is (..., 3).</span>
+<span class="sd">        The vector&#39;s magnitude is the angle turned anti-clockwise in radians around the vector&#39;s direction.</span>
+
+<span class="sd">    Reference:</span>
+<span class="sd">        https://github.com/facebookresearch/pytorch3d/blob/main/pytorch3d/transforms/rotation_conversions.py#L526-L554</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">q</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">:</span><span class="mi">1</span><span class="p">]</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">,</span> <span class="o">-</span><span class="n">q</span><span class="p">,</span> <span class="n">q</span><span class="p">)</span>
+    <span class="c1"># Modified to take in quat as [q_w, q_x, q_y, q_z]</span>
+    <span class="c1"># Quaternion is [q_w, q_x, q_y, q_z] = [cos(theta/2), n_x * sin(theta/2), n_y * sin(theta/2), n_z * sin(theta/2)]</span>
+    <span class="c1"># Axis-angle is [a_x, a_y, a_z] = [theta * n_x, theta * n_y, theta * n_z]</span>
+    <span class="c1"># Thus, axis-angle is [q_x, q_y, q_z] / (sin(theta/2) / theta)</span>
+    <span class="c1"># When theta = 0, (sin(theta/2) / theta) is undefined</span>
+    <span class="c1"># However, as theta --&gt; 0, we can use the Taylor approximation 1/2 - theta^2 / 48</span>
+    <span class="n">quat</span> <span class="o">=</span> <span class="n">quat</span> <span class="o">*</span> <span class="p">(</span><span class="mf">1.0</span> <span class="o">-</span> <span class="mf">2.0</span> <span class="o">*</span> <span class="p">(</span><span class="n">quat</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">:</span><span class="mi">1</span><span class="p">]</span> <span class="o">&lt;</span> <span class="mf">0.0</span><span class="p">))</span>
+    <span class="n">mag</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">quat</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">:],</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">half_angle</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">atan2</span><span class="p">(</span><span class="n">mag</span><span class="p">,</span> <span class="n">quat</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">])</span>
+    <span class="n">angle</span> <span class="o">=</span> <span class="mf">2.0</span> <span class="o">*</span> <span class="n">half_angle</span>
+    <span class="c1"># check whether to apply Taylor approximation</span>
+    <span class="n">sin_half_angles_over_angles</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">where</span><span class="p">(</span>
+        <span class="n">angle</span><span class="o">.</span><span class="n">abs</span><span class="p">()</span> <span class="o">&gt;</span> <span class="n">eps</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">half_angle</span><span class="p">)</span> <span class="o">/</span> <span class="n">angle</span><span class="p">,</span> <span class="mf">0.5</span> <span class="o">-</span> <span class="n">angle</span> <span class="o">*</span> <span class="n">angle</span> <span class="o">/</span> <span class="mi">48</span>
+    <span class="p">)</span>
+    <span class="k">return</span> <span class="n">quat</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">:</span><span class="mi">4</span><span class="p">]</span> <span class="o">/</span> <span class="n">sin_half_angles_over_angles</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+
+
+<span class="nd">@torch</span><span class="o">.</span><span class="n">jit</span><span class="o">.</span><span class="n">script</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">quat_from_angle_axis</span><span class="p">(</span><span class="n">angle</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">axis</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Convert rotations given as angle-axis to quaternions.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        angle: The angle turned anti-clockwise in radians around the vector&#39;s direction. Shape is (N,).</span>
+<span class="sd">        axis: The axis of rotation. Shape is (N, 3).</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        The quaternion in (w, x, y, z). Shape is (N, 4).</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">theta</span> <span class="o">=</span> <span class="p">(</span><span class="n">angle</span> <span class="o">/</span> <span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">xyz</span> <span class="o">=</span> <span class="n">normalize</span><span class="p">(</span><span class="n">axis</span><span class="p">)</span> <span class="o">*</span> <span class="n">theta</span><span class="o">.</span><span class="n">sin</span><span class="p">()</span>
+    <span class="n">w</span> <span class="o">=</span> <span class="n">theta</span><span class="o">.</span><span class="n">cos</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">normalize</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">([</span><span class="n">w</span><span class="p">,</span> <span class="n">xyz</span><span class="p">],</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">))</span>
 
 
 <span class="nd">@torch</span><span class="o">.</span><span class="n">jit</span><span class="o">.</span><span class="n">script</span>
@@ -1037,25 +1086,6 @@
 
 
 <span class="nd">@torch</span><span class="o">.</span><span class="n">jit</span><span class="o">.</span><span class="n">script</span>
-<span class="k">def</span><span class="w"> </span><span class="nf">quat_box_minus</span><span class="p">(</span><span class="n">q1</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">q2</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;The box-minus operator (quaternion difference) between two quaternions.</span>
-
-<span class="sd">    Args:</span>
-<span class="sd">        q1: The first quaternion in (w, x, y, z). Shape is (N, 4).</span>
-<span class="sd">        q2: The second quaternion in (w, x, y, z). Shape is (N, 4).</span>
-
-<span class="sd">    Returns:</span>
-<span class="sd">        The difference between the two quaternions. Shape is (N, 3).</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-    <span class="n">quat_diff</span> <span class="o">=</span> <span class="n">quat_mul</span><span class="p">(</span><span class="n">q1</span><span class="p">,</span> <span class="n">quat_conjugate</span><span class="p">(</span><span class="n">q2</span><span class="p">))</span>  <span class="c1"># q1 * q2^-1</span>
-    <span class="n">re</span> <span class="o">=</span> <span class="n">quat_diff</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]</span>  <span class="c1"># real part, q = [w, x, y, z] = [re, im]</span>
-    <span class="n">im</span> <span class="o">=</span> <span class="n">quat_diff</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">:]</span>  <span class="c1"># imaginary part</span>
-    <span class="n">norm_im</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">im</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
-    <span class="n">scale</span> <span class="o">=</span> <span class="mf">2.0</span> <span class="o">*</span> <span class="n">torch</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">norm_im</span> <span class="o">&gt;</span> <span class="mf">1.0e-7</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">atan2</span><span class="p">(</span><span class="n">norm_im</span><span class="p">,</span> <span class="n">re</span><span class="p">)</span> <span class="o">/</span> <span class="n">norm_im</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">sign</span><span class="p">(</span><span class="n">re</span><span class="p">))</span>
-    <span class="k">return</span> <span class="n">scale</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="n">im</span>
-
-
-<span class="nd">@torch</span><span class="o">.</span><span class="n">jit</span><span class="o">.</span><span class="n">script</span>
 <span class="k">def</span><span class="w"> </span><span class="nf">yaw_quat</span><span class="p">(</span><span class="n">quat</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Extract the yaw component of a quaternion.</span>
 
@@ -1077,6 +1107,45 @@
     <span class="n">quat_yaw</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">yaw</span> <span class="o">/</span> <span class="mi">2</span><span class="p">)</span>
     <span class="n">quat_yaw</span> <span class="o">=</span> <span class="n">normalize</span><span class="p">(</span><span class="n">quat_yaw</span><span class="p">)</span>
     <span class="k">return</span> <span class="n">quat_yaw</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="n">shape</span><span class="p">)</span>
+
+
+<span class="nd">@torch</span><span class="o">.</span><span class="n">jit</span><span class="o">.</span><span class="n">script</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">quat_box_minus</span><span class="p">(</span><span class="n">q1</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">q2</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The box-minus operator (quaternion difference) between two quaternions.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        q1: The first quaternion in (w, x, y, z). Shape is (N, 4).</span>
+<span class="sd">        q2: The second quaternion in (w, x, y, z). Shape is (N, 4).</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        The difference between the two quaternions. Shape is (N, 3).</span>
+
+<span class="sd">    Reference:</span>
+<span class="sd">        https://github.com/ANYbotics/kindr/blob/master/doc/cheatsheet/cheatsheet_latest.pdf</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">quat_diff</span> <span class="o">=</span> <span class="n">quat_mul</span><span class="p">(</span><span class="n">q1</span><span class="p">,</span> <span class="n">quat_conjugate</span><span class="p">(</span><span class="n">q2</span><span class="p">))</span>  <span class="c1"># q1 * q2^-1</span>
+    <span class="k">return</span> <span class="n">axis_angle_from_quat</span><span class="p">(</span><span class="n">quat_diff</span><span class="p">)</span>  <span class="c1"># log(qd)</span>
+
+
+<span class="nd">@torch</span><span class="o">.</span><span class="n">jit</span><span class="o">.</span><span class="n">script</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">quat_box_plus</span><span class="p">(</span><span class="n">q</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">delta</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">eps</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0e-6</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The box-plus operator (quaternion update) to apply an increment to a quaternion.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        q: The initial quaternion in (w, x, y, z). Shape is (N, 4).</span>
+<span class="sd">        delta: The axis-angle perturbation. Shape is (N, 3).</span>
+<span class="sd">            eps: A small value to avoid division by zero. Defaults to 1e-6.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        The updated quaternion after applying the perturbation. Shape is (N, 4).</span>
+
+<span class="sd">    Reference:</span>
+<span class="sd">        https://github.com/ANYbotics/kindr/blob/master/doc/cheatsheet/cheatsheet_latest.pdf</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">delta_norm</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">clamp_min</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">delta</span><span class="p">,</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">,</span> <span class="n">keepdim</span><span class="o">=</span><span class="kc">True</span><span class="p">),</span> <span class="nb">min</span><span class="o">=</span><span class="n">eps</span><span class="p">)</span>
+    <span class="n">delta_quat</span> <span class="o">=</span> <span class="n">quat_from_angle_axis</span><span class="p">(</span><span class="n">delta_norm</span><span class="o">.</span><span class="n">squeeze</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">),</span> <span class="n">delta</span> <span class="o">/</span> <span class="n">delta_norm</span><span class="p">)</span>  <span class="c1"># exp(dq)</span>
+    <span class="n">new_quat</span> <span class="o">=</span> <span class="n">quat_mul</span><span class="p">(</span><span class="n">delta_quat</span><span class="p">,</span> <span class="n">q</span><span class="p">)</span>  <span class="c1"># Apply perturbation</span>
+    <span class="k">return</span> <span class="n">quat_unique</span><span class="p">(</span><span class="n">new_quat</span><span class="p">)</span>
 
 
 <span class="nd">@torch</span><span class="o">.</span><span class="n">jit</span><span class="o">.</span><span class="n">script</span>
@@ -1163,55 +1232,6 @@
 
 
 <span class="nd">@torch</span><span class="o">.</span><span class="n">jit</span><span class="o">.</span><span class="n">script</span>
-<span class="k">def</span><span class="w"> </span><span class="nf">quat_from_angle_axis</span><span class="p">(</span><span class="n">angle</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">axis</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Convert rotations given as angle-axis to quaternions.</span>
-
-<span class="sd">    Args:</span>
-<span class="sd">        angle: The angle turned anti-clockwise in radians around the vector&#39;s direction. Shape is (N,).</span>
-<span class="sd">        axis: The axis of rotation. Shape is (N, 3).</span>
-
-<span class="sd">    Returns:</span>
-<span class="sd">        The quaternion in (w, x, y, z). Shape is (N, 4).</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-    <span class="n">theta</span> <span class="o">=</span> <span class="p">(</span><span class="n">angle</span> <span class="o">/</span> <span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
-    <span class="n">xyz</span> <span class="o">=</span> <span class="n">normalize</span><span class="p">(</span><span class="n">axis</span><span class="p">)</span> <span class="o">*</span> <span class="n">theta</span><span class="o">.</span><span class="n">sin</span><span class="p">()</span>
-    <span class="n">w</span> <span class="o">=</span> <span class="n">theta</span><span class="o">.</span><span class="n">cos</span><span class="p">()</span>
-    <span class="k">return</span> <span class="n">normalize</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">([</span><span class="n">w</span><span class="p">,</span> <span class="n">xyz</span><span class="p">],</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">))</span>
-
-
-<span class="nd">@torch</span><span class="o">.</span><span class="n">jit</span><span class="o">.</span><span class="n">script</span>
-<span class="k">def</span><span class="w"> </span><span class="nf">axis_angle_from_quat</span><span class="p">(</span><span class="n">quat</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">eps</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0e-6</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Convert rotations given as quaternions to axis/angle.</span>
-
-<span class="sd">    Args:</span>
-<span class="sd">        quat: The quaternion orientation in (w, x, y, z). Shape is (..., 4).</span>
-<span class="sd">        eps: The tolerance for Taylor approximation. Defaults to 1.0e-6.</span>
-
-<span class="sd">    Returns:</span>
-<span class="sd">        Rotations given as a vector in axis angle form. Shape is (..., 3).</span>
-<span class="sd">        The vector&#39;s magnitude is the angle turned anti-clockwise in radians around the vector&#39;s direction.</span>
-
-<span class="sd">    Reference:</span>
-<span class="sd">        https://github.com/facebookresearch/pytorch3d/blob/main/pytorch3d/transforms/rotation_conversions.py#L526-L554</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-    <span class="c1"># Modified to take in quat as [q_w, q_x, q_y, q_z]</span>
-    <span class="c1"># Quaternion is [q_w, q_x, q_y, q_z] = [cos(theta/2), n_x * sin(theta/2), n_y * sin(theta/2), n_z * sin(theta/2)]</span>
-    <span class="c1"># Axis-angle is [a_x, a_y, a_z] = [theta * n_x, theta * n_y, theta * n_z]</span>
-    <span class="c1"># Thus, axis-angle is [q_x, q_y, q_z] / (sin(theta/2) / theta)</span>
-    <span class="c1"># When theta = 0, (sin(theta/2) / theta) is undefined</span>
-    <span class="c1"># However, as theta --&gt; 0, we can use the Taylor approximation 1/2 - theta^2 / 48</span>
-    <span class="n">quat</span> <span class="o">=</span> <span class="n">quat</span> <span class="o">*</span> <span class="p">(</span><span class="mf">1.0</span> <span class="o">-</span> <span class="mf">2.0</span> <span class="o">*</span> <span class="p">(</span><span class="n">quat</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">:</span><span class="mi">1</span><span class="p">]</span> <span class="o">&lt;</span> <span class="mf">0.0</span><span class="p">))</span>
-    <span class="n">mag</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">quat</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">:],</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
-    <span class="n">half_angle</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">atan2</span><span class="p">(</span><span class="n">mag</span><span class="p">,</span> <span class="n">quat</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">])</span>
-    <span class="n">angle</span> <span class="o">=</span> <span class="mf">2.0</span> <span class="o">*</span> <span class="n">half_angle</span>
-    <span class="c1"># check whether to apply Taylor approximation</span>
-    <span class="n">sin_half_angles_over_angles</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">where</span><span class="p">(</span>
-        <span class="n">angle</span><span class="o">.</span><span class="n">abs</span><span class="p">()</span> <span class="o">&gt;</span> <span class="n">eps</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">half_angle</span><span class="p">)</span> <span class="o">/</span> <span class="n">angle</span><span class="p">,</span> <span class="mf">0.5</span> <span class="o">-</span> <span class="n">angle</span> <span class="o">*</span> <span class="n">angle</span> <span class="o">/</span> <span class="mi">48</span>
-    <span class="p">)</span>
-    <span class="k">return</span> <span class="n">quat</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">:</span><span class="mi">4</span><span class="p">]</span> <span class="o">/</span> <span class="n">sin_half_angles_over_angles</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
-
-
-<span class="nd">@torch</span><span class="o">.</span><span class="n">jit</span><span class="o">.</span><span class="n">script</span>
 <span class="k">def</span><span class="w"> </span><span class="nf">quat_error_magnitude</span><span class="p">(</span><span class="n">q1</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">q2</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Computes the rotation difference between two quaternions.</span>
 
@@ -1222,8 +1242,8 @@
 <span class="sd">    Returns:</span>
 <span class="sd">        Angular error between input quaternions in radians.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="n">quat_diff</span> <span class="o">=</span> <span class="n">quat_mul</span><span class="p">(</span><span class="n">q1</span><span class="p">,</span> <span class="n">quat_conjugate</span><span class="p">(</span><span class="n">q2</span><span class="p">))</span>
-    <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">axis_angle_from_quat</span><span class="p">(</span><span class="n">quat_diff</span><span class="p">),</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">axis_angle_error</span> <span class="o">=</span> <span class="n">quat_box_minus</span><span class="p">(</span><span class="n">q1</span><span class="p">,</span> <span class="n">q2</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">axis_angle_error</span><span class="p">,</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
 
 
 <span class="nd">@torch</span><span class="o">.</span><span class="n">jit</span><span class="o">.</span><span class="n">script</span>
@@ -1316,6 +1336,43 @@
         <span class="n">t02</span> <span class="o">=</span> <span class="n">t01</span>
 
     <span class="k">return</span> <span class="n">t02</span><span class="p">,</span> <span class="n">q02</span>
+
+
+<div class="viewcode-block" id="rigid_body_twist_transform"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.utils.html#isaaclab.utils.math.rigid_body_twist_transform">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">rigid_body_twist_transform</span><span class="p">(</span>
+    <span class="n">v0</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">w0</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">t01</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">q01</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]:</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Transform the linear and angular velocity of a rigid body between reference frames.</span>
+
+<span class="sd">    Given the twist of 0 relative to frame 0, this function computes the twist of 1 relative to frame 1</span>
+<span class="sd">    from the position and orientation of frame 1 relative to frame 0. The transformation follows the</span>
+<span class="sd">    equations:</span>
+
+<span class="sd">    .. math::</span>
+
+<span class="sd">        w_11 = R_{10} w_00 = R_{01}^{-1} w_00</span>
+<span class="sd">        v_11 = R_{10} v_00 + R_{10} (w_00 \times t_01) = R_{01}^{-1} (v_00 + (w_00 \times t_01))</span>
+
+<span class="sd">    where</span>
+
+<span class="sd">        - :math:`R_{01}` is the rotation matrix from frame 0 to frame 1 derived from quaternion :math:`q_{01}`.</span>
+<span class="sd">        - :math:`t_{01}` is the position of frame 1 relative to frame 0 expressed in frame 0</span>
+<span class="sd">        - :math:`w_0` is the angular velocity of 0 in frame 0</span>
+<span class="sd">        - :math:`v_0` is the linear velocity of 0 in frame 0</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        v0: Linear velocity of 0 in frame 0. Shape is (N, 3).</span>
+<span class="sd">        w0: Angular velocity of 0 in frame 0. Shape is (N, 3).</span>
+<span class="sd">        t01: Position of frame 1 w.r.t. frame 0. Shape is (N, 3).</span>
+<span class="sd">        q01: Quaternion orientation of frame 1 w.r.t. frame 0 in (w, x, y, z). Shape is (N, 4).</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        A tuple containing:</span>
+<span class="sd">        - The transformed linear velocity in frame 1. Shape is (N, 3).</span>
+<span class="sd">        - The transformed angular velocity in frame 1. Shape is (N, 3).</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">w1</span> <span class="o">=</span> <span class="n">quat_rotate_inverse</span><span class="p">(</span><span class="n">q01</span><span class="p">,</span> <span class="n">w0</span><span class="p">)</span>
+    <span class="n">v1</span> <span class="o">=</span> <span class="n">quat_rotate_inverse</span><span class="p">(</span><span class="n">q01</span><span class="p">,</span> <span class="n">v0</span> <span class="o">+</span> <span class="n">torch</span><span class="o">.</span><span class="n">cross</span><span class="p">(</span><span class="n">w0</span><span class="p">,</span> <span class="n">t01</span><span class="p">,</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">))</span>
+    <span class="k">return</span> <span class="n">v1</span><span class="p">,</span> <span class="n">w1</span></div>
 
 
 <span class="c1"># @torch.jit.script</span>
@@ -2466,7 +2523,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on May 16, 2025.
+  Last updated on May 17, 2025.
   <br/>
 </p>
   </div>
