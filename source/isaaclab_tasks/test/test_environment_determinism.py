@@ -125,4 +125,8 @@ def _obtain_transition_tuples(task_name: str, num_envs: int, device: str, num_st
     # close the environment
     env.close()
 
+    # destroy env and config
+    del env_cfg
+    del env
+
     return obs, rewards
