@@ -11,10 +11,11 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import omni.log
-import omni.physics.tensors.impl.api as physx
+from isaacsim.core.simulation_manager import SimulationManager
 from pxr import UsdPhysics
 
 import isaaclab.sim as sim_utils
+import isaaclab.utils.string as string_utils
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.utils.math import combine_frame_transforms, convert_quat, is_identity_pose, subtract_frame_transforms
 
@@ -83,6 +84,26 @@ class FrameTransformer(SensorBase):
         # return the data
         return self._data
 
+    @property
+    def num_bodies(self) -> int:
+        """Returns the number of target bodies being tracked.
+
+        Note:
+            This is an alias used for consistency with other sensors. Otherwise, we recommend using
+            :attr:`len(data.target_frame_names)` to access the number of target frames.
+        """
+        return len(self._target_frame_body_names)
+
+    @property
+    def body_names(self) -> list[str]:
+        """Returns the names of the target bodies being tracked.
+
+        Note:
+            This is an alias used for consistency with other sensors. Otherwise, we recommend using
+            :attr:`data.target_frame_names` to access the target frame names.
+        """
+        return self._target_frame_body_names
+
     """
     Operations
     """
@@ -93,6 +114,18 @@ class FrameTransformer(SensorBase):
         # resolve None
         if env_ids is None:
             env_ids = ...
+
+    def find_bodies(self, name_keys: str | Sequence[str], preserve_order: bool = False) -> tuple[list[int], list[str]]:
+        """Find bodies in the articulation based on the name keys.
+
+        Args:
+            name_keys: A regular expression or a list of regular expressions to match the body names.
+            preserve_order: Whether to preserve the order of the name keys in the output. Defaults to False.
+
+        Returns:
+            A tuple of lists containing the body indices and names.
+        """
+        return string_utils.resolve_matching_names(name_keys, self._target_frame_names, preserve_order)
 
     """
     Implementation.
@@ -205,9 +238,8 @@ class FrameTransformer(SensorBase):
 
         body_names_regex = [tracked_prim_path.replace("env_0", "env_*") for tracked_prim_path in tracked_prim_paths]
 
-        # Create simulation view
-        self._physics_sim_view = physx.create_simulation_view(self._backend)
-        self._physics_sim_view.set_subspace_roots("/")
+        # obtain global simulation view
+        self._physics_sim_view = SimulationManager.get_physics_sim_view()
         # Create a prim view for all frames and initialize it
         # order of transforms coming out of view will be source frame followed by target frame(s)
         self._frame_physx_view = self._physics_sim_view.create_rigid_body_view(body_names_regex)
@@ -390,16 +422,39 @@ class FrameTransformer(SensorBase):
         if debug_vis:
             if not hasattr(self, "frame_visualizer"):
                 self.frame_visualizer = VisualizationMarkers(self.cfg.visualizer_cfg)
+
+                try:
+                    # isaacsim.util is not available in headless mode
+                    import isaacsim.util.debug_draw._debug_draw as isaac_debug_draw
+
+                    self.debug_draw = isaac_debug_draw.acquire_debug_draw_interface()
+                except ImportError:
+                    omni.log.info("isaacsim.util.debug_draw module not found. Debug visualization will be limited.")
+
             # set their visibility to true
             self.frame_visualizer.set_visibility(True)
         else:
             if hasattr(self, "frame_visualizer"):
                 self.frame_visualizer.set_visibility(False)
+                # clear the lines
+                if hasattr(self, "debug_draw"):
+                    self.debug_draw.clear_lines()
 
     def _debug_vis_callback(self, event):
         # Update the visualized markers
-        if self.frame_visualizer is not None:
-            self.frame_visualizer.visualize(self._data.target_pos_w.view(-1, 3), self._data.target_quat_w.view(-1, 4))
+        all_pos = torch.cat([self._data.source_pos_w, self._data.target_pos_w.view(-1, 3)], dim=0)
+        all_quat = torch.cat([self._data.source_quat_w, self._data.target_quat_w.view(-1, 4)], dim=0)
+        self.frame_visualizer.visualize(all_pos, all_quat)
+
+        if hasattr(self, "debug_draw"):
+            # Draw lines connecting the source frame to the target frames
+            self.debug_draw.clear_lines()
+            # make the lines color yellow
+            source_pos = self._data.source_pos_w.cpu().tolist()
+            colors = [[1, 1, 0, 1]] * self._num_envs
+            for frame_index in range(len(self._target_frame_names)):
+                target_pos = self._data.target_pos_w[:, frame_index].cpu().tolist()
+                self.debug_draw.draw_lines(source_pos, target_pos, colors, [1.5] * self._num_envs)
 
     """
     Internal simulation callbacks.
@@ -410,5 +465,4 @@ class FrameTransformer(SensorBase):
         # call parent
         super()._invalidate_initialize_callback(event)
         # set all existing views to None to invalidate them
-        self._physics_sim_view = None
         self._frame_physx_view = None

@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING
 
 import carb
 import omni.physics.tensors.impl.api as physx
+from isaacsim.core.simulation_manager import SimulationManager
 from pxr import PhysxSchema
 
 import isaaclab.sim as sim_utils
@@ -249,9 +250,8 @@ class ContactSensor(SensorBase):
 
     def _initialize_impl(self):
         super()._initialize_impl()
-        # create simulation view
-        self._physics_sim_view = physx.create_simulation_view(self._backend)
-        self._physics_sim_view.set_subspace_roots("/")
+        # obtain global simulation view
+        self._physics_sim_view = SimulationManager.get_physics_sim_view()
         # check that only rigid bodies are selected
         leaf_pattern = self.cfg.prim_path.rsplit("/", 1)[-1]
         template_prim_path = self._parent_prims[0].GetPath().pathString
@@ -326,7 +326,7 @@ class ContactSensor(SensorBase):
         # obtain the contact forces
         # TODO: We are handling the indexing ourself because of the shape; (N, B) vs expected (N * B).
         #   This isn't the most efficient way to do this, but it's the easiest to implement.
-        net_forces_w = self.contact_physx_view.get_net_contact_forces(dt=self._sim_physics_dt)
+        net_forces_w = self.contact_physx_view.get_net_contact_forces(dt=self._dt)
         self._data.net_forces_w[env_ids, :, :] = net_forces_w.view(-1, self._num_bodies, 3)[env_ids]
         # update contact force history
         if self.cfg.history_length > 0:
@@ -338,7 +338,7 @@ class ContactSensor(SensorBase):
             # shape of the filtering matrix: (num_envs, num_bodies, num_filter_shapes, 3)
             num_filters = self.contact_physx_view.filter_count
             # acquire and shape the force matrix
-            force_matrix_w = self.contact_physx_view.get_contact_force_matrix(dt=self._sim_physics_dt)
+            force_matrix_w = self.contact_physx_view.get_contact_force_matrix(dt=self._dt)
             force_matrix_w = force_matrix_w.view(-1, self._num_bodies, num_filters, 3)
             self._data.force_matrix_w[env_ids] = force_matrix_w[env_ids]
 
@@ -418,6 +418,5 @@ class ContactSensor(SensorBase):
         # call parent
         super()._invalidate_initialize_callback(event)
         # set all existing views to None to invalidate them
-        self._physics_sim_view = None
         self._body_physx_view = None
         self._contact_physx_view = None

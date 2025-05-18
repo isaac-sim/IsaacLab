@@ -196,6 +196,7 @@ class SensorBase(ABC):
 
     def update(self, dt: float, force_recompute: bool = False):
         # Update the timestamp for the sensors
+        self._dt = dt
         self._timestamp += dt
         self._is_outdated |= self._timestamp - self._timestamp_last_update + 1e-6 >= self.cfg.update_period
         # Update the buffers
@@ -218,7 +219,7 @@ class SensorBase(ABC):
         # Obtain device and backend
         self._device = sim.device
         self._backend = sim.backend
-        self._sim_physics_dt = sim.get_physics_dt()
+        self._dt = sim.get_physics_dt()
         # Count number of environments
         env_prim_path_expr = self.cfg.prim_path.rsplit("/", 1)[0]
         self._parent_prims = sim_utils.find_matching_prims(env_prim_path_expr)
