@@ -1,0 +1,14 @@
+services:
+  isaac-lab-ros2:
+    # This volume will contain shared URDFs. Currently only UMV URDFs can be shared.
+    # Note: As meshes can only be references by absolute path, the target needs to be identical
+    # to the target of the volume in the UMV container, i.e. /data/urdf_shared.
+    volumes:
+      - type: volume
+        source: urdf_shared
+        target: /data/urdf_shared
+
+volumes:
+  urdf_shared:
+    # Define it as external, as we only want to mount it if it already exists.
+    external: true

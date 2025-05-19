@@ -1,0 +1,25 @@
+[package]
+
+# Semantic Versioning is used: https://semver.org/
+version = "0.1.0"
+
+# Description
+title = "Eval Sim"
+description="Provides a streamlined method for conducting control evaluations in simulation, mirroring the process of interfacing with hardware."
+repository = "https://github.com/bdaiinstitute/rai.eval_sim.git"
+keywords = ["eval_sim", "extension", "isaac", "lab", "IsaacLab"]
+category = "Isaac Lab"
+readme  = "README.md"
+
+[dependencies]
+"omni.kit.uiapp" = {}
+"isaacsim.ros2.bridge" = {}
+"isaaclab" = {}
+
+[[python.module]]
+name = "rai.eval_sim"
+
+[isaac_lab_settings]
+apt_deps = ["xterm"]
+
+ros_ws = "rai/eval_sim/ros_ws"

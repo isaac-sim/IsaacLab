@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- This URDF was automatically created by SolidWorks to URDF Exporter! Originally created by Stephen Brawner (brawner@gmail.com)
+     Commit Version: 1.6.0-4-g7f85cfe  Build Version: 1.6.7995.38578
+     For more information, please see http://wiki.ros.org/sw_urdf_exporter -->
+<robot
+  name="single_drive">
+  <link
+    name="base_link">
+    <inertial>
+      <origin
+        xyz="-0.00013927 -0.009725 -0.030164"
+        rpy="0 0 0" />
+      <mass
+        value="1.013" />
+      <inertia
+        ixx="0.00084468"
+        ixy="5.3758E-06"
+        ixz="5.3278E-07"
+        iyy="0.00074594"
+        iyz="-9.2566E-05"
+        izz="0.0013579" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://single_drive/meshes/base_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.75294 0.75294 0.75294 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://single_drive/meshes/base_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <link
+    name="Moment Arm">
+    <inertial>
+      <origin
+        xyz="9.0286E-13 -0.39151 0.0041424"
+        rpy="0 0 0" />
+      <mass
+        value="3.584" />
+      <inertia
+        ixx="0.6624"
+        ixy="0"
+        ixz="0"
+        iyy="0.004801"
+        iyz="-0.01034"
+        izz="0.6664" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://single_drive/meshes/Moment Arm.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.75294 0.75294 0.75294 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://single_drive/meshes/Moment Arm.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="Motor Joint"
+    type="continuous">
+    <origin
+      xyz="0 0 0"
+      rpy="0 0 0" />
+    <parent
+      link="base_link" />
+    <child
+      link="Moment Arm" />
+    <axis
+      xyz="0 0 -1" />
+  </joint>
+</robot>

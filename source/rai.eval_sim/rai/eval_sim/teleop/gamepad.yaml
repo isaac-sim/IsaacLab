@@ -1,0 +1,18 @@
+teleop_twist_joy_node:
+  ros__parameters:
+    axis_linear:
+      x: 1
+      y: 0
+    scale_linear:
+      x: 3.0
+      y: 1.0
+    scale_linear_turbo:
+      x: 1.5
+
+    axis_angular:
+      yaw: 3
+    scale_angular:
+      yaw: 1.0
+    require_enable_button: false
+    enable_button: -1  # L2 shoulder button
+    enable_turbo_button: 10  # L1 shoulder button

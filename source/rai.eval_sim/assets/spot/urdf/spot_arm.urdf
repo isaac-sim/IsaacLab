@@ -1,0 +1,246 @@
+<?xml version="1.0"?>
+<robot name="spot_arm">
+  <link name="arm0_body_link">
+  </link>
+  <link name="arm0_link_sh0">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="../meshes/arm/visual/arm_link_sh0.obj"/>
+      </geometry>
+    </visual>
+    <collision>
+      <geometry>
+        <mesh filename="../meshes/arm/collision/arm_link_sh0_base.obj" />
+      </geometry>
+    </collision>
+    <collision>
+      <geometry>
+        <mesh filename="../meshes/arm/collision/arm_link_sh0_left_motor.obj" />
+      </geometry>
+    </collision>
+     <collision>
+      <geometry>
+        <mesh filename="../meshes/arm/collision/arm_link_sh0_right_motor.obj" />
+      </geometry>
+    </collision>
+    <inertial>
+      <origin xyz="-0.008399 0.000272 -0.024603"/>
+      <inertia ixx="0.008896" ixy="0.000005" ixz="-0.000193" iyy="0.004922" iyz="0.000033" izz="0.0073030"/>
+      <mass value="1.904699"/>
+    </inertial>
+  </link>
+
+  <joint name="arm0_sh0" type="revolute">
+    <origin xyz="0.292 0.0 0.188" rpy="0 0 0"/>
+    <axis xyz="0 0 1"/>
+    <parent link="arm0_body_link"/>
+    <child link="arm0_link_sh0"/>
+    <limit effort="90.9" lower="-2.61799" upper="3.14159" velocity="999"/>
+  </joint>
+
+  <transmission name="arm0_sh0_tran">
+    <type>transmission_interface/SimpleTransmission</type>
+    <joint name="arm0_sh0">
+      <hardwareInterface>EffortJointInterface</hardwareInterface>
+    </joint>
+    <actuator name="arm0_sh0_motor">
+      <hardwareInterface>EffortJointInterface</hardwareInterface>
+    </actuator>
+  </transmission>
+
+  <link name="arm0_link_sh1">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="../meshes/arm/visual/arm_link_sh1.obj"/>
+      </geometry>
+    </visual>
+    <collision>
+      <geometry>
+        <mesh filename="../meshes/arm/collision/arm_link_sh1.obj" />
+      </geometry>
+    </collision>
+    <inertial>
+      <origin xyz="0.08084909 -0.00167243 0.00045644"/>
+      <inertia ixx="0.00261526" ixy="-0.00040406" ixz="0.00010019" iyy="0.02703868" iyz="0.00000547" izz="0.02819929"/>
+      <mass value="1.85701942"/>
+    </inertial>
+  </link>
+
+  <joint name="arm0_sh1" type="revolute">
+    <origin xyz="0.0 0.0 0.0" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <parent link="arm0_link_sh0"/>
+    <child link="arm0_link_sh1"/>
+    <limit effort="181.8" lower="-3.14159" upper="0.523599" velocity="999"/>
+  </joint>
+
+  <transmission name="arm0_sh1_tran">
+    <type>transmission_interface/SimpleTransmission</type>
+    <joint name="arm0_sh1">
+      <hardwareInterface>EffortJointInterface</hardwareInterface>
+    </joint>
+    <actuator name="arm0_sh1_motor">
+      <hardwareInterface>EffortJointInterface</hardwareInterface>
+    </actuator>
+  </transmission>
+
+  <link name="arm0_link_el0">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="../meshes/arm/visual/arm_link_el0.obj"/>
+      </geometry>
+    </visual>
+    <collision>
+      <geometry>
+        <mesh filename="../meshes/arm/collision/arm_link_el0.obj" />
+      </geometry>
+    </collision>
+    <inertial>
+      <origin xyz="0.04476621 -0.00271130 0.04991363"/>
+      <inertia ixx="0.00175909" ixy="0.00006087" ixz="0.00092380" iyy="0.00269233" iyz="0.00005217" izz="0.00202854"/>
+      <mass value="0.94831958"/>
+    </inertial>
+  </link>
+
+  <joint name="arm0_el0" type="revolute">
+    <origin xyz="0.3385 0 0" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <parent link="arm0_link_sh1"/>
+    <child link="arm0_link_el0"/>
+    <limit effort="90.9" lower="0" upper="3.14159" velocity="999"/>
+  </joint>
+
+  <transmission name="arm0_el0_tran">
+    <type>transmission_interface/SimpleTransmission</type>
+    <joint name="arm0_el0">
+      <hardwareInterface>EffortJointInterface</hardwareInterface>
+    </joint>
+    <actuator name="arm0_el0_motor">
+      <hardwareInterface>EffortJointInterface</hardwareInterface>
+    </actuator>
+  </transmission>
+
+  <link name="arm0_link_el1">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="../meshes/arm/visual/arm_link_el1.obj"/>
+      </geometry>
+    </visual>
+    <collision>
+      <geometry>
+        <mesh filename="../meshes/arm/collision/arm_link_el1_main.obj" />
+      </geometry>
+    </collision>
+    <collision>
+      <geometry>
+        <mesh filename="../meshes/arm/collision/arm_link_el1_lip.obj" />
+      </geometry>
+    </collision>
+    <inertial>
+      <origin xyz="-0.16867073 -0.01616121 0.00001149"/>
+      <inertia ixx="0.00117710" ixy="-0.00260549" ixz="0.00000156" iyy="0.01649389" iyz="-0.00000287" izz="0.01689901"/>
+      <mass value="1.01754820"/>
+    </inertial>
+  </link>
+
+  <joint name="arm0_el1" type="revolute">
+    <origin xyz="0.40330 0.0 0.0750" rpy="0 0 0"/>
+    <axis xyz="1 0 0"/>
+    <parent link="arm0_link_el0"/>
+    <child link="arm0_link_el1"/>
+    <limit effort="30.3" lower="-2.792530" upper="2.792530" velocity="999"/>
+  </joint>
+
+  <transmission name="arm0_el1_tran">
+    <type>transmission_interface/SimpleTransmission</type>
+    <joint name="arm0_el1">
+      <hardwareInterface>EffortJointInterface</hardwareInterface>
+    </joint>
+    <actuator name="arm0_el1_motor">
+      <hardwareInterface>EffortJointInterface</hardwareInterface>
+    </actuator>
+  </transmission>
+
+  <link name="arm0_link_wr0">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="../meshes/arm/visual/arm_link_wr0.obj"/>
+      </geometry>
+    </visual>
+    <collision>
+      <geometry>
+        <mesh filename="../meshes/arm/collision/arm_link_wr0.obj" />
+      </geometry>
+    </collision>
+    <inertial>
+      <origin xyz="0.00952465 -0.01144406 0.00000186"/>
+      <inertia ixx="0.00046738" ixy="0.00006957" ixz="0.00000040" iyy="0.00044968" iyz="0.00000016" izz="0.00053616"/>
+      <mass value="0.58263740"/>
+    </inertial>
+  </link>
+
+  <joint name="arm0_wr0" type="revolute">
+    <origin xyz="0.0 0.0 0.0" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <parent link="arm0_link_el1"/>
+    <child link="arm0_link_wr0"/>
+    <limit effort="30.3" lower="-1.8326" upper="1.8326" velocity="999"/>
+  </joint>
+
+  <transmission name="arm0_wr0_tran">
+    <type>transmission_interface/SimpleTransmission</type>
+    <joint name="arm0_wr0">
+      <hardwareInterface>EffortJointInterface</hardwareInterface>
+    </joint>
+    <actuator name="arm0_wr0_motor">
+      <hardwareInterface>EffortJointInterface</hardwareInterface>
+    </actuator>
+  </transmission>
+
+  <link name="arm0_link_wr1">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="../meshes/arm/visual/arm_link_wr1.obj"/>
+      </geometry>
+    </visual>
+    <collision>
+      <geometry>
+        <mesh filename="../meshes/arm/collision/arm_link_wr1.obj" />
+      </geometry>
+    </collision>
+    <inertial>
+      <origin xyz="0.09751283 0.00009265 -0.01120523"/>
+      <inertia ixx="0.00098836" ixy="-0.00000126" ixz="-0.00036919" iyy="0.00197018" iyz="-0.00000074" izz="0.00165791"/>
+      <mass value="0.93335298"/>
+    </inertial>
+  </link>
+
+  <joint name="arm0_wr1" type="revolute">
+    <origin xyz="0.0 0.0 0.0" rpy="0 0 0"/>
+    <axis xyz="1 0 0"/>
+    <parent link="arm0_link_wr0"/>
+    <child link="arm0_link_wr1"/>
+    <limit effort="30.3" lower="-2.87989" upper="2.87979" velocity="999"/>
+  </joint>
+
+  <transmission name="arm0_wr1_tran">
+    <type>transmission_interface/SimpleTransmission</type>
+    <joint name="arm0_wr1">
+      <hardwareInterface>EffortJointInterface</hardwareInterface>
+    </joint>
+    <actuator name="arm0_wr1_motor">
+      <hardwareInterface>EffortJointInterface</hardwareInterface>
+    </actuator>
+  </transmission>
+
+  <!--Hand camera.-->
+  <frame link="arm0_link_wr1" name="hand_camera_body" rpy="0.0 1.41372 0.0" xyz="0.13495 0.0 0.00799"/>
+  <frame link="arm0_link_wr1" name="hand_color_sensor" rpy="-1.41372 0.0 -1.5708" xyz="0.13806 0.0202 0.02452"/>
+  <frame link="arm0_link_wr1" name="hand_depth_sensor" rpy="0.0 1.41372 0.0" xyz="0.13495 0.0 0.00799"/>
+</robot>

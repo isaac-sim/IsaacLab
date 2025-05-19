@@ -1,0 +1,88 @@
+<?xml version="1.0"?>
+<robot name="spot_gripper">
+  <link name="arm0_link_wr1">
+  </link>
+  <link name="arm0_link_fngr">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="../meshes/gripper/visual/arm_link_fngr.obj"/>
+      </geometry>
+    </visual>
+    <collision>
+      <geometry>
+        <mesh filename="../meshes/gripper/collision/left_hinge.obj" />
+      </geometry>
+    </collision>
+    <collision>
+      <geometry>
+        <mesh filename="../meshes/gripper/collision/left_finger.obj" />
+      </geometry>
+    </collision>
+    <collision>
+      <geometry>
+        <mesh filename="../meshes/gripper/collision/left_tooth.obj" />
+      </geometry>
+    </collision>
+    <collision>
+      <geometry>
+        <mesh filename="../meshes/gripper/collision/right_hinge.obj" />
+      </geometry>
+    </collision>
+    <collision>
+      <geometry>
+        <mesh filename="../meshes/gripper/collision/right_finger.obj" />
+      </geometry>
+    </collision>
+    <collision>
+      <geometry>
+        <mesh filename="../meshes/gripper/collision/right_tooth.obj" />
+      </geometry>
+    </collision>
+    <inertial>
+      <origin xyz="0.03565178 0.00067200 -0.01227516"/>
+      <inertia ixx="0.00025226" ixy="-0.00000536" ixz="-0.00015067" iyy="0.00048453" iyz="0.00000184" izz="0.00059145"/>
+      <mass value="0.22383315"/>
+    </inertial>
+  </link>
+
+  <joint name="arm0_f1x" type="revolute">
+    <origin xyz="0.11745 0.0 0.014820" rpy="0 0 0"/>
+    <axis xyz="0.0 1.0 0.0"/>
+    <parent link="arm0_link_wr1"/>
+    <child link="arm0_link_fngr"/>
+    <limit effort="15.32" lower="-1.5708" upper="0.0" velocity="999"/>
+  </joint>
+
+  <transmission name="arm0_f1x_tran">
+    <type>transmission_interface/SimpleTransmission</type>
+    <joint name="arm0_f1x">
+      <hardwareInterface>EffortJointInterface</hardwareInterface>
+    </joint>
+    <actuator name="arm0_f1x_motor">
+      <hardwareInterface>EffortJointInterface</hardwareInterface>
+    </actuator>
+  </transmission>
+
+  <link name="arm0_link_jaw">
+    <collision>
+      <geometry>
+        <mesh filename="../meshes/gripper/collision/front_jaw.obj" />
+      </geometry>
+    </collision>
+    <collision>
+      <geometry>
+        <mesh filename="../meshes/gripper/collision/middle_jaw.obj" />
+       </geometry>
+    </collision>
+    <collision>
+      <geometry>
+        <mesh filename="../meshes/gripper/collision/jaw_tooth.obj" />
+       </geometry>
+    </collision>
+  </link>
+  <joint name="arm0_jaw" type="fixed">
+    <parent link="arm0_link_wr1"/>
+    <child link="arm0_link_jaw"/>
+  </joint>
+</robot>

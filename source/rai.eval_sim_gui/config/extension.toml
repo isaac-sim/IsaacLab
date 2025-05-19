@@ -1,0 +1,23 @@
+[package]
+
+# Semantic Versioning is used: https://semver.org/
+version = "0.1.0"
+
+# Description
+title = "EvalSim GUI"
+description="Provides a GUI to EvalSim."
+repository = "https://github.com/bdaiinstitute/rai.eval_sim.git"
+keywords = ["eval_sim","gui", "extension", "isaac", "lab", "IsaacLab"]
+category = "Isaac Lab"
+readme  = "README.md"
+
+[dependencies]
+"omni.kit.uiapp" = {}
+"isaacsim.ros2.bridge" = {}
+"isaaclab" = {}
+"rai.eval_sim" = {}
+
+[[python.module]]
+name = "rai.eval_sim_gui"
+
+[isaac_lab_settings]
