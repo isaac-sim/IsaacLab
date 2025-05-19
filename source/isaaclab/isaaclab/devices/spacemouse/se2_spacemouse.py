@@ -3,11 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES, ETH Zurich, and University of Toronto
-# Copyright (c) 2023, Boston Dynamics AI Institute, Inc.
-# All rights reserved.
-#
-# SPDX-License-Identifier: BSD-3-Clause
 
 """SpaceMouse controller for SE(2) control."""
 
@@ -18,10 +13,9 @@ from .base_spacemouse import SpaceMouseBase
 
 class Se2SpaceMouse(SpaceMouseBase):
     """A SpaceMouse controller for sending SE(2) commands as delta poses.
-    The use-case of this class is to control the robot in SE(2) space (x, y, yaw),
-    where theta is the rotation about the z-axis.
-    This is useful for controlling a differential drive robot.
 
+    This class is useful for controlling a robot in SE(2) space, for instance, a differential drive robot.
+    It provides the output as (x, y, yaw), where yaw is the rotation around the z-axis.
     """
 
     def __init__(
@@ -34,10 +28,10 @@ class Se2SpaceMouse(SpaceMouseBase):
         """Initialize the SpaceMouse layer.
 
         Args:
-            v_x_sensitivity (float): Magnitude of linear velocity along x-direction scaling. Defaults to 0.8.
-            v_y_sensitivity (float): Magnitude of linear velocity along y-direction scaling. Defaults to 0.4.
-            omega_z_sensitivity (float): Magnitude of angular velocity along z-direction scaling. Defaults to 1.0.
-            interval_ms (float): Update interval for the SpaceMouse in milliseconds. Defaults to 10ms (100Hz).
+            v_x_sensitivity: Magnitude of linear velocity along x-direction scaling. Defaults to 0.8.
+            v_y_sensitivity: Magnitude of linear velocity along y-direction scaling. Defaults to 0.4.
+            omega_z_sensitivity: Magnitude of angular velocity along z-direction scaling. Defaults to 1.0.
+            interval_ms: Update interval for the SpaceMouse in milliseconds. Defaults to 10ms (100Hz).
         """
         # call the base class constructor
         super().__init__(interval_ms)
@@ -51,14 +45,14 @@ class Se2SpaceMouse(SpaceMouseBase):
         self._base_command = np.zeros(3)
 
     """
-    Public methods
+    Operations
     """
 
     def advance(self) -> np.ndarray:
-        """Provides the result from SpaceMouse event state.
+        """Provides the result from spacemouse event state.
 
         Returns:
-            np.ndarray -- A 3D array containing the linear (x,y) and angular velocity (z).
+            A 3D array containing the linear (x,y) and angular velocity (z).
         """
         return self._base_command
 

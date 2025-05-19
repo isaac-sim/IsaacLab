@@ -3,11 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES, ETH Zurich, and University of Toronto
-# Copyright (c) 2023, Boston Dynamics AI Institute, Inc.
-# All rights reserved.
-#
-# SPDX-License-Identifier: BSD-3-Clause
 
 """SpaceMouse controller for SE(3) control."""
 """Added support for SpaceMouse Wireless by 3Dconnexion."""
@@ -20,10 +15,10 @@ from .base_spacemouse import SpaceMouseBase
 
 class Se3SpaceMouse(SpaceMouseBase):
     """A SpaceMouse controller for sending SE(3) commands as delta poses.
-    The use-case of this class is to control the robot in SE(3) space (x, y, z, roll, pitch, yaw),
-    where roll, pitch, and yaw are the rotations about the x, y, and z axes, respectively.
-    This is useful for controlling the 6-DoF at the tool pose of a manipulator with a gripper.
-    The gripper can be opened and closed using the left button of the 3D mouse.
+
+    This class is useful for controlling a robot in SE(3) space, for instance, a gripper attached to a robotic arm.
+    It outputs the (x, y, z, roll, pitch, yaw) command, where roll, pitch, and yaw are the rotations around the
+    x, y, and z axes, respectively. The gripper can be opened and closed using the left button of the 3D mouse.
     """
 
     def __init__(
@@ -35,9 +30,9 @@ class Se3SpaceMouse(SpaceMouseBase):
         """Initialize the SpaceMouse layer.
 
         Args:
-            pos_sensitivity (float): Magnitude of input position command scaling. Defaults to 0.4.
-            rot_sensitivity (float): Magnitude of scale input rotation commands scaling. Defaults to 0.8.
-            interval_ms (float): Update interval for the SpaceMouse in milliseconds. Defaults to 10ms (100Hz).
+            pos_sensitivity: Magnitude of input position command scaling. Defaults to 0.4.
+            rot_sensitivity: Magnitude of scale input rotation commands scaling. Defaults to 0.8.
+            interval_ms: Update interval for the SpaceMouse in milliseconds. Defaults to 10ms (100Hz).
         """
 
         # call the base class constructor
@@ -69,7 +64,7 @@ class Se3SpaceMouse(SpaceMouseBase):
         """Provides the result from SpaceMouse event state.
 
         Returns:
-            Tuple[np.ndarray, bool] -- A tuple containing the delta pose command and gripper commands.
+            A tuple containing the delta pose command and gripper commands.
         """
         rot_vec = Rotation.from_euler("XYZ", self._delta_rot).as_rotvec()
         # if new command received, reset event flag to False until keyboard updated.

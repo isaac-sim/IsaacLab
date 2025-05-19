@@ -3,11 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES, ETH Zurich, and University of Toronto
-# Copyright (c) 2023, Boston Dynamics AI Institute, Inc.
-# All rights reserved.
-#
-# SPDX-License-Identifier: BSD-3-Clause
 
 """Base class for 3D SpaceMouse controller for SE(2) and SE(3) control."""
 
