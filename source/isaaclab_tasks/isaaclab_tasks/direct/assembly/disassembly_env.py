@@ -510,20 +510,6 @@ class DisassemblyEnv(DirectRLEnv):
         self.ctrl_target_fingertip_midpoint_pos = gripper_goal_pos.clone()
 
         # Set target rot
-        # ctrl_target_fingertip_centered_euler = (
-        #     torch.tensor(
-        #         self.cfg_task.hand_init_orn,
-        #         device=self.device,
-        #     )
-        #     .unsqueeze(0)
-        #     .repeat(self.num_envs, 1)
-        # )
-
-        # self.ctrl_target_fingertip_midpoint_quat = torch_utils.quat_from_euler_xyz(
-        #     ctrl_target_fingertip_centered_euler[:, 0],
-        #     ctrl_target_fingertip_centered_euler[:, 1],
-        #     ctrl_target_fingertip_centered_euler[:, 2],
-        # )
         self.ctrl_target_fingertip_midpoint_quat = gripper_goal_quat.clone()
 
         self.set_pos_inverse_kinematics(env_ids)
@@ -733,23 +719,6 @@ class DisassemblyEnv(DirectRLEnv):
         self.randomize_held_initial_state(env_ids, pre_grasp=False)
 
         self.close_gripper(env_ids)
-        # Close hand
-        # Set gains to use for quick resets.
-        # reset_task_prop_gains = torch.tensor(self.cfg.ctrl.reset_task_prop_gains, device=self.device).repeat(
-        #    (self.num_envs, 1)
-        # )
-        # reset_rot_deriv_scale = self.cfg.ctrl.reset_rot_deriv_scale
-        # self._set_gains(reset_task_prop_gains, reset_rot_deriv_scale)
-
-        # self.step_sim_no_action()
-
-        # grasp_time = 0.0
-        # while grasp_time < 0.25:
-        #    self.ctrl_target_joint_pos[env_ids, 7:] = 0.0  # Close gripper.
-        #    self.ctrl_target_gripper_dof_pos = 0.0
-        #    self.move_gripper_in_place(ctrl_target_gripper_dof_pos=0.0)
-        #    self.step_sim_no_action()
-        #    grasp_time += self.sim.get_physics_dt()
 
         self.prev_joint_pos = self.joint_pos[:, 0:7].clone()
         self.prev_fingertip_pos = self.fingertip_midpoint_pos.clone()

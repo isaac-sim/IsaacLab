@@ -11,10 +11,10 @@ from datetime import datetime
 
 import carb
 import isaacsim.core.utils.torch as torch_utils
-import wandb
 import warp as wp
 
 import isaaclab.sim as sim_utils
+import wandb
 from isaaclab.assets import Articulation, RigidObject
 from isaaclab.envs import DirectRLEnv
 from isaaclab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_plane
@@ -713,20 +713,6 @@ class AssemblyEnv(DirectRLEnv):
         self.ctrl_target_fingertip_midpoint_pos = gripper_goal_pos.clone()
 
         # Set target rot
-        # ctrl_target_fingertip_centered_euler = (
-        #     torch.tensor(
-        #         self.cfg_task.hand_init_orn,
-        #         device=self.device,
-        #     )
-        #     .unsqueeze(0)
-        #     .repeat(self.num_envs, 1)
-        # )
-
-        # self.ctrl_target_fingertip_midpoint_quat = torch_utils.quat_from_euler_xyz(
-        #     ctrl_target_fingertip_centered_euler[:, 0],
-        #     ctrl_target_fingertip_centered_euler[:, 1],
-        #     ctrl_target_fingertip_centered_euler[:, 2],
-        # )
         self.ctrl_target_fingertip_midpoint_quat = gripper_goal_quat.clone()
 
         self.set_pos_inverse_kinematics(env_ids)
