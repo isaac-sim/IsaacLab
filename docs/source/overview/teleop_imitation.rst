@@ -310,7 +310,7 @@ By inferencing using the generated model, we can visualize the results of the po
 Demo: Data Generation and Policy Training for a Humanoid Robot
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. figure:: https://private-user-images.githubusercontent.com/179507785/444313317-1e1e490f-875d-49a3-a36b-9ce08614f808.gif?jwt=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJnaXRodWIuY29tIiwiYXVkIjoicmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbSIsImtleSI6ImtleTUiLCJleHAiOjE3NDc0MTQ0ODksIm5iZiI6MTc0NzQxNDE4OSwicGF0aCI6Ii8xNzk1MDc3ODUvNDQ0MzEzMzE3LTFlMWU0OTBmLTg3NWQtNDlhMy1hMzZiLTljZTA4NjE0ZjgwOC5naWY_WC1BbXotQWxnb3JpdGhtPUFXUzQtSE1BQy1TSEEyNTYmWC1BbXotQ3JlZGVudGlhbD1BS0lBVkNPRFlMU0E1M1BRSzRaQSUyRjIwMjUwNTE2JTJGdXMtZWFzdC0xJTJGczMlMkZhd3M0X3JlcXVlc3QmWC1BbXotRGF0ZT0yMDI1MDUxNlQxNjQ5NDlaJlgtQW16LUV4cGlyZXM9MzAwJlgtQW16LVNpZ25hdHVyZT1hNzJlMGJmNjk3NTkzMGVkMDVjY2U2YTc5NTc1ZmZlN2JlMzgxNGQyMjY4N2FlMTk0MjdmNDFiY2U5MGY2MmRlJlgtQW16LVNpZ25lZEhlYWRlcnM9aG9zdCJ9.ihMR7cxUDHPiTO8Jo-_wfBYElSpOaYulEr9y2s2_Da8
+.. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/gr-1_pick_place.gif
    :width: 100%
    :align: center
    :alt: GR-1 humanoid robot performing a pick and place task
@@ -352,11 +352,11 @@ This setup allows Isaac Lab Mimic to interpolate the right hand's trajectory acc
 Therefore, avoid moving the right hand while the left hand picks up the object and brings it to a stable position.
 
 
-.. |good_demo| image:: https://private-user-images.githubusercontent.com/179507785/444313191-f1a79ca8-52ab-4dbb-8361-5a7e7a4c786b.gif?jwt=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJnaXRodWIuY29tIiwiYXVkIjoicmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbSIsImtleSI6ImtleTUiLCJleHAiOjE3NDc0MTQ4MDgsIm5iZiI6MTc0NzQxNDUwOCwicGF0aCI6Ii8xNzk1MDc3ODUvNDQ0MzEzMTkxLWYxYTc5Y2E4LTUyYWItNGRiYi04MzYxLTVhN2U3YTRjNzg2Yi5naWY_WC1BbXotQWxnb3JpdGhtPUFXUzQtSE1BQy1TSEEyNTYmWC1BbXotQ3JlZGVudGlhbD1BS0lBVkNPRFlMU0E1M1BRSzRaQSUyRjIwMjUwNTE2JTJGdXMtZWFzdC0xJTJGczMlMkZhd3M0X3JlcXVlc3QmWC1BbXotRGF0ZT0yMDI1MDUxNlQxNjU1MDhaJlgtQW16LUV4cGlyZXM9MzAwJlgtQW16LVNpZ25hdHVyZT05ZTI2M2U1YzlkYWRhNDNmNjk0NjVlOGRhOWYwYTYxZjUwYTBhMDZlMGY3YWRkNGQ0YWMwYjdjZDcwMGEzY2NkJlgtQW16LVNpZ25lZEhlYWRlcnM9aG9zdCJ9.B7PXGVM8fGx0LB-Ykb5eBQFpnBMQ0jjqIkJaWfPQ0kk
+.. |good_demo| image:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/gr1_pick_place_good_human_demo.gif
    :width: 49%
    :alt: GR-1 humanoid robot performing a good pick and place demonstration
 
-.. |bad_demo| image:: https://private-user-images.githubusercontent.com/179507785/444313205-c1e7f079-020b-4668-9ebb-1b3b75e7ce30.gif?jwt=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJnaXRodWIuY29tIiwiYXVkIjoicmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbSIsImtleSI6ImtleTUiLCJleHAiOjE3NDc0MTQ4MDgsIm5iZiI6MTc0NzQxNDUwOCwicGF0aCI6Ii8xNzk1MDc3ODUvNDQ0MzEzMjA1LWMxZTdmMDc5LTAyMGItNDY2OC05ZWJiLTFiM2I3NWU3Y2UzMC5naWY_WC1BbXotQWxnb3JpdGhtPUFXUzQtSE1BQy1TSEEyNTYmWC1BbXotQ3JlZGVudGlhbD1BS0lBVkNPRFlMU0E1M1BRSzRaQSUyRjIwMjUwNTE2JTJGdXMtZWFzdC0xJTJGczMlMkZhd3M0X3JlcXVlc3QmWC1BbXotRGF0ZT0yMDI1MDUxNlQxNjU1MDhaJlgtQW16LUV4cGlyZXM9MzAwJlgtQW16LVNpZ25hdHVyZT01ZjU4YWQ1MTY0ZGQwMWY2ZTdlNWQ1NTdmOWZjYWRlM2U1YTVmYTEyYTkzMWFlYTBlOGZiMjExYzljN2I0MzQwJlgtQW16LVNpZ25lZEhlYWRlcnM9aG9zdCJ9.jgaeRDUb-DJKz6o-u28M6UbO-7S75P6m_44IufKIjpM
+.. |bad_demo| image:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/gr1_pick_place_bad_human_demo.gif
    :width: 49%
    :alt: GR-1 humanoid robot performing a bad pick and place demonstration
 
@@ -507,7 +507,7 @@ Visualize the results of the trained policy by running the following command, us
 .. note::
    Change the ``NORM_FACTOR`` in the above command with the values generated in the training step.
 
-.. figure:: https://private-user-images.githubusercontent.com/179507785/444313046-37601475-fd15-4c12-92a7-59bede0d4f40.gif?jwt=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJnaXRodWIuY29tIiwiYXVkIjoicmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbSIsImtleSI6ImtleTUiLCJleHAiOjE3NDc0MTQ4MDgsIm5iZiI6MTc0NzQxNDUwOCwicGF0aCI6Ii8xNzk1MDc3ODUvNDQ0MzEzMDQ2LTM3NjAxNDc1LWZkMTUtNGMxMi05MmE3LTU5YmVkZTBkNGY0MC5naWY_WC1BbXotQWxnb3JpdGhtPUFXUzQtSE1BQy1TSEEyNTYmWC1BbXotQ3JlZGVudGlhbD1BS0lBVkNPRFlMU0E1M1BRSzRaQSUyRjIwMjUwNTE2JTJGdXMtZWFzdC0xJTJGczMlMkZhd3M0X3JlcXVlc3QmWC1BbXotRGF0ZT0yMDI1MDUxNlQxNjU1MDhaJlgtQW16LUV4cGlyZXM9MzAwJlgtQW16LVNpZ25hdHVyZT02MTA5MmNkYjM2MTRiZTk1NGE0NDdkYTk4NmQ0ZWZiMDYwYTQ4MTZiNjk5ZGUxMjQ3YjQzNDY5MzRiMmJhYTI2JlgtQW16LVNpZ25lZEhlYWRlcnM9aG9zdCJ9.Kf9-Qw4QcM0Qk0xjDBCJDLqtcnEwSDpUHaZiZ0cdlfk
+.. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/gr-1_pick_place_policy.gif
    :width: 100%
    :align: center
    :alt: GR-1 humanoid robot performing a pick and place task
@@ -568,7 +568,7 @@ Visualize the results of the trained policy by running the following command, us
 .. note::
    Change the ``NORM_FACTOR`` in the above command with the values generated in the training step.
 
-.. figure:: https://private-user-images.githubusercontent.com/179507785/444312961-d6c888ca-0933-4371-85e3-2bfcbfb058c0.gif?jwt=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJnaXRodWIuY29tIiwiYXVkIjoicmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbSIsImtleSI6ImtleTUiLCJleHAiOjE3NDc0MTQ4MDgsIm5iZiI6MTc0NzQxNDUwOCwicGF0aCI6Ii8xNzk1MDc3ODUvNDQ0MzEyOTYxLWQ2Yzg4OGNhLTA5MzMtNDM3MS04NWUzLTJiZmNiZmIwNThjMC5naWY_WC1BbXotQWxnb3JpdGhtPUFXUzQtSE1BQy1TSEEyNTYmWC1BbXotQ3JlZGVudGlhbD1BS0lBVkNPRFlMU0E1M1BRSzRaQSUyRjIwMjUwNTE2JTJGdXMtZWFzdC0xJTJGczMlMkZhd3M0X3JlcXVlc3QmWC1BbXotRGF0ZT0yMDI1MDUxNlQxNjU1MDhaJlgtQW16LUV4cGlyZXM9MzAwJlgtQW16LVNpZ25hdHVyZT0zMDFlOTg2ZGUzNWIyYmYxNjk3ODhkZWM4NzVmNWJmNDU3MDQ1M2I3NmQzODY5ODdhMDU5MjEzMThlMmQyNzcyJlgtQW16LVNpZ25lZEhlYWRlcnM9aG9zdCJ9.W2UJJLMx2qwybKFDuoQhyME9ukbNHUnkbQyYn4IgfHo
+.. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/gr-1_nut_pouring_policy.gif
    :width: 100%
    :align: center
    :alt: GR-1 humanoid robot performing a pouring task
@@ -696,7 +696,7 @@ More subtasks result in more stitching of trajectories which can result in less 
 For example, in the scenario below, there is a subtask partition after the robot's left arm grasps the object. On the left, the subtask annotation is marked immediately after the grasp, while on the right, the annotation is marked after the robot has grasped and lifted the object.
 In the left case, the interpolation causes the robot's left arm to collide with the table and it's motion lags while on the right the motion is continuous and smooth.
 
-.. figure:: https://private-user-images.githubusercontent.com/179507785/444312866-6c095130-2361-4bed-86d6-d41077ca3799.gif?jwt=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJnaXRodWIuY29tIiwiYXVkIjoicmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbSIsImtleSI6ImtleTUiLCJleHAiOjE3NDc0MTQ3NDUsIm5iZiI6MTc0NzQxNDQ0NSwicGF0aCI6Ii8xNzk1MDc3ODUvNDQ0MzEyODY2LTZjMDk1MTMwLTIzNjEtNGJlZC04NmQ2LWQ0MTA3N2NhMzc5OS5naWY_WC1BbXotQWxnb3JpdGhtPUFXUzQtSE1BQy1TSEEyNTYmWC1BbXotQ3JlZGVudGlhbD1BS0lBVkNPRFlMU0E1M1BRSzRaQSUyRjIwMjUwNTE2JTJGdXMtZWFzdC0xJTJGczMlMkZhd3M0X3JlcXVlc3QmWC1BbXotRGF0ZT0yMDI1MDUxNlQxNjU0MDVaJlgtQW16LUV4cGlyZXM9MzAwJlgtQW16LVNpZ25hdHVyZT0zZDkwZjYzZDNhOWM5ODg4NzFlNThmNjcxZTlmOTkwNTYyNWUwMDQ0ODljZDM2ZGE4ZTk3ODc5OGRkYmRhODE5JlgtQW16LVNpZ25lZEhlYWRlcnM9aG9zdCJ9.erUriu4fPTxE4EzaFq-onmnNxPTAHEP3sjflfViHzMg
+.. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/lagging_subtask.gif
    :width: 99%
    :align: center
    :alt: Subtask splitting example
@@ -719,15 +719,15 @@ An example of how the number of interpolation steps can affect the generated dem
 In the example, an interpolation is applied to the right arm of the robot to bridge the gap between the left arm's grasp and the right arm's placement. With 0 steps, the right arm exhibits a jerky jump in motion while with 20 steps, the motion is laggy. With 5 steps, the motion is
 smooth and natural.
 
-.. |0_interp_steps| image:: https://private-user-images.githubusercontent.com/179507785/444312467-68a3425c-75a4-4f99-aa10-b8374c718ef3.gif?jwt=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJnaXRodWIuY29tIiwiYXVkIjoicmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbSIsImtleSI6ImtleTUiLCJleHAiOjE3NDc0MTQ3NDUsIm5iZiI6MTc0NzQxNDQ0NSwicGF0aCI6Ii8xNzk1MDc3ODUvNDQ0MzEyNDY3LTY4YTM0MjVjLTc1YTQtNGY5OS1hYTEwLWI4Mzc0YzcxOGVmMy5naWY_WC1BbXotQWxnb3JpdGhtPUFXUzQtSE1BQy1TSEEyNTYmWC1BbXotQ3JlZGVudGlhbD1BS0lBVkNPRFlMU0E1M1BRSzRaQSUyRjIwMjUwNTE2JTJGdXMtZWFzdC0xJTJGczMlMkZhd3M0X3JlcXVlc3QmWC1BbXotRGF0ZT0yMDI1MDUxNlQxNjU0MDVaJlgtQW16LUV4cGlyZXM9MzAwJlgtQW16LVNpZ25hdHVyZT1kYWFmMzY1OTNlNzIwYzE4YzBmMjIxNGQ1ODRlMTk5YTFhOTlkNmJjMjY1NThiMTAyZTgyMzgwMzlmZDJiZDE3JlgtQW16LVNpZ25lZEhlYWRlcnM9aG9zdCJ9.Bx5iCZ_tjcP_C0TflftalHIdOJzdGBiNiEg9GV8OUoA
+.. |0_interp_steps| image:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/0_interpolation_steps.gif
    :width: 32%
    :alt: GR-1 robot with 0 interpolation steps
 
-.. |5_interp_steps| image:: https://private-user-images.githubusercontent.com/179507785/444312504-be438cac-6031-4443-8cdb-5c7fe6289f52.gif?jwt=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJnaXRodWIuY29tIiwiYXVkIjoicmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbSIsImtleSI6ImtleTUiLCJleHAiOjE3NDc0MTQ3NDUsIm5iZiI6MTc0NzQxNDQ0NSwicGF0aCI6Ii8xNzk1MDc3ODUvNDQ0MzEyNTA0LWJlNDM4Y2FjLTYwMzEtNDQ0My04Y2RiLTVjN2ZlNjI4OWY1Mi5naWY_WC1BbXotQWxnb3JpdGhtPUFXUzQtSE1BQy1TSEEyNTYmWC1BbXotQ3JlZGVudGlhbD1BS0lBVkNPRFlMU0E1M1BRSzRaQSUyRjIwMjUwNTE2JTJGdXMtZWFzdC0xJTJGczMlMkZhd3M0X3JlcXVlc3QmWC1BbXotRGF0ZT0yMDI1MDUxNlQxNjU0MDVaJlgtQW16LUV4cGlyZXM9MzAwJlgtQW16LVNpZ25hdHVyZT0xZjEzMjg1NjMzMzI4NjRhZWY3ZTA1ZjlkMzJmNWM4ZWE3OGJiZjlmM2EyNTAwOThlYmE4YjdlNjQyNzBjMjA4JlgtQW16LVNpZ25lZEhlYWRlcnM9aG9zdCJ9.6Wxq4SzmB1yrpBemgN6BfS6yzlko4jKYyBKlTQ5x044
+.. |5_interp_steps| image:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/5_interpolation_steps.gif
    :width: 32%
    :alt: GR-1 robot with 5 interpolation steps
 
-.. |20_interp_steps| image:: https://private-user-images.githubusercontent.com/179507785/444312519-b647c1db-0008-4b3d-ab2b-6e81e4413a6f.gif?jwt=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJnaXRodWIuY29tIiwiYXVkIjoicmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbSIsImtleSI6ImtleTUiLCJleHAiOjE3NDc0MTQ3NDUsIm5iZiI6MTc0NzQxNDQ0NSwicGF0aCI6Ii8xNzk1MDc3ODUvNDQ0MzEyNTE5LWI2NDdjMWRiLTAwMDgtNGIzZC1hYjJiLTZlODFlNDQxM2E2Zi5naWY_WC1BbXotQWxnb3JpdGhtPUFXUzQtSE1BQy1TSEEyNTYmWC1BbXotQ3JlZGVudGlhbD1BS0lBVkNPRFlMU0E1M1BRSzRaQSUyRjIwMjUwNTE2JTJGdXMtZWFzdC0xJTJGczMlMkZhd3M0X3JlcXVlc3QmWC1BbXotRGF0ZT0yMDI1MDUxNlQxNjU0MDVaJlgtQW16LUV4cGlyZXM9MzAwJlgtQW16LVNpZ25hdHVyZT00M2I4NTE4ZmY3YmM5NzFmNWI3NWVlMjc2OTJjYWI1NzFhMTJlYjk0YWFkODdlMmM0ZGVjZDgzNGQ4N2EzNDAzJlgtQW16LVNpZ25lZEhlYWRlcnM9aG9zdCJ9.gWJt9W5FUZwrpmw4q431SedhjHgdWwUfGlkTmNf08-s
+.. |20_interp_steps| image:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/20_interpolation_steps.gif
    :width: 32%
    :alt: GR-1 robot with 20 interpolation steps
 
