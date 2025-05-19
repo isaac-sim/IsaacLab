@@ -42,7 +42,7 @@ class NewtonManager:
     @classmethod
     def start_simulation(cls):
         NewtonManager._model = NewtonManager._builder.finalize()
-        NewtonManager._model.ground = False
+        NewtonManager._model.ground = True
         NewtonManager._solver = newton.solvers.MuJoCoSolver(NewtonManager._model)           
         NewtonManager._state_0 = NewtonManager._model.state()
         NewtonManager._state_1 = NewtonManager._model.state()

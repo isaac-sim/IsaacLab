@@ -34,7 +34,7 @@ class ArticulationData:
     can be interpreted as the link frame.
     """
 
-    def __init__(self, root_physx_view: physx.ArticulationView, root_newton_view, device: str):
+    def __init__(self, root_newton_view, device: str):
         """Initializes the articulation data.
 
         Args:
@@ -46,22 +46,22 @@ class ArticulationData:
         # Set the root articulation view
         # note: this is stored as a weak reference to avoid circular references between the asset class
         #  and the data container. This is important to avoid memory leaks.
-        self._root_physx_view: physx.ArticulationView = weakref.proxy(root_physx_view)
         self._root_newton_view = weakref.proxy(root_newton_view)
 
         # Set initial time stamp
         self._sim_timestamp = 0.0
 
         # obtain global simulation view
-        self._physics_sim_view = SimulationManager.get_physics_sim_view()
-        gravity = self._physics_sim_view.get_gravity()
+        # self._physics_sim_view = SimulationManager.get_physics_sim_view()
+        # gravity = self._physics_sim_view.get_gravity()
+        gravity = NewtonManager.get_model().gravity
         # Convert to direction vector
         gravity_dir = torch.tensor((gravity[0], gravity[1], gravity[2]), device=self.device)
         gravity_dir = math_utils.normalize(gravity_dir.unsqueeze(0)).squeeze(0)
 
         # Initialize constants
-        self.GRAVITY_VEC_W = gravity_dir.repeat(self._root_physx_view.count, 1)
-        self.FORWARD_VEC_B = torch.tensor((1.0, 0.0, 0.0), device=self.device).repeat(self._root_physx_view.count, 1)
+        self.GRAVITY_VEC_W = gravity_dir.repeat(root_newton_view.count, 1)
+        self.FORWARD_VEC_B = torch.tensor((1.0, 0.0, 0.0), device=self.device).repeat(root_newton_view.count, 1)
 
         # Initialize history for finite differencing
         self._previous_joint_vel = wp.to_torch(self._root_newton_view.get_attribute("joint_qd", NewtonManager.get_state_0()))
@@ -377,9 +377,8 @@ class ArticulationData:
             pose = wp.to_torch(self._root_newton_view.get_root_transforms(NewtonManager.get_state_0())).clone()
             # pose = self._root_physx_view.get_root_transforms().clone()
             pose[:, 3:7] = math_utils.convert_quat(pose[:, 3:7], to="wxyz")
-            # print(pose)
             # velocity = self._root_physx_view.get_root_velocities()
-            velocity = wp.to_torch(self._root_newton_view.get_root_velocities(NewtonManager.get_state_0()))
+            velocity = wp.to_torch(self._root_newton_view.get_root_velocities(NewtonManager.get_state_0())).clone()
             # set the buffer data and timestamp
             self._root_state_w.data = torch.cat((pose, velocity), dim=-1)
             self._root_state_w.timestamp = self._sim_timestamp
@@ -512,7 +511,8 @@ class ArticulationData:
         """
         if self._body_acc_w.timestamp < self._sim_timestamp:
             # read data from simulation and set the buffer data and timestamp
-            self._body_acc_w.data = self._root_physx_view.get_link_accelerations()
+            #TODO: read out body acceleration from simulation
+            # self._body_acc_w.data = self._root_physx_view.get_link_accelerations()
 
             self._body_acc_w.timestamp = self._sim_timestamp
         return self._body_acc_w.data

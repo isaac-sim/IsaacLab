@@ -113,42 +113,45 @@ class Articulation(AssetBase):
 
     @property
     def num_instances(self) -> int:
-        return self.root_physx_view.count
+        return self._root_newton_view.count
 
     @property
     def is_fixed_base(self) -> bool:
         """Whether the articulation is a fixed-base or floating-base system."""
-        return self.root_physx_view.shared_metatype.fixed_base
+        #TODO: check if the articulation is fixed-base or floating-base
+        return False
 
     @property
     def num_joints(self) -> int:
         """Number of joints in articulation."""
-        return self.root_physx_view.shared_metatype.dof_count
+        return self._root_newton_view.joint_count
 
     @property
     def num_fixed_tendons(self) -> int:
         """Number of fixed tendons in articulation."""
-        return self.root_physx_view.max_fixed_tendons
+        #TODO: check if the articulation has fixed tendons
+        return 0
 
     @property
     def num_bodies(self) -> int:
         """Number of bodies in articulation."""
-        return self.root_physx_view.shared_metatype.link_count
+        return self._root_newton_view.link_count
 
     @property
     def joint_names(self) -> list[str]:
         """Ordered names of joints in articulation."""
-        return self.root_physx_view.shared_metatype.dof_names
+        return self._root_newton_view.joint_names
 
     @property
     def fixed_tendon_names(self) -> list[str]:
         """Ordered names of fixed tendons in articulation."""
-        return self._fixed_tendon_names
+        #TODO: check if the articulation has fixed tendons
+        return []
 
     @property
     def body_names(self) -> list[str]:
         """Ordered names of bodies in articulation."""
-        return self.root_physx_view.shared_metatype.link_names
+        return self._root_newton_view.body_names
 
     @property
     def root_physx_view(self) -> physx.ArticulationView:
@@ -197,12 +200,13 @@ class Articulation(AssetBase):
         # apply actuator models
         self._apply_actuator_model()
         # write actions into simulation
-        self.root_physx_view.set_dof_actuation_forces(self._joint_effort_target_sim, self._ALL_INDICES)
+        # self.root_physx_view.set_dof_actuation_forces(self._joint_effort_target_sim, self._ALL_INDICES)
         self._root_newton_view.set_attribute("joint_act", NewtonManager.get_control(), self._joint_effort_target_sim)
         # position and velocity targets only for implicit actuators
-        if self._has_implicit_actuators:
-            self.root_physx_view.set_dof_position_targets(self._joint_pos_target_sim, self._ALL_INDICES)
-            self.root_physx_view.set_dof_velocity_targets(self._joint_vel_target_sim, self._ALL_INDICES)
+        #TODO: write position and velocity targets to simulation
+        # if self._has_implicit_actuators:
+        #     self.root_physx_view.set_dof_position_targets(self._joint_pos_target_sim, self._ALL_INDICES)
+        #     self.root_physx_view.set_dof_velocity_targets(self._joint_vel_target_sim, self._ALL_INDICES)
 
     def update(self, dt: float):
         self._data.update(dt)
@@ -423,10 +427,11 @@ class Articulation(AssetBase):
         # note: we need to do this here since tensors are not set into simulation until step.
         # set into internal buffers
         self._data.root_state_w[env_ids, 7:] = root_velocity.clone()
-        self._data.body_acc_w[env_ids] = 0.0
+        #TODO: write body acceleration to simulation
+        # self._data.body_acc_w[env_ids] = 0.0
         # set into simulation
         # self.root_physx_view.set_root_velocities(self._data.root_state_w[:, 7:], indices=physx_env_ids)
-        self._root_newton_view.set_root_velocities(NewtonManager.get_state_0(), self._data.root_state_w[:, 7:])
+        self._root_newton_view.set_root_velocities(NewtonManager.get_state_0(), self._data.root_state_w[:, 7:].clone())
         
 
     def write_root_com_velocity_to_sim(self, root_velocity: torch.Tensor, env_ids: Sequence[int] | None = None):
@@ -452,7 +457,7 @@ class Articulation(AssetBase):
         self._data.body_acc_w[env_ids] = 0.0
         # set into simulation
         # self.root_physx_view.set_root_velocities(self._data.root_com_state_w[:, 7:], indices=physx_env_ids)
-        self._root_newton_view.set_root_velocities(NewtonManager.get_state_0(), self._data.root_state_w[:, 7:])
+        self._root_newton_view.set_root_velocities(NewtonManager.get_state_0(), self._data.root_state_w[:, 7:].clone())
 
     def write_root_link_velocity_to_sim(self, root_velocity: torch.Tensor, env_ids: Sequence[int] | None = None):
         """Set the root link velocity over selected environment indices into the simulation.
@@ -1184,12 +1189,12 @@ class Articulation(AssetBase):
         root_prim_path = root_prims[0].GetPath().pathString
         root_prim_path_expr = self.cfg.prim_path + root_prim_path[len(template_prim_path) :]
         # -- articulation
-        self._root_physx_view = self._physics_sim_view.create_articulation_view(root_prim_path_expr.replace(".*", "*"))
+        # self._root_physx_view = self._physics_sim_view.create_articulation_view(root_prim_path_expr.replace(".*", "*"))
         # print(root_prim_path_expr.replace(".*", "*").repl ace("env_*", "*"))
         # print(NewtonManager.get_model().articulation_key)
         self._root_newton_view = NewtonArticulationView(NewtonManager.get_model(), root_prim_path_expr.replace(".*", "*").replace("env_*", "*"), include_free_joint=False, env_offsets=None)
-        if self._root_physx_view._backend is None:
-            raise RuntimeError(f"Failed to create articulation at: {self.cfg.prim_path}. Please check PhysX logs.")
+        # if self._root_physx_view._backend is None:
+        #     raise RuntimeError(f"Failed to create articulation at: {self.cfg.prim_path}. Please check PhysX logs.")
 
         # log information about the articulation
         omni.log.info(f"Articulation initialized at: {self.cfg.prim_path} with root '{root_prim_path_expr}'.")
@@ -1201,16 +1206,17 @@ class Articulation(AssetBase):
         omni.log.info(f"Number of fixed tendons: {self.num_fixed_tendons}")
 
         # container for data access
-        self._data = ArticulationData(self.root_physx_view, self._root_newton_view,self.device)
+        self._data = ArticulationData(self._root_newton_view, self.device)
 
         # create buffers
         self._create_buffers()
         # process configuration
         self._process_cfg()
         self._process_actuators_cfg()
-        self._process_fixed_tendons()
+        #TODO: check if the articulation has fixed tendons
+        # self._process_fixed_tendons()
         # validate configuration
-        self._validate_cfg()
+        # self._validate_cfg()
         # update the robot data
         self.update(0.0)
         # log joint information
@@ -1231,25 +1237,27 @@ class Articulation(AssetBase):
         # tendon names are set in _process_fixed_tendons function
 
         # -- joint properties
-        self._data.default_joint_pos_limits = self.root_physx_view.get_dof_limits().to(self.device).clone()
-        self._data.default_joint_stiffness = self.root_physx_view.get_dof_stiffnesses().to(self.device).clone()
-        self._data.default_joint_damping = self.root_physx_view.get_dof_dampings().to(self.device).clone()
-        self._data.default_joint_armature = self.root_physx_view.get_dof_armatures().to(self.device).clone()
+        #TODO: read out all joint parameters from simulation
+        self._data.default_joint_pos_limits = torch.stack((wp.to_torch(self._root_newton_view.get_attribute("joint_limit_lower", NewtonManager.get_model())), 
+                                                         wp.to_torch(self._root_newton_view.get_attribute("joint_limit_upper", NewtonManager.get_model()))), dim=2)
+        self._data.default_joint_stiffness = torch.zeros([self.num_instances, self.num_joints], dtype=torch.float32, device=self.device).clone()
+        self._data.default_joint_damping = torch.zeros([self.num_instances, self.num_joints], dtype=torch.float32, device=self.device).clone()
+        self._data.default_joint_armature = torch.zeros([self.num_instances, self.num_joints], dtype=torch.float32, device=self.device).clone()
         self._data.default_joint_friction_coeff = (
-            self.root_physx_view.get_dof_friction_coefficients().to(self.device).clone()
+            torch.zeros([self.num_instances, self.num_joints], dtype=torch.float32, device=self.device).clone()
         )
 
         self._data.joint_pos_limits = self._data.default_joint_pos_limits.clone()
-        self._data.joint_vel_limits = self.root_physx_view.get_dof_max_velocities().to(self.device).clone()
-        self._data.joint_effort_limits = self.root_physx_view.get_dof_max_forces().to(self.device).clone()
+        self._data.joint_vel_limits = torch.zeros([self.num_instances, self.num_joints], dtype=torch.float32, device=self.device).to(self.device).clone()
+        self._data.joint_effort_limits = torch.zeros([self.num_instances, self.num_joints], dtype=torch.float32, device=self.device).to(self.device).clone()
         self._data.joint_stiffness = self._data.default_joint_stiffness.clone()
         self._data.joint_damping = self._data.default_joint_damping.clone()
         self._data.joint_armature = self._data.default_joint_armature.clone()
         self._data.joint_friction_coeff = self._data.default_joint_friction_coeff.clone()
 
         # -- body properties
-        self._data.default_mass = self.root_physx_view.get_masses().clone()
-        self._data.default_inertia = self.root_physx_view.get_inertias().clone()
+        self._data.default_mass = torch.zeros([self.num_instances, self.num_bodies], dtype=torch.float32, device=self.device).clone()
+        self._data.default_inertia = torch.zeros([self.num_instances, self.num_bodies], dtype=torch.float32, device=self.device).clone()
 
         # -- joint commands (sent to the actuator from the user)
         self._data.joint_pos_target = torch.zeros(self.num_instances, self.num_joints, device=self.device)
@@ -1369,22 +1377,23 @@ class Articulation(AssetBase):
             # store actuator group
             self.actuators[actuator_name] = actuator
             # set the passed gains and limits into the simulation
-            if isinstance(actuator, ImplicitActuator):
-                self._has_implicit_actuators = True
-                # the gains and limits are set into the simulation since actuator model is implicit
-                self.write_joint_stiffness_to_sim(actuator.stiffness, joint_ids=actuator.joint_indices)
-                self.write_joint_damping_to_sim(actuator.damping, joint_ids=actuator.joint_indices)
-            else:
-                # the gains and limits are processed by the actuator model
-                # we set gains to zero, and torque limit to a high value in simulation to avoid any interference
-                self.write_joint_stiffness_to_sim(0.0, joint_ids=actuator.joint_indices)
-                self.write_joint_damping_to_sim(0.0, joint_ids=actuator.joint_indices)
+            #TODO: write out all joint parameters from simulation
+            # if isinstance(actuator, ImplicitActuator):
+            #     self._has_implicit_actuators = True
+            #     # the gains and limits are set into the simulation since actuator model is implicit
+            #     self.write_joint_stiffness_to_sim(actuator.stiffness, joint_ids=actuator.joint_indices)
+            #     self.write_joint_damping_to_sim(actuator.damping, joint_ids=actuator.joint_indices)
+            # else:
+            #     # the gains and limits are processed by the actuator model
+            #     # we set gains to zero, and torque limit to a high value in simulation to avoid any interference
+            #     self.write_joint_stiffness_to_sim(0.0, joint_ids=actuator.joint_indices)
+            #     self.write_joint_damping_to_sim(0.0, joint_ids=actuator.joint_indices)
 
-            # Set common properties into the simulation
-            self.write_joint_effort_limit_to_sim(actuator.effort_limit_sim, joint_ids=actuator.joint_indices)
-            self.write_joint_velocity_limit_to_sim(actuator.velocity_limit_sim, joint_ids=actuator.joint_indices)
-            self.write_joint_armature_to_sim(actuator.armature, joint_ids=actuator.joint_indices)
-            self.write_joint_friction_coefficient_to_sim(actuator.friction, joint_ids=actuator.joint_indices)
+            # # Set common properties into the simulation
+            # self.write_joint_effort_limit_to_sim(actuator.effort_limit_sim, joint_ids=actuator.joint_indices)
+            # self.write_joint_velocity_limit_to_sim(actuator.velocity_limit_sim, joint_ids=actuator.joint_indices)
+            # self.write_joint_armature_to_sim(actuator.armature, joint_ids=actuator.joint_indices)
+            # self.write_joint_friction_coefficient_to_sim(actuator.friction, joint_ids=actuator.joint_indices)
 
             # Store the configured values from the actuator model
             # note: this is the value configured in the actuator model (for implicit and explicit actuators)
@@ -1493,7 +1502,8 @@ class Articulation(AssetBase):
             For instance, the actuator models may change the joint max velocity limits.
         """
         # check that the default values are within the limits
-        joint_pos_limits = self.root_physx_view.get_dof_limits()[0].to(self.device)
+        joint_pos_limits = torch.stack((wp.to_torch(self._root_newton_view.get_attribute("joint_limit_lower", NewtonManager.get_model())), 
+                                        wp.to_torch(self._root_newton_view.get_attribute("joint_limit_upper", NewtonManager.get_model()))), dim=2)[0].to(self.device)
         out_of_range = self._data.default_joint_pos[0] < joint_pos_limits[:, 0]
         out_of_range |= self._data.default_joint_pos[0] > joint_pos_limits[:, 1]
         violated_indices = torch.nonzero(out_of_range, as_tuple=False).squeeze(-1)
@@ -1529,17 +1539,18 @@ class Articulation(AssetBase):
 
         Note: We purposefully read the values from the simulator to ensure that the values are configured as expected.
         """
+        #TODO: read out all joint parameters from simulation
         # read out all joint parameters from simulation
         # -- gains
-        stiffnesses = self.root_physx_view.get_dof_stiffnesses()[0].tolist()
-        dampings = self.root_physx_view.get_dof_dampings()[0].tolist()
+        stiffnesses = torch.zeros([self.num_joints], dtype=torch.float32, device=self.device).tolist()
+        dampings = torch.zeros([self.num_joints], dtype=torch.float32, device=self.device).tolist()
         # -- properties
-        armatures = self.root_physx_view.get_dof_armatures()[0].tolist()
-        frictions = self.root_physx_view.get_dof_friction_coefficients()[0].tolist()
+        armatures = torch.zeros([self.num_joints], dtype=torch.float32, device=self.device).tolist()
+        frictions = torch.zeros([self.num_joints], dtype=torch.float32, device=self.device).tolist()
         # -- limits
-        position_limits = self.root_physx_view.get_dof_limits()[0].tolist()
-        velocity_limits = self.root_physx_view.get_dof_max_velocities()[0].tolist()
-        effort_limits = self.root_physx_view.get_dof_max_forces()[0].tolist()
+        position_limits = torch.zeros([self.num_joints, 2], dtype=torch.float32, device=self.device).tolist()
+        velocity_limits = torch.zeros([self.num_joints], dtype=torch.float32, device=self.device).tolist()
+        effort_limits = torch.zeros([self.num_joints], dtype=torch.float32, device=self.device).tolist()
         # create table for term information
         joint_table = PrettyTable()
         joint_table.title = f"Simulation Joint Information (Prim path: {self.cfg.prim_path})"

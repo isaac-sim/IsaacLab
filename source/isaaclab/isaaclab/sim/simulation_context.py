@@ -21,6 +21,7 @@ import isaacsim.core.utils.stage as stage_utils
 import omni.log
 import omni.physx
 from isaacsim.core.api.simulation_context import SimulationContext as _SimulationContext
+from isaacsim.core.simulation_manager import SimulationManager
 from isaacsim.core.utils.carb import get_carb_setting, set_carb_setting
 from isaacsim.core.utils.viewports import set_camera_view
 from isaacsim.core.version import get_version
@@ -129,6 +130,7 @@ class SimulationContext(_SimulationContext):
         self.carb_settings = carb.settings.get_settings()
 
         # apply carb physics settings
+        SimulationManager._clear()
         self._apply_physics_settings()
 
         # note: we read this once since it is not expected to change during runtime

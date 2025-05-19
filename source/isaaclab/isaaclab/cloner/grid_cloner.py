@@ -167,7 +167,6 @@ class GridCloner(Cloner):
                 num_clones,
                 (self._spacing, self._spacing, 0.0),
                 # USD importer args
-                xform=wp.transform(wp.vec3(0, 0, 4), wp.quat_identity()),
                 collapse_fixed_joints=True,
             )
             NewtonManager.set_builder(builder)
