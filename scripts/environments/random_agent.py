@@ -47,11 +47,19 @@ def main():
     # create environment
     env = gym.make(args_cli.task, cfg=env_cfg)
 
+
+
     # print info (this is vectorized environment)
     print(f"[INFO]: Gym observation space: {env.observation_space}")
     print(f"[INFO]: Gym action space: {env.action_space}")
     # reset environment
     env.reset()
+
+    out = env.unwrapped.get_IO_descriptors
+    for o in out:
+        print(f"--- Obs term: {o.name} ---")
+        for k, v in o.__dict__.items():
+            print(f"{k}: {v}")
     # simulate environment
     while simulation_app.is_running():
         # run everything in inference mode
