@@ -46,7 +46,7 @@ we can finally run training!  Let's see what happens!
     python scripts/skrl/train.py --task=Template-Isaac-Lab-Tutorial-Direct-v0
 
 
-.. figure:: ../../_static/setup/walkthrough_naive_webp.webp
+.. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/walkthrough_naive_webp.webp
     :align: center
     :figwidth: 100%
     :alt: Naive results
@@ -90,7 +90,7 @@ Finally, the x component of the center of mass linear velocity tells us our forw
 "horizontally" (along dim 1) to generate the observations for each Jetbot. This alone improves performance!
 
 
-.. figure:: ../../_static/setup/walkthrough_improved_webp.webp
+.. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/walkthrough_improved_webp.webp
     :align: center
     :figwidth: 100%
     :alt: Improved results
@@ -112,7 +112,7 @@ reward the agent driving forward AND being aligned. Logical AND suggests multipl
 
 Now we will only get rewarded for driving forward if our alignment reward is non zero.  Let's see what kind of result this produces!
 
-.. figure:: ../../_static/setup/walkthrough_tuned_webp.webp
+.. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/walkthrough_tuned_webp.webp
     :align: center
     :figwidth: 100%
     :alt: Tuned results
@@ -138,7 +138,7 @@ are misaligned, we don't get rewarded. The exponential function accomplishes thi
 
 Now when we train, the Jetbots will turn to always drive towards the command in the forward direction!
 
-.. figure:: ../../_static/setup/walkthrough_directed_webp.webp
+.. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/walkthrough_directed_webp.webp
     :align: center
     :figwidth: 100%
     :alt: Directed results
