@@ -306,8 +306,8 @@ class DCMotor(IdealPDActuator):
         lt_vel_at_neg_effort_lim = self._joint_vel < -self._vel_at_effort_lim
         clamped[gt_vel_at_effort_lim] = torque_speed_top[gt_vel_at_effort_lim]
         clamped[lt_vel_at_neg_effort_lim] = torque_speed_bottom[lt_vel_at_neg_effort_lim]
-        # clamp for infinite velocity input
-        clamped = torch.clip(clamped, min=-5 * self.effort_limit, max=5 * self.effort_limit)
+        # clamp for large numerical velocity input spikes
+        clamped = torch.clip(clamped, min=-1.5 * self.effort_limit, max=1.5 * self.effort_limit)
 
         return clamped
 
