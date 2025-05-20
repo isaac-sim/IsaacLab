@@ -6,7 +6,7 @@ Training the Jetbot: Ground Truth
 With the environment defined, we can now start modifying our observations and rewards in order to train a policy
 to act as a controller for the Jetbot. As a user, we would like to be able to specify the desired direction for the Jetbot to drive,
 and have the wheels turn such that the robot drives in that specified direction as fast as possible. How do we achieve this with
-Reinforcement Learning (RL)? If you want to cut to the end and checkout the result of this stage of the walk through, checkout 
+Reinforcement Learning (RL)? If you want to cut to the end and checkout the result of this stage of the walk through, checkout
 `this branch of the tutorial repository <https://github.com/isaac-sim/isaac_lab_tutorial/tree/jetbot-intro-1-2>`_!
 
 Expanding the Environment
@@ -81,12 +81,12 @@ Next, we need to expand the initialization and setup steps to construct the data
         self.visualization_markers = define_markers()
 
         # setting aside useful variables for later
-        self.up_dir = torch.tensor([0.0, 0.0, 1.0]).cuda()  
+        self.up_dir = torch.tensor([0.0, 0.0, 1.0]).cuda()
         self.yaws = torch.zeros((self.cfg.scene.num_envs, 1)).cuda()
         self.commands = torch.randn((self.cfg.scene.num_envs, 3)).cuda()
         self.commands[:,-1] = 0.0
         self.commands = self.commands/torch.linalg.norm(self.commands, dim=1, keepdim=True)
-        
+
         # offsets to account for atan range and keep things on [-pi, pi]
         ratio = self.commands[:,1]/(self.commands[:,0]+1E-8)
         gzero = torch.where(self.commands > 0, True, False)
@@ -195,7 +195,7 @@ we need to generate a new command and reset the markers. The logic for this is a
         self.commands[env_ids] = torch.randn((len(env_ids), 3)).cuda()
         self.commands[env_ids,-1] = 0.0
         self.commands[env_ids] = self.commands[env_ids]/torch.linalg.norm(self.commands[env_ids], dim=1, keepdim=True)
-        
+
         # recalculate the orientations for the command markers with the new commands
         ratio = self.commands[env_ids][:,1]/(self.commands[env_ids][:,0]+1E-8)
         gzero = torch.where(self.commands[env_ids] > 0, True, False)
@@ -219,5 +219,3 @@ And that's it! We now generate commands and can visualize it the heading of the 
     :align: center
     :figwidth: 100%
     :alt: Visualization of the command markers
-
-
