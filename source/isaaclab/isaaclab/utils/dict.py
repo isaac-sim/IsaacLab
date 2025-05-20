@@ -9,7 +9,7 @@ import collections.abc
 import hashlib
 import json
 import torch
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable, Mapping, Sized
 from typing import Any
 
 from .array import TENSOR_TYPE_CONVERSIONS, TENSOR_TYPES
@@ -120,7 +120,7 @@ def update_class_from_dict(obj, data: dict[str, Any], _ns: str = "") -> None:
                     )
 
                 # ---- 2c) length mismatch → abort -------------------
-                if len(obj_mem) != len(value):
+                if isinstance(obj_mem, Sized) and isinstance(value, Sized) and len(obj_mem) != len(value):
                     raise ValueError(
                         f"[Config]: Incorrect length under namespace: {key_ns}."
                         f" Expected: {len(obj_mem)}, Received: {len(value)}."
