@@ -209,6 +209,15 @@ class ManagerBasedEnv:
     def device(self):
         """The device on which the environment is running."""
         return self.sim.device
+    
+    @property
+    def get_IO_descriptors(self):
+        """Get the IO descriptors for the environment.
+
+        Returns:
+            A dictionary with keys as the group names and values as the IO descriptors.
+        """
+        return self.observation_manager.get_IO_descriptors
 
     """
     Operations - Setup.
