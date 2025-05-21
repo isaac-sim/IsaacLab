@@ -29,7 +29,7 @@ def pytest_addoption(parser):
     parser.addoption(
         "--mode",
         action="store",
-        default="fast_test",
+        default="fast",
         help="Coverage mode defined in the config file.",
     )
     parser.addoption("--num_gpus", action="store", type=int, default=1, help="Number of GPUs for distributed training.")
