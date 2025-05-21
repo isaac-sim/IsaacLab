@@ -225,6 +225,40 @@ class ObservationManager(ManagerBase):
         """
         return self._group_obs_concatenate
 
+    @property
+    def get_IO_descriptors(self):
+        """Get the IO descriptors for the observation manager.
+
+        Returns:
+            A dictionary with keys as the group names and values as the IO descriptors.
+        """
+
+        data = []
+
+        for group_name in self._group_obs_term_names:
+            # check ig group name is valid
+            if group_name not in self._group_obs_term_names:
+                raise ValueError(
+                    f"Unable to find the group '{group_name}' in the observation manager."
+                    f" Available groups are: {list(self._group_obs_term_names.keys())}"
+                )
+            # iterate over all the terms in each group
+            group_term_names = self._group_obs_term_names[group_name]
+            # buffer to store obs per group
+            group_obs = dict.fromkeys(group_term_names, None)
+            # read attributes for each term
+            obs_terms = zip(group_term_names, self._group_obs_term_cfgs[group_name])
+
+            for term_name, term_cfg in obs_terms:
+                # dummy call to cache some values
+                try:
+                    term_cfg.func(self._env, **term_cfg.params, inspect=True)
+                    data.append(term_cfg.func._descriptor)
+                except Exception as e:
+                    print(f"Error getting IO descriptor for term '{term_name}' in group '{group_name}': {e}")
+
+        return data
+
     """
     Operations.
     """
