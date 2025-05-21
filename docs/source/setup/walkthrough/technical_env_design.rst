@@ -14,7 +14,7 @@ centrally. We will need to write the code that will...
 #. Manage resetting and terminal states
 
 As a first step, our goal will be to get the environment training pipeline to load and run.  We will use a dummy reward signal
-for the purposes of this part of the walkthrough. You can find the code for these modifications `here <https://github.com/isaac-sim/isaac_lab_tutorial/tree/jetbot-intro-1-1>`_!
+for the purposes of this part of the walkthrough. You can find the code for these modifications `here <https://github.com/isaac-sim/IsaacLabTutorial/tree/jetbot-intro-1-1>`_!
 
 Define the Robot
 ------------------

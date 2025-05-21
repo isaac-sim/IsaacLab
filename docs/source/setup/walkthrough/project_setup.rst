@@ -13,10 +13,16 @@ for this tutorial series is done by calling the ``isaaclab`` script from the roo
 
 Be sure to select ``External`` and ``Direct | single agent``.  For the frameworks, select ``skrl`` and both ``PPO`` and ``AMP`` on the following menu.  You can
 select other frameworks if you like, but this tutorial will detail ``skrl`` specifically. The configuration process for other frameworks is similar. You
-can get a copy of this code directly by checking out the `initial branch of the tutorial repository <https://github.com/isaac-sim/isaac_lab_tutorial/tree/initial>`_!
+can get a copy of this code directly by checking out the `initial branch of the tutorial repository <https://github.com/isaac-sim/IsaacLabTutorial/tree/initial>`_!
 
 
 This will create an extension project with the specified name at the chosen path.  For this tutorial, we chose the name ``isaac_lab_tutorial``.
+
+.. note::
+
+    The template generator expects the project name to respect "snake_case": all lowercase with underscores separating words. However, we have renamed the 
+    sample project to "IsaacLabTutorial" to more closely match the naming convention GitHub and our other projects. If you are following along with the example 
+    repository, note this minor difference as some superficial path names may change.  If you are following along by building the project yourself, then you can ignore this note.
 
 Next, we must install the project as a python module.  Navigate to the directory that was just created
 (it will contain the ``source`` and ``scripts`` directories for the project) and then run the following to install the module.
