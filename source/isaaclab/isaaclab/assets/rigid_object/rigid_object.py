@@ -210,6 +210,9 @@ class RigidObject(AssetBase):
         # convert root quaternion from wxyz to xyzw
         root_poses_xyzw = self._data.root_state_w[:, :7].clone()
         root_poses_xyzw[:, 3:] = math_utils.convert_quat(root_poses_xyzw[:, 3:], to="xyzw")
+        # Need to invalidate the buffer to trigger the update with the new root pose.
+        self._data._root_link_state_w.timestamp = -1.0
+        self._data._root_com_state_w.timestamp = -1.0
         # set into simulation
         self.root_physx_view.set_transforms(root_poses_xyzw, indices=physx_env_ids)
 
@@ -234,6 +237,9 @@ class RigidObject(AssetBase):
         # convert root quaternion from wxyz to xyzw
         root_poses_xyzw = self._data.root_link_state_w[:, :7].clone()
         root_poses_xyzw[:, 3:] = math_utils.convert_quat(root_poses_xyzw[:, 3:], to="xyzw")
+        # Need to invalidate the buffer to trigger the update with the new root pose.
+        self._data._root_state_w.timestamp = -1.0
+        self._data._root_com_state_w.timestamp = -1.0
         # set into simulation
         self.root_physx_view.set_transforms(root_poses_xyzw, indices=physx_env_ids)
 
@@ -285,6 +291,9 @@ class RigidObject(AssetBase):
         # set into internal buffers
         self._data.root_state_w[env_ids, 7:] = root_velocity.clone()
         self._data.body_acc_w[env_ids] = 0.0
+        # Need to invalidate the buffer to trigger the update with the new com and link velocity.
+        self._data._root_com_state_w.timestamp = -1.0
+        self._data._root_link_state_w.timestamp = -1.0
         # set into simulation
         self.root_physx_view.set_velocities(self._data.root_state_w[:, 7:], indices=physx_env_ids)
 
@@ -309,6 +318,8 @@ class RigidObject(AssetBase):
         self._data.root_com_state_w[env_ids, 7:] = root_velocity.clone()
         self._data.root_state_w[env_ids, 7:] = self._data.root_com_state_w[env_ids, 7:]
         self._data.body_acc_w[env_ids] = 0.0
+        # Need to invalidate the buffer to trigger the update with the new link velocity.
+        self._data._root_link_state_w.timestamp = -1.0
         # set into simulation
         self.root_physx_view.set_velocities(self._data.root_com_state_w[:, 7:], indices=physx_env_ids)
 
