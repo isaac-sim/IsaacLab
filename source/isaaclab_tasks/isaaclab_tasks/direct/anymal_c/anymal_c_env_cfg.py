@@ -48,6 +48,16 @@ class EventCfg:
         },
     )
 
+    add_joint_randomization = EventTerm(
+        func=mdp.randomize_joint_parameters,
+        mode="startup",
+        params={
+            "asset_cfg": SceneEntityCfg("robot", body_names=".*"),
+            "friction_distribution_params": (0.0, 0.0),
+            "armature_distribution_params": (0.0, 0.0),
+        },
+    )
+
 
 @configclass
 class AnymalCFlatEnvCfg(DirectRLEnvCfg):
