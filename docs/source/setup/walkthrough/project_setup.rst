@@ -20,8 +20,8 @@ This will create an extension project with the specified name at the chosen path
 
 .. note::
 
-    The template generator expects the project name to respect "snake_case": all lowercase with underscores separating words. However, we have renamed the 
-    sample project to "IsaacLabTutorial" to more closely match the naming convention GitHub and our other projects. If you are following along with the example 
+    The template generator expects the project name to respect "snake_case": all lowercase with underscores separating words. However, we have renamed the
+    sample project to "IsaacLabTutorial" to more closely match the naming convention GitHub and our other projects. If you are following along with the example
     repository, note this minor difference as some superficial path names may change.  If you are following along by building the project yourself, then you can ignore this note.
 
 Next, we must install the project as a python module.  Navigate to the directory that was just created
