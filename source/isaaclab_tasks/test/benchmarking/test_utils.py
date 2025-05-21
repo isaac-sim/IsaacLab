@@ -23,16 +23,26 @@ def get_env_configs(configs_path):
     return env_configs
 
 
-def get_env_config(env_configs, mode, task):
+def get_env_config(env_configs, mode, workflow, task):
     """Get the environment configuration."""
     if mode not in env_configs:
         raise ValueError(f"Mode {mode} is not supported in the config file.")
 
-    # if there's a direct match, return that config
+    extended_task = f"{workflow}:{task}"
+    # return a direct match with extended task name
+    if extended_task in env_configs[mode]:
+        return env_configs[mode][extended_task]
+
+    # else, return a direct match with task name
     if task in env_configs[mode]:
         return env_configs[mode][task]
 
-    # else, try to find a match with a regex
+    # else, return a regex match with extended task name
+    for env_config_key in env_configs[mode].keys():
+        if re.match(env_config_key, extended_task):
+            return env_configs[mode][env_config_key]
+
+    # else, return a regex match with task name
     for env_config_key in env_configs[mode].keys():
         if re.match(env_config_key, task):
             return env_configs[mode][env_config_key]

@@ -76,25 +76,25 @@ def train_job(workflow, task, env_config, num_gpus):
 
 
 @pytest.mark.parametrize("task_spec", setup_environment())
-def test_train_environments(workflow, task_spec, config_path, mode, num_gpus, create_kpi_payload, kpi_store):
+def test_train_environments(workflow, task_spec, config_path, mode, num_gpus, kpi_store):
     """Train environments provided in the config file, save KPIs, and evaluate against thresholds"""
     # Skip if workflow not supported for this task
     if workflow + "_cfg_entry_point" not in task_spec.kwargs:
         pytest.skip(f"Workflow {workflow} not supported for task {task_spec.id}")
 
     # Load environment config
+    task = task_spec.id
     if config_path.startswith("/"):
         full_config_path = config_path
     else:
         full_config_path = os.path.join(os.path.dirname(__file__), config_path)
     env_configs = utils.get_env_configs(full_config_path)
-    env_config = utils.get_env_config(env_configs, mode, task_spec.id)
+    env_config = utils.get_env_config(env_configs, mode, workflow, task)
 
     # Skip if config not found
     if not env_config:
-        pytest.skip(f"No config found for task {task_spec.id} in {mode} mode")
+        pytest.skip(f"No config found for task {task} in {mode} mode")
 
-    task = task_spec.id
     job_name = f"{workflow}:{task}"
     print(f">>> Training: {job_name}")
 
@@ -110,8 +110,7 @@ def test_train_environments(workflow, task_spec, config_path, mode, num_gpus, cr
     print("-" * 80)
 
     # Save KPI if requested
-    if create_kpi_payload:
-        kpi_store[job_name] = kpi_payload
+    kpi_store[job_name] = kpi_payload
 
     # Verify job was successful
     if not kpi_payload["success"]:

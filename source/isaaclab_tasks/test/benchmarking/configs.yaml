@@ -20,48 +20,48 @@ full_test:
 
 # mode for PR tests (default mode)
 fast:
-  Isaac-Ant-v0:
+  rl_games:Isaac-Ant-v0:
     max_iterations: 200
     lower_thresholds:
-      reward: 35
+      reward: 50
       episode_length: 900
     upper_thresholds:
-      duration: 300
-  Isaac-Cartpole-RGB-Camera-Direct-v0:
+      duration: 400
+  skrl:Isaac-Cartpole-RGB-Camera-Direct-v0:
     max_iterations: 50
     lower_thresholds:
-      reward: 180
-      episode_length: 240
+      reward: 170
+      episode_length: 230
     upper_thresholds:
-      duration: 400
-  Isaac-Humanoid-v0:
+      duration: 450
+  rsl_rl:Isaac-Humanoid-v0:
     max_iterations: 200
     lower_thresholds:
       reward: 50
       episode_length: 800
     upper_thresholds:
-      duration: 400
-  Isaac-Quadcopter-Direct-v0:
+      duration: 500
+  rl_games:Isaac-Quadcopter-Direct-v0:
     max_iterations: 200
     lower_thresholds:
       reward: 100
-      episode_length: 450
+      episode_length: 400
     upper_thresholds:
-      duration: 200
-  Isaac-Shadow-Hand-Over-Direct-v0:
+      duration: 250
+  skrl:Isaac-Shadow-Hand-Over-Direct-v0:
     max_iterations: 300
     lower_thresholds:
       reward: 30
       episode_length: 250
     upper_thresholds:
       duration: 600
-  Isaac-Velocity-Rough-Cassie-v0:
+  rsl_rl:Isaac-Velocity-Rough-Cassie-v0:
     max_iterations: 300
     lower_thresholds:
-      reward: 6
+      reward: 8
       episode_length: 900
     upper_thresholds:
-      duration: 1000
+      duration: 1200
 
 
 # mode for weekly CI

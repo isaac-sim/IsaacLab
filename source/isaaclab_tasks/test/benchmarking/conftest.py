@@ -34,7 +34,7 @@ def pytest_addoption(parser):
     )
     parser.addoption("--num_gpus", action="store", type=int, default=1, help="Number of GPUs for distributed training.")
     parser.addoption(
-        "--create_kpi_payload",
+        "--save_kpi_payload",
         action="store_true",
         help="To collect output metrics into a KPI payload that can be uploaded to a dashboard.",
     )
@@ -67,8 +67,8 @@ def num_gpus(request):
 
 
 @pytest.fixture
-def create_kpi_payload(request):
-    return request.config.getoption("--create_kpi_payload")
+def save_kpi_payload(request):
+    return request.config.getoption("--save_kpi_payload")
 
 
 @pytest.fixture
@@ -97,8 +97,8 @@ def pytest_sessionfinish(session, exitstatus):
     tag = session.config.getoption("--tag")
     utils.process_kpi_data(GLOBAL_KPI_STORE, tag=tag)
     print(json.dumps(GLOBAL_KPI_STORE, indent=2))
-    if GLOBAL_KPI_STORE:
+    save_kpi_payload = session.config.getoption("--save_kpi_payload")
+    if save_kpi_payload:
         print("Saving KPI data...")
         utils.output_payloads(GLOBAL_KPI_STORE)
-    else:
-        print("No KPI data to save.")
+
