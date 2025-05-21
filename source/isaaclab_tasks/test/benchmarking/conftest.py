@@ -101,4 +101,3 @@ def pytest_sessionfinish(session, exitstatus):
     if save_kpi_payload:
         print("Saving KPI data...")
         utils.output_payloads(GLOBAL_KPI_STORE)
-

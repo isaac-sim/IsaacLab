@@ -1,6 +1,6 @@
-# mode for quick functional testing without checking thresholds
+# mode for very simple functional testing without checking thresholds
 fast_test:
-  Isaac-Ant-v0:
+  rl_games:Isaac-Ant-v0:
     max_iterations: 10
     lower_thresholds:
       reward: -99999

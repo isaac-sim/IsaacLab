@@ -109,7 +109,7 @@ def test_train_environments(workflow, task_spec, config_path, mode, num_gpus, kp
     print(f">>> Trained {job_name} success flag: {success_flag}.")
     print("-" * 80)
 
-    # Save KPI if requested
+    # Save KPI
     kpi_store[job_name] = kpi_payload
 
     # Verify job was successful
