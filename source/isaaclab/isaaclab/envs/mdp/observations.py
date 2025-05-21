@@ -683,24 +683,27 @@ Actions.
 
 
 @configclass
-class ActionIODescriptor(IODescriptor):
-    observation_type: str = "Action"
+class GenericIODescriptor(IODescriptor):
+    observation_type: str = None
+    
 
-def root_state_io_descriptor(descriptor: RootStateIODescriptor):
+def generic_io_descriptor(descriptor: GenericIODescriptor):
     def decorator(func):
-        def wrapper(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"), inspect: bool = False):
+        def wrapper(env: ManagerBasedEnv, *args, inspect: bool = False, **kwargs):
             if inspect:
-                out = func(env, asset_cfg)
+                out = func(env, *args, **kwargs)
                 descriptor.shape = (out.shape[-1],)
                 return out
             else:
-                return func(env, asset_cfg)
+                return func(env, *args, **kwargs)
         descriptor.name = func.__name__
         wrapper._has_descriptor = True
         wrapper._descriptor = descriptor
         return wrapper
     return decorator
 
+
+@generic_io_descriptor(GenericIODescriptor(description="The last input action to the environment.", dtype=torch.float32, observation_type="Action"))
 def last_action(env: ManagerBasedEnv, action_name: str | None = None) -> torch.Tensor:
     """The last input action to the environment.
 
@@ -718,7 +721,8 @@ Commands.
 """
 
 
-def generated_commands(env: ManagerBasedRLEnv, command_name: str) -> torch.Tensor:
+@generic_io_descriptor(GenericIODescriptor(description="The generated command term in the command manager.", dtype=torch.float32, observation_type="Command"))
+def generated_commands(env: ManagerBasedRLEnv, command_name: str | None = None) -> torch.Tensor:
     """The generated command from command term in the command manager with the given name."""
     return env.command_manager.get_command(command_name)
 
