@@ -82,8 +82,6 @@ class AssemblyEnv(DirectRLEnv):
             self.gp = automate_algo.model_succ_w_gp(eval_held_asset_pose, eval_fixed_asset_pose, eval_success)
         elif self.cfg_task.sample_from == "gmm":
             self.gmm = automate_algo.model_succ_w_gmm(eval_held_asset_pose, eval_fixed_asset_pose, eval_success)
-        # elif self.cfg_task.sample_from == 'idv':
-        # self.cfg_task.if_sbc = False
 
     def _init_eval_logging(self):
 
@@ -273,8 +271,6 @@ class AssemblyEnv(DirectRLEnv):
 
         self._robot = Articulation(self.cfg.robot)
         self._fixed_asset = Articulation(self.cfg_task.fixed_asset)
-        # self._held_asset = Articulation(self.cfg_task.held_asset)
-        # self._fixed_asset = RigidObject(self.cfg_task.fixed_asset)
         self._held_asset = RigidObject(self.cfg_task.held_asset)
 
         self.scene.clone_environments(copy_from_source=False)
@@ -282,8 +278,6 @@ class AssemblyEnv(DirectRLEnv):
 
         self.scene.articulations["robot"] = self._robot
         self.scene.articulations["fixed_asset"] = self._fixed_asset
-        # self.scene.articulations["held_asset"] = self._held_asset
-        # self.scene.rigid_objects["fixed_asset"] = self._fixed_asset
         self.scene.rigid_objects["held_asset"] = self._held_asset
 
         # add lights
@@ -370,9 +364,6 @@ class AssemblyEnv(DirectRLEnv):
 
     def _get_observations(self):
         """Get actor/critic inputs using asymmetric critic."""
-        # noisy_fixed_pos = self.fixed_pos_obs_frame + self.init_fixed_pos_obs_noise
-
-        # prev_actions = self.actions.clone()
 
         obs_dict = {
             "joint_pos": self.joint_pos[:, 0:7],
@@ -586,7 +577,6 @@ class AssemblyEnv(DirectRLEnv):
                 )
 
             self.extras["curr_max_disp"] = self.curr_max_disp
-            print("success", torch.mean(self.ep_succeeded.float()))
             wandb.log({
                 "success": torch.mean(self.ep_succeeded.float()),
                 "reward": torch.mean(rew_buf),
@@ -758,8 +748,6 @@ class AssemblyEnv(DirectRLEnv):
 
     def _set_franka_to_default_pose(self, joints, env_ids):
         """Return Franka to its default joint position."""
-        # gripper_width = self.cfg_task.held_asset_cfg.diameter / 2 * 1.25
-        # gripper_width = self.cfg_task.hand_width_max / 3.0
         gripper_width = self.gripper_open_width
         joint_pos = self._robot.data.default_joint_pos[env_ids]
         joint_pos[:, 7:] = gripper_width  # MIMIC
@@ -767,7 +755,6 @@ class AssemblyEnv(DirectRLEnv):
         joint_vel = torch.zeros_like(joint_pos)
         joint_effort = torch.zeros_like(joint_pos)
         self.ctrl_target_joint_pos[env_ids, :] = joint_pos
-        print(f"Resetting {len(env_ids)} envs...")
         self._robot.set_joint_position_target(self.ctrl_target_joint_pos[env_ids], env_ids=env_ids)
         self._robot.write_joint_state_to_sim(joint_pos, joint_vel, env_ids=env_ids)
         self._robot.reset()
@@ -848,11 +835,8 @@ class AssemblyEnv(DirectRLEnv):
                     self.gp, held_asset_init_candidates.cpu().detach().numpy(), len(env_ids), self.device
                 )
 
-                # self.curriculum_disp = self.cfg_task.curriculum_height_bound[0] * torch.ones((self.num_envs,), dtype=torch.float32, device=self.device)
-
             if self.cfg_task.sample_from == "gmm":
                 self.held_pos_init_rand = automate_algo.sample_rel_pos_from_gmm(self.gmm, len(env_ids), self.device)
-                # self.curriculum_disp = self.cfg_task.curriculum_height_bound[0] * torch.ones((self.num_envs,), dtype=torch.float32, device=self.device)
 
         # Set plug pos to assembled state, but offset plug Z-coordinate by height of socket,
         # minus curriculum displacement
@@ -861,9 +845,6 @@ class AssemblyEnv(DirectRLEnv):
         held_state[env_ids, 3:7] = self.fixed_quat[env_ids].clone()
         held_state[env_ids, 7:] = 0.0
 
-        # held_state[env_ids, 2] += self.cfg_task.fixed_asset_cfg.height
-        # held_state[env_ids, 2] += self.cfg_task.fixed_asset_cfg.base_height
-        # held_state[env_ids, 2] += self.disassembly_dists
         held_state[env_ids, 2] += self.curriculum_disp
 
         plug_in_freespace_idx = torch.argwhere(self.curriculum_disp > self.disassembly_dists)
@@ -934,4 +915,3 @@ class AssemblyEnv(DirectRLEnv):
         self._set_gains(self.default_gains)
 
         physics_sim_view.set_gravity(carb.Float3(*self.cfg.sim.gravity))
-        print("Done Reset")

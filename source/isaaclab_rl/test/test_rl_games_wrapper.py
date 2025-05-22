@@ -36,6 +36,9 @@ def registered_tasks():
     for task_spec in gym.registry.values():
         if "Isaac" in task_spec.id:
             cfg_entry_point = gym.spec(task_spec.id).kwargs.get("rl_games_cfg_entry_point")
+            # skip automate environments as it requires running a special
+            if task_spec.id in ["Isaac-Assembly-Direct-v0", "Isaac-Disassembly-Direct-v0"]:
+                continue
             if cfg_entry_point is not None:
                 registered_tasks.append(task_spec.id)
     # sort environments by name

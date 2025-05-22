@@ -68,6 +68,9 @@ def test_environments(task_name, num_envs, device):
         "Isaac-Stack-Cube-Franka-IK-Rel-Visuomotor-v0",
     ]:
         return
+    # skip automate environments as it requires running a special
+    if task_name in ["Isaac-Assembly-Direct-v0", "Isaac-Disassembly-Direct-v0"]:
+        return
     print(f">>> Running test for environment: {task_name}")
     _check_random_actions(task_name, device, num_envs, num_steps=100)
     print(f">>> Closing environment: {task_name}")
