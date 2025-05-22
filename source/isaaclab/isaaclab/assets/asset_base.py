@@ -7,11 +7,13 @@ from __future__ import annotations
 
 import inspect
 import re
+import torch
 import weakref
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
+import isaacsim.core.utils.prims as prim_utils
 import omni.kit.app
 import omni.timeline
 from isaacsim.core.simulation_manager import SimulationManager
@@ -161,6 +163,36 @@ class AssetBase(ABC):
     """
     Operations.
     """
+
+    def set_visibility(self, visible: bool, env_ids: Sequence[int] | None = None):
+        """Set the visibility of the prims corresponding to the asset.
+
+        This operation affects the visibility of the prims corresponding to the asset in the USD stage.
+        It is useful for toggling the visibility of the asset in the simulator. For instance, one can
+        hide the asset when it is not being used to reduce the rendering overhead.
+
+        Note:
+            This operation uses the PXR API to set the visibility of the prims. Thus, the operation
+            may have an overhead if the number of prims is large.
+
+        Args:
+            visible: Whether to make the prims visible or not.
+            env_ids: The indices of the object to set visibility. Defaults to None (all instances).
+        """
+        # resolve the environment ids
+        if env_ids is None:
+            env_ids = range(len(self._prims))
+        elif isinstance(env_ids, torch.Tensor):
+            env_ids = env_ids.detach().cpu().tolist()
+
+        # obtain the prims corresponding to the asset
+        # note: we only want to find the prims once since this is a costly operation
+        if not hasattr(self, "_prims"):
+            self._prims = sim_utils.find_matching_prims(self.cfg.prim_path)
+
+        # iterate over the environment ids
+        for env_id in env_ids:
+            prim_utils.set_prim_visibility(self._prims[env_id], visible)
 
     def set_debug_vis(self, debug_vis: bool) -> bool:
         """Sets whether to visualize the asset data.

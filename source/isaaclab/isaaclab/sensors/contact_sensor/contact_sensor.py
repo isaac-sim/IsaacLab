@@ -326,7 +326,7 @@ class ContactSensor(SensorBase):
         # obtain the contact forces
         # TODO: We are handling the indexing ourself because of the shape; (N, B) vs expected (N * B).
         #   This isn't the most efficient way to do this, but it's the easiest to implement.
-        net_forces_w = self.contact_physx_view.get_net_contact_forces(dt=self._dt)
+        net_forces_w = self.contact_physx_view.get_net_contact_forces(dt=self._sim_physics_dt)
         self._data.net_forces_w[env_ids, :, :] = net_forces_w.view(-1, self._num_bodies, 3)[env_ids]
         # update contact force history
         if self.cfg.history_length > 0:
@@ -338,7 +338,7 @@ class ContactSensor(SensorBase):
             # shape of the filtering matrix: (num_envs, num_bodies, num_filter_shapes, 3)
             num_filters = self.contact_physx_view.filter_count
             # acquire and shape the force matrix
-            force_matrix_w = self.contact_physx_view.get_contact_force_matrix(dt=self._dt)
+            force_matrix_w = self.contact_physx_view.get_contact_force_matrix(dt=self._sim_physics_dt)
             force_matrix_w = force_matrix_w.view(-1, self._num_bodies, num_filters, 3)
             self._data.force_matrix_w[env_ids] = force_matrix_w[env_ids]
 
