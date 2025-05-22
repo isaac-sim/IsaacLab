@@ -55,13 +55,20 @@ fast:
       episode_length: 250
     upper_thresholds:
       duration: 600
-  rsl_rl:Isaac-Velocity-Rough-Cassie-v0:
+  rsl_rl:Isaac-Velocity-Rough-Anymal-C-v0:
     max_iterations: 300
     lower_thresholds:
       reward: 7
       episode_length: 900
     upper_thresholds:
       duration: 1200
+  rl_games:Isaac-Repose-Cube-Allegro-Direct-v0:
+    max_iterations: 500
+    lower_thresholds:
+      reward: 200
+      episode_length: 150
+    upper_thresholds:
+      duration: 1500
 
 
 # mode for weekly CI

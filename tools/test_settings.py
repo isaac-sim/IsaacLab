@@ -30,6 +30,7 @@ PER_TEST_TIMEOUTS = {
     "test_skrl_wrapper.py": 200,
     "test_operational_space.py": 300,
     "test_terrain_importer.py": 200,
+    "test_environments_training.py": 5000,
 }
 """A dictionary of tests and their timeouts in seconds.
 
@@ -46,7 +47,6 @@ TESTS_TO_SKIP = [
     # lab_tasks
     "test_record_video.py",  # Failing
     "test_tiled_camera_env.py",  # Need to improve the logic
-    "test_environments_training.py",  # Large load, will be manually triggered
 ]
 """A list of tests to skip by run_tests.py"""
 
