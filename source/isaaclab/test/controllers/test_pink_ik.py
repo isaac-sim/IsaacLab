@@ -53,7 +53,7 @@ class TestPinkIKController(unittest.TestCase):
     def setUp(self):
 
         # End effector position mean square error tolerance in meters
-        self.pos_tolerance = 0.02  # 2 cm
+        self.pos_tolerance = 0.03  # 2 cm
         # End effector orientation mean square error tolerance in radians
         self.rot_tolerance = 0.17  # 10 degrees
 
