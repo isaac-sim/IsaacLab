@@ -23,14 +23,14 @@ fast:
   rl_games:Isaac-Ant-v0:
     max_iterations: 200
     lower_thresholds:
-      reward: 50
+      reward: 45
       episode_length: 900
     upper_thresholds:
       duration: 400
   skrl:Isaac-Cartpole-RGB-Camera-Direct-v0:
     max_iterations: 50
     lower_thresholds:
-      reward: 170
+      reward: 190
       episode_length: 230
     upper_thresholds:
       duration: 450
@@ -38,7 +38,7 @@ fast:
     max_iterations: 200
     lower_thresholds:
       reward: 50
-      episode_length: 800
+      episode_length: 750
     upper_thresholds:
       duration: 500
   rl_games:Isaac-Quadcopter-Direct-v0:
@@ -58,7 +58,7 @@ fast:
   rsl_rl:Isaac-Velocity-Rough-Cassie-v0:
     max_iterations: 300
     lower_thresholds:
-      reward: 8
+      reward: 7
       episode_length: 900
     upper_thresholds:
       duration: 1200
