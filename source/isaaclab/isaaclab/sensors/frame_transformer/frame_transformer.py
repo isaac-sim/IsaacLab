@@ -423,47 +423,6 @@ class FrameTransformer(SensorBase):
         self._data.target_pos_source[:] = target_pos_source.view(-1, total_num_frames, 3)
         self._data.target_quat_source[:] = target_quat_source.view(-1, total_num_frames, 4)
 
-    def _draw_lines(self, source_pos, target_pos):
-        # Calculate the direction vector and length
-        direction = target_pos - source_pos
-        length = torch.norm(direction, dim=-1)
-
-        # Calculate midpoint
-        midpoint = (source_pos + target_pos) / 2
-
-        # Get default direction (along z-axis)
-        default_direction = torch.tensor([0.0, 0.0, 1.0], device=self.device).expand(source_pos.size(0), -1)
-
-        # Normalize direction vector
-        direction_norm = normalize(direction)
-
-        # Calculate rotation from default direction to target direction
-        rotation_axis = torch.linalg.cross(default_direction, direction_norm)
-        rotation_axis_norm = torch.norm(rotation_axis, dim=-1)
-
-        # Handle case where vectors are parallel
-        mask = rotation_axis_norm > 1e-6
-        rotation_axis = torch.where(
-            mask.unsqueeze(-1),
-            normalize(rotation_axis),
-            torch.tensor([1.0, 0.0, 0.0], device=self.device).expand(source_pos.size(0), -1),
-        )
-
-        # Calculate rotation angle
-        cos_angle = torch.sum(default_direction * direction_norm, dim=-1)
-        cos_angle = torch.clamp(cos_angle, -1.0, 1.0)
-        angle = torch.acos(cos_angle)
-
-        # Convert to quaternion
-        quat = quat_from_angle_axis(angle, rotation_axis)
-
-        # Set scale (height of the cylinder)
-        scale = torch.ones((source_pos.size(0), 3), device=self.device)
-        scale[:, 2] = length  # Scale along z-axis
-
-        # Visualize the line
-        self._line_visualizer.visualize(translations=midpoint, orientations=quat, scales=scale)
-
     def _set_debug_vis_impl(self, debug_vis: bool):
         # set visibility of markers
         # note: parent only deals with callbacks. not their visibility
@@ -510,3 +469,48 @@ class FrameTransformer(SensorBase):
         super()._invalidate_initialize_callback(event)
         # set all existing views to None to invalidate them
         self._frame_physx_view = None
+
+    """
+    Internal helpers.
+    """
+
+    def _draw_lines(self, source_pos: torch.Tensor, target_pos: torch.Tensor):
+        # Calculate the direction vector and length
+        direction = target_pos - source_pos
+        length = torch.norm(direction, dim=-1)
+
+        # Calculate midpoint
+        midpoint = (source_pos + target_pos) / 2
+
+        # Get default direction (along z-axis)
+        default_direction = torch.tensor([0.0, 0.0, 1.0], device=self.device).expand(source_pos.size(0), -1)
+
+        # Normalize direction vector
+        direction_norm = normalize(direction)
+
+        # Calculate rotation from default direction to target direction
+        rotation_axis = torch.linalg.cross(default_direction, direction_norm)
+        rotation_axis_norm = torch.norm(rotation_axis, dim=-1)
+
+        # Handle case where vectors are parallel
+        mask = rotation_axis_norm > 1e-6
+        rotation_axis = torch.where(
+            mask.unsqueeze(-1),
+            normalize(rotation_axis),
+            torch.tensor([1.0, 0.0, 0.0], device=self.device).expand(source_pos.size(0), -1),
+        )
+
+        # Calculate rotation angle
+        cos_angle = torch.sum(default_direction * direction_norm, dim=-1)
+        cos_angle = torch.clamp(cos_angle, -1.0, 1.0)
+        angle = torch.acos(cos_angle)
+
+        # Convert to quaternion
+        quat = quat_from_angle_axis(angle, rotation_axis)
+
+        # Set scale (height of the cylinder)
+        scale = torch.ones((source_pos.size(0), 3), device=self.device)
+        scale[:, 2] = length  # Scale along z-axis
+
+        # Visualize the line
+        self._line_visualizer.visualize(translations=midpoint, orientations=quat, scales=scale)
