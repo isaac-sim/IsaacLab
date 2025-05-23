@@ -40,6 +40,9 @@ def registered_tasks():
         if "Isaac" in task_spec.id:
             cfg_entry_point = gym.spec(task_spec.id).kwargs.get("rl_games_cfg_entry_point")
             if cfg_entry_point is not None:
+                # skip automate environments as they require cuda installation
+                if "assembly" in task_spec.id.lower():
+                    continue
                 registered_tasks.append(task_spec.id)
     # sort environments by name
     registered_tasks.sort()

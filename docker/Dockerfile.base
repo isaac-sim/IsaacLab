@@ -63,12 +63,6 @@ RUN --mount=type=cache,target=/var/cache/apt \
     apt -y autoremove && apt clean autoclean && \
     rm -rf /var/lib/apt/lists/*
 
-# Install cuda 12.8 for AutoMate environments
-RUN wget https://developer.download.nvidia.com/compute/cuda/12.8.0/local_installers/cuda_12.8.0_570.86.10_linux.run && \
-    sh cuda_12.8.0_570.86.10_linux.run --toolkit --silent && \
-    export PATH=/usr/local/cuda-12.0/bin${PATH:+:${PATH}} && \
-    export LD_LIBRARY_PATH=/usr/local/cuda-12.0/lib64${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}
-
 # for singularity usage, have to create the directories that will binded
 RUN mkdir -p ${ISAACSIM_ROOT_PATH}/kit/cache && \
     mkdir -p ${DOCKER_USER_HOME}/.cache/ov && \

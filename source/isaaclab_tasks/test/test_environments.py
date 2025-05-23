@@ -71,6 +71,9 @@ def test_environments(task_name, num_envs, device):
         "Isaac-Stack-Cube-Franka-IK-Rel-Visuomotor-v0",
     ]:
         return
+    # skip automate environments as they require cuda installation
+    if task_name in ["Isaac-Assembly-Direct-v0", "Isaac-Disassembly-Direct-v0"]:
+        return
     # skip hanging test for now
     if task_name == "Isaac-Cartpole-RGB-TheiaTiny-v0":
         return
