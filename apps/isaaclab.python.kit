@@ -128,6 +128,9 @@ omni.replicator.asyncRendering = false # Async rendering must be disabled for SD
 exts."omni.kit.test".includeTests = ["*isaac*"] # Add isaac tests to test runner
 foundation.verifyOsVersion.enabled = false
 
+# disable the metrics assembler change listener, we don't want to do any runtime changes
+metricsAssembler.changeListenerEnabled = false
+
 # set the default ros bridge to disable on startup
 isaac.startup.ros_bridge_extension = ""
 

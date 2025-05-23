@@ -84,6 +84,9 @@ app.audio.enabled = false
 # disable replicator orchestrator for better runtime perf
 exts."omni.replicator.core".Orchestrator.enabled = false
 
+# disable the metrics assembler change listener, we don't want to do any runtime changes
+metricsAssembler.changeListenerEnabled = false
+
 [settings.physics]
 updateToUsd = false
 updateParticlesToUsd = false
