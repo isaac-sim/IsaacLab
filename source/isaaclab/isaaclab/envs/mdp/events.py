@@ -393,6 +393,7 @@ def randomize_rigid_body_com(
     # Set the new coms
     asset.root_physx_view.set_coms(coms, env_ids)
 
+
 def randomize_rigid_body_collider_offsets(
     env: ManagerBasedEnv,
     env_ids: torch.Tensor | None,
