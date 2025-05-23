@@ -542,6 +542,7 @@
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
 
+<span class="kn">import</span><span class="w"> </span><span class="nn">builtins</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">inspect</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">re</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
@@ -553,7 +554,7 @@
 <span class="kn">import</span><span class="w"> </span><span class="nn">isaacsim.core.utils.prims</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">prim_utils</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">omni.kit.app</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">omni.timeline</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">isaacsim.core.simulation_manager</span><span class="w"> </span><span class="kn">import</span> <span class="n">SimulationManager</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaacsim.core.simulation_manager</span><span class="w"> </span><span class="kn">import</span> <span class="n">IsaacEvents</span><span class="p">,</span> <span class="n">SimulationManager</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab.sim</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">sim_utils</span>
 
@@ -639,6 +640,9 @@
             <span class="k">lambda</span> <span class="n">event</span><span class="p">,</span> <span class="n">obj</span><span class="o">=</span><span class="n">weakref</span><span class="o">.</span><span class="n">proxy</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span> <span class="n">obj</span><span class="o">.</span><span class="n">_invalidate_initialize_callback</span><span class="p">(</span><span class="n">event</span><span class="p">),</span>
             <span class="n">order</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span>
         <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_prim_deletion_callback_id</span> <span class="o">=</span> <span class="n">SimulationManager</span><span class="o">.</span><span class="n">register_callback</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_on_prim_deletion</span><span class="p">,</span> <span class="n">event</span><span class="o">=</span><span class="n">IsaacEvents</span><span class="o">.</span><span class="n">PRIM_DELETION</span>
+        <span class="p">)</span>
         <span class="c1"># add handle for debug visualization (this is set to a valid handle inside set_debug_vis)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_debug_vis_handle</span> <span class="o">=</span> <span class="kc">None</span>
         <span class="c1"># set initial state of debug visualization</span>
@@ -646,17 +650,8 @@
 
     <span class="k">def</span><span class="w"> </span><span class="fm">__del__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Unsubscribe from the callbacks.&quot;&quot;&quot;</span>
-        <span class="c1"># clear physics events handles</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_initialize_handle</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_initialize_handle</span><span class="o">.</span><span class="n">unsubscribe</span><span class="p">()</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_initialize_handle</span> <span class="o">=</span> <span class="kc">None</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_invalidate_initialize_handle</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_invalidate_initialize_handle</span><span class="o">.</span><span class="n">unsubscribe</span><span class="p">()</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_invalidate_initialize_handle</span> <span class="o">=</span> <span class="kc">None</span>
-        <span class="c1"># clear debug visualization</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_debug_vis_handle</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_debug_vis_handle</span><span class="o">.</span><span class="n">unsubscribe</span><span class="p">()</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_debug_vis_handle</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="c1"># clear events handles</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_clear_callbacks</span><span class="p">()</span>
 
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Properties</span>
@@ -825,10 +820,15 @@
 <span class="sd">            called whenever the simulator &quot;plays&quot; from a &quot;stop&quot; state.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_is_initialized</span><span class="p">:</span>
+            <span class="c1"># obtain simulation related information</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_backend</span> <span class="o">=</span> <span class="n">SimulationManager</span><span class="o">.</span><span class="n">get_backend</span><span class="p">()</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_device</span> <span class="o">=</span> <span class="n">SimulationManager</span><span class="o">.</span><span class="n">get_physics_sim_device</span><span class="p">()</span>
             <span class="c1"># initialize the asset</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_initialize_impl</span><span class="p">()</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_initialize_impl</span><span class="p">()</span>
+            <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">builtins</span><span class="o">.</span><span class="n">ISAACLAB_CALLBACK_EXCEPTION</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="n">builtins</span><span class="o">.</span><span class="n">ISAACLAB_CALLBACK_EXCEPTION</span> <span class="o">=</span> <span class="n">e</span>
             <span class="c1"># set flag</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_is_initialized</span> <span class="o">=</span> <span class="kc">True</span>
 
@@ -836,6 +836,40 @@
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Invalidates the scene elements.&quot;&quot;&quot;</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_is_initialized</span> <span class="o">=</span> <span class="kc">False</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_debug_vis_handle</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_debug_vis_handle</span><span class="o">.</span><span class="n">unsubscribe</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_debug_vis_handle</span> <span class="o">=</span> <span class="kc">None</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_on_prim_deletion</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">prim_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Invalidates and deletes the callbacks when the prim is deleted.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            prim_path: The path to the prim that is being deleted.</span>
+
+<span class="sd">        Note:</span>
+<span class="sd">            This function is called when the prim is deleted.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">prim_path</span> <span class="o">==</span> <span class="s2">&quot;/&quot;</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_clear_callbacks</span><span class="p">()</span>
+            <span class="k">return</span>
+        <span class="n">result</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">match</span><span class="p">(</span>
+            <span class="n">pattern</span><span class="o">=</span><span class="s2">&quot;^&quot;</span> <span class="o">+</span> <span class="s2">&quot;/&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">prim_path</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;/&quot;</span><span class="p">)[:</span> <span class="n">prim_path</span><span class="o">.</span><span class="n">count</span><span class="p">(</span><span class="s2">&quot;/&quot;</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span><span class="p">])</span> <span class="o">+</span> <span class="s2">&quot;$&quot;</span><span class="p">,</span> <span class="n">string</span><span class="o">=</span><span class="n">prim_path</span>
+        <span class="p">)</span>
+        <span class="k">if</span> <span class="n">result</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_clear_callbacks</span><span class="p">()</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_clear_callbacks</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Clears the callbacks.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_prim_deletion_callback_id</span><span class="p">:</span>
+            <span class="n">SimulationManager</span><span class="o">.</span><span class="n">deregister_callback</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_prim_deletion_callback_id</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_prim_deletion_callback_id</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_initialize_handle</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_initialize_handle</span><span class="o">.</span><span class="n">unsubscribe</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_initialize_handle</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_invalidate_initialize_handle</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_invalidate_initialize_handle</span><span class="o">.</span><span class="n">unsubscribe</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_invalidate_initialize_handle</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="c1"># clear debug visualization</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_debug_vis_handle</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_debug_vis_handle</span><span class="o">.</span><span class="n">unsubscribe</span><span class="p">()</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_debug_vis_handle</span> <span class="o">=</span> <span class="kc">None</span></div>
 </pre></div>

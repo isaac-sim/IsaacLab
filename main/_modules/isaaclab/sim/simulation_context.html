@@ -748,7 +748,11 @@
         <span class="c1">#   you can reproduce the issue by commenting out this line and running the test `test_articulation.py`.</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_gravity_tensor</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">gravity</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
 
-        <span class="c1"># add a callback to keep rendering when a stop is triggered through different GUI commands like (save as)</span>
+        <span class="c1"># define a global variable to store the exceptions raised in the callback stack</span>
+        <span class="n">builtins</span><span class="o">.</span><span class="n">ISAACLAB_CALLBACK_EXCEPTION</span> <span class="o">=</span> <span class="kc">None</span>
+
+        <span class="c1"># add callback to deal the simulation app when simulation is stopped.</span>
+        <span class="c1"># this is needed because physics views go invalid once we stop the simulation</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="n">builtins</span><span class="o">.</span><span class="n">ISAAC_LAUNCHED_FROM_TERMINAL</span><span class="p">:</span>
             <span class="n">timeline_event_stream</span> <span class="o">=</span> <span class="n">omni</span><span class="o">.</span><span class="n">timeline</span><span class="o">.</span><span class="n">get_timeline_interface</span><span class="p">()</span><span class="o">.</span><span class="n">get_timeline_event_stream</span><span class="p">()</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_app_control_on_stop_handle</span> <span class="o">=</span> <span class="n">timeline_event_stream</span><span class="o">.</span><span class="n">create_subscription_to_pop_by_type</span><span class="p">(</span>
@@ -1050,6 +1054,11 @@
 
     <span class="k">def</span><span class="w"> </span><span class="nf">reset</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">soft</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_disable_app_control_on_stop_handle</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="c1"># check if we need to raise an exception that was raised in a callback</span>
+        <span class="k">if</span> <span class="n">builtins</span><span class="o">.</span><span class="n">ISAACLAB_CALLBACK_EXCEPTION</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">exception_to_raise</span> <span class="o">=</span> <span class="n">builtins</span><span class="o">.</span><span class="n">ISAACLAB_CALLBACK_EXCEPTION</span>
+            <span class="n">builtins</span><span class="o">.</span><span class="n">ISAACLAB_CALLBACK_EXCEPTION</span> <span class="o">=</span> <span class="kc">None</span>
+            <span class="k">raise</span> <span class="n">exception_to_raise</span>
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">reset</span><span class="p">(</span><span class="n">soft</span><span class="o">=</span><span class="n">soft</span><span class="p">)</span>
         <span class="c1"># app.update() may be changing the cuda device in reset, so we force it back to our desired device here</span>
         <span class="k">if</span> <span class="s2">&quot;cuda&quot;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">:</span>
@@ -1074,6 +1083,11 @@
 <span class="sd">            render: Whether to render the scene after stepping the physics simulation.</span>
 <span class="sd">                    If set to False, the scene is not rendered and only the physics simulation is stepped.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># check if we need to raise an exception that was raised in a callback</span>
+        <span class="k">if</span> <span class="n">builtins</span><span class="o">.</span><span class="n">ISAACLAB_CALLBACK_EXCEPTION</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">exception_to_raise</span> <span class="o">=</span> <span class="n">builtins</span><span class="o">.</span><span class="n">ISAACLAB_CALLBACK_EXCEPTION</span>
+            <span class="n">builtins</span><span class="o">.</span><span class="n">ISAACLAB_CALLBACK_EXCEPTION</span> <span class="o">=</span> <span class="kc">None</span>
+            <span class="k">raise</span> <span class="n">exception_to_raise</span>
         <span class="c1"># check if the simulation timeline is paused. in that case keep stepping until it is playing</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_playing</span><span class="p">():</span>
             <span class="c1"># step the simulator (but not the physics) to have UI still active</span>
@@ -1107,6 +1121,11 @@
 <span class="sd">        Args:</span>
 <span class="sd">            mode: The rendering mode. Defaults to None, in which case the current rendering mode is used.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># check if we need to raise an exception that was raised in a callback</span>
+        <span class="k">if</span> <span class="n">builtins</span><span class="o">.</span><span class="n">ISAACLAB_CALLBACK_EXCEPTION</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">exception_to_raise</span> <span class="o">=</span> <span class="n">builtins</span><span class="o">.</span><span class="n">ISAACLAB_CALLBACK_EXCEPTION</span>
+            <span class="n">builtins</span><span class="o">.</span><span class="n">ISAACLAB_CALLBACK_EXCEPTION</span> <span class="o">=</span> <span class="kc">None</span>
+            <span class="k">raise</span> <span class="n">exception_to_raise</span>
         <span class="c1"># check if we need to change the render mode</span>
         <span class="k">if</span> <span class="n">mode</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">set_render_mode</span><span class="p">(</span><span class="n">mode</span><span class="p">)</span>
@@ -1377,6 +1396,11 @@
         <span class="c1"># Clear the stage</span>
         <span class="n">sim</span><span class="o">.</span><span class="n">clear_all_callbacks</span><span class="p">()</span>
         <span class="n">sim</span><span class="o">.</span><span class="n">clear_instance</span><span class="p">()</span>
+        <span class="c1"># check if we need to raise an exception that was raised in a callback</span>
+        <span class="k">if</span> <span class="n">builtins</span><span class="o">.</span><span class="n">ISAACLAB_CALLBACK_EXCEPTION</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">exception_to_raise</span> <span class="o">=</span> <span class="n">builtins</span><span class="o">.</span><span class="n">ISAACLAB_CALLBACK_EXCEPTION</span>
+            <span class="n">builtins</span><span class="o">.</span><span class="n">ISAACLAB_CALLBACK_EXCEPTION</span> <span class="o">=</span> <span class="kc">None</span>
+            <span class="k">raise</span> <span class="n">exception_to_raise</span>
 </pre></div>
 
                 </article>
