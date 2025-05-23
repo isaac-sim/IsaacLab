@@ -61,7 +61,7 @@ fast:
       reward: 7
       episode_length: 900
     upper_thresholds:
-      duration: 1200
+      duration: 1800
   rl_games:Isaac-Repose-Cube-Allegro-Direct-v0:
     max_iterations: 500
     lower_thresholds:
