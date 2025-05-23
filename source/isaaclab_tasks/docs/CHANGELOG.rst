@@ -1,7 +1,7 @@
 Changelog
 ---------
 
-0.10.35 (2025-05-15)
+0.10.36 (2025-05-15)
 ~~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -11,7 +11,7 @@ Added
   implements assembly tasks to insert pegs into their corresponding sockets.
 
 
-0.10.34 (2025-05-21)
+0.10.35 (2025-05-21)
 ~~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -19,6 +19,15 @@ Added
 
 * Added unit tests for benchmarking environments with configurable settings. Output KPI payloads
   can be pushed to a visualization dashboard to track improvements or regressions.
+
+
+0.10.34 (2025-05-22)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed ``Isaac-PickPlace-GR1T2-Abs-v0`` object asset to a steering wheel.
 
 
 0.10.33 (2025-05-12)

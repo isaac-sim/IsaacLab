@@ -136,7 +136,7 @@ Pre-recorded demonstrations
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 We provide a pre-recorded ``dataset.hdf5`` containing 10 human demonstrations for ``Isaac-Stack-Cube-Franka-IK-Rel-v0``
-`here <https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.0/Isaac/IsaacLab/Mimic/dataset.hdf5>`_.
+`here <https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.0/Isaac/IsaacLab/Mimic/franka_stack_datasets/dataset.hdf5>`_.
 This dataset may be downloaded and used in the remaining tutorial steps if you do not wish to collect your own demonstrations.
 
 .. note::
@@ -307,10 +307,10 @@ By inferencing using the generated model, we can visualize the results of the po
          --checkpoint /PATH/TO/desired_model_checkpoint.pth
 
 
-Demo: Data Generation and Policy Training for a Humanoid Robot
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Demo 1: Data Generation and Policy Training for a Humanoid Robot
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/gr-1_pick_place.gif
+.. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/gr-1_steering_wheel_pick_place.gif
    :width: 100%
    :align: center
    :alt: GR-1 humanoid robot performing a pick and place task
@@ -352,11 +352,11 @@ This setup allows Isaac Lab Mimic to interpolate the right hand's trajectory acc
 Therefore, avoid moving the right hand while the left hand picks up the object and brings it to a stable position.
 
 
-.. |good_demo| image:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/gr1_pick_place_good_human_demo.gif
+.. |good_demo| image:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/gr-1_steering_wheel_pick_place_good_demo.gif
    :width: 49%
    :alt: GR-1 humanoid robot performing a good pick and place demonstration
 
-.. |bad_demo| image:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/gr1_pick_place_bad_human_demo.gif
+.. |bad_demo| image:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/gr-1_steering_wheel_pick_place_bad_demo.gif
    :width: 49%
    :alt: GR-1 humanoid robot performing a bad pick and place demonstration
 
@@ -459,7 +459,7 @@ Generate the dataset
 ^^^^^^^^^^^^^^^^^^^^
 
 If you skipped the prior collection and annotation step, download the pre-recorded annotated dataset ``dataset_annotated_gr1.hdf5`` from
-`here <https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.0/Isaac/IsaacLab/Mimic/dataset_annotated_gr1.hdf5>`_.
+`here <https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.0/Isaac/IsaacLab/Mimic/pick_place_datasets/dataset_annotated_gr1.hdf5>`_.
 Place the file under ``IsaacLab/datasets`` and run the following command to generate a new dataset with 1000 demonstrations.
 
 .. code:: bash
@@ -499,7 +499,7 @@ Visualize the results of the trained policy by running the following command, us
    --enable_pinocchio \
    --task Isaac-PickPlace-GR1T2-Abs-v0 \
    --num_rollouts 50 \
-   --horizon 250 \
+   --horizon 400 \
    --norm_factor_min <NORM_FACTOR_MIN> \
    --norm_factor_max <NORM_FACTOR_MAX> \
    --checkpoint /PATH/TO/desired_model_checkpoint.pth
@@ -507,7 +507,7 @@ Visualize the results of the trained policy by running the following command, us
 .. note::
    Change the ``NORM_FACTOR`` in the above command with the values generated in the training step.
 
-.. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/gr-1_pick_place_policy.gif
+.. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/gr-1_steering_wheel_pick_place_policy.gif
    :width: 100%
    :align: center
    :alt: GR-1 humanoid robot performing a pick and place task
@@ -516,8 +516,8 @@ Visualize the results of the trained policy by running the following command, us
    The trained policy performing the pick and place task in Isaac Lab.
 
 
-Demo: Visuomotor Policy for a Humanoid Robot
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Demo 2: Visuomotor Policy for a Humanoid Robot
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Download the Dataset
 ^^^^^^^^^^^^^^^^^^^^
@@ -525,6 +525,52 @@ Download the Dataset
 Download the pre-generated dataset from `here <https://download.isaacsim.omniverse.nvidia.com/isaaclab/dataset/generated_dataset_gr1_nut_pouring.hdf5>`_ and place it under ``IsaacLab/datasets/generated_dataset_gr1_nut_pouring.hdf5``.
 The dataset contains 1000 demonstrations of a humanoid robot performing a pouring/placing task that was
 generated using Isaac Lab Mimic for the ``Isaac-NutPour-GR1T2-Pink-IK-Abs-Mimic-v0`` task.
+
+.. hint::
+
+   If desired, data collection, annotation, and generation can be done using the same commands as the prior examples.
+   **Note that the following commands are only for your reference and are not required for this demo.**
+
+   To collect demonstrations:
+
+   .. code:: bash
+
+      ./isaaclab.sh -p scripts/tools/record_demos.py \
+      --device cpu \
+      --task Isaac-NutPour-GR1T2-Pink-IK-Abs-v0 \
+      --teleop_device handtracking \
+      --dataset_file ./datasets/dataset_gr1_nut_pouring.hdf5 \
+      --num_demos 5 --enable_pinocchio
+
+   Since this is a visuomotor environment, the ``--enable_cameras`` flag must be added to the annotation and data generation commands.
+
+   To annotate the demonstrations:
+
+   .. code:: bash
+
+      ./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/annotate_demos.py \
+      --device cpu \
+      --enable_cameras \
+      --rendering_mode balanced \
+      --task Isaac-NutPour-GR1T2-Pink-IK-Abs-Mimic-v0 \
+      --input_file ./datasets/dataset_gr1_nut_pouring.hdf5 \
+      --output_file ./datasets/dataset_annotated_gr1_nut_pouring.hdf5 --enable_pinocchio
+
+   To generate the dataset:
+
+   .. code:: bash
+
+      ./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
+      --device cpu \
+      --headless \
+      --enable_pinocchio \
+      --enable_cameras \
+      --rendering_mode balanced \
+      --task Isaac-NutPour-GR1T2-Pink-IK-Abs-Mimic-v0 \
+      --generation_num_trials 1000 \
+      --num_envs 5 \
+      --input_file ./datasets/dataset_annotated_gr1_nut_pouring.hdf5 \
+      --output_file ./datasets/generated_dataset_gr1_nut_pouring.hdf5
 
 
 Train a policy

@@ -26,15 +26,15 @@ if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
 
 
-def task_done(
+def task_done_pick_place(
     env: ManagerBasedRLEnv,
     object_cfg: SceneEntityCfg = SceneEntityCfg("object"),
     right_wrist_max_x: float = 0.26,
-    min_x: float = 0.30,
-    max_x: float = 0.95,
-    min_y: float = 0.25,
-    max_y: float = 0.66,
-    min_height: float = 1.13,
+    min_x: float = 0.40,
+    max_x: float = 0.85,
+    min_y: float = 0.35,
+    max_y: float = 0.60,
+    max_height: float = 1.10,
     min_vel: float = 0.20,
 ) -> torch.Tensor:
     """Determine if the object placement task is complete.
@@ -53,7 +53,7 @@ def task_done(
         max_x: Maximum x position of the object for task completion.
         min_y: Minimum y position of the object for task completion.
         max_y: Maximum y position of the object for task completion.
-        min_height: Minimum height (z position) of the object for task completion.
+        max_height: Maximum height (z position) of the object for task completion.
         min_vel: Minimum velocity magnitude of the object for task completion.
 
     Returns:
@@ -63,10 +63,10 @@ def task_done(
     object: RigidObject = env.scene[object_cfg.name]
 
     # Extract wheel position relative to environment origin
-    wheel_x = object.data.root_pos_w[:, 0] - env.scene.env_origins[:, 0]
-    wheel_y = object.data.root_pos_w[:, 1] - env.scene.env_origins[:, 1]
-    wheel_height = object.data.root_pos_w[:, 2] - env.scene.env_origins[:, 2]
-    wheel_vel = torch.abs(object.data.root_vel_w)
+    object_x = object.data.root_pos_w[:, 0] - env.scene.env_origins[:, 0]
+    object_y = object.data.root_pos_w[:, 1] - env.scene.env_origins[:, 1]
+    object_height = object.data.root_pos_w[:, 2] - env.scene.env_origins[:, 2]
+    object_vel = torch.abs(object.data.root_vel_w)
 
     # Get right wrist position relative to environment origin
     robot_body_pos_w = env.scene["robot"].data.body_pos_w
@@ -74,15 +74,15 @@ def task_done(
     right_wrist_x = robot_body_pos_w[:, right_eef_idx, 0] - env.scene.env_origins[:, 0]
 
     # Check all success conditions and combine with logical AND
-    done = wheel_x < max_x
-    done = torch.logical_and(done, wheel_x > min_x)
-    done = torch.logical_and(done, wheel_y < max_y)
-    done = torch.logical_and(done, wheel_y > min_y)
-    done = torch.logical_and(done, wheel_height < min_height)
+    done = object_x < max_x
+    done = torch.logical_and(done, object_x > min_x)
+    done = torch.logical_and(done, object_y < max_y)
+    done = torch.logical_and(done, object_y > min_y)
+    done = torch.logical_and(done, object_height < max_height)
     done = torch.logical_and(done, right_wrist_x < right_wrist_max_x)
-    done = torch.logical_and(done, wheel_vel[:, 0] < min_vel)
-    done = torch.logical_and(done, wheel_vel[:, 1] < min_vel)
-    done = torch.logical_and(done, wheel_vel[:, 2] < min_vel)
+    done = torch.logical_and(done, object_vel[:, 0] < min_vel)
+    done = torch.logical_and(done, object_vel[:, 1] < min_vel)
+    done = torch.logical_and(done, object_vel[:, 2] < min_vel)
 
     return done
 
@@ -108,6 +108,7 @@ def task_done_nut_pour(
 
     This function checks whether all success conditions for the task have been met:
     1. The factory nut is in the sorting bowl
+    2. The sorting beaker is in the sorting bin
     3. The sorting bowl is placed on the sorting scale
 
     Args:
