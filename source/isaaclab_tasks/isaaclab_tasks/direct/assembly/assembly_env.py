@@ -617,9 +617,9 @@ class AssemblyEnv(DirectRLEnv):
         rew_dict["curr_successes"] = curr_successes.clone().float()
 
         # Imitation Reward: Calculate reward
-        curr_eef_pos = (
-            self.fingertip_midpoint_pos - self.gripper_goal_pos
-        ).reshape(-1, 3)  # relative position instead of absolute position
+        curr_eef_pos = (self.fingertip_midpoint_pos - self.gripper_goal_pos).reshape(
+            -1, 3
+        )  # relative position instead of absolute position
         rew_dict["imitation"] = automate_algo.get_imitation_reward_from_dtw(
             self.eef_pos_traj, curr_eef_pos, self.prev_fingertip_midpoint_pos, self.soft_dtw_criterion, self.device
         )
