@@ -15,7 +15,7 @@ import omni.kit.app
 import omni.log
 import omni.physics.tensors.impl.api as physx
 import omni.timeline
-from isaacsim.core.simulation_manager import SimulationManager
+from isaacsim.core.simulation_manager import IsaacEvents, SimulationManager
 from pxr import UsdPhysics
 
 import isaaclab.sim as sim_utils
@@ -67,7 +67,7 @@ class RigidObjectCollection(AssetBase):
         self.cfg = cfg.copy()
         # flag for whether the asset is initialized
         self._is_initialized = False
-
+        self._prim_paths = []
         # spawn the rigid objects
         for rigid_object_cfg in self.cfg.rigid_objects.values():
             # check if the rigid object path is valid
@@ -88,7 +88,7 @@ class RigidObjectCollection(AssetBase):
             matching_prims = sim_utils.find_matching_prims(rigid_object_cfg.prim_path)
             if len(matching_prims) == 0:
                 raise RuntimeError(f"Could not find prim with path {rigid_object_cfg.prim_path}.")
-
+            self._prim_paths.append(rigid_object_cfg.prim_path)
         # stores object names
         self._object_names_list = []
 
@@ -106,7 +106,9 @@ class RigidObjectCollection(AssetBase):
             lambda event, obj=weakref.proxy(self): obj._invalidate_initialize_callback(event),
             order=10,
         )
-
+        self._prim_deletion_callback_id = SimulationManager.register_callback(
+            self._on_prim_deletion, event=IsaacEvents.PRIM_DELETION
+        )
         self._debug_vis_handle = None
 
     """
@@ -688,3 +690,23 @@ class RigidObjectCollection(AssetBase):
         super()._invalidate_initialize_callback(event)
         # set all existing views to None to invalidate them
         self._root_physx_view = None
+
+    def _on_prim_deletion(self, prim_path: str) -> None:
+        """Invalidates and deletes the callbacks when the prim is deleted.
+
+        Args:
+            prim_path: The path to the prim that is being deleted.
+
+        Note:
+            This function is called when the prim is deleted.
+        """
+        if prim_path == "/":
+            self._clear_callbacks()
+            return
+        for prim_path_expr in self._prim_paths:
+            result = re.match(
+                pattern="^" + "/".join(prim_path_expr.split("/")[: prim_path.count("/") + 1]) + "$", string=prim_path
+            )
+            if result:
+                self._clear_callbacks()
+                return
