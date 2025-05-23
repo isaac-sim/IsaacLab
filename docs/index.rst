@@ -104,6 +104,7 @@ Table of Contents
    source/overview/environments
    source/overview/reinforcement-learning/index
    source/overview/teleop_imitation
+   source/overview/augmented_imitation
    source/overview/showroom
    source/overview/simple_agents
 

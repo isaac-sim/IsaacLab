@@ -69,6 +69,7 @@ def test_environments(task_name, num_envs, device):
         "Isaac-Stack-Cube-Instance-Randomize-Franka-IK-Rel-v0",
         "Isaac-Stack-Cube-Instance-Randomize-Franka-v0",
         "Isaac-Stack-Cube-Franka-IK-Rel-Visuomotor-v0",
+        "Isaac-Stack-Cube-Franka-IK-Rel-Visuomotor-Cosmos-v0",
     ]:
         return
     # skip automate environments as they require cuda installation

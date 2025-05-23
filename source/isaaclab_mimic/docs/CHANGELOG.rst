@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+1.0.9 (2025-05-20)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``Isaac-Stack-Cube-Franka-IK-Rel-Visuomotor-Cosmos-Mimic-v0`` environment for Cosmos vision stacking.
+
+
 1.0.8 (2025-05-01)
 ~~~~~~~~~~~~~~~~~~
 
