@@ -30,6 +30,7 @@ PER_TEST_TIMEOUTS = {
     "test_skrl_wrapper.py": 200,
     "test_operational_space.py": 300,
     "test_terrain_importer.py": 200,
+    "test_environments_training.py": 5000,
 }
 """A dictionary of tests and their timeouts in seconds.
 
