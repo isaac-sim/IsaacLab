@@ -1,6 +1,29 @@
 Changelog
 ---------
 
+
+0.39.7 (2025-05-21)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed issue where timestamp is not invalidated after direct write to state in methods
+  :meth:`~isaaclab.assets.rigid_object.RigidObject.write_root_pose_to_sim` and
+  :meth:`~isaaclab.assets.rigid_object.RigidObject.write_root_link_pose_to_sim` and
+  :meth:`~isaaclab.assets.rigid_object.RigidObject.write_root_velocity_to_sim` and
+  :meth:`~isaaclab.assets.rigid_object.RigidObject.write_root_com_velocity_to_sim`
+
+
+* Fixed issue where timestamp is not invalidated after direct write to state in methods
+  :meth:`~isaaclab.assets.rigid_object.RigidObjectCollection.write_object_pose_to_sim` and
+  :meth:`~isaaclab.assets.rigid_object.RigidObjectCollection.write_object_link_pose_to_sim` and
+  :meth:`~isaaclab.assets.rigid_object.RigidObjectCollection.write_object_velocity_to_sim` and
+  :meth:`~isaaclab.assets.rigid_object.RigidObjectCollection.write_object_com_velocity_to_sim`
+
+* Added unit tests to ensure the data consistency whenever one of those methods are invoked
+
+
 0.39.6 (2025-01-30)
 ~~~~~~~~~~~~~~~~~~~
 
