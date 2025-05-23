@@ -84,7 +84,6 @@ Added
   to allow explicitly specifying the prim path of the articulation root.
 
 
-
 0.39.0 (2025-05-03)
 ~~~~~~~~~~~~~~~~~~~
 
