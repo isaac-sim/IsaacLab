@@ -31,7 +31,7 @@ from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdFileCfg
 from isaaclab.utils import configclass
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 
 from . import mdp
 
@@ -54,24 +54,13 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
         ),
     )
 
-    # Object
     object = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/Object",
-        init_state=RigidObjectCfg.InitialStateCfg(pos=[-0.35, 0.40, 1.1691], rot=[1, 0, 0, 0]),
-        spawn=sim_utils.CylinderCfg(
-            radius=0.018,
-            height=0.35,
+        init_state=RigidObjectCfg.InitialStateCfg(pos=[-0.45, 0.45, 0.9996], rot=[1, 0, 0, 0]),
+        spawn=UsdFileCfg(
+            usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Mimic/pick_place_task/pick_place_assets/steering_wheel.usd",
+            scale=(0.75, 0.75, 0.75),
             rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-            mass_props=sim_utils.MassPropertiesCfg(mass=0.3),
-            collision_props=sim_utils.CollisionPropertiesCfg(),
-            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.15, 0.15, 0.15), metallic=1.0),
-            physics_material=sim_utils.RigidBodyMaterialCfg(
-                friction_combine_mode="max",
-                restitution_combine_mode="min",
-                static_friction=0.9,
-                dynamic_friction=0.9,
-                restitution=0.0,
-            ),
         ),
     )
 
@@ -300,7 +289,7 @@ class TerminationsCfg:
         func=mdp.root_height_below_minimum, params={"minimum_height": 0.5, "asset_cfg": SceneEntityCfg("object")}
     )
 
-    success = DoneTerm(func=mdp.task_done)
+    success = DoneTerm(func=mdp.task_done_pick_place)
 
 
 @configclass
@@ -314,8 +303,8 @@ class EventCfg:
         mode="reset",
         params={
             "pose_range": {
-                "x": [-0.05, 0.0],
-                "y": [0.0, 0.05],
+                "x": [-0.01, 0.01],
+                "y": [-0.01, 0.01],
             },
             "velocity_range": {},
             "asset_cfg": SceneEntityCfg("object"),
