@@ -126,24 +126,28 @@ def pytest_sessionstart(session):
     """Intercept pytest startup to execute tests in the correct order."""
     # Get the workspace root directory (one level up from tools)
     workspace_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    source_dir = os.path.join(workspace_root, "source")
+    source_dirs = [
+        os.path.join(workspace_root, "scripts"),
+        os.path.join(workspace_root, "source"),
+    ]
 
-    if not os.path.exists(source_dir):
-        print(f"Error: source directory not found at {source_dir}")
-        pytest.exit("Source directory not found", returncode=1)
-
-    # Get all test files in the source directory
+    # Get all test files in the source directories
     test_files = []
-    for root, _, files in os.walk(source_dir):
-        for file in files:
-            if file.startswith("test_") and file.endswith(".py"):
-                # Skip if the file is in TESTS_TO_SKIP
-                if file in test_settings.TESTS_TO_SKIP:
-                    print(f"Skipping {file} as it's in the skip list")
-                    continue
+    for source_dir in source_dirs:
+        if not os.path.exists(source_dir):
+            print(f"Error: source directory not found at {source_dir}")
+            pytest.exit("Source directory not found", returncode=1)
 
-                full_path = os.path.join(root, file)
-                test_files.append(full_path)
+        for root, _, files in os.walk(source_dir):
+            for file in files:
+                if file.startswith("test_") and file.endswith(".py"):
+                    # Skip if the file is in TESTS_TO_SKIP
+                    if file in test_settings.TESTS_TO_SKIP:
+                        print(f"Skipping {file} as it's in the skip list")
+                        continue
+
+                    full_path = os.path.join(root, file)
+                    test_files.append(full_path)
 
     if not test_files:
         print("No test files found in source directory")
