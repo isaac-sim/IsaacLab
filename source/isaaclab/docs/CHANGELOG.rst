@@ -9,11 +9,11 @@ Added
 
 * Added deprecation warning for :meth:`~isaaclab.utils.math.quat_rotate` and
   :meth:`~isaaclab.utils.math.quat_rotate_inverse`
-  
-  Changed
-  ^^^^^^^
-  
-  * Changed all calls to :meth:`~isaaclab.utils.math.quat_rotate` and :meth:`~isaaclab.utils.math.quat_rotate_inverse` to
+
+Changed
+^^^^^^^
+
+* Changed all calls to :meth:`~isaaclab.utils.math.quat_rotate` and :meth:`~isaaclab.utils.math.quat_rotate_inverse` to
   :meth:`~isaaclab.utils.math.quat_apply` and :meth:`~isaaclab.utils.math.quat_apply_inverse` for speed.
 
 
