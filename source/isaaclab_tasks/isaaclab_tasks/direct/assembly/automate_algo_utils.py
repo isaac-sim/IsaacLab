@@ -323,7 +323,7 @@ def get_imitation_reward_from_dtw(ref_traj, curr_ee_pos, prev_ee_traj, criterion
     """Get imitation reward based on dynamic time warping."""
 
     soft_dtw = torch.zeros((curr_ee_pos.shape[0]), device=device)
-    prev_ee_pos = prev_ee_traj[:, 0, :].squeeze()  # select the first ee pos in robot traj
+    prev_ee_pos = prev_ee_traj[:, 0, :]  # select the first ee pos in robot traj
     min_dist_traj_idx, min_dist_step_idx, min_dist_per_env = get_closest_state_idx(ref_traj, prev_ee_pos)
 
     for i in range(curr_ee_pos.shape[0]):
@@ -341,7 +341,6 @@ def get_imitation_reward_from_dtw(ref_traj, curr_ee_pos, prev_ee_traj, criterion
             selected_traj = torch.cat([selected_pos, selected_pos], dim=1)
         else:
             selected_traj = ref_traj[traj_idx, step_idx : (curr_step_idx + step_idx), :].reshape((1, -1, 3))
-        # eef_traj = torch.cat([prev_ee_pos_i, curr_ee_pos_i], dim=0).reshape((1, -1, 3))
         eef_traj = torch.cat((prev_ee_traj[i, 1:, :], curr_ee_pos_i)).reshape((1, -1, 3))
         soft_dtw[i] = criterion(eef_traj, selected_traj)
 

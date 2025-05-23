@@ -194,7 +194,7 @@ For example:
 .. |factory-nut-link| replace:: `Isaac-Factory-NutThread-Direct-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/direct/factory/factory_env_cfg.py>`__
 
 Assembly
-~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~
 
 Environments based on 100 diverse assembly tasks, each involving the insertion of a plug into a socket. These tasks share a common configuration and differ by th geometry and properties of the parts.
 
@@ -203,6 +203,18 @@ You can switch between tasks by specifying the corresponding asset ID. Available
 '00004', '00007', '00014', '00015', '00016', '00021', '00028', '00030', '00032', '00042', '00062', '00074', '00077', '00078', '00081', '00083', '00103', '00110', '00117', '00133', '00138', '00141', '00143', '00163', '00175', '00186', '00187', '00190', '00192', '00210', '00211', '00213', '00255', '00256', '00271', '00293', '00296', '00301', '00308', '00318', '00319', '00320', '00329', '00340', '00345', '00346', '00360', '00388', '00410', '00417', '00422', '00426', '00437', '00444', '00446', '00470', '00471', '00480', '00486', '00499', '00506', '00514', '00537', '00553', '00559', '00581', '00597', '00614', '00615', '00638', '00648', '00649', '00652', '00659', '00681', '00686', '00700', '00703', '00726', '00731', '00741', '00755', '00768', '00783', '00831', '00855', '00860', '00863', '01026', '01029', '01036', '01041', '01053', '01079', '01092', '01102', '01125', '01129', '01132', '01136'.
 
 We provide environments for both disassembly and assembly.
+
+.. attention::
+
+  CUDA is required for running the Assembly environments.
+  Follow the below steps to install CUDA 12.8:
+
+  .. code-block:: bash
+
+      wget https://developer.download.nvidia.com/compute/cuda/12.8.0/local_installers/cuda_12.8.0_570.86.10_linux.run
+      sudo sh cuda_12.8.0_570.86.10_linux.run
+
+  For addition instructions and Windows installation, please refer to the `CUDA installation page <https://developer.nvidia.com/cuda-12-8-0-download-archive>`_.
 
 * |disassembly-link|: The plug starts inserted in the socket. A low-level controller lifts th plug out and moves it to a random position. These trajectories serve as demonstrations for the reverse process, i.e., learning to assemble. To run disassembly for a specific task: ``./isaaclab.sh -p source/isaaclab_tasks/isaaclab_tasks/direct/assembly/run_disassembly_w_id.py --assembly_id=ASSEMBLY_ID``
 * |assembly-link|: The goal is to insert the plug into the socket. You can use this environment to train a policy via reinforcement learning or evaluate a pre-trained checkpoint.

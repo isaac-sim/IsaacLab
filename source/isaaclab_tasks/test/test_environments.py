@@ -29,6 +29,7 @@ import torch
 
 import carb
 import omni.usd
+import os
 import pytest
 
 from isaaclab.envs import ManagerBasedRLEnvCfg
@@ -40,6 +41,8 @@ from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
 
 # @pytest.fixture(scope="module", autouse=True)
 def setup_environment():
+    # disable interactive mode for wandb for automate environments
+    os.environ["WANDB_DISABLED"] = "true"
     # acquire all Isaac environments names
     registered_tasks = list()
     for task_spec in gym.registry.values():
@@ -67,9 +70,6 @@ def test_environments(task_name, num_envs, device):
         "Isaac-Stack-Cube-Instance-Randomize-Franka-v0",
         "Isaac-Stack-Cube-Franka-IK-Rel-Visuomotor-v0",
     ]:
-        return
-    # skip automate environments as it requires running a special
-    if task_name in ["Isaac-Assembly-Direct-v0", "Isaac-Disassembly-Direct-v0"]:
         return
     print(f">>> Running test for environment: {task_name}")
     _check_random_actions(task_name, device, num_envs, num_steps=100)

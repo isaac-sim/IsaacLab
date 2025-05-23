@@ -258,9 +258,6 @@ class DisassemblyEnv(DirectRLEnv):
 
     def _get_observations(self):
         """Get actor/critic inputs using asymmetric critic."""
-        # noisy_fixed_pos = self.fixed_pos_obs_frame + self.init_fixed_pos_obs_noise
-
-        # prev_actions = self.actions.clone()
 
         obs_dict = {
             "joint_pos": self.joint_pos[:, 0:7],
@@ -608,7 +605,6 @@ class DisassemblyEnv(DirectRLEnv):
         joint_vel = torch.zeros_like(joint_pos)
         joint_effort = torch.zeros_like(joint_pos)
         self.ctrl_target_joint_pos[env_ids, :] = joint_pos
-        print(f"Resetting {len(env_ids)} envs...")
         self._robot.set_joint_position_target(self.ctrl_target_joint_pos[env_ids], env_ids=env_ids)
         self._robot.write_joint_state_to_sim(joint_pos, joint_vel, env_ids=env_ids)
         self._robot.reset()
@@ -737,7 +733,6 @@ class DisassemblyEnv(DirectRLEnv):
         self._set_gains(self.default_gains)
 
         physics_sim_view.set_gravity(carb.Float3(*self.cfg.sim.gravity))
-        print("Done Reset")
 
     def _disassemble_plug_from_socket(self):
         """Lift plug from socket till disassembly and then randomize end-effector pose."""

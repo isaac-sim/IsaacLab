@@ -19,6 +19,7 @@ import torch
 
 import carb
 import omni.usd
+import os
 import pytest
 
 from isaaclab.envs import DirectMARLEnv, multi_agent_to_single_agent
@@ -31,14 +32,13 @@ from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
 
 @pytest.fixture(scope="module")
 def registered_tasks():
+    # disable interactive mode for wandb for automate environments
+    os.environ["WANDB_DISABLED"] = "true"
     # acquire all Isaac environments names
     registered_tasks = list()
     for task_spec in gym.registry.values():
         if "Isaac" in task_spec.id:
             cfg_entry_point = gym.spec(task_spec.id).kwargs.get("rl_games_cfg_entry_point")
-            # skip automate environments as it requires running a special
-            if task_spec.id in ["Isaac-Assembly-Direct-v0", "Isaac-Disassembly-Direct-v0"]:
-                continue
             if cfg_entry_point is not None:
                 registered_tasks.append(task_spec.id)
     # sort environments by name
