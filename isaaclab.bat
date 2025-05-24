@@ -114,6 +114,17 @@ if errorlevel 1 (
     echo [ERROR] Conda could not be found. Please install conda and try again.
     exit /b 1
 )
+
+rem check if _isaac_sim symlink exists and isaacsim-rl is not installed via pip
+if not exist "%ISAACLAB_PATH%\_isaac_sim" (
+    python -m pip list | findstr /C:"isaacsim-rl" >nul
+    if errorlevel 1 (
+        echo [WARNING] _isaac_sim symlink not found at %ISAACLAB_PATH%\_isaac_sim
+        echo     This warning can be ignored if you plan to install Isaac Sim via pip.
+        echo     If you are using a binary installation of Isaac Sim, please ensure the symlink is created before setting up the conda environment.
+    )
+)
+
 rem check if the environment exists
 call conda env list | findstr /c:"%env_name%" >nul
 if %errorlevel% equ 0 (

@@ -22,6 +22,27 @@ export ISAACLAB_PATH="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && p
 # Helper functions
 #==
 
+# install system dependencies
+install_system_deps() {
+    # check if cmake is already installed
+    if command -v cmake &> /dev/null; then
+        echo "[INFO] cmake is already installed."
+    else
+        # check if running as root
+        if [ "$EUID" -ne 0 ]; then
+            echo "[INFO] Installing system dependencies..."
+            sudo apt-get update && sudo apt-get install -y --no-install-recommends \
+                cmake \
+                build-essential
+        else
+            echo "[INFO] Installing system dependencies..."
+            apt-get update && apt-get install -y --no-install-recommends \
+                cmake \
+                build-essential
+        fi
+    fi
+}
+
 # check if running in docker
 is_docker() {
     [ -f /.dockerenv ] || \
@@ -134,6 +155,13 @@ setup_conda_env() {
     then
         echo "[ERROR] Conda could not be found. Please install conda and try again."
         exit 1
+    fi
+
+    # check if _isaac_sim symlink exists and isaacsim-rl is not installed via pip
+    if [ ! -L "${ISAACLAB_PATH}/_isaac_sim" ] && ! python -m pip list | grep -q 'isaacsim-rl'; then
+        echo -e "[WARNING] _isaac_sim symlink not found at ${ISAACLAB_PATH}/_isaac_sim"
+        echo -e "\tThis warning can be ignored if you plan to install Isaac Sim via pip."
+        echo -e "\tIf you are using a binary installation of Isaac Sim, please ensure the symlink is created before setting up the conda environment."
     fi
 
     # check if the environment exists
@@ -273,6 +301,8 @@ while [[ $# -gt 0 ]]; do
     # read the key
     case "$1" in
         -i|--install)
+            # install system dependencies first
+            install_system_deps
             # install the python packages in IsaacLab/source directory
             echo "[INFO] Installing extensions inside the Isaac Lab repository..."
             python_exe=$(extract_python_exe)
@@ -448,7 +478,7 @@ while [[ $# -gt 0 ]]; do
             ;;
         -h|--help)
             print_help
-            exit 1
+            exit 0
             ;;
         *) # unknown option
             echo "[Error] Invalid argument provided: $1"
