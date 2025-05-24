@@ -19,7 +19,6 @@ import re
 import signal
 import sys
 import toml
-import warnings
 from typing import Any, Literal
 
 import flatdict
@@ -112,7 +111,7 @@ class AppLauncher:
 
         # Define config members that are read from env-vars or keyword args
         self._headless: bool  # 0: GUI, 1: Headless
-        self._livestream: Literal[0, 1, 2]  # 0: Disabled, 1: Native, 2: WebRTC
+        self._livestream: Literal[0, 1, 2]  # 0: Disabled, 1: WebRTC public, 2: WebRTC private
         self._offscreen_render: bool  # 0: Disabled, 1: Enabled
         self._sim_experience_file: str  # Experience file to load
 
@@ -196,8 +195,8 @@ class AppLauncher:
           Valid options are:
 
           - ``0``: Disabled
-          - ``1``: `Native [DEPRECATED] <https://docs.isaacsim.omniverse.nvidia.com/latest/installation/manual_livestream_clients.html#omniverse-streaming-client-deprecated>`_
-          - ``2``: `WebRTC <https://docs.isaacsim.omniverse.nvidia.com/latest/installation/manual_livestream_clients.html#isaac-sim-short-webrtc-streaming-client>`_
+          - ``1``: `WebRTC <https://docs.isaacsim.omniverse.nvidia.com/latest/installation/manual_livestream_clients.html#isaac-sim-short-webrtc-streaming-client>`_ over public network
+          - ``2``: `WebRTC <https://docs.isaacsim.omniverse.nvidia.com/latest/installation/manual_livestream_clients.html#isaac-sim-short-webrtc-streaming-client>`_ over local/private network
 
         * ``enable_cameras`` (bool): If True, the app will enable camera sensors and render them, even when in
           headless mode. This flag must be set to True if the environments contains any camera sensors.
@@ -501,29 +500,26 @@ class AppLauncher:
         else:
             self._livestream = livestream_env
 
+        # Set public IP address of a remote instance
+        public_ip_env = os.environ.get("PUBLIC_IP", "127.0.0.1")
+
         # Process livestream here before launching kit because some of the extensions only work when launched with the kit file
         self._livestream_args = []
         if self._livestream >= 1:
             # Note: Only one livestream extension can be enabled at a time
             if self._livestream == 1:
-                warnings.warn(
-                    "Native Livestream is deprecated. Please use WebRTC Livestream instead with --livestream 2."
-                )
+                # WebRTC public network
                 self._livestream_args += [
-                    '--/app/livestream/proto="ws"',
-                    "--/app/livestream/allowResize=true",
+                    f"--/app/livestream/publicEndpointAddress={public_ip_env}",
+                    "--/app/livestream/port=49100",
                     "--enable",
-                    "omni.kit.livestream.core-4.1.2",
-                    "--enable",
-                    "omni.kit.livestream.native-5.0.1",
-                    "--enable",
-                    "omni.kit.streamsdk.plugins-4.1.1",
+                    "omni.services.livestream.nvcf",
                 ]
             elif self._livestream == 2:
+                # WebRTC private network
                 self._livestream_args += [
-                    "--/app/livestream/allowResize=false",
                     "--enable",
-                    "omni.kit.livestream.webrtc",
+                    "omni.services.livestream.nvcf",
                 ]
             else:
                 raise ValueError(f"Invalid value for livestream: {self._livestream}. Expected: 1, 2 .")
@@ -718,37 +714,6 @@ class AppLauncher:
                 " The file does not exist."
             )
 
-        # Set public IP address of a remote instance
-        public_ip_env = os.environ.get("PUBLIC_IP", "127.0.0.1")
-
-        # Process livestream here before launching kit because some of the extensions only work when launched with the kit file
-        self._livestream_args = []
-        if self._livestream >= 1:
-            # Note: Only one livestream extension can be enabled at a time
-            if self._livestream == 1:
-                warnings.warn(
-                    "Native Livestream is deprecated. Please use WebRTC Livestream instead with --livestream 2."
-                )
-                self._livestream_args += [
-                    '--/app/livestream/proto="ws"',
-                    "--/app/livestream/allowResize=true",
-                    "--enable",
-                    "omni.kit.livestream.core-4.1.2",
-                    "--enable",
-                    "omni.kit.livestream.native-5.0.1",
-                    "--enable",
-                    "omni.kit.streamsdk.plugins-4.1.1",
-                ]
-            elif self._livestream == 2:
-                self._livestream_args += [
-                    f"--/app/livestream/publicEndpointAddress={public_ip_env}",
-                    "--/app/livestream/port=49100",
-                    "--enable",
-                    "omni.services.livestream.nvcf",
-                ]
-            else:
-                raise ValueError(f"Invalid value for livestream: {self._livestream}. Expected: 1, 2 .")
-            sys.argv += self._livestream_args
         # Resolve the absolute path of the experience file
         self._sim_experience_file = os.path.abspath(self._sim_experience_file)
         print(f"[INFO][AppLauncher]: Loading experience file: {self._sim_experience_file}")

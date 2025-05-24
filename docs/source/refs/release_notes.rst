@@ -11,6 +11,8 @@ Breaking Changes
 ----------------
 
 * :attr:`~isaaclab.sim.spawners.PhysicsMaterialCfg.improve_patch_friction` is now removed. The simulation will always behave as if this attribute is set to true.
+* Native Livestreaming support has been removed. ``LIVESTREAM=1`` can now be used for WebRTC streaming over public networks and
+  ``LIVESTREAM=2`` for private and local networks with WebRTC streaming.
 
 v2.1.0
 ======
