@@ -1,8 +1,7 @@
 Changelog
 ---------
 
-
-0.39.7 (2025-05-20)
+0.39.8 (2025-05-20)
 ~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -16,6 +15,16 @@ Changed
 
 * Changed the way clipping is handled for :class:`~isaaclab.actuator.DCMotor` for torque-speed points in when in
   negative power regions.
+
+
+0.39.7 (2025-05-19)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^^
+
+* Raising exceptions in step, render and reset if they occurred inside the initialization callbacks
+  of assets and sensors.used from the experience files and the double definition is removed.
 
 
 0.39.6 (2025-01-30)
