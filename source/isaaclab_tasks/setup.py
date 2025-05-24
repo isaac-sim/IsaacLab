@@ -26,6 +26,8 @@ INSTALL_REQUIRES = [
     "protobuf>=3.20.2, < 5.0.0",
     # basic logger
     "tensorboard",
+    # automate
+    "scikit-learn",
 ]
 
 PYTORCH_INDEX_URL = ["https://download.pytorch.org/whl/cu118"]
