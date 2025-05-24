@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.10.32 (2025-05-21)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added unit tests for benchmarking environments with configurable settings. Output KPI payloads
+  can be pushed to a visualization dashboard to track improvements or regressions.
+
+
 0.10.31 (2025-04-02)
 ~~~~~~~~~~~~~~~~~~~~
 

@@ -201,10 +201,20 @@ class ObservationGroupCfg:
     concatenate_terms: bool = True
     """Whether to concatenate the observation terms in the group. Defaults to True.
 
-    If true, the observation terms in the group are concatenated along the last dimension.
+    If true, the observation terms in the group are concatenated along the dimension specified through :attr:`concatenate_dim`.
     Otherwise, they are kept separate and returned as a dictionary.
 
     If the observation group contains terms of different dimensions, it must be set to False.
+    """
+
+    concatenate_dim: int = -1
+    """Dimension along to concatenate the different observation terms. Defaults to -1, which
+    means the last dimension of the observation terms.
+
+    If :attr:`concatenate_terms` is True, this parameter specifies the dimension along which the observation terms are concatenated.
+    The indicated dimension depends on the shape of the observations. For instance, for a 2D RGB image of shape (H, W, C), the dimension
+    0 means concatenating along the height, 1 along the width, and 2 along the channels. The offset due
+    to the batched environment is handled automatically.
     """
 
     enable_corruption: bool = False
