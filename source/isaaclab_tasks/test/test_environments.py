@@ -74,7 +74,7 @@ def test_environments(task_name, num_envs, device):
     # skip automate environments as they require cuda installation
     if task_name in ["Isaac-Assembly-Direct-v0", "Isaac-Disassembly-Direct-v0"]:
         return
-    # skip hanging test for now
+    # skipping this test for now as it requires torch 2.6 or newer
     if task_name == "Isaac-Cartpole-RGB-TheiaTiny-v0":
         return
     print(f">>> Running test for environment: {task_name}")
