@@ -408,6 +408,17 @@ class ShadowHandOverEnv(DirectMARLEnv):
 
 @torch.jit.script
 def scale(x, lower, upper):
+    """
+    Scales the input tensor x from the range [-1, 1] to the range [lower, upper].
+
+    Args:
+        x (torch.Tensor): Input tensor to be scaled.
+        lower (torch.Tensor): Lower bound of the target range.
+        upper (torch.Tensor): Upper bound of the target range.
+
+    Returns:
+        torch.Tensor: Scaled tensor.
+    """
     return 0.5 * (x + 1.0) * (upper - lower) + lower
 
 
@@ -418,6 +429,18 @@ def unscale(x, lower, upper):
 
 @torch.jit.script
 def randomize_rotation(rand0, rand1, x_unit_tensor, y_unit_tensor):
+    """
+    Randomizes the rotation based on random values and unit tensors.
+
+    Args:
+        rand0 (torch.Tensor): Random values for the first rotation axis.
+        rand1 (torch.Tensor): Random values for the second rotation axis.
+        x_unit_tensor (torch.Tensor): Unit tensor for the x-axis.
+        y_unit_tensor (torch.Tensor): Unit tensor for the y-axis.
+
+    Returns:
+        torch.Tensor: The resulting quaternion after applying the random rotations.
+    """
     return quat_mul(
         quat_from_angle_axis(rand0 * np.pi, x_unit_tensor), quat_from_angle_axis(rand1 * np.pi, y_unit_tensor)
     )
