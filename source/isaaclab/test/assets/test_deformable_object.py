@@ -173,10 +173,8 @@ def test_initialization_on_device_cpu():
         assert ctypes.c_long.from_address(id(cube_object)).value == 1
 
         # Play sim
-        sim.reset()
-
-        # Check if object is initialized
-        assert not cube_object.is_initialized
+        with pytest.raises(RuntimeError):
+            sim.reset()
 
 
 @pytest.mark.parametrize("num_cubes", [1, 2])
@@ -214,10 +212,8 @@ def test_initialization_with_no_deformable_body(sim, num_cubes):
     assert ctypes.c_long.from_address(id(cube_object)).value == 1
 
     # Play sim
-    sim.reset()
-
-    # Check if object is initialized
-    assert not cube_object.is_initialized
+    with pytest.raises(RuntimeError):
+        sim.reset()
 
 
 @pytest.mark.parametrize("num_cubes", [1, 2])
