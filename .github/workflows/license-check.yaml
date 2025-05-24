@@ -34,7 +34,9 @@ jobs:
         ./isaaclab.sh -i
 
     - name: Install pip-licenses
-      run: pip install pip-licenses
+      run: |
+        pip install pip-licenses
+        pip install -r tools/template/requirements.txt
 
     # Optional: Print the license report for visibility
     - name: Print License Report
