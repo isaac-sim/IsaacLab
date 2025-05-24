@@ -14,6 +14,8 @@ import torch
 import torch.nn.functional
 from typing import Literal
 
+import omni.log
+
 """
 General
 """
@@ -634,6 +636,28 @@ def quat_apply(quat: torch.Tensor, vec: torch.Tensor) -> torch.Tensor:
 
 
 @torch.jit.script
+def quat_apply_inverse(quat: torch.Tensor, vec: torch.Tensor) -> torch.Tensor:
+    """Apply an inverse quaternion rotation to a vector.
+
+    Args:
+        quat: The quaternion in (w, x, y, z). Shape is (..., 4).
+        vec: The vector in (x, y, z). Shape is (..., 3).
+
+    Returns:
+        The rotated vector in (x, y, z). Shape is (..., 3).
+    """
+    # store shape
+    shape = vec.shape
+    # reshape to (N, 3) for multiplication
+    quat = quat.reshape(-1, 4)
+    vec = vec.reshape(-1, 3)
+    # extract components from quaternions
+    xyz = quat[:, 1:]
+    t = xyz.cross(vec, dim=-1) * 2
+    return (vec - quat[:, 0:1] * t + xyz.cross(t, dim=-1)).view(shape)
+
+
+@torch.jit.script
 def quat_apply_yaw(quat: torch.Tensor, vec: torch.Tensor) -> torch.Tensor:
     """Rotate a vector only around the yaw-direction.
 
@@ -648,9 +672,10 @@ def quat_apply_yaw(quat: torch.Tensor, vec: torch.Tensor) -> torch.Tensor:
     return quat_apply(quat_yaw, vec)
 
 
-@torch.jit.script
 def quat_rotate(q: torch.Tensor, v: torch.Tensor) -> torch.Tensor:
     """Rotate a vector by a quaternion along the last dimension of q and v.
+    .. deprecated v2.1.0:
+         This function will be removed in a future release in favor of the faster implementation :meth:`quat_apply`.
 
     Args:
         q: The quaternion in (w, x, y, z). Shape is (..., 4).
@@ -659,22 +684,19 @@ def quat_rotate(q: torch.Tensor, v: torch.Tensor) -> torch.Tensor:
     Returns:
         The rotated vector in (x, y, z). Shape is (..., 3).
     """
-    q_w = q[..., 0]
-    q_vec = q[..., 1:]
-    a = v * (2.0 * q_w**2 - 1.0).unsqueeze(-1)
-    b = torch.cross(q_vec, v, dim=-1) * q_w.unsqueeze(-1) * 2.0
-    # for two-dimensional tensors, bmm is faster than einsum
-    if q_vec.dim() == 2:
-        c = q_vec * torch.bmm(q_vec.view(q.shape[0], 1, 3), v.view(q.shape[0], 3, 1)).squeeze(-1) * 2.0
-    else:
-        c = q_vec * torch.einsum("...i,...i->...", q_vec, v).unsqueeze(-1) * 2.0
-    return a + b + c
+    # deprecation
+    omni.log.warn(
+        "The function 'quat_rotate' will be deprecated in favor of the faster method 'quat_apply'."
+        " Please use 'quat_apply' instead...."
+    )
+    return quat_apply(q, v)
 
 
-@torch.jit.script
 def quat_rotate_inverse(q: torch.Tensor, v: torch.Tensor) -> torch.Tensor:
     """Rotate a vector by the inverse of a quaternion along the last dimension of q and v.
 
+    .. deprecated v2.1.0:
+         This function will be removed in a future release in favor of the faster implementation :meth:`quat_apply_inverse`.
     Args:
         q: The quaternion in (w, x, y, z). Shape is (..., 4).
         v: The vector in (x, y, z). Shape is (..., 3).
@@ -682,16 +704,11 @@ def quat_rotate_inverse(q: torch.Tensor, v: torch.Tensor) -> torch.Tensor:
     Returns:
         The rotated vector in (x, y, z). Shape is (..., 3).
     """
-    q_w = q[..., 0]
-    q_vec = q[..., 1:]
-    a = v * (2.0 * q_w**2 - 1.0).unsqueeze(-1)
-    b = torch.cross(q_vec, v, dim=-1) * q_w.unsqueeze(-1) * 2.0
-    # for two-dimensional tensors, bmm is faster than einsum
-    if q_vec.dim() == 2:
-        c = q_vec * torch.bmm(q_vec.view(q.shape[0], 1, 3), v.view(q.shape[0], 3, 1)).squeeze(-1) * 2.0
-    else:
-        c = q_vec * torch.einsum("...i,...i->...", q_vec, v).unsqueeze(-1) * 2.0
-    return a - b + c
+    omni.log.warn(
+        "The function 'quat_rotate_inverse' will be deprecated in favor of the faster method 'quat_apply_inverse'."
+        " Please use 'quat_apply_inverse' instead...."
+    )
+    return quat_apply_inverse(q, v)
 
 
 @torch.jit.script

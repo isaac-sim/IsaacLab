@@ -153,7 +153,7 @@ class Imu(SensorBase):
         quat_w = math_utils.convert_quat(quat_w, to="wxyz")
 
         # store the poses
-        self._data.pos_w[env_ids] = pos_w + math_utils.quat_rotate(quat_w, self._offset_pos_b[env_ids])
+        self._data.pos_w[env_ids] = pos_w + math_utils.quat_apply(quat_w, self._offset_pos_b[env_ids])
         self._data.quat_w[env_ids] = math_utils.quat_mul(quat_w, self._offset_quat_b[env_ids])
 
         # get the offset from COM to link origin
@@ -164,18 +164,18 @@ class Imu(SensorBase):
         # if an offset is present or the COM does not agree with the link origin, the linear velocity has to be
         # transformed taking the angular velocity into account
         lin_vel_w += torch.linalg.cross(
-            ang_vel_w, math_utils.quat_rotate(quat_w, self._offset_pos_b[env_ids] - com_pos_b[env_ids]), dim=-1
+            ang_vel_w, math_utils.quat_apply(quat_w, self._offset_pos_b[env_ids] - com_pos_b[env_ids]), dim=-1
         )
 
         # numerical derivative
         lin_acc_w = (lin_vel_w - self._prev_lin_vel_w[env_ids]) / self._dt + self._gravity_bias_w[env_ids]
         ang_acc_w = (ang_vel_w - self._prev_ang_vel_w[env_ids]) / self._dt
         # store the velocities
-        self._data.lin_vel_b[env_ids] = math_utils.quat_rotate_inverse(self._data.quat_w[env_ids], lin_vel_w)
-        self._data.ang_vel_b[env_ids] = math_utils.quat_rotate_inverse(self._data.quat_w[env_ids], ang_vel_w)
+        self._data.lin_vel_b[env_ids] = math_utils.quat_apply_inverse(self._data.quat_w[env_ids], lin_vel_w)
+        self._data.ang_vel_b[env_ids] = math_utils.quat_apply_inverse(self._data.quat_w[env_ids], ang_vel_w)
         # store the accelerations
-        self._data.lin_acc_b[env_ids] = math_utils.quat_rotate_inverse(self._data.quat_w[env_ids], lin_acc_w)
-        self._data.ang_acc_b[env_ids] = math_utils.quat_rotate_inverse(self._data.quat_w[env_ids], ang_acc_w)
+        self._data.lin_acc_b[env_ids] = math_utils.quat_apply_inverse(self._data.quat_w[env_ids], lin_acc_w)
+        self._data.ang_acc_b[env_ids] = math_utils.quat_apply_inverse(self._data.quat_w[env_ids], ang_acc_w)
 
         self._prev_lin_vel_w[env_ids] = lin_vel_w
         self._prev_ang_vel_w[env_ids] = ang_vel_w
@@ -232,7 +232,7 @@ class Imu(SensorBase):
         quat_opengl = math_utils.quat_from_matrix(
             math_utils.create_rotation_matrix_from_view(
                 self._data.pos_w,
-                self._data.pos_w + math_utils.quat_rotate(self._data.quat_w, self._data.lin_acc_b),
+                self._data.pos_w + math_utils.quat_apply(self._data.quat_w, self._data.lin_acc_b),
                 up_axis=up_axis,
                 device=self._device,
             )
