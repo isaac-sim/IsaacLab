@@ -271,7 +271,7 @@ class TerrainGenerator:
             -self.cfg.border_height / 2,
         )
         # border mesh
-        border_meshes = make_border(border_size, inner_size, height=self.cfg.border_height, position=border_center)
+        border_meshes = make_border(border_size, inner_size, height=abs(self.cfg.border_height), position=border_center)
         border = trimesh.util.concatenate(border_meshes)
         # update the faces to have minimal triangles
         selector = ~(np.asarray(border.triangles)[:, :, 2] < -0.1).any(1)
