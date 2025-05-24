@@ -52,6 +52,7 @@ Guidelines for modifications:
 * Connor Smith
 * CY (Chien-Ying) Chen
 * David Yang
+* Dhananjay Shendre
 * Dorsa Rohani
 * Felipe Mohr
 * Felix Yu
