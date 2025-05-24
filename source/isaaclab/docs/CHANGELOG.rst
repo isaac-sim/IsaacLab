@@ -1,7 +1,7 @@
 Changelog
 ---------
 
-0.39.7 (2025-05-22)
+0.39.8 (2025-05-22)
 ~~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -9,6 +9,16 @@ Fixed
 
 * Fixed collision filtering logic for CPU simulation. The automatic collision filtering feature
   currently has limitations for CPU simulation. Collision filtering needs to be manually enabled when using CPU simulation.
+
+
+0.39.7 (2025-05-19)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^^
+
+* Raising exceptions in step, render and reset if they occurred inside the initialization callbacks
+  of assets and sensors.used from the experience files and the double definition is removed.
 
 
 0.39.6 (2025-01-30)
