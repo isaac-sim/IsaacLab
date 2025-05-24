@@ -168,10 +168,8 @@ def test_initialization_with_no_rigid_body(num_cubes, device):
         assert ctypes.c_long.from_address(id(cube_object)).value == 1
 
         # Play sim
-        sim.reset()
-
-        # Check if object is initialized
-        assert not cube_object.is_initialized
+        with pytest.raises(RuntimeError):
+            sim.reset()
 
 
 @pytest.mark.parametrize("num_cubes", [1, 2])
@@ -187,10 +185,8 @@ def test_initialization_with_articulation_root(num_cubes, device):
         assert ctypes.c_long.from_address(id(cube_object)).value == 1
 
         # Play sim
-        sim.reset()
-
-        # Check if object is initialized
-        assert not cube_object.is_initialized
+        with pytest.raises(RuntimeError):
+            sim.reset()
 
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])

@@ -42,6 +42,7 @@ Guidelines for modifications:
 * Arjun Bhardwaj
 * Ashwin Varghese Kuruttukulam
 * Bikram Pandit
+* Bingjie Tang
 * Brayden Zhang
 * Cameron Upright
 * Calvin Yu
@@ -110,6 +111,7 @@ Guidelines for modifications:
 * Xavier Nal
 * Yang Jin
 * Yanzi Zhu
+* Yijie Guo
 * Yujian Zhang
 * Yun Liu
 * Zhengyu Zhang
