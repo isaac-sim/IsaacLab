@@ -1,7 +1,7 @@
 Changelog
 ---------
 
-0.39.1 (2025-05-10)
+0.39.8 (2025-05-10)
 ~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -9,6 +9,86 @@ Added
 
 * Updated gymnasium to >= 1.0
 * Added support for specifying module:task_name as task name to avoid module import for ``gym.make``
+
+
+0.39.7 (2025-05-19)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^^
+
+* Raising exceptions in step, render and reset if they occurred inside the initialization callbacks
+  of assets and sensors.used from the experience files and the double definition is removed.
+
+
+0.39.6 (2025-01-30)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added method :meth:`omni.isaac.lab.assets.AssetBase.set_visibility` to set the visibility of the asset
+  in the simulation.
+
+
+0.39.5 (2025-05-16)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added support for concatenation of observations along different dimensions in :class:`~isaaclab.managers.observation_manager.ObservationManager`.
+
+Changed
+^^^^^^^
+
+* Updated the :class:`~isaaclab.managers.command_manager.CommandManager` to update the command counter after the
+  resampling call.
+
+
+0.39.4 (2025-05-16)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed penetration issue for negative border height in :class:`~isaaclab.terrains.terrain_generator.TerrainGeneratorCfg`.
+
+
+0.39.3 (2025-05-16)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the implementation of :meth:`~isaaclab.utils.math.quat_box_minus`
+
+Added
+^^^^^
+
+* Added :meth:`~isaaclab.utils.math.quat_box_plus`
+* Added :meth:`~isaaclab.utils.math.rigid_body_twist_transform`
+
+
+0.39.2 (2025-05-15)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :meth:`omni.isaac.lab.sensors.camera.camera.Camera.set_intrinsic_matrices` preventing setting of unused USD
+  camera parameters.
+* Fixed :meth:`omni.isaac.lab.sensors.camera.camera.Camera._update_intrinsic_matrices` preventing unused USD camera
+  parameters from being used to calculate :attr:`omni.isaac.lab.sensors.camera.CameraData.intrinsic_matrices`
+* Fixed :meth:`omni.isaac.lab.spawners.sensors.sensors_cfg.PinholeCameraCfg.from_intrinsic_matrix` preventing setting of
+  unused USD camera parameters.
+
+
+0.39.1 (2025-05-14)
+~~~~~~~~~~~~~~~~~~~
+
+* Added a new attribute :attr:`articulation_root_prim_path` to the :class:`~isaaclab.assets.ArticulationCfg` class
+  to allow explicitly specifying the prim path of the articulation root.
 
 
 0.39.0 (2025-05-03)
