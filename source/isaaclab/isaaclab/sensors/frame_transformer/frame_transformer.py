@@ -16,7 +16,7 @@ from pxr import UsdPhysics
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.string as string_utils
-from isaaclab.markers import VisualizationMarkers, VisualizationMarkersCfg
+from isaaclab.markers import VisualizationMarkers
 from isaaclab.utils.math import (
     combine_frame_transforms,
     convert_quat,
@@ -429,34 +429,33 @@ class FrameTransformer(SensorBase):
         if debug_vis:
             if not hasattr(self, "frame_visualizer"):
                 self.frame_visualizer = VisualizationMarkers(self.cfg.visualizer_cfg)
-                LINE_MARKER_CFG = VisualizationMarkersCfg(
-                    prim_path="/World/Visuals/frame_transformer_lines",
-                    markers={
-                        "line": sim_utils.CylinderCfg(
-                            radius=0.002,
-                            height=1.0,
-                            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 1.0, 0.0), roughness=1.0),
-                        ),
-                    },
-                )
-                self._line_visualizer = VisualizationMarkers(LINE_MARKER_CFG)
 
             # set their visibility to true
             self.frame_visualizer.set_visibility(True)
-            self._line_visualizer.set_visibility(True)
         else:
             if hasattr(self, "frame_visualizer"):
                 self.frame_visualizer.set_visibility(False)
-                self._line_visualizer.set_visibility(False)
 
     def _debug_vis_callback(self, event):
-        # Update the visualized markers
-        all_pos = torch.cat([self._data.source_pos_w, self._data.target_pos_w.view(-1, 3)], dim=0)
-        all_quat = torch.cat([self._data.source_quat_w, self._data.target_quat_w.view(-1, 4)], dim=0)
-        self.frame_visualizer.visualize(all_pos, all_quat)
-        self._draw_lines(
+        # Get the all frames pose
+        frames_pos = torch.cat([self._data.source_pos_w, self._data.target_pos_w.view(-1, 3)], dim=0)
+        frames_quat = torch.cat([self._data.source_quat_w, self._data.target_quat_w.view(-1, 4)], dim=0)
+
+        # Get the all connecting lines between frames pose
+        lines_pos, lines_quat, lines_scale = self._get_connecting_lines(
             source_pos=self._data.source_pos_w.repeat_interleave(self._data.target_pos_w.size(1), dim=0),
             target_pos=self._data.target_pos_w.view(-1, 3),
+        )
+
+        # Update the frame and the connecting line visualizer
+        self.frame_visualizer.visualize(
+            translations=torch.cat((frames_pos, lines_pos), dim=0),
+            orientations=torch.cat((frames_quat, lines_quat), dim=0),
+            scales=torch.cat((torch.ones(frames_pos.size(0), 3, device=frames_pos.device), lines_scale), dim=0),
+            marker_indices=torch.cat((
+                torch.zeros(frames_pos.size(0), device=frames_pos.device),
+                torch.ones(lines_pos.size(0), device=frames_pos.device),
+            )),
         )
 
     """
@@ -474,13 +473,15 @@ class FrameTransformer(SensorBase):
     Internal helpers.
     """
 
-    def _draw_lines(self, source_pos: torch.Tensor, target_pos: torch.Tensor):
+    def _get_connecting_lines(
+        self, source_pos: torch.Tensor, target_pos: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         # Calculate the direction vector and length
         direction = target_pos - source_pos
         length = torch.norm(direction, dim=-1)
 
         # Calculate midpoint
-        midpoint = (source_pos + target_pos) / 2
+        pos = (source_pos + target_pos) / 2
 
         # Get default direction (along z-axis)
         default_direction = torch.tensor([0.0, 0.0, 1.0], device=self.device).expand(source_pos.size(0), -1)
@@ -512,5 +513,4 @@ class FrameTransformer(SensorBase):
         scale = torch.ones((source_pos.size(0), 3), device=self.device)
         scale[:, 2] = length  # Scale along z-axis
 
-        # Visualize the line
-        self._line_visualizer.visualize(translations=midpoint, orientations=quat, scales=scale)
+        return pos, quat, scale
