@@ -609,9 +609,8 @@ def test_out_of_range_default_joint_pos(sim, num_articulations, device, add_grou
     assert ctypes.c_long.from_address(id(articulation)).value == 1
 
     # Play sim
-    sim.reset()
-    # Check if articulation is initialized
-    assert not articulation.is_initialized
+    with pytest.raises(ValueError):
+        sim.reset()
 
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
@@ -633,9 +632,8 @@ def test_out_of_range_default_joint_vel(sim, device):
     assert ctypes.c_long.from_address(id(articulation)).value == 1
 
     # Play sim
-    sim.reset()
-    # Check if articulation is initialized
-    assert not articulation.is_initialized
+    with pytest.raises(ValueError):
+        sim.reset()
 
 
 @pytest.mark.parametrize("num_articulations", [1, 2])
@@ -1062,14 +1060,11 @@ def test_setting_velocity_limit_implicit(sim, num_articulations, device, vel_lim
         device=device,
     )
     # Play sim
-    sim.reset()
-
     if vel_limit_sim is not None and vel_limit is not None:
-        # Case 1: during initialization, the actuator will raise a ValueError and fail to
-        #  initialize when both these attributes are set.
-        # note: The Exception is not caught with self.assertRaises or try-except
-        assert len(articulation.actuators) == 0
+        with pytest.raises(ValueError):
+            sim.reset()
         return
+    sim.reset()
 
     # read the values set into the simulation
     physx_vel_limit = articulation.root_physx_view.get_dof_max_velocities().to(device)
@@ -1170,12 +1165,11 @@ def test_setting_effort_limit_implicit(sim, num_articulations, device, effort_li
         device=device,
     )
     # Play sim
-    sim.reset()
-
     if effort_limit_sim is not None and effort_limit is not None:
-        # during initialization, the actuator will raise a ValueError and fail to initialize
-        assert len(articulation.actuators) == 0
+        with pytest.raises(ValueError):
+            sim.reset()
         return
+    sim.reset()
 
     # obtain the physx effort limits
     physx_effort_limit = articulation.root_physx_view.get_dof_max_forces().to(device=device)
@@ -1577,6 +1571,41 @@ def test_body_incoming_joint_wrench_b_single_joint(sim, num_articulations, devic
         atol=1e-2,
         rtol=1e-3,
     )
+
+    def test_setting_articulation_root_prim_path(self):
+        """Test that the articulation root prim path can be set explicitly."""
+        with build_simulation_context(device="cuda:0", add_ground_plane=False, auto_add_lighting=True) as sim:
+            sim._app_control_on_stop_handle = None
+            # Create articulation
+            articulation_cfg = generate_articulation_cfg(articulation_type="humanoid")
+            print(articulation_cfg.spawn.usd_path)
+            articulation_cfg.articulation_root_prim_path = "/torso"
+            articulation, _ = generate_articulation(articulation_cfg, 1, "cuda:0")
+
+            # Check that boundedness of articulation is correct
+            self.assertEqual(ctypes.c_long.from_address(id(articulation)).value, 1)
+
+            # Play sim
+            sim.reset()
+            # Check if articulation is initialized
+            self.assertTrue(articulation._is_initialized)
+
+    def test_setting_invalid_articulation_root_prim_path(self):
+        """Test that the articulation root prim path can be set explicitly."""
+        with build_simulation_context(device="cuda:0", add_ground_plane=False, auto_add_lighting=True) as sim:
+            sim._app_control_on_stop_handle = None
+            # Create articulation
+            articulation_cfg = generate_articulation_cfg(articulation_type="humanoid")
+            print(articulation_cfg.spawn.usd_path)
+            articulation_cfg.articulation_root_prim_path = "/non_existing_prim_path"
+            articulation, _ = generate_articulation(articulation_cfg, 1, "cuda:0")
+
+            # Check that boundedness of articulation is correct
+            self.assertEqual(ctypes.c_long.from_address(id(articulation)).value, 1)
+
+            # Play sim
+            with pytest.raises(RuntimeError):
+                sim.reset()
 
 
 if __name__ == "__main__":
