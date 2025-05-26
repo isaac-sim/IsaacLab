@@ -155,13 +155,18 @@ class Articulation(AssetBase):
         return self._root_newton_view.body_names
 
     @property
-    def root_physx_view(self) -> physx.ArticulationView:
-        """Articulation view for the asset (PhysX).
+    def root_newton_view(self) -> NewtonArticulationView:
+        """Articulation view for the asset (Newton).
 
         Note:
             Use this view with caution. It requires handling of tensors in a specific way.
         """
-        return self._root_physx_view
+        return self._root_newton_view
+    
+    @property
+    def root_newton_model(self) -> NewtonModel:
+        """Newton model for the asset."""
+        return self._root_newton_view.model
 
     """
     Operations.
@@ -1266,10 +1271,11 @@ class Articulation(AssetBase):
         self._data.joint_friction_coeff = self._data.default_joint_friction_coeff.clone()
 
         # -- body properties
+        # FIXME: Copy this to warp arrays
         # self._data.default_mass = self.root_physx_view.get_masses().clone()
         # self._data.default_inertia = self.root_physx_view.get_inertias().clone()
-        self._data.default_mass = torch.zeros([self.num_instances, self.num_bodies], dtype=torch.float32, device=self.device).clone()
-        self._data.default_inertia = torch.zeros([self.num_instances, self.num_bodies], dtype=torch.float32, device=self.device).clone()
+        self._data.default_mass = wp.to_torch(self._root_newton_view.get_attribute("body_mass", NewtonManager.get_model(), copy=True))
+        self._data.default_inertia = wp.to_torch(self._root_newton_view.get_attribute("body_inertia", NewtonManager.get_model(), copy=True)).reshape(self.num_instances, self.num_bodies, 9)
 
         # -- joint commands (sent to the actuator from the user)
         self._data.joint_pos_target = torch.zeros(self.num_instances, self.num_joints, device=self.device)
