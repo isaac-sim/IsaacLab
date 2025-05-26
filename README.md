@@ -41,6 +41,7 @@ cd IsaacLab \
 && ./docker/container.py start \
 && ./docker/container.py enter base
 ```
+- Launch Isaac Lab by running `./isaaclab.sh -s` OR Run a script with `./isaaclab.sh -p <path_to_file>`
 - Download VNC Viewer and choose localhost:5900 to open Isaac Lab (See link: https://www.realvnc.com/en/connect/download/viewer/?lai_vid=63V0dbyEai1ON&lai_sr=5-9&lai_sl=l&lai_p=1)
 
 Our [documentation page](https://isaac-sim.github.io/IsaacLab) provides everything you need to get started, including detailed tutorials and step-by-step guides. Follow these links to learn more about:
