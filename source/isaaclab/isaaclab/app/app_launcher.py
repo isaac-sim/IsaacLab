@@ -134,6 +134,8 @@ class AppLauncher:
         self._hide_stop_button()
         # Set settings from the given rendering mode
         self._set_rendering_mode_settings(launcher_args)
+        # Set animation recording settings
+        self._set_animation_recording_settings(launcher_args)
 
         # Hide play button callback if the timeline is stopped
         import omni.timeline
@@ -336,6 +338,29 @@ class AppLauncher:
                 ' Example usage: --kit_args "--ext-folder=/path/to/ext1 --ext-folder=/path/to/ext2"'
             ),
         )
+        arg_group.add_argument(
+            "--anim_recording_enabled",
+            action="store_true",
+            help="Enable recording time-sampled USD animations from IsaacLab PhysX simulations.",
+        )
+        arg_group.add_argument(
+            "--anim_recording_start_time",
+            type=float,
+            default=0,
+            help=(
+                "Set time that animation recording begins playing. If not set, the recording will start from the"
+                " beginning."
+            ),
+        )
+        arg_group.add_argument(
+            "--anim_recording_stop_time",
+            type=float,
+            default=10,
+            help=(
+                "Set time that animation recording stops playing. If the process is shutdown before the stop time is"
+                " exceeded, then the animation is not recorded."
+            ),
+        )
 
         # Corresponding to the beginning of the function,
         # if we have removed -h/--help handling, we add it back.
@@ -461,6 +486,9 @@ class AppLauncher:
 
         # Handle experience file settings
         self._resolve_experience_file(launcher_args)
+
+        # Handle animation recording settings
+        self._resolve_anim_recording_settings(launcher_args)
 
         # Handle additional arguments
         self._resolve_kit_args(launcher_args)
@@ -718,6 +746,16 @@ class AppLauncher:
         self._sim_experience_file = os.path.abspath(self._sim_experience_file)
         print(f"[INFO][AppLauncher]: Loading experience file: {self._sim_experience_file}")
 
+    def _resolve_anim_recording_settings(self, launcher_args: dict):
+        """Resolve animation recording settings."""
+
+        # Enable omni.physx.pvd extension if recording is enabled
+        recording_enabled = launcher_args.get("anim_recording_enabled", False)
+        if recording_enabled:
+            if self._headless:
+                raise ValueError("Animation recording is not supported in headless mode.")
+            sys.argv += ["--enable", "omni.physx.pvd"]
+
     def _resolve_kit_args(self, launcher_args: dict):
         """Resolve additional arguments passed to Kit."""
         # Resolve additional arguments passed to Kit
@@ -838,6 +876,33 @@ class AppLauncher:
         for key, value in preset_dict.items():
             key = "/" + key.replace(".", "/")  # convert to carb setting format
             set_carb_setting(carb_setting, key, value)
+
+    def _set_animation_recording_settings(self, launcher_args: dict) -> None:
+        """Set animation recording settings."""
+        import carb
+        from isaacsim.core.utils.carb import set_carb_setting
+
+        # check if recording is enabled
+        recording_enabled = launcher_args.get("anim_recording_enabled", False)
+        if not recording_enabled:
+            return
+
+        # arg checks
+        if launcher_args.get("anim_recording_start_time") >= launcher_args.get("anim_recording_stop_time"):
+            raise ValueError(
+                f"'anim_recording_start_time' {launcher_args.get('anim_recording_start_time')} must be less than"
+                f" 'anim_recording_stop_time' {launcher_args.get('anim_recording_stop_time')}"
+            )
+
+        # grab config
+        start_time = launcher_args.get("anim_recording_start_time")
+        stop_time = launcher_args.get("anim_recording_stop_time")
+
+        # store config in carb settings
+        carb_settings = carb.settings.get_settings()
+        set_carb_setting(carb_settings, "/isaaclab/anim_recording/enabled", recording_enabled)
+        set_carb_setting(carb_settings, "/isaaclab/anim_recording/start_time", start_time)
+        set_carb_setting(carb_settings, "/isaaclab/anim_recording/stop_time", stop_time)
 
     def _interrupt_signal_handle_callback(self, signal, frame):
         """Handle the interrupt signal from the keyboard."""
