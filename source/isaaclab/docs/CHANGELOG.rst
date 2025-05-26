@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.39.8 (2025-05-10)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Updated gymnasium to >= 1.0
+* Added support for specifying module:task_name as task name to avoid module import for ``gym.make``
+
+
 0.39.7 (2025-05-19)
 ~~~~~~~~~~~~~~~~~~~
 
@@ -76,9 +86,6 @@ Fixed
 
 0.39.1 (2025-05-14)
 ~~~~~~~~~~~~~~~~~~~
-
-Added
-^^^^^
 
 * Added a new attribute :attr:`articulation_root_prim_path` to the :class:`~isaaclab.assets.ArticulationCfg` class
   to allow explicitly specifying the prim path of the articulation root.
