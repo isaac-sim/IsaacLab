@@ -50,6 +50,7 @@ class NewtonManager:
         newton.core.articulation.eval_fk(NewtonManager._model, NewtonManager._model.joint_q, NewtonManager._model.joint_qd, NewtonManager._state_0, None)
         NewtonManager._usdrt_stage = get_current_stage(fabric=True)
         for i, prim_path in enumerate(NewtonManager._model.body_key):
+            print("Being added to fabric: ", prim_path)
             prim = NewtonManager._usdrt_stage.GetPrimAtPath(prim_path)
             prim.CreateAttribute(NewtonManager._newton_index_attr, usdrt.Sdf.ValueTypeNames.UInt, True)
             prim.GetAttribute(NewtonManager._newton_index_attr).Set(i)
@@ -155,7 +156,7 @@ class NewtonManager:
     @classmethod
     def forward_kinematics(cls, selection):
         newton.core.articulation.eval_fk(
-            NewtonManager._model, NewtonManager._state_0.joint_q, NewtonManager._state_0.joint_qd, NewtonManager._state_0, selection.articulation_mask
+            NewtonManager._model, NewtonManager._state_0.joint_q, NewtonManager._state_0.joint_qd, NewtonManager._state_0, selection.articulation_mask 
         )
 
 

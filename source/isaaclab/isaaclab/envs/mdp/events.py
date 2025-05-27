@@ -319,7 +319,7 @@ def randomize_rigid_body_mass(
     #masses = asset.root_physx_view.get_masses()
 
     # FIXME: Do all this in warp and get rid of the torch conversions    
-    masses = wp.to_torch(asset.root_newton_view.get_attribute("body_mass", asset.root_newton_model))
+    masses = wp.to_torch(asset.root_newton_view.get_attribute("body_mass", asset.root_newton_model)).clone()
     # apply randomization on default values
     # this is to make sure when calling the function multiple times, the randomization is applied on the
     # default values and not the previously randomized values
@@ -342,7 +342,7 @@ def randomize_rigid_body_mass(
         ratios = masses[env_ids[:, None], body_ids] / asset.data.default_mass[env_ids[:, None], body_ids]
         # scale the inertia tensors by the the ratios
         # since mass randomization is done on default values, we can use the default inertia tensors
-        inertias = wp.to_torch(asset.root_newton_view.get_attribute("body_inertia", asset.root_newton_model, copy=True)).reshape(env.scene.num_envs, asset.num_bodies, 9)
+        inertias = wp.to_torch(asset.root_newton_view.get_attribute("body_inertia", asset.root_newton_model)).clone().reshape(env.scene.num_envs, asset.num_bodies, 9)
         #inertias = asset.root_physx_view.get_inertias()
         if isinstance(asset, Articulation):
             # inertia has shape: (num_envs, num_bodies, 9) for articulation
