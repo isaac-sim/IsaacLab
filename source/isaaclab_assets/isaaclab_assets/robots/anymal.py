@@ -154,7 +154,7 @@ ANYMAL_D_CFG = ArticulationCfg(
             ".*H_KFE": 0.8,  # both hind KFE
         },
     ),
-    actuators={"legs": ANYDRIVE_3_LSTM_ACTUATOR_CFG},
+    actuators={"legs": ANYDRIVE_3_SIMPLE_ACTUATOR_CFG},
     soft_joint_pos_limit_factor=0.95,
 )
 """Configuration of ANYmal-D robot using actuator-net.
