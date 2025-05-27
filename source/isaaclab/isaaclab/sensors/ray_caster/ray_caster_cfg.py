@@ -44,6 +44,17 @@ class RayCasterCfg(SensorBaseCfg):
     offset: OffsetCfg = OffsetCfg()
     """The offset pose of the sensor's frame from the sensor's parent frame. Defaults to identity."""
 
+    attach_yaw_only: bool = MISSING
+    """Whether the rays' starting positions and directions only track the yaw orientation.
+
+    This is useful for ray-casting height maps, where only yaw rotation is needed.
+
+    .. warning::
+
+        This attribute is deprecated. Use :attr:`~isaaclab.sensors.ray_caster.ray_caster_cfg.ray_alignment` instead.
+        To get the same behavior, set `ray_alignment` to `"yaw"`.
+    """
+
     ray_alignment: Literal["base", "yaw", "world"] = "yaw"
     """Specify in what frame the rays are projected onto the ground. Default is `world`.
         * `base` if the rays' starting positions and directions track the full root orientation.

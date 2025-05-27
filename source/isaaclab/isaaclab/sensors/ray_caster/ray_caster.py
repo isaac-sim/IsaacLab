@@ -254,7 +254,13 @@ class RayCaster(SensorBase):
             ray_starts_w = self.ray_starts[env_ids]
             ray_starts_w += pos_w.unsqueeze(1)
             ray_directions_w = self.ray_directions[env_ids]
-        elif self.cfg.ray_alignment == "yaw":
+        elif self.cfg.ray_alignment == "yaw" or self.cfg.attach_yaw_only:
+            if self.cfg.attach_yaw_only:
+                omni.log.warn(
+                    "The `attach_yaw_only` property will be deprecated in a future release. Please use"
+                    " `ray_alignment='yaw'` instead."
+                )
+
             # apply horizontal drift to ray starting position in ray caster frame
             pos_w[:, 0:2] += quat_apply_yaw(quat_w, self.ray_cast_drift[env_ids])[:, 0:2]
             # only yaw orientation is considered and directions are not rotated
