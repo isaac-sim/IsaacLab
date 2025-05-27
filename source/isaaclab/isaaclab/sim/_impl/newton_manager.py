@@ -48,7 +48,7 @@ class NewtonManager:
         NewtonManager._state_1 = NewtonManager._model.state()
         NewtonManager._state_temp = NewtonManager._model.state()
         NewtonManager._control = NewtonManager._model.control()
-        newton.core.articulation.eval_fk(NewtonManager._model, NewtonManager._model.joint_q, NewtonManager._model.joint_qd, None, NewtonManager._state_0)
+        newton.core.articulation.eval_fk(NewtonManager._model, NewtonManager._model.joint_q, NewtonManager._model.joint_qd, NewtonManager._state_0, None)
         NewtonManager._use_cuda_graph = wp.get_device().is_cuda
         if NewtonManager._use_cuda_graph:
             with wp.ScopedCapture() as capture:
@@ -152,7 +152,7 @@ class NewtonManager:
     @classmethod
     def forward_kinematics(cls, selection):
         newton.core.articulation.eval_fk(
-            NewtonManager._model, NewtonManager._state_0.joint_q, NewtonManager._state_0.joint_qd, selection.articulation_mask, NewtonManager._state_0
+            NewtonManager._model, NewtonManager._state_0.joint_q, NewtonManager._state_0.joint_qd, NewtonManager._state_0, selection.articulation_mask
         )
 
 

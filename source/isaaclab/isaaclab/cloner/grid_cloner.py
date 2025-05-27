@@ -160,14 +160,14 @@ class GridCloner(Cloner):
             import newton.utils.isaaclab
             stage = omni.usd.get_context().get_stage()
             clone_base_path = self._root_path if root_path is None else root_path
-            builder, stage_info, env_offsets = newton.utils.isaaclab.replicate_environment(
+            builder, stage_info = newton.utils.isaaclab.replicate_environment(
                 omni.usd.get_context().get_stage(),
                 source_prim_path,
                 clone_base_path + "{}",
                 num_clones,
                 (self._spacing, self._spacing, 0.0),
                 # USD importer args
-                collapse_fixed_joints=True,
+                collapse_fixed_joints=False,
             )
             NewtonManager.set_builder(builder)
 

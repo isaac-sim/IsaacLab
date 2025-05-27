@@ -616,6 +616,7 @@ class SimulationContext(_SimulationContext):
         else:
             # manually flush the fabric data to update Hydra textures
             self.forward()
+            # NewtonManager.render()
             # render the simulation
             # note: we don't call super().render() anymore because they do above operation inside
             #  and we don't want to do it twice. We may remove it once we drop support for Isaac Sim 2022.2.

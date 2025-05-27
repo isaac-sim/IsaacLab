@@ -124,7 +124,7 @@ class Articulation(AssetBase):
     @property
     def num_joints(self) -> int:
         """Number of joints in articulation."""
-        return self._root_newton_view.joint_count
+        return self._root_newton_view.joint_dof_count
 
     @property
     def num_fixed_tendons(self) -> int:
@@ -140,6 +140,7 @@ class Articulation(AssetBase):
     @property
     def joint_names(self) -> list[str]:
         """Ordered names of joints in articulation."""
+        # return ['left_upper_arm:0', 'left_upper_arm:2', 'lower_waist:0','lower_waist:1',  'right_upper_arm:0', 'right_upper_arm:2', 'left_lower_arm', 'pelvis', 'right_lower_arm', 'left_thigh:0', 'left_thigh:1', 'left_thigh:2', 'right_thigh:0', 'right_thigh:1', 'right_thigh:2', 'left_shin', 'right_shin', 'left_foot:0', 'left_foot:1', 'right_foot:0', 'right_foot:1']
         return self._root_newton_view.joint_names
 
     @property
@@ -201,7 +202,7 @@ class Articulation(AssetBase):
         self._apply_actuator_model()
         # write actions into simulation
         # self.root_physx_view.set_dof_actuation_forces(self._joint_effort_target_sim, self._ALL_INDICES)
-        self._root_newton_view.set_attribute("joint_act", NewtonManager.get_control(), self._joint_effort_target_sim)
+        self._root_newton_view.set_attribute("joint_f", NewtonManager.get_control(), self._joint_effort_target_sim)
         # position and velocity targets only for implicit actuators
         #TODO: write position and velocity targets to simulation
         # if self._has_implicit_actuators:
@@ -598,7 +599,8 @@ class Articulation(AssetBase):
         # set into internal buffers
         self._data.joint_stiffness[env_ids, joint_ids] = stiffness
         # set into simulation
-        self.root_physx_view.set_dof_stiffnesses(self._data.joint_stiffness.cpu(), indices=physx_env_ids.cpu())
+        # self.root_physx_view.set_dof_stiffnesses(self._data.joint_stiffness.cpu(), indices=physx_env_ids.cpu())
+        self._root_newton_view.set_attribute("joint_target_ke", NewtonManager.get_model(), self._data.joint_stiffness)
 
     def write_joint_damping_to_sim(
         self,
@@ -627,7 +629,7 @@ class Articulation(AssetBase):
         # set into internal buffers
         self._data.joint_damping[env_ids, joint_ids] = damping
         # set into simulation
-        self.root_physx_view.set_dof_dampings(self._data.joint_damping.cpu(), indices=physx_env_ids.cpu())
+        self._root_newton_view.set_attribute("joint_target_kd", NewtonManager.get_model(), self._data.joint_damping)
 
     def write_joint_position_limit_to_sim(
         self,
@@ -788,7 +790,8 @@ class Articulation(AssetBase):
         # set into internal buffers
         self._data.joint_armature[env_ids, joint_ids] = armature
         # set into simulation
-        self.root_physx_view.set_dof_armatures(self._data.joint_armature.cpu(), indices=physx_env_ids.cpu())
+        self._root_newton_view.set_attribute("joint_armature", NewtonManager.get_model(), self._data.joint_armature)
+        # self.root_physx_view.set_dof_armatures(self._data.joint_armature.cpu(), indices=physx_env_ids.cpu())
 
     def write_joint_friction_coefficient_to_sim(
         self,
@@ -1192,7 +1195,7 @@ class Articulation(AssetBase):
         # self._root_physx_view = self._physics_sim_view.create_articulation_view(root_prim_path_expr.replace(".*", "*"))
         # print(root_prim_path_expr.replace(".*", "*").repl ace("env_*", "*"))
         # print(NewtonManager.get_model().articulation_key)
-        self._root_newton_view = NewtonArticulationView(NewtonManager.get_model(), root_prim_path_expr.replace(".*", "*").replace("env_*", "*"), include_free_joint=False, env_offsets=None)
+        self._root_newton_view = NewtonArticulationView(NewtonManager.get_model(), root_prim_path_expr.replace(".*", "*").replace("env_*", "*"), include_free_joint=False)
         # if self._root_physx_view._backend is None:
         #     raise RuntimeError(f"Failed to create articulation at: {self.cfg.prim_path}. Please check PhysX logs.")
 
@@ -1237,12 +1240,19 @@ class Articulation(AssetBase):
         # tendon names are set in _process_fixed_tendons function
 
         # -- joint properties
+        # self._data.default_joint_pos_limits = self.root_physx_view.get_dof_limits().to(self.device).clone()
+        # self._data.default_joint_stiffness = self.root_physx_view.get_dof_stiffnesses().to(self.device).clone()
+        # self._data.default_joint_damping = self.root_physx_view.get_dof_dampings().to(self.device).clone()
+        # self._data.default_joint_armature = self.root_physx_view.get_dof_armatures().to(self.device).clone()
+        # self._data.default_joint_friction_coeff = (
+        #     self.root_physx_view.get_dof_friction_coefficients().to(self.device).clone()
+        # )
         #TODO: read out all joint parameters from simulation
         self._data.default_joint_pos_limits = torch.stack((wp.to_torch(self._root_newton_view.get_attribute("joint_limit_lower", NewtonManager.get_model())), 
                                                          wp.to_torch(self._root_newton_view.get_attribute("joint_limit_upper", NewtonManager.get_model()))), dim=2)
-        self._data.default_joint_stiffness = torch.zeros([self.num_instances, self.num_joints], dtype=torch.float32, device=self.device).clone()
-        self._data.default_joint_damping = torch.zeros([self.num_instances, self.num_joints], dtype=torch.float32, device=self.device).clone()
-        self._data.default_joint_armature = torch.zeros([self.num_instances, self.num_joints], dtype=torch.float32, device=self.device).clone()
+        self._data.default_joint_stiffness = wp.to_torch(self._root_newton_view.get_attribute("joint_target_ke", NewtonManager.get_model())).clone()
+        self._data.default_joint_damping = wp.to_torch(self._root_newton_view.get_attribute("joint_target_kd", NewtonManager.get_model())).clone()
+        self._data.default_joint_armature = wp.to_torch(self._root_newton_view.get_attribute("joint_armature", NewtonManager.get_model())).clone()
         self._data.default_joint_friction_coeff = (
             torch.zeros([self.num_instances, self.num_joints], dtype=torch.float32, device=self.device).clone()
         )
@@ -1256,6 +1266,8 @@ class Articulation(AssetBase):
         self._data.joint_friction_coeff = self._data.default_joint_friction_coeff.clone()
 
         # -- body properties
+        # self._data.default_mass = self.root_physx_view.get_masses().clone()
+        # self._data.default_inertia = self.root_physx_view.get_inertias().clone()
         self._data.default_mass = torch.zeros([self.num_instances, self.num_bodies], dtype=torch.float32, device=self.device).clone()
         self._data.default_inertia = torch.zeros([self.num_instances, self.num_bodies], dtype=torch.float32, device=self.device).clone()
 
@@ -1378,16 +1390,16 @@ class Articulation(AssetBase):
             self.actuators[actuator_name] = actuator
             # set the passed gains and limits into the simulation
             #TODO: write out all joint parameters from simulation
-            # if isinstance(actuator, ImplicitActuator):
-            #     self._has_implicit_actuators = True
-            #     # the gains and limits are set into the simulation since actuator model is implicit
-            #     self.write_joint_stiffness_to_sim(actuator.stiffness, joint_ids=actuator.joint_indices)
-            #     self.write_joint_damping_to_sim(actuator.damping, joint_ids=actuator.joint_indices)
-            # else:
-            #     # the gains and limits are processed by the actuator model
-            #     # we set gains to zero, and torque limit to a high value in simulation to avoid any interference
-            #     self.write_joint_stiffness_to_sim(0.0, joint_ids=actuator.joint_indices)
-            #     self.write_joint_damping_to_sim(0.0, joint_ids=actuator.joint_indices)
+            if isinstance(actuator, ImplicitActuator):
+                self._has_implicit_actuators = True
+                # the gains and limits are set into the simulation since actuator model is implicit
+                self.write_joint_stiffness_to_sim(actuator.stiffness, joint_ids=actuator.joint_indices)
+                self.write_joint_damping_to_sim(actuator.damping, joint_ids=actuator.joint_indices)
+            else:
+                # the gains and limits are processed by the actuator model
+                # we set gains to zero, and torque limit to a high value in simulation to avoid any interference
+                self.write_joint_stiffness_to_sim(0.0, joint_ids=actuator.joint_indices)
+                self.write_joint_damping_to_sim(0.0, joint_ids=actuator.joint_indices)
 
             # # Set common properties into the simulation
             # self.write_joint_effort_limit_to_sim(actuator.effort_limit_sim, joint_ids=actuator.joint_indices)
