@@ -19,7 +19,7 @@ from isaaclab.assets import Articulation, RigidObject
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers.manager_base import ManagerTermBase
 from isaaclab.managers.manager_term_cfg import ObservationTermCfg
-from isaaclab.sensors import Camera, Imu, RayCaster, RayCasterCamera, TiledCamera
+from isaaclab.sensors import Camera, Imu, RayCaster, RayCasterCamera, RtxLidar, TiledCamera
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv, ManagerBasedRLEnv
@@ -298,6 +298,24 @@ def imu_lin_acc(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg
     """
     asset: Imu = env.scene[asset_cfg.name]
     return asset.data.lin_acc_b
+
+
+def point_cloud(
+    env: ManagerBasedEnv, sensor_cfg: SceneEntityCfg = SceneEntityCfg("lidar"), data_type: str = "data"
+) -> torch.Tensor:
+    """Lidar point cloud data
+
+    Args:
+        env: The environment.
+        sensor_cfg: The desired sensor to read from. Defaults to SceneEntityCfg("lidar").
+        data_type: The data type to pull from the desired lidar. Defaults to "data".
+
+    Returns:
+        The point cloud in the sensor frame. Shape is (num_envs, idk)
+    """
+
+    sensor: RtxLidar = env.scene[sensor_cfg.name]
+    return sensor.data.output[data_type]
 
 
 def image(
