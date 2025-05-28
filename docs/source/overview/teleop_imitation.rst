@@ -529,6 +529,11 @@ generated using Isaac Lab Mimic for the ``Isaac-NutPour-GR1T2-Pink-IK-Abs-Mimic-
 .. hint::
 
    If desired, data collection, annotation, and generation can be done using the same commands as the prior examples.
+
+   The robot first picks up the red beaker and pours the contents into the yellow bowl.
+   Then, it drops the red beaker into the blue bin. Lastly, it places the yellow bowl onto the white scale.
+   See the video in the :ref:`visualize-results-demo-2` section below for a visual demonstration of the task.
+
    **Note that the following commands are only for your reference and are not required for this demo.**
 
    To collect demonstrations:
@@ -591,6 +596,8 @@ Record the normalization parameters for later use in the visualization step.
 
 .. note::
    By default the trained models and logs will be saved to ``IsaacLab/logs/robomimic``.
+
+.. _visualize-results-demo-2:
 
 Visualize the results
 ^^^^^^^^^^^^^^^^^^^^^
