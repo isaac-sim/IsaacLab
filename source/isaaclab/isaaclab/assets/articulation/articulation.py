@@ -440,7 +440,7 @@ class Articulation(AssetBase):
         # set into simulation
         # Newton reads velocities as [wx, wy, wz, vx, vy, vz] Isaac reads as [vx, vy, vz, wx, wy, wz]
         velocity = torch.cat((self._data.root_state_w[:, 10:], self._data.root_state_w[:, 7:10]), dim=-1)
-        self._root_newton_view.set_root_velocities(NewtonManager.get_state_0(), velocity.clone())
+        self._root_newton_view.set_root_velocities(NewtonManager.get_state_0(), velocity)
         # self.root_physx_view.set_root_velocities(self._data.root_state_w[:, 7:], indices=physx_env_ids)
         
 
