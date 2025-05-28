@@ -9,8 +9,8 @@ import os
 from collections.abc import Callable
 from typing import Any, Literal
 
-from isaaclab import ISAACLAB_EXT_DIR
 import isaaclab.utils.sensors as sensor_utils
+from isaaclab import ISAACLAB_EXT_DIR
 from isaaclab.sim.spawners.spawner_cfg import SpawnerCfg
 from isaaclab.utils import configclass
 
@@ -144,8 +144,7 @@ class PinholeCameraCfg(SpawnerCfg):
         """
         # raise not implemented error is projection type is not pinhole
         if projection_type != "pinhole":
-            raise NotImplementedError(
-                "Only pinhole projection type is supported.")
+            raise NotImplementedError("Only pinhole projection type is supported.")
 
         usd_camera_params = sensor_utils.convert_camera_intrinsics_to_usd(
             intrinsic_matrix=intrinsic_matrix, height=height, width=width, focal_length=focal_length
@@ -304,8 +303,7 @@ class LidarCfg(SpawnerCfg):
     """Custom lidar parameters to use if lidar_type="Custom"
      see https://docs.omniverse.nvidia.com/kit/docs/omni.sensors.nv.lidar/latest/lidar_extension.html"""
 
-    sensor_profile_temp_dir: str = os.path.abspath(
-        os.path.join(ISAACLAB_EXT_DIR, "isaaclab/sensors/rtx_lidar"))
+    sensor_profile_temp_dir: str = os.path.abspath(os.path.join(ISAACLAB_EXT_DIR, "isaaclab/sensors/rtx_lidar"))
     """The location of the generated custom sensor profile json file."""
 
     sensor_profile_temp_prefix: str = "Temp_Config_"
