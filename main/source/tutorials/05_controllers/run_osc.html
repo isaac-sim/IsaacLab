@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.1.0" />
-    <meta name="docbuild:last-update" content="May 24, 2025"/>
+    <meta name="docbuild:last-update" content="May 28, 2025"/>
   </head>
   
   
@@ -690,8 +690,8 @@ tilted wall surface while tracking a desired end-effector pose in all the other 
 <span class="linenos"> 49</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils.math</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
 <span class="linenos"> 50</span>    <span class="n">combine_frame_transforms</span><span class="p">,</span>
 <span class="linenos"> 51</span>    <span class="n">matrix_from_quat</span><span class="p">,</span>
-<span class="linenos"> 52</span>    <span class="n">quat_inv</span><span class="p">,</span>
-<span class="linenos"> 53</span>    <span class="n">quat_rotate_inverse</span><span class="p">,</span>
+<span class="linenos"> 52</span>    <span class="n">quat_apply_inverse</span><span class="p">,</span>
+<span class="linenos"> 53</span>    <span class="n">quat_inv</span><span class="p">,</span>
 <span class="linenos"> 54</span>    <span class="n">subtract_frame_transforms</span><span class="p">,</span>
 <span class="linenos"> 55</span><span class="p">)</span>
 <span class="linenos"> 56</span>
@@ -977,8 +977,8 @@ tilted wall surface while tracking a desired end-effector pose in all the other 
 <span class="linenos">336</span>    <span class="n">ee_vel_w</span> <span class="o">=</span> <span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">body_vel_w</span><span class="p">[:,</span> <span class="n">ee_frame_idx</span><span class="p">,</span> <span class="p">:]</span>  <span class="c1"># Extract end-effector velocity in the world frame</span>
 <span class="linenos">337</span>    <span class="n">root_vel_w</span> <span class="o">=</span> <span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">root_vel_w</span>  <span class="c1"># Extract root velocity in the world frame</span>
 <span class="linenos">338</span>    <span class="n">relative_vel_w</span> <span class="o">=</span> <span class="n">ee_vel_w</span> <span class="o">-</span> <span class="n">root_vel_w</span>  <span class="c1"># Compute the relative velocity in the world frame</span>
-<span class="linenos">339</span>    <span class="n">ee_lin_vel_b</span> <span class="o">=</span> <span class="n">quat_rotate_inverse</span><span class="p">(</span><span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">root_quat_w</span><span class="p">,</span> <span class="n">relative_vel_w</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">:</span><span class="mi">3</span><span class="p">])</span>  <span class="c1"># From world to root frame</span>
-<span class="linenos">340</span>    <span class="n">ee_ang_vel_b</span> <span class="o">=</span> <span class="n">quat_rotate_inverse</span><span class="p">(</span><span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">root_quat_w</span><span class="p">,</span> <span class="n">relative_vel_w</span><span class="p">[:,</span> <span class="mi">3</span><span class="p">:</span><span class="mi">6</span><span class="p">])</span>
+<span class="linenos">339</span>    <span class="n">ee_lin_vel_b</span> <span class="o">=</span> <span class="n">quat_apply_inverse</span><span class="p">(</span><span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">root_quat_w</span><span class="p">,</span> <span class="n">relative_vel_w</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">:</span><span class="mi">3</span><span class="p">])</span>  <span class="c1"># From world to root frame</span>
+<span class="linenos">340</span>    <span class="n">ee_ang_vel_b</span> <span class="o">=</span> <span class="n">quat_apply_inverse</span><span class="p">(</span><span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">root_quat_w</span><span class="p">,</span> <span class="n">relative_vel_w</span><span class="p">[:,</span> <span class="mi">3</span><span class="p">:</span><span class="mi">6</span><span class="p">])</span>
 <span class="linenos">341</span>    <span class="n">ee_vel_b</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">([</span><span class="n">ee_lin_vel_b</span><span class="p">,</span> <span class="n">ee_ang_vel_b</span><span class="p">],</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
 <span class="linenos">342</span>
 <span class="linenos">343</span>    <span class="c1"># Calculate the contact force</span>
@@ -1268,8 +1268,8 @@ gravity compensation vector and null-space joint position targets if required.</
     <span class="n">ee_vel_w</span> <span class="o">=</span> <span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">body_vel_w</span><span class="p">[:,</span> <span class="n">ee_frame_idx</span><span class="p">,</span> <span class="p">:]</span>  <span class="c1"># Extract end-effector velocity in the world frame</span>
     <span class="n">root_vel_w</span> <span class="o">=</span> <span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">root_vel_w</span>  <span class="c1"># Extract root velocity in the world frame</span>
     <span class="n">relative_vel_w</span> <span class="o">=</span> <span class="n">ee_vel_w</span> <span class="o">-</span> <span class="n">root_vel_w</span>  <span class="c1"># Compute the relative velocity in the world frame</span>
-    <span class="n">ee_lin_vel_b</span> <span class="o">=</span> <span class="n">quat_rotate_inverse</span><span class="p">(</span><span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">root_quat_w</span><span class="p">,</span> <span class="n">relative_vel_w</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">:</span><span class="mi">3</span><span class="p">])</span>  <span class="c1"># From world to root frame</span>
-    <span class="n">ee_ang_vel_b</span> <span class="o">=</span> <span class="n">quat_rotate_inverse</span><span class="p">(</span><span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">root_quat_w</span><span class="p">,</span> <span class="n">relative_vel_w</span><span class="p">[:,</span> <span class="mi">3</span><span class="p">:</span><span class="mi">6</span><span class="p">])</span>
+    <span class="n">ee_lin_vel_b</span> <span class="o">=</span> <span class="n">quat_apply_inverse</span><span class="p">(</span><span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">root_quat_w</span><span class="p">,</span> <span class="n">relative_vel_w</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">:</span><span class="mi">3</span><span class="p">])</span>  <span class="c1"># From world to root frame</span>
+    <span class="n">ee_ang_vel_b</span> <span class="o">=</span> <span class="n">quat_apply_inverse</span><span class="p">(</span><span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">root_quat_w</span><span class="p">,</span> <span class="n">relative_vel_w</span><span class="p">[:,</span> <span class="mi">3</span><span class="p">:</span><span class="mi">6</span><span class="p">])</span>
     <span class="n">ee_vel_b</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">([</span><span class="n">ee_lin_vel_b</span><span class="p">,</span> <span class="n">ee_ang_vel_b</span><span class="p">],</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
 
     <span class="c1"># Calculate the contact force</span>
@@ -1485,7 +1485,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on May 24, 2025.
+  Last updated on May 28, 2025.
   <br/>
 </p>
   </div>
