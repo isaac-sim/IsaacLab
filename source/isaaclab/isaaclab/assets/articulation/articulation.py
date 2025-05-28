@@ -141,8 +141,8 @@ class Articulation(AssetBase):
     @property
     def joint_names(self) -> list[str]:
         """Ordered names of joints in articulation."""
-        # return ['left_upper_arm:0', 'left_upper_arm:2', 'lower_waist:0','lower_waist:1',  'right_upper_arm:0', 'right_upper_arm:2', 'left_lower_arm', 'pelvis', 'right_lower_arm', 'left_thigh:0', 'left_thigh:1', 'left_thigh:2', 'right_thigh:0', 'right_thigh:1', 'right_thigh:2', 'left_shin', 'right_shin', 'left_foot:0', 'left_foot:1', 'right_foot:0', 'right_foot:1']
-        return self._root_newton_view.joint_names
+        return ['left_upper_arm:0', 'left_upper_arm:2', 'lower_waist:0','lower_waist:1',  'right_upper_arm:0', 'right_upper_arm:2', 'left_lower_arm', 'pelvis', 'right_lower_arm', 'left_thigh:0', 'left_thigh:1', 'left_thigh:2', 'right_thigh:0', 'right_thigh:1', 'right_thigh:2', 'left_shin', 'right_shin', 'left_foot:0', 'left_foot:1', 'right_foot:0', 'right_foot:1']
+        #return self._root_newton_view.joint_names
 
     @property
     def fixed_tendon_names(self) -> list[str]:
@@ -1282,8 +1282,8 @@ class Articulation(AssetBase):
         # FIXME: Copy this to warp arrays
         # self._data.default_mass = self.root_physx_view.get_masses().clone()
         # self._data.default_inertia = self.root_physx_view.get_inertias().clone()
-        self._data.default_mass = wp.to_torch(self._root_newton_view.get_attribute("body_mass", NewtonManager.get_model(), copy=True))
-        self._data.default_inertia = wp.to_torch(self._root_newton_view.get_attribute("body_inertia", NewtonManager.get_model(), copy=True)).reshape(self.num_instances, self.num_bodies, 9)
+        self._data.default_mass = wp.to_torch(self._root_newton_view.get_attribute("body_mass", NewtonManager.get_model())).clone()
+        self._data.default_inertia = wp.to_torch(self._root_newton_view.get_attribute("body_inertia", NewtonManager.get_model())).clone().reshape(self.num_instances, self.num_bodies, 9)
 
         # -- joint commands (sent to the actuator from the user)
         self._data.joint_pos_target = torch.zeros(self.num_instances, self.num_joints, device=self.device)
@@ -1404,16 +1404,16 @@ class Articulation(AssetBase):
             self.actuators[actuator_name] = actuator
             # set the passed gains and limits into the simulation
             #TODO: write out all joint parameters from simulation
-            if isinstance(actuator, ImplicitActuator):
-                self._has_implicit_actuators = True
-                # the gains and limits are set into the simulation since actuator model is implicit
-                self.write_joint_stiffness_to_sim(actuator.stiffness, joint_ids=actuator.joint_indices)
-                self.write_joint_damping_to_sim(actuator.damping, joint_ids=actuator.joint_indices)
-            else:
-                # the gains and limits are processed by the actuator model
-                # we set gains to zero, and torque limit to a high value in simulation to avoid any interference
-                self.write_joint_stiffness_to_sim(0.0, joint_ids=actuator.joint_indices)
-                self.write_joint_damping_to_sim(0.0, joint_ids=actuator.joint_indices)
+            #if isinstance(actuator, ImplicitActuator):
+            #    self._has_implicit_actuators = True
+            #    # the gains and limits are set into the simulation since actuator model is implicit
+            #    self.write_joint_stiffness_to_sim(actuator.stiffness, joint_ids=actuator.joint_indices)
+            #    self.write_joint_damping_to_sim(actuator.damping, joint_ids=actuator.joint_indices)
+            #else:
+            #    # the gains and limits are processed by the actuator model
+            #    # we set gains to zero, and torque limit to a high value in simulation to avoid any interference
+            #    self.write_joint_stiffness_to_sim(0.0, joint_ids=actuator.joint_indices)
+            #    self.write_joint_damping_to_sim(0.0, joint_ids=actuator.joint_indices)
 
             # # Set common properties into the simulation
             # self.write_joint_effort_limit_to_sim(actuator.effort_limit_sim, joint_ids=actuator.joint_indices)
