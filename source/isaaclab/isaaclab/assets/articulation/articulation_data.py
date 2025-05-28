@@ -370,15 +370,17 @@ class ArticulationData:
         """Root state ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame. Shape is (num_instances, 13).
 
         The position and quaternion are of the articulation root's actor frame relative to the world. Meanwhile,
-        the linear and angular velocities are of the articulation root's center of mass frame.
+        the linear and angular velocities are of the articulation root's center of mass frame. Quaternions
+        are in the order :math:`[qw, qx, qy, qz]`.
         """
         if self._root_state_w.timestamp < self._sim_timestamp:
             # read data from simulation
+            # Newton reads poses as [x, y, z, qx, qy, qz, qw] Isaac reads as [x, y, z, qw, qx, qy, qz]
             pose = wp.to_torch(self._root_newton_view.get_root_transforms(NewtonManager.get_state_0())).clone()
-            # pose = self._root_physx_view.get_root_transforms().clone()
             pose[:, 3:7] = math_utils.convert_quat(pose[:, 3:7], to="wxyz")
-            # velocity = self._root_physx_view.get_root_velocities()
+            # Newton reads velocities as [wx, wy, wz, vx, vy, vz] Isaac reads as [vx, vy, vz, wx, wy, wz]
             velocity = wp.to_torch(self._root_newton_view.get_root_velocities(NewtonManager.get_state_0())).clone()
+            velocity = torch.cat((velocity[:, 3:], velocity[:, :3]), dim=-1)
             # set the buffer data and timestamp
             self._root_state_w.data = torch.cat((pose, velocity), dim=-1)
             self._root_state_w.timestamp = self._sim_timestamp
@@ -389,15 +391,16 @@ class ArticulationData:
         """Root state ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame. Shape is (num_instances, 13).
 
         The position, quaternion, and linear/angular velocity are of the articulation root's actor frame relative to the
-        world.
+        world. Quaternions are in the order :math:`[qw, qx, qy, qz]`.
         """
         if self._root_link_state_w.timestamp < self._sim_timestamp:
             # read data from simulation
+            # Newton reads poses as [x, y, z, qx, qy, qz, qw] Isaac reads as [x, y, z, qw, qx, qy, qz]
             pose = wp.to_torch(self._root_newton_view.get_root_transforms(NewtonManager.get_state_0())).clone()
-            # pose = self._root_physx_view.get_root_transforms().clone()
             pose[:, 3:7] = math_utils.convert_quat(pose[:, 3:7], to="wxyz")
-            # velocity = self._root_physx_view.get_root_velocities().clone()
+            # Newton reads velocities as [wx, wy, wz, vx, vy, vz] Isaac reads as [vx, vy, vz, wx, wy, wz]
             velocity = wp.to_torch(self._root_newton_view.get_root_velocities(NewtonManager.get_state_0())).clone()
+            velocity = torch.cat((velocity[:, 3:], velocity[:, :3]), dim=-1)
             # adjust linear velocity to link from center of mass
             velocity[:, :3] += torch.linalg.cross(
                 velocity[:, 3:], math_utils.quat_rotate(pose[:, 3:7], -self.com_pos_b[:, 0, :]), dim=-1
@@ -414,15 +417,16 @@ class ArticulationData:
 
         The position, quaternion, and linear/angular velocity are of the articulation root link's center of mass frame
         relative to the world. Center of mass frame is assumed to be the same orientation as the link rather than the
-        orientation of the principle inertia.
+        orientation of the principle inertia. Quaternions are in the order :math:`[qw, qx, qy, qz]`.
         """
         if self._root_com_state_w.timestamp < self._sim_timestamp:
             # read data from simulation (pose is of link)
+            # Newton reads poses as [x, y, z, qx, qy, qz, qw] Isaac reads as [x, y, z, qw, qx, qy, qz]
             pose = wp.to_torch(self._root_newton_view.get_root_transforms(NewtonManager.get_state_0())).clone()
-            # pose = self._root_physx_view.get_root_transforms().clone()
             pose[:, 3:7] = math_utils.convert_quat(pose[:, 3:7], to="wxyz")
-            # velocity = self._root_physx_view.get_root_velocities()
-            velocity = wp.to_torch(self._root_newton_view.get_root_velocities(NewtonManager.get_state_0()))
+            # Newton reads velocities as [wx, wy, wz, vx, vy, vz] Isaac reads as [vx, vy, vz, wx, wy, wz]
+            velocity = wp.to_torch(self._root_newton_view.get_root_velocities(NewtonManager.get_state_0())).clone()
+            velocity = torch.cat((velocity[:, 3:], velocity[:, :3]), dim=-1)
             # adjust pose to center of mass
             pos, quat = math_utils.combine_frame_transforms(
                 pose[:, :3], pose[:, 3:7], self.com_pos_b[:, 0, :], self.com_quat_b[:, 0, :]
