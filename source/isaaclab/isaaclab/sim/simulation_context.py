@@ -242,6 +242,7 @@ class SimulationContext(_SimulationContext):
             physics_prim_path=self.cfg.physics_prim_path,
             device=self.cfg.device,
         )
+        self.set_setting("/app/player/playSimulations", False)
         NewtonManager.set_simulation_dt(self.cfg.dt, 1)
 
     def _apply_physics_settings(self):
@@ -517,13 +518,14 @@ class SimulationContext(_SimulationContext):
     """
 
     def reset(self, soft: bool = False):
+        self.set_setting("/app/player/playSimulations", False)
         self._disable_app_control_on_stop_handle = True
         if not soft:
             if not self.is_stopped():
                 self.stop()
             NewtonManager.start_simulation()
             self.play()
-            self.set_setting("/app/player/playSimulations", False)
+            NewtonManager.initialize_solver()
             
         # app.update() may be changing the cuda device in reset, so we force it back to our desired device here
         if "cuda" in self.device:

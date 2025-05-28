@@ -42,18 +42,12 @@ class NewtonManager:
     @classmethod
     def start_simulation(cls):
         NewtonManager._model = NewtonManager._builder.finalize()
-        NewtonManager._model.ground = True
-        NewtonManager._solver = newton.solvers.MuJoCoSolver(NewtonManager._model)           
+        NewtonManager._model.ground = True              
         NewtonManager._state_0 = NewtonManager._model.state()
         NewtonManager._state_1 = NewtonManager._model.state()
         NewtonManager._state_temp = NewtonManager._model.state()
         NewtonManager._control = NewtonManager._model.control()
         newton.core.articulation.eval_fk(NewtonManager._model, NewtonManager._model.joint_q, NewtonManager._model.joint_qd, NewtonManager._state_0, None)
-        NewtonManager._use_cuda_graph = wp.get_device().is_cuda
-        if NewtonManager._use_cuda_graph:
-            with wp.ScopedCapture() as capture:
-                NewtonManager.simulate()
-            NewtonManager._graph = capture.graph
         NewtonManager._usdrt_stage = get_current_stage(fabric=True)
         for i, prim_path in enumerate(NewtonManager._model.body_key):
             prim = NewtonManager._usdrt_stage.GetPrimAtPath(prim_path)
@@ -62,6 +56,15 @@ class NewtonManager:
             xformable_prim = usdrt.Rt.Xformable(prim)
             if not xformable_prim.HasWorldXform():
                 xformable_prim.SetWorldXformFromUsd()
+
+    @classmethod
+    def initialize_solver(cls):
+        NewtonManager._solver = newton.solvers.MuJoCoSolver(NewtonManager._model)
+        NewtonManager._use_cuda_graph = wp.get_device().is_cuda
+        if NewtonManager._use_cuda_graph:
+            with wp.ScopedCapture() as capture:
+                NewtonManager.simulate()
+            NewtonManager._graph = capture.graph
 
     @classmethod
     def simulate(cls):
