@@ -1,6 +1,26 @@
 Changelog
 ---------
 
+0.10.33 (2025-05-15)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``Isaac-Assembly-Direct-v0`` environment as a direct RL env that
+  implements assembly tasks to insert pegs into their corresponding sockets.
+
+
+0.10.32 (2025-05-21)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added unit tests for benchmarking environments with configurable settings. Output KPI payloads
+  can be pushed to a visualization dashboard to track improvements or regressions.
+
+
 0.10.31 (2025-04-02)
 ~~~~~~~~~~~~~~~~~~~~
 
