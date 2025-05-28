@@ -438,8 +438,10 @@ class Articulation(AssetBase):
         #TODO: write body acceleration to simulation
         # self._data.body_acc_w[env_ids] = 0.0
         # set into simulation
+        # Newton reads velocities as [wx, wy, wz, vx, vy, vz] Isaac reads as [vx, vy, vz, wx, wy, wz]
+        velocity = torch.cat((self._data.root_state_w[:, 10:], self._data.root_state_w[:, 7:10]), dim=-1)
+        self._root_newton_view.set_root_velocities(NewtonManager.get_state_0(), velocity.clone())
         # self.root_physx_view.set_root_velocities(self._data.root_state_w[:, 7:], indices=physx_env_ids)
-        self._root_newton_view.set_root_velocities(NewtonManager.get_state_0(), self._data.root_state_w[:, 7:].clone())
         
 
     def write_root_com_velocity_to_sim(self, root_velocity: torch.Tensor, env_ids: Sequence[int] | None = None):
