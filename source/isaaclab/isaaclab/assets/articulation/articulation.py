@@ -19,6 +19,7 @@ import omni.log
 import omni.physics.tensors.impl.api as physx
 from isaacsim.core.simulation_manager import SimulationManager
 from isaaclab.sim._impl.newton_manager import NewtonManager
+from newton import Model
 from pxr import PhysxSchema, UsdPhysics
 
 import isaaclab.sim as sim_utils
@@ -164,7 +165,7 @@ class Articulation(AssetBase):
         return self._root_newton_view
     
     @property
-    def root_newton_model(self) -> NewtonModel:
+    def root_newton_model(self) -> Model:
         """Newton model for the asset."""
         return self._root_newton_view.model
 
@@ -195,6 +196,7 @@ class Articulation(AssetBase):
         """
         # write external wrench
         if self.has_external_wrench:
+            raise NotImplementedError("External wrench in simulation is not implemented for Newton.")
             self.root_physx_view.apply_forces_and_torques_at_position(
                 force_data=self._external_force_b.view(-1, 3),
                 torque_data=self._external_torque_b.view(-1, 3),
@@ -604,8 +606,8 @@ class Articulation(AssetBase):
         # set into internal buffers
         self._data.joint_stiffness[env_ids, joint_ids] = stiffness
         # set into simulation
-        # self.root_physx_view.set_dof_stiffnesses(self._data.joint_stiffness.cpu(), indices=physx_env_ids.cpu())
         self._root_newton_view.set_attribute("joint_target_ke", NewtonManager.get_model(), self._data.joint_stiffness)
+        #self.root_physx_view.set_dof_stiffnesses(self._data.joint_stiffness.cpu(), indices=physx_env_ids.cpu())
 
     def write_joint_damping_to_sim(
         self,
@@ -635,6 +637,7 @@ class Articulation(AssetBase):
         self._data.joint_damping[env_ids, joint_ids] = damping
         # set into simulation
         self._root_newton_view.set_attribute("joint_target_kd", NewtonManager.get_model(), self._data.joint_damping)
+        #self.root_physx_view.set_dof_dampings(self._data.joint_damping.cpu(), indices=physx_env_ids.cpu())
 
     def write_joint_position_limit_to_sim(
         self,
@@ -684,7 +687,9 @@ class Articulation(AssetBase):
                 # info level is only written to log file
                 omni.log.info(violation_message)
         # set into simulation
-        self.root_physx_view.set_dof_limits(self._data.joint_pos_limits.cpu(), indices=physx_env_ids.cpu())
+
+        self._root_newton_view.set_attribute("joint_limit_lower", NewtonManager.get_model(), self._data.joint_pos_limits[..., 0])
+        self._root_newton_view.set_attribute("joint_limit_upper", NewtonManager.get_model(), self._data.joint_pos_limits[..., 1])
 
         # compute the soft limits based on the joint limits
         # TODO: Optimize this computation for only selected joints
@@ -713,6 +718,7 @@ class Articulation(AssetBase):
             joint_ids: The joint indices to set the max velocity for. Defaults to None (all joints).
             env_ids: The environment indices to set the max velocity for. Defaults to None (all environments).
         """
+        raise NotImplementedError("Joint velocity limit in simulation is not implemented for Newton.")
         # resolve indices
         physx_env_ids = env_ids
         if env_ids is None:
@@ -747,6 +753,7 @@ class Articulation(AssetBase):
             joint_ids: The joint indices to set the joint torque limits for. Defaults to None (all joints).
             env_ids: The environment indices to set the joint torque limits for. Defaults to None (all environments).
         """
+        raise NotImplementedError("Joint effort limit in simulation is not implemented for Newton.")
         # note: This function isn't setting the values for actuator models. (#128)
         # resolve indices
         physx_env_ids = env_ids
@@ -794,9 +801,9 @@ class Articulation(AssetBase):
             env_ids = env_ids[:, None]
         # set into internal buffers
         self._data.joint_armature[env_ids, joint_ids] = armature
-        # set into simulation
+        # set into simulation: Only used by the Featherstone solver
         self._root_newton_view.set_attribute("joint_armature", NewtonManager.get_model(), self._data.joint_armature)
-        # self.root_physx_view.set_dof_armatures(self._data.joint_armature.cpu(), indices=physx_env_ids.cpu())
+        #self.root_physx_view.set_dof_armatures(self._data.joint_armature.cpu(), indices=physx_env_ids.cpu())
 
     def write_joint_friction_coefficient_to_sim(
         self,
@@ -820,6 +827,7 @@ class Articulation(AssetBase):
             joint_ids: The joint indices to set the joint torque limits for. Defaults to None (all joints).
             env_ids: The environment indices to set the joint torque limits for. Defaults to None (all environments).
         """
+        raise NotImplementedError("Joint friction coefficient in simulation is not implemented for Newton.")
         # resolve indices
         physx_env_ids = env_ids
         if env_ids is None:
@@ -1410,7 +1418,7 @@ class Articulation(AssetBase):
             # # Set common properties into the simulation
             # self.write_joint_effort_limit_to_sim(actuator.effort_limit_sim, joint_ids=actuator.joint_indices)
             # self.write_joint_velocity_limit_to_sim(actuator.velocity_limit_sim, joint_ids=actuator.joint_indices)
-            # self.write_joint_armature_to_sim(actuator.armature, joint_ids=actuator.joint_indices)
+            self.write_joint_armature_to_sim(actuator.armature, joint_ids=actuator.joint_indices)
             # self.write_joint_friction_coefficient_to_sim(actuator.friction, joint_ids=actuator.joint_indices)
 
             # Store the configured values from the actuator model
@@ -1435,6 +1443,7 @@ class Articulation(AssetBase):
 
         # parse fixed tendons properties if they exist
         if self.num_fixed_tendons > 0:
+            raise NotImplementedError("Tendons are not implemented yet")
             stage = stage_utils.get_current_stage()
             joint_paths = self.root_physx_view.dof_paths[0]
 
@@ -1605,6 +1614,7 @@ class Articulation(AssetBase):
 
         # read out all tendon parameters from simulation
         if self.num_fixed_tendons > 0:
+            raise NotImplementedError("Tendons are not implemented yet")
             # -- gains
             ft_stiffnesses = self.root_physx_view.get_fixed_tendon_stiffnesses()[0].tolist()
             ft_dampings = self.root_physx_view.get_fixed_tendon_dampings()[0].tolist()

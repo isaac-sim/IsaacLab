@@ -445,7 +445,7 @@ class ArticulationData:
         The position and quaternion are of all the articulation links's actor frame. Meanwhile, the linear and angular
         velocities are of the articulation links's center of mass frame.
         """
-
+        raise NotImplementedError("Body state in world frame is not implemented for Newton.")
         if self._body_state_w.timestamp < self._sim_timestamp:
             self._physics_sim_view.update_articulations_kinematic()
             # read data from simulation
@@ -464,6 +464,7 @@ class ArticulationData:
 
         The position, quaternion, and linear/angular velocity are of the body's link frame relative to the world.
         """
+        raise NotImplementedError("Body link state in world frame is not implemented for Newton.")
         if self._body_link_state_w.timestamp < self._sim_timestamp:
             self._physics_sim_view.update_articulations_kinematic()
             # read data from simulation
@@ -490,6 +491,7 @@ class ArticulationData:
         world. Center of mass frame is assumed to be the same orientation as the link rather than the orientation of the
         principle inertia.
         """
+        raise NotImplementedError("Body center of mass state in world frame is not implemented for Newton.")
         if self._body_com_state_w.timestamp < self._sim_timestamp:
             self._physics_sim_view.update_articulations_kinematic()
             # read data from simulation (pose is of link)
@@ -756,6 +758,7 @@ class ArticulationData:
 
         This quantity is the angular velocity of the root rigid body's center of mass frame relative to the world.
         """
+        raise NotImplementedError("Root center of mass angular velocity in world frame is not implemented for Newton.")
         if self._root_com_state_w.timestamp < self._sim_timestamp:
             self._physics_sim_view.update_articulations_kinematic()
             # read data from simulation (pose is of link)
@@ -849,6 +852,7 @@ class ArticulationData:
 
         This quantity is the position of the rigid bodies' actor frame relative to the world.
         """
+        raise NotImplementedError("Body link position in world frame is not implemented for Newton.")
         if self._body_link_state_w.timestamp < self._sim_timestamp:
             self._physics_sim_view.update_articulations_kinematic()
             # read data from simulation
@@ -862,6 +866,7 @@ class ArticulationData:
 
         This quantity is the orientation of the rigid bodies' actor frame  relative to the world.
         """
+        raise NotImplementedError("Body link quaternion in world frame is not implemented for Newton.")
         if self._body_link_state_w.timestamp < self._sim_timestamp:
             self._physics_sim_view.update_articulations_kinematic()
             # read data from simulation
@@ -921,6 +926,7 @@ class ArticulationData:
 
         This quantity contains the linear and angular velocities of the rigid bodies' center of mass frame.
         """
+        raise NotImplementedError("Body center of mass velocity in world frame is not implemented for Newton.")
         if self._body_com_state_w.timestamp < self._sim_timestamp:
             self._physics_sim_view.update_articulations_kinematic()
             # read data from simulation (velocity is of com)
@@ -934,6 +940,7 @@ class ArticulationData:
 
         This quantity is the linear velocity of the rigid bodies' center of mass frame.
         """
+        raise NotImplementedError("Body center of mass linear velocity in world frame is not implemented for Newton.")
         if self._body_com_state_w.timestamp < self._sim_timestamp:
             self._physics_sim_view.update_articulations_kinematic()
             # read data from simulation (velocity is of com)
@@ -947,6 +954,7 @@ class ArticulationData:
 
         This quantity is the angular velocity of the rigid bodies' center of mass frame.
         """
+        raise NotImplementedError("Body center of mass angular velocity in world frame is not implemented for Newton.")
         if self._body_com_state_w.timestamp < self._sim_timestamp:
             self._physics_sim_view.update_articulations_kinematic()
             # read data from simulation (velocity is of com)
@@ -960,6 +968,7 @@ class ArticulationData:
 
         This quantity is the center of mass location relative to its body frame.
         """
+        raise NotImplementedError("Center of mass position in body frame is not implemented for Newton.")
         return self._root_physx_view.get_coms().to(self.device)[..., :3]
 
     @property
@@ -968,6 +977,7 @@ class ArticulationData:
 
         This quantity is the orientation of the principles axes of inertia relative to its body frame.
         """
+        raise NotImplementedError("Center of mass quaternion in body frame is not implemented for Newton.")
         quat = self._root_physx_view.get_coms().to(self.device)[..., 3:7]
         return math_utils.convert_quat(quat, to="wxyz")
 
