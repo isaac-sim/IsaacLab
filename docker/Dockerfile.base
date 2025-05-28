@@ -33,7 +33,7 @@ ENV DOCKER_USER_HOME=${DOCKER_USER_HOME_ARG}
 # Set environment variables
 ENV LANG=C.UTF-8
 ENV DEBIAN_FRONTEND=noninteractive
-
+ENV NVIDIA_DRIVER_CAPABILITIES=all
 USER root
 
 # Install dependencies and remove cache
@@ -87,9 +87,6 @@ RUN touch /bin/nvidia-smi && \
 RUN --mount=type=cache,target=${DOCKER_USER_HOME}/.cache/pip \
     ${ISAACLAB_PATH}/isaaclab.sh --install
 
-# HACK: Remove install of quadprog dependency
-RUN ${ISAACLAB_PATH}/isaaclab.sh -p -m pip uninstall -y quadprog
-
 # aliasing isaaclab.sh and python for convenience
 RUN echo "export ISAACLAB_PATH=${ISAACLAB_PATH}" >> ${HOME}/.bashrc && \
     echo "alias isaaclab=${ISAACLAB_PATH}/isaaclab.sh" >> ${HOME}/.bashrc && \
@@ -99,7 +96,15 @@ RUN echo "export ISAACLAB_PATH=${ISAACLAB_PATH}" >> ${HOME}/.bashrc && \
     echo "alias pip3='${ISAACLAB_PATH}/_isaac_sim/python.sh -m pip'" >> ${HOME}/.bashrc && \
     echo "alias tensorboard='${ISAACLAB_PATH}/_isaac_sim/python.sh ${ISAACLAB_PATH}/_isaac_sim/tensorboard'" >> ${HOME}/.bashrc && \
     echo "export TZ=$(date +%Z)" >> ${HOME}/.bashrc
-
+    
+ # installing nightly torch 
+# use pip caching to avoid reinstalling large packages
+#RUN --mount=type=cache,target=${DOCKER_USER_HOME}/.cache/pip \
+#    pip install --upgrade --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/cu128
+# install TensorFlow and nightly PyTorch
+RUN --mount=type=cache,target=${DOCKER_USER_HOME}/.cache/pip \
+    ${ISAACLAB_PATH}/_isaac_sim/python.sh -m pip install --upgrade --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/cu128 && \
+    ${ISAACLAB_PATH}/_isaac_sim/python.sh -m pip install tensorflow
 # make working directory as the Isaac Lab directory
 # this is the default directory when the container is run
 WORKDIR ${ISAACLAB_PATH}

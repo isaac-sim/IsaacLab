@@ -1,4 +1,3 @@
-
 # Everything past this stage is to install
 # ROS2 Humble
 FROM isaac-lab-base AS ros2

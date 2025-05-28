@@ -60,6 +60,11 @@ x-default-isaac-lab-volumes: &default-isaac-lab-volumes
   - type: volume
     source: isaac-lab-data
     target: ${DOCKER_ISAACLAB_PATH}/data_storage
+    # pull in nvoptix 
+  - type: bind
+    source: /usr/share/nvidia/nvoptix.bin
+    target: /usr/share/nvidia/nvoptix.bin
+    read_only: true
 
 x-default-isaac-lab-environment: &default-isaac-lab-environment
   - ISAACSIM_PATH=${DOCKER_ISAACLAB_PATH}/_isaac_sim
@@ -87,8 +92,8 @@ services:
         - ISAACSIM_ROOT_PATH_ARG=${DOCKER_ISAACSIM_ROOT_PATH}
         - ISAACLAB_PATH_ARG=${DOCKER_ISAACLAB_PATH}
         - DOCKER_USER_HOME_ARG=${DOCKER_USER_HOME}
-    image: isaac-lab-base${DOCKER_NAME_SUFFIX-}
-    container_name: isaac-lab-base${DOCKER_NAME_SUFFIX-}
+    image: isaac-lab-base
+    container_name: isaac-lab-base
     environment: *default-isaac-lab-environment
     volumes: *default-isaac-lab-volumes
     network_mode: host
@@ -97,6 +102,10 @@ services:
     entrypoint: bash
     stdin_open: true
     tty: true
+    devices:
+      - /dev/hidraw3:/dev/hidraw3
+      - /dev/hidraw4:/dev/hidraw4
+      #- /dev/hidraw5:/dev/hidraw5
 
   # This service adds a ROS2 Humble
   # installation on top of the base image
@@ -113,11 +122,8 @@ services:
         # avoid a warning message when building only the base profile
         # with the .env.base file
         - ROS2_APT_PACKAGE=${ROS2_APT_PACKAGE:-NONE}
-        # Make sure that the correct Docker Name Suffix is being passed to the dockerfile, to know which base image to
-        # start from.
-        - DOCKER_NAME_SUFFIX=${DOCKER_NAME_SUFFIX-}
-    image: isaac-lab-ros2${DOCKER_NAME_SUFFIX-}
-    container_name: isaac-lab-ros2${DOCKER_NAME_SUFFIX-}
+    image: isaac-lab-ros2
+    container_name: isaac-lab-ros2
     environment: *default-isaac-lab-environment
     volumes: *default-isaac-lab-volumes
     network_mode: host
@@ -126,8 +132,41 @@ services:
     entrypoint: bash
     stdin_open: true
     tty: true
+    devices:
+      #- /dev/hidraw4:/dev/hidraw4
+      - /dev/hidraw3:/dev/hidraw3
+     # - /dev/hidraw4:/dev/hidraw4
+      #- /dev/hidraw5:/dev/hidraw5
+    
+  isaac-lab-ros2_mod:
+    profiles: [ "ros2_mod" ]
+    env_file:
+      - .env.base
+      - .env.ros2_mod
+    build:
+      context: ../
+      dockerfile: docker/Dockerfile.ros2_mod
+      args:
+        # ROS2_APT_PACKAGE will default to NONE. This is to
+        # avoid a warning message when building only the base profile
+        # with the .env.base file
+        - ROS2_APT_PACKAGE=${ROS2_APT_PACKAGE:-NONE}
+    image: isaac_container
+    container_name: isaac-lab-ros2_mod
+    environment: *default-isaac-lab-environment
+    volumes: *default-isaac-lab-volumes
+    network_mode: host
+    deploy: *default-isaac-lab-deploy
+    # This is the entrypoint for the container
+    entrypoint: bash
+    stdin_open: true
+    tty: true
+    devices:
+      - "/dev/hidraw3:/dev/hidraw3"
+      #- "/dev/hidraw4:/dev/hidraw4"
 
 volumes:
+
   # isaac-sim
   isaac-cache-kit:
   isaac-cache-ov:
