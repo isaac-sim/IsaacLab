@@ -13,6 +13,10 @@ Breaking Changes
 * :attr:`~isaaclab.sim.spawners.PhysicsMaterialCfg.improve_patch_friction` is now removed. The simulation will always behave as if this attribute is set to true.
 * Native Livestreaming support has been removed. ``LIVESTREAM=1`` can now be used for WebRTC streaming over public networks and
   ``LIVESTREAM=2`` for private and local networks with WebRTC streaming.
+* Python version has been updated to 3.11 from 3.10
+* Official support for Ubuntu 20.04 has been dropped. We now officially support Ubuntu 22.04 and 24.04 Linux platforms.
+* Isaac Sim 5.0 no longer sets ``/app/player/useFixedTimeStepping=False`` by default. We now do this in Isaac Lab.
+
 
 v2.1.0
 ======

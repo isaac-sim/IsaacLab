@@ -33,9 +33,7 @@ def setup_environment():
     registered_tasks = list()
     for task_spec in gym.registry.values():
         if "Isaac" in task_spec.id and not task_spec.id.endswith("Play-v0") and "Factory" in task_spec.id:
-            # TODO: We need to fix this environment!!!
-            if "Isaac-Factory-PegInsert-Direct-v0" not in task_spec.id:
-                registered_tasks.append(task_spec.id)
+            registered_tasks.append(task_spec.id)
     # sort environments by name
     registered_tasks.sort()
 

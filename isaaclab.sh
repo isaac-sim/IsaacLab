@@ -293,7 +293,7 @@ print_help () {
 if [ -z "$*" ]; then
     echo "[Error] No arguments provided." >&2;
     print_help
-    exit 1
+    exit 0
 fi
 
 # pass the arguments
