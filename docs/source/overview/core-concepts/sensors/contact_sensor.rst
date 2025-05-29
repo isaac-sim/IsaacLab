@@ -73,7 +73,7 @@ Here, we print both the net contact force and the filtered force matrix for each
   Received contact force of:  tensor([[[1.3529e-05, 0.0000e+00, 1.0069e+02]]], device='cuda:0')
 
 
-.. figure:: ../../_static/overview/overview_sensors_contact_visualization.jpg
+.. figure:: ../../../_static/overview/sensors/contact_visualization.jpg
     :align: center
     :figwidth: 100%
     :alt: The contact sensor visualization
