@@ -237,7 +237,7 @@ We provide environments for both disassembly and assembly.
 .. |disassembly| image:: ../_static/tasks/assembly/01053_disassembly.jpg
 
 .. |assembly-link| replace:: `Isaac-Assembly-Direct-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/direct/assembly/assembly_env_cfg.py>`__
-.. |disassembly-link| replace:: `Isaac-Assembly-Direct-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/direct/assembly/disassembly_env_cfg.py>`__
+.. |disassembly-link| replace:: `Isaac-Disassembly-Direct-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/direct/assembly/disassembly_env_cfg.py>`__
 
 Locomotion
 ~~~~~~~~~~
