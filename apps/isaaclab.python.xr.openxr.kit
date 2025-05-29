@@ -26,6 +26,11 @@ app.asyncRenderingLowLatency = true
 renderer.multiGpu.maxGpuCount = 16
 renderer.gpuEnumeration.glInterop.enabled = true # Allow Kit XR OpenXR to render headless
 
+### FSD
+app.useFabricSceneDelegate = true
+# Temporary, should be enabled by default in Kit soon
+rtx.hydra.readTransformsFromFabricInRenderDelegate = true
+
 [dependencies]
 "isaaclab.python" = {}
 
