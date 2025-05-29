@@ -1,7 +1,7 @@
 Changelog
 ---------
 
-0.39.8 (2025-05-20)
+0.40.1 (2025-05-20)
 ~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -15,6 +15,22 @@ Changed
 
 * Changed the way clipping is handled for :class:`~isaaclab.actuator.DCMotor` for torque-speed points in when in
   negative power regions.
+
+
+0.40.0 (2025-05-16)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added deprecation warning for :meth:`~isaaclab.utils.math.quat_rotate` and
+  :meth:`~isaaclab.utils.math.quat_rotate_inverse`
+
+Changed
+^^^^^^^
+
+* Changed all calls to :meth:`~isaaclab.utils.math.quat_rotate` and :meth:`~isaaclab.utils.math.quat_rotate_inverse` to
+  :meth:`~isaaclab.utils.math.quat_apply` and :meth:`~isaaclab.utils.math.quat_apply_inverse` for speed.
 
 
 0.39.7 (2025-05-19)

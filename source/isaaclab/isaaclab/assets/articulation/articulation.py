@@ -391,7 +391,7 @@ class Articulation(AssetBase):
         root_link_pos, root_link_quat = math_utils.combine_frame_transforms(
             root_pose[..., :3],
             root_pose[..., 3:7],
-            math_utils.quat_rotate(math_utils.quat_inv(com_quat), -com_pos),
+            math_utils.quat_apply(math_utils.quat_inv(com_quat), -com_pos),
             math_utils.quat_inv(com_quat),
         )
 
@@ -465,7 +465,7 @@ class Articulation(AssetBase):
         com_pos_b = self.data.com_pos_b[env_ids, 0, :]
         # transform given velocity to center of mass
         root_com_velocity[:, :3] += torch.linalg.cross(
-            root_com_velocity[:, 3:], math_utils.quat_rotate(quat, com_pos_b), dim=-1
+            root_com_velocity[:, 3:], math_utils.quat_apply(quat, com_pos_b), dim=-1
         )
         # write center of mass velocity to sim
         self.write_root_com_velocity_to_sim(root_velocity=root_com_velocity, env_ids=physx_env_ids)
