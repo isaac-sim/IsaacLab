@@ -41,11 +41,6 @@ rtx.hydra.readTransformsFromFabricInRenderDelegate = true
 [settings]
 app.xr.enabled = true
 
-[settings.app.python]
-# These disable the kit app from also printing out python output, which gets confusing
-interceptSysStdOutput = false
-logSysStdOutput = false
-
 # xr settings
 xr.ui.enabled = false
 xr.depth.aov = "GBufferDepth"
@@ -55,6 +50,11 @@ persistent.xr.profile.ar.renderQuality = "performance"
 persistent.xr.profile.ar.render.nearPlane = 0.15
 xr.openxr.components."omni.kit.xr.openxr.ext.hand_tracking".enabled = true
 xr.openxr.components."isaacsim.xr.openxr.hand_tracking".enabled = true
+
+[settings.app.python]
+# These disable the kit app from also printing out python output, which gets confusing
+interceptSysStdOutput = false
+logSysStdOutput = false
 
 # Register extension folder from this repo in kit
 [settings.app.exts]
