@@ -830,6 +830,10 @@ class AppLauncher:
         # set fabric update flag to disable updating transforms when rendering is disabled
         carb_settings_iface.set_bool("/physics/fabricUpdateTransformations", self._rendering_enabled())
 
+        # in theory, this should ensure that dt is consistent across time stepping, but this is not the case
+        # for now, we use the custom loop runner from Isaac Sim to achieve this
+        carb_settings_iface.set_bool("/app/player/useFixedTimeStepping", False)
+
     def _hide_stop_button(self):
         """Hide the stop button in the toolbar.
 

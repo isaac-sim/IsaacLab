@@ -27,13 +27,7 @@ Quick Installation Guide
 There are many ways to :ref:`install <isaaclab-installation-root>` Isaac Lab, but for the purposes of this quickstart guide, we will follow the
 pip install route using virtual environments.
 
-
-.. note::
-
-   If you are using Ubuntu 20.04, you will need to follow the :ref:`Binary Installation Guide <isaaclab-binaries-installation>` instead of the pip install route described below.
-
-
-To begin, we first define our virtual environment. We recommend using `miniconda <https://docs.conda.io/en/latest/miniconda.html>`_ to create a virtual environment.
+To begin, we first define our virtual environment.
 
 
 .. code-block:: bash
