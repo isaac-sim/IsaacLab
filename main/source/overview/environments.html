@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.1.0" />
-    <meta name="docbuild:last-update" content="May 28, 2025"/>
+    <meta name="docbuild:last-update" content="May 29, 2025"/>
   </head>
   
   
@@ -841,7 +841,7 @@ sudo<span class="w"> </span>sh<span class="w"> </span>cuda_12.8.0_570.86.10_linu
 <p>For addition instructions and Windows installation, please refer to the <a class="reference external" href="https://developer.nvidia.com/cuda-12-8-0-download-archive">CUDA installation page</a>.</p>
 </div>
 <ul class="simple">
-<li><p><a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/direct/assembly/disassembly_env_cfg.py">Isaac-Assembly-Direct-v0</a>: The plug starts inserted in the socket. A low-level controller lifts th plug out and moves it to a random position. These trajectories serve as demonstrations for the reverse process, i.e., learning to assemble. To run disassembly for a specific task: <code class="docutils literal notranslate"><span class="pre">./isaaclab.sh</span> <span class="pre">-p</span> <span class="pre">source/isaaclab_tasks/isaaclab_tasks/direct/assembly/run_disassembly_w_id.py</span> <span class="pre">--assembly_id=ASSEMBLY_ID</span></code></p></li>
+<li><p><a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/direct/assembly/disassembly_env_cfg.py">Isaac-Disassembly-Direct-v0</a>: The plug starts inserted in the socket. A low-level controller lifts th plug out and moves it to a random position. These trajectories serve as demonstrations for the reverse process, i.e., learning to assemble. To run disassembly for a specific task: <code class="docutils literal notranslate"><span class="pre">./isaaclab.sh</span> <span class="pre">-p</span> <span class="pre">source/isaaclab_tasks/isaaclab_tasks/direct/assembly/run_disassembly_w_id.py</span> <span class="pre">--assembly_id=ASSEMBLY_ID</span></code></p></li>
 <li><p><a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/direct/assembly/assembly_env_cfg.py">Isaac-Assembly-Direct-v0</a>: The goal is to insert the plug into the socket. You can use this environment to train a policy via reinforcement learning or evaluate a pre-trained checkpoint.</p>
 <ul>
 <li><p>To train an assembly policy: <code class="docutils literal notranslate"><span class="pre">./isaaclab.sh</span> <span class="pre">-p</span> <span class="pre">source/isaaclab_tasks/isaaclab_tasks/direct/assembly/run_w_id.py</span> <span class="pre">--assembly_id=ASSEMBLY_ID</span> <span class="pre">--train</span></code></p></li>
@@ -863,7 +863,7 @@ sudo<span class="w"> </span>sh<span class="w"> </span>cuda_12.8.0_570.86.10_linu
 </thead>
 <tbody>
 <tr class="row-even"><td><p><img alt="disassembly" src="../../_images/01053_disassembly.jpg" /></p></td>
-<td><p><a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/direct/assembly/disassembly_env_cfg.py">Isaac-Assembly-Direct-v0</a></p></td>
+<td><p><a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/direct/assembly/disassembly_env_cfg.py">Isaac-Disassembly-Direct-v0</a></p></td>
 <td><p>Lift a plug out of the socket with the Franka robot</p></td>
 </tr>
 <tr class="row-odd"><td><p><img alt="assembly" src="../../_images/00004.jpg" /></p></td>
@@ -1782,7 +1782,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on May 28, 2025.
+  Last updated on May 29, 2025.
   <br/>
 </p>
   </div>
