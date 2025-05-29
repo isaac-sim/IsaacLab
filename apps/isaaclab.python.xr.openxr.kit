@@ -36,6 +36,11 @@ renderer.gpuEnumeration.glInterop.enabled = true # Allow Kit XR OpenXR to render
 [settings]
 app.xr.enabled = true
 
+[settings.app.python]
+# These disable the kit app from also printing out python output, which gets confusing
+interceptSysStdOutput = false
+logSysStdOutput = false
+
 # xr settings
 xr.ui.enabled = false
 xr.depth.aov = "GBufferDepth"
