@@ -23,6 +23,11 @@ app.version = "5.0.0"
 [settings]
 xr.profile.ar.enabled = true
 
+[settings.app.python]
+# These disable the kit app from also printing out python output, which gets confusing
+interceptSysStdOutput = false
+logSysStdOutput = false
+
 # Register extension folder from this repo in kit
 [settings.app.exts]
 folders = [
