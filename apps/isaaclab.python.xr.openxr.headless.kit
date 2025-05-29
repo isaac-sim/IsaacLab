@@ -17,6 +17,11 @@ app.folder = "${exe-path}/"
 app.name = "Isaac-Sim"
 app.version = "5.0.0"
 
+### FSD
+app.useFabricSceneDelegate = true
+# Temporary, should be enabled by default in Kit soon
+rtx.hydra.readTransformsFromFabricInRenderDelegate = true
+
 [dependencies]
 "isaaclab.python.xr.openxr" = {}
 

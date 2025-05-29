@@ -74,6 +74,11 @@ app.hydraEngine.waitIdle = false
 # app.hydra.aperture.conform = 4 # in 105.1 pixels are square by default
 omni.replicator.asyncRendering = false
 
+### FSD
+app.useFabricSceneDelegate = true
+# Temporary, should be enabled by default in Kit soon
+rtx.hydra.readTransformsFromFabricInRenderDelegate = true
+
 # Enable Iray and pxr by setting this to "rtx,iray,pxr"
 renderer.enabled = "rtx"
 
@@ -153,6 +158,8 @@ fabricUpdateTransformations = false
 fabricUpdateVelocities = false
 fabricUpdateForceSensors = false
 fabricUpdateJointStates = false
+### When Direct GPU mode is enabled (suppressReadback=true) use direct interop between PhysX GPU and Fabric
+fabricUseGPUInterop = true
 
 # Performance improvement
 resourcemonitor.timeBetweenQueries = 100

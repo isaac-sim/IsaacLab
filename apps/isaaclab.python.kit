@@ -242,6 +242,10 @@ omni.replicator.asyncRendering = false
 app.asyncRendering = false
 app.asyncRenderingLowLatency = false
 
+### FSD
+app.useFabricSceneDelegate = true
+rtx.hydra.readTransformsFromFabricInRenderDelegate = true
+
 # disable replicator orchestrator for better runtime perf
 exts."omni.replicator.core".Orchestrator.enabled = false
 
@@ -292,6 +296,8 @@ fabricUpdateTransformations = false
 fabricUpdateVelocities = false
 fabricUpdateForceSensors = false
 fabricUpdateJointStates = false
+### When Direct GPU mode is enabled (suppressReadback=true) use direct interop between PhysX GPU and Fabric
+fabricUseGPUInterop = true
 
 # Asset path
 # set the S3 directory manually to the latest published S3
