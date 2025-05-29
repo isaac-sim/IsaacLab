@@ -16,6 +16,7 @@ Guidelines for modifications:
 * ETH Zurich
 * NVIDIA Corporation & Affiliates
 * University of Toronto
+* Persona AI, Inc.
 
 ---
 
