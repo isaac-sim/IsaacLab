@@ -28,6 +28,7 @@ INSTALL_REQUIRES = [
     "tensorboard",
     # automate
     "scikit-learn",
+    "numba",
 ]
 
 PYTORCH_INDEX_URL = ["https://download.pytorch.org/whl/cu118"]
