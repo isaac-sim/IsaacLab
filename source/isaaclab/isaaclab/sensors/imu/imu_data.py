@@ -25,6 +25,12 @@ class ImuData:
     Shape is (N, 4), where ``N`` is the number of environments.
     """
 
+    projected_gravity_b: torch.Tensor = None
+    """Gravity direction unit vector projected on the imu frame.
+
+    Shape is (N,3), where ``N`` is the number of environments.
+    """
+
     lin_vel_b: torch.Tensor = None
     """IMU frame angular velocity relative to the world expressed in IMU frame.
 
