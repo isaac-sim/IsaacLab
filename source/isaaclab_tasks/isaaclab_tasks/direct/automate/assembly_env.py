@@ -71,7 +71,7 @@ class AssemblyEnv(DirectRLEnv):
         if self.cfg_task.sample_from != "rand":
             self._init_eval_loading()
 
-        wandb.init(project="assembly", name=self.cfg_task.assembly_id + "_" + datetime.now().strftime("%m/%d/%Y"))
+        wandb.init(project="automate", name=self.cfg_task.assembly_id + "_" + datetime.now().strftime("%m/%d/%Y"))
 
     def _init_eval_loading(self):
         eval_held_asset_pose, eval_fixed_asset_pose, eval_success = automate_log.load_log_from_hdf5(
