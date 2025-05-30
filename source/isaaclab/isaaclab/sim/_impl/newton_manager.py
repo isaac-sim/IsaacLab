@@ -2,6 +2,8 @@ import newton.core.articulation
 import warp as wp
 import newton.utils
 from isaacsim.core.utils.stage import print_stage_prim_paths, get_current_stage
+from newton import Model, State, Control
+from newton.core import ModelBuilder
 import usdrt
 
 @wp.kernel(enable_backward=False)
@@ -16,15 +18,16 @@ def set_vec3d_array(
     fabric_vals[i] = wp.transpose(wp.mat44d(wp.math.transform_to_matrix(new_val)))
 
 class NewtonManager:
-    _builder = None
-    _model = None
-    _sim_dt = 1.0 / 600.0
-    _decimation = 10
+    _builder: ModelBuilder = None
+    _model: Model = None
+    _device: str = "cuda:0"
+    _sim_dt: float = 1.0 / 600.0
+    _decimation: int = 10
     _solver = None
-    _state_0 = None
-    _state_1 = None
-    _state_temp = None
-    _control = None
+    _state_0: State = None
+    _state_1: State = None
+    _state_temp: State = None
+    _control: Control = None
     _use_cuda_graph = False
     _graph = None
     _up_axis = "Z"
@@ -41,8 +44,8 @@ class NewtonManager:
 
     @classmethod
     def start_simulation(cls):
-        NewtonManager._model = NewtonManager._builder.finalize()
-        NewtonManager._model.ground = True              
+        NewtonManager._model = NewtonManager._builder.finalize(device=NewtonManager._device)
+        NewtonManager._model.ground = True    
         NewtonManager._state_0 = NewtonManager._model.state()
         NewtonManager._state_1 = NewtonManager._model.state()
         NewtonManager._state_temp = NewtonManager._model.state()
@@ -50,6 +53,7 @@ class NewtonManager:
         newton.core.articulation.eval_fk(NewtonManager._model, NewtonManager._model.joint_q, NewtonManager._model.joint_qd, NewtonManager._state_0, None)
         NewtonManager._usdrt_stage = get_current_stage(fabric=True)
         for i, prim_path in enumerate(NewtonManager._model.body_key):
+            #print("Being added to fabric: ", prim_path)
             prim = NewtonManager._usdrt_stage.GetPrimAtPath(prim_path)
             prim.CreateAttribute(NewtonManager._newton_index_attr, usdrt.Sdf.ValueTypeNames.UInt, True)
             prim.GetAttribute(NewtonManager._newton_index_attr).Set(i)
@@ -70,7 +74,7 @@ class NewtonManager:
     def simulate(cls):
         state_0_dict = NewtonManager._state_0.__dict__
         state_1_dict = NewtonManager._state_1.__dict__
-        state_temp_dict = NewtonManager._state_temp.__dict__
+        state_temp_dict = NewtonManager._state_temp.__dict__ # <-- Is this still used?
         for i in range(NewtonManager._decimation):
             NewtonManager._state_0.clear_forces()
             NewtonManager._solver.step(NewtonManager._model, NewtonManager._state_0, NewtonManager._state_1, NewtonManager._control, None, NewtonManager._sim_dt)
@@ -87,6 +91,15 @@ class NewtonManager:
                         state_temp_dict[key].assign(value)
                         state_0_dict[key].assign(state_1_dict[key])
                         state_1_dict[key].assign(state_temp_dict[key])
+
+    @classmethod
+    def set_device(cls, device: str) -> None:
+        """Sets the device to use for the Newton simulation.
+
+        Args:
+            device (str): The device to use for the Newton simulation.
+        """
+        NewtonManager._device = device
 
     @classmethod
     def step(cls):
@@ -155,7 +168,7 @@ class NewtonManager:
     @classmethod
     def forward_kinematics(cls, selection):
         newton.core.articulation.eval_fk(
-            NewtonManager._model, NewtonManager._state_0.joint_q, NewtonManager._state_0.joint_qd, NewtonManager._state_0, selection.articulation_mask
+            NewtonManager._model, NewtonManager._state_0.joint_q, NewtonManager._state_0.joint_qd, NewtonManager._state_0, selection.articulation_mask 
         )
 
 

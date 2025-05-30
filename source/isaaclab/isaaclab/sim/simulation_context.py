@@ -624,6 +624,7 @@ class SimulationContext(_SimulationContext):
             #  and we don't want to do it twice. We may remove it once we drop support for Isaac Sim 2022.2.
             self.set_setting("/app/player/playSimulations", False)
             self._app.update()
+            #NewtonManager.render()
 
         # app.update() may be changing the cuda device, so we force it back to our desired device here
         if "cuda" in self.device:
