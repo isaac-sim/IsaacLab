@@ -62,7 +62,7 @@ def main():
     )
 
     bash_command = (
-        "./isaaclab.sh -p scripts/reinforcement_learning/rl_games/train.py --task=Isaac-Disassembly-Direct-v0"
+        "./isaaclab.sh -p scripts/reinforcement_learning/rl_games/train.py --task=Isaac-AutoMate-Disassembly-Direct-v0"
     )
 
     bash_command += f" --num_envs={str(args.num_envs)}"

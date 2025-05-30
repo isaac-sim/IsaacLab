@@ -236,8 +236,8 @@ We provide environments for both disassembly and assembly.
 .. |assembly| image:: ../_static/tasks/automate/00004.jpg
 .. |disassembly| image:: ../_static/tasks/automate/01053_disassembly.jpg
 
-.. |assembly-link| replace:: `Isaac-Assembly-Direct-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/direct/automate/assembly_env_cfg.py>`__
-.. |disassembly-link| replace:: `Isaac-Disassembly-Direct-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/direct/automate/disassembly_env_cfg.py>`__
+.. |assembly-link| replace:: `Isaac-AutoMate-Assembly-Direct-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/direct/automate/assembly_env_cfg.py>`__
+.. |disassembly-link| replace:: `Isaac-AutoMate-Disassembly-Direct-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/direct/automate/disassembly_env_cfg.py>`__
 
 Locomotion
 ~~~~~~~~~~
@@ -713,11 +713,11 @@ Comprehensive List of Environments
       -
       - Direct
       - **rl_games** (PPO)
-    * - Isaac-Assembly-Direct-v0
+    * - Isaac-AutoMate-Assembly-Direct-v0
       -
       - Direct
       - **rl_games** (PPO)
-    * - Isaac-Disassembly-Direct-v0
+    * - Isaac-AutoMate-Disassembly-Direct-v0
       -
       - Direct
       -
