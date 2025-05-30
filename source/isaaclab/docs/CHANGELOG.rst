@@ -281,7 +281,7 @@ Changed
   :meth:`~isaaclab.utils.math.quat_apply` and :meth:`~isaaclab.utils.math.quat_apply_inverse` for speed.
 
 
-0.40.12 (2025-05-19)
+0.40.13 (2025-05-19)
 ~~~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -291,7 +291,7 @@ Fixed
   of assets and sensors.used from the experience files and the double definition is removed.
 
 
-0.40.11 (2025-01-30)
+0.40.12 (2025-01-30)
 ~~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -301,7 +301,7 @@ Added
   in the simulation.
 
 
-0.40.10 (2025-05-16)
+0.40.11 (2025-05-16)
 ~~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -316,8 +316,8 @@ Changed
   resampling call.
 
 
-0.40.9 (2025-05-16)
-~~~~~~~~~~~~~~~~~~~
+0.40.10 (2025-05-16)
+~~~~~~~~~~~~~~~~~~~~
 
 Fixed
 ^^^^^
@@ -325,7 +325,7 @@ Fixed
 * Fixed penetration issue for negative border height in :class:`~isaaclab.terrains.terrain_generator.TerrainGeneratorCfg`.
 
 
-0.40.8 (2025-05-20)
+0.40.9 (2025-05-20)
 ~~~~~~~~~~~~~~~~~~~
 
 Changed
@@ -340,7 +340,7 @@ Added
 * Added :meth:`~isaaclab.utils.math.rigid_body_twist_transform`
 
 
-0.40.7 (2025-05-15)
+0.40.8 (2025-05-15)
 ~~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -354,14 +354,23 @@ Fixed
   unused USD camera parameters.
 
 
-0.40.6 (2025-05-14)
+0.40.7 (2025-05-14)
 ~~~~~~~~~~~~~~~~~~~
 
 * Added a new attribute :attr:`articulation_root_prim_path` to the :class:`~isaaclab.assets.ArticulationCfg` class
   to allow explicitly specifying the prim path of the articulation root.
 
 
-0.40.5 (2025-05-14)
+0.40.6 (2025-05-14)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Enabled external cameras in XR.
+
+
+0.40.5 (2025-05-23)
 ~~~~~~~~~~~~~~~~~~~
 
 Added

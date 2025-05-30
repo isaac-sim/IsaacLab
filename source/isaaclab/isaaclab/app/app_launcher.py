@@ -595,7 +595,7 @@ class AppLauncher:
     def _resolve_camera_settings(self, launcher_args: dict):
         """Resolve camera related settings."""
         enable_cameras_env = int(os.environ.get("ENABLE_CAMERAS", 0))
-        enable_cameras_arg = launcher_args.pop("enable_cameras", AppLauncher._APPLAUNCHER_CFG_INFO["enable_cameras"][1])
+        enable_cameras_arg = launcher_args.get("enable_cameras", AppLauncher._APPLAUNCHER_CFG_INFO["enable_cameras"][1])
         enable_cameras_valid_vals = {0, 1}
         if enable_cameras_env not in enable_cameras_valid_vals:
             raise ValueError(
@@ -704,7 +704,8 @@ class AppLauncher:
         isaaclab_app_exp_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), *[".."] * 4, "apps")
         if self._sim_experience_file == "":
             # check if the headless flag is set
-            if self._enable_cameras:
+            # xr rendering overrides camera rendering settings
+            if self._enable_cameras and not self._xr:
                 if self._headless and not self._livestream:
                     self._sim_experience_file = os.path.join(
                         isaaclab_app_exp_path, "isaaclab.python.headless.rendering.kit"
