@@ -18,6 +18,7 @@ requirements = [
     "prettytable==3.3.0",
     "toml",
     "hidapi",
+    "easyhid",
     "gymnasium==0.29.0",
     "trimesh"
 ]
@@ -38,3 +39,6 @@ reloadable = false
 
 [[python.module]]
 name = "isaaclab"
+
+[isaac_lab_settings]
+apt_deps = ["libhidapi-dev"]
