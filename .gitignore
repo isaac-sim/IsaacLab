@@ -63,3 +63,7 @@ _build
 
 # Teleop Recorded Dataset
 datasets
+
+#Training Junk
+.pth
+docs/training_runs/
