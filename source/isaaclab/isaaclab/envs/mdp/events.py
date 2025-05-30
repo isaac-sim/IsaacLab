@@ -1095,6 +1095,7 @@ def reset_nodal_state_uniform(
 
 def reset_scene_to_default(env: ManagerBasedEnv, env_ids: torch.Tensor):
     """Reset the scene to the default state specified in the scene configuration."""
+    print("[DEBUG]  : Rest scene to default")
     # rigid bodies
     for rigid_object in env.scene.rigid_objects.values():
         # obtain default and deal with the offset for env origins
