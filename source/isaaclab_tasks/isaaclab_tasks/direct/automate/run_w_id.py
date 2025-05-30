@@ -44,7 +44,7 @@ def main():
         "--cfg_path",
         type=str,
         help="Path to the file containing assembly_id.",
-        default="source/isaaclab_tasks/isaaclab_tasks/direct/assembly/assembly_tasks_cfg.py",
+        default="source/isaaclab_tasks/isaaclab_tasks/direct/automate/assembly_tasks_cfg.py",
     )
     parser.add_argument("--assembly_id", type=str, help="New assembly ID to set.")
     parser.add_argument("--checkpoint", type=str, help="Checkpoint path.")
@@ -60,14 +60,14 @@ def main():
     bash_command = None
     if args.train:
         bash_command = (
-            "./isaaclab.sh -p scripts/reinforcement_learning/rl_games/train.py --task=Isaac-Assembly-Direct-v0"
+            "./isaaclab.sh -p scripts/reinforcement_learning/rl_games/train.py --task=Isaac-AutoMate-Assembly-Direct-v0"
         )
         bash_command += f" --seed={str(args.seed)}"
     else:
         if not args.checkpoint:
             raise ValueError("No checkpoint provided for evaluation.")
         bash_command = (
-            "./isaaclab.sh -p scripts/reinforcement_learning/rl_games/play.py --task=Isaac-Assembly-Direct-v0"
+            "./isaaclab.sh -p scripts/reinforcement_learning/rl_games/play.py --task=Isaac-AutoMate-Assembly-Direct-v0"
         )
 
     bash_command += f" --num_envs={str(args.num_envs)}"
