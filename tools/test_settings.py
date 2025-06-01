@@ -16,24 +16,15 @@ DEFAULT_TIMEOUT = 200
 """The default timeout for each test in seconds."""
 
 PER_TEST_TIMEOUTS = {
-    "test_articulation.py": 300,
+    "test_articulation.py": 500,
     "test_rigid_object.py": 300,
-    "test_rigid_object_collection.py": 200,
-    "test_deformable_object.py": 200,
     "test_environments.py": 1500,  # This test runs through all the environments for 100 steps each
     "test_environment_determinism.py": 500,  # This test runs through many the environments for 100 steps each
     "test_factory_environments.py": 300,  # This test runs through Factory environments for 100 steps each
     "test_env_rendering_logic.py": 300,
-    "test_camera.py": 500,
-    "test_tiled_camera.py": 500,
-    "test_multi_tiled_camera.py": 200,
+    "test_multi_tiled_camera": 300,
     "test_generate_dataset.py": 500,  # This test runs annotation for 10 demos and generation until one succeeds
-    "test_rsl_rl_wrapper.py": 200,
-    "test_sb3_wrapper.py": 200,
-    "test_skrl_wrapper.py": 200,
     "test_operational_space.py": 300,
-    "test_device_constructors.py": 200,
-    "test_terrain_importer.py": 200,
     "test_environments_training.py": 5000,
 }
 """A dictionary of tests and their timeouts in seconds.

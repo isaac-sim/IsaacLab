@@ -23,7 +23,7 @@ from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 SAWYER_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
-        usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/RethinkRobotics/sawyer_instanceable.usd",
+        usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/RethinkRobotics/Sawyer/sawyer_instanceable.usd",
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             disable_gravity=False,
             max_depenetration_velocity=5.0,
