@@ -17,6 +17,7 @@ from collections.abc import Sequence
 from dataclasses import MISSING
 from typing import Any, ClassVar
 
+import isaacsim.core.utils.stage as stage_utils
 import isaacsim.core.utils.torch as torch_utils
 import omni.kit.app
 import omni.log
@@ -25,6 +26,7 @@ from isaacsim.core.version import get_version
 from isaaclab.managers import EventManager
 from isaaclab.scene import InteractiveScene
 from isaaclab.sim import SimulationContext
+from isaaclab.sim.utils import attach_stage_to_usd_context
 from isaaclab.utils.noise import NoiseModel
 from isaaclab.utils.timer import Timer
 
@@ -117,8 +119,10 @@ class DirectMARLEnv(gym.Env):
 
         # generate scene
         with Timer("[INFO]: Time taken for scene creation", "scene_creation"):
-            self.scene = InteractiveScene(self.cfg.scene)
-            self._setup_scene()
+            with stage_utils.use_stage(self.sim.get_initial_stage()):
+                self.scene = InteractiveScene(self.cfg.scene)
+                self._setup_scene()
+                attach_stage_to_usd_context()
         print("[INFO]: Scene manager: ", self.scene)
 
         # set up camera viewport controller

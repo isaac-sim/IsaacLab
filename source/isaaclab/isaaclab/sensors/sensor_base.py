@@ -23,6 +23,7 @@ from typing import TYPE_CHECKING, Any
 import omni.kit.app
 import omni.timeline
 from isaacsim.core.simulation_manager import IsaacEvents, SimulationManager
+from isaacsim.core.utils.stage import get_current_stage
 
 import isaaclab.sim as sim_utils
 
@@ -59,6 +60,8 @@ class SensorBase(ABC):
         self._is_initialized = False
         # flag for whether the sensor is in visualization mode
         self._is_visualizing = False
+        # get stage handle
+        self.stage = get_current_stage()
 
         # note: Use weakref on callbacks to ensure that this object can be deleted when its destructor is called.
         # add callbacks for stage play/stop

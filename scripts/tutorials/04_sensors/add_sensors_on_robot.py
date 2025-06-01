@@ -41,10 +41,13 @@ simulation_app = app_launcher.app
 
 import torch
 
+import isaacsim.core.utils.stage as stage_utils
+
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors import CameraCfg, ContactSensorCfg, RayCasterCfg, patterns
+from isaaclab.sim.utils import attach_stage_to_usd_context
 from isaaclab.utils import configclass
 
 ##
@@ -157,13 +160,16 @@ def main():
     """Main function."""
 
     # Initialize the simulation context
-    sim_cfg = sim_utils.SimulationCfg(dt=0.005, device=args_cli.device)
+    sim_cfg = sim_utils.SimulationCfg(dt=0.005, device=args_cli.device, create_stage_in_memory=True)
     sim = sim_utils.SimulationContext(sim_cfg)
     # Set main camera
     sim.set_camera_view(eye=[3.5, 3.5, 3.5], target=[0.0, 0.0, 0.0])
-    # design scene
+    # Design scene
     scene_cfg = SensorsSceneCfg(num_envs=args_cli.num_envs, env_spacing=2.0)
-    scene = InteractiveScene(scene_cfg)
+    # Create scene with stage in memory and then attach to USD context
+    with stage_utils.use_stage(sim.get_initial_stage()):
+        scene = InteractiveScene(scene_cfg)
+        attach_stage_to_usd_context()
     # Play the simulator
     sim.reset()
     # Now we are ready!

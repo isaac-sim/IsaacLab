@@ -24,6 +24,7 @@ import flatdict
 import isaacsim.core.utils.stage as stage_utils
 import omni.log
 import omni.physx
+import omni.usd
 from isaacsim.core.api.simulation_context import SimulationContext as _SimulationContext
 from isaacsim.core.utils.carb import get_carb_setting, set_carb_setting
 from isaacsim.core.utils.viewports import set_camera_view
@@ -127,6 +128,12 @@ class SimulationContext(_SimulationContext):
         # check that simulation is running
         if stage_utils.get_current_stage() is None:
             raise RuntimeError("The stage has not been created. Did you run the simulator?")
+
+        # create stage in memory if requested
+        if self.cfg.create_stage_in_memory:
+            self._initial_stage = stage_utils.create_new_stage_in_memory()
+        else:
+            self._initial_stage = omni.usd.get_context().get_stage()
 
         # acquire settings interface
         self.carb_settings = carb.settings.get_settings()
@@ -257,6 +264,7 @@ class SimulationContext(_SimulationContext):
             sim_params=sim_params,
             physics_prim_path=self.cfg.physics_prim_path,
             device=self.cfg.device,
+            stage=self._initial_stage,
         )
 
     def _apply_physics_settings(self):
@@ -526,6 +534,14 @@ class SimulationContext(_SimulationContext):
                 self.physics_sim_view.update_articulations_kinematic()
             self._update_fabric(0.0, 0.0)
 
+    def get_initial_stage(self) -> Usd.Stage:
+        """Returns stage handle used during scene creation.
+
+        Returns:
+            The stage used during scene creation.
+        """
+        return self._initial_stage
+
     """
     Operations - Override (standalone)
     """
@@ -660,17 +676,18 @@ class SimulationContext(_SimulationContext):
 
     def _init_stage(self, *args, **kwargs) -> Usd.Stage:
         _ = super()._init_stage(*args, **kwargs)
-        # a stage update here is needed for the case when physics_dt != rendering_dt, otherwise the app crashes
-        # when in headless mode
-        self.set_setting("/app/player/playSimulations", False)
-        self._app.update()
-        self.set_setting("/app/player/playSimulations", True)
-        # set additional physx parameters and bind material
-        self._set_additional_physx_params()
-        # load flatcache/fabric interface
-        self._load_fabric_interface()
-        # return the stage
-        return self.stage
+        with stage_utils.use_stage(self.get_initial_stage()):
+            # a stage update here is needed for the case when physics_dt != rendering_dt, otherwise the app crashes
+            # when in headless mode
+            self.set_setting("/app/player/playSimulations", False)
+            self._app.update()
+            self.set_setting("/app/player/playSimulations", True)
+            # set additional physx parameters and bind material
+            self._set_additional_physx_params()
+            # load flatcache/fabric interface
+            self._load_fabric_interface()
+            # return the stage
+            return self.stage
 
     async def _initialize_stage_async(self, *args, **kwargs) -> Usd.Stage:
         await super()._initialize_stage_async(*args, **kwargs)
