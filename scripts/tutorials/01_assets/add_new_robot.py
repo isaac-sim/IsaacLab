@@ -24,11 +24,14 @@ simulation_app = app_launcher.app
 import numpy as np
 import torch
 
+import isaacsim.core.utils.stage as stage_utils
+
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import AssetBaseCfg
 from isaaclab.assets.articulation import ArticulationCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
+from isaaclab.sim.utils import attach_stage_to_usd_context
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 JETBOT_CONFIG = ArticulationCfg(
@@ -160,13 +163,16 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
 def main():
     """Main function."""
     # Initialize the simulation context
-    sim_cfg = sim_utils.SimulationCfg(device=args_cli.device)
+    sim_cfg = sim_utils.SimulationCfg(device=args_cli.device, create_stage_in_memory=True)
     sim = sim_utils.SimulationContext(sim_cfg)
 
     sim.set_camera_view([3.5, 0.0, 3.2], [0.0, 0.0, 0.5])
-    # design scene
+    # Design scene
     scene_cfg = NewRobotsSceneCfg(args_cli.num_envs, env_spacing=2.0)
-    scene = InteractiveScene(scene_cfg)
+    # Create scene with stage in memory and then attach to USD context
+    with stage_utils.use_stage(sim.get_initial_stage()):
+        scene = InteractiveScene(scene_cfg)
+        attach_stage_to_usd_context()
     # Play the simulator
     sim.reset()
     # Now we are ready!

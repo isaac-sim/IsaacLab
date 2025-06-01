@@ -34,10 +34,12 @@ simulation_app = app_launcher.app
 import torch
 
 import isaacsim.core.utils.prims as prim_utils
+import isaacsim.core.utils.stage as stage_utils
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObject, RigidObjectCfg
 from isaaclab.sensors.ray_caster import RayCaster, RayCasterCfg, patterns
+from isaaclab.sim.utils import attach_stage_to_usd_context
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.timer import Timer
 
@@ -130,12 +132,14 @@ def run_simulator(sim: sim_utils.SimulationContext, scene_entities: dict):
 def main():
     """Main function."""
     # Load simulation context
-    sim_cfg = sim_utils.SimulationCfg(device=args_cli.device)
+    sim_cfg = sim_utils.SimulationCfg(device=args_cli.device, create_stage_in_memory=True)
     sim = sim_utils.SimulationContext(sim_cfg)
     # Set main camera
     sim.set_camera_view([0.0, 15.0, 15.0], [0.0, 0.0, -2.5])
-    # Design the scene
-    scene_entities = design_scene()
+    # Create scene with stage in memory and then attach to USD context
+    with stage_utils.use_stage(sim.get_initial_stage()):
+        scene_entities = design_scene()
+        attach_stage_to_usd_context()
     # Play simulator
     sim.reset()
     # Now we are ready!

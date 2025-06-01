@@ -12,6 +12,7 @@ import omni.log
 import omni.usd
 from isaacsim.core.cloner import GridCloner
 from isaacsim.core.prims import XFormPrim
+from isaacsim.core.utils.stage import get_current_stage, get_current_stage_id
 from pxr import PhysxSchema
 
 import isaaclab.sim as sim_utils
@@ -27,6 +28,7 @@ from isaaclab.assets import (
     RigidObjectCollectionCfg,
 )
 from isaaclab.sensors import ContactSensorCfg, FrameTransformerCfg, SensorBase, SensorBaseCfg
+from isaaclab.sim import SimulationContext
 from isaaclab.terrains import TerrainImporter, TerrainImporterCfg
 
 from .interactive_scene_cfg import InteractiveSceneCfg
@@ -119,12 +121,14 @@ class InteractiveScene:
         self._rigid_object_collections = dict()
         self._sensors = dict()
         self._extras = dict()
-        # obtain the current stage
-        self.stage = omni.usd.get_context().get_stage()
+        # get stage handle
+        self.sim = SimulationContext.instance()
+        self.stage = get_current_stage()
+        self.stage_id = get_current_stage_id()
         # physics scene path
         self._physics_scene_path = None
         # prepare cloner for environment replication
-        self.cloner = GridCloner(spacing=self.cfg.env_spacing)
+        self.cloner = GridCloner(spacing=self.cfg.env_spacing, stage=self.stage)
         self.cloner.define_base_env(self.env_ns)
         self.env_prim_paths = self.cloner.generate_paths(f"{self.env_ns}/env", self.cfg.num_envs)
         # create source prim

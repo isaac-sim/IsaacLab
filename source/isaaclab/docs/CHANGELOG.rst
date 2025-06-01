@@ -1,7 +1,7 @@
 Changelog
 ---------
 
-0.41.5 (2025-05-22)
+0.42.5 (2025-05-22)
 ~~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -11,7 +11,7 @@ Fixed
   currently has limitations for CPU simulation. Collision filtering needs to be manually enabled when using CPU simulation.
 
 
-0.41.4 (2025-06-03)
+0.42.4 (2025-06-03)
 ~~~~~~~~~~~~~~~~~~~
 
 Changed
@@ -22,7 +22,7 @@ Changed
   passed in the ``TerrainGeneratorCfg``.
 
 
-0.41.3 (2025-03-20)
+0.42.3 (2025-03-20)
 ~~~~~~~~~~~~~~~~~~~
 
 Changed
@@ -37,7 +37,7 @@ Changed
   more readable.
 
 
-0.41.2 (2025-05-10)
+0.42.2 (2025-05-31)
 ~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -47,7 +47,7 @@ Added
 * Added support for specifying module:task_name as task name to avoid module import for ``gym.make``
 
 
-0.41.1 (2025-06-02)
+0.42.1 (2025-06-02)
 ~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -61,6 +61,16 @@ Changed
 
 * Moved initialization of ``episode_length_buf`` outside of :meth:`load_managers()` of :class:`~isaaclab.envs.ManagerBasedRLEnv`
   to make it available for mdp functions.
+
+
+0.42.0 (2025-06-02)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added support for stage in memory and cloning in fabric. This will help improve performance for scene setup and lower
+  overall startup time.
 
 
 0.41.0 (2025-05-19)

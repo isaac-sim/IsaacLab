@@ -18,6 +18,7 @@ import isaacsim.core.utils.prims as prim_utils
 import omni.kit.app
 import omni.timeline
 from isaacsim.core.simulation_manager import IsaacEvents, SimulationManager
+from isaacsim.core.utils.stage import get_current_stage
 
 import isaaclab.sim as sim_utils
 
@@ -69,6 +70,8 @@ class AssetBase(ABC):
         self.cfg = cfg.copy()
         # flag for whether the asset is initialized
         self._is_initialized = False
+        # get stage handle
+        self.stage = get_current_stage()
 
         # check if base asset path is valid
         # note: currently the spawner does not work if there is a regex pattern in the leaf

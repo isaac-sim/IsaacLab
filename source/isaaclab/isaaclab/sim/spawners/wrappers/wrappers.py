@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 import carb
 import isaacsim.core.utils.prims as prim_utils
 import isaacsim.core.utils.stage as stage_utils
+from isaacsim.core.utils.stage import get_current_stage
 from pxr import Sdf, Usd
 
 import isaaclab.sim as sim_utils
@@ -42,6 +43,9 @@ def spawn_multi_asset(
     Returns:
         The created prim at the first prim path.
     """
+    # get stage handle
+    stage = get_current_stage()
+
     # resolve: {SPAWN_NS}/AssetName
     # note: this assumes that the spawn namespace already exists in the stage
     root_path, asset_path = prim_path.rsplit("/", 1)
@@ -87,9 +91,6 @@ def spawn_multi_asset(
 
     # resolve prim paths for spawning and cloning
     prim_paths = [f"{source_prim_path}/{asset_path}" for source_prim_path in source_prim_paths]
-
-    # acquire stage
-    stage = stage_utils.get_current_stage()
 
     # manually clone prims if the source prim path is a regex expression
     # note: unlike in the cloner API from Isaac Sim, we do not "reset" xforms on the copied prims.

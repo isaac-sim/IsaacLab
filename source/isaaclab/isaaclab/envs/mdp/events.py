@@ -20,8 +20,8 @@ from typing import TYPE_CHECKING, Literal
 
 import carb
 import omni.physics.tensors.impl.api as physx
-import omni.usd
 from isaacsim.core.utils.extensions import enable_extension
+from isaacsim.core.utils.stage import get_current_stage
 from pxr import Gf, Sdf, UsdGeom, Vt
 
 import isaaclab.sim as sim_utils
@@ -92,7 +92,7 @@ def randomize_rigid_body_scale(
         env_ids = env_ids.cpu()
 
     # acquire stage
-    stage = omni.usd.get_context().get_stage()
+    stage = get_current_stage()
     # resolve prim paths for spawning and cloning
     prim_paths = sim_utils.find_matching_prim_paths(asset.cfg.prim_path)
 
