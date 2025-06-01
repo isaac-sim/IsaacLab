@@ -910,6 +910,10 @@ Known Issues
   This error message can be caused by shader assets authored with older versions of USD, and can
   typically be ignored.
 
+Kubernetes Deployment
+---------------------
+
+For information on deploying XR Teleop for Isaac Lab on a Kubernetes cluster, see :ref:`cloudxr-teleoperation-cluster`.
 
 ..
   References
