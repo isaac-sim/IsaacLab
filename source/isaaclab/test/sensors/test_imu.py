@@ -34,7 +34,7 @@ from isaaclab.utils import configclass
 # Pre-defined configs
 ##
 from isaaclab_assets.robots.anymal import ANYMAL_C_CFG  # isort: skip
-from isaaclab.utils.assets import NUCLEUS_ASSET_ROOT_DIR  # isort: skip
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR  # isort: skip
 
 # offset of imu_link from base_link on anymal_c
 POS_OFFSET = (0.2488, 0.00835, 0.04628)
@@ -148,7 +148,7 @@ class MySceneCfg(InteractiveSceneCfg):
         self.pendulum.init_state.pos = (-1.0, 1.0, 0.5)
 
         # change asset
-        self.robot.spawn.usd_path = f"{NUCLEUS_ASSET_ROOT_DIR}/Isaac/Robots/ANYbotics/anymal_c.usd"
+        self.robot.spawn.usd_path = f"{ISAAC_NUCLEUS_DIR}/Robots/ANYbotics/anymal_c/anymal_c.usd"
         # change iterations
         self.robot.spawn.articulation_props.solver_position_iteration_count = 32
         self.robot.spawn.articulation_props.solver_velocity_iteration_count = 32

@@ -42,7 +42,7 @@ class MySceneCfg(InteractiveSceneCfg):
     robot = ArticulationCfg(
         prim_path="{ENV_REGEX_NS}/Robot",
         spawn=sim_utils.UsdFileCfg(
-            usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/Humanoid/humanoid_instanceable.usd",
+            usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/IsaacSim/Humanoid/humanoid_instanceable.usd",
             rigid_props=sim_utils.RigidBodyPropertiesCfg(
                 disable_gravity=None,
                 max_depenetration_velocity=10.0,
