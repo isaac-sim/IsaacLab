@@ -695,6 +695,77 @@ def modify_fixed_tendon_properties(
 
 
 """
+Spatial tendon properties.
+"""
+
+
+@apply_nested
+def modify_spatial_tendon_properties(
+    prim_path: str, cfg: schemas_cfg.SpatialTendonPropertiesCfg, stage: Usd.Stage | None = None
+) -> bool:
+    """Modify PhysX parameters for a spatial tendon attachment prim.
+
+    A `spatial tendon`_ can be used to link multiple degrees of freedom of articulation joints
+    through length and limit constraints. For instance, it can be used to set up an equality constraint
+    between a driven and passive revolute joints.
+
+    The schema comprises of attributes that belong to the `PhysxTendonAxisRootAPI`_ schema.
+
+    .. note::
+        This function is decorated with :func:`apply_nested` that sets the properties to all the prims
+        (that have the schema applied on them) under the input prim path.
+
+    .. _spatial tendon: https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/_api_build/classPxArticulationSpatialTendon.html
+    .. _PhysxTendonAxisRootAPI: https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/104.2/class_physx_schema_physx_tendon_axis_root_a_p_i.html
+    .. _PhysxTendonAttachmentRootAPI: https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/104.2/class_physx_schema_physx_tendon_attachment_root_a_p_i.html
+    .. _PhysxTendonAttachmentLeafAPI: https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/104.2/class_physx_schema_physx_tendon_attachment_leaf_a_p_i.html
+
+    Args:
+        prim_path: The prim path to the tendon attachment.
+        cfg: The configuration for the tendon attachment.
+        stage: The stage where to find the prim. Defaults to None, in which case the
+            current stage is used.
+
+    Returns:
+        True if the properties were successfully set, False otherwise.
+
+    Raises:
+        ValueError: If the input prim path is not valid.
+    """
+    # obtain stage
+    if stage is None:
+        stage = stage_utils.get_current_stage()
+    # get USD prim
+    tendon_prim = stage.GetPrimAtPath(prim_path)
+    # check if prim has spatial tendon applied on it
+    has_spatial_tendon = tendon_prim.HasAPI(PhysxSchema.PhysxTendonAttachmentRootAPI) or tendon_prim.HasAPI(
+        PhysxSchema.PhysxTendonAttachmentLeafAPI
+    )
+    if not has_spatial_tendon:
+        return False
+
+    # resolve all available instances of the schema since it is multi-instance
+    for schema_name in tendon_prim.GetAppliedSchemas():
+        # only consider the spatial tendon schema
+        # retrieve the USD tendon api
+        if "PhysxTendonAttachmentRootAPI" in schema_name:
+            instance_name = schema_name.split(":")[-1]
+            physx_tendon_spatial_api = PhysxSchema.PhysxTendonAttachmentRootAPI(tendon_prim, instance_name)
+        elif "PhysxTendonAttachmentLeafAPI" in schema_name:
+            instance_name = schema_name.split(":")[-1]
+            physx_tendon_spatial_api = PhysxSchema.PhysxTendonAttachmentLeafAPI(tendon_prim, instance_name)
+        else:
+            continue
+        # convert to dict
+        cfg = cfg.to_dict()
+        # set into PhysX API
+        for attr_name, value in cfg.items():
+            safe_set_attribute_on_usd_schema(physx_tendon_spatial_api, attr_name, value, camel_case=True)
+    # success
+    return True
+
+
+"""
 Deformable body properties.
 """
 
