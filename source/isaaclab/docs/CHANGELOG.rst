@@ -265,8 +265,19 @@ Changed
   to make it available for mdp functions.
 
 
-0.41.0 (2025-05-16)
+0.41.0 (2025-05-19)
 ~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added simulation schemas for spatial tendons. These can be configured for assets imported
+  from file formats.
+* Added support for spatial tendons.
+
+
+0.40.14 (2025-05-29)
+~~~~~~~~~~~~~~~~~~~~
 
 Added
 ^^^^^

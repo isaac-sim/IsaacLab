@@ -110,6 +110,9 @@ class ArticulationData:
     fixed_tendon_names: list[str] = None
     """Fixed tendon names in the order parsed by the simulation view."""
 
+    spatial_tendon_names: list[str] = None
+    """Spatial tendon names in the order parsed by the simulation view."""
+
     ##
     # Defaults - Initial state.
     ##
@@ -199,42 +202,65 @@ class ArticulationData:
 
     The limits are in the order :math:`[lower, upper]`. They are parsed from the USD schema at the time of initialization.
     """
-
     default_fixed_tendon_stiffness: torch.Tensor = None
-    """Default tendon stiffness of all tendons. Shape is (num_instances, num_fixed_tendons).
+    """Default tendon stiffness of all fixed tendons. Shape is (num_instances, num_fixed_tendons).
 
     This quantity is parsed from the USD schema at the time of initialization.
     """
 
     default_fixed_tendon_damping: torch.Tensor = None
-    """Default tendon damping of all tendons. Shape is (num_instances, num_fixed_tendons).
+    """Default tendon damping of all fixed tendons. Shape is (num_instances, num_fixed_tendons).
 
     This quantity is parsed from the USD schema at the time of initialization.
     """
 
     default_fixed_tendon_limit_stiffness: torch.Tensor = None
-    """Default tendon limit stiffness of all tendons. Shape is (num_instances, num_fixed_tendons).
+    """Default tendon limit stiffness of all fixed tendons. Shape is (num_instances, num_fixed_tendons).
 
     This quantity is parsed from the USD schema at the time of initialization.
     """
 
     default_fixed_tendon_rest_length: torch.Tensor = None
-    """Default tendon rest length of all tendons. Shape is (num_instances, num_fixed_tendons).
+    """Default tendon rest length of all fixed tendons. Shape is (num_instances, num_fixed_tendons).
 
     This quantity is parsed from the USD schema at the time of initialization.
     """
 
     default_fixed_tendon_offset: torch.Tensor = None
-    """Default tendon offset of all tendons. Shape is (num_instances, num_fixed_tendons).
+    """Default tendon offset of all fixed tendons. Shape is (num_instances, num_fixed_tendons).
 
     This quantity is parsed from the USD schema at the time of initialization.
     """
 
     default_fixed_tendon_pos_limits: torch.Tensor = None
-    """Default tendon position limits of all tendons. Shape is (num_instances, num_fixed_tendons, 2).
+    """Default tendon position limits of all fixed tendons. Shape is (num_instances, num_fixed_tendons, 2).
 
     The position limits are in the order :math:`[lower, upper]`. They are parsed from the USD schema at the time of
     initialization.
+    """
+
+    default_spatial_tendon_stiffness: torch.Tensor = None
+    """Default tendon stiffness of all spatial tendons. Shape is (num_instances, num_spatial_tendons).
+
+    This quantity is parsed from the USD schema at the time of initialization.
+    """
+
+    default_spatial_tendon_damping: torch.Tensor = None
+    """Default tendon damping of all spatial tendons. Shape is (num_instances, num_spatial_tendons).
+
+    This quantity is parsed from the USD schema at the time of initialization.
+    """
+
+    default_spatial_tendon_limit_stiffness: torch.Tensor = None
+    """Default tendon limit stiffness of all spatial tendons. Shape is (num_instances, num_spatial_tendons).
+
+    This quantity is parsed from the USD schema at the time of initialization.
+    """
+
+    default_spatial_tendon_offset: torch.Tensor = None
+    """Default tendon offset of all spatial tendons. Shape is (num_instances, num_spatial_tendons).
+
+    This quantity is parsed from the USD schema at the time of initialization.
     """
 
     ##
@@ -372,6 +398,22 @@ class ArticulationData:
 
     fixed_tendon_pos_limits: torch.Tensor = None
     """Fixed tendon position limits provided to the simulation. Shape is (num_instances, num_fixed_tendons, 2)."""
+
+    ##
+    # Spatial tendon properties.
+    ##
+
+    spatial_tendon_stiffness: torch.Tensor = None
+    """Spatial tendon stiffness provided to the simulation. Shape is (num_instances, num_spatial_tendons)."""
+
+    spatial_tendon_damping: torch.Tensor = None
+    """Spatial tendon damping provided to the simulation. Shape is (num_instances, num_spatial_tendons)."""
+
+    spatial_tendon_limit_stiffness: torch.Tensor = None
+    """Spatial tendon limit stiffness provided to the simulation. Shape is (num_instances, num_spatial_tendons)."""
+
+    spatial_tendon_offset: torch.Tensor = None
+    """Spatial tendon offset provided to the simulation. Shape is (num_instances, num_spatial_tendons)."""
 
     ##
     # Root state properties.
