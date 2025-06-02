@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING
 import carb
 import omni.physics.tensors.impl.api as physx
 from isaacsim.core.simulation_manager import SimulationManager
+from isaaclab.sim._impl.newton_manager import NewtonManager
 from pxr import PhysxSchema
 
 import isaaclab.sim as sim_utils
@@ -276,10 +277,11 @@ class ContactSensor(SensorBase):
         filter_prim_paths_glob = [expr.replace(".*", "*") for expr in self.cfg.filter_prim_paths_expr]
 
         # create a rigid prim view for the sensor
-        self._body_physx_view = self._physics_sim_view.create_rigid_body_view(body_names_glob)
-        self._contact_physx_view = self._physics_sim_view.create_rigid_contact_view(
-            body_names_glob, filter_patterns=filter_prim_paths_glob
-        )
+        #self._body_physx_view = self._physics_sim_view.create_rigid_body_view(body_names_glob)
+        #self._contact_physx_view = self._physics_sim_view.create_rigid_contact_view(
+        #    body_names_glob, filter_patterns=filter_prim_paths_glob
+        #)
+        self._contact_newton_view = NewtonManager.add_contact_view(body_names_glob, filter_prim_paths_glob)
         # resolve the true count of bodies
         self._num_bodies = self.body_physx_view.count // self._num_envs
         # check that contact reporter succeeded

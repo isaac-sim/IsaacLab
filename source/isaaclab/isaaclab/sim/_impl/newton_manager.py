@@ -1,6 +1,7 @@
 import newton.core.articulation
 import warp as wp
 import newton.utils
+from newton.utils.selection import ContactViewManager, ContactView
 from isaacsim.core.utils.stage import print_stage_prim_paths, get_current_stage
 from newton import Model, State, Control
 from newton.core import ModelBuilder
@@ -19,6 +20,7 @@ def set_vec3d_array(
 
 class NewtonManager:
     _builder: ModelBuilder = None
+    _contact_manager = None
     _model: Model = None
     _device: str = "cuda:0"
     _sim_dt: float = 1.0 / 600.0
@@ -45,6 +47,7 @@ class NewtonManager:
     @classmethod
     def start_simulation(cls):
         NewtonManager._model = NewtonManager._builder.finalize(device=NewtonManager._device)
+        NewtonManager._contact_manager = ContactViewManager(NewtonManager._model)
         NewtonManager._model.ground = True    
         NewtonManager._state_0 = NewtonManager._model.state()
         NewtonManager._state_1 = NewtonManager._model.state()
@@ -69,6 +72,7 @@ class NewtonManager:
             with wp.ScopedCapture() as capture:
                 NewtonManager.simulate()
             NewtonManager._graph = capture.graph
+        NewtonManager._contact_manager.finalize(NewtonManager._solver)
 
     @classmethod
     def simulate(cls):
@@ -171,5 +175,10 @@ class NewtonManager:
             NewtonManager._model, NewtonManager._state_0.joint_q, NewtonManager._state_0.joint_qd, NewtonManager._state_0, selection.articulation_mask 
         )
 
+    @classmethod
+    def add_contact_view(cls, body_names_glob, filter_prim_paths_glob):
+        return ContactView(NewtonManager._contact_manager, body_names_glob, filter_prim_paths_glob)
 
-
+    @classmethod
+    def get_contact_view(cls):
+        return NewtonManager._contact_manager
