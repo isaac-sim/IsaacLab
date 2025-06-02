@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.1.0" />
-    <meta name="docbuild:last-update" content="May 29, 2025"/>
+    <meta name="docbuild:last-update" content="Jun 02, 2025"/>
   </head>
   
   
@@ -670,6 +670,7 @@
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlDistillationAlgorithmCfg.num_learning_epochs"><code class="docutils literal notranslate"><span class="pre">RslRlDistillationAlgorithmCfg.num_learning_epochs</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlDistillationAlgorithmCfg.learning_rate"><code class="docutils literal notranslate"><span class="pre">RslRlDistillationAlgorithmCfg.learning_rate</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlDistillationAlgorithmCfg.gradient_length"><code class="docutils literal notranslate"><span class="pre">RslRlDistillationAlgorithmCfg.gradient_length</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlDistillationAlgorithmCfg.max_grad_norm"><code class="docutils literal notranslate"><span class="pre">RslRlDistillationAlgorithmCfg.max_grad_norm</span></code></a></li>
 </ul>
 </li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlDistillationStudentTeacherCfg"><code class="docutils literal notranslate"><span class="pre">RslRlDistillationStudentTeacherCfg</span></code></a><ul class="nav section-nav flex-column">
@@ -1556,12 +1557,15 @@ if their respective inputs are None.</p>
 <tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_rl.rsl_rl.RslRlDistillationAlgorithmCfg.gradient_length" title="isaaclab_rl.rsl_rl.RslRlDistillationAlgorithmCfg.gradient_length"><code class="xref py py-obj docutils literal notranslate"><span class="pre">gradient_length</span></code></a></p></td>
 <td><p>The number of environment steps the gradient flows back.</p></td>
 </tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_rl.rsl_rl.RslRlDistillationAlgorithmCfg.max_grad_norm" title="isaaclab_rl.rsl_rl.RslRlDistillationAlgorithmCfg.max_grad_norm"><code class="xref py py-obj docutils literal notranslate"><span class="pre">max_grad_norm</span></code></a></p></td>
+<td><p>The maximum norm the gradient is clipped to.</p></td>
+</tr>
 </tbody>
 </table>
 </div>
 <dl class="py method">
 <dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlDistillationAlgorithmCfg.__init__">
-<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">class_name:</span> <span class="pre">str</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">num_learning_epochs:</span> <span class="pre">int</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">learning_rate:</span> <span class="pre">float</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gradient_length:</span> <span class="pre">int</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></span></span><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlDistillationAlgorithmCfg.__init__" title="Permalink to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">class_name:</span> <span class="pre">str</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">num_learning_epochs:</span> <span class="pre">int</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">learning_rate:</span> <span class="pre">float</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gradient_length:</span> <span class="pre">int</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_grad_norm:</span> <span class="pre">None</span> <span class="pre">|</span> <span class="pre">float</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></span></span><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlDistillationAlgorithmCfg.__init__" title="Permalink to this definition">#</a></dt>
 <dd></dd></dl>
 
 <dl class="py attribute">
@@ -1586,6 +1590,12 @@ if their respective inputs are None.</p>
 <dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlDistillationAlgorithmCfg.gradient_length">
 <span class="sig-name descname"><span class="pre">gradient_length</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><span class="pre">int</span></a></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlDistillationAlgorithmCfg.gradient_length" title="Permalink to this definition">#</a></dt>
 <dd><p>The number of environment steps the gradient flows back.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlDistillationAlgorithmCfg.max_grad_norm">
+<span class="sig-name descname"><span class="pre">max_grad_norm</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlDistillationAlgorithmCfg.max_grad_norm" title="Permalink to this definition">#</a></dt>
+<dd><p>The maximum norm the gradient is clipped to.</p>
 </dd></dl>
 
 </dd></dl>
@@ -2873,6 +2883,7 @@ wrapper.</p>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlDistillationAlgorithmCfg.num_learning_epochs"><code class="docutils literal notranslate"><span class="pre">RslRlDistillationAlgorithmCfg.num_learning_epochs</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlDistillationAlgorithmCfg.learning_rate"><code class="docutils literal notranslate"><span class="pre">RslRlDistillationAlgorithmCfg.learning_rate</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlDistillationAlgorithmCfg.gradient_length"><code class="docutils literal notranslate"><span class="pre">RslRlDistillationAlgorithmCfg.gradient_length</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlDistillationAlgorithmCfg.max_grad_norm"><code class="docutils literal notranslate"><span class="pre">RslRlDistillationAlgorithmCfg.max_grad_norm</span></code></a></li>
 </ul>
 </li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlDistillationStudentTeacherCfg"><code class="docutils literal notranslate"><span class="pre">RslRlDistillationStudentTeacherCfg</span></code></a><ul class="nav section-nav flex-column">
@@ -3027,7 +3038,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on May 29, 2025.
+  Last updated on Jun 02, 2025.
   <br/>
 </p>
   </div>

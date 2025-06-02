@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.1.0" />
-    <meta name="docbuild:last-update" content="May 29, 2025"/>
+    <meta name="docbuild:last-update" content="Jun 02, 2025"/>
   </head>
   
   
@@ -1135,6 +1135,21 @@
 <div class="viewcode-block" id="generated_commands"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.observations.generated_commands">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">generated_commands</span><span class="p">(</span><span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedRLEnv</span><span class="p">,</span> <span class="n">command_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The generated command from command term in the command manager with the given name.&quot;&quot;&quot;</span>
     <span class="k">return</span> <span class="n">env</span><span class="o">.</span><span class="n">command_manager</span><span class="o">.</span><span class="n">get_command</span><span class="p">(</span><span class="n">command_name</span><span class="p">)</span></div>
+
+
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Time.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+
+<div class="viewcode-block" id="current_time_s"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.observations.current_time_s">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">current_time_s</span><span class="p">(</span><span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedRLEnv</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The current time in the episode (in seconds).&quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">env</span><span class="o">.</span><span class="n">episode_length_buf</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="n">env</span><span class="o">.</span><span class="n">step_dt</span></div>
+
+
+<div class="viewcode-block" id="remaining_time_s"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.observations.remaining_time_s">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">remaining_time_s</span><span class="p">(</span><span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedRLEnv</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The maximum time remaining in the episode (in seconds).&quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">env</span><span class="o">.</span><span class="n">max_episode_length_s</span> <span class="o">-</span> <span class="n">env</span><span class="o">.</span><span class="n">episode_length_buf</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="n">env</span><span class="o">.</span><span class="n">step_dt</span></div>
 </pre></div>
 
                 </article>
@@ -1182,7 +1197,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on May 29, 2025.
+  Last updated on Jun 02, 2025.
   <br/>
 </p>
   </div>

@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.1.0" />
-    <meta name="docbuild:last-update" content="May 29, 2025"/>
+    <meta name="docbuild:last-update" content="Jun 02, 2025"/>
   </head>
   
   
@@ -628,6 +628,8 @@
 </li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.mdp.observations.last_action"><code class="docutils literal notranslate"><span class="pre">last_action()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.mdp.observations.generated_commands"><code class="docutils literal notranslate"><span class="pre">generated_commands()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.mdp.observations.current_time_s"><code class="docutils literal notranslate"><span class="pre">current_time_s()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.mdp.observations.remaining_time_s"><code class="docutils literal notranslate"><span class="pre">remaining_time_s()</span></code></a></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-isaaclab.envs.mdp.actions">Actions</a><ul class="nav section-nav flex-column">
@@ -1054,6 +1056,12 @@ the observation introduced by the function.</p>
 <tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.envs.mdp.observations.generated_commands" title="isaaclab.envs.mdp.observations.generated_commands"><code class="xref py py-obj docutils literal notranslate"><span class="pre">generated_commands</span></code></a>(env, command_name)</p></td>
 <td><p>The generated command from command term in the command manager with the given name.</p></td>
 </tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.envs.mdp.observations.current_time_s" title="isaaclab.envs.mdp.observations.current_time_s"><code class="xref py py-obj docutils literal notranslate"><span class="pre">current_time_s</span></code></a>(env)</p></td>
+<td><p>The current time in the episode (in seconds).</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.envs.mdp.observations.remaining_time_s" title="isaaclab.envs.mdp.observations.remaining_time_s"><code class="xref py py-obj docutils literal notranslate"><span class="pre">remaining_time_s</span></code></a>(env)</p></td>
+<td><p>The maximum time remaining in the episode (in seconds).</p></td>
+</tr>
 </tbody>
 </table>
 </div>
@@ -1404,6 +1412,18 @@ entire action tensor is returned.</p>
 <dt class="sig sig-object py" id="isaaclab.envs.mdp.observations.generated_commands">
 <span class="sig-prename descclassname"><span class="pre">isaaclab.envs.mdp.observations.</span></span><span class="sig-name descname"><span class="pre">generated_commands</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">env</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="isaaclab.envs.html#isaaclab.envs.ManagerBasedRLEnv" title="isaaclab.envs.ManagerBasedRLEnv"><span class="pre">ManagerBasedRLEnv</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">command_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.7)"><span class="pre">torch.Tensor</span></a></span></span><a class="reference internal" href="../../../_modules/isaaclab/envs/mdp/observations.html#generated_commands"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.envs.mdp.observations.generated_commands" title="Permalink to this definition">#</a></dt>
 <dd><p>The generated command from command term in the command manager with the given name.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="isaaclab.envs.mdp.observations.current_time_s">
+<span class="sig-prename descclassname"><span class="pre">isaaclab.envs.mdp.observations.</span></span><span class="sig-name descname"><span class="pre">current_time_s</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">env</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="isaaclab.envs.html#isaaclab.envs.ManagerBasedRLEnv" title="isaaclab.envs.ManagerBasedRLEnv"><span class="pre">ManagerBasedRLEnv</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.7)"><span class="pre">torch.Tensor</span></a></span></span><a class="reference internal" href="../../../_modules/isaaclab/envs/mdp/observations.html#current_time_s"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.envs.mdp.observations.current_time_s" title="Permalink to this definition">#</a></dt>
+<dd><p>The current time in the episode (in seconds).</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="isaaclab.envs.mdp.observations.remaining_time_s">
+<span class="sig-prename descclassname"><span class="pre">isaaclab.envs.mdp.observations.</span></span><span class="sig-name descname"><span class="pre">remaining_time_s</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">env</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="isaaclab.envs.html#isaaclab.envs.ManagerBasedRLEnv" title="isaaclab.envs.ManagerBasedRLEnv"><span class="pre">ManagerBasedRLEnv</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.7)"><span class="pre">torch.Tensor</span></a></span></span><a class="reference internal" href="../../../_modules/isaaclab/envs/mdp/observations.html#remaining_time_s"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.envs.mdp.observations.remaining_time_s" title="Permalink to this definition">#</a></dt>
+<dd><p>The maximum time remaining in the episode (in seconds).</p>
 </dd></dl>
 
 </section>
@@ -4419,6 +4439,8 @@ the curriculum introduced by the function.</p>
 </li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.mdp.observations.last_action"><code class="docutils literal notranslate"><span class="pre">last_action()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.mdp.observations.generated_commands"><code class="docutils literal notranslate"><span class="pre">generated_commands()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.mdp.observations.current_time_s"><code class="docutils literal notranslate"><span class="pre">current_time_s()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.mdp.observations.remaining_time_s"><code class="docutils literal notranslate"><span class="pre">remaining_time_s()</span></code></a></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-isaaclab.envs.mdp.actions">Actions</a><ul class="nav section-nav flex-column">
@@ -4778,7 +4800,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on May 29, 2025.
+  Last updated on Jun 02, 2025.
   <br/>
 </p>
   </div>
