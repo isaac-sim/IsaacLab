@@ -146,7 +146,7 @@ class ManagerBase(ABC):
         self._env = env
 
         # flag for whether the scene entities have been resolved
-        # if sim is playing, we can resolve the scene entities directly
+        # if sim is playing, we resolve the scene entities directly while preparing the terms
         self._is_scene_entities_resolved = self._env.sim.is_playing()
 
         # if the simulation is not playing, we use callbacks to trigger the resolution of the scene
