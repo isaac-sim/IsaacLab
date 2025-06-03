@@ -35,6 +35,7 @@ Guidelines for modifications:
 
 ## Contributors
 
+* Alessandro Assirelli
 * Alice Zhou
 * Amr Mousa
 * Andrej Orsula
@@ -43,6 +44,7 @@ Guidelines for modifications:
 * Arjun Bhardwaj
 * Ashwin Varghese Kuruttukulam
 * Bikram Pandit
+* Bingjie Tang
 * Brayden Zhang
 * Cameron Upright
 * Calvin Yu
@@ -52,6 +54,7 @@ Guidelines for modifications:
 * Connor Smith
 * CY (Chien-Ying) Chen
 * David Yang
+* Dhananjay Shendre
 * Dorsa Rohani
 * Felipe Mohr
 * Felix Yu
@@ -101,6 +104,7 @@ Guidelines for modifications:
 * Ryley McCarroll
 * Shafeef Omar
 * Shundo Kishi
+* Stefan Van de Mosselaer
 * Stephan Pleines
 * Tyler Lum
 * Victor Khaustov
@@ -110,6 +114,7 @@ Guidelines for modifications:
 * Xavier Nal
 * Yang Jin
 * Yanzi Zhu
+* Yijie Guo
 * Yujian Zhang
 * Yun Liu
 * Zhengyu Zhang

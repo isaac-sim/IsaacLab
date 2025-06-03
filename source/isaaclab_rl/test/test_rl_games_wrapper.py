@@ -15,6 +15,7 @@ simulation_app = app_launcher.app
 """Rest everything follows."""
 
 import gymnasium as gym
+import os
 import torch
 
 import carb
@@ -31,12 +32,17 @@ from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
 
 @pytest.fixture(scope="module")
 def registered_tasks():
+    # disable interactive mode for wandb for automate environments
+    os.environ["WANDB_DISABLED"] = "true"
     # acquire all Isaac environments names
     registered_tasks = list()
     for task_spec in gym.registry.values():
         if "Isaac" in task_spec.id:
             cfg_entry_point = gym.spec(task_spec.id).kwargs.get("rl_games_cfg_entry_point")
             if cfg_entry_point is not None:
+                # skip automate environments as they require cuda installation
+                if "assembly" in task_spec.id.lower():
+                    continue
                 registered_tasks.append(task_spec.id)
     # sort environments by name
     registered_tasks.sort()

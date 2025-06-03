@@ -28,7 +28,7 @@ from isaaclab.assets import RigidObject, RigidObjectCfg
 from isaaclab.sim import build_simulation_context
 from isaaclab.sim.spawners import materials
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
-from isaaclab.utils.math import default_orientation, quat_mul, quat_rotate_inverse, random_orientation
+from isaaclab.utils.math import default_orientation, quat_apply_inverse, quat_mul, random_orientation
 
 
 def generate_cubes_scene(
@@ -168,10 +168,8 @@ def test_initialization_with_no_rigid_body(num_cubes, device):
         assert ctypes.c_long.from_address(id(cube_object)).value == 1
 
         # Play sim
-        sim.reset()
-
-        # Check if object is initialized
-        assert not cube_object.is_initialized
+        with pytest.raises(RuntimeError):
+            sim.reset()
 
 
 @pytest.mark.parametrize("num_cubes", [1, 2])
@@ -187,10 +185,8 @@ def test_initialization_with_articulation_root(num_cubes, device):
         assert ctypes.c_long.from_address(id(cube_object)).value == 1
 
         # Play sim
-        sim.reset()
-
-        # Check if object is initialized
-        assert not cube_object.is_initialized
+        with pytest.raises(RuntimeError):
+            sim.reset()
 
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
@@ -815,12 +811,12 @@ def test_body_root_state_properties(num_cubes, device, with_offset):
                 torch.testing.assert_close(env_pos + offset, root_com_state_w[..., :3])
                 torch.testing.assert_close(env_pos + offset, body_com_state_w[..., :3].squeeze(-2))
                 # link position will be moving but should stay constant away from center of mass
-                root_link_state_pos_rel_com = quat_rotate_inverse(
+                root_link_state_pos_rel_com = quat_apply_inverse(
                     root_link_state_w[..., 3:7],
                     root_link_state_w[..., :3] - root_com_state_w[..., :3],
                 )
                 torch.testing.assert_close(-offset, root_link_state_pos_rel_com)
-                body_link_state_pos_rel_com = quat_rotate_inverse(
+                body_link_state_pos_rel_com = quat_apply_inverse(
                     body_link_state_w[..., 3:7],
                     body_link_state_w[..., :3] - body_com_state_w[..., :3],
                 )
@@ -841,8 +837,8 @@ def test_body_root_state_properties(num_cubes, device, with_offset):
                 torch.testing.assert_close(torch.zeros_like(root_com_state_w[..., 7:10]), root_com_state_w[..., 7:10])
                 torch.testing.assert_close(torch.zeros_like(body_com_state_w[..., 7:10]), body_com_state_w[..., 7:10])
                 # link frame will be moving, and should be equal to input angular velocity cross offset
-                lin_vel_rel_root_gt = quat_rotate_inverse(root_link_state_w[..., 3:7], root_link_state_w[..., 7:10])
-                lin_vel_rel_body_gt = quat_rotate_inverse(body_link_state_w[..., 3:7], body_link_state_w[..., 7:10])
+                lin_vel_rel_root_gt = quat_apply_inverse(root_link_state_w[..., 3:7], root_link_state_w[..., 7:10])
+                lin_vel_rel_body_gt = quat_apply_inverse(body_link_state_w[..., 3:7], body_link_state_w[..., 7:10])
                 lin_vel_rel_gt = torch.linalg.cross(spin_twist.repeat(num_cubes, 1)[..., 3:], -offset)
                 torch.testing.assert_close(lin_vel_rel_gt, lin_vel_rel_root_gt, atol=1e-4, rtol=1e-4)
                 torch.testing.assert_close(lin_vel_rel_gt, lin_vel_rel_body_gt.squeeze(-2), atol=1e-4, rtol=1e-4)
