@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+0.40.2 (2025-06-03)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Removes the hardcoding to :class:`~isaaclab.terrains.terrain_generator.TerrainGenerator` in
+  :class:`~isaaclab.terrains.terrain_generator.TerrainImporter` and instead the ``class_type`` is used which is
+  passed in the ``TerrainGeneratorCfg``.
+
+
 0.40.1 (2025-06-02)
 ~~~~~~~~~~~~~~~~~~~
 
