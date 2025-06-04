@@ -432,12 +432,6 @@ class FrameTransformer(SensorBase):
 
             # set their visibility to true
             self.frame_visualizer.set_visibility(True)
-
-            # initialize the visualizer markers scales and indices for the frame and connecting lines
-            self._frame_vis_scale = torch.ones(1 + len(self.cfg.target_frames), 3)
-            self._connecting_line_vis_scale = torch.ones(len(self.cfg.target_frames), 3)
-            self._frame_vis_marker_indices = torch.zeros(1 + len(self.cfg.target_frames))
-            self._connecting_line_vis_marker_indices = torch.ones(len(self.cfg.target_frames))
         else:
             if hasattr(self, "frame_visualizer"):
                 self.frame_visualizer.set_visibility(False)
@@ -453,15 +447,22 @@ class FrameTransformer(SensorBase):
             end_pos=self._data.target_pos_w.view(-1, 3),
         )
 
-        # update the length of the connecting lines (scale of marker in its z-axis)
-        self._connecting_line_vis_scale[:, 2] = lines_length
+        # Initialize default (identity) scales and marker indices for all markers (frames + lines)
+        marker_scales = torch.ones(frames_pos.size(0) + lines_pos.size(0), 3)
+        marker_indices = torch.zeros(marker_scales.size(0))
+
+        # Set the z-scale of line markers to represent their actual length
+        marker_scales[-lines_length.size(0) :, -1] = lines_length
+
+        # Assign marker config index 1 to line markers
+        marker_indices[-lines_length.size(0) :] = 1
 
         # Update the frame and the connecting line visualizer
         self.frame_visualizer.visualize(
             translations=torch.cat((frames_pos, lines_pos), dim=0),
             orientations=torch.cat((frames_quat, lines_quat), dim=0),
-            scales=torch.cat((self._frame_vis_scale, self._connecting_line_vis_scale), dim=0),
-            marker_indices=torch.cat((self._frame_vis_marker_indices, self._connecting_line_vis_marker_indices), dim=0),
+            scales=marker_scales,
+            marker_indices=marker_indices,
         )
 
     """
