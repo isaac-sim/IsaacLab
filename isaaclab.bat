@@ -511,7 +511,7 @@ if "%arg%"=="-i" (
             set "skip=1"
         )
     )
-    !python_exe! tools\run_all_tests.py !allArgs!
+    !python_exe! -m pytest tools !allArgs!
     goto :end
 ) else if "%arg%"=="--test" (
     rem run the python provided by Isaac Sim
@@ -525,7 +525,7 @@ if "%arg%"=="-i" (
             set "skip=1"
         )
     )
-    !python_exe! tools\run_all_tests.py !allArgs!
+    !python_exe! -m pytest tools !allArgs!
     goto :end
 ) else if "%arg%"=="-v" (
     rem update the vscode settings

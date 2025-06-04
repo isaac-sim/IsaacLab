@@ -14,7 +14,7 @@ from collections.abc import Sequence
 from prettytable import PrettyTable
 from typing import TYPE_CHECKING
 
-from isaaclab.utils import modifiers
+from isaaclab.utils import class_to_dict, modifiers
 from isaaclab.utils.buffers import CircularBuffer
 
 from .manager_base import ManagerBase, ManagerTermBase
@@ -88,8 +88,18 @@ class ObservationManager(ManagerBase):
             # otherwise, keep the list of shapes as is
             if self._group_obs_concatenate[group_name]:
                 try:
-                    term_dims = [torch.tensor(dims, device="cpu") for dims in group_term_dims]
-                    self._group_obs_dim[group_name] = tuple(torch.sum(torch.stack(term_dims, dim=0), dim=0).tolist())
+                    term_dims = torch.stack([torch.tensor(dims, device="cpu") for dims in group_term_dims], dim=0)
+                    if len(term_dims.shape) > 1:
+                        if self._group_obs_concatenate_dim[group_name] >= 0:
+                            dim = self._group_obs_concatenate_dim[group_name] - 1  # account for the batch offset
+                        else:
+                            dim = self._group_obs_concatenate_dim[group_name]
+                        dim_sum = torch.sum(term_dims[:, dim], dim=0)
+                        term_dims[0, dim] = dim_sum
+                        term_dims = term_dims[0]
+                    else:
+                        term_dims = torch.sum(term_dims, dim=0)
+                    self._group_obs_dim[group_name] = tuple(term_dims.tolist())
                 except RuntimeError:
                     raise RuntimeError(
                         f"Unable to concatenate observation terms in group '{group_name}'."
@@ -330,9 +340,33 @@ class ObservationManager(ManagerBase):
 
         # concatenate all observations in the group together
         if self._group_obs_concatenate[group_name]:
-            return torch.cat(list(group_obs.values()), dim=-1)
+            # set the concatenate dimension, account for the batch dimension if positive dimension is given
+            return torch.cat(list(group_obs.values()), dim=self._group_obs_concatenate_dim[group_name])
         else:
             return group_obs
+
+    def serialize(self) -> dict:
+        """Serialize the observation term configurations for all active groups.
+
+        Returns:
+            A dictionary where each group name maps to its serialized observation term configurations.
+        """
+        output = {
+            group_name: {
+                term_name: (
+                    term_cfg.func.serialize()
+                    if isinstance(term_cfg.func, ManagerTermBase)
+                    else {"cfg": class_to_dict(term_cfg)}
+                )
+                for term_name, term_cfg in zip(
+                    self._group_obs_term_names[group_name],
+                    self._group_obs_term_cfgs[group_name],
+                )
+            }
+            for group_name in self.active_terms.keys()
+        }
+
+        return output
 
     """
     Helper functions.
@@ -347,6 +381,8 @@ class ObservationManager(ManagerBase):
         self._group_obs_term_cfgs: dict[str, list[ObservationTermCfg]] = dict()
         self._group_obs_class_term_cfgs: dict[str, list[ObservationTermCfg]] = dict()
         self._group_obs_concatenate: dict[str, bool] = dict()
+        self._group_obs_concatenate_dim: dict[str, int] = dict()
+
         self._group_obs_term_history_buffer: dict[str, dict] = dict()
         # create a list to store modifiers that are classes
         # we store it as a separate list to only call reset on them and prevent unnecessary calls
@@ -384,6 +420,9 @@ class ObservationManager(ManagerBase):
             group_entry_history_buffer: dict[str, CircularBuffer] = dict()
             # read common config for the group
             self._group_obs_concatenate[group_name] = group_cfg.concatenate_terms
+            self._group_obs_concatenate_dim[group_name] = (
+                group_cfg.concatenate_dim + 1 if group_cfg.concatenate_dim >= 0 else group_cfg.concatenate_dim
+            )
             # check if config is dict already
             if isinstance(group_cfg, dict):
                 group_cfg_items = group_cfg.items()
@@ -392,7 +431,13 @@ class ObservationManager(ManagerBase):
             # iterate over all the terms in each group
             for term_name, term_cfg in group_cfg_items:
                 # skip non-obs settings
-                if term_name in ["enable_corruption", "concatenate_terms", "history_length", "flatten_history_dim"]:
+                if term_name in [
+                    "enable_corruption",
+                    "concatenate_terms",
+                    "history_length",
+                    "flatten_history_dim",
+                    "concatenate_dim",
+                ]:
                     continue
                 # check for non config
                 if term_cfg is None:
@@ -418,19 +463,6 @@ class ObservationManager(ManagerBase):
 
                 # call function the first time to fill up dimensions
                 obs_dims = tuple(term_cfg.func(self._env, **term_cfg.params).shape)
-
-                # create history buffers and calculate history term dimensions
-                if term_cfg.history_length > 0:
-                    group_entry_history_buffer[term_name] = CircularBuffer(
-                        max_len=term_cfg.history_length, batch_size=self._env.num_envs, device=self._env.device
-                    )
-                    old_dims = list(obs_dims)
-                    old_dims.insert(1, term_cfg.history_length)
-                    obs_dims = tuple(old_dims)
-                    if term_cfg.flatten_history_dim:
-                        obs_dims = (obs_dims[0], np.prod(obs_dims[1:]))
-
-                self._group_obs_term_dim[group_name].append(obs_dims[1:])
 
                 # if scale is set, check if single float or tuple
                 if term_cfg.scale is not None:
@@ -494,6 +526,19 @@ class ObservationManager(ManagerBase):
                                     f" mandatory parameters: {args_without_defaults[1:]}"
                                     f" and optional parameters: {args_with_defaults}, but received: {term_params}."
                                 )
+
+                # create history buffers and calculate history term dimensions
+                if term_cfg.history_length > 0:
+                    group_entry_history_buffer[term_name] = CircularBuffer(
+                        max_len=term_cfg.history_length, batch_size=self._env.num_envs, device=self._env.device
+                    )
+                    old_dims = list(obs_dims)
+                    old_dims.insert(1, term_cfg.history_length)
+                    obs_dims = tuple(old_dims)
+                    if term_cfg.flatten_history_dim:
+                        obs_dims = (obs_dims[0], np.prod(obs_dims[1:]))
+
+                self._group_obs_term_dim[group_name].append(obs_dims[1:])
 
                 # add term in a separate list if term is a class
                 if isinstance(term_cfg.func, ManagerTermBase):
