@@ -145,6 +145,10 @@ class ManagerBase(ABC):
         self.cfg = copy.deepcopy(cfg)
         self._env = env
 
+        # flag for whether the scene entities have been resolved
+        # if sim is playing, we resolve the scene entities directly while preparing the terms
+        self._is_scene_entities_resolved = self._env.sim.is_playing()
+
         # if the simulation is not playing, we use callbacks to trigger the resolution of the scene
         # entities configuration. this is needed for cases where the manager is created after the
         # simulation, but before the simulation is playing.
@@ -265,6 +269,9 @@ class ManagerBase(ABC):
 
         Please check the :meth:`_process_term_cfg_at_play` method for more information.
         """
+        # check if scene entities have been resolved
+        if self._is_scene_entities_resolved:
+            return
         # check if config is dict already
         if isinstance(self.cfg, dict):
             cfg_items = self.cfg.items()
@@ -279,6 +286,9 @@ class ManagerBase(ABC):
             # process attributes at runtime
             # these properties are only resolvable once the simulation starts playing
             self._process_term_cfg_at_play(term_name, term_cfg)
+
+        # set the flag
+        self._is_scene_entities_resolved = True
 
     """
     Internal functions.
