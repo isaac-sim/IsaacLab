@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.1.0" />
-    <meta name="docbuild:last-update" content="Jun 03, 2025"/>
+    <meta name="docbuild:last-update" content="Jun 04, 2025"/>
   </head>
   
   
@@ -682,6 +682,10 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span> <span class="o">=</span> <span class="n">copy</span><span class="o">.</span><span class="n">deepcopy</span><span class="p">(</span><span class="n">cfg</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_env</span> <span class="o">=</span> <span class="n">env</span>
 
+        <span class="c1"># flag for whether the scene entities have been resolved</span>
+        <span class="c1"># if sim is playing, we resolve the scene entities directly while preparing the terms</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_is_scene_entities_resolved</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_env</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">is_playing</span><span class="p">()</span>
+
         <span class="c1"># if the simulation is not playing, we use callbacks to trigger the resolution of the scene</span>
         <span class="c1"># entities configuration. this is needed for cases where the manager is created after the</span>
         <span class="c1"># simulation, but before the simulation is playing.</span>
@@ -802,6 +806,9 @@
 
 <span class="sd">        Please check the :meth:`_process_term_cfg_at_play` method for more information.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># check if scene entities have been resolved</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_is_scene_entities_resolved</span><span class="p">:</span>
+            <span class="k">return</span>
         <span class="c1"># check if config is dict already</span>
         <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
             <span class="n">cfg_items</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
@@ -816,6 +823,9 @@
             <span class="c1"># process attributes at runtime</span>
             <span class="c1"># these properties are only resolvable once the simulation starts playing</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_process_term_cfg_at_play</span><span class="p">(</span><span class="n">term_name</span><span class="p">,</span> <span class="n">term_cfg</span><span class="p">)</span>
+
+        <span class="c1"># set the flag</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_is_scene_entities_resolved</span> <span class="o">=</span> <span class="kc">True</span>
 
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Internal functions.</span>
@@ -986,7 +996,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jun 03, 2025.
+  Last updated on Jun 04, 2025.
   <br/>
 </p>
   </div>
