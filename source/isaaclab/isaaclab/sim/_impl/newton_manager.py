@@ -20,7 +20,7 @@ def set_vec3d_array(
 
 class NewtonManager:
     _builder: ModelBuilder = None
-    _contact_manager = None
+    _contact_manager: ContactViewManager = None
     _model: Model = None
     _device: str = "cuda:0"
     _sim_dt: float = 1.0 / 600.0
@@ -68,11 +68,11 @@ class NewtonManager:
     def initialize_solver(cls):
         NewtonManager._solver = newton.solvers.MuJoCoSolver(NewtonManager._model)
         NewtonManager._use_cuda_graph = wp.get_device().is_cuda
+        #NewtonManager._contact_manager.finalize(NewtonManager._solver)
         if NewtonManager._use_cuda_graph:
             with wp.ScopedCapture() as capture:
                 NewtonManager.simulate()
             NewtonManager._graph = capture.graph
-        NewtonManager._contact_manager.finalize(NewtonManager._solver)
 
     @classmethod
     def simulate(cls):
@@ -95,6 +95,15 @@ class NewtonManager:
                         state_temp_dict[key].assign(value)
                         state_0_dict[key].assign(state_1_dict[key])
                         state_1_dict[key].assign(state_temp_dict[key])
+        #with wp.ScopedTimer("Contacts aggregation"):
+        #    contact = NewtonManager._model.contact()
+        #    contact.dist = NewtonManager._solver.mjw_data.contact.dist
+        #    contact.geom = NewtonManager._solver.mjw_data.contact.geom
+        #    contact.frame = NewtonManager._solver.mjw_data.contact.frame
+        #    contact.worldid = NewtonManager._solver.mjw_data.contact.worldid
+
+        #    n_contacts = NewtonManager._solver.mjw_data.ncon
+        #    NewtonManager._contact_manager.contact_reporter.select_aggregate(contact, n_contacts)
 
     @classmethod
     def set_device(cls, device: str) -> None:
@@ -177,6 +186,7 @@ class NewtonManager:
 
     @classmethod
     def add_contact_view(cls, body_names_glob, filter_prim_paths_glob):
+        print(f"[INFO] Adding contact view for {body_names_glob} with filter {filter_prim_paths_glob}")
         return ContactView(NewtonManager._contact_manager, body_names_glob, filter_prim_paths_glob)
 
     @classmethod

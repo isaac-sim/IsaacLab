@@ -17,7 +17,7 @@ from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
-#from isaaclab.sensors import ContactSensorCfg, RayCasterCfg, patterns
+from isaaclab.sensors import ContactSensorCfg#, RayCasterCfg, patterns
 from isaaclab.sensors import RayCasterCfg, patterns
 from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils import configclass
@@ -72,7 +72,7 @@ class MySceneCfg(InteractiveSceneCfg):
         debug_vis=False,
         mesh_prim_paths=["/World/ground"],
     )
-    #contact_forces = ContactSensorCfg(prim_path="{ENV_REGEX_NS}/Robot/.*", history_length=3, track_air_time=True)
+    #contact_forces = ContactSensorCfg(prim_path="{ENV_REGEX_NS}/Robot/.*", filter_prim_paths_expr=["/World/ground/terrain/GroundPlane/CollisionPlane"], history_length=3, track_air_time=True)
     # lights
     sky_light = AssetBaseCfg(
         prim_path="/World/skyLight",
@@ -263,7 +263,7 @@ class TerminationsCfg:
     Base_too_low = DoneTerm(func=mdp.root_height_below_minimum, params={"minimum_height": 0.3})
     #Base_contact = DoneTerm(
     #    func=mdp.illegal_contact,
-    #    params={"sensor_cfg": SceneEntityCfg("contact_forces", body_names="base"), "threshold": 1.0},
+    #    params={"sensor_cfg": SceneEntityCfg("contact_forces", body_names="Capsule"), "threshold": 0.000001},
     #)
 
 

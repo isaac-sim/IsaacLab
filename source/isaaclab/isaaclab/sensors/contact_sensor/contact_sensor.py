@@ -16,6 +16,7 @@ import carb
 import omni.physics.tensors.impl.api as physx
 from isaacsim.core.simulation_manager import SimulationManager
 from isaaclab.sim._impl.newton_manager import NewtonManager
+from newton.utils.selection import ContactView
 from pxr import PhysxSchema
 
 import isaaclab.sim as sim_utils
@@ -99,7 +100,7 @@ class ContactSensor(SensorBase):
 
     @property
     def num_instances(self) -> int:
-        return self.body_physx_view.count
+        return len(self._contact_newton_view.entity_a)
 
     @property
     def data(self) -> ContactSensorData:
@@ -116,26 +117,32 @@ class ContactSensor(SensorBase):
     @property
     def body_names(self) -> list[str]:
         """Ordered names of bodies with contact sensors attached."""
-        prim_paths = self.body_physx_view.prim_paths[: self.num_bodies]
+        #prim_paths = self.body_physx_view.prim_paths[: self.num_bodies]
+        prim_paths = self._contact_newton_view.query_keys[0][: self.num_bodies]
         return [path.split("/")[-1] for path in prim_paths]
 
+    #@property
+    #def body_physx_view(self) -> physx.RigidBodyView:
+    #    """View for the rigid bodies captured (PhysX).
+
+    #    Note:
+    #        Use this view with caution. It requires handling of tensors in a specific way.
+    #    """
+    #    return self._body_physx_view
+
+    #@property
+    #def contact_physx_view(self) -> physx.RigidContactView:
+    #    """Contact reporter view for the bodies (PhysX).
+
+    #    Note:
+    #        Use this view with caution. It requires handling of tensors in a specific way.
+    #    """
+    #    return self._contact_physx_view
+
     @property
-    def body_physx_view(self) -> physx.RigidBodyView:
-        """View for the rigid bodies captured (PhysX).
-
-        Note:
-            Use this view with caution. It requires handling of tensors in a specific way.
-        """
-        return self._body_physx_view
-
-    @property
-    def contact_physx_view(self) -> physx.RigidContactView:
-        """Contact reporter view for the bodies (PhysX).
-
-        Note:
-            Use this view with caution. It requires handling of tensors in a specific way.
-        """
-        return self._contact_physx_view
+    def contact_newton_view(self) -> ContactView:
+        """View for the contact forces captured (Newton)."""
+        return self._contact_newton_view
 
     """
     Operations
@@ -271,26 +278,35 @@ class ContactSensor(SensorBase):
 
         # construct regex expression for the body names
         body_names_regex = r"(" + "|".join(body_names) + r")"
-        body_names_regex = f"{self.cfg.prim_path.rsplit('/', 1)[0]}/{body_names_regex}"
+        body_names_regex = f"{self.cfg.prim_path.rsplit('/', 1)[0]}/{body_names_regex}$"
+        body_names_regex = "/World/envs/env_.*/Robot/(base/Capsule|LF_HIP|LF_THIGH|LF_SHANK|LF_FOOT|LH_HIP|LH_THIGH|LH_SHANK|LH_FOOT|RF_HIP|RF_THIGH|RF_SHANK|RF_FOOT|RH_HIP|RH_THIGH|RH_SHANK|RH_FOOT)$",
         # convert regex expressions to glob expressions for PhysX
-        body_names_glob = body_names_regex.replace(".*", "*")
+        #body_names_glob = body_names_regex.replace(".*", "*")
         filter_prim_paths_glob = [expr.replace(".*", "*") for expr in self.cfg.filter_prim_paths_expr]
+        #print(f"[INFO] Body names glob: {body_names_glob}")
 
         # create a rigid prim view for the sensor
         #self._body_physx_view = self._physics_sim_view.create_rigid_body_view(body_names_glob)
         #self._contact_physx_view = self._physics_sim_view.create_rigid_contact_view(
         #    body_names_glob, filter_patterns=filter_prim_paths_glob
         #)
-        self._contact_newton_view = NewtonManager.add_contact_view(body_names_glob, filter_prim_paths_glob)
+        self._contact_newton_view = NewtonManager.add_contact_view(body_names_regex, filter_prim_paths_glob)
         # resolve the true count of bodies
-        self._num_bodies = self.body_physx_view.count // self._num_envs
+        #self._num_bodies = self.body_physx_view.count // self._num_envs
+        self._num_bodies = len(self._contact_newton_view.entity_a) // self._num_envs
+
+        print(f"[INFO] Contact sensor initialized with {self._num_bodies} bodies.")
+        print(f"[INFO] Body names: {self._contact_newton_view.entity_a}")
+        print(f"[INFO] Filter prim paths: {self._contact_newton_view.query_keys}")
+
+        
         # check that contact reporter succeeded
-        if self._num_bodies != len(body_names):
-            raise RuntimeError(
-                "Failed to initialize contact reporter for specified bodies."
-                f"\n\tInput prim path    : {self.cfg.prim_path}"
-                f"\n\tResolved prim paths: {body_names_regex}"
-            )
+        #if self._num_bodies != len(body_names):
+        #    raise RuntimeError(
+        #        "Failed to initialize contact reporter for specified bodies."
+        #        f"\n\tInput prim path    : {self.cfg.prim_path}"
+        #        f"\n\tResolved prim paths: {body_names_regex}"
+        #    )
 
         # prepare data buffers
         self._data.net_forces_w = torch.zeros(self._num_envs, self._num_bodies, 3, device=self._device)
@@ -314,7 +330,8 @@ class ContactSensor(SensorBase):
             self._data.current_contact_time = torch.zeros(self._num_envs, self._num_bodies, device=self._device)
         # force matrix: (num_envs, num_bodies, num_filter_shapes, 3)
         if len(self.cfg.filter_prim_paths_expr) != 0:
-            num_filters = self.contact_physx_view.filter_count
+            #num_filters = self.contact_physx_view.filter_count
+            num_filters = len(self._contact_newton_view.entity_b)
             self._data.force_matrix_w = torch.zeros(
                 self._num_envs, self._num_bodies, num_filters, 3, device=self._device
             )
@@ -328,27 +345,51 @@ class ContactSensor(SensorBase):
         # obtain the contact forces
         # TODO: We are handling the indexing ourself because of the shape; (N, B) vs expected (N * B).
         #   This isn't the most efficient way to do this, but it's the easiest to implement.
-        net_forces_w = self.contact_physx_view.get_net_contact_forces(dt=self._sim_physics_dt)
-        self._data.net_forces_w[env_ids, :, :] = net_forces_w.view(-1, self._num_bodies, 3)[env_ids]
+        # FIXME: In Newton, we cannot yet get the contact forces. But we can get the distances.
+        #   Hence, we will make this a binary sensor, if the distance is less than a very small threshold
+        #   then we will set the contact force to 1.0.
+        #net_forces_w = self.contact_physx_view.get_net_contact_forces(dt=self._sim_physics_dt)
+        entities, distance_matrix_w = self._contact_newton_view.get_contact_dist()
+        distance_matrix_w = torch.tensor(distance_matrix_w)
+        # Shape of the distance matrix: (N * B, F):
+        #   with N: number of environments
+        #   with B: number of bodies
+        #   with F: number of filters --> Right now we assume that this is always 1.
+        # Values are set to:
+        #   Inf: no contact
+        #   Anything negative: penetration depth.
+        # Since we do not know if the value is post or pre solver, we should set a non-negative contact threshold.
+        # Something like 0.01 should be good enough.
+        #self._data.net_forces_w[env_ids, :, :] = distance_matrix_w.squeeze(-1).view(-1, self._num_bodies)[env_ids]
+        # We duplicate the penetration depth to 3 components just so that it's plug and play with the rest of the code.
+        reshaped = distance_matrix_w.squeeze(-1).view(-1, self._num_bodies)[env_ids].unsqueeze(-1).expand(-1,-1,3)
+        # Apply binary thresholding to get the contact forces.
+        reshaped2 = torch.zeros_like(reshaped)
+        reshaped2[reshaped < 0.001] = - (reshaped[reshaped < 0.001] - 0.001) * 1000.0 # Randomly chosen gain to create a contact force.
+        reshaped2[reshaped >= 0.001] = 0.0
+        self._data.net_forces_w[env_ids, :, :] = reshaped2
         # update contact force history
         if self.cfg.history_length > 0:
             self._data.net_forces_w_history[env_ids, 1:] = self._data.net_forces_w_history[env_ids, :-1].clone()
             self._data.net_forces_w_history[env_ids, 0] = self._data.net_forces_w[env_ids]
 
+        # FIXME: We need to get the contact force matrix.
         # obtain the contact force matrix
-        if len(self.cfg.filter_prim_paths_expr) != 0:
-            # shape of the filtering matrix: (num_envs, num_bodies, num_filter_shapes, 3)
-            num_filters = self.contact_physx_view.filter_count
-            # acquire and shape the force matrix
-            force_matrix_w = self.contact_physx_view.get_contact_force_matrix(dt=self._sim_physics_dt)
-            force_matrix_w = force_matrix_w.view(-1, self._num_bodies, num_filters, 3)
-            self._data.force_matrix_w[env_ids] = force_matrix_w[env_ids]
+        #if len(self.cfg.filter_prim_paths_expr) != 0:
+        #    # shape of the filtering matrix: (num_envs, num_bodies, num_filter_shapes, 3)
+        #    num_filters = self.contact_physx_view.filter_count
+        #    # acquire and shape the force matrix
+        #    force_matrix_w = self.contact_physx_view.get_contact_force_matrix(dt=self._sim_physics_dt)
+        #    force_matrix_w = force_matrix_w.view(-1, self._num_bodies, num_filters, 3)
+        #    self._data.force_matrix_w[env_ids] = force_matrix_w[env_ids]
 
+        # FIXME: Re-enable this when we have a non-physx rigid body view?
+        #   Or we could request this from the contact view?
         # obtain the pose of the sensor origin
-        if self.cfg.track_pose:
-            pose = self.body_physx_view.get_transforms().view(-1, self._num_bodies, 7)[env_ids]
-            pose[..., 3:] = convert_quat(pose[..., 3:], to="wxyz")
-            self._data.pos_w[env_ids], self._data.quat_w[env_ids] = pose.split([3, 4], dim=-1)
+        #if self.cfg.track_pose:
+        #    pose = self.body_physx_view.get_transforms().view(-1, self._num_bodies, 7)[env_ids]
+        #    pose[..., 3:] = convert_quat(pose[..., 3:], to="wxyz")
+        #    self._data.pos_w[env_ids], self._data.quat_w[env_ids] = pose.split([3, 4], dim=-1)
 
         # obtain the air time
         if self.cfg.track_air_time:
@@ -420,5 +461,6 @@ class ContactSensor(SensorBase):
         # call parent
         super()._invalidate_initialize_callback(event)
         # set all existing views to None to invalidate them
-        self._body_physx_view = None
-        self._contact_physx_view = None
+        #self._body_physx_view = None
+        #self._contact_physx_view = None
+        self._contact_newton_view = None
