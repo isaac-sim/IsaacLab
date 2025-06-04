@@ -26,7 +26,7 @@ import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObjectCfg, RigidObjectCollection, RigidObjectCollectionCfg
 from isaaclab.sim import build_simulation_context
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
-from isaaclab.utils.math import default_orientation, quat_mul, quat_rotate_inverse, random_orientation
+from isaaclab.utils.math import default_orientation, quat_apply_inverse, quat_mul, random_orientation
 
 
 def generate_cubes_scene(
@@ -203,10 +203,8 @@ def test_initialization_with_no_rigid_body(sim, num_cubes, device):
     assert ctypes.c_long.from_address(id(object_collection)).value == 1
 
     # Play sim
-    sim.reset()
-
-    # Check if object is initialized
-    assert not object_collection.is_initialized
+    with pytest.raises(RuntimeError):
+        sim.reset()
 
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
@@ -419,7 +417,7 @@ def test_object_state_properties(sim, num_envs, num_cubes, device, with_offset, 
             torch.testing.assert_close(init_com, object_com_state_w[..., :3])
 
             # link position will be moving but should stay constant away from center of mass
-            object_link_state_pos_rel_com = quat_rotate_inverse(
+            object_link_state_pos_rel_com = quat_apply_inverse(
                 object_link_state_w[..., 3:7],
                 object_link_state_w[..., :3] - object_com_state_w[..., :3],
             )
@@ -442,7 +440,7 @@ def test_object_state_properties(sim, num_envs, num_cubes, device, with_offset, 
             )
 
             # link frame will be moving, and should be equal to input angular velocity cross offset
-            lin_vel_rel_object_gt = quat_rotate_inverse(object_link_state_w[..., 3:7], object_link_state_w[..., 7:10])
+            lin_vel_rel_object_gt = quat_apply_inverse(object_link_state_w[..., 3:7], object_link_state_w[..., 7:10])
             lin_vel_rel_gt = torch.linalg.cross(spin_twist.repeat(num_envs, num_cubes, 1)[..., 3:], -offset)
             torch.testing.assert_close(lin_vel_rel_gt, lin_vel_rel_object_gt, atol=1e-4, rtol=1e-3)
 
