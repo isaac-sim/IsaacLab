@@ -432,6 +432,12 @@ class FrameTransformer(SensorBase):
 
             # set their visibility to true
             self.frame_visualizer.set_visibility(True)
+
+            # initialize the visualizer markers scales and indices for the frame and connecting lines
+            self._frame_vis_scale = torch.ones(1 + len(self.cfg.target_frames), 3)
+            self._connecting_line_vis_scale = torch.ones(len(self.cfg.target_frames), 3)
+            self._frame_vis_marker_indices = torch.zeros(1 + len(self.cfg.target_frames))
+            self._connecting_line_vis_marker_indices = torch.ones(len(self.cfg.target_frames))
         else:
             if hasattr(self, "frame_visualizer"):
                 self.frame_visualizer.set_visibility(False)
@@ -442,20 +448,20 @@ class FrameTransformer(SensorBase):
         frames_quat = torch.cat([self._data.source_quat_w, self._data.target_quat_w.view(-1, 4)], dim=0)
 
         # Get the all connecting lines between frames pose
-        lines_pos, lines_quat, lines_scale = self._get_connecting_lines(
-            source_pos=self._data.source_pos_w.repeat_interleave(self._data.target_pos_w.size(1), dim=0),
-            target_pos=self._data.target_pos_w.view(-1, 3),
+        lines_pos, lines_quat, lines_length = self._get_connecting_lines(
+            start_pos=self._data.source_pos_w.repeat_interleave(self._data.target_pos_w.size(1), dim=0),
+            end_pos=self._data.target_pos_w.view(-1, 3),
         )
+
+        # update the length of the connecting lines (scale of marker in its z-axis)
+        self._connecting_line_vis_scale[:, 2] = lines_length
 
         # Update the frame and the connecting line visualizer
         self.frame_visualizer.visualize(
             translations=torch.cat((frames_pos, lines_pos), dim=0),
             orientations=torch.cat((frames_quat, lines_quat), dim=0),
-            scales=torch.cat((torch.ones(frames_pos.size(0), 3, device=frames_pos.device), lines_scale), dim=0),
-            marker_indices=torch.cat((
-                torch.zeros(frames_pos.size(0), device=frames_pos.device),
-                torch.ones(lines_pos.size(0), device=frames_pos.device),
-            )),
+            scales=torch.cat((self._frame_vis_scale, self._connecting_line_vis_scale), dim=0),
+            marker_indices=torch.cat((self._frame_vis_marker_indices, self._connecting_line_vis_marker_indices), dim=0),
         )
 
     """
@@ -474,17 +480,26 @@ class FrameTransformer(SensorBase):
     """
 
     def _get_connecting_lines(
-        self, source_pos: torch.Tensor, target_pos: torch.Tensor
+        self, start_pos: torch.Tensor, end_pos: torch.Tensor
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        # Calculate the direction vector and length
-        direction = target_pos - source_pos
-        length = torch.norm(direction, dim=-1)
+        """
+        Given start and end points, compute the positions (mid-point), orientations, and lengths of the connecting lines.
 
-        # Calculate midpoint
-        pos = (source_pos + target_pos) / 2
+        Args:
+            start_pos: The start positions of the connecting lines. Shape is (N, 3).
+            end_pos: The end positions of the connecting lines. Shape is (N, 3).
+
+        Returns:
+            positions: The position of each connecting line. Shape is (N, 3).
+            orientations: The orientation of each connecting line in quaternion. Shape is (N, 4).
+            lengths: The length of each connecting line. Shape is (N,).
+        """
+        direction = end_pos - start_pos
+        lengths = torch.norm(direction, dim=-1)
+        positions = (start_pos + end_pos) / 2
 
         # Get default direction (along z-axis)
-        default_direction = torch.tensor([0.0, 0.0, 1.0], device=self.device).expand(source_pos.size(0), -1)
+        default_direction = torch.tensor([0.0, 0.0, 1.0], device=self.device).expand(start_pos.size(0), -1)
 
         # Normalize direction vector
         direction_norm = normalize(direction)
@@ -498,19 +513,13 @@ class FrameTransformer(SensorBase):
         rotation_axis = torch.where(
             mask.unsqueeze(-1),
             normalize(rotation_axis),
-            torch.tensor([1.0, 0.0, 0.0], device=self.device).expand(source_pos.size(0), -1),
+            torch.tensor([1.0, 0.0, 0.0], device=self.device).expand(start_pos.size(0), -1),
         )
 
         # Calculate rotation angle
         cos_angle = torch.sum(default_direction * direction_norm, dim=-1)
         cos_angle = torch.clamp(cos_angle, -1.0, 1.0)
         angle = torch.acos(cos_angle)
+        orientations = quat_from_angle_axis(angle, rotation_axis)
 
-        # Convert to quaternion
-        quat = quat_from_angle_axis(angle, rotation_axis)
-
-        # Set scale (height of the cylinder)
-        scale = torch.ones((source_pos.size(0), 3), device=self.device)
-        scale[:, 2] = length  # Scale along z-axis
-
-        return pos, quat, scale
+        return positions, orientations, lengths
