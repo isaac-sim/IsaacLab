@@ -1,7 +1,7 @@
 Changelog
 ---------
 
-0.39.8 (2025-05-10)
+0.40.2 (2025-05-10)
 ~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -9,6 +9,38 @@ Added
 
 * Updated gymnasium to >= 1.0
 * Added support for specifying module:task_name as task name to avoid module import for ``gym.make``
+
+
+0.40.1 (2025-06-02)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added time observation functions to ~isaaclab.envs.mdp.observations module,
+  :func:`~isaaclab.envs.mdp.observations.current_time_s` and :func:`~isaaclab.envs.mdp.observations.remaining_time_s`.
+
+Changed
+^^^^^^^
+
+* Moved initialization of ``episode_length_buf`` outside of :meth:`load_managers()` of :class:`~isaaclab.envs.ManagerBasedRLEnv`
+  to make it available for mdp functions.
+
+
+0.40.0 (2025-05-16)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added deprecation warning for :meth:`~isaaclab.utils.math.quat_rotate` and
+  :meth:`~isaaclab.utils.math.quat_rotate_inverse`
+
+Changed
+^^^^^^^
+
+* Changed all calls to :meth:`~isaaclab.utils.math.quat_rotate` and :meth:`~isaaclab.utils.math.quat_rotate_inverse` to
+  :meth:`~isaaclab.utils.math.quat_apply` and :meth:`~isaaclab.utils.math.quat_apply_inverse` for speed.
 
 
 0.39.7 (2025-05-19)

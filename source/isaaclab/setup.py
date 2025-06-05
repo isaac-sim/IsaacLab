@@ -1,3 +1,8 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 # Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
@@ -38,7 +43,7 @@ INSTALL_REQUIRES = [
     # make sure this is consistent with isaac sim version
     "pillow==11.0.0",
     # livestream
-    "starlette==0.46.0",
+    "starlette==0.45.3",
     # testing
     "pytest",
     "pytest-mock",
