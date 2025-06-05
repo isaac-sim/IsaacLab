@@ -630,124 +630,129 @@ Let’s take a look at the Python script:</p>
 <details class="sd-sphinx-override sd-dropdown sd-card sd-mb-3">
 <summary class="sd-summary-title sd-card-header">
 <span class="sd-summary-icon"><svg version="1.1" width="1.0em" height="1.0em" class="sd-octicon sd-octicon-code" viewBox="0 0 16 16" aria-hidden="true"><path d="m11.28 3.22 4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.749.749 0 0 1-1.275-.326.749.749 0 0 1 .215-.734L13.94 8l-3.72-3.72a.749.749 0 0 1 .326-1.275.749.749 0 0 1 .734.215Zm-6.56 0a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042L2.06 8l3.72 3.72a.749.749 0 0 1-.326 1.275.749.749 0 0 1-.734-.215L.47 8.53a.75.75 0 0 1 0-1.06Z"></path></svg></span><span class="sd-summary-text">Code for spawn_prims.py</span><span class="sd-summary-state-marker sd-summary-chevron-right"><svg version="1.1" width="1.5em" height="1.5em" class="sd-octicon sd-octicon-chevron-right" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.72 18.78a.75.75 0 0 1 0-1.06L14.44 12 8.72 6.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018l6.25 6.25a.75.75 0 0 1 0 1.06l-6.25 6.25a.75.75 0 0 1-1.06 0Z"></path></svg></span></summary><div class="sd-summary-content sd-card-body docutils">
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="linenos">  1</span><span class="c1"># Copyright (c) 2022-2025, The Isaac Lab Project Developers.</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="linenos">  1</span><span class="c1"># Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).</span>
 <span class="linenos">  2</span><span class="c1"># All rights reserved.</span>
 <span class="linenos">  3</span><span class="c1">#</span>
 <span class="linenos">  4</span><span class="c1"># SPDX-License-Identifier: BSD-3-Clause</span>
 <span class="linenos">  5</span>
-<span class="linenos">  6</span><span class="sd">&quot;&quot;&quot;This script demonstrates how to spawn prims into the scene.</span>
-<span class="linenos">  7</span>
-<span class="linenos">  8</span><span class="sd">.. code-block:: bash</span>
-<span class="linenos">  9</span>
-<span class="linenos"> 10</span><span class="sd">    # Usage</span>
-<span class="linenos"> 11</span><span class="sd">    ./isaaclab.sh -p scripts/tutorials/00_sim/spawn_prims.py</span>
+<span class="linenos">  6</span><span class="c1"># Copyright (c) 2022-2025, The Isaac Lab Project Developers.</span>
+<span class="linenos">  7</span><span class="c1"># All rights reserved.</span>
+<span class="linenos">  8</span><span class="c1">#</span>
+<span class="linenos">  9</span><span class="c1"># SPDX-License-Identifier: BSD-3-Clause</span>
+<span class="linenos"> 10</span>
+<span class="linenos"> 11</span><span class="sd">&quot;&quot;&quot;This script demonstrates how to spawn prims into the scene.</span>
 <span class="linenos"> 12</span>
-<span class="linenos"> 13</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="linenos"> 13</span><span class="sd">.. code-block:: bash</span>
 <span class="linenos"> 14</span>
-<span class="linenos"> 15</span><span class="sd">&quot;&quot;&quot;Launch Isaac Sim Simulator first.&quot;&quot;&quot;</span>
-<span class="linenos"> 16</span>
+<span class="linenos"> 15</span><span class="sd">    # Usage</span>
+<span class="linenos"> 16</span><span class="sd">    ./isaaclab.sh -p scripts/tutorials/00_sim/spawn_prims.py</span>
 <span class="linenos"> 17</span>
-<span class="linenos"> 18</span><span class="kn">import</span><span class="w"> </span><span class="nn">argparse</span>
+<span class="linenos"> 18</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="linenos"> 19</span>
-<span class="linenos"> 20</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.app</span><span class="w"> </span><span class="kn">import</span> <span class="n">AppLauncher</span>
+<span class="linenos"> 20</span><span class="sd">&quot;&quot;&quot;Launch Isaac Sim Simulator first.&quot;&quot;&quot;</span>
 <span class="linenos"> 21</span>
-<span class="linenos"> 22</span><span class="c1"># create argparser</span>
-<span class="linenos"> 23</span><span class="n">parser</span> <span class="o">=</span> <span class="n">argparse</span><span class="o">.</span><span class="n">ArgumentParser</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="s2">&quot;Tutorial on spawning prims into the scene.&quot;</span><span class="p">)</span>
-<span class="linenos"> 24</span><span class="c1"># append AppLauncher cli args</span>
-<span class="linenos"> 25</span><span class="n">AppLauncher</span><span class="o">.</span><span class="n">add_app_launcher_args</span><span class="p">(</span><span class="n">parser</span><span class="p">)</span>
-<span class="linenos"> 26</span><span class="c1"># parse the arguments</span>
-<span class="linenos"> 27</span><span class="n">args_cli</span> <span class="o">=</span> <span class="n">parser</span><span class="o">.</span><span class="n">parse_args</span><span class="p">()</span>
-<span class="linenos"> 28</span><span class="c1"># launch omniverse app</span>
-<span class="linenos"> 29</span><span class="n">app_launcher</span> <span class="o">=</span> <span class="n">AppLauncher</span><span class="p">(</span><span class="n">args_cli</span><span class="p">)</span>
-<span class="linenos"> 30</span><span class="n">simulation_app</span> <span class="o">=</span> <span class="n">app_launcher</span><span class="o">.</span><span class="n">app</span>
-<span class="linenos"> 31</span>
-<span class="linenos"> 32</span><span class="sd">&quot;&quot;&quot;Rest everything follows.&quot;&quot;&quot;</span>
-<span class="linenos"> 33</span>
-<span class="linenos"> 34</span><span class="kn">import</span><span class="w"> </span><span class="nn">isaacsim.core.utils.prims</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">prim_utils</span>
-<span class="linenos"> 35</span>
-<span class="linenos"> 36</span><span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab.sim</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">sim_utils</span>
-<span class="linenos"> 37</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils.assets</span><span class="w"> </span><span class="kn">import</span> <span class="n">ISAAC_NUCLEUS_DIR</span>
+<span class="linenos"> 22</span>
+<span class="linenos"> 23</span><span class="kn">import</span><span class="w"> </span><span class="nn">argparse</span>
+<span class="linenos"> 24</span>
+<span class="linenos"> 25</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.app</span><span class="w"> </span><span class="kn">import</span> <span class="n">AppLauncher</span>
+<span class="linenos"> 26</span>
+<span class="linenos"> 27</span><span class="c1"># create argparser</span>
+<span class="linenos"> 28</span><span class="n">parser</span> <span class="o">=</span> <span class="n">argparse</span><span class="o">.</span><span class="n">ArgumentParser</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="s2">&quot;Tutorial on spawning prims into the scene.&quot;</span><span class="p">)</span>
+<span class="linenos"> 29</span><span class="c1"># append AppLauncher cli args</span>
+<span class="linenos"> 30</span><span class="n">AppLauncher</span><span class="o">.</span><span class="n">add_app_launcher_args</span><span class="p">(</span><span class="n">parser</span><span class="p">)</span>
+<span class="linenos"> 31</span><span class="c1"># parse the arguments</span>
+<span class="linenos"> 32</span><span class="n">args_cli</span> <span class="o">=</span> <span class="n">parser</span><span class="o">.</span><span class="n">parse_args</span><span class="p">()</span>
+<span class="linenos"> 33</span><span class="c1"># launch omniverse app</span>
+<span class="linenos"> 34</span><span class="n">app_launcher</span> <span class="o">=</span> <span class="n">AppLauncher</span><span class="p">(</span><span class="n">args_cli</span><span class="p">)</span>
+<span class="linenos"> 35</span><span class="n">simulation_app</span> <span class="o">=</span> <span class="n">app_launcher</span><span class="o">.</span><span class="n">app</span>
+<span class="linenos"> 36</span>
+<span class="linenos"> 37</span><span class="sd">&quot;&quot;&quot;Rest everything follows.&quot;&quot;&quot;</span>
 <span class="linenos"> 38</span>
-<span class="linenos"> 39</span>
-<span class="hll"><span class="linenos"> 40</span><span class="k">def</span><span class="w"> </span><span class="nf">design_scene</span><span class="p">():</span>
-</span><span class="hll"><span class="linenos"> 41</span><span class="w">    </span><span class="sd">&quot;&quot;&quot;Designs the scene by spawning ground plane, light, objects and meshes from usd files.&quot;&quot;&quot;</span>
-</span><span class="hll"><span class="linenos"> 42</span>    <span class="c1"># Ground-plane</span>
-</span><span class="hll"><span class="linenos"> 43</span>    <span class="n">cfg_ground</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">GroundPlaneCfg</span><span class="p">()</span>
-</span><span class="hll"><span class="linenos"> 44</span>    <span class="n">cfg_ground</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="s2">&quot;/World/defaultGroundPlane&quot;</span><span class="p">,</span> <span class="n">cfg_ground</span><span class="p">)</span>
-</span><span class="hll"><span class="linenos"> 45</span>
-</span><span class="hll"><span class="linenos"> 46</span>    <span class="c1"># spawn distant light</span>
-</span><span class="hll"><span class="linenos"> 47</span>    <span class="n">cfg_light_distant</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">DistantLightCfg</span><span class="p">(</span>
-</span><span class="hll"><span class="linenos"> 48</span>        <span class="n">intensity</span><span class="o">=</span><span class="mf">3000.0</span><span class="p">,</span>
-</span><span class="hll"><span class="linenos"> 49</span>        <span class="n">color</span><span class="o">=</span><span class="p">(</span><span class="mf">0.75</span><span class="p">,</span> <span class="mf">0.75</span><span class="p">,</span> <span class="mf">0.75</span><span class="p">),</span>
-</span><span class="hll"><span class="linenos"> 50</span>    <span class="p">)</span>
-</span><span class="hll"><span class="linenos"> 51</span>    <span class="n">cfg_light_distant</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="s2">&quot;/World/lightDistant&quot;</span><span class="p">,</span> <span class="n">cfg_light_distant</span><span class="p">,</span> <span class="n">translation</span><span class="o">=</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">10</span><span class="p">))</span>
-</span><span class="hll"><span class="linenos"> 52</span>
-</span><span class="hll"><span class="linenos"> 53</span>    <span class="c1"># create a new xform prim for all objects to be spawned under</span>
-</span><span class="hll"><span class="linenos"> 54</span>    <span class="n">prim_utils</span><span class="o">.</span><span class="n">create_prim</span><span class="p">(</span><span class="s2">&quot;/World/Objects&quot;</span><span class="p">,</span> <span class="s2">&quot;Xform&quot;</span><span class="p">)</span>
-</span><span class="hll"><span class="linenos"> 55</span>    <span class="c1"># spawn a red cone</span>
-</span><span class="hll"><span class="linenos"> 56</span>    <span class="n">cfg_cone</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">ConeCfg</span><span class="p">(</span>
-</span><span class="hll"><span class="linenos"> 57</span>        <span class="n">radius</span><span class="o">=</span><span class="mf">0.15</span><span class="p">,</span>
-</span><span class="hll"><span class="linenos"> 58</span>        <span class="n">height</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span>
-</span><span class="hll"><span class="linenos"> 59</span>        <span class="n">visual_material</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">PreviewSurfaceCfg</span><span class="p">(</span><span class="n">diffuse_color</span><span class="o">=</span><span class="p">(</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">)),</span>
-</span><span class="hll"><span class="linenos"> 60</span>    <span class="p">)</span>
-</span><span class="hll"><span class="linenos"> 61</span>    <span class="n">cfg_cone</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="s2">&quot;/World/Objects/Cone1&quot;</span><span class="p">,</span> <span class="n">cfg_cone</span><span class="p">,</span> <span class="n">translation</span><span class="o">=</span><span class="p">(</span><span class="o">-</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">))</span>
-</span><span class="hll"><span class="linenos"> 62</span>    <span class="n">cfg_cone</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="s2">&quot;/World/Objects/Cone2&quot;</span><span class="p">,</span> <span class="n">cfg_cone</span><span class="p">,</span> <span class="n">translation</span><span class="o">=</span><span class="p">(</span><span class="o">-</span><span class="mf">1.0</span><span class="p">,</span> <span class="o">-</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">))</span>
-</span><span class="hll"><span class="linenos"> 63</span>
-</span><span class="hll"><span class="linenos"> 64</span>    <span class="c1"># spawn a green cone with colliders and rigid body</span>
-</span><span class="hll"><span class="linenos"> 65</span>    <span class="n">cfg_cone_rigid</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">ConeCfg</span><span class="p">(</span>
-</span><span class="hll"><span class="linenos"> 66</span>        <span class="n">radius</span><span class="o">=</span><span class="mf">0.15</span><span class="p">,</span>
-</span><span class="hll"><span class="linenos"> 67</span>        <span class="n">height</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span>
-</span><span class="hll"><span class="linenos"> 68</span>        <span class="n">rigid_props</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">RigidBodyPropertiesCfg</span><span class="p">(),</span>
-</span><span class="hll"><span class="linenos"> 69</span>        <span class="n">mass_props</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">MassPropertiesCfg</span><span class="p">(</span><span class="n">mass</span><span class="o">=</span><span class="mf">1.0</span><span class="p">),</span>
-</span><span class="hll"><span class="linenos"> 70</span>        <span class="n">collision_props</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">CollisionPropertiesCfg</span><span class="p">(),</span>
-</span><span class="hll"><span class="linenos"> 71</span>        <span class="n">visual_material</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">PreviewSurfaceCfg</span><span class="p">(</span><span class="n">diffuse_color</span><span class="o">=</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">)),</span>
-</span><span class="hll"><span class="linenos"> 72</span>    <span class="p">)</span>
-</span><span class="hll"><span class="linenos"> 73</span>    <span class="n">cfg_cone_rigid</span><span class="o">.</span><span class="n">func</span><span class="p">(</span>
-</span><span class="hll"><span class="linenos"> 74</span>        <span class="s2">&quot;/World/Objects/ConeRigid&quot;</span><span class="p">,</span> <span class="n">cfg_cone_rigid</span><span class="p">,</span> <span class="n">translation</span><span class="o">=</span><span class="p">(</span><span class="o">-</span><span class="mf">0.2</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">2.0</span><span class="p">),</span> <span class="n">orientation</span><span class="o">=</span><span class="p">(</span><span class="mf">0.5</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">)</span>
-</span><span class="hll"><span class="linenos"> 75</span>    <span class="p">)</span>
-</span><span class="hll"><span class="linenos"> 76</span>
-</span><span class="hll"><span class="linenos"> 77</span>    <span class="c1"># spawn a blue cuboid with deformable body</span>
-</span><span class="hll"><span class="linenos"> 78</span>    <span class="n">cfg_cuboid_deformable</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">MeshCuboidCfg</span><span class="p">(</span>
-</span><span class="hll"><span class="linenos"> 79</span>        <span class="n">size</span><span class="o">=</span><span class="p">(</span><span class="mf">0.2</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">,</span> <span class="mf">0.2</span><span class="p">),</span>
-</span><span class="hll"><span class="linenos"> 80</span>        <span class="n">deformable_props</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">DeformableBodyPropertiesCfg</span><span class="p">(),</span>
-</span><span class="hll"><span class="linenos"> 81</span>        <span class="n">visual_material</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">PreviewSurfaceCfg</span><span class="p">(</span><span class="n">diffuse_color</span><span class="o">=</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">)),</span>
-</span><span class="hll"><span class="linenos"> 82</span>        <span class="n">physics_material</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">DeformableBodyMaterialCfg</span><span class="p">(),</span>
-</span><span class="hll"><span class="linenos"> 83</span>    <span class="p">)</span>
-</span><span class="hll"><span class="linenos"> 84</span>    <span class="n">cfg_cuboid_deformable</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="s2">&quot;/World/Objects/CuboidDeformable&quot;</span><span class="p">,</span> <span class="n">cfg_cuboid_deformable</span><span class="p">,</span> <span class="n">translation</span><span class="o">=</span><span class="p">(</span><span class="mf">0.15</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">2.0</span><span class="p">))</span>
-</span><span class="hll"><span class="linenos"> 85</span>
-</span><span class="hll"><span class="linenos"> 86</span>    <span class="c1"># spawn a usd file of a table into the scene</span>
-</span><span class="hll"><span class="linenos"> 87</span>    <span class="n">cfg</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">UsdFileCfg</span><span class="p">(</span><span class="n">usd_path</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">ISAAC_NUCLEUS_DIR</span><span class="si">}</span><span class="s2">/Props/Mounts/SeattleLabTable/table_instanceable.usd&quot;</span><span class="p">)</span>
-</span><span class="hll"><span class="linenos"> 88</span>    <span class="n">cfg</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="s2">&quot;/World/Objects/Table&quot;</span><span class="p">,</span> <span class="n">cfg</span><span class="p">,</span> <span class="n">translation</span><span class="o">=</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">1.05</span><span class="p">))</span>
-</span><span class="linenos"> 89</span>
+<span class="linenos"> 39</span><span class="kn">import</span><span class="w"> </span><span class="nn">isaacsim.core.utils.prims</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">prim_utils</span>
+<span class="hll"><span class="linenos"> 40</span>
+</span><span class="hll"><span class="linenos"> 41</span><span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab.sim</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">sim_utils</span>
+</span><span class="hll"><span class="linenos"> 42</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils.assets</span><span class="w"> </span><span class="kn">import</span> <span class="n">ISAAC_NUCLEUS_DIR</span>
+</span><span class="hll"><span class="linenos"> 43</span>
+</span><span class="hll"><span class="linenos"> 44</span>
+</span><span class="hll"><span class="linenos"> 45</span><span class="k">def</span><span class="w"> </span><span class="nf">design_scene</span><span class="p">():</span>
+</span><span class="hll"><span class="linenos"> 46</span><span class="w">    </span><span class="sd">&quot;&quot;&quot;Designs the scene by spawning ground plane, light, objects and meshes from usd files.&quot;&quot;&quot;</span>
+</span><span class="hll"><span class="linenos"> 47</span>    <span class="c1"># Ground-plane</span>
+</span><span class="hll"><span class="linenos"> 48</span>    <span class="n">cfg_ground</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">GroundPlaneCfg</span><span class="p">()</span>
+</span><span class="hll"><span class="linenos"> 49</span>    <span class="n">cfg_ground</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="s2">&quot;/World/defaultGroundPlane&quot;</span><span class="p">,</span> <span class="n">cfg_ground</span><span class="p">)</span>
+</span><span class="hll"><span class="linenos"> 50</span>
+</span><span class="hll"><span class="linenos"> 51</span>    <span class="c1"># spawn distant light</span>
+</span><span class="hll"><span class="linenos"> 52</span>    <span class="n">cfg_light_distant</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">DistantLightCfg</span><span class="p">(</span>
+</span><span class="hll"><span class="linenos"> 53</span>        <span class="n">intensity</span><span class="o">=</span><span class="mf">3000.0</span><span class="p">,</span>
+</span><span class="hll"><span class="linenos"> 54</span>        <span class="n">color</span><span class="o">=</span><span class="p">(</span><span class="mf">0.75</span><span class="p">,</span> <span class="mf">0.75</span><span class="p">,</span> <span class="mf">0.75</span><span class="p">),</span>
+</span><span class="hll"><span class="linenos"> 55</span>    <span class="p">)</span>
+</span><span class="hll"><span class="linenos"> 56</span>    <span class="n">cfg_light_distant</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="s2">&quot;/World/lightDistant&quot;</span><span class="p">,</span> <span class="n">cfg_light_distant</span><span class="p">,</span> <span class="n">translation</span><span class="o">=</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">10</span><span class="p">))</span>
+</span><span class="hll"><span class="linenos"> 57</span>
+</span><span class="hll"><span class="linenos"> 58</span>    <span class="c1"># create a new xform prim for all objects to be spawned under</span>
+</span><span class="hll"><span class="linenos"> 59</span>    <span class="n">prim_utils</span><span class="o">.</span><span class="n">create_prim</span><span class="p">(</span><span class="s2">&quot;/World/Objects&quot;</span><span class="p">,</span> <span class="s2">&quot;Xform&quot;</span><span class="p">)</span>
+</span><span class="hll"><span class="linenos"> 60</span>    <span class="c1"># spawn a red cone</span>
+</span><span class="hll"><span class="linenos"> 61</span>    <span class="n">cfg_cone</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">ConeCfg</span><span class="p">(</span>
+</span><span class="hll"><span class="linenos"> 62</span>        <span class="n">radius</span><span class="o">=</span><span class="mf">0.15</span><span class="p">,</span>
+</span><span class="hll"><span class="linenos"> 63</span>        <span class="n">height</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span>
+</span><span class="hll"><span class="linenos"> 64</span>        <span class="n">visual_material</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">PreviewSurfaceCfg</span><span class="p">(</span><span class="n">diffuse_color</span><span class="o">=</span><span class="p">(</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">)),</span>
+</span><span class="hll"><span class="linenos"> 65</span>    <span class="p">)</span>
+</span><span class="hll"><span class="linenos"> 66</span>    <span class="n">cfg_cone</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="s2">&quot;/World/Objects/Cone1&quot;</span><span class="p">,</span> <span class="n">cfg_cone</span><span class="p">,</span> <span class="n">translation</span><span class="o">=</span><span class="p">(</span><span class="o">-</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">))</span>
+</span><span class="hll"><span class="linenos"> 67</span>    <span class="n">cfg_cone</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="s2">&quot;/World/Objects/Cone2&quot;</span><span class="p">,</span> <span class="n">cfg_cone</span><span class="p">,</span> <span class="n">translation</span><span class="o">=</span><span class="p">(</span><span class="o">-</span><span class="mf">1.0</span><span class="p">,</span> <span class="o">-</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">))</span>
+</span><span class="hll"><span class="linenos"> 68</span>
+</span><span class="hll"><span class="linenos"> 69</span>    <span class="c1"># spawn a green cone with colliders and rigid body</span>
+</span><span class="hll"><span class="linenos"> 70</span>    <span class="n">cfg_cone_rigid</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">ConeCfg</span><span class="p">(</span>
+</span><span class="hll"><span class="linenos"> 71</span>        <span class="n">radius</span><span class="o">=</span><span class="mf">0.15</span><span class="p">,</span>
+</span><span class="hll"><span class="linenos"> 72</span>        <span class="n">height</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span>
+</span><span class="hll"><span class="linenos"> 73</span>        <span class="n">rigid_props</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">RigidBodyPropertiesCfg</span><span class="p">(),</span>
+</span><span class="hll"><span class="linenos"> 74</span>        <span class="n">mass_props</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">MassPropertiesCfg</span><span class="p">(</span><span class="n">mass</span><span class="o">=</span><span class="mf">1.0</span><span class="p">),</span>
+</span><span class="hll"><span class="linenos"> 75</span>        <span class="n">collision_props</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">CollisionPropertiesCfg</span><span class="p">(),</span>
+</span><span class="hll"><span class="linenos"> 76</span>        <span class="n">visual_material</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">PreviewSurfaceCfg</span><span class="p">(</span><span class="n">diffuse_color</span><span class="o">=</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">)),</span>
+</span><span class="hll"><span class="linenos"> 77</span>    <span class="p">)</span>
+</span><span class="hll"><span class="linenos"> 78</span>    <span class="n">cfg_cone_rigid</span><span class="o">.</span><span class="n">func</span><span class="p">(</span>
+</span><span class="hll"><span class="linenos"> 79</span>        <span class="s2">&quot;/World/Objects/ConeRigid&quot;</span><span class="p">,</span> <span class="n">cfg_cone_rigid</span><span class="p">,</span> <span class="n">translation</span><span class="o">=</span><span class="p">(</span><span class="o">-</span><span class="mf">0.2</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">2.0</span><span class="p">),</span> <span class="n">orientation</span><span class="o">=</span><span class="p">(</span><span class="mf">0.5</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">)</span>
+</span><span class="hll"><span class="linenos"> 80</span>    <span class="p">)</span>
+</span><span class="hll"><span class="linenos"> 81</span>
+</span><span class="hll"><span class="linenos"> 82</span>    <span class="c1"># spawn a blue cuboid with deformable body</span>
+</span><span class="hll"><span class="linenos"> 83</span>    <span class="n">cfg_cuboid_deformable</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">MeshCuboidCfg</span><span class="p">(</span>
+</span><span class="hll"><span class="linenos"> 84</span>        <span class="n">size</span><span class="o">=</span><span class="p">(</span><span class="mf">0.2</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">,</span> <span class="mf">0.2</span><span class="p">),</span>
+</span><span class="hll"><span class="linenos"> 85</span>        <span class="n">deformable_props</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">DeformableBodyPropertiesCfg</span><span class="p">(),</span>
+</span><span class="hll"><span class="linenos"> 86</span>        <span class="n">visual_material</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">PreviewSurfaceCfg</span><span class="p">(</span><span class="n">diffuse_color</span><span class="o">=</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">)),</span>
+</span><span class="hll"><span class="linenos"> 87</span>        <span class="n">physics_material</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">DeformableBodyMaterialCfg</span><span class="p">(),</span>
+</span><span class="hll"><span class="linenos"> 88</span>    <span class="p">)</span>
+</span><span class="linenos"> 89</span>    <span class="n">cfg_cuboid_deformable</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="s2">&quot;/World/Objects/CuboidDeformable&quot;</span><span class="p">,</span> <span class="n">cfg_cuboid_deformable</span><span class="p">,</span> <span class="n">translation</span><span class="o">=</span><span class="p">(</span><span class="mf">0.15</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">2.0</span><span class="p">))</span>
 <span class="linenos"> 90</span>
-<span class="linenos"> 91</span><span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">():</span>
-<span class="linenos"> 92</span><span class="w">    </span><span class="sd">&quot;&quot;&quot;Main function.&quot;&quot;&quot;</span>
-<span class="linenos"> 93</span>
-<span class="linenos"> 94</span>    <span class="c1"># Initialize the simulation context</span>
-<span class="linenos"> 95</span>    <span class="n">sim_cfg</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">SimulationCfg</span><span class="p">(</span><span class="n">dt</span><span class="o">=</span><span class="mf">0.01</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">args_cli</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
-<span class="linenos"> 96</span>    <span class="n">sim</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">SimulationContext</span><span class="p">(</span><span class="n">sim_cfg</span><span class="p">)</span>
-<span class="linenos"> 97</span>    <span class="c1"># Set main camera</span>
-<span class="linenos"> 98</span>    <span class="n">sim</span><span class="o">.</span><span class="n">set_camera_view</span><span class="p">([</span><span class="mf">2.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">2.5</span><span class="p">],</span> <span class="p">[</span><span class="o">-</span><span class="mf">0.5</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">])</span>
-<span class="linenos"> 99</span>
-<span class="hll"><span class="linenos">100</span>    <span class="c1"># Design scene by adding assets to it</span>
-</span><span class="hll"><span class="linenos">101</span>    <span class="n">design_scene</span><span class="p">()</span>
-</span><span class="linenos">102</span>
-<span class="linenos">103</span>    <span class="c1"># Play the simulator</span>
-<span class="linenos">104</span>    <span class="n">sim</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
-<span class="linenos">105</span>    <span class="c1"># Now we are ready!</span>
-<span class="linenos">106</span>    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[INFO]: Setup complete...&quot;</span><span class="p">)</span>
+<span class="linenos"> 91</span>    <span class="c1"># spawn a usd file of a table into the scene</span>
+<span class="linenos"> 92</span>    <span class="n">cfg</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">UsdFileCfg</span><span class="p">(</span><span class="n">usd_path</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">ISAAC_NUCLEUS_DIR</span><span class="si">}</span><span class="s2">/Props/Mounts/SeattleLabTable/table_instanceable.usd&quot;</span><span class="p">)</span>
+<span class="linenos"> 93</span>    <span class="n">cfg</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="s2">&quot;/World/Objects/Table&quot;</span><span class="p">,</span> <span class="n">cfg</span><span class="p">,</span> <span class="n">translation</span><span class="o">=</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">1.05</span><span class="p">))</span>
+<span class="linenos"> 94</span>
+<span class="linenos"> 95</span>
+<span class="linenos"> 96</span><span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">():</span>
+<span class="linenos"> 97</span><span class="w">    </span><span class="sd">&quot;&quot;&quot;Main function.&quot;&quot;&quot;</span>
+<span class="linenos"> 98</span>
+<span class="linenos"> 99</span>    <span class="c1"># Initialize the simulation context</span>
+<span class="hll"><span class="linenos">100</span>    <span class="n">sim_cfg</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">SimulationCfg</span><span class="p">(</span><span class="n">dt</span><span class="o">=</span><span class="mf">0.01</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">args_cli</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+</span><span class="hll"><span class="linenos">101</span>    <span class="n">sim</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">SimulationContext</span><span class="p">(</span><span class="n">sim_cfg</span><span class="p">)</span>
+</span><span class="linenos">102</span>    <span class="c1"># Set main camera</span>
+<span class="linenos">103</span>    <span class="n">sim</span><span class="o">.</span><span class="n">set_camera_view</span><span class="p">([</span><span class="mf">2.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">2.5</span><span class="p">],</span> <span class="p">[</span><span class="o">-</span><span class="mf">0.5</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">])</span>
+<span class="linenos">104</span>
+<span class="linenos">105</span>    <span class="c1"># Design scene by adding assets to it</span>
+<span class="linenos">106</span>    <span class="n">design_scene</span><span class="p">()</span>
 <span class="linenos">107</span>
-<span class="linenos">108</span>    <span class="c1"># Simulate physics</span>
-<span class="linenos">109</span>    <span class="k">while</span> <span class="n">simulation_app</span><span class="o">.</span><span class="n">is_running</span><span class="p">():</span>
-<span class="linenos">110</span>        <span class="c1"># perform step</span>
-<span class="linenos">111</span>        <span class="n">sim</span><span class="o">.</span><span class="n">step</span><span class="p">()</span>
+<span class="linenos">108</span>    <span class="c1"># Play the simulator</span>
+<span class="linenos">109</span>    <span class="n">sim</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
+<span class="linenos">110</span>    <span class="c1"># Now we are ready!</span>
+<span class="linenos">111</span>    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[INFO]: Setup complete...&quot;</span><span class="p">)</span>
 <span class="linenos">112</span>
-<span class="linenos">113</span>
-<span class="linenos">114</span><span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
-<span class="linenos">115</span>    <span class="c1"># run the main function</span>
-<span class="linenos">116</span>    <span class="n">main</span><span class="p">()</span>
-<span class="linenos">117</span>    <span class="c1"># close sim app</span>
-<span class="linenos">118</span>    <span class="n">simulation_app</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+<span class="linenos">113</span>    <span class="c1"># Simulate physics</span>
+<span class="linenos">114</span>    <span class="k">while</span> <span class="n">simulation_app</span><span class="o">.</span><span class="n">is_running</span><span class="p">():</span>
+<span class="linenos">115</span>        <span class="c1"># perform step</span>
+<span class="linenos">116</span>        <span class="n">sim</span><span class="o">.</span><span class="n">step</span><span class="p">()</span>
+<span class="linenos">117</span>
+<span class="linenos">118</span>
+<span class="linenos">119</span><span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
+<span class="linenos">120</span>    <span class="c1"># run the main function</span>
+<span class="linenos">121</span>    <span class="n">main</span><span class="p">()</span>
+<span class="linenos">122</span>    <span class="c1"># close sim app</span>
+<span class="linenos">123</span>    <span class="n">simulation_app</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
 </pre></div>
 </div>
 </div>
