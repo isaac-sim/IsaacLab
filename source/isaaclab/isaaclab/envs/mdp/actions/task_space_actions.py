@@ -1,3 +1,8 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 # Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
@@ -622,13 +627,13 @@ class OperationalSpaceControllerAction(ActionTerm):
         relative_vel_w = self._ee_vel_w - self._asset.data.root_vel_w
 
         # Convert ee velocities from world to root frame
-        self._ee_vel_b[:, 0:3] = math_utils.quat_rotate_inverse(self._asset.data.root_quat_w, relative_vel_w[:, 0:3])
-        self._ee_vel_b[:, 3:6] = math_utils.quat_rotate_inverse(self._asset.data.root_quat_w, relative_vel_w[:, 3:6])
+        self._ee_vel_b[:, 0:3] = math_utils.quat_apply_inverse(self._asset.data.root_quat_w, relative_vel_w[:, 0:3])
+        self._ee_vel_b[:, 3:6] = math_utils.quat_apply_inverse(self._asset.data.root_quat_w, relative_vel_w[:, 3:6])
 
         # Account for the offset
         if self.cfg.body_offset is not None:
             # Compute offset vector in root frame
-            r_offset_b = math_utils.quat_rotate(self._ee_pose_b_no_offset[:, 3:7], self._offset_pos)
+            r_offset_b = math_utils.quat_apply(self._ee_pose_b_no_offset[:, 3:7], self._offset_pos)
             # Adjust the linear velocity to account for the offset
             self._ee_vel_b[:, :3] += torch.cross(self._ee_vel_b[:, 3:], r_offset_b, dim=-1)
             # Angular velocity is not affected by the offset
@@ -640,7 +645,7 @@ class OperationalSpaceControllerAction(ActionTerm):
             self._contact_sensor.update(self._sim_dt)
             self._ee_force_w[:] = self._contact_sensor.data.net_forces_w[:, 0, :]  # type: ignore
             # Rotate forces and torques into root frame
-            self._ee_force_b[:] = math_utils.quat_rotate_inverse(self._asset.data.root_quat_w, self._ee_force_w)
+            self._ee_force_b[:] = math_utils.quat_apply_inverse(self._asset.data.root_quat_w, self._ee_force_w)
 
     def _compute_joint_states(self):
         """Computes the joint states for operational space control."""

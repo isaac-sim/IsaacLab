@@ -1,3 +1,8 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 # Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
@@ -150,7 +155,7 @@ class RigidObjectCollectionData:
 
             # adjust linear velocity to link from center of mass
             velocity[..., :3] += torch.linalg.cross(
-                velocity[..., 3:], math_utils.quat_rotate(pose[..., 3:7], -self.com_pos_b[..., :]), dim=-1
+                velocity[..., 3:], math_utils.quat_apply(pose[..., 3:7], -self.com_pos_b[..., :]), dim=-1
             )
 
             # set the buffer data and timestamp
@@ -198,7 +203,7 @@ class RigidObjectCollectionData:
     @property
     def projected_gravity_b(self):
         """Projection of the gravity direction on base frame. Shape is (num_instances, num_objects, 3)."""
-        return math_utils.quat_rotate_inverse(self.object_link_quat_w, self.GRAVITY_VEC_W)
+        return math_utils.quat_apply_inverse(self.object_link_quat_w, self.GRAVITY_VEC_W)
 
     @property
     def heading_w(self):
@@ -262,7 +267,7 @@ class RigidObjectCollectionData:
         This quantity is the linear velocity of the rigid bodies' center of mass frame with respect to the
         rigid body's actor frame.
         """
-        return math_utils.quat_rotate_inverse(self.object_quat_w, self.object_lin_vel_w)
+        return math_utils.quat_apply_inverse(self.object_quat_w, self.object_lin_vel_w)
 
     @property
     def object_ang_vel_b(self) -> torch.Tensor:
@@ -271,7 +276,7 @@ class RigidObjectCollectionData:
         This quantity is the angular velocity of the rigid bodies' center of mass frame with respect to the
         rigid body's actor frame.
         """
-        return math_utils.quat_rotate_inverse(self.object_quat_w, self.object_ang_vel_w)
+        return math_utils.quat_apply_inverse(self.object_quat_w, self.object_ang_vel_w)
 
     @property
     def object_lin_acc_w(self) -> torch.Tensor:
@@ -345,7 +350,7 @@ class RigidObjectCollectionData:
         This quantity is the linear velocity of the actor frame of the root rigid body frame with respect to the
         rigid body's actor frame.
         """
-        return math_utils.quat_rotate_inverse(self.object_link_quat_w, self.object_link_lin_vel_w)
+        return math_utils.quat_apply_inverse(self.object_link_quat_w, self.object_link_lin_vel_w)
 
     @property
     def object_link_ang_vel_b(self) -> torch.Tensor:
@@ -354,7 +359,7 @@ class RigidObjectCollectionData:
         This quantity is the angular velocity of the actor frame of the root rigid body frame with respect to the
         rigid body's actor frame.
         """
-        return math_utils.quat_rotate_inverse(self.object_link_quat_w, self.object_link_ang_vel_w)
+        return math_utils.quat_apply_inverse(self.object_link_quat_w, self.object_link_ang_vel_w)
 
     @property
     def object_com_pos_w(self) -> torch.Tensor:
@@ -415,7 +420,7 @@ class RigidObjectCollectionData:
         This quantity is the linear velocity of the center of mass frame of the root rigid body frame with respect to the
         rigid body's actor frame.
         """
-        return math_utils.quat_rotate_inverse(self.object_link_quat_w, self.object_com_lin_vel_w)
+        return math_utils.quat_apply_inverse(self.object_link_quat_w, self.object_com_lin_vel_w)
 
     @property
     def object_com_ang_vel_b(self) -> torch.Tensor:
@@ -424,7 +429,7 @@ class RigidObjectCollectionData:
         This quantity is the angular velocity of the center of mass frame of the root rigid body frame with respect to the
         rigid body's actor frame.
         """
-        return math_utils.quat_rotate_inverse(self.object_link_quat_w, self.object_com_ang_vel_w)
+        return math_utils.quat_apply_inverse(self.object_link_quat_w, self.object_com_ang_vel_w)
 
     @property
     def com_pos_b(self) -> torch.Tensor:
