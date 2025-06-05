@@ -69,3 +69,4 @@ tests/
 
 # Docker history
 .isaac-lab-docker-history
+**/isaaclab_assets/data/*
