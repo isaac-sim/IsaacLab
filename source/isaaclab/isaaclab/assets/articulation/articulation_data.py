@@ -719,7 +719,7 @@ class ArticulationData:
         This quantity is the linear velocity of the articulation root's actor frame with respect to the
         its actor frame.
         """
-        return math_utils.quat_rotate_inverse(self.root_link_quat_w, self.root_link_lin_vel_w)
+        return math_utils.quat_apply_inverse(self.root_link_quat_w, self.root_link_lin_vel_w)
 
     @property
     def root_link_ang_vel_b(self) -> torch.Tensor:
@@ -728,7 +728,7 @@ class ArticulationData:
         This quantity is the angular velocity of the articulation root's actor frame with respect to the
         its actor frame.
         """
-        return math_utils.quat_rotate_inverse(self.root_link_quat_w, self.root_link_ang_vel_w)
+        return math_utils.quat_apply_inverse(self.root_link_quat_w, self.root_link_ang_vel_w)
 
     @property
     def root_com_lin_vel_b(self) -> torch.Tensor:
@@ -737,7 +737,7 @@ class ArticulationData:
         This quantity is the linear velocity of the articulation root's center of mass frame with respect to the
         its actor frame.
         """
-        return math_utils.quat_rotate_inverse(self.root_link_quat_w, self.root_com_lin_vel_w)
+        return math_utils.quat_apply_inverse(self.root_link_quat_w, self.root_com_lin_vel_w)
 
     @property
     def root_com_ang_vel_b(self) -> torch.Tensor:
