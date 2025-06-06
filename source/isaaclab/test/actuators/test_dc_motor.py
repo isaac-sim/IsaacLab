@@ -64,8 +64,8 @@ def test_dc_motor_init_minimum(num_envs, num_joints, device):
 
 @pytest.mark.parametrize("num_envs", [1, 2])
 @pytest.mark.parametrize("num_joints", [1, 2])
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
-@pytest.mark.parametrize("test_point", range(18))
+@pytest.mark.parametrize("device", ["cuda", "cpu"])
+@pytest.mark.parametrize("test_point", range(20))
 def test_dc_motor_clip(num_envs, num_joints, device, test_point):
     r"""Test the computation of the dc motor actuator 4 quadrant torque speed curve.
     torque_speed_pairs of interest:
@@ -97,7 +97,7 @@ def test_dc_motor_clip(num_envs, num_joints, device, test_point):
               \                  |  0      \ 3
                 \                |           \
     (-)-----------v -------------o-------------v --------------(+) Speed
-                    \            |               \        4
+                    \            |               \   9    4
                       \          |    5            \
                         \        |                   \
                           \ -----e---------------------c
@@ -122,6 +122,7 @@ def test_dc_motor_clip(num_envs, num_joints, device, test_point):
         (-80.0, 110.0),  # 6
         (-80.0, 50.0),  # 7
         (-120.0, 90.0),  # 8
+        (-10.0, 70.0),  # 9
         (-30.0, -10.0),  # -0
         (-70.0, -10.0),  # -1
         (-80.0, -40.0),  # -2
@@ -131,6 +132,7 @@ def test_dc_motor_clip(num_envs, num_joints, device, test_point):
         (80.0, -110.0),  # -6
         (80.0, -50.0),  # -7
         (120.0, -90.0),  # -8
+        (10.0, -70.0),  # -9
     ]
     expected_clipped_effort = [
         30.0,
@@ -142,6 +144,7 @@ def test_dc_motor_clip(num_envs, num_joints, device, test_point):
         -120.0,
         -60.0,
         -80.0,
+        -40.0,
         -30.0,
         -60.0,
         -20,
@@ -151,6 +154,7 @@ def test_dc_motor_clip(num_envs, num_joints, device, test_point):
         120.0,
         60.0,
         80.0,
+        40.0,
     ]
 
     joint_names = [f"joint_{d}" for d in range(num_joints)]
