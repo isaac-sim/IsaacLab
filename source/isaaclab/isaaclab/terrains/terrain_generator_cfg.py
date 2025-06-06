@@ -1,3 +1,8 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 # Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
@@ -136,7 +141,11 @@ class TerrainGeneratorCfg:
     """The width of the border around the terrain (in m). Defaults to 0.0."""
 
     border_height: float = 1.0
-    """The height of the border around the terrain (in m). Defaults to 1.0."""
+    """The height of the border around the terrain (in m). Defaults to 1.0.
+
+    .. note::
+      The default border extends below the ground. If you want to make the border above the ground, choose a negative value.
+    """
 
     num_rows: int = 1
     """Number of rows of sub-terrains to generate. Defaults to 1."""
@@ -189,7 +198,7 @@ class TerrainGeneratorCfg:
     """
 
     use_cache: bool = False
-    """Whether to load the sub-terrain from cache if it exists. Defaults to True.
+    """Whether to load the sub-terrain from cache if it exists. Defaults to False.
 
     If enabled, the generated terrains are stored in the cache directory. When generating terrains, the cache
     is checked to see if the terrain already exists. If it does, the terrain is loaded from the cache. Otherwise,

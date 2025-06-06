@@ -1,3 +1,8 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 # Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
@@ -135,7 +140,6 @@ class DirectMARLEnv(gym.Env):
         #   that must happen before the simulation starts. Example: randomizing mesh scale
         if self.cfg.events:
             self.event_manager = EventManager(self.cfg.events, self)
-            print("[INFO] Event Manager: ", self.event_manager)
 
             # apply USD-related randomization events
             if "prestartup" in self.event_manager.available_modes:
@@ -198,6 +202,9 @@ class DirectMARLEnv(gym.Env):
 
         # perform events at the start of the simulation
         if self.cfg.events:
+            # we print it here to make the logging consistent
+            print("[INFO] Event Manager: ", self.event_manager)
+
             if "startup" in self.event_manager.available_modes:
                 self.event_manager.apply(mode="startup")
 

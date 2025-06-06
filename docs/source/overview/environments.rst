@@ -54,7 +54,7 @@ Classic environments that are based on IsaacGymEnvs implementation of MuJoCo-sty
     |                  | |cartpole-direct-link|      |                                                                         |
     +------------------+-----------------------------+-------------------------------------------------------------------------+
     | |cartpole|       | |cartpole-rgb-link|         | Move the cart to keep the pole upwards in the classic cartpole control  |
-    |                  |                             | and perceptive inputs                                                   |
+    |                  |                             | and perceptive inputs. Requires running with ``--enable_cameras``.      |
     |                  | |cartpole-depth-link|       |                                                                         |
     |                  |                             |                                                                         |
     |                  | |cartpole-rgb-direct-link|  |                                                                         |
@@ -63,7 +63,7 @@ Classic environments that are based on IsaacGymEnvs implementation of MuJoCo-sty
     +------------------+-----------------------------+-------------------------------------------------------------------------+
     | |cartpole|       | |cartpole-resnet-link|      | Move the cart to keep the pole upwards in the classic cartpole control  |
     |                  |                             | based off of features extracted from perceptive inputs with pre-trained |
-    |                  | |cartpole-theia-link|       | frozen vision encoders                                                  |
+    |                  | |cartpole-theia-link|       | frozen vision encoders. Requires running with ``--enable_cameras``.     |
     +------------------+-----------------------------+-------------------------------------------------------------------------+
 
 .. |humanoid| image:: ../_static/tasks/classic/humanoid.jpg
@@ -109,7 +109,9 @@ for the lift-cube environment:
     +--------------------+-------------------------+-----------------------------------------------------------------------------+
     | |lift-cube|        | |lift-cube-link|        | Pick a cube and bring it to a sampled target position with the Franka robot |
     +--------------------+-------------------------+-----------------------------------------------------------------------------+
-    | |stack-cube|       | |stack-cube-link|       | Stack three cubes (bottom to top: blue, red, green) with the Franka robot   |
+    | |stack-cube|       | |stack-cube-link|       | Stack three cubes (bottom to top: blue, red, green) with the Franka robot.  |
+    |                    |                         | Blueprint env used for the NVIDIA Isaac GR00T blueprint for synthetic       |
+    |                    | |stack-cube-bp-link|    | manipulation motion generation                                              |
     +--------------------+-------------------------+-----------------------------------------------------------------------------+
     | |cabi-franka|      | |cabi-franka-link|      | Grasp the handle of a cabinet's drawer and open it with the Franka robot    |
     |                    |                         |                                                                             |
@@ -125,7 +127,10 @@ for the lift-cube environment:
     |                    |                         |                                                                             |
     |                    | |cube-shadow-lstm-link| |                                                                             |
     +--------------------+-------------------------+-----------------------------------------------------------------------------+
-    | |cube-shadow|      | |cube-shadow-vis-link|  | In-hand reorientation of a cube using Shadow hand using perceptive inputs   |
+    | |cube-shadow|      | |cube-shadow-vis-link|  | In-hand reorientation of a cube using Shadow hand using perceptive inputs.  |
+    |                    |                         | Requires running with ``--enable_cameras``.                                 |
+    +--------------------+-------------------------+-----------------------------------------------------------------------------+
+    | |gr1_pick_place|   | |gr1_pick_place-link|   | Pick up and place an object in a basket with a GR-1 humanoid robot          |
     +--------------------+-------------------------+-----------------------------------------------------------------------------+
 
 .. |reach-franka| image:: ../_static/tasks/manipulation/franka_reach.jpg
@@ -135,6 +140,7 @@ for the lift-cube environment:
 .. |cube-allegro| image:: ../_static/tasks/manipulation/allegro_cube.jpg
 .. |cube-shadow| image:: ../_static/tasks/manipulation/shadow_cube.jpg
 .. |stack-cube| image:: ../_static/tasks/manipulation/franka_stack.jpg
+.. |gr1_pick_place| image:: ../_static/tasks/manipulation/gr-1_pick_place.jpg
 
 .. |reach-franka-link| replace:: `Isaac-Reach-Franka-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/reach/config/franka/joint_pos_env_cfg.py>`__
 .. |reach-ur10-link| replace:: `Isaac-Reach-UR10-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/reach/config/ur_10/joint_pos_env_cfg.py>`__
@@ -146,6 +152,8 @@ for the lift-cube environment:
 .. |cube-allegro-link| replace:: `Isaac-Repose-Cube-Allegro-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/inhand/config/allegro_hand/allegro_env_cfg.py>`__
 .. |allegro-direct-link| replace:: `Isaac-Repose-Cube-Allegro-Direct-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/direct/allegro_hand/allegro_hand_env_cfg.py>`__
 .. |stack-cube-link| replace:: `Isaac-Stack-Cube-Franka-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/stack/config/franka/stack_joint_pos_env_cfg.py>`__
+.. |stack-cube-bp-link| replace:: `Isaac-Stack-Cube-Franka-Blueprint-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/stack/config/franka/stack_ik_rel_blueprint_env_cfg.py>`__
+.. |gr1_pick_place-link| replace:: `Isaac-PickPlace-GR1T2-Abs-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/pick_place/pickplace_gr1t2_env_cfg.py>`__
 
 .. |cube-shadow-link| replace:: `Isaac-Repose-Cube-Shadow-Direct-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/direct/shadow_hand/shadow_hand_env_cfg.py>`__
 .. |cube-shadow-ff-link| replace:: `Isaac-Repose-Cube-Shadow-OpenAI-FF-Direct-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/direct/shadow_hand/shadow_hand_env_cfg.py>`__
@@ -184,6 +192,52 @@ For example:
 .. |factory-peg-link| replace:: `Isaac-Factory-PegInsert-Direct-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/direct/factory/factory_env_cfg.py>`__
 .. |factory-gear-link| replace:: `Isaac-Factory-GearMesh-Direct-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/direct/factory/factory_env_cfg.py>`__
 .. |factory-nut-link| replace:: `Isaac-Factory-NutThread-Direct-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/direct/factory/factory_env_cfg.py>`__
+
+AutoMate
+~~~~~~~~
+
+Environments based on 100 diverse assembly tasks, each involving the insertion of a plug into a socket. These tasks share a common configuration and differ by th geometry and properties of the parts.
+
+You can switch between tasks by specifying the corresponding asset ID. Available asset IDs include:
+
+'00004', '00007', '00014', '00015', '00016', '00021', '00028', '00030', '00032', '00042', '00062', '00074', '00077', '00078', '00081', '00083', '00103', '00110', '00117', '00133', '00138', '00141', '00143', '00163', '00175', '00186', '00187', '00190', '00192', '00210', '00211', '00213', '00255', '00256', '00271', '00293', '00296', '00301', '00308', '00318', '00319', '00320', '00329', '00340', '00345', '00346', '00360', '00388', '00410', '00417', '00422', '00426', '00437', '00444', '00446', '00470', '00471', '00480', '00486', '00499', '00506', '00514', '00537', '00553', '00559', '00581', '00597', '00614', '00615', '00638', '00648', '00649', '00652', '00659', '00681', '00686', '00700', '00703', '00726', '00731', '00741', '00755', '00768', '00783', '00831', '00855', '00860', '00863', '01026', '01029', '01036', '01041', '01053', '01079', '01092', '01102', '01125', '01129', '01132', '01136'.
+
+We provide environments for both disassembly and assembly.
+
+.. attention::
+
+  CUDA is required for running the AutoMate environments.
+  Follow the below steps to install CUDA 12.8:
+
+  .. code-block:: bash
+
+      wget https://developer.download.nvidia.com/compute/cuda/12.8.0/local_installers/cuda_12.8.0_570.86.10_linux.run
+      sudo sh cuda_12.8.0_570.86.10_linux.run
+
+  For addition instructions and Windows installation, please refer to the `CUDA installation page <https://developer.nvidia.com/cuda-12-8-0-download-archive>`_.
+
+* |disassembly-link|: The plug starts inserted in the socket. A low-level controller lifts th plug out and moves it to a random position. These trajectories serve as demonstrations for the reverse process, i.e., learning to assemble. To run disassembly for a specific task: ``./isaaclab.sh -p source/isaaclab_tasks/isaaclab_tasks/direct/automate/run_disassembly_w_id.py --assembly_id=ASSEMBLY_ID``
+* |assembly-link|: The goal is to insert the plug into the socket. You can use this environment to train a policy via reinforcement learning or evaluate a pre-trained checkpoint.
+
+  * To train an assembly policy: ``./isaaclab.sh -p source/isaaclab_tasks/isaaclab_tasks/direct/automate/run_w_id.py --assembly_id=ASSEMBLY_ID --train``
+  * To evaluate an assembly policy: ``./isaaclab.sh -p source/isaaclab_tasks/isaaclab_tasks/direct/automate/run_w_id.py --assembly_id=ASSEMBLY_ID --checkpoint=CHECKPOINT --log_eval``
+
+.. table::
+    :widths: 33 37 30
+
+    +--------------------+-------------------------+-----------------------------------------------------------------------------+
+    | World              | Environment ID          | Description                                                                 |
+    +====================+=========================+=============================================================================+
+    | |disassembly|      | |disassembly-link|      | Lift a plug out of the socket with the Franka robot                         |
+    +--------------------+-------------------------+-----------------------------------------------------------------------------+
+    | |assembly|         | |assembly-link|         | Insert a plug into its corresponding socket with the Franka robot           |
+    +--------------------+-------------------------+-----------------------------------------------------------------------------+
+
+.. |assembly| image:: ../_static/tasks/automate/00004.jpg
+.. |disassembly| image:: ../_static/tasks/automate/01053_disassembly.jpg
+
+.. |assembly-link| replace:: `Isaac-AutoMate-Assembly-Direct-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/direct/automate/assembly_env_cfg.py>`__
+.. |disassembly-link| replace:: `Isaac-AutoMate-Disassembly-Direct-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/direct/automate/disassembly_env_cfg.py>`__
 
 Locomotion
 ~~~~~~~~~~
@@ -335,6 +389,121 @@ Others
 .. |quadcopter| image:: ../_static/tasks/others/quadcopter.jpg
 .. |humanoid_amp| image:: ../_static/tasks/others/humanoid_amp.jpg
 
+Spaces showcase
+~~~~~~~~~~~~~~~
+
+The |cartpole_showcase| folder contains showcase tasks (based on the *Cartpole* and *Cartpole-Camera* Direct tasks)
+for the definition/use of the various Gymnasium observation and action spaces supported in Isaac Lab.
+
+.. |cartpole_showcase| replace:: `cartpole_showcase <https://github.com/isaac-sim/IsaacLab/tree/main/source/isaaclab_tasks/isaaclab_tasks/direct/cartpole_showcase>`__
+
+.. note::
+
+    Currently, only Isaac Lab's Direct workflow supports the definition of observation and action spaces other than ``Box``.
+    See Direct workflow's :py:obj:`~isaaclab.envs.DirectRLEnvCfg.observation_space` / :py:obj:`~isaaclab.envs.DirectRLEnvCfg.action_space`
+    documentation for more details.
+
+The following tables summarize the different pairs of showcased spaces for the *Cartpole* and *Cartpole-Camera* tasks.
+Replace ``<OBSERVATION>`` and ``<ACTION>`` with the observation and action spaces to be explored in the task names for training and evaluation.
+
+.. raw:: html
+
+    <table class="showcase-table">
+    <caption>
+      <p>Showcase spaces for the <strong>Cartpole</strong> task</p>
+      <p><code>Isaac-Cartpole-Showcase-&lt;OBSERVATION&gt;-&lt;ACTION&gt;-Direct-v0</code></p>
+    </caption>
+    <tbody>
+      <tr>
+        <td colspan="2" rowspan="2"></td>
+        <td colspan="5" class="center">action space</td>
+      </tr>
+      <tr>
+        <td><strong>&nbsp;Box</strong></td>
+        <td><strong>&nbsp;Discrete</strong></td>
+        <td><strong>&nbsp;MultiDiscrete</strong></td>
+      </tr>
+      <tr>
+        <td rowspan="5" class="rot90 center"><p>observation</p><p>space</p></td>
+        <td><strong>&nbsp;Box</strong></td>
+        <td class="center">x</td>
+        <td class="center">x</td>
+        <td class="center">x</td>
+      </tr>
+      <tr>
+        <td><strong>&nbsp;Discrete</strong></td>
+        <td class="center">x</td>
+        <td class="center">x</td>
+        <td class="center">x</td>
+      </tr>
+      <tr>
+        <td><strong>&nbsp;MultiDiscrete</strong></td>
+        <td class="center">x</td>
+        <td class="center">x</td>
+        <td class="center">x</td>
+      </tr>
+      <tr>
+        <td><strong>&nbsp;Dict</strong></td>
+        <td class="center">x</td>
+        <td class="center">x</td>
+        <td class="center">x</td>
+      </tr>
+      <tr>
+        <td><strong>&nbsp;Tuple</strong></td>
+        <td class="center">x</td>
+        <td class="center">x</td>
+        <td class="center">x</td>
+      </tr>
+    </tbody>
+    </table>
+    <br>
+    <table class="showcase-table">
+    <caption>
+        <p>Showcase spaces for the <strong>Cartpole-Camera</strong> task</p>
+        <p><code>Isaac-Cartpole-Camera-Showcase-&lt;OBSERVATION&gt;-&lt;ACTION&gt;-Direct-v0</code></p>
+    </caption>
+    <tbody>
+      <tr>
+        <td colspan="2" rowspan="2"></td>
+        <td colspan="5" class="center">action space</td>
+      </tr>
+      <tr>
+        <td><strong>&nbsp;Box</strong></td>
+        <td><strong>&nbsp;Discrete</strong></td>
+        <td><strong>&nbsp;MultiDiscrete</strong></td>
+      </tr>
+      <tr>
+        <td rowspan="5" class="rot90 center"><p>observation</p><p>space</p></td>
+        <td><strong>&nbsp;Box</strong></td>
+        <td class="center">x</td>
+        <td class="center">x</td>
+        <td class="center">x</td>
+      </tr>
+      <tr>
+        <td><strong>&nbsp;Discrete</strong></td>
+        <td class="center">-</td>
+        <td class="center">-</td>
+        <td class="center">-</td>
+      </tr>
+      <tr>
+        <td><strong>&nbsp;MultiDiscrete</strong></td>
+        <td class="center">-</td>
+        <td class="center">-</td>
+        <td class="center">-</td>
+      </tr>
+      <tr>
+        <td><strong>&nbsp;Dict</strong></td>
+        <td class="center">x</td>
+        <td class="center">x</td>
+        <td class="center">x</td>
+      </tr>
+      <tr>
+        <td><strong>&nbsp;Tuple</strong></td>
+        <td class="center">x</td>
+        <td class="center">x</td>
+        <td class="center">x</td>
+      </tr>
+    </tbody></table>
 
 Multi-agent
 ------------
@@ -404,11 +573,47 @@ Comprehensive List of Environments
       -
       - Direct
       - **rl_games** (PPO), **skrl** (IPPO, PPO, MAPPO)
-    * - Isaac-Cartpole-Depth-Camera-Direct-v0
+    * - Isaac-Cartpole-Camera-Showcase-Box-Box-Direct-v0 (Requires running with ``--enable_cameras``)
+      -
+      - Direct
+      - **skrl** (PPO)
+    * - Isaac-Cartpole-Camera-Showcase-Box-Discrete-Direct-v0 (Requires running with ``--enable_cameras``)
+      -
+      - Direct
+      - **skrl** (PPO)
+    * - Isaac-Cartpole-Camera-Showcase-Box-MultiDiscrete-Direct-v0 (Requires running with ``--enable_cameras``)
+      -
+      - Direct
+      - **skrl** (PPO)
+    * - Isaac-Cartpole-Camera-Showcase-Dict-Box-Direct-v0 (Requires running with ``--enable_cameras``)
+      -
+      - Direct
+      - **skrl** (PPO)
+    * - Isaac-Cartpole-Camera-Showcase-Dict-Discrete-Direct-v0 (Requires running with ``--enable_cameras``)
+      -
+      - Direct
+      - **skrl** (PPO)
+    * - Isaac-Cartpole-Camera-Showcase-Dict-MultiDiscrete-Direct-v0 (Requires running with ``--enable_cameras``)
+      -
+      - Direct
+      - **skrl** (PPO)
+    * - Isaac-Cartpole-Camera-Showcase-Tuple-Box-Direct-v0 (Requires running with ``--enable_cameras``)
+      -
+      - Direct
+      - **skrl** (PPO)
+    * - Isaac-Cartpole-Camera-Showcase-Tuple-Discrete-Direct-v0 (Requires running with ``--enable_cameras``)
+      -
+      - Direct
+      - **skrl** (PPO)
+    * - Isaac-Cartpole-Camera-Showcase-Tuple-MultiDiscrete-Direct-v0 (Requires running with ``--enable_cameras``)
+      -
+      - Direct
+      - **skrl** (PPO)
+    * - Isaac-Cartpole-Depth-Camera-Direct-v0 (Requires running with ``--enable_cameras``)
       -
       - Direct
       - **rl_games** (PPO), **skrl** (PPO)
-    * - Isaac-Cartpole-Depth-v0
+    * - Isaac-Cartpole-Depth-v0 (Requires running with ``--enable_cameras``)
       -
       - Manager Based
       - **rl_games** (PPO)
@@ -416,22 +621,82 @@ Comprehensive List of Environments
       -
       - Direct
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO), **sb3** (PPO)
-    * - Isaac-Cartpole-RGB-Camera-Direct-v0
+    * - Isaac-Cartpole-RGB-Camera-Direct-v0 (Requires running with ``--enable_cameras``)
       -
       - Direct
       - **rl_games** (PPO), **skrl** (PPO)
-    * - Isaac-Cartpole-RGB-ResNet18-v0
+    * - Isaac-Cartpole-RGB-ResNet18-v0 (Requires running with ``--enable_cameras``)
       -
       - Manager Based
       - **rl_games** (PPO)
-    * - Isaac-Cartpole-RGB-TheiaTiny-v0
+    * - Isaac-Cartpole-RGB-TheiaTiny-v0 (Requires running with ``--enable_cameras``)
       -
       - Manager Based
       - **rl_games** (PPO)
-    * - Isaac-Cartpole-RGB-v0
+    * - Isaac-Cartpole-RGB-v0 (Requires running with ``--enable_cameras``)
       -
       - Manager Based
       - **rl_games** (PPO)
+    * - Isaac-Cartpole-Showcase-Box-Box-Direct-v0
+      -
+      - Direct
+      - **skrl** (PPO)
+    * - Isaac-Cartpole-Showcase-Box-Discrete-Direct-v0
+      -
+      - Direct
+      - **skrl** (PPO)
+    * - Isaac-Cartpole-Showcase-Box-MultiDiscrete-Direct-v0
+      -
+      - Direct
+      - **skrl** (PPO)
+    * - Isaac-Cartpole-Showcase-Dict-Box-Direct-v0
+      -
+      - Direct
+      - **skrl** (PPO)
+    * - Isaac-Cartpole-Showcase-Dict-Discrete-Direct-v0
+      -
+      - Direct
+      - **skrl** (PPO)
+    * - Isaac-Cartpole-Showcase-Dict-MultiDiscrete-Direct-v0
+      -
+      - Direct
+      - **skrl** (PPO)
+    * - Isaac-Cartpole-Showcase-Discrete-Box-Direct-v0
+      -
+      - Direct
+      - **skrl** (PPO)
+    * - Isaac-Cartpole-Showcase-Discrete-Discrete-Direct-v0
+      -
+      - Direct
+      - **skrl** (PPO)
+    * - Isaac-Cartpole-Showcase-Discrete-MultiDiscrete-Direct-v0
+      -
+      - Direct
+      - **skrl** (PPO)
+    * - Isaac-Cartpole-Showcase-MultiDiscrete-Box-Direct-v0
+      -
+      - Direct
+      - **skrl** (PPO)
+    * - Isaac-Cartpole-Showcase-MultiDiscrete-Discrete-Direct-v0
+      -
+      - Direct
+      - **skrl** (PPO)
+    * - Isaac-Cartpole-Showcase-MultiDiscrete-MultiDiscrete-Direct-v0
+      -
+      - Direct
+      - **skrl** (PPO)
+    * - Isaac-Cartpole-Showcase-Tuple-Box-Direct-v0
+      -
+      - Direct
+      - **skrl** (PPO)
+    * - Isaac-Cartpole-Showcase-Tuple-Discrete-Direct-v0
+      -
+      - Direct
+      - **skrl** (PPO)
+    * - Isaac-Cartpole-Showcase-Tuple-MultiDiscrete-Direct-v0
+      -
+      - Direct
+      - **skrl** (PPO)
     * - Isaac-Cartpole-v0
       -
       - Manager Based
@@ -448,6 +713,14 @@ Comprehensive List of Environments
       -
       - Direct
       - **rl_games** (PPO)
+    * - Isaac-AutoMate-Assembly-Direct-v0
+      -
+      - Direct
+      - **rl_games** (PPO)
+    * - Isaac-AutoMate-Disassembly-Direct-v0
+      -
+      - Direct
+      -
     * - Isaac-Franka-Cabinet-Direct-v0
       -
       - Direct
@@ -552,8 +825,8 @@ Comprehensive List of Environments
       -
       - Direct
       - **rl_games** (LSTM)
-    * - Isaac-Repose-Cube-Shadow-Vision-Direct-v0
-      - Isaac-Repose-Cube-Shadow-Vision-Direct-Play-v0
+    * - Isaac-Repose-Cube-Shadow-Vision-Direct-v0 (Requires running with ``--enable_cameras``)
+      - Isaac-Repose-Cube-Shadow-Vision-Direct-Play-v0 (Requires running with ``--enable_cameras``)
       - Direct
       - **rsl_rl** (PPO), **rl_games** (VISION)
     * - Isaac-Shadow-Hand-Over-Direct-v0
@@ -568,11 +841,11 @@ Comprehensive List of Environments
       -
       - Manager Based
       -
-    * - Isaac-Stack-Cube-Instance-Randomize-Franka-IK-Rel-v0
+    * - Isaac-Stack-Cube-Instance-Randomize-Franka-IK-Rel-v0 (Requires running with ``--enable_cameras``)
       -
       - Manager Based
       -
-    * - Isaac-Stack-Cube-Instance-Randomize-Franka-v0
+    * - Isaac-Stack-Cube-Instance-Randomize-Franka-v0 (Requires running with ``--enable_cameras``)
       -
       - Manager Based
       -

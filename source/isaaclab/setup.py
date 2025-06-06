@@ -1,3 +1,8 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 # Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
@@ -6,6 +11,7 @@
 """Installation script for the 'isaaclab' python package."""
 
 import os
+import platform
 import toml
 
 from setuptools import setup
@@ -37,8 +43,20 @@ INSTALL_REQUIRES = [
     # make sure this is consistent with isaac sim version
     "pillow==11.0.0",
     # livestream
-    "starlette==0.46.0",
+    "starlette==0.45.3",
+    # testing
+    "pytest",
+    "pytest-mock",
+    "junitparser",
+    "flatdict==4.0.1",
 ]
+
+# Additional dependencies that are only available on Linux platforms
+if platform.system() == "Linux":
+    INSTALL_REQUIRES += [
+        "pin-pink==3.1.0",  # required by isaaclab.isaaclab.controllers.pink_ik
+        "dex-retargeting==0.4.6",  # required by isaaclab.devices.openxr.retargeters.humanoid.fourier.gr1_t2_dex_retargeting_utils
+    ]
 
 PYTORCH_INDEX_URL = ["https://download.pytorch.org/whl/cu118"]
 

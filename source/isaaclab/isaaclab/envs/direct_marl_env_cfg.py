@@ -1,3 +1,8 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 # Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
@@ -5,6 +10,7 @@
 
 from dataclasses import MISSING
 
+from isaaclab.devices.openxr import XrCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.utils import configclass
@@ -221,3 +227,6 @@ class DirectMARLEnvCfg:
 
     The contents of the list cannot be modified during the entire training process.
     """
+
+    xr: XrCfg | None = None
+    """Configuration for viewing and interacting with the environment through an XR device."""

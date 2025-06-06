@@ -1,3 +1,8 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 # Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
@@ -194,6 +199,7 @@ class QuadrupedEnvCfg(ManagerBasedEnvCfg):
         # simulation settings
         self.sim.dt = 0.005  # simulation timestep -> 200 Hz physics
         self.sim.physics_material = self.scene.terrain.physics_material
+        self.sim.device = args_cli.device
         # update sensor update periods
         # we tick all the sensors based on the smallest update period (physics update period)
         if self.scene.height_scanner is not None:

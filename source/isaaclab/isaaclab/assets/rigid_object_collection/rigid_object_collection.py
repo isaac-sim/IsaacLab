@@ -1,3 +1,8 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 # Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
@@ -15,6 +20,7 @@ import omni.kit.app
 import omni.log
 import omni.physics.tensors.impl.api as physx
 import omni.timeline
+from isaacsim.core.simulation_manager import IsaacEvents, SimulationManager
 from pxr import UsdPhysics
 
 import isaaclab.sim as sim_utils
@@ -66,7 +72,7 @@ class RigidObjectCollection(AssetBase):
         self.cfg = cfg.copy()
         # flag for whether the asset is initialized
         self._is_initialized = False
-
+        self._prim_paths = []
         # spawn the rigid objects
         for rigid_object_cfg in self.cfg.rigid_objects.values():
             # check if the rigid object path is valid
@@ -87,7 +93,7 @@ class RigidObjectCollection(AssetBase):
             matching_prims = sim_utils.find_matching_prims(rigid_object_cfg.prim_path)
             if len(matching_prims) == 0:
                 raise RuntimeError(f"Could not find prim with path {rigid_object_cfg.prim_path}.")
-
+            self._prim_paths.append(rigid_object_cfg.prim_path)
         # stores object names
         self._object_names_list = []
 
@@ -105,7 +111,9 @@ class RigidObjectCollection(AssetBase):
             lambda event, obj=weakref.proxy(self): obj._invalidate_initialize_callback(event),
             order=10,
         )
-
+        self._prim_deletion_callback_id = SimulationManager.register_callback(
+            self._on_prim_deletion, event=IsaacEvents.PRIM_DELETION
+        )
         self._debug_vis_handle = None
 
     """
@@ -360,7 +368,7 @@ class RigidObjectCollection(AssetBase):
         object_link_pos, object_link_quat = math_utils.combine_frame_transforms(
             object_pose[..., :3],
             object_pose[..., 3:7],
-            math_utils.quat_rotate(math_utils.quat_inv(com_quat_b), -com_pos_b),
+            math_utils.quat_apply(math_utils.quat_inv(com_quat_b), -com_pos_b),
             math_utils.quat_inv(com_quat_b),
         )
 
@@ -455,7 +463,7 @@ class RigidObjectCollection(AssetBase):
         # transform input velocity to center of mass frame
         object_com_velocity = object_velocity.clone()
         object_com_velocity[..., :3] += torch.linalg.cross(
-            object_com_velocity[..., 3:], math_utils.quat_rotate(quat, com_pos_b), dim=-1
+            object_com_velocity[..., 3:], math_utils.quat_apply(quat, com_pos_b), dim=-1
         )
 
         # write center of mass velocity to sim
@@ -548,9 +556,8 @@ class RigidObjectCollection(AssetBase):
     """
 
     def _initialize_impl(self):
-        # create simulation view
-        self._physics_sim_view = physx.create_simulation_view(self._backend)
-        self._physics_sim_view.set_subspace_roots("/")
+        # obtain global simulation view
+        self._physics_sim_view = SimulationManager.get_physics_sim_view()
         root_prim_path_exprs = []
         for name, rigid_object_cfg in self.cfg.rigid_objects.items():
             # obtain the first prim in the regex expression (all others are assumed to be a copy of this)
@@ -684,5 +691,24 @@ class RigidObjectCollection(AssetBase):
         # call parent
         super()._invalidate_initialize_callback(event)
         # set all existing views to None to invalidate them
-        self._physics_sim_view = None
         self._root_physx_view = None
+
+    def _on_prim_deletion(self, prim_path: str) -> None:
+        """Invalidates and deletes the callbacks when the prim is deleted.
+
+        Args:
+            prim_path: The path to the prim that is being deleted.
+
+        Note:
+            This function is called when the prim is deleted.
+        """
+        if prim_path == "/":
+            self._clear_callbacks()
+            return
+        for prim_path_expr in self._prim_paths:
+            result = re.match(
+                pattern="^" + "/".join(prim_path_expr.split("/")[: prim_path.count("/") + 1]) + "$", string=prim_path
+            )
+            if result:
+                self._clear_callbacks()
+                return

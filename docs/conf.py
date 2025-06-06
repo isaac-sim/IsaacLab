@@ -1,3 +1,8 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 # Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
@@ -178,6 +183,10 @@ autodoc_mock_imports = [
     "tensordict",
     "trimesh",
     "toml",
+    "pink",
+    "pinocchio",
+    "nvidia.srl",
+    "flatdict",
 ]
 
 # List of zero or more Sphinx-specific warning categories to be squelched (i.e.,

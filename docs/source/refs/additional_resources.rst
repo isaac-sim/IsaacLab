@@ -27,6 +27,8 @@ Simulation Features
 
 At the heart of Isaac Lab is Isaac Sim, which is itself a feature rich tool that is useful for robotics in general, and not only for RL. The stronger your understanding of the simulation, the readily you will be able to exploit its capabilities for your own projects and applications. These resources are dedicated to informing you about the other features of the simulation that may be useful to you given your specific interest in Isaac Lab!
 
+* `Simulation Performance Guide <https://docs.omniverse.nvidia.com/kit/docs/omni_physics/latest/dev_guide/guides/physics-performance.html>`_ is a best practice guide for obtaining the best simulation performance from OmniPhysics.
+
 * `Deploying Policies in Isaac Sim <https://docs.isaacsim.omniverse.nvidia.com/latest/isaac_lab_tutorials/tutorial_policy_deployment.html>`_ is an Isaac Sim tutorial on how to use trained policies within the simulation.
 
 * `Supercharge Robotics Workflows with AI and Simulation Using NVIDIA Isaac Sim 4.0 and NVIDIA Isaac Lab <https://developer.nvidia.com/blog/supercharge-robotics-workflows-with-ai-and-simulation-using-nvidia-isaac-sim-4-0-and-nvidia-isaac-lab/>`_ is a blog post covering the newest features of Isaac Sim 4.0, including ``pip install``, a more advanced physics engine, updated sensor simulations, and more!

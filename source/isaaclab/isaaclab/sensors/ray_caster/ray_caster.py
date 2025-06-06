@@ -1,3 +1,8 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 # Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
@@ -15,6 +20,7 @@ import omni.log
 import omni.physics.tensors.impl.api as physx
 import warp as wp
 from isaacsim.core.prims import XFormPrim
+from isaacsim.core.simulation_manager import SimulationManager
 from pxr import UsdGeom, UsdPhysics
 
 import isaaclab.sim as sim_utils
@@ -118,9 +124,8 @@ class RayCaster(SensorBase):
 
     def _initialize_impl(self):
         super()._initialize_impl()
-        # create simulation view
-        self._physics_sim_view = physx.create_simulation_view(self._backend)
-        self._physics_sim_view.set_subspace_roots("/")
+        # obtain global simulation view
+        self._physics_sim_view = SimulationManager.get_physics_sim_view()
         # check if the prim at path is an articulated or rigid prim
         # we do this since for physics-based view classes we can access their data directly
         # otherwise we need to use the xform view class which is slower
@@ -287,5 +292,4 @@ class RayCaster(SensorBase):
         # call parent
         super()._invalidate_initialize_callback(event)
         # set all existing views to None to invalidate them
-        self._physics_sim_view = None
         self._view = None

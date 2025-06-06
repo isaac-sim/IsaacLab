@@ -1,3 +1,8 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 # Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
@@ -103,7 +108,7 @@ class JointEffortActionCfg(JointActionCfg):
 class JointPositionToLimitsActionCfg(ActionTermCfg):
     """Configuration for the bounded joint position action term.
 
-    See :class:`JointPositionWithinLimitsAction` for more details.
+    See :class:`JointPositionToLimitsAction` for more details.
     """
 
     class_type: type[ActionTerm] = joint_actions_to_limits.JointPositionToLimitsAction

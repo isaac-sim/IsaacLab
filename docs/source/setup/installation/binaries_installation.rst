@@ -395,14 +395,14 @@ Installation
 
          .. code:: bash
 
-            ./isaaclab.sh -p -m pip install --upgrade --pre torch --index-url https://download.pytorch.org/whl/nightly/cu128
+            ./isaaclab.sh -p -m pip install --upgrade --pre torch torchvision --index-url https://download.pytorch.org/whl/nightly/cu128
 
       .. tab-item:: :icon:`fa-brands fa-windows` Windows
          :sync: windows
 
          .. code:: batch
 
-            isaaclab.bat -p -m pip install --upgrade --pre torch --index-url https://download.pytorch.org/whl/nightly/cu128
+            isaaclab.bat -p -m pip install --upgrade --pre torch torchvision --index-url https://download.pytorch.org/whl/nightly/cu128
 
 Verifying the Isaac Lab installation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

@@ -1,3 +1,8 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 # Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
@@ -193,7 +198,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         log_total_start_time(benchmark, (task_startup_time_end - app_start_time_begin) / 1e6)
         log_runtime_step_times(benchmark, environment_step_times, compute_stats=True)
 
-    benchmark.stop()
+        benchmark.stop()
 
     # close the simulator
     env.close()

@@ -1,3 +1,8 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 # Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
@@ -16,6 +21,7 @@ from typing import TYPE_CHECKING
 import isaacsim.core.utils.stage as stage_utils
 import omni.log
 import omni.physics.tensors.impl.api as physx
+from isaacsim.core.simulation_manager import SimulationManager
 from pxr import PhysxSchema, UsdPhysics
 
 import isaaclab.sim as sim_utils
@@ -387,7 +393,7 @@ class Articulation(AssetBase):
         root_link_pos, root_link_quat = math_utils.combine_frame_transforms(
             root_pose[..., :3],
             root_pose[..., 3:7],
-            math_utils.quat_rotate(math_utils.quat_inv(com_quat_b), -com_pos_b),
+            math_utils.quat_apply(math_utils.quat_inv(com_quat_b), -com_pos_b),
             math_utils.quat_inv(com_quat_b),
         )
         root_link_pose = torch.cat((root_link_pos, root_link_quat), dim=-1)
@@ -465,7 +471,7 @@ class Articulation(AssetBase):
         # transform input velocity to center of mass frame
         root_com_velocity = root_velocity.clone()
         root_com_velocity[:, :3] += torch.linalg.cross(
-            root_com_velocity[:, 3:], math_utils.quat_rotate(quat, com_pos_b), dim=-1
+            root_com_velocity[:, 3:], math_utils.quat_apply(quat, com_pos_b), dim=-1
         )
 
         # write transformed velocity in CoM frame to sim
@@ -1146,40 +1152,50 @@ class Articulation(AssetBase):
     """
 
     def _initialize_impl(self):
-        # create simulation view
-        self._physics_sim_view = physx.create_simulation_view(self._backend)
-        self._physics_sim_view.set_subspace_roots("/")
-        # obtain the first prim in the regex expression (all others are assumed to be a copy of this)
-        template_prim = sim_utils.find_first_matching_prim(self.cfg.prim_path)
-        if template_prim is None:
-            raise RuntimeError(f"Failed to find prim for expression: '{self.cfg.prim_path}'.")
-        template_prim_path = template_prim.GetPath().pathString
+        # obtain global simulation view
+        self._physics_sim_view = SimulationManager.get_physics_sim_view()
 
-        # find articulation root prims
-        root_prims = sim_utils.get_all_matching_child_prims(
-            template_prim_path, predicate=lambda prim: prim.HasAPI(UsdPhysics.ArticulationRootAPI)
-        )
-        if len(root_prims) == 0:
-            raise RuntimeError(
-                f"Failed to find an articulation when resolving '{self.cfg.prim_path}'."
-                " Please ensure that the prim has 'USD ArticulationRootAPI' applied."
-            )
-        if len(root_prims) > 1:
-            raise RuntimeError(
-                f"Failed to find a single articulation when resolving '{self.cfg.prim_path}'."
-                f" Found multiple '{root_prims}' under '{template_prim_path}'."
-                " Please ensure that there is only one articulation in the prim path tree."
-            )
+        if self.cfg.articulation_root_prim_path is not None:
+            # The articulation root prim path is specified explicitly, so we can just use this.
+            root_prim_path_expr = self.cfg.prim_path + self.cfg.articulation_root_prim_path
+        else:
+            # No articulation root prim path was specified, so we need to search
+            # for it. We search for this in the first environment and then
+            # create a regex that matches all environments.
+            first_env_matching_prim = sim_utils.find_first_matching_prim(self.cfg.prim_path)
+            if first_env_matching_prim is None:
+                raise RuntimeError(f"Failed to find prim for expression: '{self.cfg.prim_path}'.")
+            first_env_matching_prim_path = first_env_matching_prim.GetPath().pathString
 
-        # resolve articulation root prim back into regex expression
-        root_prim_path = root_prims[0].GetPath().pathString
-        root_prim_path_expr = self.cfg.prim_path + root_prim_path[len(template_prim_path) :]
+            # Find all articulation root prims in the first environment.
+            first_env_root_prims = sim_utils.get_all_matching_child_prims(
+                first_env_matching_prim_path,
+                predicate=lambda prim: prim.HasAPI(UsdPhysics.ArticulationRootAPI),
+            )
+            if len(first_env_root_prims) == 0:
+                raise RuntimeError(
+                    f"Failed to find an articulation when resolving '{first_env_matching_prim_path}'."
+                    " Please ensure that the prim has 'USD ArticulationRootAPI' applied."
+                )
+            if len(first_env_root_prims) > 1:
+                raise RuntimeError(
+                    f"Failed to find a single articulation when resolving '{first_env_matching_prim_path}'."
+                    f" Found multiple '{first_env_root_prims}' under '{first_env_matching_prim_path}'."
+                    " Please ensure that there is only one articulation in the prim path tree."
+                )
+
+            # Now we convert the found articulation root from the first
+            # environment back into a regex that matches all environments.
+            first_env_root_prim_path = first_env_root_prims[0].GetPath().pathString
+            root_prim_path_relative_to_prim_path = first_env_root_prim_path[len(first_env_matching_prim_path) :]
+            root_prim_path_expr = self.cfg.prim_path + root_prim_path_relative_to_prim_path
+
         # -- articulation
         self._root_physx_view = self._physics_sim_view.create_articulation_view(root_prim_path_expr.replace(".*", "*"))
 
         # check if the articulation was created
         if self._root_physx_view._backend is None:
-            raise RuntimeError(f"Failed to create articulation at: {self.cfg.prim_path}. Please check PhysX logs.")
+            raise RuntimeError(f"Failed to create articulation at: {root_prim_path_expr}. Please check PhysX logs.")
 
         # log information about the articulation
         omni.log.info(f"Articulation initialized at: {self.cfg.prim_path} with root '{root_prim_path_expr}'.")
@@ -1303,8 +1319,6 @@ class Articulation(AssetBase):
         """Invalidates the scene elements."""
         # call parent
         super()._invalidate_initialize_callback(event)
-        # set all existing views to None to invalidate them
-        self._physics_sim_view = None
         self._root_physx_view = None
 
     """

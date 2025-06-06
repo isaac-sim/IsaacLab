@@ -1,3 +1,8 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 # Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
@@ -134,7 +139,7 @@ def main():
     print(f"Loading checkpoint from: {checkpoint_path}")
     agent = PPO.load(checkpoint_path, env, print_system_info=True)
 
-    dt = env.unwrapped.physics_dt
+    dt = env.unwrapped.step_dt
 
     # reset environment
     obs = env.reset()

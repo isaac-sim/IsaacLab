@@ -1,3 +1,8 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 # Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
@@ -8,6 +13,7 @@ import weakref
 
 import omni.log
 import omni.physics.tensors.impl.api as physx
+from isaacsim.core.simulation_manager import SimulationManager
 
 import isaaclab.utils.math as math_utils
 from isaaclab.utils.buffers import TimestampedBuffer
@@ -48,9 +54,8 @@ class ArticulationData:
         # Set initial time stamp
         self._sim_timestamp = 0.0
 
-        # Obtain global physics sim view
-        self._physics_sim_view = physx.create_simulation_view("torch")
-        self._physics_sim_view.set_subspace_roots("/")
+        # obtain global simulation view
+        self._physics_sim_view = SimulationManager.get_physics_sim_view()
         gravity = self._physics_sim_view.get_gravity()
         # Convert to direction vector
         gravity_dir = torch.tensor((gravity[0], gravity[1], gravity[2]), device=self.device)
@@ -88,6 +93,7 @@ class ArticulationData:
         self._joint_pos = TimestampedBuffer()
         self._joint_vel = TimestampedBuffer()
         self._joint_acc = TimestampedBuffer()
+        self._body_incoming_joint_wrench_b = TimestampedBuffer()
 
     def update(self, dt: float):
         # update the simulation timestamp
@@ -636,6 +642,22 @@ class ArticulationData:
 
         return self._body_com_pose_b.data
 
+    @property
+    def body_incoming_joint_wrench_b(self) -> torch.Tensor:
+        """Joint reaction wrench applied from body parent to child body in parent body frame.
+
+        Shape is (num_instances, num_bodies, 6). All body reaction wrenches are provided including the root body to the
+        world of an articulation.
+
+        For more information on joint wrenches, please check the`PhysX documentation <https://nvidia-omniverse.github.io/PhysX/physx/5.5.1/docs/Articulations.html#link-incoming-joint-force>`__
+        and the underlying `PhysX Tensor API <https://docs.omniverse.nvidia.com/kit/docs/omni_physics/latest/extensions/runtime/source/omni.physics.tensors/docs/api/python.html#omni.physics.tensors.impl.api.ArticulationView.get_link_incoming_joint_force>`__ .
+        """
+
+        if self._body_incoming_joint_wrench_b.timestamp < self._sim_timestamp:
+            self._body_incoming_joint_wrench_b.data = self._root_physx_view.get_link_incoming_joint_force()
+            self._body_incoming_joint_wrench_b.time_stamp = self._sim_timestamp
+        return self._body_incoming_joint_wrench_b.data
+
     ##
     # Joint state properties.
     ##
@@ -677,7 +699,7 @@ class ArticulationData:
     @property
     def projected_gravity_b(self):
         """Projection of the gravity direction on base frame. Shape is (num_instances, 3)."""
-        return math_utils.quat_rotate_inverse(self.root_link_quat_w, self.GRAVITY_VEC_W)
+        return math_utils.quat_apply_inverse(self.root_link_quat_w, self.GRAVITY_VEC_W)
 
     @property
     def heading_w(self):
@@ -724,7 +746,7 @@ class ArticulationData:
         This quantity is the angular velocity of the articulation root's center of mass frame with respect to the
         its actor frame.
         """
-        return math_utils.quat_rotate_inverse(self.root_link_quat_w, self.root_com_ang_vel_w)
+        return math_utils.quat_apply_inverse(self.root_link_quat_w, self.root_com_ang_vel_w)
 
     ##
     # Sliced properties.

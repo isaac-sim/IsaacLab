@@ -1,3 +1,8 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 # Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
@@ -11,7 +16,7 @@ import isaacsim.core.utils.prims as prim_utils
 import isaacsim.core.utils.stage as stage_utils
 import omni.kit.commands
 import omni.log
-from pxr import Gf, Sdf, Usd
+from pxr import Gf, Sdf, Semantics, Usd
 
 from isaaclab.sim import converters, schemas
 from isaaclab.sim.utils import bind_physics_material, bind_visual_material, clone, select_usd_variants
@@ -173,8 +178,22 @@ def spawn_ground_plane(
     # It isn't bright enough and messes up with the user's lighting settings
     omni.kit.commands.execute("ToggleVisibilitySelectedPrims", selected_paths=[f"{prim_path}/SphereLight"])
 
+    prim = prim_utils.get_prim_at_path(prim_path)
+    # Apply semantic tags
+    if hasattr(cfg, "semantic_tags") and cfg.semantic_tags is not None:
+        # note: taken from replicator scripts.utils.utils.py
+        for semantic_type, semantic_value in cfg.semantic_tags:
+            # deal with spaces by replacing them with underscores
+            semantic_type_sanitized = semantic_type.replace(" ", "_")
+            semantic_value_sanitized = semantic_value.replace(" ", "_")
+            # set the semantic API for the instance
+            instance_name = f"{semantic_type_sanitized}_{semantic_value_sanitized}"
+            sem = Semantics.SemanticsAPI.Apply(prim, instance_name)
+            # create semantic type and data attributes
+            sem.CreateSemanticTypeAttr().Set(semantic_type)
+            sem.CreateSemanticDataAttr().Set(semantic_value)
     # return the prim
-    return prim_utils.get_prim_at_path(prim_path)
+    return prim
 
 
 """

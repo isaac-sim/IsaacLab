@@ -1,3 +1,8 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 # Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
@@ -29,7 +34,7 @@ class ArticulationRootPropertiesCfg:
     """Solver position iteration counts for the body."""
 
     solver_velocity_iteration_count: int | None = None
-    """Solver position iteration counts for the body."""
+    """Solver velocity iteration counts for the body."""
 
     sleep_threshold: float | None = None
     """Mass-normalized kinetic energy threshold below which an actor may go to sleep."""

@@ -43,7 +43,8 @@ RUN --mount=type=cache,target=/var/cache/apt \
     cmake \
     git \
     libglib2.0-0 \
-    ncurses-term && \
+    ncurses-term \
+    wget && \
     apt -y autoremove && apt clean autoclean && \
     rm -rf /var/lib/apt/lists/*
 
@@ -86,6 +87,9 @@ RUN touch /bin/nvidia-smi && \
 # use pip caching to avoid reinstalling large packages
 RUN --mount=type=cache,target=${DOCKER_USER_HOME}/.cache/pip \
     ${ISAACLAB_PATH}/isaaclab.sh --install
+
+# HACK: Remove install of quadprog dependency
+RUN ${ISAACLAB_PATH}/isaaclab.sh -p -m pip uninstall -y quadprog
 
 # aliasing isaaclab.sh and python for convenience
 RUN echo "export ISAACLAB_PATH=${ISAACLAB_PATH}" >> ${HOME}/.bashrc && \

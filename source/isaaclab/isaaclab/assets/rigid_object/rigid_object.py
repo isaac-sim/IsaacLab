@@ -1,3 +1,8 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 # Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
@@ -11,6 +16,7 @@ from typing import TYPE_CHECKING
 
 import omni.log
 import omni.physics.tensors.impl.api as physx
+from isaacsim.core.simulation_manager import SimulationManager
 from pxr import UsdPhysics
 
 import isaaclab.sim as sim_utils
@@ -256,7 +262,7 @@ class RigidObject(AssetBase):
         root_link_pos, root_link_quat = math_utils.combine_frame_transforms(
             root_pose[..., :3],
             root_pose[..., 3:7],
-            math_utils.quat_rotate(math_utils.quat_inv(com_quat_b), -com_pos_b),
+            math_utils.quat_apply(math_utils.quat_inv(com_quat_b), -com_pos_b),
             math_utils.quat_inv(com_quat_b),
         )
         root_link_pose = torch.cat((root_link_pos, root_link_quat), dim=-1)
@@ -334,7 +340,7 @@ class RigidObject(AssetBase):
         # transform input velocity to center of mass frame
         root_com_velocity = root_velocity.clone()
         root_com_velocity[:, :3] += torch.linalg.cross(
-            root_com_velocity[:, 3:], math_utils.quat_rotate(quat, com_pos_b), dim=-1
+            root_com_velocity[:, 3:], math_utils.quat_apply(quat, com_pos_b), dim=-1
         )
 
         # write transformed velocity in CoM frame to sim
@@ -403,9 +409,8 @@ class RigidObject(AssetBase):
     """
 
     def _initialize_impl(self):
-        # create simulation view
-        self._physics_sim_view = physx.create_simulation_view(self._backend)
-        self._physics_sim_view.set_subspace_roots("/")
+        # obtain global simulation view
+        self._physics_sim_view = SimulationManager.get_physics_sim_view()
         # obtain the first prim in the regex expression (all others are assumed to be a copy of this)
         template_prim = sim_utils.find_first_matching_prim(self.cfg.prim_path)
         if template_prim is None:
@@ -504,5 +509,4 @@ class RigidObject(AssetBase):
         # call parent
         super()._invalidate_initialize_callback(event)
         # set all existing views to None to invalidate them
-        self._physics_sim_view = None
         self._root_physx_view = None
