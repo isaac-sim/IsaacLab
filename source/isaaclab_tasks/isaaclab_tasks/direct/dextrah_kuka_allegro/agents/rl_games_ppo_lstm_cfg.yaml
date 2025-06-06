@@ -50,7 +50,6 @@ params:
 
   config:
     name: dextrah_lstm
-    full_experiment_name: ''
     env_name: rlgpu
     device: 'cuda:0'
     device_name: 'cuda:0'
@@ -123,14 +122,6 @@ params:
       deterministic: True
       games_num: 100000
       print_stats: True
-
-wandb_activate: True
-wandb_group: 'rl_gpu'
-wandb_name: 'large_scale_'
-wandb_entity: 'nvidia'
-wandb_project: 'dextrah-kuka-allegro-octi'
-wandb_tags: []
-
 
 hydra:
   output_subdir: null
