@@ -1,3 +1,8 @@
+# Copyright (c) 2024-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: Apache-2.0
+
 # Copyright (c) 2024-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
@@ -81,7 +86,10 @@ def main():
 
     # Setup output paths and get env name
     output_dir, output_file_name = setup_output_paths(args_cli.output_file)
-    env_name = args_cli.task or get_env_name_from_dataset(args_cli.input_file)
+    task_name = args_cli.task
+    if task_name:
+        task_name = args_cli.task.split(":")[-1]
+    env_name = task_name or get_env_name_from_dataset(args_cli.input_file)
 
     # Configure environment
     env_cfg, success_term = setup_env_config(

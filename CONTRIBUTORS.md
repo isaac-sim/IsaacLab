@@ -35,6 +35,7 @@ Guidelines for modifications:
 
 ## Contributors
 
+* Alessandro Assirelli
 * Alice Zhou
 * Amr Mousa
 * Andrej Orsula
@@ -102,6 +103,7 @@ Guidelines for modifications:
 * Ryley McCarroll
 * Shafeef Omar
 * Shundo Kishi
+* Stefan Van de Mosselaer
 * Stephan Pleines
 * Tyler Lum
 * Victor Khaustov
