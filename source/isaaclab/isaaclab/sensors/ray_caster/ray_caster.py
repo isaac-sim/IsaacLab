@@ -14,7 +14,7 @@ import numpy as np
 import re
 import torch
 from collections.abc import Sequence
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
 import omni.log
 import omni.physics.tensors.impl.api as physx
@@ -55,6 +55,16 @@ class RayCaster(SensorBase):
     cfg: RayCasterCfg
     """The configuration parameters."""
 
+    # Class variables to share meshes across instances
+    meshes: ClassVar[dict[str, wp.Mesh]] = {}
+    """A dictionary to store warp meshes for raycasting, shared across all instances.
+
+    The keys correspond to the prim path for the meshes, and values are the corresponding warp Mesh objects.
+    """
+
+    _instance_count: ClassVar[int] = 0
+    """A counter to track the number of RayCaster instances, used to manage class variable lifecycle."""
+
     def __init__(self, cfg: RayCasterCfg):
         """Initializes the ray-caster object.
 
@@ -75,8 +85,9 @@ class RayCaster(SensorBase):
         super().__init__(cfg)
         # Create empty variables for storing output data
         self._data = RayCasterData()
-        # the warp meshes used for raycasting.
-        self.meshes: dict[str, wp.Mesh] = {}
+
+        # increment the instance count
+        RayCaster._instance_count += 1
 
     def __str__(self) -> str:
         """Returns: A string containing information about the instance."""
@@ -162,6 +173,10 @@ class RayCaster(SensorBase):
 
         # read prims to ray-cast
         for mesh_prim_path in self.cfg.mesh_prim_paths:
+            # check if mesh already casted into warp mesh
+            if mesh_prim_path in RayCaster.meshes:
+                continue
+
             # check if the prim is a plane - handle PhysX plane as a special case
             # if a plane exists then we need to create an infinite mesh that is a plane
             mesh_prim = sim_utils.get_first_matching_child_prim(
@@ -293,3 +308,8 @@ class RayCaster(SensorBase):
         super()._invalidate_initialize_callback(event)
         # set all existing views to None to invalidate them
         self._view = None
+
+    def __del__(self):
+        RayCaster._instance_count -= 1
+        if RayCaster._instance_count == 0:
+            RayCaster.meshes.clear()
