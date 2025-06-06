@@ -79,7 +79,7 @@ class ActuatorNetLSTM(DCMotor):
         # compute network inputs
         self.sea_input[:, 0, 0] = (control_action.joint_positions - joint_pos).flatten()
         self.sea_input[:, 0, 1] = joint_vel.flatten()
-        # save current joint vel for dc-motor clipping and clip input speed significantly above the max velocity
+        # save current joint vel for dc-motor clipping
         self._joint_vel[:] = joint_vel
 
         # run network inference
@@ -88,11 +88,6 @@ class ActuatorNetLSTM(DCMotor):
                 self.sea_input, (self.sea_hidden_state, self.sea_cell_state)
             )
         self.computed_effort = torques.reshape(self._num_envs, self.num_joints)
-
-        # clip the computed effort based on the motor limits
-        self.applied_effort = torch.clip(
-            self._clip_effort(self.computed_effort), min=-self.effort_limit, max=self.effort_limit
-        )
 
         # return torques
         control_action.joint_efforts = self.applied_effort

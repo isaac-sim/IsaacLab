@@ -74,11 +74,12 @@ def test_dc_motor_clip(num_envs, num_joints, device, test_point):
     1 - greater than effort limit but under torque-speed curve (quadrant 1)
     2 - greater than effort limit and outside torque-speed curve (quadrant 1)
     3 - less than effort limit but outside torque speed curve (quadrant 1)
-    4 - less than effort limit but outside torque speed curve (quadrant 2)
-    5 - fully inside torque speed curve and effort limit (quadrant 2)
-    6 - fully outside torque speed curve and -effort limit (quadrant 2)
-    7 - fully inside torque speed curve, outside -effort limit, and inside corner velocity (quadrant 2)
-    8 - fully inside torque speed curves, outside -effort limit, and outside corner velocity (quadrant2)
+    4 - less than effort limit but outside torque speed curve and outside corner velocity(quadrant 4)
+    5 - fully inside torque speed curve and effort limit (quadrant 4)
+    6 - fully outside torque speed curve and -effort limit (quadrant 4)
+    7 - fully inside torque speed curve, outside -effort limit, and inside corner velocity (quadrant 4)
+    8 - fully inside torque speed curves, outside -effort limit, and outside corner velocity (quadrant 4)
+    9 - less than effort limit but outside torque speed curve and inside corner velocity (quadrant 4)
     e - effort_limit
     s - saturation_effort
     v - velocity_limit
