@@ -1,7 +1,7 @@
 Changelog
 ---------
 
-0.40.1 (2025-05-22)
+0.40.3 (2025-05-22)
 ~~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -9,6 +9,32 @@ Fixed
 
 * Fixed collision filtering logic for CPU simulation. The automatic collision filtering feature
   currently has limitations for CPU simulation. Collision filtering needs to be manually enabled when using CPU simulation.
+
+
+0.40.2 (2025-05-10)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Updated gymnasium to >= 1.0
+* Added support for specifying module:task_name as task name to avoid module import for ``gym.make``
+
+
+0.40.1 (2025-06-02)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added time observation functions to ~isaaclab.envs.mdp.observations module,
+  :func:`~isaaclab.envs.mdp.observations.current_time_s` and :func:`~isaaclab.envs.mdp.observations.remaining_time_s`.
+
+Changed
+^^^^^^^
+
+* Moved initialization of ``episode_length_buf`` outside of :meth:`load_managers()` of :class:`~isaaclab.envs.ManagerBasedRLEnv`
+  to make it available for mdp functions.
 
 
 0.40.0 (2025-05-16)
@@ -102,9 +128,6 @@ Fixed
 
 0.39.1 (2025-05-14)
 ~~~~~~~~~~~~~~~~~~~
-
-Added
-^^^^^
 
 * Added a new attribute :attr:`articulation_root_prim_path` to the :class:`~isaaclab.assets.ArticulationCfg` class
   to allow explicitly specifying the prim path of the articulation root.
