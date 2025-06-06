@@ -29,6 +29,7 @@ class DextrahKukaAllegroEnv(DirectRLEnv):
         super().__init__(cfg, render_mode, **kwargs)
         
         self._actions = torch.zeros((self.num_envs, self.cfg.action_space), device=self.device)
+        self._processed_actions = torch.zeros((self.num_envs, self.cfg.action_space), device=self.device)
         # Dynamically calculate upper and lower pose action limits
         if self.cfg.max_pose_angle <= 0:
             raise ValueError('Max pose angle must be positive')
@@ -170,7 +171,12 @@ class DextrahKukaAllegroEnv(DirectRLEnv):
         self.global_min_adr_increment = local_adr_increment
 
         self._actions = actions.clone()
-        self._processed_actions = self._actions.clone()
+        pos_low = self.robot.data.joint_pos_limits[..., 0]
+        pos_high = self.robot.data.joint_pos_limits[..., 1]
+        vel_high = self.robot.data.joint_vel_limits
+        self._processed_actions = self._actions.clamp(min=-1.0, max=1.0)
+        self._processed_actions[:, :23] = pos_low + ((self._actions[:, :23] + 1) * 0.5) * (pos_high - pos_low)
+        self._processed_actions[:, 23:] = ((self._actions[:, 23:] + 1) * 0.5) * vel_high
         self.apply_object_wrench()
 
     def _apply_action(self) -> None:
