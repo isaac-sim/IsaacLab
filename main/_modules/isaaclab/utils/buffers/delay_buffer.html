@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.1.0" />
-    <meta name="docbuild:last-update" content="Jun 05, 2025"/>
+    <meta name="docbuild:last-update" content="Jun 06, 2025"/>
   </head>
   
   
@@ -588,10 +588,10 @@
         <span class="c1"># the buffer size: current data plus the history length</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_circular_buffer</span> <span class="o">=</span> <span class="n">CircularBuffer</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_history_length</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">batch_size</span><span class="p">,</span> <span class="n">device</span><span class="p">)</span>
 
-        <span class="c1"># the minimum and maximum lags across all environments.</span>
+        <span class="c1"># the minimum and maximum lags across all batch indices.</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_min_time_lag</span> <span class="o">=</span> <span class="mi">0</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_max_time_lag</span> <span class="o">=</span> <span class="mi">0</span>
-        <span class="c1"># the lags for each environment.</span>
+        <span class="c1"># the lags for each batch index.</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_time_lags</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">batch_size</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">int</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">device</span><span class="p">)</span></div>
 
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
@@ -764,7 +764,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jun 05, 2025.
+  Last updated on Jun 06, 2025.
   <br/>
 </p>
   </div>
