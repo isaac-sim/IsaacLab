@@ -182,13 +182,11 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     # reset the agent and env
     runner.reset()
     # train the agent
-
     global_rank = int(os.getenv("RANK", "0"))
     if args_cli.track and global_rank == 0:
         if args_cli.wandb_entity is None:
             raise ValueError("Weights and Biases entity must be specified for tracking.")
         import wandb
-
         wandb.init(
             project=wandb_project,
             entity=args_cli.wandb_entity,
