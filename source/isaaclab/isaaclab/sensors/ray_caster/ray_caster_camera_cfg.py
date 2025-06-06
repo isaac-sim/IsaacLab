@@ -65,4 +65,4 @@ class RayCasterCameraCfg(RayCasterCfg):
 
     def __post_init__(self):
         # for cameras, this quantity should be False always.
-        self.attach_yaw_only = False
+        self.ray_alignment = "base"
