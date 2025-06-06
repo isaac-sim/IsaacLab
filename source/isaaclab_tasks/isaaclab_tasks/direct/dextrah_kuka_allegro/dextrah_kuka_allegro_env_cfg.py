@@ -172,7 +172,7 @@ class DextrahKukaAllegroEnvCfg(DirectRLEnvCfg):
         joint_names=".*"
     )
 
-    curled_q = [0.,  0.,  0.,  0., 0.,  0.,  0.,  0., 0.,  0.,  0.,  0., 1.5,  0.6015,  0.3380,  0.6085]  # TODO: check the order is correct
+    curled_q = [0., 0., 0., 1.5, 0., 0., 0., 0.6015, 0., 0., 0., 0.3380, 0., 0., 0., 0.6085]  # isaac-sim order
     object_goal = [-0.5, 0., 0.75]
 
     # reward weights
