@@ -594,7 +594,7 @@
 <span class="sd">        ValueError: If the entry point key is not available in the gym registry for the task.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="c1"># obtain the configuration entry point</span>
-    <span class="n">cfg_entry_point</span> <span class="o">=</span> <span class="n">gym</span><span class="o">.</span><span class="n">spec</span><span class="p">(</span><span class="n">task_name</span><span class="p">)</span><span class="o">.</span><span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">entry_point_key</span><span class="p">)</span>
+    <span class="n">cfg_entry_point</span> <span class="o">=</span> <span class="n">gym</span><span class="o">.</span><span class="n">spec</span><span class="p">(</span><span class="n">task_name</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;:&quot;</span><span class="p">)[</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span><span class="o">.</span><span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">entry_point_key</span><span class="p">)</span>
     <span class="c1"># check if entry point exists</span>
     <span class="k">if</span> <span class="n">cfg_entry_point</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
         <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
@@ -659,7 +659,7 @@
 <span class="sd">            environment configuration.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="c1"># load the default configuration</span>
-    <span class="n">cfg</span> <span class="o">=</span> <span class="n">load_cfg_from_registry</span><span class="p">(</span><span class="n">task_name</span><span class="p">,</span> <span class="s2">&quot;env_cfg_entry_point&quot;</span><span class="p">)</span>
+    <span class="n">cfg</span> <span class="o">=</span> <span class="n">load_cfg_from_registry</span><span class="p">(</span><span class="n">task_name</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;:&quot;</span><span class="p">)[</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="s2">&quot;env_cfg_entry_point&quot;</span><span class="p">)</span>
 
     <span class="c1"># check that it is not a dict</span>
     <span class="c1"># we assume users always use a class for the configuration</span>
