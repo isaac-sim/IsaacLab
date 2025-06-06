@@ -321,9 +321,9 @@ class DextrahKukaAllegroEnv(DirectRLEnv):
         # apply orientation
         rotation = self.dextrah_adr.get_custom_param_value("object_spawn", "rotation")
         rot_noise = sample_uniform(-rotation, rotation, (num_ids, 2), device=self.device)  # noise for X and Y rotation
-        object_start_state[env_ids, 3:7] = quat_mul(
-            quat_from_angle_axis(rot_noise[:, 0] * 3.14, torch.tensor([1., 0., 0.], device=self.device).repeat((len(env_ids), 1))),
-            quat_from_angle_axis(rot_noise[:, 1] * 3.14, torch.tensor([0., 1., 0.], device=self.device).repeat((len(env_ids), 1)))
+        object_start_state[:, 3:7] = quat_mul(
+            quat_from_angle_axis(rot_noise[:, 0] * 3.14, torch.tensor([1., 0., 0.], device=self.device).repeat((num_ids, 1))),
+            quat_from_angle_axis(rot_noise[:, 1] * 3.14, torch.tensor([0., 1., 0.], device=self.device).repeat((num_ids, 1)))
         )
 
         self.object.write_root_state_to_sim(object_start_state, env_ids)
@@ -336,7 +336,7 @@ class DextrahKukaAllegroEnv(DirectRLEnv):
 
         # Calculate joint positions
         dof_pos = (joint_pos_noise * rand_like(default_joint_pos) + default_joint_pos).clamp(
-            min=self.robot.data.joint_limits[:, self.cfg.robot_scene_cfg.joint_ids, 0][0],
+            min=self.robot.data.joint_pos_limits[:, self.cfg.robot_scene_cfg.joint_ids, 0][0],
             max=self.robot.data.joint_limits[:, self.cfg.robot_scene_cfg.joint_ids, 1][0]
         )
 
