@@ -1,3 +1,8 @@
+# Copyright (c) 2024-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: Apache-2.0
+
 # Copyright (c) 2024-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
@@ -169,13 +174,13 @@ def main():
         os.makedirs(output_dir)
 
     if args_cli.task is not None:
-        env_name = args_cli.task
+        env_name = args_cli.task.split(":")[-1]
     if env_name is None:
         raise ValueError("Task/env name was not specified nor found in the dataset.")
 
     env_cfg = parse_env_cfg(env_name, device=args_cli.device, num_envs=1)
 
-    env_cfg.env_name = args_cli.task
+    env_cfg.env_name = env_name
 
     # extract success checking function to invoke manually
     success_term = None

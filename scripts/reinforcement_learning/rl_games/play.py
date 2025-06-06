@@ -1,3 +1,8 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 # Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
@@ -72,6 +77,7 @@ from isaaclab_tasks.utils import get_checkpoint_path, load_cfg_from_registry, pa
 
 def main():
     """Play with RL-Games agent."""
+    task_name = args_cli.task.split(":")[-1]
     # parse env configuration
     env_cfg = parse_env_cfg(
         args_cli.task, device=args_cli.device, num_envs=args_cli.num_envs, use_fabric=not args_cli.disable_fabric
@@ -84,7 +90,7 @@ def main():
     print(f"[INFO] Loading experiment from directory: {log_root_path}")
     # find checkpoint
     if args_cli.use_pretrained_checkpoint:
-        resume_path = get_published_pretrained_checkpoint("rl_games", args_cli.task)
+        resume_path = get_published_pretrained_checkpoint("rl_games", task_name)
         if not resume_path:
             print("[INFO] Unfortunately a pre-trained checkpoint is currently unavailable for this task.")
             return
