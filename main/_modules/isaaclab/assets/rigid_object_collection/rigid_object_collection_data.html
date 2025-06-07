@@ -622,10 +622,19 @@
         <span class="p">)</span>
 
         <span class="c1"># Initialize the lazy buffers.</span>
+        <span class="c1"># -- link frame w.r.t. world frame</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_object_link_pose_w</span> <span class="o">=</span> <span class="n">TimestampedBuffer</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_object_link_vel_w</span> <span class="o">=</span> <span class="n">TimestampedBuffer</span><span class="p">()</span>
+        <span class="c1"># -- com frame w.r.t. link frame</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_object_com_pose_b</span> <span class="o">=</span> <span class="n">TimestampedBuffer</span><span class="p">()</span>
+        <span class="c1"># -- com frame w.r.t. world frame</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_object_com_pose_w</span> <span class="o">=</span> <span class="n">TimestampedBuffer</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_object_com_vel_w</span> <span class="o">=</span> <span class="n">TimestampedBuffer</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_object_com_acc_w</span> <span class="o">=</span> <span class="n">TimestampedBuffer</span><span class="p">()</span>
+        <span class="c1"># -- combined state(these are cached as they concatenate)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_object_state_w</span> <span class="o">=</span> <span class="n">TimestampedBuffer</span><span class="p">()</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_object_link_state_w</span> <span class="o">=</span> <span class="n">TimestampedBuffer</span><span class="p">()</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_object_com_state_w</span> <span class="o">=</span> <span class="n">TimestampedBuffer</span><span class="p">()</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_object_acc_w</span> <span class="o">=</span> <span class="n">TimestampedBuffer</span><span class="p">()</span>
 
 <div class="viewcode-block" id="RigidObjectCollectionData.update"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.assets.html#isaaclab.assets.RigidObjectCollectionData.update">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">update</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dt</span><span class="p">:</span> <span class="nb">float</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Updates the data for the rigid object collection.</span>
@@ -666,8 +675,75 @@
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="c1">##</span>
-    <span class="c1"># Properties.</span>
+    <span class="c1"># Root state properties.</span>
     <span class="c1">##</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">object_link_pose_w</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Object link pose ``[pos, quat]`` in simulation world frame. Shape is (num_instances, num_objects, 7).</span>
+
+<span class="sd">        The position and orientation are of the rigid body&#39;s actor frame.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_object_link_pose_w</span><span class="o">.</span><span class="n">timestamp</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sim_timestamp</span><span class="p">:</span>
+            <span class="c1"># read data from simulation</span>
+            <span class="n">pose</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_reshape_view_to_data</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_root_physx_view</span><span class="o">.</span><span class="n">get_transforms</span><span class="p">()</span><span class="o">.</span><span class="n">clone</span><span class="p">())</span>
+            <span class="n">pose</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">3</span><span class="p">:</span><span class="mi">7</span><span class="p">]</span> <span class="o">=</span> <span class="n">math_utils</span><span class="o">.</span><span class="n">convert_quat</span><span class="p">(</span><span class="n">pose</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">3</span><span class="p">:</span><span class="mi">7</span><span class="p">],</span> <span class="n">to</span><span class="o">=</span><span class="s2">&quot;wxyz&quot;</span><span class="p">)</span>
+            <span class="c1"># set the buffer data and timestamp</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_object_link_pose_w</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="n">pose</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_object_link_pose_w</span><span class="o">.</span><span class="n">timestamp</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sim_timestamp</span>
+
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_object_link_pose_w</span><span class="o">.</span><span class="n">data</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">object_link_vel_w</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Object link velocity ``[lin_vel, ang_vel]`` in simulation world frame.</span>
+<span class="sd">        Shape is (num_instances, num_objects, 6).</span>
+
+<span class="sd">        The linear and angular velocities are of the rigid body&#39;s actor frame.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_object_link_vel_w</span><span class="o">.</span><span class="n">timestamp</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sim_timestamp</span><span class="p">:</span>
+            <span class="c1"># read data from simulation</span>
+            <span class="n">velocity</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">object_com_vel_w</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+            <span class="c1"># adjust linear velocity to link from center of mass</span>
+            <span class="n">velocity</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="p">:</span><span class="mi">3</span><span class="p">]</span> <span class="o">+=</span> <span class="n">torch</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">cross</span><span class="p">(</span>
+                <span class="n">velocity</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">3</span><span class="p">:],</span> <span class="n">math_utils</span><span class="o">.</span><span class="n">quat_rotate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">object_link_quat_w</span><span class="p">,</span> <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">object_com_pos_b</span><span class="p">),</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span>
+            <span class="p">)</span>
+            <span class="c1"># set the buffer data and timestamp</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_object_link_vel_w</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="n">velocity</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_object_link_vel_w</span><span class="o">.</span><span class="n">timestamp</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sim_timestamp</span>
+
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_object_link_vel_w</span><span class="o">.</span><span class="n">data</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">object_com_pose_w</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Object center of mass pose ``[pos, quat]`` in simulation world frame.</span>
+<span class="sd">        Shape is (num_instances, num_objects, 7).</span>
+
+<span class="sd">        The position and orientation are of the rigid body&#39;s center of mass frame.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_object_com_pose_w</span><span class="o">.</span><span class="n">timestamp</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sim_timestamp</span><span class="p">:</span>
+            <span class="c1"># adjust pose to center of mass</span>
+            <span class="n">pos</span><span class="p">,</span> <span class="n">quat</span> <span class="o">=</span> <span class="n">math_utils</span><span class="o">.</span><span class="n">combine_frame_transforms</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">object_link_pos_w</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">object_link_quat_w</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">object_com_pos_b</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">object_com_quat_b</span>
+            <span class="p">)</span>
+            <span class="c1"># set the buffer data and timestamp</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_object_com_pose_w</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">((</span><span class="n">pos</span><span class="p">,</span> <span class="n">quat</span><span class="p">),</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_object_com_pose_w</span><span class="o">.</span><span class="n">timestamp</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sim_timestamp</span>
+
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_object_com_pose_w</span><span class="o">.</span><span class="n">data</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">object_com_vel_w</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Object center of mass velocity ``[lin_vel, ang_vel]`` in simulation world frame.</span>
+<span class="sd">        Shape is (num_instances, num_objects, 6).</span>
+
+<span class="sd">        The linear and angular velocities are of the rigid body&#39;s center of mass frame.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_object_com_vel_w</span><span class="o">.</span><span class="n">timestamp</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sim_timestamp</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_object_com_vel_w</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_reshape_view_to_data</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_root_physx_view</span><span class="o">.</span><span class="n">get_velocities</span><span class="p">())</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_object_com_vel_w</span><span class="o">.</span><span class="n">timestamp</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sim_timestamp</span>
+
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_object_com_vel_w</span><span class="o">.</span><span class="n">data</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">object_state_w</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -677,15 +753,10 @@
 <span class="sd">        The position and orientation are of the rigid body&#39;s actor frame. Meanwhile, the linear and angular</span>
 <span class="sd">        velocities are of the rigid body&#39;s center of mass frame.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_object_state_w</span><span class="o">.</span><span class="n">timestamp</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sim_timestamp</span><span class="p">:</span>
-            <span class="c1"># read data from simulation</span>
-            <span class="n">pose</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_reshape_view_to_data</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_root_physx_view</span><span class="o">.</span><span class="n">get_transforms</span><span class="p">()</span><span class="o">.</span><span class="n">clone</span><span class="p">())</span>
-            <span class="n">pose</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">3</span><span class="p">:</span><span class="mi">7</span><span class="p">]</span> <span class="o">=</span> <span class="n">math_utils</span><span class="o">.</span><span class="n">convert_quat</span><span class="p">(</span><span class="n">pose</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">3</span><span class="p">:</span><span class="mi">7</span><span class="p">],</span> <span class="n">to</span><span class="o">=</span><span class="s2">&quot;wxyz&quot;</span><span class="p">)</span>
-            <span class="n">velocity</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_reshape_view_to_data</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_root_physx_view</span><span class="o">.</span><span class="n">get_velocities</span><span class="p">())</span>
-            <span class="c1"># set the buffer data and timestamp</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_object_state_w</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">((</span><span class="n">pose</span><span class="p">,</span> <span class="n">velocity</span><span class="p">),</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_object_state_w</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">((</span><span class="bp">self</span><span class="o">.</span><span class="n">object_link_pose_w</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">object_com_vel_w</span><span class="p">),</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_object_state_w</span><span class="o">.</span><span class="n">timestamp</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sim_timestamp</span>
+
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_object_state_w</span><span class="o">.</span><span class="n">data</span>
 
     <span class="nd">@property</span>
@@ -697,19 +768,9 @@
 <span class="sd">        world.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_object_link_state_w</span><span class="o">.</span><span class="n">timestamp</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sim_timestamp</span><span class="p">:</span>
-            <span class="c1"># read data from simulation</span>
-            <span class="n">pose</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_reshape_view_to_data</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_root_physx_view</span><span class="o">.</span><span class="n">get_transforms</span><span class="p">()</span><span class="o">.</span><span class="n">clone</span><span class="p">())</span>
-            <span class="n">pose</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">3</span><span class="p">:</span><span class="mi">7</span><span class="p">]</span> <span class="o">=</span> <span class="n">math_utils</span><span class="o">.</span><span class="n">convert_quat</span><span class="p">(</span><span class="n">pose</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">3</span><span class="p">:</span><span class="mi">7</span><span class="p">],</span> <span class="n">to</span><span class="o">=</span><span class="s2">&quot;wxyz&quot;</span><span class="p">)</span>
-            <span class="n">velocity</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_reshape_view_to_data</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_root_physx_view</span><span class="o">.</span><span class="n">get_velocities</span><span class="p">())</span>
-
-            <span class="c1"># adjust linear velocity to link from center of mass</span>
-            <span class="n">velocity</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="p">:</span><span class="mi">3</span><span class="p">]</span> <span class="o">+=</span> <span class="n">torch</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">cross</span><span class="p">(</span>
-                <span class="n">velocity</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">3</span><span class="p">:],</span> <span class="n">math_utils</span><span class="o">.</span><span class="n">quat_apply</span><span class="p">(</span><span class="n">pose</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">3</span><span class="p">:</span><span class="mi">7</span><span class="p">],</span> <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">com_pos_b</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="p">:]),</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span>
-            <span class="p">)</span>
-
-            <span class="c1"># set the buffer data and timestamp</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_object_link_state_w</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">((</span><span class="n">pose</span><span class="p">,</span> <span class="n">velocity</span><span class="p">),</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_object_link_state_w</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">((</span><span class="bp">self</span><span class="o">.</span><span class="n">object_link_pose_w</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">object_link_vel_w</span><span class="p">),</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_object_link_state_w</span><span class="o">.</span><span class="n">timestamp</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sim_timestamp</span>
+
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_object_link_state_w</span><span class="o">.</span><span class="n">data</span>
 
     <span class="nd">@property</span>
@@ -718,36 +779,46 @@
 <span class="sd">        Shape is (num_instances, num_objects, 13).</span>
 
 <span class="sd">        The position, quaternion, and linear/angular velocity are of the rigid body&#39;s center of mass frame</span>
-<span class="sd">        relative to the world. Center of mass frame is the orientation principle axes of inertia.</span>
+<span class="sd">        relative to the world. Center of mass frame has the orientation along the principle axes of inertia.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_object_com_state_w</span><span class="o">.</span><span class="n">timestamp</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sim_timestamp</span><span class="p">:</span>
-            <span class="c1"># read data from simulation</span>
-            <span class="n">pose</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_reshape_view_to_data</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_root_physx_view</span><span class="o">.</span><span class="n">get_transforms</span><span class="p">()</span><span class="o">.</span><span class="n">clone</span><span class="p">())</span>
-            <span class="n">pose</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">3</span><span class="p">:</span><span class="mi">7</span><span class="p">]</span> <span class="o">=</span> <span class="n">math_utils</span><span class="o">.</span><span class="n">convert_quat</span><span class="p">(</span><span class="n">pose</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">3</span><span class="p">:</span><span class="mi">7</span><span class="p">],</span> <span class="n">to</span><span class="o">=</span><span class="s2">&quot;wxyz&quot;</span><span class="p">)</span>
-            <span class="n">velocity</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_reshape_view_to_data</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_root_physx_view</span><span class="o">.</span><span class="n">get_velocities</span><span class="p">())</span>
-
-            <span class="c1"># adjust pose to center of mass</span>
-            <span class="n">pos</span><span class="p">,</span> <span class="n">quat</span> <span class="o">=</span> <span class="n">math_utils</span><span class="o">.</span><span class="n">combine_frame_transforms</span><span class="p">(</span>
-                <span class="n">pose</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="p">:</span><span class="mi">3</span><span class="p">],</span> <span class="n">pose</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">3</span><span class="p">:</span><span class="mi">7</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">com_pos_b</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="p">:],</span> <span class="bp">self</span><span class="o">.</span><span class="n">com_quat_b</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="p">:]</span>
-            <span class="p">)</span>
-
-            <span class="c1"># set the buffer data and timestamp</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_object_com_state_w</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">((</span><span class="n">pos</span><span class="p">,</span> <span class="n">quat</span><span class="p">,</span> <span class="n">velocity</span><span class="p">),</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_object_com_state_w</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">((</span><span class="bp">self</span><span class="o">.</span><span class="n">object_com_pose_w</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">object_com_vel_w</span><span class="p">),</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_object_com_state_w</span><span class="o">.</span><span class="n">timestamp</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sim_timestamp</span>
+
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_object_com_state_w</span><span class="o">.</span><span class="n">data</span>
 
     <span class="nd">@property</span>
-    <span class="k">def</span><span class="w"> </span><span class="nf">object_acc_w</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">object_com_acc_w</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Acceleration of all objects. Shape is (num_instances, num_objects, 6).</span>
 
 <span class="sd">        This quantity is the acceleration of the rigid bodies&#39; center of mass frame.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_object_acc_w</span><span class="o">.</span><span class="n">timestamp</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sim_timestamp</span><span class="p">:</span>
-            <span class="c1"># note: we use finite differencing to compute acceleration</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_object_acc_w</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_reshape_view_to_data</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_root_physx_view</span><span class="o">.</span><span class="n">get_accelerations</span><span class="p">()</span><span class="o">.</span><span class="n">clone</span><span class="p">())</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_object_acc_w</span><span class="o">.</span><span class="n">timestamp</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sim_timestamp</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_object_acc_w</span><span class="o">.</span><span class="n">data</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_object_com_acc_w</span><span class="o">.</span><span class="n">timestamp</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sim_timestamp</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_object_com_acc_w</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_reshape_view_to_data</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_root_physx_view</span><span class="o">.</span><span class="n">get_accelerations</span><span class="p">())</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_object_com_acc_w</span><span class="o">.</span><span class="n">timestamp</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sim_timestamp</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_object_com_acc_w</span><span class="o">.</span><span class="n">data</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">object_com_pose_b</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Object center of mass pose ``[pos, quat]`` in their respective body&#39;s link frame.</span>
+<span class="sd">        Shape is (num_instances, num_objects, 7).</span>
+
+<span class="sd">        The position and orientation are of the rigid body&#39;s center of mass frame.</span>
+<span class="sd">        The orientation is provided in (w, x, y, z) format.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_object_com_pose_b</span><span class="o">.</span><span class="n">timestamp</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sim_timestamp</span><span class="p">:</span>
+            <span class="c1"># obtain the coms</span>
+            <span class="n">poses</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_root_physx_view</span><span class="o">.</span><span class="n">get_coms</span><span class="p">()</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+            <span class="n">poses</span><span class="p">[:,</span> <span class="mi">3</span><span class="p">:</span><span class="mi">7</span><span class="p">]</span> <span class="o">=</span> <span class="n">math_utils</span><span class="o">.</span><span class="n">convert_quat</span><span class="p">(</span><span class="n">poses</span><span class="p">[:,</span> <span class="mi">3</span><span class="p">:</span><span class="mi">7</span><span class="p">],</span> <span class="n">to</span><span class="o">=</span><span class="s2">&quot;wxyz&quot;</span><span class="p">)</span>
+            <span class="c1"># read data from simulation</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_object_com_pose_b</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_reshape_view_to_data</span><span class="p">(</span><span class="n">poses</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_object_com_pose_b</span><span class="o">.</span><span class="n">timestamp</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sim_timestamp</span>
+
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_object_com_pose_b</span><span class="o">.</span><span class="n">data</span>
+
+    <span class="c1">##</span>
+    <span class="c1"># Derived properties.</span>
+    <span class="c1">##</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">projected_gravity_b</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -765,139 +836,12 @@
         <span class="n">forward_w</span> <span class="o">=</span> <span class="n">math_utils</span><span class="o">.</span><span class="n">quat_apply</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">object_link_quat_w</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">FORWARD_VEC_B</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">atan2</span><span class="p">(</span><span class="n">forward_w</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span> <span class="n">forward_w</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">])</span>
 
-    <span class="c1">##</span>
-    <span class="c1"># Derived properties.</span>
-    <span class="c1">##</span>
-
-    <span class="nd">@property</span>
-    <span class="k">def</span><span class="w"> </span><span class="nf">object_pos_w</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Object position in simulation world frame. Shape is (num_instances, num_objects, 3).</span>
-
-<span class="sd">        This quantity is the position of the actor frame of the rigid bodies.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">object_state_w</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="p">:</span><span class="mi">3</span><span class="p">]</span>
-
-    <span class="nd">@property</span>
-    <span class="k">def</span><span class="w"> </span><span class="nf">object_quat_w</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Object orientation (w, x, y, z) in simulation world frame. Shape is (num_instances, num_objects, 4).</span>
-
-<span class="sd">        This quantity is the orientation of the actor frame of the rigid bodies.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">object_state_w</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">3</span><span class="p">:</span><span class="mi">7</span><span class="p">]</span>
-
-    <span class="nd">@property</span>
-    <span class="k">def</span><span class="w"> </span><span class="nf">object_vel_w</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Object velocity in simulation world frame. Shape is (num_instances, num_objects, 6).</span>
-
-<span class="sd">        This quantity contains the linear and angular velocities of the rigid bodies&#39; center of mass frame.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">object_state_w</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">7</span><span class="p">:</span><span class="mi">13</span><span class="p">]</span>
-
-    <span class="nd">@property</span>
-    <span class="k">def</span><span class="w"> </span><span class="nf">object_lin_vel_w</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Object linear velocity in simulation world frame. Shape is (num_instances, num_objects, 3).</span>
-
-<span class="sd">        This quantity is the linear velocity of the rigid bodies&#39; center of mass frame.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">object_state_w</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">7</span><span class="p">:</span><span class="mi">10</span><span class="p">]</span>
-
-    <span class="nd">@property</span>
-    <span class="k">def</span><span class="w"> </span><span class="nf">object_ang_vel_w</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Object angular velocity in simulation world frame. Shape is (num_instances, num_objects, 3).</span>
-
-<span class="sd">        This quantity is the angular velocity of the rigid bodies&#39; center of mass frame.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">object_state_w</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">10</span><span class="p">:</span><span class="mi">13</span><span class="p">]</span>
-
-    <span class="nd">@property</span>
-    <span class="k">def</span><span class="w"> </span><span class="nf">object_lin_vel_b</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Object linear velocity in base frame. Shape is (num_instances, num_objects, 3).</span>
-
-<span class="sd">        This quantity is the linear velocity of the rigid bodies&#39; center of mass frame with respect to the</span>
-<span class="sd">        rigid body&#39;s actor frame.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="n">math_utils</span><span class="o">.</span><span class="n">quat_apply_inverse</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">object_quat_w</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">object_lin_vel_w</span><span class="p">)</span>
-
-    <span class="nd">@property</span>
-    <span class="k">def</span><span class="w"> </span><span class="nf">object_ang_vel_b</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Object angular velocity in base world frame. Shape is (num_instances, num_objects, 3).</span>
-
-<span class="sd">        This quantity is the angular velocity of the rigid bodies&#39; center of mass frame with respect to the</span>
-<span class="sd">        rigid body&#39;s actor frame.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="n">math_utils</span><span class="o">.</span><span class="n">quat_apply_inverse</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">object_quat_w</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">object_ang_vel_w</span><span class="p">)</span>
-
-    <span class="nd">@property</span>
-    <span class="k">def</span><span class="w"> </span><span class="nf">object_lin_acc_w</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Linear acceleration of all bodies in simulation world frame. Shape is (num_instances, num_objects, 3).</span>
-
-<span class="sd">        This quantity is the linear acceleration of the rigid bodies&#39; center of mass frame.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">object_acc_w</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">:</span><span class="mi">3</span><span class="p">]</span>
-
-    <span class="nd">@property</span>
-    <span class="k">def</span><span class="w"> </span><span class="nf">object_ang_acc_w</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Angular acceleration of all bodies in simulation world frame. Shape is (num_instances, num_objects, 3).</span>
-
-<span class="sd">        This quantity is the angular acceleration of the rigid bodies&#39; center of mass frame.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">object_acc_w</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">3</span><span class="p">:</span><span class="mi">6</span><span class="p">]</span>
-
-    <span class="nd">@property</span>
-    <span class="k">def</span><span class="w"> </span><span class="nf">object_link_pos_w</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Object link position in simulation world frame. Shape is (num_instances, num_objects, 3).</span>
-
-<span class="sd">        This quantity is the position of the actor frame of the rigid bodies.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_object_state_w</span><span class="o">.</span><span class="n">timestamp</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sim_timestamp</span><span class="p">:</span>
-            <span class="c1"># read data from simulation</span>
-            <span class="n">pose</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_reshape_view_to_data</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_root_physx_view</span><span class="o">.</span><span class="n">get_transforms</span><span class="p">()</span><span class="o">.</span><span class="n">clone</span><span class="p">())</span>
-            <span class="k">return</span> <span class="n">pose</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="p">:</span><span class="mi">3</span><span class="p">]</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">object_link_state_w</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="p">:</span><span class="mi">3</span><span class="p">]</span>
-
-    <span class="nd">@property</span>
-    <span class="k">def</span><span class="w"> </span><span class="nf">object_link_quat_w</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Object link orientation (w, x, y, z) in simulation world frame. Shape is (num_instances, num_objects, 4).</span>
-
-<span class="sd">        This quantity is the orientation of the actor frame of the rigid bodies.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_object_state_w</span><span class="o">.</span><span class="n">timestamp</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sim_timestamp</span><span class="p">:</span>
-            <span class="c1"># read data from simulation</span>
-            <span class="n">pose</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_reshape_view_to_data</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_root_physx_view</span><span class="o">.</span><span class="n">get_transforms</span><span class="p">()</span><span class="o">.</span><span class="n">clone</span><span class="p">())</span>
-            <span class="n">pose</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">3</span><span class="p">:</span><span class="mi">7</span><span class="p">]</span> <span class="o">=</span> <span class="n">math_utils</span><span class="o">.</span><span class="n">convert_quat</span><span class="p">(</span><span class="n">pose</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">3</span><span class="p">:</span><span class="mi">7</span><span class="p">],</span> <span class="n">to</span><span class="o">=</span><span class="s2">&quot;wxyz&quot;</span><span class="p">)</span>
-            <span class="k">return</span> <span class="n">pose</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">3</span><span class="p">:</span><span class="mi">7</span><span class="p">]</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">object_link_state_w</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">3</span><span class="p">:</span><span class="mi">7</span><span class="p">]</span>
-
-    <span class="nd">@property</span>
-    <span class="k">def</span><span class="w"> </span><span class="nf">object_link_vel_w</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Object link velocity in simulation world frame. Shape is (num_instances, num_objects, 6).</span>
-
-<span class="sd">        This quantity contains the linear and angular velocities of the rigid bodies&#39; actor frame.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">object_link_state_w</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">7</span><span class="p">:</span><span class="mi">13</span><span class="p">]</span>
-
-    <span class="nd">@property</span>
-    <span class="k">def</span><span class="w"> </span><span class="nf">object_link_lin_vel_w</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Object link linear velocity in simulation world frame. Shape is (num_instances, num_objects, 3).</span>
-
-<span class="sd">        This quantity is the linear velocity of the rigid bodies&#39; actor frame.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">object_link_state_w</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">7</span><span class="p">:</span><span class="mi">10</span><span class="p">]</span>
-
-    <span class="nd">@property</span>
-    <span class="k">def</span><span class="w"> </span><span class="nf">object_link_ang_vel_w</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Object link angular velocity in simulation world frame. Shape is (num_instances, num_objects, 3).</span>
-
-<span class="sd">        This quantity is the angular velocity of the rigid bodies&#39; actor frame.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">object_link_state_w</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">10</span><span class="p">:</span><span class="mi">13</span><span class="p">]</span>
-
     <span class="nd">@property</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">object_link_lin_vel_b</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Object link linear velocity in base frame. Shape is (num_instances, num_objects, 3).</span>
 
-<span class="sd">        This quantity is the linear velocity of the actor frame of the root rigid body frame with respect to the</span>
-<span class="sd">        rigid body&#39;s actor frame.</span>
+<span class="sd">        This quantity is the linear velocity of the actor frame of the root rigid body frame with</span>
+<span class="sd">        respect to the rigid body&#39;s actor frame.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="n">math_utils</span><span class="o">.</span><span class="n">quat_apply_inverse</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">object_link_quat_w</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">object_link_lin_vel_w</span><span class="p">)</span>
 
@@ -905,69 +849,17 @@
     <span class="k">def</span><span class="w"> </span><span class="nf">object_link_ang_vel_b</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Object link angular velocity in base world frame. Shape is (num_instances, num_objects, 3).</span>
 
-<span class="sd">        This quantity is the angular velocity of the actor frame of the root rigid body frame with respect to the</span>
-<span class="sd">        rigid body&#39;s actor frame.</span>
+<span class="sd">        This quantity is the angular velocity of the actor frame of the root rigid body frame with</span>
+<span class="sd">        respect to the rigid body&#39;s actor frame.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="n">math_utils</span><span class="o">.</span><span class="n">quat_apply_inverse</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">object_link_quat_w</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">object_link_ang_vel_w</span><span class="p">)</span>
-
-    <span class="nd">@property</span>
-    <span class="k">def</span><span class="w"> </span><span class="nf">object_com_pos_w</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Object center of mass position in simulation world frame. Shape is (num_instances, num_objects, 3).</span>
-
-<span class="sd">        This quantity is the position of the center of mass frame of the rigid bodies.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">object_com_state_w</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="p">:</span><span class="mi">3</span><span class="p">]</span>
-
-    <span class="nd">@property</span>
-    <span class="k">def</span><span class="w"> </span><span class="nf">object_com_quat_w</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Object center of mass orientation (w, x, y, z) in simulation world frame. Shape is (num_instances, num_objects, 4).</span>
-
-<span class="sd">        This quantity is the orientation of the center of mass frame of the rigid bodies.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">object_com_state_w</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">3</span><span class="p">:</span><span class="mi">7</span><span class="p">]</span>
-
-    <span class="nd">@property</span>
-    <span class="k">def</span><span class="w"> </span><span class="nf">object_com_vel_w</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Object center of mass velocity in simulation world frame. Shape is (num_instances, num_objects, 6).</span>
-
-<span class="sd">        This quantity contains the linear and angular velocities of the rigid bodies&#39; center of mass frame.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_object_state_w</span><span class="o">.</span><span class="n">timestamp</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sim_timestamp</span><span class="p">:</span>
-            <span class="c1"># read data from simulation</span>
-            <span class="n">velocity</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_reshape_view_to_data</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_root_physx_view</span><span class="o">.</span><span class="n">get_velocities</span><span class="p">())</span>
-            <span class="k">return</span> <span class="n">velocity</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">object_com_state_w</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">7</span><span class="p">:</span><span class="mi">13</span><span class="p">]</span>
-
-    <span class="nd">@property</span>
-    <span class="k">def</span><span class="w"> </span><span class="nf">object_com_lin_vel_w</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Object center of mass linear velocity in simulation world frame. Shape is (num_instances, num_objects, 3).</span>
-
-<span class="sd">        This quantity is the linear velocity of the rigid bodies&#39; center of mass frame.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_object_state_w</span><span class="o">.</span><span class="n">timestamp</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sim_timestamp</span><span class="p">:</span>
-            <span class="c1"># read data from simulation</span>
-            <span class="n">velocity</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_reshape_view_to_data</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_root_physx_view</span><span class="o">.</span><span class="n">get_velocities</span><span class="p">())</span>
-            <span class="k">return</span> <span class="n">velocity</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">:</span><span class="mi">3</span><span class="p">]</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">object_com_state_w</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">7</span><span class="p">:</span><span class="mi">10</span><span class="p">]</span>
-
-    <span class="nd">@property</span>
-    <span class="k">def</span><span class="w"> </span><span class="nf">object_com_ang_vel_w</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Object center of mass angular velocity in simulation world frame. Shape is (num_instances, num_objects, 3).</span>
-
-<span class="sd">        This quantity is the angular velocity of the rigid bodies&#39; center of mass frame.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_object_state_w</span><span class="o">.</span><span class="n">timestamp</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sim_timestamp</span><span class="p">:</span>
-            <span class="c1"># read data from simulation</span>
-            <span class="n">velocity</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_reshape_view_to_data</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_root_physx_view</span><span class="o">.</span><span class="n">get_velocities</span><span class="p">())</span>
-            <span class="k">return</span> <span class="n">velocity</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">3</span><span class="p">:</span><span class="mi">6</span><span class="p">]</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">object_com_state_w</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">10</span><span class="p">:</span><span class="mi">13</span><span class="p">]</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">object_com_lin_vel_b</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Object center of mass linear velocity in base frame. Shape is (num_instances, num_objects, 3).</span>
 
-<span class="sd">        This quantity is the linear velocity of the center of mass frame of the root rigid body frame with respect to the</span>
-<span class="sd">        rigid body&#39;s actor frame.</span>
+<span class="sd">        This quantity is the linear velocity of the center of mass frame of the root rigid body frame with</span>
+<span class="sd">        respect to the rigid body&#39;s actor frame.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="n">math_utils</span><span class="o">.</span><span class="n">quat_apply_inverse</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">object_link_quat_w</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">object_com_lin_vel_w</span><span class="p">)</span>
 
@@ -975,29 +867,185 @@
     <span class="k">def</span><span class="w"> </span><span class="nf">object_com_ang_vel_b</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Object center of mass angular velocity in base world frame. Shape is (num_instances, num_objects, 3).</span>
 
-<span class="sd">        This quantity is the angular velocity of the center of mass frame of the root rigid body frame with respect to the</span>
-<span class="sd">        rigid body&#39;s actor frame.</span>
+<span class="sd">        This quantity is the angular velocity of the center of mass frame of the root rigid body frame with</span>
+<span class="sd">        respect to the rigid body&#39;s actor frame.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="n">math_utils</span><span class="o">.</span><span class="n">quat_apply_inverse</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">object_link_quat_w</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">object_com_ang_vel_w</span><span class="p">)</span>
 
+    <span class="c1">##</span>
+    <span class="c1"># Sliced properties.</span>
+    <span class="c1">##</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">object_link_pos_w</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Object link position in simulation world frame. Shape is (num_instances, num_objects, 3).</span>
+
+<span class="sd">        This quantity is the position of the actor frame of the rigid bodies.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">object_link_pose_w</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="p">:</span><span class="mi">3</span><span class="p">]</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">object_link_quat_w</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Object link orientation (w, x, y, z) in simulation world frame. Shape is (num_instances, num_objects, 4).</span>
+
+<span class="sd">        This quantity is the orientation of the actor frame of the rigid bodies.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">object_link_pose_w</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">3</span><span class="p">:</span><span class="mi">7</span><span class="p">]</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">object_link_lin_vel_w</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Object link linear velocity in simulation world frame. Shape is (num_instances, num_objects, 3).</span>
+
+<span class="sd">        This quantity is the linear velocity of the rigid bodies&#39; actor frame.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">object_link_vel_w</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="p">:</span><span class="mi">3</span><span class="p">]</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">object_link_ang_vel_w</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Object link angular velocity in simulation world frame. Shape is (num_instances, num_objects, 3).</span>
+
+<span class="sd">        This quantity is the angular velocity of the rigid bodies&#39; actor frame.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">object_link_vel_w</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">3</span><span class="p">:</span><span class="mi">6</span><span class="p">]</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">object_com_pos_w</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Object center of mass position in simulation world frame. Shape is (num_instances, num_objects, 3).</span>
+
+<span class="sd">        This quantity is the position of the center of mass frame of the rigid bodies.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">object_com_pose_w</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="p">:</span><span class="mi">3</span><span class="p">]</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">object_com_quat_w</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Object center of mass orientation (w, x, y, z) in simulation world frame.</span>
+<span class="sd">        Shape is (num_instances, num_objects, 4).</span>
+
+<span class="sd">        This quantity is the orientation of the center of mass frame of the rigid bodies.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">object_com_pose_w</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">3</span><span class="p">:</span><span class="mi">7</span><span class="p">]</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">object_com_lin_vel_w</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Object center of mass linear velocity in simulation world frame. Shape is (num_instances, num_objects, 3).</span>
+
+<span class="sd">        This quantity is the linear velocity of the rigid bodies&#39; center of mass frame.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">object_com_vel_w</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="p">:</span><span class="mi">3</span><span class="p">]</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">object_com_ang_vel_w</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Object center of mass angular velocity in simulation world frame. Shape is (num_instances, num_objects, 3).</span>
+
+<span class="sd">        This quantity is the angular velocity of the rigid bodies&#39; center of mass frame.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">object_com_vel_w</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">3</span><span class="p">:</span><span class="mi">6</span><span class="p">]</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">object_com_lin_acc_w</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Object center of mass linear acceleration in simulation world frame.</span>
+<span class="sd">        Shape is (num_instances, num_objects, 3).</span>
+
+<span class="sd">        This quantity is the linear acceleration of the rigid bodies&#39; center of mass frame.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">object_com_acc_w</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="p">:</span><span class="mi">3</span><span class="p">]</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">object_com_ang_acc_w</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Object center of mass angular acceleration in simulation world frame.</span>
+<span class="sd">        Shape is (num_instances, num_objects, 3).</span>
+
+<span class="sd">        This quantity is the angular acceleration of the rigid bodies&#39; center of mass frame.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">object_com_acc_w</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">3</span><span class="p">:</span><span class="mi">6</span><span class="p">]</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">object_com_pos_b</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Center of mass of all of the bodies in their respective body&#39;s link frame.</span>
+<span class="sd">        Shape is (num_instances, num_objects, 3).</span>
+
+<span class="sd">        This quantity is the center of mass location relative to its body link frame.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">object_com_pose_b</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="p">:</span><span class="mi">3</span><span class="p">]</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">object_com_quat_b</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Orientation (w,x,y,z) of the principle axis of inertia of all of the bodies in simulation world frame.</span>
+<span class="sd">        Shape is (num_instances, num_objects, 4).</span>
+
+<span class="sd">        This quantity is the orientation of the principles axes of inertia relative to its body link frame.</span>
+<span class="sd">        The orientation is provided in (w, x, y, z) format.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">object_com_pose_b</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">3</span><span class="p">:</span><span class="mi">7</span><span class="p">]</span>
+
+    <span class="c1">##</span>
+    <span class="c1"># Properties for backwards compatibility.</span>
+    <span class="c1">##</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">object_pose_w</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Same as :attr:`object_link_pose_w`.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">object_link_pose_w</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">object_pos_w</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Same as :attr:`object_link_pos_w`.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">object_link_pos_w</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">object_quat_w</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Same as :attr:`object_link_quat_w`.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">object_link_quat_w</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">object_vel_w</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Same as :attr:`object_com_vel_w`.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">object_com_vel_w</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">object_lin_vel_w</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Same as :attr:`object_com_lin_vel_w`.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">object_com_lin_vel_w</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">object_ang_vel_w</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Same as :attr:`object_com_ang_vel_w`.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">object_com_ang_vel_w</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">object_lin_vel_b</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Same as :attr:`object_com_lin_vel_b`.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">object_com_lin_vel_b</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">object_ang_vel_b</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Same as :attr:`object_com_ang_vel_b`.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">object_com_ang_vel_b</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">object_acc_w</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Same as :attr:`object_com_acc_w`.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">object_com_acc_w</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">object_lin_acc_w</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Same as :attr:`object_com_lin_acc_w`.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">object_com_lin_acc_w</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">object_ang_acc_w</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Same as :attr:`object_com_ang_acc_w`.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">object_com_ang_acc_w</span>
+
     <span class="nd">@property</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">com_pos_b</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Center of mass of all of the bodies in simulation world frame. Shape is (num_instances, 1, 3).</span>
-
-<span class="sd">        This quantity is the center of mass location relative to its body frame.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">pos</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_root_physx_view</span><span class="o">.</span><span class="n">get_coms</span><span class="p">()</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">)[</span><span class="o">...</span><span class="p">,</span> <span class="p">:</span><span class="mi">3</span><span class="p">]</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_reshape_view_to_data</span><span class="p">(</span><span class="n">pos</span><span class="p">)</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Same as :attr:`object_com_pos_b`.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">object_com_pos_b</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">com_quat_b</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Orientation (w,x,y,z) of the prinicple axies of inertia of all of the bodies in simulation world frame. Shape is (num_instances, 1, 4).</span>
-
-<span class="sd">        This quantity is the orientation of the principles axes of inertia relative to its body frame.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">quat</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_root_physx_view</span><span class="o">.</span><span class="n">get_coms</span><span class="p">()</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">)[</span><span class="o">...</span><span class="p">,</span> <span class="mi">3</span><span class="p">:</span><span class="mi">7</span><span class="p">]</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_instances</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_objects</span><span class="p">,</span> <span class="mi">4</span><span class="p">)</span>
-        <span class="n">quat_wxyz</span> <span class="o">=</span> <span class="n">math_utils</span><span class="o">.</span><span class="n">convert_quat</span><span class="p">(</span><span class="n">quat</span><span class="p">,</span> <span class="n">to</span><span class="o">=</span><span class="s2">&quot;wxyz&quot;</span><span class="p">)</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_reshape_view_to_data</span><span class="p">(</span><span class="n">quat_wxyz</span><span class="p">)</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Same as :attr:`object_com_quat_b`.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">object_com_quat_b</span>
 
     <span class="c1">##</span>
     <span class="c1"># Helpers.</span>
