@@ -546,6 +546,11 @@ generated using Isaac Lab Mimic for the ``Isaac-NutPour-GR1T2-Pink-IK-Abs-Mimic-
       --input_file ./datasets/dataset_gr1_nut_pouring.hdf5 \
       --output_file ./datasets/dataset_annotated_gr1_nut_pouring.hdf5 --enable_pinocchio
 
+   .. warning::
+      There are multiple right eef annotations for this task. Annotations for subtasks for the same eef cannot have the same action index.
+      Make sure to annotate the right eef subtasks with different action indices.
+
+
    To generate the dataset:
 
    .. code:: bash
