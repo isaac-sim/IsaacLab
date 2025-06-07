@@ -150,7 +150,7 @@ def body_projected_gravity_b(
 
     body_quat = asset.data.body_quat_w[:, asset_cfg.body_ids]
     gravity_dir = asset.data.GRAVITY_VEC_W.unsqueeze(1)
-    return math_utils.quat_rotate_inverse(body_quat, gravity_dir).view(env.num_envs, -1)
+    return math_utils.quat_apply_inverse(body_quat, gravity_dir).view(env.num_envs, -1)
 
 
 """

@@ -543,7 +543,7 @@ class InteractiveScene:
         state["articulation"] = dict()
         for asset_name, articulation in self._articulations.items():
             asset_state = dict()
-            asset_state["root_pose"] = articulation.data.root_state_w[:, :7].clone()
+            asset_state["root_pose"] = articulation.data.root_pose_w.clone()
             if is_relative:
                 asset_state["root_pose"][:, :3] -= self.env_origins
             asset_state["root_velocity"] = articulation.data.root_vel_w.clone()
@@ -563,7 +563,7 @@ class InteractiveScene:
         state["rigid_object"] = dict()
         for asset_name, rigid_object in self._rigid_objects.items():
             asset_state = dict()
-            asset_state["root_pose"] = rigid_object.data.root_state_w[:, :7].clone()
+            asset_state["root_pose"] = rigid_object.data.root_pose_w.clone()
             if is_relative:
                 asset_state["root_pose"][:, :3] -= self.env_origins
             asset_state["root_velocity"] = rigid_object.data.root_vel_w.clone()
