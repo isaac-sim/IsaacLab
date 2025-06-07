@@ -343,7 +343,7 @@ class DextrahKukaAllegroEnv(DirectRLEnv):
         # Calculate joint positions
         dof_pos = (joint_pos_noise * rand_like(default_joint_pos) + default_joint_pos).clamp(
             min=self.robot.data.joint_pos_limits[:, self.cfg.robot_scene_cfg.joint_ids, 0][0],
-            max=self.robot.data.joint_limits[:, self.cfg.robot_scene_cfg.joint_ids, 1][0]
+            max=self.robot.data.joint_pos_limits[:, self.cfg.robot_scene_cfg.joint_ids, 1][0]
         )
 
         dof_vel = joint_vel_noise * rand_like(default_joint_vel) + default_joint_vel
