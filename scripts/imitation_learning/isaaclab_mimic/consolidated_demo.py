@@ -366,7 +366,7 @@ def main():
 
     # get the environment name
     if args_cli.task is not None:
-        env_name = args_cli.task
+        env_name = args_cli.task.split(":")[-1]
     elif args_cli.input_file:
         # if the environment name is not specified, try to get it from the dataset file
         dataset_file_handler = HDF5DatasetFileHandler()
@@ -406,7 +406,7 @@ def main():
         env_cfg.recorders.dataset_export_mode = DatasetExportMode.EXPORT_SUCCEEDED_ONLY
 
     # create environment
-    env = gym.make(env_name, cfg=env_cfg)
+    env = gym.make(args_cli.task, cfg=env_cfg)
 
     if not isinstance(env.unwrapped, ManagerBasedRLMimicEnv):
         raise ValueError("The environment should be derived from ManagerBasedRLMimicEnv")
