@@ -3,8 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-import os
-
 import isaaclab.envs.mdp as mdp
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, RigidObjectCfg
@@ -19,6 +17,7 @@ from isaaclab.envs import ViewerCfg
 from isaaclab_assets.robots.kuka_allegro import KUKA_ALLEGRO_CFG  # isort: skip
 # from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 ISAACLAB_NUCLEUS_DIR = "source/isaaclab_assets/data"
+
 
 @configclass
 class EventCfg:
@@ -87,22 +86,38 @@ class EventCfg:
 @configclass
 class DextrahKukaAllegroEnvCfg(DirectRLEnvCfg):
     name = __name__
-    
+
     # Custom Variables
     objects_dir = f"{ISAACLAB_NUCLEUS_DIR}/Props/Dextrah/Objects"
 
     # Class Expectant Variables
-    decimation = 2 # 60 Hz
-    episode_length_s = 10. #10.0
+    decimation = 2  # 60 Hz
+    episode_length_s = 10.  # 10.0
     state_space = -1  # set by DextrahKukaAllegroEnv Implementation code
     observation_space = -1  # set by DextrahKukaAllegroEnv Implementation code
     action_space = 23 * 2
-    
-    viewer = ViewerCfg(eye=(-2.25, 0., 0.75), lookat=(0., 0., 0.3), origin_type='env')
+
+    # viewer = ViewerCfg(eye=(-2.25, 0., 0.75), lookat=(0., 0., 0.3), origin_type='env')
+    viewer = ViewerCfg(eye=(-5.0, 1., 0.75), lookat=(0., 1., 0.3), origin_type='env')
+    # joint_pos_action_cfg = mdp.RelativeJointPositionActionCfg(
+    #     asset_name="robot",
+    #     joint_names=[".*"],
+    #     scale=0.1,
+    # )
+    joint_pos_action_cfg = mdp.JointPositionActionCfg(
+        asset_name="robot",
+        joint_names=[".*"],
+        scale=0.5,
+    )
+    joint_vel_action_cfg = mdp.JointVelocityActionCfg(
+        asset_name="robot",
+        joint_names=[".*"],
+        scale=0.1,
+    )
 
     # simulation
     sim: SimulationCfg = SimulationCfg(
-        dt=1/120,
+        dt=1 / 120,
         render_interval=2,
         physics_material=RigidBodyMaterialCfg(
             static_friction=1.0,
@@ -141,7 +156,7 @@ class DextrahKukaAllegroEnvCfg(DirectRLEnvCfg):
         # with the above joint_friction EventTerm above.
         actuators={
             "kuka_allegro_actuators": KUKA_ALLEGRO_CFG.actuators["kuka_allegro_actuators"].replace(
-                friction = {
+                friction={
                     "iiwa7_joint_(1|2|3|4|5|6|7)": 1.,
                     "index_joint_(0|1|2|3)": 0.01,
                     "middle_joint_(0|1|2|3)": 0.01,
@@ -167,7 +182,6 @@ class DextrahKukaAllegroEnvCfg(DirectRLEnvCfg):
     # scene
     scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=4096, env_spacing=2., replicate_physics=False)
     events: EventCfg = EventCfg()
-    
     robot_scene_cfg = SceneEntityCfg(
         "robot",
         body_names=["palm_link", "index_biotac_tip", "middle_biotac_tip", "ring_biotac_tip", "thumb_biotac_tip"],
@@ -184,15 +198,15 @@ class DextrahKukaAllegroEnvCfg(DirectRLEnvCfg):
     lift_sharpness = 8.5
 
     # Goal reaching parameters
-    object_goal_tol = 0.1 # m
+    object_goal_tol = 0.1  # m
     success_for_adr = 0.4
     min_steps_for_dr_change = 5 * int(episode_length_s / (decimation * sim.dt))
 
     # Object spawning params
     x_center = -0.55
-    x_width = 0.5#0.4
+    x_width = 0.5
     y_center = 0.1
-    y_width = 0.8 #0.5
+    y_width = 0.8
 
     # DR Controls
     enable_adr = True
@@ -201,20 +215,16 @@ class DextrahKukaAllegroEnvCfg(DirectRLEnvCfg):
 
     # Object disturbance wrench fixed params
     wrench_trigger_every = int(1. / (decimation * sim.dt)) # 1 sec
-    torsional_radius = 0.01 # m
-    hand_to_object_dist_threshold = .3 # m
+    torsional_radius = 0.01  # m
+    hand_to_object_dist_threshold = .3  # m
 
     # Object scaling
     object_scale = (0.5, 1.75)
     deactivate_object_scaling = True
-    
-    # Action space related parameters
-    max_pose_angle = -1.
-
 
     # These serve to set the maximum value ranges for the different physics parameters
     adr_cfg_dict = {
-        "num_increments": num_adr_increments, # number of times you can change the parameter ranges
+        "num_increments": num_adr_increments,  # number of times you can change the parameter ranges
         "robot_physics_material": {
             "static_friction_range": (0.5, 1.2),
             "dynamic_friction_range": (0.3, 1.0),
@@ -266,7 +276,7 @@ class DextrahKukaAllegroEnvCfg(DirectRLEnvCfg):
         },
         "reward_weights": {
             "finger_curl_reg": (-0.01, -0.005),
-            "object_to_goal_sharpness": (-15., -20.),
+            "object_to_goal_sharpness": (15., 20.),
             "lift_weight": (5., 0.)
         },
         "pd_targets": {

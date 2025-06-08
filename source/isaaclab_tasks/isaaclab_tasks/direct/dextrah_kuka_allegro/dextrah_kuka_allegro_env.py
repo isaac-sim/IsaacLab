@@ -11,7 +11,6 @@ import torch.distributed as dist
 import torch.nn.functional as F
 from collections.abc import Sequence
 
-import omni.usd
 import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation, RigidObject, RigidObjectCfg
 from isaaclab.envs import DirectRLEnv
@@ -21,21 +20,22 @@ from isaaclab.utils.math import quat_from_angle_axis, quat_mul, sample_uniform, 
 from .dextrah_kuka_allegro_env_cfg import DextrahKukaAllegroEnvCfg
 from .dextrah_adr import DextrahADR
 
+
 class DextrahKukaAllegroEnv(DirectRLEnv):
     cfg: DextrahKukaAllegroEnvCfg
 
     def __init__(self, cfg: DextrahKukaAllegroEnvCfg, render_mode: str | None = None, **kwargs):
         super().__init__(cfg, render_mode, **kwargs)
-        
+
         self._actions = torch.zeros((self.num_envs, self.cfg.action_space), device=self.device)
         self._processed_actions = torch.zeros((self.num_envs, self.cfg.action_space), device=self.device)
-        # Dynamically calculate upper and lower pose action limits
-        if self.cfg.max_pose_angle <= 0:
-            raise ValueError('Max pose angle must be positive')
 
         self.cfg.robot_scene_cfg.resolve(self.scene)
         self.object_goal = torch.tensor(self.cfg.object_goal, device=self.device).repeat((self.num_envs, 1))
-        self.curled_q =torch.tensor(self.cfg.curled_q, device=self.device).repeat(self.num_envs, 1).contiguous()
+        self.object_goal += self.scene.env_origins
+        self.curled_q = torch.tensor(self.cfg.curled_q, device=self.device).repeat(self.num_envs, 1).contiguous()
+        self.joint_pos_action = self.cfg.joint_pos_action_cfg.class_type(self.cfg.joint_pos_action_cfg, self)
+        self.joint_vel_action = self.cfg.joint_vel_action_cfg.class_type(self.cfg.joint_vel_action_cfg, self)
 
         # Set up ADR
         self.dextrah_adr = DextrahADR(self.event_manager, self.cfg.adr_cfg_dict, self.cfg.adr_custom_cfg_dict)
@@ -65,6 +65,11 @@ class DextrahKukaAllegroEnv(DirectRLEnv):
             [self.cfg.x_center - self.cfg.x_width / 2., self.cfg.y_center - self.cfg.y_width / 2., 0.2],
             [self.cfg.x_center + self.cfg.x_width / 2., self.cfg.y_center + self.cfg.y_width / 2., float('inf')]
         ], device=self.device)
+
+        self._episode_sums = {
+            key: torch.zeros(self.num_envs, dtype=torch.float, device=self.device)
+            for key in ["hand_to_object", "object_to_goal", "finger_curl_reg", "lift_reward"]
+        }
 
     def _setup_scene(self):
         # add robot, objects
@@ -97,10 +102,8 @@ class DextrahKukaAllegroEnv(DirectRLEnv):
         sub_dirs = sorted(os.listdir(self.cfg.objects_dir))
         sub_dirs = [object_name for object_name in sub_dirs if os.path.isdir(os.path.join(self.cfg.objects_dir, object_name))]
         self.num_unique_objects = len(sub_dirs)
-
         self.multi_object_idx = torch.remainder(torch.arange(self.num_envs), self.num_unique_objects).to(self.device)
         self.multi_object_idx_onehot = F.one_hot(self.multi_object_idx, num_classes=self.num_unique_objects).float()
-
         total_gpus = int(os.environ.get("WORLD_SIZE", 1))
 
         if self.cfg.deactivate_object_scaling:
@@ -160,18 +163,15 @@ class DextrahKukaAllegroEnv(DirectRLEnv):
             dist.all_reduce(local_adr_increment, op=dist.ReduceOp.MIN)
         self.global_min_adr_increment = local_adr_increment
 
-        self._actions = actions.clone()
-        pos_low = self.robot.data.joint_pos_limits[..., 0]
-        pos_high = self.robot.data.joint_pos_limits[..., 1]
-        vel_high = self.robot.data.joint_vel_limits
-        self._processed_actions = self._actions.clamp(min=-1.0, max=1.0)
-        self._processed_actions[:, :23] = pos_low + ((self._actions[:, :23] + 1) * 0.5) * (pos_high - pos_low)
-        self._processed_actions[:, 23:] = ((self._actions[:, 23:] + 1) * 0.5) * vel_high
+        self.joint_pos_action.process_actions(actions[:, :23])
+        self.joint_vel_action.process_actions(actions[:, 23:])
         self.apply_object_wrench()
 
     def _apply_action(self) -> None:
-        self.robot.set_joint_position_target(self._processed_actions[:, :23], joint_ids=self.cfg.robot_scene_cfg.joint_ids)
-        self.robot.set_joint_velocity_target(self._processed_actions[:, 23:46], joint_ids=self.cfg.robot_scene_cfg.joint_ids)
+        self.joint_pos_action.apply_actions()
+        self.joint_vel_action.apply_actions()
+        # self.robot.set_joint_position_target(self._processed_actions[:, :23], joint_ids=self.cfg.robot_scene_cfg.joint_ids)
+        # self.robot.set_joint_velocity_target(self._processed_actions[:, 23:46], joint_ids=self.cfg.robot_scene_cfg.joint_ids)
 
     def _get_observations(self) -> dict:
         joint_pos = self.robot.data.joint_pos[:, self.cfg.robot_scene_cfg.joint_ids]
@@ -192,38 +192,37 @@ class DextrahKukaAllegroEnv(DirectRLEnv):
         hand_pos_noisy -= self.scene.env_origins.repeat((1, len(self.cfg.robot_scene_cfg.body_ids)))
         hand_vel_noisy = self.robot.data.body_vel_w[:, self.cfg.robot_scene_cfg.body_ids].view(self.num_envs, -1)
         hand_vel_noisy *= self.dextrah_adr.get_custom_param_value("observation_annealing", "coefficient")
-        
+
         object_pos_noisy = object_pos + self.object_pos_noise_width * rand_like(object_pos) + self.object_pos_bias
         object_rot_noisy = object_rot + self.object_rot_noise_width * rand_like(object_rot) + self.object_rot_bias
 
-
         teacher_policy_obs = torch.cat(
             (
-                joint_pos_noisy, # 0:23
-                joint_vel_noisy, # 23:46
-                hand_pos_noisy, # 46:61
-                hand_vel_noisy, # 61:91
-                object_pos_noisy, # 91:94
-                object_rot_noisy, # 94:98
-                self.object_goal, # 98:101
+                joint_pos_noisy,  # 0:23
+                joint_vel_noisy,  # 23:46
+                hand_pos_noisy,  # 46:61
+                hand_vel_noisy,  # 61:91
+                object_pos_noisy,  # 91:94
+                object_rot_noisy,  # 94:98
+                self.object_goal - self.scene.env_origins,  # 98:101
                 self.multi_object_idx_onehot,  # 101:253
                 self.object_scale,  # 253:254
-                self._actions, # 254:300
+                self._actions,  # 254:300
             ), dim=-1,
         )
 
         critic_obs = torch.cat(
             (
-                joint_pos, # 0:23
-                joint_vel, # 23:46
-                hand_pos, # 46:61
-                hand_vel, # 61:76
+                joint_pos,  # 0:23
+                joint_vel,  # 23:46
+                hand_pos,  # 46:61
+                hand_vel,  # 61:76
                 hand_forces.view(self.num_envs, -1)[:, :3],
                 measured_joint_torques,
                 object_pos,
                 object_rot,
                 self.object.data.root_vel_w,
-                self.object_goal,
+                self.object_goal - self.scene.env_origins,
                 self.multi_object_idx_onehot,
                 self.object_scale,
                 self._actions,
@@ -236,9 +235,9 @@ class DextrahKukaAllegroEnv(DirectRLEnv):
 
     def _get_rewards(self) -> torch.Tensor:
         hand_pos = self.robot.data.body_pos_w[:, self.cfg.robot_scene_cfg.body_ids]
-        object_pos = self.object.data.root_pos_w - self.scene.env_origins
+        object_pos = self.object.data.root_pos_w
         joint_pos = self.robot.data.joint_pos[:, self.cfg.robot_scene_cfg.joint_ids]
-        
+
         object_to_object_goal_pos_error = torch.norm(object_pos - self.object_goal, dim=-1)
         object_vertical_error = torch.abs(self.object_goal[:, 2] - object_pos[:, 2])
         hand_to_object_pos_error = torch.norm(hand_pos - object_pos[:, None, :], dim=-1).max(dim=-1).values
@@ -248,28 +247,32 @@ class DextrahKukaAllegroEnv(DirectRLEnv):
         finger_curl_reg_weight = self.dextrah_adr.get_custom_param_value("reward_weights", "finger_curl_reg")
         lift_weight = self.dextrah_adr.get_custom_param_value("reward_weights", "lift_weight")
 
-        hand_to_object_reward = self.cfg.hand_to_object_weight * torch.exp(-self.cfg.hand_to_object_sharpness * hand_to_object_pos_error)
-        object_to_goal_reward = self.cfg.object_to_goal_weight * torch.exp(object_to_goal_sharpness * object_to_object_goal_pos_error)
-        finger_curl_reg = finger_curl_reg_weight * torch.sum(torch.square(joint_pos[:, 7:] - self.curled_q), dim=-1)  # check if the ordering is correct
-        lift_reward = lift_weight * torch.exp(-self.cfg.lift_sharpness * object_vertical_error)
+        hand_to_object_reward = torch.exp(-self.cfg.hand_to_object_sharpness * hand_to_object_pos_error)
+        object_to_goal_reward = torch.exp(-object_to_goal_sharpness * object_to_object_goal_pos_error)
+        finger_curl_reg = torch.sum(torch.square(joint_pos[:, 7:] - self.curled_q), dim=-1)
+        lift_reward = torch.exp(-self.cfg.lift_sharpness * object_vertical_error)
 
         total_reward = hand_to_object_reward + object_to_goal_reward + finger_curl_reg + lift_reward
 
         # Add reward signals to tensorboard
-        self.extras["hand_to_object_reward"] = hand_to_object_reward.mean()
-        self.extras["object_to_goal_reward"] = object_to_goal_reward.mean()
-        self.extras["finger_curl_reg"] = finger_curl_reg.mean()
-        self.extras["lift_reward"] = lift_reward.mean()
         self.extras["num_adr_increases"] = self.dextrah_adr.num_increments()
         self.extras["in_success_region"] = in_success_region.float().mean()
         self.extras["true_objective"] = self.true_objective
         self.extras["true_objective_mean"] = self.true_objective.float().mean()
-        self.extras["true_objective_min"]  = self.true_objective.float().min()
-        self.extras["true_objective_max"]  = self.true_objective.float().max()
+        self.extras["true_objective_min"] = self.true_objective.float().min()
+        self.extras["true_objective_max"] = self.true_objective.float().max()
 
+        rewards = {
+            "hand_to_object" : self.cfg.hand_to_object_weight * hand_to_object_reward * self.step_dt,
+            "object_to_goal" : self.cfg.object_to_goal_weight * object_to_goal_reward * self.step_dt,
+            "finger_curl_reg" : finger_curl_reg_weight * finger_curl_reg * self.step_dt,
+            "lift_reward" : lift_weight * lift_reward * self.step_dt
+        }
+        for key, value in rewards.items():
+            self._episode_sums[key] += value
         return total_reward
 
-    def _get_dones(self) -> torch.Tensor:
+    def _get_dones(self) -> tuple[torch.Tensor, torch.Tensor]:
         # This should be in starte
         object_pos = self.object.data.root_pos_w - self.scene.env_origins
         # bookkeeping for ADR
@@ -283,7 +286,6 @@ class DextrahKukaAllegroEnv(DirectRLEnv):
         outside_bounds = ((object_pos < self.oob_limits[0]) | (object_pos > self.oob_limits[1])).any(dim=1)
         time_out = self.episode_length_buf >= self.max_episode_length - 1
 
-        #return out_of_reach, time_out
         return outside_bounds, time_out
 
     def _reset_idx(self, env_ids: Sequence[int] | None):
@@ -349,7 +351,7 @@ class DextrahKukaAllegroEnv(DirectRLEnv):
         self.object_mass = self.object.root_physx_view.get_masses().to(device=self.device)
         self.robot_dof_stiffness = self.robot.root_physx_view.get_dof_stiffnesses().to(device=self.device)
         self.robot_dof_damping = self.robot.root_physx_view.get_dof_dampings().to(device=self.device)
-        
+
         # OBJECT NOISE---------------------------------------------------------------------------
         rand = lambda : torch.rand((num_ids, 1), device=self.device)
         object_pos_bias_width = self.dextrah_adr.get_custom_param_value("object_state_noise", "object_pos_bias") * rand()
@@ -380,10 +382,18 @@ class DextrahKukaAllegroEnv(DirectRLEnv):
         self.joint_pos_noise_width[env_ids, :] = self.dextrah_adr.get_custom_param_value("robot_state_noise", "joint_pos_noise") * rand()
         self.joint_vel_noise_width[env_ids, :] = self.dextrah_adr.get_custom_param_value("robot_state_noise", "joint_vel_noise") * rand()
 
+        extras = dict()
+        for key in self._episode_sums.keys():
+            episodic_sum_avg = torch.mean(self._episode_sums[key][env_ids])
+            extras["Episode_Reward/" + key] = episodic_sum_avg / self.max_episode_length_s
+            self._episode_sums[key][env_ids] = 0.0
+        self.extras["log"] = dict()
+        self.extras["log"].update(extras)
+
     def apply_object_wrench(self):
         hand_pos = self.robot.data.body_pos_w[:, self.cfg.robot_scene_cfg.body_ids]
         object_pos = self.object.data.root_pos_w - self.scene.env_origins
-        
+
         # Update whether to apply wrench based on whether object is at goal
         hand_to_object_pos_error = torch.norm(hand_pos - object_pos[:, None, :], dim=-1).max(dim=-1).values
         num_bodies = self.object.num_bodies
@@ -398,16 +408,16 @@ class DextrahKukaAllegroEnv(DirectRLEnv):
         wrench_triggered = (self.episode_length_buf.view(-1, 1, 1) % self.cfg.wrench_trigger_every) == 0
         apply_wrench_mask = (hand_to_object_pos_error <= self.cfg.hand_to_object_dist_threshold)[:, None, None]
 
-        
         self.object_applied_force = torch.where(apply_wrench_mask, self.object_applied_force, torch.zeros_like(self.object_applied_force))
         self.object_applied_torque = torch.where(apply_wrench_mask, self.object_applied_torque, torch.zeros_like(self.object_applied_torque))
-        
+
         self.object_applied_force = torch.where(wrench_triggered, forces, self.object_applied_force)
         self.object_applied_torque = torch.where(wrench_triggered, torques, self.object_applied_torque)
 
         # Set the wrench to the buffers
         self.object.set_external_force_and_torque(forces=self.object_applied_force, torques=self.object_applied_torque)
-        self.object.write_data_to_sim() # TODO: check this needed? I feel like this can be buggy
+        self.object.write_data_to_sim()  # TODO: check this needed? I feel like this can be buggy
+
 
 def rand_like(tensor_in):
     return 2. * (torch.rand_like(tensor_in) - 0.5)
