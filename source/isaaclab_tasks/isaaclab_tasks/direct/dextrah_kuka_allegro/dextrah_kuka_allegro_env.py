@@ -95,11 +95,7 @@ class DextrahKukaAllegroEnv(DirectRLEnv):
         self._setup_objects()
 
     def _setup_objects(self):
-        # entirety of this function can be put into env_cfg if asset are correct with no articulation enabled
-        # List all subdirectories in the target directory
-        sub_dirs = sorted(os.listdir(self.cfg.objects_dir))
-        sub_dirs = [object_name for object_name in sub_dirs if os.path.isdir(os.path.join(self.cfg.objects_dir, object_name))]
-        self.num_unique_objects = len(sub_dirs)
+        self.num_unique_objects = len(self.cfg.objects_cfg.spawn.assets_cfg)
         self.multi_object_idx = torch.remainder(torch.arange(self.num_envs), self.num_unique_objects).to(self.device)
         self.multi_object_idx_onehot = F.one_hot(self.multi_object_idx, num_classes=self.num_unique_objects).float()
         total_gpus = int(os.environ.get("WORLD_SIZE", 1))
@@ -112,45 +108,8 @@ class DextrahKukaAllegroEnv(DirectRLEnv):
             self.device_index = self.total_object_scales.device.index
             self.object_scale = self.total_object_scales[self.device_index * self.num_envs :(self.device_index + 1) * self.num_envs]
 
-        for i in range(self.num_envs):
-            object_name = sub_dirs[self.multi_object_idx[i]]
-            prim_path = f"/World/envs/env_{i}/object/object_{i}_{object_name}"
-            object_cfg = RigidObjectCfg(
-                prim_path=prim_path,
-                spawn=sim_utils.UsdFileCfg(
-                    usd_path=f"{self.cfg.objects_dir}/{object_name}/{object_name}.usd",
-                    rigid_props=sim_utils.RigidBodyPropertiesCfg(
-                        kinematic_enabled=False,
-                        disable_gravity=False,
-                        enable_gyroscopic_forces=True,
-                        solver_position_iteration_count=8,
-                        solver_velocity_iteration_count=0,
-                        sleep_threshold=0.005,
-                        stabilization_threshold=0.0025,
-                        max_linear_velocity=1000.0,
-                        max_angular_velocity=1000.0,
-                        max_depenetration_velocity=1000.0,
-                    ),
-                    scale=(self.object_scale[i], self.object_scale[i], self.object_scale[i]),
-                    mass_props=sim_utils.MassPropertiesCfg(density=500.0),
-                ),
-            )
-            # add object to scene
-            object_for_grasping = RigidObject(object_cfg)
-        # Now create one more RigidObject with regex on existing object prims
-        # so that we can add all the above objects into one RigidObject object
-        # for batch querying their states, forces, etc.
-        multi_object_cfg = RigidObjectCfg(
-            prim_path="/World/envs/env_.*/object/.*",
-            spawn=None,
-            init_state=RigidObjectCfg.InitialStateCfg(
-                pos=(self.cfg.x_center, self.cfg.y_center, 0.5),
-                rot=(1.0, 0.0, 0.0, 0.0)
-            ),
-        )
-
         # Add to scene
-        self.object = RigidObject(multi_object_cfg)
+        self.object = RigidObject(self.cfg.objects_cfg)
         self.scene.rigid_objects["object"] = self.object
 
     def _pre_physics_step(self, actions: torch.Tensor) -> None:

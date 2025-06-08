@@ -3,6 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+import os
 import isaaclab.envs.mdp as mdp
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, RigidObjectCfg
@@ -19,6 +20,10 @@ from .action_cfg import LimitsScaledJointPositionActionCfg
 
 # from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 ISAACLAB_NUCLEUS_DIR = "source/isaaclab_assets/data"
+objects_dir = f"{ISAACLAB_NUCLEUS_DIR}/Props/Dextrah/Objects"
+sub_dirs = sorted(os.listdir(objects_dir))
+sub_dirs = [object_name for object_name in sub_dirs if os.path.isdir(os.path.join(objects_dir, object_name))]
+object_multi_asset_cfg = [sim_utils.UsdFileCfg(usd_path=os.path.join(objects_dir, obj_name, f"{obj_name}.usd"))for obj_name in sub_dirs]
 
 
 @configclass
@@ -172,6 +177,18 @@ class DextrahKukaAllegroEnvCfg(DirectRLEnvCfg):
                 }
             )
         },
+    )
+    
+    objects_cfg: RigidObjectCfg = RigidObjectCfg(
+        prim_path="/World/envs/env_.*/Object",
+        spawn=sim_utils.MultiAssetSpawnerCfg(
+            assets_cfg=object_multi_asset_cfg,
+            random_choice=True,
+            rigid_props=sim_utils.RigidBodyPropertiesCfg(
+                solver_position_iteration_count=8, solver_velocity_iteration_count=0
+            ),
+        ),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 2.0)),
     )
 
     # table
