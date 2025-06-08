@@ -58,10 +58,10 @@ class DextrahKukaAllegroEnv(DirectRLEnv):
         self.joint_vel_bias = torch.zeros(self.num_envs, 1, device=self.device)
         self.joint_pos_noise_width = torch.zeros(self.num_envs, 1, device=self.device)
         self.joint_vel_noise_width = torch.zeros(self.num_envs, 1, device=self.device)
-
+        center = self.cfg.objects_cfg.init_state.pos
         self.oob_limits = torch.tensor([
-            [self.cfg.x_center - self.cfg.x_width / 2., self.cfg.y_center - self.cfg.y_width / 2., 0.2],
-            [self.cfg.x_center + self.cfg.x_width / 2., self.cfg.y_center + self.cfg.y_width / 2., float('inf')]
+            [center[0] - self.cfg.obj_spawn_width[0] / 2., center[1] - self.cfg.obj_spawn_width[1] / 2., 0.2],
+            [center[0] + self.cfg.obj_spawn_width[0] / 2., center[1] + self.cfg.obj_spawn_width[1] / 2., float('inf')]
         ], device=self.device)
 
         self._episode_sums = {
@@ -73,6 +73,7 @@ class DextrahKukaAllegroEnv(DirectRLEnv):
         # add robot, objects
         self.robot = Articulation(self.cfg.robot_cfg)
         self.table = RigidObject(self.cfg.table_cfg)
+        self.object = RigidObject(self.cfg.objects_cfg)
         # add ground plane
         spawn_ground_plane(prim_path="/World/ground", cfg=GroundPlaneCfg())
         # clone and replicate (no need to filter for this environment)
@@ -81,41 +82,24 @@ class DextrahKukaAllegroEnv(DirectRLEnv):
         # add articultion to scene - we must register to scene to randomize with EventManager
         self.scene.articulations["robot"] = self.robot
         self.scene.rigid_objects["table"] = self.table
+        self.scene.rigid_objects["object"] = self.object
         # add lights
         light_cfg = sim_utils.DomeLightCfg(intensity=1000.0, color=(0.75, 0.75, 0.75))
         light_cfg.func("/World/Light", light_cfg)
 
-        # Determine obs sizes for policies and VF
-        sub_dirs = sorted(os.listdir(self.cfg.objects_dir))
-        objects = [object_name for object_name in sub_dirs if os.path.isdir(os.path.join(self.cfg.objects_dir, object_name))]
-        num_teacher_observations = 148 + len(objects)
-        self.cfg.state_space = 180 + len(objects)
+        num_unique_objects = len(self.object.cfg.spawn.assets_cfg)
+        num_teacher_observations = 148 + num_unique_objects
+        self.cfg.state_space = 180 + num_unique_objects
         self.cfg.observation_space = num_teacher_observations
 
-        self._setup_objects()
+        self.multi_object_idx = torch.remainder(torch.arange(self.num_envs), num_unique_objects).to(self.device)
+        self.multi_object_idx_onehot = F.one_hot(self.multi_object_idx, num_classes=num_unique_objects).float()
+        self.object_scale = torch.ones((self.num_envs, 1), device=self.device)
 
-    def _setup_objects(self):
-        self.num_unique_objects = len(self.cfg.objects_cfg.spawn.assets_cfg)
-        self.multi_object_idx = torch.remainder(torch.arange(self.num_envs), self.num_unique_objects).to(self.device)
-        self.multi_object_idx_onehot = F.one_hot(self.multi_object_idx, num_classes=self.num_unique_objects).float()
-        total_gpus = int(os.environ.get("WORLD_SIZE", 1))
-
-        if self.cfg.deactivate_object_scaling:
-            self.object_scale = torch.ones(total_gpus * self.num_envs, 1, device=self.device)
-        else:
-            scale_range = self.cfg.object_scale[1] - self.cfg.object_scale[0]
-            self.total_object_scales = scale_range * torch.rand(total_gpus * self.num_envs, 1, device=self.device) + self.cfg.object_scale[0]
-            self.device_index = self.total_object_scales.device.index
-            self.object_scale = self.total_object_scales[self.device_index * self.num_envs :(self.device_index + 1) * self.num_envs]
-
-        # Add to scene
-        self.object = RigidObject(self.cfg.objects_cfg)
-        self.scene.rigid_objects["object"] = self.object
 
     def _pre_physics_step(self, actions: torch.Tensor) -> None:
         # Find the current global minimum adr increment
         local_adr_increment = self.local_adr_increment.clone()
-        # Query for the global minimum adr increment across all GPUs
         if int(os.environ.get("WORLD_SIZE", 1)) > 1:
             dist.all_reduce(local_adr_increment, op=dist.ReduceOp.MIN)
         self.global_min_adr_increment = local_adr_increment
@@ -128,8 +112,6 @@ class DextrahKukaAllegroEnv(DirectRLEnv):
     def _apply_action(self) -> None:
         self.joint_pos_action.apply_actions()
         self.joint_vel_action.apply_actions()
-        # self.robot.set_joint_position_target(self._processed_actions[:, :23], joint_ids=self.cfg.robot_scene_cfg.joint_ids)
-        # self.robot.set_joint_velocity_target(self._processed_actions[:, 23:46], joint_ids=self.cfg.robot_scene_cfg.joint_ids)
 
     def _get_observations(self) -> dict:
         joint_pos = self.robot.data.joint_pos[:, self.cfg.robot_scene_cfg.joint_ids]

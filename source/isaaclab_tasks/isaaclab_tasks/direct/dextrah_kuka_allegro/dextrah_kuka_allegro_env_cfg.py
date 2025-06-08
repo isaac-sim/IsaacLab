@@ -183,12 +183,21 @@ class DextrahKukaAllegroEnvCfg(DirectRLEnvCfg):
         prim_path="/World/envs/env_.*/Object",
         spawn=sim_utils.MultiAssetSpawnerCfg(
             assets_cfg=object_multi_asset_cfg,
-            random_choice=True,
+            random_choice=False,
             rigid_props=sim_utils.RigidBodyPropertiesCfg(
-                solver_position_iteration_count=8, solver_velocity_iteration_count=0
+                rigid_body_enabled=True,
+                solver_position_iteration_count=8,
+                solver_velocity_iteration_count=0,
+                kinematic_enabled=False,
+                disable_gravity=False,
+                sleep_threshold=0.005,
+                stabilization_threshold=0.0025,
+                max_linear_velocity=1000.0,
+                max_angular_velocity=1000.0,
+                max_depenetration_velocity=1000.0,
             ),
         ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 2.0)),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(-0.55, 0.0, 0.4)),
     )
 
     # table
@@ -227,10 +236,7 @@ class DextrahKukaAllegroEnvCfg(DirectRLEnvCfg):
     min_steps_for_dr_change = 5 * int(episode_length_s / (decimation * sim.dt))
 
     # Object spawning params
-    x_center = -0.55
-    x_width = 0.5
-    y_center = 0.1
-    y_width = 0.8
+    obj_spawn_width = (0.5, 0.8)
 
     # DR Controls
     enable_adr = True
@@ -278,8 +284,8 @@ class DextrahKukaAllegroEnvCfg(DirectRLEnvCfg):
             "max_linear_accel": (0., 10.)
         },
         "object_spawn": {
-            "x_width_spawn": (0., x_width),
-            "y_width_spawn": (0., y_width),
+            "x_width_spawn": (0., obj_spawn_width[0]),
+            "y_width_spawn": (0., obj_spawn_width[1]),
             "rotation": (0., 1.)
         },
         "object_state_noise": {
