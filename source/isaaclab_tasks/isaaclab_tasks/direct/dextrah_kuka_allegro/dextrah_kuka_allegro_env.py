@@ -28,8 +28,6 @@ class DextrahKukaAllegroEnv(DirectRLEnv):
         super().__init__(cfg, render_mode, **kwargs)
 
         self._actions = torch.zeros((self.num_envs, self.cfg.action_space), device=self.device)
-        self._processed_actions = torch.zeros((self.num_envs, self.cfg.action_space), device=self.device)
-
         self.cfg.robot_scene_cfg.resolve(self.scene)
         self.object_goal = torch.tensor(self.cfg.object_goal, device=self.device).repeat((self.num_envs, 1))
         self.object_goal += self.scene.env_origins
@@ -163,6 +161,7 @@ class DextrahKukaAllegroEnv(DirectRLEnv):
             dist.all_reduce(local_adr_increment, op=dist.ReduceOp.MIN)
         self.global_min_adr_increment = local_adr_increment
 
+        self._actions = actions.clone()
         self.joint_pos_action.process_actions(actions[:, :23])
         self.joint_vel_action.process_actions(actions[:, 23:])
         self.apply_object_wrench()
@@ -253,8 +252,6 @@ class DextrahKukaAllegroEnv(DirectRLEnv):
         finger_curl_reg = torch.sum(torch.square(joint_pos[:, 7:] - self.curled_q), dim=-1)
         lift_rew = torch.where(lefted, torch.exp(-self.cfg.lift_sharpness * object_vertical_error), 0)
 
-        total_reward = hand_to_object_rew + object_to_goal_rew + finger_curl_reg + lift_rew
-
         # Add reward signals to tensorboard
         self.extras["num_adr_increases"] = self.dextrah_adr.num_increments()
         self.extras["in_success_region"] = in_success_region.float().mean()
@@ -271,7 +268,7 @@ class DextrahKukaAllegroEnv(DirectRLEnv):
         }
         for key, value in rewards.items():
             self._episode_sums[key] += value
-        return total_reward
+        return torch.sum(torch.stack(list(rewards.values())), dim=0)
 
     def _get_dones(self) -> tuple[torch.Tensor, torch.Tensor]:
         # This should be in starte
