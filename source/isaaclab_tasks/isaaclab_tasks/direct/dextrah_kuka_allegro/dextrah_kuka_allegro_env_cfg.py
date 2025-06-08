@@ -15,6 +15,8 @@ from isaaclab.sim.spawners.materials.physics_materials_cfg import RigidBodyMater
 from isaaclab.utils import configclass
 from isaaclab.envs import ViewerCfg
 from isaaclab_assets.robots.kuka_allegro import KUKA_ALLEGRO_CFG  # isort: skip
+from .action_cfg import LimitsScaledJointPositionActionCfg
+
 # from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 ISAACLAB_NUCLEUS_DIR = "source/isaaclab_assets/data"
 
@@ -99,16 +101,21 @@ class DextrahKukaAllegroEnvCfg(DirectRLEnvCfg):
 
     # viewer = ViewerCfg(eye=(-2.25, 0., 0.75), lookat=(0., 0., 0.3), origin_type='env')
     viewer = ViewerCfg(eye=(-5.0, 1., 0.75), lookat=(0., 1., 0.3), origin_type='env')
-    # joint_pos_action_cfg = mdp.RelativeJointPositionActionCfg(
-    #     asset_name="robot",
-    #     joint_names=[".*"],
-    #     scale=0.1,
-    # )
-    joint_pos_action_cfg = mdp.JointPositionActionCfg(
+    joint_pos_action_cfg = mdp.RelativeJointPositionActionCfg(
         asset_name="robot",
         joint_names=[".*"],
         scale=0.5,
     )
+    # joint_pos_action_cfg = mdp.JointPositionActionCfg(
+    #     asset_name="robot",
+    #     joint_names=[".*"],
+    #     scale=0.5,
+    # )
+    # joint_pos_action_cfg = LimitsScaledJointPositionActionCfg(
+    #     asset_name="robot",
+    #     joint_names=[".*"],
+    #     ema_lambda=1.0
+    # )
     joint_vel_action_cfg = mdp.JointVelocityActionCfg(
         asset_name="robot",
         joint_names=[".*"],
