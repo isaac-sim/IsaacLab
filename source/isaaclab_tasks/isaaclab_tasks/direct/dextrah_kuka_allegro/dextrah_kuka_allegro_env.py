@@ -17,7 +17,6 @@ from isaaclab.assets import Articulation, RigidObject, RigidObjectCfg
 from isaaclab.envs import DirectRLEnv
 from isaaclab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_plane
 from isaaclab.utils.math import quat_from_angle_axis, quat_mul, sample_uniform, normalize
-from isaacsim.core.utils.prims import set_prim_attribute_value
 
 from .dextrah_kuka_allegro_env_cfg import DextrahKukaAllegroEnvCfg
 from .dextrah_adr import DextrahADR
@@ -102,8 +101,6 @@ class DextrahKukaAllegroEnv(DirectRLEnv):
         self.multi_object_idx = torch.remainder(torch.arange(self.num_envs), self.num_unique_objects).to(self.device)
         self.multi_object_idx_onehot = F.one_hot(self.multi_object_idx, num_classes=self.num_unique_objects).float()
 
-        stage = omni.usd.get_context().get_stage()
-        self.object_mat_prims = list()
         total_gpus = int(os.environ.get("WORLD_SIZE", 1))
 
         if self.cfg.deactivate_object_scaling:
@@ -139,13 +136,6 @@ class DextrahKukaAllegroEnv(DirectRLEnv):
             )
             # add object to scene
             object_for_grasping = RigidObject(object_cfg)
-            set_prim_attribute_value(
-                prim_path=prim_path+"/baseLink",
-                attribute_name="physxArticulation:articulationEnabled",
-                value=False
-            )
-            prim = stage.GetPrimAtPath(prim_path)
-            self.object_mat_prims.append(prim.GetChildren()[0].GetChildren()[0].GetChildren()[0])
         # Now create one more RigidObject with regex on existing object prims
         # so that we can add all the above objects into one RigidObject object
         # for batch querying their states, forces, etc.
@@ -280,7 +270,7 @@ class DextrahKukaAllegroEnv(DirectRLEnv):
         return total_reward
 
     def _get_dones(self) -> torch.Tensor:
-        # This should be in start
+        # This should be in starte
         object_pos = self.object.data.root_pos_w - self.scene.env_origins
         # bookkeeping for ADR
         in_success_region = torch.norm(object_pos - self.object_goal, dim=-1) < self.cfg.object_goal_tol

@@ -15,7 +15,7 @@ from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import PhysxCfg, SimulationCfg
 from isaaclab.sim.spawners.materials.physics_materials_cfg import RigidBodyMaterialCfg
 from isaaclab.utils import configclass
-
+from isaaclab.envs import ViewerCfg
 from isaaclab_assets.robots.kuka_allegro import KUKA_ALLEGRO_CFG  # isort: skip
 # from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 ISAACLAB_NUCLEUS_DIR = "source/isaaclab_assets/data"
@@ -97,6 +97,8 @@ class DextrahKukaAllegroEnvCfg(DirectRLEnvCfg):
     state_space = -1  # set by DextrahKukaAllegroEnv Implementation code
     observation_space = -1  # set by DextrahKukaAllegroEnv Implementation code
     action_space = 23 * 2
+    
+    viewer = ViewerCfg(eye=(-2.25, 0., 0.75), lookat=(0., 0., 0.3), origin_type='env')
 
     # simulation
     sim: SimulationCfg = SimulationCfg(
