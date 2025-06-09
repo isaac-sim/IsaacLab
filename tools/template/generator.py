@@ -250,9 +250,22 @@ def _external(specification: dict) -> None:
     if specification.get("custom_usd", False):
         print("  |-- Creating custom robot folder structure...")
 
-        ISAACLAB_NUCLEUS_DIR = (
-            "http://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/4.5/Isaac/IsaacLab"
-        )
+        import argparse
+
+        from isaaclab.app import AppLauncher
+
+        # create argparser
+        parser = argparse.ArgumentParser(description="Downloading the assets.")
+        # append AppLauncher cli args
+        AppLauncher.add_app_launcher_args(parser)
+        # parse the arguments
+        args_cli = parser.parse_args()
+        args_cli.headless = True
+        # launch omniverse app
+        app_launcher = AppLauncher(args_cli)
+        simulation_app = app_launcher.app
+
+        from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
         # look at workflows once
         has_single = any(wf["type"] == "single-agent" for wf in specification["workflows"])
