@@ -8,10 +8,13 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from __future__ import annotations
+
 import numpy as np
 import os
 import torch
 import trimesh
+from typing import TYPE_CHECKING
 
 import omni.log
 
@@ -20,10 +23,12 @@ from isaaclab.utils.io import dump_yaml
 from isaaclab.utils.timer import Timer
 from isaaclab.utils.warp import convert_to_warp_mesh
 
-from .height_field import HfTerrainBaseCfg
-from .terrain_generator_cfg import FlatPatchSamplingCfg, SubTerrainBaseCfg, TerrainGeneratorCfg
 from .trimesh.utils import make_border
 from .utils import color_meshes_by_height, find_flat_patches
+
+if TYPE_CHECKING:
+    from .sub_terrain_cfg import FlatPatchSamplingCfg, SubTerrainBaseCfg
+    from .terrain_generator_cfg import TerrainGeneratorCfg
 
 
 class TerrainGenerator:
@@ -113,6 +118,8 @@ class TerrainGenerator:
         self.device = device
 
         # set common values to all sub-terrains config
+        from .height_field import HfTerrainBaseCfg  # prevent circular import
+
         for sub_cfg in self.cfg.sub_terrains.values():
             # size of all terrains
             sub_cfg.size = self.cfg.size
