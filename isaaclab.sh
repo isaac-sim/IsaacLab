@@ -247,7 +247,7 @@ print_help () {
     echo -e "\t-f, --format         Run pre-commit to format the code and check lints."
     echo -e "\t-p, --python         Run the python executable provided by Isaac Sim or virtual environment (if active)."
     echo -e "\t-s, --sim            Run the simulator executable (isaac-sim.sh) provided by Isaac Sim."
-    echo -e "\t-t, --test           Run all python unittest tests."
+    echo -e "\t-t, --test           Run all python pytest tests."
     echo -e "\t-o, --docker         Run the docker container helper script (docker/container.sh)."
     echo -e "\t-v, --vscode         Generate the VSCode settings file from template."
     echo -e "\t-d, --docs           Build the documentation from source using sphinx."

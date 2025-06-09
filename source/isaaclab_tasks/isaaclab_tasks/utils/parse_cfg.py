@@ -1,3 +1,8 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 # Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
@@ -52,7 +57,7 @@ def load_cfg_from_registry(task_name: str, entry_point_key: str) -> dict | objec
         ValueError: If the entry point key is not available in the gym registry for the task.
     """
     # obtain the configuration entry point
-    cfg_entry_point = gym.spec(task_name).kwargs.get(entry_point_key)
+    cfg_entry_point = gym.spec(task_name.split(":")[-1]).kwargs.get(entry_point_key)
     # check if entry point exists
     if cfg_entry_point is None:
         raise ValueError(
@@ -117,7 +122,7 @@ def parse_env_cfg(
             environment configuration.
     """
     # load the default configuration
-    cfg = load_cfg_from_registry(task_name, "env_cfg_entry_point")
+    cfg = load_cfg_from_registry(task_name.split(":")[-1], "env_cfg_entry_point")
 
     # check that it is not a dict
     # we assume users always use a class for the configuration

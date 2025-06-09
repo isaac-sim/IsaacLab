@@ -1,3 +1,8 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 # Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
@@ -8,6 +13,7 @@ from collections.abc import Sequence
 from typing import Any
 
 import carb
+import omni.log
 import omni.usd
 from isaacsim.core.cloner import GridCloner
 from isaacsim.core.prims import XFormPrim
@@ -537,7 +543,7 @@ class InteractiveScene:
         state["articulation"] = dict()
         for asset_name, articulation in self._articulations.items():
             asset_state = dict()
-            asset_state["root_pose"] = articulation.data.root_state_w[:, :7].clone()
+            asset_state["root_pose"] = articulation.data.root_pose_w.clone()
             if is_relative:
                 asset_state["root_pose"][:, :3] -= self.env_origins
             asset_state["root_velocity"] = articulation.data.root_vel_w.clone()
@@ -557,7 +563,7 @@ class InteractiveScene:
         state["rigid_object"] = dict()
         for asset_name, rigid_object in self._rigid_objects.items():
             asset_state = dict()
-            asset_state["root_pose"] = rigid_object.data.root_state_w[:, :7].clone()
+            asset_state["root_pose"] = rigid_object.data.root_pose_w.clone()
             if is_relative:
                 asset_state["root_pose"][:, :3] -= self.env_origins
             asset_state["root_velocity"] = rigid_object.data.root_vel_w.clone()
@@ -621,7 +627,12 @@ class InteractiveScene:
     Internal methods.
     """
 
-    def _is_scene_setup_from_cfg(self):
+    def _is_scene_setup_from_cfg(self) -> bool:
+        """Check if scene entities are setup from the config or not.
+
+        Returns:
+            True if scene entities are setup from the config, False otherwise.
+        """
         return any(
             not (asset_name in InteractiveSceneCfg.__dataclass_fields__ or asset_cfg is None)
             for asset_name, asset_cfg in self.cfg.__dict__.items()

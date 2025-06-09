@@ -1,3 +1,8 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 # Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
@@ -72,7 +77,7 @@ def test_environments(task_name, num_envs, device):
     ]:
         return
     # skip automate environments as they require cuda installation
-    if task_name in ["Isaac-Assembly-Direct-v0", "Isaac-Disassembly-Direct-v0"]:
+    if task_name in ["Isaac-AutoMate-Assembly-Direct-v0", "Isaac-AutoMate-Disassembly-Direct-v0"]:
         return
     # skipping this test for now as it requires torch 2.6 or newer
     if task_name == "Isaac-Cartpole-RGB-TheiaTiny-v0":

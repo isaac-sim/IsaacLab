@@ -1,3 +1,8 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 # Copyright (c) 2024-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
@@ -204,7 +209,7 @@ def main():
 
     # parse configuration
     env_cfg = parse_env_cfg(args_cli.task, device=args_cli.device, num_envs=1)
-    env_cfg.env_name = args_cli.task
+    env_cfg.env_name = args_cli.task.split(":")[-1]
 
     # extract success checking function to invoke in the main loop
     success_term = None

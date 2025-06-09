@@ -1,3 +1,8 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 # Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
@@ -159,8 +164,8 @@ def _run_ik_controller(
     ee_pose_b_des = torch.zeros(num_envs, diff_ik_controller.action_dim, device=sim.device)
     ee_pose_b_des[:] = ee_pose_b_des_set[current_goal_idx]
     # Compute current pose of the end-effector
-    ee_pose_w = robot.data.body_state_w[:, ee_frame_idx, 0:7]
-    root_pose_w = robot.data.root_state_w[:, 0:7]
+    ee_pose_w = robot.data.body_pose_w[:, ee_frame_idx]
+    root_pose_w = robot.data.root_pose_w
     ee_pos_b, ee_quat_b = subtract_frame_transforms(
         root_pose_w[:, 0:3], root_pose_w[:, 3:7], ee_pose_w[:, 0:3], ee_pose_w[:, 3:7]
     )
@@ -207,8 +212,8 @@ def _run_ik_controller(
             # so we MUST skip the first step
             # obtain quantities from simulation
             jacobian = robot.root_physx_view.get_jacobians()[:, ee_jacobi_idx, :, arm_joint_ids]
-            ee_pose_w = robot.data.body_state_w[:, ee_frame_idx, 0:7]
-            root_pose_w = robot.data.root_state_w[:, 0:7]
+            ee_pose_w = robot.data.body_pose_w[:, ee_frame_idx]
+            root_pose_w = robot.data.root_pose_w
             base_rot = root_pose_w[:, 3:7]
             base_rot_matrix = matrix_from_quat(quat_inv(base_rot))
             jacobian[:, :3, :] = torch.bmm(base_rot_matrix, jacobian[:, :3, :])

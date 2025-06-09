@@ -1,3 +1,8 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 # Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
@@ -27,7 +32,7 @@ INSTALL_REQUIRES = [
     # devices
     "hidapi==0.14.0.post2",
     # reinforcement learning
-    "gymnasium",
+    "gymnasium>=1.0",
     # procedural-generation
     "trimesh",
     "pyglet<2",

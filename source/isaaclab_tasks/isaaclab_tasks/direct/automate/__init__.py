@@ -1,3 +1,8 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 # Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
@@ -14,8 +19,8 @@ from .disassembly_env import DisassemblyEnv, DisassemblyEnvCfg
 ##
 
 gym.register(
-    id="Isaac-Assembly-Direct-v0",
-    entry_point="isaaclab_tasks.direct.assembly:AssemblyEnv",
+    id="Isaac-AutoMate-Assembly-Direct-v0",
+    entry_point="isaaclab_tasks.direct.automate:AssemblyEnv",
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": AssemblyEnvCfg,
@@ -25,8 +30,8 @@ gym.register(
 
 
 gym.register(
-    id="Isaac-Disassembly-Direct-v0",
-    entry_point="isaaclab_tasks.direct.assembly:DisassemblyEnv",
+    id="Isaac-AutoMate-Disassembly-Direct-v0",
+    entry_point="isaaclab_tasks.direct.automate:DisassemblyEnv",
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": DisassemblyEnvCfg,

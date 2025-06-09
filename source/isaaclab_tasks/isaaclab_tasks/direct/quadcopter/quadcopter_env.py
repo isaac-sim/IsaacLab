@@ -1,3 +1,8 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 # Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
@@ -152,7 +157,7 @@ class QuadcopterEnv(DirectRLEnv):
 
     def _get_observations(self) -> dict:
         desired_pos_b, _ = subtract_frame_transforms(
-            self._robot.data.root_state_w[:, :3], self._robot.data.root_state_w[:, 3:7], self._desired_pos_w
+            self._robot.data.root_pos_w, self._robot.data.root_quat_w, self._desired_pos_w
         )
         obs = torch.cat(
             [
