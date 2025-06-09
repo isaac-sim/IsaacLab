@@ -3,11 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
-# All rights reserved.
-#
-# SPDX-License-Identifier: BSD-3-Clause
-
 """Sub-module providing UI window implementation for environments.
 
 The UI elements are used to control the environment and visualize the state of the environment.

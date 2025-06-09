@@ -3,11 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
-# All rights reserved.
-#
-# SPDX-License-Identifier: BSD-3-Clause
-
 """Sub-package for marker utilities to simplify creation of UI elements in the GUI.
 
 Currently, the sub-package provides the following classes:

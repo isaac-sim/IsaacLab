@@ -3,11 +3,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-# Copyright (c) 2024-2025, The Isaac Lab Project Developers.
-# All rights reserved.
-#
-# SPDX-License-Identifier: Apache-2.0
-
 """
 Script to add mimic annotations to demos to be used as source demos for mimic dataset generation.
 """
