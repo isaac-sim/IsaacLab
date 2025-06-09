@@ -253,17 +253,25 @@ def _external(specification: dict) -> None:
         ISAACLAB_NUCLEUS_DIR = (
             "http://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/4.5/Isaac/IsaacLab"
         )
-        usd_assets = {
-            "cartpole": [
+
+        # look at workflows once
+        has_single = any(wf["type"] == "single-agent" for wf in specification["workflows"])
+        has_multi = any(wf["type"] == "multi-agent" for wf in specification["workflows"])
+
+        # only include the assets needed
+        usd_assets = {}
+        if has_single:
+            usd_assets["cartpole"] = [
                 ("Robots/Classic/Cartpole", "cartpole.usd"),
                 ("Robots/Classic/Cartpole/Props", "instanceable_meshes.usd"),
-            ],
-            "cart_double_pendulum": [
+            ]
+        if has_multi:
+            usd_assets["cart_double_pendulum"] = [
                 ("Robots/Classic/CartDoublePendulum", "cart_double_pendulum.usd"),
                 ("Robots/Classic/CartDoublePendulum/Props", "instanceable_meshes.usd"),
-            ],
-        }
+            ]
 
+        # download just the ones in usd_assets
         for robot, files in usd_assets.items():
             for subfolder, filename in files:
                 target_dir = os.path.join(project_dir, "source", name, "data", subfolder)
@@ -279,7 +287,7 @@ def _external(specification: dict) -> None:
                     with open(usd_path, "w") as f:
                         f.write("# Placeholder for your custom robot USD file.\n")
 
-        # copy and modify asset configuration files
+        # now copy & patch only the robot modules needed
         robot_py_dir = os.path.join(project_dir, "source", name, name, "robots")
         os.makedirs(robot_py_dir, exist_ok=True)
 
@@ -304,9 +312,12 @@ def _external(specification: dict) -> None:
                 src=dst,
             )
 
-        copy_and_patch_robot("cartpole.py", "Robots/Classic/Cartpole/cartpole.usd")
-
-        copy_and_patch_robot("cart_double_pendulum.py", "Robots/Classic/CartDoublePendulum/cart_double_pendulum.usd")
+        if has_single:
+            copy_and_patch_robot("cartpole.py", "Robots/Classic/Cartpole/cartpole.usd")
+        if has_multi:
+            copy_and_patch_robot(
+                "cart_double_pendulum.py", "Robots/Classic/CartDoublePendulum/cart_double_pendulum.usd"
+            )
 
         # write __init__.py
         with open(os.path.join(robot_py_dir, "__init__.py"), "w") as f:
