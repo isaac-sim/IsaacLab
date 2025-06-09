@@ -32,12 +32,17 @@ parser.add_argument(
 parser.add_argument("--checkpoint", type=str, default=None, help="Path to model checkpoint.")
 parser.add_argument("--sigma", type=str, default=None, help="The policy's initial standard deviation.")
 parser.add_argument("--max_iterations", type=int, default=None, help="RL Policy training iterations.")
-parser.add_argument("--track", type=lambda x: bool(strtobool(x)), default=False, nargs="?", const=True,
-    help="if toggled, this experiment will be tracked with Weights and Biases")
 parser.add_argument("--wandb-project-name", type=str, default=None, help="the wandb's project name")
 parser.add_argument("--wandb-entity", type=str, default=None, help="the entity (team) of wandb's project")
 parser.add_argument("--wandb-name", type=str, default=None, help="the name of wandb's run")
-
+parser.add_argument(
+    "--track",
+    type=lambda x: bool(strtobool(x)),
+    default=False,
+    nargs="?",
+    const=True,
+    help="if toggled, this experiment will be tracked with Weights and Biases",
+)
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
@@ -182,12 +187,13 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     # reset the agent and env
     runner.reset()
     # train the agent
-    
+
     global_rank = int(os.getenv("RANK", "0"))
     if args_cli.track and global_rank == 0:
         if args_cli.wandb_entity is None:
             raise ValueError("Weights and Biases entity must be specified for tracking.")
         import wandb
+
         wandb.init(
             project=wandb_project,
             entity=args_cli.wandb_entity,
@@ -197,7 +203,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
             monitor_gym=True,
             save_code=True,
         )
-    
+
     if args_cli.checkpoint is not None:
         runner.run({"train": True, "play": False, "sigma": train_sigma, "checkpoint": resume_path})
     else:
