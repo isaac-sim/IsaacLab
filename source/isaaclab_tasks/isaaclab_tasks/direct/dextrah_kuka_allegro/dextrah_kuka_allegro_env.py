@@ -185,11 +185,10 @@ class DextrahKukaAllegroEnv(DirectRLEnv):
         finger_curl_reg_weight = self.dextrah_adr.get_custom_param_value("reward_weights", "finger_curl_reg")
         lift_weight = self.dextrah_adr.get_custom_param_value("reward_weights", "lift_weight")
 
-        lifted = object_pos[:, 2] > 0.35
         hand_to_object_rew = torch.exp(-self.cfg.hand_to_object_sharpness * hand_to_object_pos_error)
         object_to_goal_rew = torch.exp(-object_to_goal_std * object_to_goal_pos_error)
         finger_curl_reg = torch.sum(torch.square(joint_pos[:, 7:] - self.curled_q), dim=-1)
-        lift_rew = torch.exp(-self.cfg.lift_sharpness * object_vertical_error) + torch.where(lifted, 1., 0)
+        lift_rew = torch.exp(-self.cfg.lift_sharpness * object_vertical_error)
 
         # Add reward signals to tensorboard
         self.extras["num_adr_increases"] = self.dextrah_adr.num_increments()
