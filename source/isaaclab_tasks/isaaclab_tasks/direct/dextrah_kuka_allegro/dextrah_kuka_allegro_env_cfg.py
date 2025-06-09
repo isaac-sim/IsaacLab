@@ -197,7 +197,7 @@ class DextrahKukaAllegroEnvCfg(DirectRLEnvCfg):
                 max_depenetration_velocity=1000.0,
             ),
         ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(-0.55, 0.0, 0.4)),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(-0.55, 0.0, 0.32)),
     )
 
     # table

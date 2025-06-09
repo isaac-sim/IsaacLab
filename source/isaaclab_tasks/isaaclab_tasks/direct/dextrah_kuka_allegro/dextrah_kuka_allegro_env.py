@@ -12,7 +12,7 @@ import torch.nn.functional as F
 from collections.abc import Sequence
 
 import isaaclab.sim as sim_utils
-from isaaclab.assets import Articulation, RigidObject, RigidObjectCfg
+from isaaclab.assets import Articulation, RigidObject
 from isaaclab.envs import DirectRLEnv
 from isaaclab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_plane
 from isaaclab.utils.math import quat_from_angle_axis, quat_mul, sample_uniform, normalize
@@ -76,8 +76,6 @@ class DextrahKukaAllegroEnv(DirectRLEnv):
         self.object = RigidObject(self.cfg.objects_cfg)
         # add ground plane
         spawn_ground_plane(prim_path="/World/ground", cfg=GroundPlaneCfg())
-        # clone and replicate (no need to filter for this environment)
-        self.scene.clone_environments(copy_from_source=True)
 
         # add articultion to scene - we must register to scene to randomize with EventManager
         self.scene.articulations["robot"] = self.robot
@@ -187,7 +185,7 @@ class DextrahKukaAllegroEnv(DirectRLEnv):
         finger_curl_reg_weight = self.dextrah_adr.get_custom_param_value("reward_weights", "finger_curl_reg")
         lift_weight = self.dextrah_adr.get_custom_param_value("reward_weights", "lift_weight")
 
-        lifted = object_pos[:, 2] > 0.4
+        lifted = object_pos[:, 2] > 0.35
         hand_to_object_rew = torch.exp(-self.cfg.hand_to_object_sharpness * hand_to_object_pos_error)
         object_to_goal_rew = torch.exp(-object_to_goal_std * object_to_goal_pos_error)
         finger_curl_reg = torch.sum(torch.square(joint_pos[:, 7:] - self.curled_q), dim=-1)
