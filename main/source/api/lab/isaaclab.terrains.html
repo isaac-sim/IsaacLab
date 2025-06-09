@@ -657,6 +657,7 @@
 </ul>
 </li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.terrains.TerrainGeneratorCfg"><code class="docutils literal notranslate"><span class="pre">TerrainGeneratorCfg</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.terrains.TerrainGeneratorCfg.class_type"><code class="docutils literal notranslate"><span class="pre">TerrainGeneratorCfg.class_type</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.terrains.TerrainGeneratorCfg.seed"><code class="docutils literal notranslate"><span class="pre">TerrainGeneratorCfg.seed</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.terrains.TerrainGeneratorCfg.curriculum"><code class="docutils literal notranslate"><span class="pre">TerrainGeneratorCfg.curriculum</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.terrains.TerrainGeneratorCfg.size"><code class="docutils literal notranslate"><span class="pre">TerrainGeneratorCfg.size</span></code></a></li>
@@ -1563,7 +1564,7 @@ completely reproducible.</p>
 </div>
 <dl class="py method">
 <dt class="sig sig-object py" id="isaaclab.terrains.TerrainGenerator.__init__">
-<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cfg</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#isaaclab.terrains.TerrainGeneratorCfg" title="isaaclab.terrains.terrain_generator_cfg.TerrainGeneratorCfg"><span class="pre">TerrainGeneratorCfg</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">device</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'cpu'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/isaaclab/terrains/terrain_generator.html#TerrainGenerator.__init__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.terrains.TerrainGenerator.__init__" title="Permalink to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cfg</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#isaaclab.terrains.TerrainGeneratorCfg" title="isaaclab.terrains.TerrainGeneratorCfg"><span class="pre">TerrainGeneratorCfg</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">device</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'cpu'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/isaaclab/terrains/terrain_generator.html#TerrainGenerator.__init__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.terrains.TerrainGenerator.__init__" title="Permalink to this definition">#</a></dt>
 <dd><p>Initialize the terrain generator.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -1594,7 +1595,7 @@ Similarly, the key “target_spawn” maps to a tensor containing the flat patch
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab.terrains.TerrainGenerator.terrain_origins">
-<span class="sig-name descname"><span class="pre">terrain_origins</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="(in NumPy v2.2)"><span class="pre">numpy.ndarray</span></a></em><a class="headerlink" href="#isaaclab.terrains.TerrainGenerator.terrain_origins" title="Permalink to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">terrain_origins</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="(in NumPy v2.3)"><span class="pre">numpy.ndarray</span></a></em><a class="headerlink" href="#isaaclab.terrains.TerrainGenerator.terrain_origins" title="Permalink to this definition">#</a></dt>
 <dd><p>The origin of each sub-terrain. Shape is (num_rows, num_cols, 3).</p>
 </dd></dl>
 
@@ -1610,6 +1611,15 @@ Similarly, the key “target_spawn” maps to a tensor containing the flat patch
 <dt class="sig sig-object py" id="isaaclab.terrains.TerrainGeneratorCfg">
 <em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">isaaclab.terrains.</span></span><span class="sig-name descname"><span class="pre">TerrainGeneratorCfg</span></span><a class="reference internal" href="../../../_modules/isaaclab/terrains/terrain_generator_cfg.html#TerrainGeneratorCfg"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.terrains.TerrainGeneratorCfg" title="Permalink to this definition">#</a></dt>
 <dd><p>Configuration for the terrain generator.</p>
+<p><strong>Classes:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.terrains.TerrainGeneratorCfg.class_type" title="isaaclab.terrains.TerrainGeneratorCfg.class_type"><code class="xref py py-obj docutils literal notranslate"><span class="pre">class_type</span></code></a></p></td>
+<td><p>alias of <a class="reference internal" href="#isaaclab.terrains.TerrainGenerator" title="isaaclab.terrains.terrain_generator.TerrainGenerator"><code class="xref py py-class docutils literal notranslate"><span class="pre">TerrainGenerator</span></code></a></p></td>
+</tr>
+</tbody>
+</table>
+</div>
 <p><strong>Attributes:</strong></p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
 <tbody>
@@ -1661,6 +1671,12 @@ Similarly, the key “target_spawn” maps to a tensor containing the flat patch
 </tbody>
 </table>
 </div>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab.terrains.TerrainGeneratorCfg.class_type">
+<span class="sig-name descname"><span class="pre">class_type</span></span><a class="headerlink" href="#isaaclab.terrains.TerrainGeneratorCfg.class_type" title="Permalink to this definition">#</a></dt>
+<dd><p>alias of <a class="reference internal" href="#isaaclab.terrains.TerrainGenerator" title="isaaclab.terrains.terrain_generator.TerrainGenerator"><code class="xref py py-class docutils literal notranslate"><span class="pre">TerrainGenerator</span></code></a></p>
+</dd></dl>
+
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab.terrains.TerrainGeneratorCfg.seed">
 <span class="sig-name descname"><span class="pre">seed</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><span class="pre">int</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></em><a class="headerlink" href="#isaaclab.terrains.TerrainGeneratorCfg.seed" title="Permalink to this definition">#</a></dt>
@@ -1754,7 +1770,7 @@ they are randomly generated.</p>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab.terrains.TerrainGeneratorCfg.sub_terrains">
-<span class="sig-name descname"><span class="pre">sub_terrains</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.13)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference internal" href="#isaaclab.terrains.SubTerrainBaseCfg" title="isaaclab.terrains.terrain_generator_cfg.SubTerrainBaseCfg"><span class="pre">isaaclab.terrains.terrain_generator_cfg.SubTerrainBaseCfg</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#isaaclab.terrains.TerrainGeneratorCfg.sub_terrains" title="Permalink to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">sub_terrains</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.13)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference internal" href="#isaaclab.terrains.SubTerrainBaseCfg" title="isaaclab.terrains.sub_terrain_cfg.SubTerrainBaseCfg"><span class="pre">isaaclab.terrains.sub_terrain_cfg.SubTerrainBaseCfg</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#isaaclab.terrains.TerrainGeneratorCfg.sub_terrains" title="Permalink to this definition">#</a></dt>
 <dd><p>Dictionary of sub-terrain configurations.</p>
 <p>The keys correspond to the name of the sub-terrain configuration and the values are the corresponding
 configurations.</p>
@@ -1787,7 +1803,7 @@ the terrain is generated and stored in the cache. Caching can be used to speed u
 
 <dl class="py class">
 <dt class="sig sig-object py" id="isaaclab.terrains.SubTerrainBaseCfg">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">isaaclab.terrains.</span></span><span class="sig-name descname"><span class="pre">SubTerrainBaseCfg</span></span><a class="reference internal" href="../../../_modules/isaaclab/terrains/terrain_generator_cfg.html#SubTerrainBaseCfg"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.terrains.SubTerrainBaseCfg" title="Permalink to this definition">#</a></dt>
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">isaaclab.terrains.</span></span><span class="sig-name descname"><span class="pre">SubTerrainBaseCfg</span></span><a class="reference internal" href="../../../_modules/isaaclab/terrains/sub_terrain_cfg.html#SubTerrainBaseCfg"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.terrains.SubTerrainBaseCfg" title="Permalink to this definition">#</a></dt>
 <dd><p>Base class for terrain configurations.</p>
 <p>All the sub-terrain configurations must inherit from this class.</p>
 <p>The <a class="reference internal" href="#isaaclab.terrains.SubTerrainBaseCfg.size" title="isaaclab.terrains.SubTerrainBaseCfg.size"><code class="xref py py-attr docutils literal notranslate"><span class="pre">size</span></code></a> attribute is the size of the generated sub-terrain. Based on this, the terrain must
@@ -1812,7 +1828,7 @@ extend from <span class="math notranslate nohighlight">\((0, 0)\)</span> to <spa
 </div>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab.terrains.SubTerrainBaseCfg.function">
-<span class="sig-name descname"><span class="pre">function</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Callable" title="(in Python v3.13)"><span class="pre">Callable</span></a><span class="p"><span class="pre">[</span></span><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference internal" href="#isaaclab.terrains.SubTerrainBaseCfg" title="isaaclab.terrains.terrain_generator_cfg.SubTerrainBaseCfg"><span class="pre">SubTerrainBaseCfg</span></a><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.13)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><span class="pre">trimesh.Trimesh</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="(in NumPy v2.2)"><span class="pre">numpy.ndarray</span></a><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#isaaclab.terrains.SubTerrainBaseCfg.function" title="Permalink to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">function</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Callable" title="(in Python v3.13)"><span class="pre">Callable</span></a><span class="p"><span class="pre">[</span></span><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference internal" href="#isaaclab.terrains.SubTerrainBaseCfg" title="isaaclab.terrains.sub_terrain_cfg.SubTerrainBaseCfg"><span class="pre">SubTerrainBaseCfg</span></a><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.13)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><span class="pre">trimesh.Trimesh</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="(in NumPy v2.3)"><span class="pre">numpy.ndarray</span></a><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#isaaclab.terrains.SubTerrainBaseCfg.function" title="Permalink to this definition">#</a></dt>
 <dd><p>Function to generate the terrain.</p>
 <p>This function must take as input the terrain difficulty and the configuration parameters and
 return a tuple with a list of <code class="docutils literal notranslate"><span class="pre">trimesh</span></code> mesh objects and the terrain origin.</p>
@@ -1838,7 +1854,7 @@ is 0.7.</p>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab.terrains.SubTerrainBaseCfg.flat_patch_sampling">
-<span class="sig-name descname"><span class="pre">flat_patch_sampling</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.13)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">isaaclab.terrains.terrain_generator_cfg.FlatPatchSamplingCfg</span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></em><a class="headerlink" href="#isaaclab.terrains.SubTerrainBaseCfg.flat_patch_sampling" title="Permalink to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">flat_patch_sampling</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.13)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">isaaclab.terrains.sub_terrain_cfg.FlatPatchSamplingCfg</span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></em><a class="headerlink" href="#isaaclab.terrains.SubTerrainBaseCfg.flat_patch_sampling" title="Permalink to this definition">#</a></dt>
 <dd><p>Dictionary of configurations for sampling flat patches on the sub-terrain. Defaults to None,
 in which case no flat patch sampling is performed.</p>
 <p>The keys correspond to the name of the flat patch sampling configuration and the values are the
@@ -1871,7 +1887,7 @@ parameters for all terrains generated from height fields.</p>
 <dl class="py class">
 <dt class="sig sig-object py" id="isaaclab.terrains.height_field.hf_terrains_cfg.HfTerrainBaseCfg">
 <em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">isaaclab.terrains.height_field.hf_terrains_cfg.</span></span><span class="sig-name descname"><span class="pre">HfTerrainBaseCfg</span></span><a class="reference internal" href="../../../_modules/isaaclab/terrains/height_field/hf_terrains_cfg.html#HfTerrainBaseCfg"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.terrains.height_field.hf_terrains_cfg.HfTerrainBaseCfg" title="Permalink to this definition">#</a></dt>
-<dd><p>Bases: <a class="reference internal" href="#isaaclab.terrains.SubTerrainBaseCfg" title="isaaclab.terrains.terrain_generator_cfg.SubTerrainBaseCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">SubTerrainBaseCfg</span></code></a></p>
+<dd><p>Bases: <a class="reference internal" href="#isaaclab.terrains.SubTerrainBaseCfg" title="isaaclab.terrains.sub_terrain_cfg.SubTerrainBaseCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">SubTerrainBaseCfg</span></code></a></p>
 <p>The base configuration for height field terrains.</p>
 <p><strong>Attributes:</strong></p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
@@ -3145,7 +3161,7 @@ efficient than the height-field representation, but it is not as flexible.</p>
 <dl class="py class">
 <dt class="sig sig-object py" id="isaaclab.terrains.trimesh.mesh_terrains_cfg.MeshPlaneTerrainCfg">
 <em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">isaaclab.terrains.trimesh.mesh_terrains_cfg.</span></span><span class="sig-name descname"><span class="pre">MeshPlaneTerrainCfg</span></span><a class="reference internal" href="../../../_modules/isaaclab/terrains/trimesh/mesh_terrains_cfg.html#MeshPlaneTerrainCfg"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.terrains.trimesh.mesh_terrains_cfg.MeshPlaneTerrainCfg" title="Permalink to this definition">#</a></dt>
-<dd><p>Bases: <a class="reference internal" href="#isaaclab.terrains.SubTerrainBaseCfg" title="isaaclab.terrains.terrain_generator_cfg.SubTerrainBaseCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">SubTerrainBaseCfg</span></code></a></p>
+<dd><p>Bases: <a class="reference internal" href="#isaaclab.terrains.SubTerrainBaseCfg" title="isaaclab.terrains.sub_terrain_cfg.SubTerrainBaseCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">SubTerrainBaseCfg</span></code></a></p>
 <p>Configuration for a plane mesh terrain.</p>
 <p><strong>Attributes:</strong></p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
@@ -3220,7 +3236,7 @@ no border will be added.</p>
 <dl class="py class">
 <dt class="sig sig-object py" id="isaaclab.terrains.trimesh.mesh_terrains_cfg.MeshPyramidStairsTerrainCfg">
 <em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">isaaclab.terrains.trimesh.mesh_terrains_cfg.</span></span><span class="sig-name descname"><span class="pre">MeshPyramidStairsTerrainCfg</span></span><a class="reference internal" href="../../../_modules/isaaclab/terrains/trimesh/mesh_terrains_cfg.html#MeshPyramidStairsTerrainCfg"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.terrains.trimesh.mesh_terrains_cfg.MeshPyramidStairsTerrainCfg" title="Permalink to this definition">#</a></dt>
-<dd><p>Bases: <a class="reference internal" href="#isaaclab.terrains.SubTerrainBaseCfg" title="isaaclab.terrains.terrain_generator_cfg.SubTerrainBaseCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">SubTerrainBaseCfg</span></code></a></p>
+<dd><p>Bases: <a class="reference internal" href="#isaaclab.terrains.SubTerrainBaseCfg" title="isaaclab.terrains.sub_terrain_cfg.SubTerrainBaseCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">SubTerrainBaseCfg</span></code></a></p>
 <p>Configuration for a pyramid stair mesh terrain.</p>
 <p><strong>Attributes:</strong></p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
@@ -3480,7 +3496,7 @@ from the platform (like a plus sign). The remaining area remains empty and no bo
 <dl class="py class">
 <dt class="sig sig-object py" id="isaaclab.terrains.trimesh.mesh_terrains_cfg.MeshRandomGridTerrainCfg">
 <em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">isaaclab.terrains.trimesh.mesh_terrains_cfg.</span></span><span class="sig-name descname"><span class="pre">MeshRandomGridTerrainCfg</span></span><a class="reference internal" href="../../../_modules/isaaclab/terrains/trimesh/mesh_terrains_cfg.html#MeshRandomGridTerrainCfg"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.terrains.trimesh.mesh_terrains_cfg.MeshRandomGridTerrainCfg" title="Permalink to this definition">#</a></dt>
-<dd><p>Bases: <a class="reference internal" href="#isaaclab.terrains.SubTerrainBaseCfg" title="isaaclab.terrains.terrain_generator_cfg.SubTerrainBaseCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">SubTerrainBaseCfg</span></code></a></p>
+<dd><p>Bases: <a class="reference internal" href="#isaaclab.terrains.SubTerrainBaseCfg" title="isaaclab.terrains.sub_terrain_cfg.SubTerrainBaseCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">SubTerrainBaseCfg</span></code></a></p>
 <p>Configuration for a random grid mesh terrain.</p>
 <p><strong>Attributes:</strong></p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
@@ -3591,7 +3607,7 @@ and the terrain border. Each set of rails is extruded to the same height.</p>
 <dl class="py class">
 <dt class="sig sig-object py" id="isaaclab.terrains.trimesh.mesh_terrains_cfg.MeshRailsTerrainCfg">
 <em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">isaaclab.terrains.trimesh.mesh_terrains_cfg.</span></span><span class="sig-name descname"><span class="pre">MeshRailsTerrainCfg</span></span><a class="reference internal" href="../../../_modules/isaaclab/terrains/trimesh/mesh_terrains_cfg.html#MeshRailsTerrainCfg"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.terrains.trimesh.mesh_terrains_cfg.MeshRailsTerrainCfg" title="Permalink to this definition">#</a></dt>
-<dd><p>Bases: <a class="reference internal" href="#isaaclab.terrains.SubTerrainBaseCfg" title="isaaclab.terrains.terrain_generator_cfg.SubTerrainBaseCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">SubTerrainBaseCfg</span></code></a></p>
+<dd><p>Bases: <a class="reference internal" href="#isaaclab.terrains.SubTerrainBaseCfg" title="isaaclab.terrains.sub_terrain_cfg.SubTerrainBaseCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">SubTerrainBaseCfg</span></code></a></p>
 <p>Configuration for a terrain with box rails as extrusions.</p>
 <p><strong>Attributes:</strong></p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
@@ -3693,7 +3709,7 @@ contains two levels.</p>
 <dl class="py class">
 <dt class="sig sig-object py" id="isaaclab.terrains.trimesh.mesh_terrains_cfg.MeshPitTerrainCfg">
 <em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">isaaclab.terrains.trimesh.mesh_terrains_cfg.</span></span><span class="sig-name descname"><span class="pre">MeshPitTerrainCfg</span></span><a class="reference internal" href="../../../_modules/isaaclab/terrains/trimesh/mesh_terrains_cfg.html#MeshPitTerrainCfg"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.terrains.trimesh.mesh_terrains_cfg.MeshPitTerrainCfg" title="Permalink to this definition">#</a></dt>
-<dd><p>Bases: <a class="reference internal" href="#isaaclab.terrains.SubTerrainBaseCfg" title="isaaclab.terrains.terrain_generator_cfg.SubTerrainBaseCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">SubTerrainBaseCfg</span></code></a></p>
+<dd><p>Bases: <a class="reference internal" href="#isaaclab.terrains.SubTerrainBaseCfg" title="isaaclab.terrains.sub_terrain_cfg.SubTerrainBaseCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">SubTerrainBaseCfg</span></code></a></p>
 <p>Configuration for a terrain with a pit that leads out of the pit.</p>
 <p><strong>Attributes:</strong></p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
@@ -3794,7 +3810,7 @@ then two boxes of height <code class="xref py py-obj docutils literal notranslat
 <dl class="py class">
 <dt class="sig sig-object py" id="isaaclab.terrains.trimesh.mesh_terrains_cfg.MeshBoxTerrainCfg">
 <em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">isaaclab.terrains.trimesh.mesh_terrains_cfg.</span></span><span class="sig-name descname"><span class="pre">MeshBoxTerrainCfg</span></span><a class="reference internal" href="../../../_modules/isaaclab/terrains/trimesh/mesh_terrains_cfg.html#MeshBoxTerrainCfg"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.terrains.trimesh.mesh_terrains_cfg.MeshBoxTerrainCfg" title="Permalink to this definition">#</a></dt>
-<dd><p>Bases: <a class="reference internal" href="#isaaclab.terrains.SubTerrainBaseCfg" title="isaaclab.terrains.terrain_generator_cfg.SubTerrainBaseCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">SubTerrainBaseCfg</span></code></a></p>
+<dd><p>Bases: <a class="reference internal" href="#isaaclab.terrains.SubTerrainBaseCfg" title="isaaclab.terrains.sub_terrain_cfg.SubTerrainBaseCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">SubTerrainBaseCfg</span></code></a></p>
 <p>Configuration for a terrain with boxes (similar to a pyramid).</p>
 <p><strong>Attributes:</strong></p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
@@ -3893,7 +3909,7 @@ of width <code class="xref py py-obj docutils literal notranslate"><span class="
 <dl class="py class">
 <dt class="sig sig-object py" id="isaaclab.terrains.trimesh.mesh_terrains_cfg.MeshGapTerrainCfg">
 <em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">isaaclab.terrains.trimesh.mesh_terrains_cfg.</span></span><span class="sig-name descname"><span class="pre">MeshGapTerrainCfg</span></span><a class="reference internal" href="../../../_modules/isaaclab/terrains/trimesh/mesh_terrains_cfg.html#MeshGapTerrainCfg"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.terrains.trimesh.mesh_terrains_cfg.MeshGapTerrainCfg" title="Permalink to this definition">#</a></dt>
-<dd><p>Bases: <a class="reference internal" href="#isaaclab.terrains.SubTerrainBaseCfg" title="isaaclab.terrains.terrain_generator_cfg.SubTerrainBaseCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">SubTerrainBaseCfg</span></code></a></p>
+<dd><p>Bases: <a class="reference internal" href="#isaaclab.terrains.SubTerrainBaseCfg" title="isaaclab.terrains.sub_terrain_cfg.SubTerrainBaseCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">SubTerrainBaseCfg</span></code></a></p>
 <p>Configuration for a terrain with a gap around the platform.</p>
 <p><strong>Attributes:</strong></p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
@@ -3985,7 +4001,7 @@ is <code class="xref py py-obj docutils literal notranslate"><span class="pre">r
 <dl class="py class">
 <dt class="sig sig-object py" id="isaaclab.terrains.trimesh.mesh_terrains_cfg.MeshFloatingRingTerrainCfg">
 <em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">isaaclab.terrains.trimesh.mesh_terrains_cfg.</span></span><span class="sig-name descname"><span class="pre">MeshFloatingRingTerrainCfg</span></span><a class="reference internal" href="../../../_modules/isaaclab/terrains/trimesh/mesh_terrains_cfg.html#MeshFloatingRingTerrainCfg"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.terrains.trimesh.mesh_terrains_cfg.MeshFloatingRingTerrainCfg" title="Permalink to this definition">#</a></dt>
-<dd><p>Bases: <a class="reference internal" href="#isaaclab.terrains.SubTerrainBaseCfg" title="isaaclab.terrains.terrain_generator_cfg.SubTerrainBaseCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">SubTerrainBaseCfg</span></code></a></p>
+<dd><p>Bases: <a class="reference internal" href="#isaaclab.terrains.SubTerrainBaseCfg" title="isaaclab.terrains.sub_terrain_cfg.SubTerrainBaseCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">SubTerrainBaseCfg</span></code></a></p>
 <p>Configuration for a terrain with a floating ring around the center.</p>
 <p><strong>Attributes:</strong></p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
@@ -4097,7 +4113,7 @@ spaced around the cylinder and connect to the peripheral of the terrain.</p>
 <dl class="py class">
 <dt class="sig sig-object py" id="isaaclab.terrains.trimesh.mesh_terrains_cfg.MeshStarTerrainCfg">
 <em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">isaaclab.terrains.trimesh.mesh_terrains_cfg.</span></span><span class="sig-name descname"><span class="pre">MeshStarTerrainCfg</span></span><a class="reference internal" href="../../../_modules/isaaclab/terrains/trimesh/mesh_terrains_cfg.html#MeshStarTerrainCfg"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.terrains.trimesh.mesh_terrains_cfg.MeshStarTerrainCfg" title="Permalink to this definition">#</a></dt>
-<dd><p>Bases: <a class="reference internal" href="#isaaclab.terrains.SubTerrainBaseCfg" title="isaaclab.terrains.terrain_generator_cfg.SubTerrainBaseCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">SubTerrainBaseCfg</span></code></a></p>
+<dd><p>Bases: <a class="reference internal" href="#isaaclab.terrains.SubTerrainBaseCfg" title="isaaclab.terrains.sub_terrain_cfg.SubTerrainBaseCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">SubTerrainBaseCfg</span></code></a></p>
 <p>Configuration for a terrain with a star pattern.</p>
 <p><strong>Attributes:</strong></p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
@@ -4214,7 +4230,7 @@ is used to linearly interpolate between the minimum and maximum values of the pa
 <dl class="py class">
 <dt class="sig sig-object py" id="isaaclab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedObjectsTerrainCfg">
 <em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">isaaclab.terrains.trimesh.mesh_terrains_cfg.</span></span><span class="sig-name descname"><span class="pre">MeshRepeatedObjectsTerrainCfg</span></span><a class="reference internal" href="../../../_modules/isaaclab/terrains/trimesh/mesh_terrains_cfg.html#MeshRepeatedObjectsTerrainCfg"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedObjectsTerrainCfg" title="Permalink to this definition">#</a></dt>
-<dd><p>Bases: <a class="reference internal" href="#isaaclab.terrains.SubTerrainBaseCfg" title="isaaclab.terrains.terrain_generator_cfg.SubTerrainBaseCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">SubTerrainBaseCfg</span></code></a></p>
+<dd><p>Bases: <a class="reference internal" href="#isaaclab.terrains.SubTerrainBaseCfg" title="isaaclab.terrains.sub_terrain_cfg.SubTerrainBaseCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">SubTerrainBaseCfg</span></code></a></p>
 <p>Base configuration for a terrain with repeated objects.</p>
 <p><strong>Classes:</strong></p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
@@ -5048,6 +5064,7 @@ the patch is rejected.</p></li>
 </ul>
 </li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.terrains.TerrainGeneratorCfg"><code class="docutils literal notranslate"><span class="pre">TerrainGeneratorCfg</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.terrains.TerrainGeneratorCfg.class_type"><code class="docutils literal notranslate"><span class="pre">TerrainGeneratorCfg.class_type</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.terrains.TerrainGeneratorCfg.seed"><code class="docutils literal notranslate"><span class="pre">TerrainGeneratorCfg.seed</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.terrains.TerrainGeneratorCfg.curriculum"><code class="docutils literal notranslate"><span class="pre">TerrainGeneratorCfg.curriculum</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.terrains.TerrainGeneratorCfg.size"><code class="docutils literal notranslate"><span class="pre">TerrainGeneratorCfg.size</span></code></a></li>

@@ -557,10 +557,13 @@
 <span class="c1">#</span>
 <span class="c1"># SPDX-License-Identifier: BSD-3-Clause</span>
 
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
 <span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">trimesh</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TYPE_CHECKING</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">omni.log</span>
 
@@ -569,10 +572,12 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils.timer</span><span class="w"> </span><span class="kn">import</span> <span class="n">Timer</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils.warp</span><span class="w"> </span><span class="kn">import</span> <span class="n">convert_to_warp_mesh</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">.height_field</span><span class="w"> </span><span class="kn">import</span> <span class="n">HfTerrainBaseCfg</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">.terrain_generator_cfg</span><span class="w"> </span><span class="kn">import</span> <span class="n">FlatPatchSamplingCfg</span><span class="p">,</span> <span class="n">SubTerrainBaseCfg</span><span class="p">,</span> <span class="n">TerrainGeneratorCfg</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">.trimesh.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">make_border</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">color_meshes_by_height</span><span class="p">,</span> <span class="n">find_flat_patches</span>
+
+<span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">.sub_terrain_cfg</span><span class="w"> </span><span class="kn">import</span> <span class="n">FlatPatchSamplingCfg</span><span class="p">,</span> <span class="n">SubTerrainBaseCfg</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">.terrain_generator_cfg</span><span class="w"> </span><span class="kn">import</span> <span class="n">TerrainGeneratorCfg</span>
 
 
 <div class="viewcode-block" id="TerrainGenerator"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.terrains.html#isaaclab.terrains.TerrainGenerator">[docs]</a><span class="k">class</span><span class="w"> </span><span class="nc">TerrainGenerator</span><span class="p">:</span>
@@ -662,6 +667,8 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">device</span> <span class="o">=</span> <span class="n">device</span>
 
         <span class="c1"># set common values to all sub-terrains config</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">.height_field</span><span class="w"> </span><span class="kn">import</span> <span class="n">HfTerrainBaseCfg</span>  <span class="c1"># prevent circular import</span>
+
         <span class="k">for</span> <span class="n">sub_cfg</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">sub_terrains</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
             <span class="c1"># size of all terrains</span>
             <span class="n">sub_cfg</span><span class="o">.</span><span class="n">size</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">size</span>
