@@ -17,7 +17,7 @@ Resources with Available/Open-Source Code
 Explore these external resources featuring practical implementations with available/open-source code:
 
 - **Deploying Policies in Isaac Sim**:
-    Step-by-step guide to deploying ONNX-exported RL
+    Step-by-step guide to deploying exported RL
     policies trained in Isaac Lab, covering demos for
     Unitree H1 and Boston Dynamics Spot and sim-to-real
     considerations -
