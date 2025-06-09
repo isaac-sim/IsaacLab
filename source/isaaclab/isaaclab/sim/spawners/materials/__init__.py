@@ -3,11 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
-# All rights reserved.
-#
-# SPDX-License-Identifier: BSD-3-Clause
-
 """Sub-module for spawners that spawn USD-based and PhysX-based materials.
 
 `Materials`_ are used to define the appearance and physical properties of objects in the simulation.

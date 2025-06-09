@@ -3,11 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
-# All rights reserved.
-#
-# SPDX-License-Identifier: BSD-3-Clause
-
 """A class to coordinate groups of visual markers (such as spheres, frames or arrows)
 using `UsdGeom.PointInstancer`_ class.
 

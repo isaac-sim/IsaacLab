@@ -1,9 +1,5 @@
 #!/usr/bin/env bash
 
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
-# All rights reserved.
-#
-# SPDX-License-Identifier: BSD-3-Clause
 
 # print warning of deprecated script in yellow
 echo -e "\e[33m------------------------------------------------------------"

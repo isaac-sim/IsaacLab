@@ -3,11 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
-# All rights reserved.
-#
-# SPDX-License-Identifier: BSD-3-Clause
-
 """Wrapping around warp kernels for compatibility with torch tensors."""
 
 # needed to import for allowing type-hinting: torch.Tensor | None
