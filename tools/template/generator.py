@@ -338,6 +338,8 @@ def _external(specification: dict) -> None:
                 """# Copyright (c) 2022-2025, The Isaac Lab Project Developers.\n# All rights reserved.\n#\n# SPDX-License-Identifier: BSD-3-Clause\n\nfrom .cartpole import *\nfrom .cart_double_pendulum import *\n"""
             )
 
+        simulation_app.close()
+
         # replace import in task config
         task_dir = os.path.join(project_dir, "source", name, name, "tasks")
         for subpath in [
