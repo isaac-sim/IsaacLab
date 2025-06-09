@@ -16,6 +16,6 @@ Resources with Available/Open-Source Code
 
 Explore these external resources featuring practical implementations with available/open-source code:
 
-- **Spot Quadruped Locomotion**: [Closing the Sim-to-Real Gap with Spot Quadruped](https://developer.nvidia.com/blog/closing-the-sim-to-real-gap-training-spot-quadruped-locomotion-with-nvidia-isaac-lab/)
-- **Kinova Gen3 Sim2Real Pipeline**: [GitHub repository](https://github.com/louislelay/kinova_isaaclab_sim2real)
-- **WheeledLab for Mobile Robots**: [UW Robot Learning](https://uwrobotlearning.github.io/WheeledLab/)
+- **Spot Quadruped Locomotion**: `Closing the Sim-to-Real Gap with Spot Quadruped <https://developer.nvidia.com/blog/closing-the-sim-to-real-gap-training-spot-quadruped-locomotion-with-nvidia-isaac-lab/>`_
+- **Kinova Gen3 Sim2Real Pipeline**: `GitHub repository <https://github.com/louislelay/kinova_isaaclab_sim2real>`_
+- **WheeledLab for Mobile Robots**: `UW Robot Learning <https://uwrobotlearning.github.io/WheeledLab/>`_
