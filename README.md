@@ -14,6 +14,15 @@
 [![License](https://img.shields.io/badge/license-Apache--2.0-yellow.svg)](https://opensource.org/license/apache-2-0)
 
 
+This branch of Isaac Lab is a development branch compatible with the latest
+[Isaac Sim repository](https://github.com/isaac-sim/IsaacSim). Please note that some updates and changes are still being worked
+on until the official Isaac Lab 2.2 release. Currently, this branch requires the latest updates in the Isaac Sim open source repo.
+We are continuously working on enabling backwards compatibility with Isaac Sim 4.5, which is currently not possible with this branch.
+A quick list of updates and changes in this branch can be found in the [Release Notes](https://github.com/isaac-sim/IsaacLab/blob/feature/isaacsim_5_0/docs/source/refs/release_notes.rst).
+To run Isaac Lab with the Open Source Isaac Sim, please refer to
+[Getting Started with Open-Source Isaac Sim](#getting-started-with-open-source-isaac-sim).
+
+
 **Isaac Lab** is a GPU-accelerated, open-source framework designed to unify and simplify robotics research workflows, such as reinforcement learning, imitation learning, and motion planning. Built on [NVIDIA Isaac Sim](https://docs.isaacsim.omniverse.nvidia.com/latest/index.html), it combines fast and accurate physics and sensor simulation, making it an ideal choice for sim-to-real transfer in robotics.
 
 Isaac Lab provides developers with a range of essential features for accurate sensor simulation, such as RTX-based cameras, LIDAR, or contact sensors. The framework's GPU acceleration enables users to run complex simulations and computations faster, which is key for iterative processes like reinforcement learning and data-intensive tasks. Moreover, Isaac Lab can run locally or be distributed across the cloud, offering flexibility for large-scale deployments.
@@ -29,6 +38,83 @@ Isaac Lab offers a comprehensive set of tools and environments designed to facil
 
 
 ## Getting Started
+
+### Getting Started with Open-Source Isaac Sim
+
+Isaac Sim is now open source and available on GitHub! To run Isaac Lab with the open source Isaac Sim repo,
+ensure you are using the `feature/isaacsim_5_0` branch.
+
+For detailed Isaac Sim installation instructions, please refer to
+[Isaac Sim README](https://github.com/isaac-sim/IsaacSim?tab=readme-ov-file#quick-start).
+
+1. Clone Isaac Sim
+
+    ```
+    git clone https://github.com/isaac-sim/IsaacSim.git
+    ```
+
+2. Build Isaac Sim
+
+    ```
+    cd isaacsim
+    ./build.sh
+    ```
+
+    On Windows, please use `build.bat` instead.
+
+3. Clone Isaac Lab
+
+    ```
+    cd ..
+    git clone -b feature/isaacsim_5_0 https://github.com/isaac-sim/IsaacLab.git
+    cd isaaclab
+    ```
+
+4. Set up symlink in Isaac Lab
+
+    Linux:
+
+    ```
+    ln -s isaacsim/_build/linux-x86_64/release _isaac_sim
+    ```
+
+    Windows:
+
+    ```
+    mklink /D _isaac_sim isaacsim\_build\windows-x86_64\release
+    ```
+
+5. Install Isaac Lab
+
+    Linux:
+
+    ```
+    ./isaaclab.sh -i
+    ```
+
+    Windows:
+
+    ```
+    isaaclab.bat -i
+    ```
+
+6. Train!
+
+    Linux:
+
+    ```
+    ./isaaclab.sh -p scripts/reinforcement_learning/skrl/train.py --task Isaac-Ant-v0 --headless
+    ```
+
+    Windows:
+
+    ```
+    isaaclab.bat -p scripts\reinforcement_learning\skrl\train.py --task Isaac-Ant-v0 --headless
+    ```
+
+### Documentation
+
+Note that the current public documentations may not include all features of the latest feature/isaacsim_5_0 branch.
 
 Our [documentation page](https://isaac-sim.github.io/IsaacLab) provides everything you need to get started, including detailed tutorials and step-by-step guides. Follow these links to learn more about:
 
