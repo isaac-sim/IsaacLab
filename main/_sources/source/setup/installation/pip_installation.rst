@@ -219,7 +219,7 @@ Clone the Isaac Lab repository into your workspace:
                -f, --format         Run pre-commit to format the code and check lints.
                -p, --python         Run the python executable provided by Isaac Sim or virtual environment (if active).
                -s, --sim            Run the simulator executable (isaac-sim.sh) provided by Isaac Sim.
-               -t, --test           Run all python unittest tests.
+               -t, --test           Run all python pytest tests.
                -o, --docker         Run the docker container helper script (docker/container.sh).
                -v, --vscode         Generate the VSCode settings file from template.
                -d, --docs           Build the documentation from source using sphinx.
@@ -241,7 +241,7 @@ Clone the Isaac Lab repository into your workspace:
                -f, --format         Run pre-commit to format the code and check lints.
                -p, --python         Run the python executable provided by Isaac Sim or virtual environment (if active).
                -s, --sim            Run the simulator executable (isaac-sim.bat) provided by Isaac Sim.
-               -t, --test           Run all python unittest tests.
+               -t, --test           Run all python pytest tests.
                -v, --vscode         Generate the VSCode settings file from template.
                -d, --docs           Build the documentation from source using sphinx.
                -n, --new            Create a new external project or internal task from template.
