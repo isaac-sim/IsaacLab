@@ -226,7 +226,7 @@ class DextrahKukaAllegroEnvCfg(DirectRLEnvCfg):
 
     # reward weights
     hand_to_object_weight = 1.
-    hand_to_object_sharpness = 10.
+    hand_to_object_sharpness = 5.
     object_to_goal_weight = 5.
     lift_sharpness = 8.5
 
