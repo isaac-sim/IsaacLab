@@ -91,7 +91,7 @@ achieve the desired behavior. While this provides more flexibility, it can also 
 instabilities. One way to mitigate this is to use the `armature` parameter of the actuator model, either in
 the USD file or in the articulation config. This parameter is used to dampen the joint response and helps
 improve the numerical stability of the simulation. More details on how to improve articulation stability
-can be found in the `OmniPhysics documentation <https://docs.omniverse.nvidia.com/kit/docs/omni_physics/latest/dev_guide/guides/articulation_stability_guide.html>_.`
+can be found in the `OmniPhysics documentation <https://docs.omniverse.nvidia.com/kit/docs/omni_physics/latest/dev_guide/guides/articulation_stability_guide.html>`_.
 
 What does this mean for the user? It means that policies trained with implicit actuators may not transfer
 to the exact same robot model when using explicit actuators. If you are running into issues like this, or
