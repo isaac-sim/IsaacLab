@@ -56,10 +56,16 @@ def main():
     env.reset()
 
     out = env.unwrapped.get_IO_descriptors
-    for o in out:
-        print(f"--- Obs term: {o.name} ---")
-        for k, v in o.__dict__.items():
-            print(f"{k}: {v}")
+    # Make a yaml file with the output
+    import yaml
+    with open("obs_descriptors.yaml", "w") as f:
+        yaml.safe_dump(out, f)
+
+    for k, v in out.items():
+        print(f"--- Obs term: {k} ---")
+        for k1, v1 in v.items():
+            print(f"{k1}: {v1}")
+    exit(0)
     # simulate environment
     while simulation_app.is_running():
         # run everything in inference mode
