@@ -1,3 +1,8 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 # Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
@@ -807,7 +812,7 @@ def test_body_root_state_properties(num_cubes, device, with_offset):
             else:
                 # cubes are spinning around center of mass
                 # position will not match
-                # center of mass position will be constant (i.e. spining around com)
+                # center of mass position will be constant (i.e. spinning around com)
                 torch.testing.assert_close(env_pos + offset, root_com_state_w[..., :3])
                 torch.testing.assert_close(env_pos + offset, body_com_state_w[..., :3].squeeze(-2))
                 # link position will be moving but should stay constant away from center of mass
@@ -823,7 +828,7 @@ def test_body_root_state_properties(num_cubes, device, with_offset):
                 torch.testing.assert_close(-offset, body_link_state_pos_rel_com.squeeze(-2))
 
                 # orientation of com will be a constant rotation from link orientation
-                com_quat_b = cube_object.data.com_quat_b
+                com_quat_b = cube_object.data.body_com_quat_b
                 com_quat_w = quat_mul(body_link_state_w[..., 3:7], com_quat_b)
                 torch.testing.assert_close(com_quat_w, body_com_state_w[..., 3:7])
                 torch.testing.assert_close(com_quat_w.squeeze(-2), root_com_state_w[..., 3:7])
@@ -833,7 +838,7 @@ def test_body_root_state_properties(num_cubes, device, with_offset):
                 torch.testing.assert_close(body_state_w[..., 3:7], body_link_state_w[..., 3:7])
 
                 # lin_vel will not match
-                # center of mass vel will be constant (i.e. spining around com)
+                # center of mass vel will be constant (i.e. spinning around com)
                 torch.testing.assert_close(torch.zeros_like(root_com_state_w[..., 7:10]), root_com_state_w[..., 7:10])
                 torch.testing.assert_close(torch.zeros_like(body_com_state_w[..., 7:10]), body_com_state_w[..., 7:10])
                 # link frame will be moving, and should be equal to input angular velocity cross offset
@@ -878,7 +883,7 @@ def test_write_root_state(num_cubes, device, with_offset, state_location):
         com[..., :3] = offset.to("cpu")
         cube_object.root_physx_view.set_coms(com, env_idx)
 
-        # check ceter of mass has been set
+        # check center of mass has been set
         torch.testing.assert_close(cube_object.root_physx_view.get_coms(), com)
 
         rand_state = torch.zeros_like(cube_object.data.root_state_w)

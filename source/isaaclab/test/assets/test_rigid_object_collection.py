@@ -1,3 +1,8 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 # Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
@@ -397,7 +402,7 @@ def test_object_state_properties(sim, num_envs, num_cubes, device, with_offset, 
 
     for i in range(10):
         # spin the object around Z axis (com)
-        cube_object.write_object_com_velocity_to_sim(spin_twist.repeat(num_envs, num_cubes, 1))
+        cube_object.write_object_velocity_to_sim(spin_twist.repeat(num_envs, num_cubes, 1))
         sim.step()
         cube_object.update(sim.cfg.dt)
 
@@ -425,7 +430,7 @@ def test_object_state_properties(sim, num_envs, num_cubes, device, with_offset, 
             torch.testing.assert_close(-offset, object_link_state_pos_rel_com)
 
             # orientation of com will be a constant rotation from link orientation
-            com_quat_b = cube_object.data.com_quat_b
+            com_quat_b = cube_object.data.object_com_quat_b
             com_quat_w = quat_mul(object_link_state_w[..., 3:7], com_quat_b)
             torch.testing.assert_close(com_quat_w, object_com_state_w[..., 3:7])
 

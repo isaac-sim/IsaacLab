@@ -1,3 +1,8 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 # Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
@@ -10,7 +15,7 @@ import isaaclab.terrains.trimesh.mesh_terrains as mesh_terrains
 import isaaclab.terrains.trimesh.utils as mesh_utils_terrains
 from isaaclab.utils import configclass
 
-from ..terrain_generator_cfg import SubTerrainBaseCfg
+from ..sub_terrain_cfg import SubTerrainBaseCfg
 
 """
 Different trimesh terrain configurations.

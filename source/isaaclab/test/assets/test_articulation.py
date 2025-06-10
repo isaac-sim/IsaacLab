@@ -1,3 +1,8 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 # Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
@@ -1402,7 +1407,7 @@ def test_body_root_state(sim, num_articulations, device, with_offset):
             torch.testing.assert_close(pos_gt, body_com_state_w[..., :3], atol=1e-3, rtol=1e-1)
 
             # orientation
-            com_quat_b = articulation.data.com_quat_b
+            com_quat_b = articulation.data.body_com_quat_b
             com_quat_w = math_utils.quat_mul(body_link_state_w[..., 3:7], com_quat_b)
             torch.testing.assert_close(com_quat_w, body_com_state_w[..., 3:7])
             torch.testing.assert_close(com_quat_w[:, 0, :], root_com_state_w[..., 3:7])
