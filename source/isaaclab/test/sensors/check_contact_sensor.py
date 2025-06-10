@@ -63,9 +63,8 @@ def design_scene():
     cfg = sim_utils.GroundPlaneCfg()
     cfg.func("/World/defaultGroundPlane", cfg)
     # Lights
-    cfg = sim_utils.SphereLightCfg()
-    cfg.func("/World/Light/GreySphere", cfg, translation=(4.5, 3.5, 10.0))
-    cfg.func("/World/Light/WhiteSphere", cfg, translation=(-4.5, 3.5, 10.0))
+    cfg = sim_utils.DomeLightCfg(intensity=2000)
+    cfg.func("/World/Light/DomeLight", cfg, translation=(-4.5, 3.5, 10.0))
 
 
 """
@@ -103,7 +102,11 @@ def main():
     robot = Articulation(cfg=robot_cfg)
     # Contact sensor
     contact_sensor_cfg = ContactSensorCfg(
-        prim_path="/World/envs/env_.*/Robot/.*_SHANK", track_air_time=True, debug_vis=not args_cli.headless
+        prim_path="/World/envs/env_.*/Robot/.*_FOOT",
+        track_air_time=True,
+        track_contact_points=True,
+        debug_vis=not args_cli.headless,
+        filter_prim_paths_expr=["/World/defaultGroundPlane/GroundPlane/CollisionPlane"],
     )
     contact_sensor = ContactSensor(cfg=contact_sensor_cfg)
     # filter collisions within each environment instance

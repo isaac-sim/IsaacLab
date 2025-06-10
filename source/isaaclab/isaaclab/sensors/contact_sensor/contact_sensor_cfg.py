@@ -20,6 +20,9 @@ class ContactSensorCfg(SensorBaseCfg):
     track_pose: bool = False
     """Whether to track the pose of the sensor's origin. Defaults to False."""
 
+    track_contact_points: bool = False
+    """Whether to track the contact point locations. Defaults to False."""
+
     track_air_time: bool = False
     """Whether to track the air/contact time of the bodies (time between contacts). Defaults to False."""
 
@@ -49,6 +52,7 @@ class ContactSensorCfg(SensorBaseCfg):
         single primitive in that environment. If the sensor primitive corresponds to multiple primitives, the
         filtering will not work as expected. Please check :class:`~isaaclab.sensors.contact_sensor.ContactSensor`
         for more details.
+        If track_contact_points is true, then filter_prim_paths_expr cannot be an empty list!
     """
 
     visualizer_cfg: VisualizationMarkersCfg = CONTACT_SENSOR_MARKER_CFG.replace(prim_path="/Visuals/ContactSensor")
