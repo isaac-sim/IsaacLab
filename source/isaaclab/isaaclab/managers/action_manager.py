@@ -259,6 +259,38 @@ class ActionManager(ManagerBase):
             has_debug_vis |= term.has_debug_vis_implementation
         return has_debug_vis
 
+    @property
+    def get_IO_descriptors(self):
+        """Get the IO descriptors for the action manager.
+
+        Returns:
+            A dictionary with keys as the term names and values as the IO descriptors.
+        """
+
+        data = []
+
+        for term in self._terms.values():
+            try:
+                data.append(term.IO_descriptor)
+            except Exception as e:
+                print(f"Error getting IO descriptor for term: {e}")
+
+        formatted_data = {}
+        for item in data:
+            name = item.pop("name")
+            formatted_item = {"extras": {}}
+            for k, v in item.items():
+                # Check if v is a tuple and convert to list
+                if isinstance(v, tuple):
+                    v = list(v)
+                if k in ["description", "units"]:
+                    formatted_item["extras"][k] = v
+                else:
+                    formatted_item[k] = v
+            formatted_data[name] = formatted_item
+
+        return formatted_data
+
     """
     Operations.
     """
