@@ -92,3 +92,8 @@ to some numerical instabilities. One way to mitigate this is to use the `armatur
 Either in the USD file or in the articulation config. This parameter is used to dampen the joint response and 
 helps improve the numerical stability of the simulation. More details on how to improve articulation stability
 can be found in `OmniPhysics documentation <https://docs.omniverse.nvidia.com/kit/docs/omni_physics/latest/dev_guide/guides/articulation_stability_guide.html>`_.
+
+What does this mean for the user? It means that policies trained with implicit actuators may not transfer onto
+the exact same robot model but using explicit actuators. If you are running into issues like this, or in cases
+where policies do not converge on explicit actuators while they do on implicit ones, increasing or setting 
+the `armature` parameter to a value greater may help.
