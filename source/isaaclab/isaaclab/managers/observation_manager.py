@@ -253,12 +253,40 @@ class ObservationManager(ManagerBase):
                 # dummy call to cache some values
                 try:
                     term_cfg.func(self._env, **term_cfg.params, inspect=True)
-                    data.append(term_cfg.func._descriptor)
+                    desc = term_cfg.func._descriptor.__dict__.copy()
+                    print(f"desc: {desc}")
+                    overloads = {}
+                    for k,v in term_cfg.__dict__.items():
+                        if k in ["modifiers", "clip", "scale", "history_length", "flatten_history_dim"]:
+                            overloads[k] = v
+                    desc.update(overloads)
+                    data.append(desc)
                 except Exception as e:
                     print(f"Error getting IO descriptor for term '{term_name}' in group '{group_name}': {e}")
 
-        return data
+        # Format the data for YAML export
+        formatted_data = {}
+        for item in data:
+            name = item.pop("name")
+            formatted_item = {}
+            formatted_item["overloads"] = {}
+            formatted_item["extras"] = {}
+            for k,v in item.items():
+                # Check if v is a tuple and convert to list
+                if isinstance(v, tuple):
+                    v = list(v)
+                if k in ["scale", "clip", "history_length", "flatten_history_dim"]:
+                    formatted_item["overloads"][k] = v
+                elif k in ["modifiers", "noise", "description", "units"]:
+                    formatted_item["extras"][k] = v
+                else:
+                    formatted_item[k] = v
+                
 
+            formatted_data[name] = formatted_item
+
+        return formatted_data
+    
     """
     Operations.
     """
