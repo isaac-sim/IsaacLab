@@ -21,7 +21,7 @@ In the following example, we will show you how to use Isaac Lab Mimic to generat
 .. code:: bash
 
     ./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
-    --device cuda --enable_cameras --headless --num_envs 10 --generation_num_trials 1000 \
+    --device cpu --enable_cameras --headless --num_envs 10 --generation_num_trials 1000 \
     --input_file ./datasets/annotated_dataset.hdf5 --output_file ./datasets/mimic_dataset_1k.hdf5 \
     --task Isaac-Stack-Cube-Franka-IK-Rel-Visuomotor-Cosmos-Mimic-v0 \
     --rendering_mode performance
@@ -99,7 +99,7 @@ We provide an example augmentation output from `Cosmos Transfer1 <https://github
    :align: center
    :alt: Cosmos Transfer1 augmentation output
 
-We recommend using the `Cosmos Transfer1 <https://github.com/nvidia-cosmos/cosmos-transfer1>`_ model for visual augmentation as we found it to produce the best results in the form of a highly diverse dataset with a wide range of visual variations. We further recommend the following settings to be used with the Transfer1 model for this task:
+We recommend using the `Cosmos Transfer1 <https://github.com/nvidia-cosmos/cosmos-transfer1>`_ model for visual augmentation as we found it to produce the best results in the form of a highly diverse dataset with a wide range of visual variations. You can refer to `this example <https://github.com/nvidia-cosmos/cosmos-transfer1/blob/main/examples/inference_cosmos_transfer1_7b.md#example-2-multimodal-control>`_ for reference on how to use Transfer1 for this usecase. We further recommend the following settings to be used with the Transfer1 model for this task:
 
 .. rubric:: Hyperparameters
 
