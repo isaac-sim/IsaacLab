@@ -75,3 +75,20 @@ The following figure shows the actuator groups for a legged mobile manipulator:
 
     We provide implementations for various explicit actuator models. These are detailed in
     `isaaclab.actuators <../../api/lab/isaaclab.actuators.html>`_ sub-package.
+
+Considerations when using actuators
+-----------------------------------
+
+As explained in the previous sections, there are two main types of actuator models: implicit and explicit.
+The implicit actuator model is a model that is provided by the physics engine, what this means is that when
+the user sets either a desired position, or velocity, the physics engine will internally compute the efforts
+that need to be applied to the joints to achieve the desired behavior. In PhysX, the PD controller adds a
+numerical damping to the desired effort which results in a more stable behavior.
+
+The explicit actuator model is a model that is provided by the user, what this means is that when the user
+sets either a desired position, or velocity, the user's model will compute the efforts that need to be
+applied to the joints to achieve the desired behavior. While this provide mode flexibility, it can also lead
+to some numerical instabilities. One way to mitigate this is to use the `armature` parameter of the actuator model.
+Either in the USD file or in the articulation config. This parameter is used to dampen the joint response and 
+helps improve the numerical stability of the simulation. More details on how to improve articulation stability
+can be found in `OmniPhysics documentation <https://docs.omniverse.nvidia.com/kit/docs/omni_physics/latest/dev_guide/guides/articulation_stability_guide.html>`_.
