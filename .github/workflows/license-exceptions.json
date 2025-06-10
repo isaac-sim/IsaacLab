@@ -294,5 +294,9 @@
   {
     "package": "urllib3",
     "license": "UNKNOWN"
+  },
+  {
+    "package": "h5py",
+    "license": "UNKNOWN"
   }
 ]
