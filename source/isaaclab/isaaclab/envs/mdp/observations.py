@@ -11,6 +11,8 @@ the observation introduced by the function.
 
 from __future__ import annotations
 
+import functools
+import inspect
 import torch
 from typing import TYPE_CHECKING
 
@@ -27,38 +29,176 @@ if TYPE_CHECKING:
 from isaaclab.utils import configclass
 from dataclasses import MISSING
 
+
+import dataclasses, functools, inspect
+from typing import Any, Callable, ParamSpec, TypeVar, Concatenate
+
 @configclass
 class IODescriptor:
     mdp_type: str = "Observation"
     name: str = None
+    full_path: str = None
     description: str = None
     shape: tuple[int, ...] = None
     dtype: torch.dtype = None
     observation_type: str = None
 
+@configclass
+class GenericIODescriptor:
+    mdp_type: str = "Observation"
+    name: str = None
+    full_path: str = None
+    description: str = None
+    shape: tuple[int, ...] = None
+    dtype: torch.dtype = None
+    observation_type: str = None
+    extras: dict[str, Any] = None
+
+# These are defined to help with type hinting
+P = ParamSpec("P")
+R = TypeVar("R")
+
+# Automatically builds a descriptor from the kwargs
+def _make_descriptor(**kwargs: Any) -> "GenericIODescriptor":
+    """Split *kwargs* into (known dataclass fields) and (extras)."""
+    field_names = {f.name for f in dataclasses.fields(GenericIODescriptor)}
+    known   = {k: v for k, v in kwargs.items() if k in field_names}
+    extras  = {k: v for k, v in kwargs.items() if k not in field_names}
+
+    desc = GenericIODescriptor(**known)
+    # User defined extras are stored in the descriptor under the `extras` field
+    desc.extras = extras
+    return desc
+
+# Decorator factory for generic IO descriptors.
+def generic_io_descriptor(
+    _func: Callable[Concatenate[ManagerBasedEnv, P], R] | None = None,
+    *,
+    on_inspect: Callable[..., Any] | list[Callable[..., Any]] | None = None,
+    **descriptor_kwargs: Any,
+) -> Callable[[Callable[Concatenate[ManagerBasedEnv, P], R]],
+              Callable[Concatenate[ManagerBasedEnv, P], R]]:
+    """
+    Decorator factory for generic IO descriptors.
+
+    This decorator can be used in different ways:
+    1. The default decorator has all the information I need for my use case:
+    ..code-block:: python
+        @generic_io_descriptor(GenericIODescriptor(description="..", dtype=".."))
+        def my_func(env: ManagerBasedEnv, *args, **kwargs):
+            ...
+    ..note:: If description is not set, the function's docstring is used to populate it.
+
+    2. I need to add more information to the descriptor:
+    ..code-block:: python
+        @generic_io_descriptor(description="..", new_var_1="a", new_var_2="b")
+        def my_func(env: ManagerBasedEnv, *args, **kwargs):
+            ...
+    3. I need to add a hook to the descriptor:
+    ..code-block:: python
+        def record_shape(tensor: torch.Tensor, desc: GenericIODescriptor):
+            desc.shape = (tensor.shape[-1],)
+    
+        @generic_io_descriptor(description="..", new_var_1="a", new_var_2="b", on_inspect=[record_shape])
+        def my_func(env: ManagerBasedEnv, *args, **kwargs):
+    ..note:: The hook is called after the function is called, if and only if the `inspect` flag is set when calling the function.
+    For example:
+    ..code-block:: python
+        my_func(env, inspect=True)
+    
+    Args:
+        _func: The function to decorate.
+        **descriptor_kwargs: Keyword arguments to pass to the descriptor.
+
+    Returns:
+        A decorator that can be used to decorate a function.
+    """
+
+    if _func is not None and isinstance(_func, GenericIODescriptor):
+        descriptor = _func
+        _func = None
+    else:
+        descriptor = _make_descriptor(**descriptor_kwargs)
+
+    # Ensures the hook is a list
+    if callable(on_inspect):
+        inspect_hooks: list[Callable[..., Any]] = [on_inspect]
+    else:
+        inspect_hooks: list[Callable[..., Any]] = list(on_inspect or [])  # handles None
+
+    def _apply(
+        func: Callable[Concatenate[ManagerBasedEnv, P], R]
+    ) -> Callable[Concatenate[ManagerBasedEnv, P], R]:
+        
+        # Capture the signature of the function
+        sig = inspect.signature(func)
+
+        @functools.wraps(func)
+        def wrapper(
+            env: ManagerBasedEnv, *args: P.args, **kwargs: P.kwargs
+        ) -> R:
+            inspect_flag: bool = kwargs.pop("inspect", False)
+            out = func(env, *args, **kwargs)
+            if inspect_flag:
+                # Injects the function's arguments into the hooks and applies the defaults
+                bound = sig.bind(env, *args, **kwargs)
+                bound.apply_defaults()
+                call_kwargs = {
+                    "output": out,
+                    "descriptor": descriptor,
+                    **bound.arguments,
+                }
+                for hook in inspect_hooks:
+                    hook(**call_kwargs)
+            return out
+
+        # --- Descriptor bookkeeping ---
+        descriptor.name = func.__name__
+        descriptor.full_path = f"{func.__module__}.{func.__name__}"
+        descriptor.dtype = str(descriptor.dtype)
+        # Check if description is set in the descriptor
+        if descriptor.description is None:
+            descriptor.description = func.__doc__
+
+        # Adds the descriptor to the wrapped function as an attribute
+        wrapper._descriptor = descriptor
+        wrapper._has_descriptor = True
+        # Alters the signature of the wrapped function to make it match the original function.
+        # This allows the wrapped functions to pass the checks in the managers.
+        wrapper.__signature__ = sig
+        return wrapper
+
+    # If the decorator is used without parentheses, _func will be the function itself.
+    if callable(_func):
+        return _apply(_func)
+    return _apply
+
+
+def record_shape(output: torch.Tensor, descriptor: GenericIODescriptor, **kwargs):
+    descriptor.shape = (output.shape[-1],)
+
+def record_dtype(output: torch.Tensor, descriptor: GenericIODescriptor, **kwargs):
+    descriptor.dtype = str(output.dtype)
+
+def record_joint_names(output: torch.Tensor, descriptor: GenericIODescriptor, **kwargs):
+    asset: Articulation = kwargs["env"].scene[kwargs["asset_cfg"].name]
+    joint_ids = kwargs["asset_cfg"].joint_ids
+    if joint_ids == slice(None, None, None):
+        joint_ids = list(range(len(asset.joint_names)))
+    descriptor.joint_names = [asset.joint_names[i] for i in joint_ids]
+
+def record_body_names(output: torch.Tensor, descriptor: GenericIODescriptor, **kwargs):
+    asset: Articulation = kwargs["env"].scene[kwargs["asset_cfg"].name]
+    body_ids = kwargs["asset_cfg"].body_ids
+    if body_ids == slice(None, None, None):
+        body_ids = list(range(len(asset.body_names)))
+    descriptor.body_names = [asset.body_names[i] for i in body_ids]
 
 """
 Root state.
 """
-@configclass
-class RootStateIODescriptor(IODescriptor):
-    observation_type: str = "RootState"
-    axes: list[str] = None
-    units: str = None
 
-
-def root_state_io_descriptor(descriptor: RootStateIODescriptor):
-    def decorator(func):
-        def wrapper(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"), inspect: bool = False):
-            return func(env, asset_cfg)
-        descriptor.name = func.__name__
-        wrapper._has_descriptor = True
-        wrapper._descriptor = descriptor
-        return wrapper
-    return decorator
-
-
-@root_state_io_descriptor(RootStateIODescriptor(description="Root height in the world frame.", units="m", axes=["Z"], shape=(1,), dtype=torch.float32))
+@generic_io_descriptor(units="m", axes=["Z"], observation_type="RootState", on_inspect=[record_shape, record_dtype])
 def base_pos_z(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
     """Root height in the simulation world frame."""
     # extract the used quantities (to enable type-hinting)
@@ -66,7 +206,7 @@ def base_pos_z(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg(
     return asset.data.root_pos_w[:, 2].unsqueeze(-1)
 
 
-@root_state_io_descriptor(RootStateIODescriptor(description="Root linear velocity in the robot's frame.", units="m/s", axes=["X", "Y", "Z"], shape=(3,), dtype=torch.float32))
+@generic_io_descriptor(units="m/s", axes=["X", "Y", "Z"], observation_type="RootState", on_inspect=[record_shape, record_dtype])
 def base_lin_vel(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
     """Root linear velocity in the asset's root frame."""
     # extract the used quantities (to enable type-hinting)
@@ -74,7 +214,7 @@ def base_lin_vel(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCf
     return asset.data.root_lin_vel_b
 
 
-@root_state_io_descriptor(RootStateIODescriptor(description="Root angular velocity in the robot's frame.", units="rad/s", axes=["X", "Y", "Z"], shape=(3,), dtype=torch.float32))
+@generic_io_descriptor(units="rad/s", axes=["X", "Y", "Z"], observation_type="RootState", on_inspect=[record_shape, record_dtype])
 def base_ang_vel(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
     """Root angular velocity in the asset's root frame."""
     # extract the used quantities (to enable type-hinting)
@@ -82,7 +222,7 @@ def base_ang_vel(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCf
     return asset.data.root_ang_vel_b
 
 
-@root_state_io_descriptor(RootStateIODescriptor(description="Projection of gravity in the robot's root frame.", units="m/s^2", axes=["X", "Y", "Z"] , shape=(3,), dtype=torch.float32))
+@generic_io_descriptor(units="m/s^2", axes=["X", "Y", "Z"], observation_type="RootState", on_inspect=[record_shape, record_dtype])
 def projected_gravity(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
     """Gravity projection on the asset's root frame."""
     # extract the used quantities (to enable type-hinting)
@@ -90,7 +230,7 @@ def projected_gravity(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEnt
     return asset.data.projected_gravity_b
 
 
-@root_state_io_descriptor(RootStateIODescriptor(description="Root body position in the world frame.", units="m", axes=["X", "Y", "Z"], shape=(3,), dtype=torch.float32))
+@generic_io_descriptor(units="m", axes=["X", "Y", "Z"], observation_type="RootState", on_inspect=[record_shape, record_dtype])
 def root_pos_w(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
     """Asset root position in the environment frame."""
     # extract the used quantities (to enable type-hinting)
@@ -98,7 +238,7 @@ def root_pos_w(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg(
     return asset.data.root_pos_w - env.scene.env_origins
 
 
-@root_state_io_descriptor(RootStateIODescriptor(description="Root body orientation in the world frame.", units="unit", axes=["W", "X", "Y", "Z"], shape=(4,), dtype=torch.float32))
+@generic_io_descriptor(units="unit", axes=["W", "X", "Y", "Z"], observation_type="RootState", on_inspect=[record_shape, record_dtype])
 def root_quat_w(
     env: ManagerBasedEnv, make_quat_unique: bool = False, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
 ) -> torch.Tensor:
@@ -116,7 +256,7 @@ def root_quat_w(
     return math_utils.quat_unique(quat) if make_quat_unique else quat
 
 
-@root_state_io_descriptor(RootStateIODescriptor(description="Root body linear velocity in the world frame.", units="m/s", axes=["X", "Y", "Z"], shape=(3,), dtype=torch.float32))
+@generic_io_descriptor(units="m/s", axes=["X", "Y", "Z"], observation_type="RootState", on_inspect=[record_shape, record_dtype])
 def root_lin_vel_w(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
     """Asset root linear velocity in the environment frame."""
     # extract the used quantities (to enable type-hinting)
@@ -124,7 +264,7 @@ def root_lin_vel_w(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntity
     return asset.data.root_lin_vel_w
 
 
-@root_state_io_descriptor(RootStateIODescriptor(description="Root body angular velocity in the world frame.", units="rad/s", axes=["X", "Y", "Z"], shape=(3,), dtype=torch.float32))
+@generic_io_descriptor(units="rad/s", axes=["X", "Y", "Z"], observation_type="RootState", on_inspect=[record_shape, record_dtype])
 def root_ang_vel_w(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
     """Asset root angular velocity in the environment frame."""
     # extract the used quantities (to enable type-hinting)
@@ -136,30 +276,7 @@ def root_ang_vel_w(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntity
 Body state
 """
 
-@configclass
-class BodyStateIODescriptor(IODescriptor):
-    observation_type: str = "BodyState"
-    body_ids: list[int] | int = []
-    body_names: list[str] | str = []
-    
-def body_state_io_descriptor(descriptor: BodyStateIODescriptor, inspect: bool = False):
-    def decorator(func):
-        descriptor.name = func.__name__
-        def wrapper(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")):
-            if inspect:
-                out = func(env, asset_cfg)
-                descriptor.shape = (out.shape[-1],)
-                descriptor.body_ids = asset_cfg.body_ids
-                descriptor.body_names = asset_cfg.body_names
-                return out
-            else:
-                return func(env, asset_cfg)
-        wrapper._has_descriptor = True
-        wrapper._descriptor = descriptor 
-        return wrapper
-    return decorator
-
-@body_state_io_descriptor(BodyStateIODescriptor(description="The flattened body poses of the robot in the world frame. The output shape is 7 * num_bodies", dtype=torch.float32))
+@generic_io_descriptor(observation_type="BodyState", body_names=None, on_inspect=[record_shape, record_dtype, record_body_names])
 def body_pose_w(
     env: ManagerBasedEnv,
     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
@@ -183,7 +300,7 @@ def body_pose_w(
     return pose.reshape(env.num_envs, -1)
 
 
-@body_state_io_descriptor(BodyStateIODescriptor(description="The direction of gravity projected on to bodies own frames. The output shape is 3 * num_bodies", dtype=torch.float32))
+@generic_io_descriptor(observation_type="BodyState", body_names=None, on_inspect=[record_shape, record_dtype, record_body_names])
 def body_projected_gravity_b(
     env: ManagerBasedEnv,
     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
@@ -211,35 +328,7 @@ def body_projected_gravity_b(
 """
 Joint state.
 """
-@configclass
-class JointStateIODescriptor(IODescriptor):
-    observation_type: str = "JointState"
-    joint_ids: list[int] | int = []
-    joint_names: list[str] | str = []
-    
-def joint_state_io_descriptor(descriptor: JointStateIODescriptor):
-    def decorator(func):
-        descriptor.name = func.__name__
-        def wrapper(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"), inspect: bool = False):
-            if inspect:
-                out = func(env, asset_cfg)
-                descriptor.shape = (out.shape[-1],)
-                descriptor.joint_ids = asset_cfg.joint_ids
-                descriptor.joint_names = asset_cfg.joint_names
-
-                if descriptor.joint_names is None:
-                    asset: Articulation = env.scene[asset_cfg.name]
-                    descriptor.joint_names = asset.joint_names
-                    descriptor.joint_ids = list(range(len(asset.joint_names)))
-                return out
-            else:
-                return func(env, asset_cfg)
-        wrapper._has_descriptor = True
-        wrapper._descriptor = descriptor 
-        return wrapper
-    return decorator
-
-@joint_state_io_descriptor(JointStateIODescriptor(description="The joint positions of the asset. The output shape is num_joints.", dtype=torch.float32))
+@generic_io_descriptor(observation_type="JointState", joint_names=None, on_inspect=[record_joint_names, record_dtype, record_shape])
 def joint_pos(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
     """The joint positions of the asset.
 
@@ -250,7 +339,7 @@ def joint_pos(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("
     return asset.data.joint_pos[:, asset_cfg.joint_ids]
 
 
-@joint_state_io_descriptor(JointStateIODescriptor(description="The joint positions of the asset w.r.t. the default joint positions. The output shape is num_joints", dtype=torch.float32))
+@generic_io_descriptor(observation_type="JointState", joint_names=None, on_inspect=[record_joint_names, record_dtype, record_shape])
 def joint_pos_rel(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
     """The joint positions of the asset w.r.t. the default joint positions.
 
@@ -261,7 +350,7 @@ def joint_pos_rel(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityC
     return asset.data.joint_pos[:, asset_cfg.joint_ids] - asset.data.default_joint_pos[:, asset_cfg.joint_ids]
 
 
-@joint_state_io_descriptor(JointStateIODescriptor(description="The joint positions of the asset normalized with the asset's joint limits. The output shape is num_joints", dtype=torch.float32))
+@generic_io_descriptor(observation_type="JointState", joint_names=None, on_inspect=[record_joint_names, record_dtype, record_shape])
 def joint_pos_limit_normalized(
     env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
 ) -> torch.Tensor:
@@ -277,7 +366,7 @@ def joint_pos_limit_normalized(
         asset.data.soft_joint_pos_limits[:, asset_cfg.joint_ids, 1],
     )
 
-@joint_state_io_descriptor(JointStateIODescriptor(description="The joint velocities of the asset. The output shape is num_joints", dtype=torch.float32))
+@generic_io_descriptor(observation_type="JointState", joint_names=None, on_inspect=[record_joint_names, record_dtype, record_shape])
 def joint_vel(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")):
     """The joint velocities of the asset.
 
@@ -287,7 +376,7 @@ def joint_vel(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("
     asset: Articulation = env.scene[asset_cfg.name]
     return asset.data.joint_vel[:, asset_cfg.joint_ids]
 
-@joint_state_io_descriptor(JointStateIODescriptor(description="The joint velocities of the asset w.r.t. the default joint velocities. The output shape is num_joints", dtype=torch.float32))
+@generic_io_descriptor(observation_type="JointState", joint_names=None, on_inspect=[record_joint_names, record_dtype, record_shape])
 def joint_vel_rel(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")):
     """The joint velocities of the asset w.r.t. the default joint velocities.
 
@@ -297,7 +386,7 @@ def joint_vel_rel(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityC
     asset: Articulation = env.scene[asset_cfg.name]
     return asset.data.joint_vel[:, asset_cfg.joint_ids] - asset.data.default_joint_vel[:, asset_cfg.joint_ids]
 
-@joint_state_io_descriptor(JointStateIODescriptor(description="The joint applied effort of the robot. The output shape is num_joints", dtype=torch.float32))
+@generic_io_descriptor(observation_type="JointState", joint_names=None, on_inspect=[record_joint_names, record_dtype, record_shape])
 def joint_effort(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
     """The joint applied effort of the robot.
 
@@ -681,29 +770,7 @@ class image_features(ManagerTermBase):
 Actions.
 """
 
-
-@configclass
-class GenericIODescriptor(IODescriptor):
-    observation_type: str = None
-    
-
-def generic_io_descriptor(descriptor: GenericIODescriptor):
-    def decorator(func):
-        def wrapper(env: ManagerBasedEnv, *args, inspect: bool = False, **kwargs):
-            if inspect:
-                out = func(env, *args, **kwargs)
-                descriptor.shape = (out.shape[-1],)
-                return out
-            else:
-                return func(env, *args, **kwargs)
-        descriptor.name = func.__name__
-        wrapper._has_descriptor = True
-        wrapper._descriptor = descriptor
-        return wrapper
-    return decorator
-
-
-@generic_io_descriptor(GenericIODescriptor(description="The last input action to the environment.", dtype=torch.float32, observation_type="Action"))
+@generic_io_descriptor(dtype=torch.float32, observation_type="Action", on_inspect=[record_shape])
 def last_action(env: ManagerBasedEnv, action_name: str | None = None) -> torch.Tensor:
     """The last input action to the environment.
 
@@ -720,8 +787,7 @@ def last_action(env: ManagerBasedEnv, action_name: str | None = None) -> torch.T
 Commands.
 """
 
-
-@generic_io_descriptor(GenericIODescriptor(description="The generated command term in the command manager.", dtype=torch.float32, observation_type="Command"))
+@generic_io_descriptor(dtype=torch.float32, observation_type="Command", on_inspect=[record_shape])
 def generated_commands(env: ManagerBasedRLEnv, command_name: str | None = None) -> torch.Tensor:
     """The generated command from command term in the command manager with the given name."""
     return env.command_manager.get_command(command_name)
