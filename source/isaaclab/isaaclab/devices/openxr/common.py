@@ -3,11 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
-# All rights reserved.
-#
-# SPDX-License-Identifier: BSD-3-Clause
-
 # Standard set of hand joint names based on OpenXR specification.
 # Input devices for dexterous hands can use this as a reference,
 # but may provide any subset or superset of these joints.

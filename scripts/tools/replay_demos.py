@@ -2,12 +2,6 @@
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
-
-# Copyright (c) 2024-2025, The Isaac Lab Project Developers.
-# All rights reserved.
-#
-# SPDX-License-Identifier: BSD-3-Clause
-
 """Script to replay demonstrations with Isaac Lab environments."""
 
 """Launch Isaac Sim Simulator first."""

@@ -3,11 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
-# All rights reserved.
-#
-# SPDX-License-Identifier: BSD-3-Clause
-
 """Sub-module that defines the host-server where assets and resources are stored.
 
 By default, we use the Isaac Sim Nucleus Server for hosting assets and resources. This makes

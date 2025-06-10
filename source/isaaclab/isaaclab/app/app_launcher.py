@@ -3,11 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
-# All rights reserved.
-#
-# SPDX-License-Identifier: BSD-3-Clause
-
 """Sub-package with the utility class to configure the :class:`isaacsim.simulation_app.SimulationApp`.
 
 The :class:`AppLauncher` parses environment variables and input CLI arguments to launch the simulator in

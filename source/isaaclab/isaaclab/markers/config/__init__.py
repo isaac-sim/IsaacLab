@@ -3,11 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
-# All rights reserved.
-#
-# SPDX-License-Identifier: BSD-3-Clause
-
 import isaaclab.sim as sim_utils
 from isaaclab.markers.visualization_markers import VisualizationMarkersCfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
