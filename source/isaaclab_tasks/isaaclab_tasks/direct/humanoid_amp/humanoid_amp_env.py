@@ -69,6 +69,10 @@ class HumanoidAmpEnv(DirectRLEnv):
         )
         # clone and replicate
         self.scene.clone_environments(copy_from_source=False)
+        # we need to explicitly filter collisions for CPU simulation
+        if self.device == "cpu":
+            self.scene.filter_collisions(global_prim_paths=["/World/ground"])
+
         # add articulation to scene
         self.scene.articulations["robot"] = self.robot
         # add lights

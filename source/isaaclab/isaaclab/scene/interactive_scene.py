@@ -171,7 +171,8 @@ class InteractiveScene:
 
             # since env_ids is only applicable when replicating physics, we have to fallback to the previous method
             # to filter collisions if replicate_physics is not enabled
-            if not self.cfg.replicate_physics and self.cfg.filter_collisions:
+            # additionally, env_ids is only supported in GPU simulation
+            if (not self.cfg.replicate_physics and self.cfg.filter_collisions) or self.device == "cpu":
                 self.filter_collisions(self._global_prim_paths)
 
     def clone_environments(self, copy_from_source: bool = False):
@@ -204,9 +205,10 @@ class InteractiveScene:
 
         # since env_ids is only applicable when replicating physics, we have to fallback to the previous method
         # to filter collisions if replicate_physics is not enabled
-        if not self.cfg.replicate_physics and self.cfg.filter_collisions:
+        # additionally, env_ids is only supported in GPU simulation
+        if (not self.cfg.replicate_physics and self.cfg.filter_collisions) or self.device == "cpu":
             omni.log.warn(
-                "Collision filtering can only be automatically enabled when replicate_physics=True."
+                "Collision filtering can only be automatically enabled when replicate_physics=True and GPU simulation."
                 " Please call scene.filter_collisions(global_prim_paths) to filter collisions across environments."
             )
 

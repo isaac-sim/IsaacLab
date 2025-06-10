@@ -128,6 +128,9 @@ class CartpoleCameraEnv(DirectRLEnv):
 
         # clone and replicate
         self.scene.clone_environments(copy_from_source=False)
+        if self.device == "cpu":
+            # we need to explicitly filter collisions for CPU simulation
+            self.scene.filter_collisions(global_prim_paths=[])
 
         # add articulation and sensors to scene
         self.scene.articulations["cartpole"] = self._cartpole
