@@ -649,68 +649,63 @@ an initial understanding of working with the simulator.</p>
 <span class="linenos"> 3</span><span class="c1">#</span>
 <span class="linenos"> 4</span><span class="c1"># SPDX-License-Identifier: BSD-3-Clause</span>
 <span class="linenos"> 5</span>
-<span class="linenos"> 6</span><span class="c1"># Copyright (c) 2022-2025, The Isaac Lab Project Developers.</span>
-<span class="linenos"> 7</span><span class="c1"># All rights reserved.</span>
-<span class="linenos"> 8</span><span class="c1">#</span>
-<span class="linenos"> 9</span><span class="c1"># SPDX-License-Identifier: BSD-3-Clause</span>
-<span class="linenos">10</span>
-<span class="linenos">11</span><span class="sd">&quot;&quot;&quot;This script demonstrates how to create a simple stage in Isaac Sim.</span>
+<span class="linenos"> 6</span><span class="sd">&quot;&quot;&quot;This script demonstrates how to create a simple stage in Isaac Sim.</span>
+<span class="linenos"> 7</span>
+<span class="linenos"> 8</span><span class="sd">.. code-block:: bash</span>
+<span class="linenos"> 9</span>
+<span class="linenos">10</span><span class="sd">    # Usage</span>
+<span class="linenos">11</span><span class="sd">    ./isaaclab.sh -p scripts/tutorials/00_sim/create_empty.py</span>
 <span class="linenos">12</span>
-<span class="linenos">13</span><span class="sd">.. code-block:: bash</span>
+<span class="linenos">13</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="linenos">14</span>
-<span class="linenos">15</span><span class="sd">    # Usage</span>
-<span class="linenos">16</span><span class="sd">    ./isaaclab.sh -p scripts/tutorials/00_sim/create_empty.py</span>
+<span class="linenos">15</span><span class="sd">&quot;&quot;&quot;Launch Isaac Sim Simulator first.&quot;&quot;&quot;</span>
+<span class="linenos">16</span>
 <span class="linenos">17</span>
-<span class="hll"><span class="linenos">18</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="hll"><span class="linenos">18</span><span class="kn">import</span><span class="w"> </span><span class="nn">argparse</span>
 </span><span class="hll"><span class="linenos">19</span>
-</span><span class="hll"><span class="linenos">20</span><span class="sd">&quot;&quot;&quot;Launch Isaac Sim Simulator first.&quot;&quot;&quot;</span>
+</span><span class="hll"><span class="linenos">20</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.app</span><span class="w"> </span><span class="kn">import</span> <span class="n">AppLauncher</span>
 </span><span class="hll"><span class="linenos">21</span>
-</span><span class="hll"><span class="linenos">22</span>
-</span><span class="hll"><span class="linenos">23</span><span class="kn">import</span><span class="w"> </span><span class="nn">argparse</span>
-</span><span class="hll"><span class="linenos">24</span>
-</span><span class="hll"><span class="linenos">25</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.app</span><span class="w"> </span><span class="kn">import</span> <span class="n">AppLauncher</span>
-</span><span class="hll"><span class="linenos">26</span>
-</span><span class="hll"><span class="linenos">27</span><span class="c1"># create argparser</span>
-</span><span class="hll"><span class="linenos">28</span><span class="n">parser</span> <span class="o">=</span> <span class="n">argparse</span><span class="o">.</span><span class="n">ArgumentParser</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="s2">&quot;Tutorial on creating an empty stage.&quot;</span><span class="p">)</span>
-</span><span class="hll"><span class="linenos">29</span><span class="c1"># append AppLauncher cli args</span>
-</span><span class="hll"><span class="linenos">30</span><span class="n">AppLauncher</span><span class="o">.</span><span class="n">add_app_launcher_args</span><span class="p">(</span><span class="n">parser</span><span class="p">)</span>
-</span><span class="linenos">31</span><span class="c1"># parse the arguments</span>
-<span class="linenos">32</span><span class="n">args_cli</span> <span class="o">=</span> <span class="n">parser</span><span class="o">.</span><span class="n">parse_args</span><span class="p">()</span>
-<span class="linenos">33</span><span class="c1"># launch omniverse app</span>
-<span class="hll"><span class="linenos">34</span><span class="n">app_launcher</span> <span class="o">=</span> <span class="n">AppLauncher</span><span class="p">(</span><span class="n">args_cli</span><span class="p">)</span>
-</span><span class="linenos">35</span><span class="n">simulation_app</span> <span class="o">=</span> <span class="n">app_launcher</span><span class="o">.</span><span class="n">app</span>
+</span><span class="hll"><span class="linenos">22</span><span class="c1"># create argparser</span>
+</span><span class="hll"><span class="linenos">23</span><span class="n">parser</span> <span class="o">=</span> <span class="n">argparse</span><span class="o">.</span><span class="n">ArgumentParser</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="s2">&quot;Tutorial on creating an empty stage.&quot;</span><span class="p">)</span>
+</span><span class="hll"><span class="linenos">24</span><span class="c1"># append AppLauncher cli args</span>
+</span><span class="hll"><span class="linenos">25</span><span class="n">AppLauncher</span><span class="o">.</span><span class="n">add_app_launcher_args</span><span class="p">(</span><span class="n">parser</span><span class="p">)</span>
+</span><span class="hll"><span class="linenos">26</span><span class="c1"># parse the arguments</span>
+</span><span class="hll"><span class="linenos">27</span><span class="n">args_cli</span> <span class="o">=</span> <span class="n">parser</span><span class="o">.</span><span class="n">parse_args</span><span class="p">()</span>
+</span><span class="hll"><span class="linenos">28</span><span class="c1"># launch omniverse app</span>
+</span><span class="hll"><span class="linenos">29</span><span class="n">app_launcher</span> <span class="o">=</span> <span class="n">AppLauncher</span><span class="p">(</span><span class="n">args_cli</span><span class="p">)</span>
+</span><span class="hll"><span class="linenos">30</span><span class="n">simulation_app</span> <span class="o">=</span> <span class="n">app_launcher</span><span class="o">.</span><span class="n">app</span>
+</span><span class="linenos">31</span>
+<span class="linenos">32</span><span class="sd">&quot;&quot;&quot;Rest everything follows.&quot;&quot;&quot;</span>
+<span class="linenos">33</span>
+<span class="hll"><span class="linenos">34</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.sim</span><span class="w"> </span><span class="kn">import</span> <span class="n">SimulationCfg</span><span class="p">,</span> <span class="n">SimulationContext</span>
+</span><span class="linenos">35</span>
 <span class="linenos">36</span>
-<span class="linenos">37</span><span class="sd">&quot;&quot;&quot;Rest everything follows.&quot;&quot;&quot;</span>
-<span class="linenos">38</span>
-<span class="linenos">39</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.sim</span><span class="w"> </span><span class="kn">import</span> <span class="n">SimulationCfg</span><span class="p">,</span> <span class="n">SimulationContext</span>
-<span class="hll"><span class="linenos">40</span>
-</span><span class="hll"><span class="linenos">41</span>
-</span><span class="hll"><span class="linenos">42</span><span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">():</span>
-</span><span class="hll"><span class="linenos">43</span><span class="w">    </span><span class="sd">&quot;&quot;&quot;Main function.&quot;&quot;&quot;</span>
-</span><span class="hll"><span class="linenos">44</span>
-</span><span class="linenos">45</span>    <span class="c1"># Initialize the simulation context</span>
-<span class="hll"><span class="linenos">46</span>    <span class="n">sim_cfg</span> <span class="o">=</span> <span class="n">SimulationCfg</span><span class="p">(</span><span class="n">dt</span><span class="o">=</span><span class="mf">0.01</span><span class="p">)</span>
-</span><span class="hll"><span class="linenos">47</span>    <span class="n">sim</span> <span class="o">=</span> <span class="n">SimulationContext</span><span class="p">(</span><span class="n">sim_cfg</span><span class="p">)</span>
-</span><span class="linenos">48</span>    <span class="c1"># Set main camera</span>
-<span class="linenos">49</span>    <span class="n">sim</span><span class="o">.</span><span class="n">set_camera_view</span><span class="p">([</span><span class="mf">2.5</span><span class="p">,</span> <span class="mf">2.5</span><span class="p">,</span> <span class="mf">2.5</span><span class="p">],</span> <span class="p">[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">])</span>
+<span class="linenos">37</span><span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">():</span>
+<span class="linenos">38</span><span class="w">    </span><span class="sd">&quot;&quot;&quot;Main function.&quot;&quot;&quot;</span>
+<span class="linenos">39</span>
+<span class="hll"><span class="linenos">40</span>    <span class="c1"># Initialize the simulation context</span>
+</span><span class="hll"><span class="linenos">41</span>    <span class="n">sim_cfg</span> <span class="o">=</span> <span class="n">SimulationCfg</span><span class="p">(</span><span class="n">dt</span><span class="o">=</span><span class="mf">0.01</span><span class="p">)</span>
+</span><span class="hll"><span class="linenos">42</span>    <span class="n">sim</span> <span class="o">=</span> <span class="n">SimulationContext</span><span class="p">(</span><span class="n">sim_cfg</span><span class="p">)</span>
+</span><span class="hll"><span class="linenos">43</span>    <span class="c1"># Set main camera</span>
+</span><span class="hll"><span class="linenos">44</span>    <span class="n">sim</span><span class="o">.</span><span class="n">set_camera_view</span><span class="p">([</span><span class="mf">2.5</span><span class="p">,</span> <span class="mf">2.5</span><span class="p">,</span> <span class="mf">2.5</span><span class="p">],</span> <span class="p">[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">])</span>
+</span><span class="linenos">45</span>
+<span class="hll"><span class="linenos">46</span>    <span class="c1"># Play the simulator</span>
+</span><span class="hll"><span class="linenos">47</span>    <span class="n">sim</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
+</span><span class="linenos">48</span>    <span class="c1"># Now we are ready!</span>
+<span class="linenos">49</span>    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[INFO]: Setup complete...&quot;</span><span class="p">)</span>
 <span class="linenos">50</span>
-<span class="hll"><span class="linenos">51</span>    <span class="c1"># Play the simulator</span>
-</span><span class="hll"><span class="linenos">52</span>    <span class="n">sim</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
-</span><span class="hll"><span class="linenos">53</span>    <span class="c1"># Now we are ready!</span>
-</span><span class="hll"><span class="linenos">54</span>    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[INFO]: Setup complete...&quot;</span><span class="p">)</span>
+<span class="hll"><span class="linenos">51</span>    <span class="c1"># Simulate physics</span>
+</span><span class="hll"><span class="linenos">52</span>    <span class="k">while</span> <span class="n">simulation_app</span><span class="o">.</span><span class="n">is_running</span><span class="p">():</span>
+</span><span class="hll"><span class="linenos">53</span>        <span class="c1"># perform step</span>
+</span><span class="hll"><span class="linenos">54</span>        <span class="n">sim</span><span class="o">.</span><span class="n">step</span><span class="p">()</span>
 </span><span class="linenos">55</span>
-<span class="linenos">56</span>    <span class="c1"># Simulate physics</span>
-<span class="linenos">57</span>    <span class="k">while</span> <span class="n">simulation_app</span><span class="o">.</span><span class="n">is_running</span><span class="p">():</span>
-<span class="linenos">58</span>        <span class="c1"># perform step</span>
-<span class="linenos">59</span>        <span class="n">sim</span><span class="o">.</span><span class="n">step</span><span class="p">()</span>
-<span class="hll"><span class="linenos">60</span>
-</span><span class="hll"><span class="linenos">61</span>
-</span><span class="linenos">62</span><span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
-<span class="linenos">63</span>    <span class="c1"># run the main function</span>
-<span class="linenos">64</span>    <span class="n">main</span><span class="p">()</span>
-<span class="linenos">65</span>    <span class="c1"># close sim app</span>
-<span class="linenos">66</span>    <span class="n">simulation_app</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
-</pre></div>
+<span class="linenos">56</span>
+<span class="linenos">57</span><span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
+<span class="linenos">58</span>    <span class="c1"># run the main function</span>
+<span class="linenos">59</span>    <span class="n">main</span><span class="p">()</span>
+<span class="hll"><span class="linenos">60</span>    <span class="c1"># close sim app</span>
+</span><span class="hll"><span class="linenos">61</span>    <span class="n">simulation_app</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+</span></pre></div>
 </div>
 </div>
 </details></section>

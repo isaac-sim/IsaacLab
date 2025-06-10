@@ -642,93 +642,88 @@ following changes to the config before passing it to the <code class="docutils l
 <span class="linenos"> 3</span><span class="c1">#</span>
 <span class="linenos"> 4</span><span class="c1"># SPDX-License-Identifier: BSD-3-Clause</span>
 <span class="linenos"> 5</span>
-<span class="linenos"> 6</span><span class="c1"># Copyright (c) 2022-2025, The Isaac Lab Project Developers.</span>
-<span class="linenos"> 7</span><span class="c1"># All rights reserved.</span>
-<span class="linenos"> 8</span><span class="c1">#</span>
-<span class="linenos"> 9</span><span class="c1"># SPDX-License-Identifier: BSD-3-Clause</span>
-<span class="linenos">10</span>
-<span class="linenos">11</span><span class="sd">&quot;&quot;&quot;</span>
-<span class="linenos">12</span><span class="sd">This script demonstrates policy inference in a prebuilt USD environment.</span>
+<span class="linenos"> 6</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="linenos"> 7</span><span class="sd">This script demonstrates policy inference in a prebuilt USD environment.</span>
+<span class="linenos"> 8</span>
+<span class="linenos"> 9</span><span class="sd">In this example, we use a locomotion policy to control the H1 robot. The robot was trained</span>
+<span class="linenos">10</span><span class="sd">using Isaac-Velocity-Rough-H1-v0. The robot is commanded to move forward at a constant velocity.</span>
+<span class="linenos">11</span>
+<span class="linenos">12</span><span class="sd">.. code-block:: bash</span>
 <span class="linenos">13</span>
-<span class="linenos">14</span><span class="sd">In this example, we use a locomotion policy to control the H1 robot. The robot was trained</span>
-<span class="linenos">15</span><span class="sd">using Isaac-Velocity-Rough-H1-v0. The robot is commanded to move forward at a constant velocity.</span>
+<span class="linenos">14</span><span class="sd">    # Run the script</span>
+<span class="linenos">15</span><span class="sd">    ./isaaclab.sh -p scripts/tutorials/03_envs/policy_inference_in_usd.py --checkpoint /path/to/jit/checkpoint.pt</span>
 <span class="linenos">16</span>
-<span class="linenos">17</span><span class="sd">.. code-block:: bash</span>
+<span class="linenos">17</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="linenos">18</span>
-<span class="linenos">19</span><span class="sd">    # Run the script</span>
-<span class="linenos">20</span><span class="sd">    ./isaaclab.sh -p scripts/tutorials/03_envs/policy_inference_in_usd.py --checkpoint /path/to/jit/checkpoint.pt</span>
+<span class="linenos">19</span><span class="sd">&quot;&quot;&quot;Launch Isaac Sim Simulator first.&quot;&quot;&quot;</span>
+<span class="linenos">20</span>
 <span class="linenos">21</span>
-<span class="linenos">22</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="linenos">22</span><span class="kn">import</span><span class="w"> </span><span class="nn">argparse</span>
 <span class="linenos">23</span>
-<span class="linenos">24</span><span class="sd">&quot;&quot;&quot;Launch Isaac Sim Simulator first.&quot;&quot;&quot;</span>
+<span class="linenos">24</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.app</span><span class="w"> </span><span class="kn">import</span> <span class="n">AppLauncher</span>
 <span class="linenos">25</span>
-<span class="linenos">26</span>
-<span class="linenos">27</span><span class="kn">import</span><span class="w"> </span><span class="nn">argparse</span>
-<span class="linenos">28</span>
-<span class="linenos">29</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.app</span><span class="w"> </span><span class="kn">import</span> <span class="n">AppLauncher</span>
-<span class="linenos">30</span>
-<span class="linenos">31</span><span class="c1"># add argparse arguments</span>
-<span class="linenos">32</span><span class="n">parser</span> <span class="o">=</span> <span class="n">argparse</span><span class="o">.</span><span class="n">ArgumentParser</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="s2">&quot;Tutorial on inferencing a policy on an H1 robot in a warehouse.&quot;</span><span class="p">)</span>
-<span class="linenos">33</span><span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">&quot;--checkpoint&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">str</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Path to model checkpoint exported as jit.&quot;</span><span class="p">,</span> <span class="n">required</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="linenos">26</span><span class="c1"># add argparse arguments</span>
+<span class="linenos">27</span><span class="n">parser</span> <span class="o">=</span> <span class="n">argparse</span><span class="o">.</span><span class="n">ArgumentParser</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="s2">&quot;Tutorial on inferencing a policy on an H1 robot in a warehouse.&quot;</span><span class="p">)</span>
+<span class="linenos">28</span><span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">&quot;--checkpoint&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">str</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Path to model checkpoint exported as jit.&quot;</span><span class="p">,</span> <span class="n">required</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="linenos">29</span>
+<span class="linenos">30</span><span class="c1"># append AppLauncher cli args</span>
+<span class="linenos">31</span><span class="n">AppLauncher</span><span class="o">.</span><span class="n">add_app_launcher_args</span><span class="p">(</span><span class="n">parser</span><span class="p">)</span>
+<span class="linenos">32</span><span class="c1"># parse the arguments</span>
+<span class="linenos">33</span><span class="n">args_cli</span> <span class="o">=</span> <span class="n">parser</span><span class="o">.</span><span class="n">parse_args</span><span class="p">()</span>
 <span class="linenos">34</span>
-<span class="linenos">35</span><span class="c1"># append AppLauncher cli args</span>
-<span class="linenos">36</span><span class="n">AppLauncher</span><span class="o">.</span><span class="n">add_app_launcher_args</span><span class="p">(</span><span class="n">parser</span><span class="p">)</span>
-<span class="linenos">37</span><span class="c1"># parse the arguments</span>
-<span class="linenos">38</span><span class="n">args_cli</span> <span class="o">=</span> <span class="n">parser</span><span class="o">.</span><span class="n">parse_args</span><span class="p">()</span>
-<span class="linenos">39</span>
-<span class="linenos">40</span><span class="c1"># launch omniverse app</span>
-<span class="linenos">41</span><span class="n">app_launcher</span> <span class="o">=</span> <span class="n">AppLauncher</span><span class="p">(</span><span class="n">args_cli</span><span class="p">)</span>
-<span class="linenos">42</span><span class="n">simulation_app</span> <span class="o">=</span> <span class="n">app_launcher</span><span class="o">.</span><span class="n">app</span>
+<span class="linenos">35</span><span class="c1"># launch omniverse app</span>
+<span class="linenos">36</span><span class="n">app_launcher</span> <span class="o">=</span> <span class="n">AppLauncher</span><span class="p">(</span><span class="n">args_cli</span><span class="p">)</span>
+<span class="linenos">37</span><span class="n">simulation_app</span> <span class="o">=</span> <span class="n">app_launcher</span><span class="o">.</span><span class="n">app</span>
+<span class="linenos">38</span>
+<span class="linenos">39</span><span class="sd">&quot;&quot;&quot;Rest everything follows.&quot;&quot;&quot;</span>
+<span class="linenos">40</span><span class="kn">import</span><span class="w"> </span><span class="nn">io</span>
+<span class="linenos">41</span><span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
+<span class="linenos">42</span><span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
 <span class="linenos">43</span>
-<span class="linenos">44</span><span class="sd">&quot;&quot;&quot;Rest everything follows.&quot;&quot;&quot;</span>
-<span class="linenos">45</span><span class="kn">import</span><span class="w"> </span><span class="nn">io</span>
-<span class="linenos">46</span><span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
-<span class="linenos">47</span><span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
-<span class="linenos">48</span>
-<span class="linenos">49</span><span class="kn">import</span><span class="w"> </span><span class="nn">omni</span>
-<span class="linenos">50</span>
-<span class="linenos">51</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.envs</span><span class="w"> </span><span class="kn">import</span> <span class="n">ManagerBasedRLEnv</span>
-<span class="linenos">52</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.terrains</span><span class="w"> </span><span class="kn">import</span> <span class="n">TerrainImporterCfg</span>
-<span class="linenos">53</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils.assets</span><span class="w"> </span><span class="kn">import</span> <span class="n">ISAAC_NUCLEUS_DIR</span>
-<span class="linenos">54</span>
-<span class="linenos">55</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab_tasks.manager_based.locomotion.velocity.config.h1.rough_env_cfg</span><span class="w"> </span><span class="kn">import</span> <span class="n">H1RoughEnvCfg_PLAY</span>
-<span class="linenos">56</span>
-<span class="linenos">57</span>
-<span class="linenos">58</span><span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">():</span>
-<span class="linenos">59</span><span class="w">    </span><span class="sd">&quot;&quot;&quot;Main function.&quot;&quot;&quot;</span>
-<span class="hll"><span class="linenos">60</span>    <span class="c1"># load the trained jit policy</span>
-</span><span class="hll"><span class="linenos">61</span>    <span class="n">policy_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">abspath</span><span class="p">(</span><span class="n">args_cli</span><span class="o">.</span><span class="n">checkpoint</span><span class="p">)</span>
-</span><span class="hll"><span class="linenos">62</span>    <span class="n">file_content</span> <span class="o">=</span> <span class="n">omni</span><span class="o">.</span><span class="n">client</span><span class="o">.</span><span class="n">read_file</span><span class="p">(</span><span class="n">policy_path</span><span class="p">)[</span><span class="mi">2</span><span class="p">]</span>
-</span><span class="hll"><span class="linenos">63</span>    <span class="n">file</span> <span class="o">=</span> <span class="n">io</span><span class="o">.</span><span class="n">BytesIO</span><span class="p">(</span><span class="nb">memoryview</span><span class="p">(</span><span class="n">file_content</span><span class="p">)</span><span class="o">.</span><span class="n">tobytes</span><span class="p">())</span>
-</span><span class="hll"><span class="linenos">64</span>    <span class="n">policy</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">jit</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">file</span><span class="p">,</span> <span class="n">map_location</span><span class="o">=</span><span class="n">args_cli</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
-</span><span class="hll"><span class="linenos">65</span>
-</span><span class="hll"><span class="linenos">66</span>    <span class="c1"># setup environment</span>
-</span><span class="hll"><span class="linenos">67</span>    <span class="n">env_cfg</span> <span class="o">=</span> <span class="n">H1RoughEnvCfg_PLAY</span><span class="p">()</span>
-</span><span class="hll"><span class="linenos">68</span>    <span class="n">env_cfg</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">num_envs</span> <span class="o">=</span> <span class="mi">1</span>
-</span><span class="hll"><span class="linenos">69</span>    <span class="n">env_cfg</span><span class="o">.</span><span class="n">curriculum</span> <span class="o">=</span> <span class="kc">None</span>
-</span><span class="linenos">70</span>    <span class="n">env_cfg</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">terrain</span> <span class="o">=</span> <span class="n">TerrainImporterCfg</span><span class="p">(</span>
-<span class="linenos">71</span>        <span class="n">prim_path</span><span class="o">=</span><span class="s2">&quot;/World/ground&quot;</span><span class="p">,</span>
-<span class="linenos">72</span>        <span class="n">terrain_type</span><span class="o">=</span><span class="s2">&quot;usd&quot;</span><span class="p">,</span>
-<span class="linenos">73</span>        <span class="n">usd_path</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">ISAAC_NUCLEUS_DIR</span><span class="si">}</span><span class="s2">/Environments/Simple_Warehouse/warehouse.usd&quot;</span><span class="p">,</span>
-<span class="linenos">74</span>    <span class="p">)</span>
-<span class="linenos">75</span>    <span class="n">env_cfg</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">device</span> <span class="o">=</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">device</span>
-<span class="linenos">76</span>    <span class="k">if</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">device</span> <span class="o">==</span> <span class="s2">&quot;cpu&quot;</span><span class="p">:</span>
-<span class="linenos">77</span>        <span class="n">env_cfg</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">use_fabric</span> <span class="o">=</span> <span class="kc">False</span>
-<span class="linenos">78</span>
-<span class="linenos">79</span>    <span class="c1"># create environment</span>
-<span class="linenos">80</span>    <span class="n">env</span> <span class="o">=</span> <span class="n">ManagerBasedRLEnv</span><span class="p">(</span><span class="n">cfg</span><span class="o">=</span><span class="n">env_cfg</span><span class="p">)</span>
-<span class="linenos">81</span>
-<span class="linenos">82</span>    <span class="c1"># run inference with the policy</span>
-<span class="linenos">83</span>    <span class="n">obs</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
-<span class="linenos">84</span>    <span class="k">with</span> <span class="n">torch</span><span class="o">.</span><span class="n">inference_mode</span><span class="p">():</span>
-<span class="linenos">85</span>        <span class="k">while</span> <span class="n">simulation_app</span><span class="o">.</span><span class="n">is_running</span><span class="p">():</span>
-<span class="linenos">86</span>            <span class="n">action</span> <span class="o">=</span> <span class="n">policy</span><span class="p">(</span><span class="n">obs</span><span class="p">[</span><span class="s2">&quot;policy&quot;</span><span class="p">])</span>
-<span class="linenos">87</span>            <span class="n">obs</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">step</span><span class="p">(</span><span class="n">action</span><span class="p">)</span>
-<span class="linenos">88</span>
-<span class="linenos">89</span>
-<span class="linenos">90</span><span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
-<span class="linenos">91</span>    <span class="n">main</span><span class="p">()</span>
-<span class="linenos">92</span>    <span class="n">simulation_app</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+<span class="linenos">44</span><span class="kn">import</span><span class="w"> </span><span class="nn">omni</span>
+<span class="linenos">45</span>
+<span class="linenos">46</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.envs</span><span class="w"> </span><span class="kn">import</span> <span class="n">ManagerBasedRLEnv</span>
+<span class="linenos">47</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.terrains</span><span class="w"> </span><span class="kn">import</span> <span class="n">TerrainImporterCfg</span>
+<span class="linenos">48</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils.assets</span><span class="w"> </span><span class="kn">import</span> <span class="n">ISAAC_NUCLEUS_DIR</span>
+<span class="linenos">49</span>
+<span class="linenos">50</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab_tasks.manager_based.locomotion.velocity.config.h1.rough_env_cfg</span><span class="w"> </span><span class="kn">import</span> <span class="n">H1RoughEnvCfg_PLAY</span>
+<span class="linenos">51</span>
+<span class="linenos">52</span>
+<span class="linenos">53</span><span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">():</span>
+<span class="linenos">54</span><span class="w">    </span><span class="sd">&quot;&quot;&quot;Main function.&quot;&quot;&quot;</span>
+<span class="linenos">55</span>    <span class="c1"># load the trained jit policy</span>
+<span class="linenos">56</span>    <span class="n">policy_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">abspath</span><span class="p">(</span><span class="n">args_cli</span><span class="o">.</span><span class="n">checkpoint</span><span class="p">)</span>
+<span class="linenos">57</span>    <span class="n">file_content</span> <span class="o">=</span> <span class="n">omni</span><span class="o">.</span><span class="n">client</span><span class="o">.</span><span class="n">read_file</span><span class="p">(</span><span class="n">policy_path</span><span class="p">)[</span><span class="mi">2</span><span class="p">]</span>
+<span class="linenos">58</span>    <span class="n">file</span> <span class="o">=</span> <span class="n">io</span><span class="o">.</span><span class="n">BytesIO</span><span class="p">(</span><span class="nb">memoryview</span><span class="p">(</span><span class="n">file_content</span><span class="p">)</span><span class="o">.</span><span class="n">tobytes</span><span class="p">())</span>
+<span class="linenos">59</span>    <span class="n">policy</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">jit</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">file</span><span class="p">,</span> <span class="n">map_location</span><span class="o">=</span><span class="n">args_cli</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+<span class="hll"><span class="linenos">60</span>
+</span><span class="hll"><span class="linenos">61</span>    <span class="c1"># setup environment</span>
+</span><span class="hll"><span class="linenos">62</span>    <span class="n">env_cfg</span> <span class="o">=</span> <span class="n">H1RoughEnvCfg_PLAY</span><span class="p">()</span>
+</span><span class="hll"><span class="linenos">63</span>    <span class="n">env_cfg</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">num_envs</span> <span class="o">=</span> <span class="mi">1</span>
+</span><span class="hll"><span class="linenos">64</span>    <span class="n">env_cfg</span><span class="o">.</span><span class="n">curriculum</span> <span class="o">=</span> <span class="kc">None</span>
+</span><span class="hll"><span class="linenos">65</span>    <span class="n">env_cfg</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">terrain</span> <span class="o">=</span> <span class="n">TerrainImporterCfg</span><span class="p">(</span>
+</span><span class="hll"><span class="linenos">66</span>        <span class="n">prim_path</span><span class="o">=</span><span class="s2">&quot;/World/ground&quot;</span><span class="p">,</span>
+</span><span class="hll"><span class="linenos">67</span>        <span class="n">terrain_type</span><span class="o">=</span><span class="s2">&quot;usd&quot;</span><span class="p">,</span>
+</span><span class="hll"><span class="linenos">68</span>        <span class="n">usd_path</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">ISAAC_NUCLEUS_DIR</span><span class="si">}</span><span class="s2">/Environments/Simple_Warehouse/warehouse.usd&quot;</span><span class="p">,</span>
+</span><span class="hll"><span class="linenos">69</span>    <span class="p">)</span>
+</span><span class="linenos">70</span>    <span class="n">env_cfg</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">device</span> <span class="o">=</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">device</span>
+<span class="linenos">71</span>    <span class="k">if</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">device</span> <span class="o">==</span> <span class="s2">&quot;cpu&quot;</span><span class="p">:</span>
+<span class="linenos">72</span>        <span class="n">env_cfg</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">use_fabric</span> <span class="o">=</span> <span class="kc">False</span>
+<span class="linenos">73</span>
+<span class="linenos">74</span>    <span class="c1"># create environment</span>
+<span class="linenos">75</span>    <span class="n">env</span> <span class="o">=</span> <span class="n">ManagerBasedRLEnv</span><span class="p">(</span><span class="n">cfg</span><span class="o">=</span><span class="n">env_cfg</span><span class="p">)</span>
+<span class="linenos">76</span>
+<span class="linenos">77</span>    <span class="c1"># run inference with the policy</span>
+<span class="linenos">78</span>    <span class="n">obs</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
+<span class="linenos">79</span>    <span class="k">with</span> <span class="n">torch</span><span class="o">.</span><span class="n">inference_mode</span><span class="p">():</span>
+<span class="linenos">80</span>        <span class="k">while</span> <span class="n">simulation_app</span><span class="o">.</span><span class="n">is_running</span><span class="p">():</span>
+<span class="linenos">81</span>            <span class="n">action</span> <span class="o">=</span> <span class="n">policy</span><span class="p">(</span><span class="n">obs</span><span class="p">[</span><span class="s2">&quot;policy&quot;</span><span class="p">])</span>
+<span class="linenos">82</span>            <span class="n">obs</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">step</span><span class="p">(</span><span class="n">action</span><span class="p">)</span>
+<span class="linenos">83</span>
+<span class="linenos">84</span>
+<span class="linenos">85</span><span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
+<span class="linenos">86</span>    <span class="n">main</span><span class="p">()</span>
+<span class="linenos">87</span>    <span class="n">simulation_app</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
 </pre></div>
 </div>
 </div>

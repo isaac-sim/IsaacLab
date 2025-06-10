@@ -642,186 +642,181 @@ the interface between the USD articulation of the robot and the learning algorit
 <span class="linenos">  3</span><span class="c1">#</span>
 <span class="linenos">  4</span><span class="c1"># SPDX-License-Identifier: BSD-3-Clause</span>
 <span class="linenos">  5</span>
-<span class="linenos">  6</span><span class="c1"># Copyright (c) 2022-2025, The Isaac Lab Project Developers.</span>
-<span class="linenos">  7</span><span class="c1"># All rights reserved.</span>
-<span class="linenos">  8</span><span class="c1">#</span>
-<span class="linenos">  9</span><span class="c1"># SPDX-License-Identifier: BSD-3-Clause</span>
-<span class="linenos"> 10</span>
-<span class="linenos"> 11</span><span class="kn">import</span><span class="w"> </span><span class="nn">argparse</span>
-<span class="linenos"> 12</span>
-<span class="linenos"> 13</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.app</span><span class="w"> </span><span class="kn">import</span> <span class="n">AppLauncher</span>
-<span class="linenos"> 14</span>
-<span class="linenos"> 15</span><span class="c1"># add argparse arguments</span>
-<span class="linenos"> 16</span><span class="n">parser</span> <span class="o">=</span> <span class="n">argparse</span><span class="o">.</span><span class="n">ArgumentParser</span><span class="p">(</span>
-<span class="linenos"> 17</span>    <span class="n">description</span><span class="o">=</span><span class="s2">&quot;This script demonstrates adding a custom robot to an Isaac Lab environment.&quot;</span>
-<span class="linenos"> 18</span><span class="p">)</span>
-<span class="linenos"> 19</span><span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">&quot;--num_envs&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">int</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Number of environments to spawn.&quot;</span><span class="p">)</span>
-<span class="linenos"> 20</span><span class="c1"># append AppLauncher cli args</span>
-<span class="linenos"> 21</span><span class="n">AppLauncher</span><span class="o">.</span><span class="n">add_app_launcher_args</span><span class="p">(</span><span class="n">parser</span><span class="p">)</span>
-<span class="linenos"> 22</span><span class="c1"># parse the arguments</span>
-<span class="linenos"> 23</span><span class="n">args_cli</span> <span class="o">=</span> <span class="n">parser</span><span class="o">.</span><span class="n">parse_args</span><span class="p">()</span>
-<span class="linenos"> 24</span>
-<span class="linenos"> 25</span><span class="c1"># launch omniverse app</span>
-<span class="linenos"> 26</span><span class="n">app_launcher</span> <span class="o">=</span> <span class="n">AppLauncher</span><span class="p">(</span><span class="n">args_cli</span><span class="p">)</span>
-<span class="linenos"> 27</span><span class="n">simulation_app</span> <span class="o">=</span> <span class="n">app_launcher</span><span class="o">.</span><span class="n">app</span>
-<span class="linenos"> 28</span>
-<span class="linenos"> 29</span><span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
-<span class="linenos"> 30</span><span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
-<span class="linenos"> 31</span>
-<span class="linenos"> 32</span><span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab.sim</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">sim_utils</span>
-<span class="linenos"> 33</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.actuators</span><span class="w"> </span><span class="kn">import</span> <span class="n">ImplicitActuatorCfg</span>
-<span class="linenos"> 34</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.assets</span><span class="w"> </span><span class="kn">import</span> <span class="n">AssetBaseCfg</span>
-<span class="linenos"> 35</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.assets.articulation</span><span class="w"> </span><span class="kn">import</span> <span class="n">ArticulationCfg</span>
-<span class="linenos"> 36</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.scene</span><span class="w"> </span><span class="kn">import</span> <span class="n">InteractiveScene</span><span class="p">,</span> <span class="n">InteractiveSceneCfg</span>
-<span class="linenos"> 37</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils.assets</span><span class="w"> </span><span class="kn">import</span> <span class="n">ISAAC_NUCLEUS_DIR</span>
+<span class="linenos">  6</span><span class="kn">import</span><span class="w"> </span><span class="nn">argparse</span>
+<span class="linenos">  7</span>
+<span class="linenos">  8</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.app</span><span class="w"> </span><span class="kn">import</span> <span class="n">AppLauncher</span>
+<span class="linenos">  9</span>
+<span class="linenos"> 10</span><span class="c1"># add argparse arguments</span>
+<span class="linenos"> 11</span><span class="n">parser</span> <span class="o">=</span> <span class="n">argparse</span><span class="o">.</span><span class="n">ArgumentParser</span><span class="p">(</span>
+<span class="linenos"> 12</span>    <span class="n">description</span><span class="o">=</span><span class="s2">&quot;This script demonstrates adding a custom robot to an Isaac Lab environment.&quot;</span>
+<span class="linenos"> 13</span><span class="p">)</span>
+<span class="linenos"> 14</span><span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">&quot;--num_envs&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">int</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Number of environments to spawn.&quot;</span><span class="p">)</span>
+<span class="linenos"> 15</span><span class="c1"># append AppLauncher cli args</span>
+<span class="linenos"> 16</span><span class="n">AppLauncher</span><span class="o">.</span><span class="n">add_app_launcher_args</span><span class="p">(</span><span class="n">parser</span><span class="p">)</span>
+<span class="linenos"> 17</span><span class="c1"># parse the arguments</span>
+<span class="linenos"> 18</span><span class="n">args_cli</span> <span class="o">=</span> <span class="n">parser</span><span class="o">.</span><span class="n">parse_args</span><span class="p">()</span>
+<span class="linenos"> 19</span>
+<span class="linenos"> 20</span><span class="c1"># launch omniverse app</span>
+<span class="linenos"> 21</span><span class="n">app_launcher</span> <span class="o">=</span> <span class="n">AppLauncher</span><span class="p">(</span><span class="n">args_cli</span><span class="p">)</span>
+<span class="linenos"> 22</span><span class="n">simulation_app</span> <span class="o">=</span> <span class="n">app_launcher</span><span class="o">.</span><span class="n">app</span>
+<span class="linenos"> 23</span>
+<span class="linenos"> 24</span><span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="linenos"> 25</span><span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
+<span class="linenos"> 26</span>
+<span class="linenos"> 27</span><span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab.sim</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">sim_utils</span>
+<span class="linenos"> 28</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.actuators</span><span class="w"> </span><span class="kn">import</span> <span class="n">ImplicitActuatorCfg</span>
+<span class="linenos"> 29</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.assets</span><span class="w"> </span><span class="kn">import</span> <span class="n">AssetBaseCfg</span>
+<span class="linenos"> 30</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.assets.articulation</span><span class="w"> </span><span class="kn">import</span> <span class="n">ArticulationCfg</span>
+<span class="linenos"> 31</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.scene</span><span class="w"> </span><span class="kn">import</span> <span class="n">InteractiveScene</span><span class="p">,</span> <span class="n">InteractiveSceneCfg</span>
+<span class="linenos"> 32</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils.assets</span><span class="w"> </span><span class="kn">import</span> <span class="n">ISAAC_NUCLEUS_DIR</span>
+<span class="linenos"> 33</span>
+<span class="linenos"> 34</span><span class="n">JETBOT_CONFIG</span> <span class="o">=</span> <span class="n">ArticulationCfg</span><span class="p">(</span>
+<span class="linenos"> 35</span>    <span class="n">spawn</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">UsdFileCfg</span><span class="p">(</span><span class="n">usd_path</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">ISAAC_NUCLEUS_DIR</span><span class="si">}</span><span class="s2">/Robots/Jetbot/jetbot.usd&quot;</span><span class="p">),</span>
+<span class="linenos"> 36</span>    <span class="n">actuators</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;wheel_acts&quot;</span><span class="p">:</span> <span class="n">ImplicitActuatorCfg</span><span class="p">(</span><span class="n">joint_names_expr</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;.*&quot;</span><span class="p">],</span> <span class="n">damping</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">stiffness</span><span class="o">=</span><span class="kc">None</span><span class="p">)},</span>
+<span class="linenos"> 37</span><span class="p">)</span>
 <span class="linenos"> 38</span>
-<span class="linenos"> 39</span><span class="n">JETBOT_CONFIG</span> <span class="o">=</span> <span class="n">ArticulationCfg</span><span class="p">(</span>
-<span class="linenos"> 40</span>    <span class="n">spawn</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">UsdFileCfg</span><span class="p">(</span><span class="n">usd_path</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">ISAAC_NUCLEUS_DIR</span><span class="si">}</span><span class="s2">/Robots/Jetbot/jetbot.usd&quot;</span><span class="p">),</span>
-<span class="linenos"> 41</span>    <span class="n">actuators</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;wheel_acts&quot;</span><span class="p">:</span> <span class="n">ImplicitActuatorCfg</span><span class="p">(</span><span class="n">joint_names_expr</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;.*&quot;</span><span class="p">],</span> <span class="n">damping</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">stiffness</span><span class="o">=</span><span class="kc">None</span><span class="p">)},</span>
-<span class="linenos"> 42</span><span class="p">)</span>
-<span class="linenos"> 43</span>
-<span class="linenos"> 44</span><span class="n">DOFBOT_CONFIG</span> <span class="o">=</span> <span class="n">ArticulationCfg</span><span class="p">(</span>
-<span class="linenos"> 45</span>    <span class="n">spawn</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">UsdFileCfg</span><span class="p">(</span>
-<span class="linenos"> 46</span>        <span class="n">usd_path</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">ISAAC_NUCLEUS_DIR</span><span class="si">}</span><span class="s2">/Robots/Dofbot/dofbot.usd&quot;</span><span class="p">,</span>
-<span class="linenos"> 47</span>        <span class="n">rigid_props</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">RigidBodyPropertiesCfg</span><span class="p">(</span>
-<span class="linenos"> 48</span>            <span class="n">disable_gravity</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
-<span class="linenos"> 49</span>            <span class="n">max_depenetration_velocity</span><span class="o">=</span><span class="mf">5.0</span><span class="p">,</span>
-<span class="linenos"> 50</span>        <span class="p">),</span>
-<span class="linenos"> 51</span>        <span class="n">articulation_props</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">ArticulationRootPropertiesCfg</span><span class="p">(</span>
-<span class="linenos"> 52</span>            <span class="n">enabled_self_collisions</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">solver_position_iteration_count</span><span class="o">=</span><span class="mi">8</span><span class="p">,</span> <span class="n">solver_velocity_iteration_count</span><span class="o">=</span><span class="mi">0</span>
-<span class="linenos"> 53</span>        <span class="p">),</span>
-<span class="linenos"> 54</span>    <span class="p">),</span>
-<span class="linenos"> 55</span>    <span class="n">init_state</span><span class="o">=</span><span class="n">ArticulationCfg</span><span class="o">.</span><span class="n">InitialStateCfg</span><span class="p">(</span>
-<span class="linenos"> 56</span>        <span class="n">joint_pos</span><span class="o">=</span><span class="p">{</span>
-<span class="linenos"> 57</span>            <span class="s2">&quot;joint1&quot;</span><span class="p">:</span> <span class="mf">0.0</span><span class="p">,</span>
-<span class="linenos"> 58</span>            <span class="s2">&quot;joint2&quot;</span><span class="p">:</span> <span class="mf">0.0</span><span class="p">,</span>
-<span class="linenos"> 59</span>            <span class="s2">&quot;joint3&quot;</span><span class="p">:</span> <span class="mf">0.0</span><span class="p">,</span>
-<span class="linenos"> 60</span>            <span class="s2">&quot;joint4&quot;</span><span class="p">:</span> <span class="mf">0.0</span><span class="p">,</span>
-<span class="linenos"> 61</span>        <span class="p">},</span>
-<span class="linenos"> 62</span>        <span class="n">pos</span><span class="o">=</span><span class="p">(</span><span class="mf">0.25</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.25</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">),</span>
-<span class="linenos"> 63</span>    <span class="p">),</span>
-<span class="linenos"> 64</span>    <span class="n">actuators</span><span class="o">=</span><span class="p">{</span>
-<span class="linenos"> 65</span>        <span class="s2">&quot;front_joints&quot;</span><span class="p">:</span> <span class="n">ImplicitActuatorCfg</span><span class="p">(</span>
-<span class="linenos"> 66</span>            <span class="n">joint_names_expr</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;joint[1-2]&quot;</span><span class="p">],</span>
-<span class="linenos"> 67</span>            <span class="n">effort_limit_sim</span><span class="o">=</span><span class="mf">100.0</span><span class="p">,</span>
-<span class="linenos"> 68</span>            <span class="n">velocity_limit_sim</span><span class="o">=</span><span class="mf">100.0</span><span class="p">,</span>
-<span class="linenos"> 69</span>            <span class="n">stiffness</span><span class="o">=</span><span class="mf">10000.0</span><span class="p">,</span>
-<span class="linenos"> 70</span>            <span class="n">damping</span><span class="o">=</span><span class="mf">100.0</span><span class="p">,</span>
-<span class="linenos"> 71</span>        <span class="p">),</span>
-<span class="linenos"> 72</span>        <span class="s2">&quot;joint3_act&quot;</span><span class="p">:</span> <span class="n">ImplicitActuatorCfg</span><span class="p">(</span>
-<span class="linenos"> 73</span>            <span class="n">joint_names_expr</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;joint3&quot;</span><span class="p">],</span>
-<span class="linenos"> 74</span>            <span class="n">effort_limit_sim</span><span class="o">=</span><span class="mf">100.0</span><span class="p">,</span>
-<span class="linenos"> 75</span>            <span class="n">velocity_limit_sim</span><span class="o">=</span><span class="mf">100.0</span><span class="p">,</span>
-<span class="linenos"> 76</span>            <span class="n">stiffness</span><span class="o">=</span><span class="mf">10000.0</span><span class="p">,</span>
-<span class="linenos"> 77</span>            <span class="n">damping</span><span class="o">=</span><span class="mf">100.0</span><span class="p">,</span>
-<span class="linenos"> 78</span>        <span class="p">),</span>
-<span class="linenos"> 79</span>        <span class="s2">&quot;joint4_act&quot;</span><span class="p">:</span> <span class="n">ImplicitActuatorCfg</span><span class="p">(</span>
-<span class="linenos"> 80</span>            <span class="n">joint_names_expr</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;joint4&quot;</span><span class="p">],</span>
-<span class="linenos"> 81</span>            <span class="n">effort_limit_sim</span><span class="o">=</span><span class="mf">100.0</span><span class="p">,</span>
-<span class="linenos"> 82</span>            <span class="n">velocity_limit_sim</span><span class="o">=</span><span class="mf">100.0</span><span class="p">,</span>
-<span class="linenos"> 83</span>            <span class="n">stiffness</span><span class="o">=</span><span class="mf">10000.0</span><span class="p">,</span>
-<span class="linenos"> 84</span>            <span class="n">damping</span><span class="o">=</span><span class="mf">100.0</span><span class="p">,</span>
-<span class="linenos"> 85</span>        <span class="p">),</span>
-<span class="linenos"> 86</span>    <span class="p">},</span>
-<span class="linenos"> 87</span><span class="p">)</span>
-<span class="linenos"> 88</span>
-<span class="linenos"> 89</span>
-<span class="linenos"> 90</span><span class="k">class</span><span class="w"> </span><span class="nc">NewRobotsSceneCfg</span><span class="p">(</span><span class="n">InteractiveSceneCfg</span><span class="p">):</span>
-<span class="linenos"> 91</span><span class="w">    </span><span class="sd">&quot;&quot;&quot;Designs the scene.&quot;&quot;&quot;</span>
-<span class="linenos"> 92</span>
-<span class="linenos"> 93</span>    <span class="c1"># Ground-plane</span>
-<span class="linenos"> 94</span>    <span class="n">ground</span> <span class="o">=</span> <span class="n">AssetBaseCfg</span><span class="p">(</span><span class="n">prim_path</span><span class="o">=</span><span class="s2">&quot;/World/defaultGroundPlane&quot;</span><span class="p">,</span> <span class="n">spawn</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">GroundPlaneCfg</span><span class="p">())</span>
+<span class="linenos"> 39</span><span class="n">DOFBOT_CONFIG</span> <span class="o">=</span> <span class="n">ArticulationCfg</span><span class="p">(</span>
+<span class="linenos"> 40</span>    <span class="n">spawn</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">UsdFileCfg</span><span class="p">(</span>
+<span class="linenos"> 41</span>        <span class="n">usd_path</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">ISAAC_NUCLEUS_DIR</span><span class="si">}</span><span class="s2">/Robots/Dofbot/dofbot.usd&quot;</span><span class="p">,</span>
+<span class="linenos"> 42</span>        <span class="n">rigid_props</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">RigidBodyPropertiesCfg</span><span class="p">(</span>
+<span class="linenos"> 43</span>            <span class="n">disable_gravity</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+<span class="linenos"> 44</span>            <span class="n">max_depenetration_velocity</span><span class="o">=</span><span class="mf">5.0</span><span class="p">,</span>
+<span class="linenos"> 45</span>        <span class="p">),</span>
+<span class="linenos"> 46</span>        <span class="n">articulation_props</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">ArticulationRootPropertiesCfg</span><span class="p">(</span>
+<span class="linenos"> 47</span>            <span class="n">enabled_self_collisions</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">solver_position_iteration_count</span><span class="o">=</span><span class="mi">8</span><span class="p">,</span> <span class="n">solver_velocity_iteration_count</span><span class="o">=</span><span class="mi">0</span>
+<span class="linenos"> 48</span>        <span class="p">),</span>
+<span class="linenos"> 49</span>    <span class="p">),</span>
+<span class="linenos"> 50</span>    <span class="n">init_state</span><span class="o">=</span><span class="n">ArticulationCfg</span><span class="o">.</span><span class="n">InitialStateCfg</span><span class="p">(</span>
+<span class="linenos"> 51</span>        <span class="n">joint_pos</span><span class="o">=</span><span class="p">{</span>
+<span class="linenos"> 52</span>            <span class="s2">&quot;joint1&quot;</span><span class="p">:</span> <span class="mf">0.0</span><span class="p">,</span>
+<span class="linenos"> 53</span>            <span class="s2">&quot;joint2&quot;</span><span class="p">:</span> <span class="mf">0.0</span><span class="p">,</span>
+<span class="linenos"> 54</span>            <span class="s2">&quot;joint3&quot;</span><span class="p">:</span> <span class="mf">0.0</span><span class="p">,</span>
+<span class="linenos"> 55</span>            <span class="s2">&quot;joint4&quot;</span><span class="p">:</span> <span class="mf">0.0</span><span class="p">,</span>
+<span class="linenos"> 56</span>        <span class="p">},</span>
+<span class="linenos"> 57</span>        <span class="n">pos</span><span class="o">=</span><span class="p">(</span><span class="mf">0.25</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.25</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">),</span>
+<span class="linenos"> 58</span>    <span class="p">),</span>
+<span class="linenos"> 59</span>    <span class="n">actuators</span><span class="o">=</span><span class="p">{</span>
+<span class="linenos"> 60</span>        <span class="s2">&quot;front_joints&quot;</span><span class="p">:</span> <span class="n">ImplicitActuatorCfg</span><span class="p">(</span>
+<span class="linenos"> 61</span>            <span class="n">joint_names_expr</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;joint[1-2]&quot;</span><span class="p">],</span>
+<span class="linenos"> 62</span>            <span class="n">effort_limit_sim</span><span class="o">=</span><span class="mf">100.0</span><span class="p">,</span>
+<span class="linenos"> 63</span>            <span class="n">velocity_limit_sim</span><span class="o">=</span><span class="mf">100.0</span><span class="p">,</span>
+<span class="linenos"> 64</span>            <span class="n">stiffness</span><span class="o">=</span><span class="mf">10000.0</span><span class="p">,</span>
+<span class="linenos"> 65</span>            <span class="n">damping</span><span class="o">=</span><span class="mf">100.0</span><span class="p">,</span>
+<span class="linenos"> 66</span>        <span class="p">),</span>
+<span class="linenos"> 67</span>        <span class="s2">&quot;joint3_act&quot;</span><span class="p">:</span> <span class="n">ImplicitActuatorCfg</span><span class="p">(</span>
+<span class="linenos"> 68</span>            <span class="n">joint_names_expr</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;joint3&quot;</span><span class="p">],</span>
+<span class="linenos"> 69</span>            <span class="n">effort_limit_sim</span><span class="o">=</span><span class="mf">100.0</span><span class="p">,</span>
+<span class="linenos"> 70</span>            <span class="n">velocity_limit_sim</span><span class="o">=</span><span class="mf">100.0</span><span class="p">,</span>
+<span class="linenos"> 71</span>            <span class="n">stiffness</span><span class="o">=</span><span class="mf">10000.0</span><span class="p">,</span>
+<span class="linenos"> 72</span>            <span class="n">damping</span><span class="o">=</span><span class="mf">100.0</span><span class="p">,</span>
+<span class="linenos"> 73</span>        <span class="p">),</span>
+<span class="linenos"> 74</span>        <span class="s2">&quot;joint4_act&quot;</span><span class="p">:</span> <span class="n">ImplicitActuatorCfg</span><span class="p">(</span>
+<span class="linenos"> 75</span>            <span class="n">joint_names_expr</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;joint4&quot;</span><span class="p">],</span>
+<span class="linenos"> 76</span>            <span class="n">effort_limit_sim</span><span class="o">=</span><span class="mf">100.0</span><span class="p">,</span>
+<span class="linenos"> 77</span>            <span class="n">velocity_limit_sim</span><span class="o">=</span><span class="mf">100.0</span><span class="p">,</span>
+<span class="linenos"> 78</span>            <span class="n">stiffness</span><span class="o">=</span><span class="mf">10000.0</span><span class="p">,</span>
+<span class="linenos"> 79</span>            <span class="n">damping</span><span class="o">=</span><span class="mf">100.0</span><span class="p">,</span>
+<span class="linenos"> 80</span>        <span class="p">),</span>
+<span class="linenos"> 81</span>    <span class="p">},</span>
+<span class="linenos"> 82</span><span class="p">)</span>
+<span class="linenos"> 83</span>
+<span class="linenos"> 84</span>
+<span class="linenos"> 85</span><span class="k">class</span><span class="w"> </span><span class="nc">NewRobotsSceneCfg</span><span class="p">(</span><span class="n">InteractiveSceneCfg</span><span class="p">):</span>
+<span class="linenos"> 86</span><span class="w">    </span><span class="sd">&quot;&quot;&quot;Designs the scene.&quot;&quot;&quot;</span>
+<span class="linenos"> 87</span>
+<span class="linenos"> 88</span>    <span class="c1"># Ground-plane</span>
+<span class="linenos"> 89</span>    <span class="n">ground</span> <span class="o">=</span> <span class="n">AssetBaseCfg</span><span class="p">(</span><span class="n">prim_path</span><span class="o">=</span><span class="s2">&quot;/World/defaultGroundPlane&quot;</span><span class="p">,</span> <span class="n">spawn</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">GroundPlaneCfg</span><span class="p">())</span>
+<span class="linenos"> 90</span>
+<span class="linenos"> 91</span>    <span class="c1"># lights</span>
+<span class="linenos"> 92</span>    <span class="n">dome_light</span> <span class="o">=</span> <span class="n">AssetBaseCfg</span><span class="p">(</span>
+<span class="linenos"> 93</span>        <span class="n">prim_path</span><span class="o">=</span><span class="s2">&quot;/World/Light&quot;</span><span class="p">,</span> <span class="n">spawn</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">DomeLightCfg</span><span class="p">(</span><span class="n">intensity</span><span class="o">=</span><span class="mf">3000.0</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="p">(</span><span class="mf">0.75</span><span class="p">,</span> <span class="mf">0.75</span><span class="p">,</span> <span class="mf">0.75</span><span class="p">))</span>
+<span class="linenos"> 94</span>    <span class="p">)</span>
 <span class="linenos"> 95</span>
-<span class="linenos"> 96</span>    <span class="c1"># lights</span>
-<span class="linenos"> 97</span>    <span class="n">dome_light</span> <span class="o">=</span> <span class="n">AssetBaseCfg</span><span class="p">(</span>
-<span class="linenos"> 98</span>        <span class="n">prim_path</span><span class="o">=</span><span class="s2">&quot;/World/Light&quot;</span><span class="p">,</span> <span class="n">spawn</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">DomeLightCfg</span><span class="p">(</span><span class="n">intensity</span><span class="o">=</span><span class="mf">3000.0</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="p">(</span><span class="mf">0.75</span><span class="p">,</span> <span class="mf">0.75</span><span class="p">,</span> <span class="mf">0.75</span><span class="p">))</span>
-<span class="linenos"> 99</span>    <span class="p">)</span>
+<span class="linenos"> 96</span>    <span class="c1"># robot</span>
+<span class="linenos"> 97</span>    <span class="n">Jetbot</span> <span class="o">=</span> <span class="n">JETBOT_CONFIG</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">prim_path</span><span class="o">=</span><span class="s2">&quot;</span><span class="si">{ENV_REGEX_NS}</span><span class="s2">/Jetbot&quot;</span><span class="p">)</span>
+<span class="linenos"> 98</span>    <span class="n">Dofbot</span> <span class="o">=</span> <span class="n">DOFBOT_CONFIG</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">prim_path</span><span class="o">=</span><span class="s2">&quot;</span><span class="si">{ENV_REGEX_NS}</span><span class="s2">/Dofbot&quot;</span><span class="p">)</span>
+<span class="linenos"> 99</span>
 <span class="linenos">100</span>
-<span class="linenos">101</span>    <span class="c1"># robot</span>
-<span class="linenos">102</span>    <span class="n">Jetbot</span> <span class="o">=</span> <span class="n">JETBOT_CONFIG</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">prim_path</span><span class="o">=</span><span class="s2">&quot;</span><span class="si">{ENV_REGEX_NS}</span><span class="s2">/Jetbot&quot;</span><span class="p">)</span>
-<span class="linenos">103</span>    <span class="n">Dofbot</span> <span class="o">=</span> <span class="n">DOFBOT_CONFIG</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">prim_path</span><span class="o">=</span><span class="s2">&quot;</span><span class="si">{ENV_REGEX_NS}</span><span class="s2">/Dofbot&quot;</span><span class="p">)</span>
-<span class="linenos">104</span>
+<span class="linenos">101</span><span class="k">def</span><span class="w"> </span><span class="nf">run_simulator</span><span class="p">(</span><span class="n">sim</span><span class="p">:</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">SimulationContext</span><span class="p">,</span> <span class="n">scene</span><span class="p">:</span> <span class="n">InteractiveScene</span><span class="p">):</span>
+<span class="linenos">102</span>    <span class="n">sim_dt</span> <span class="o">=</span> <span class="n">sim</span><span class="o">.</span><span class="n">get_physics_dt</span><span class="p">()</span>
+<span class="linenos">103</span>    <span class="n">sim_time</span> <span class="o">=</span> <span class="mf">0.0</span>
+<span class="linenos">104</span>    <span class="n">count</span> <span class="o">=</span> <span class="mi">0</span>
 <span class="linenos">105</span>
-<span class="linenos">106</span><span class="k">def</span><span class="w"> </span><span class="nf">run_simulator</span><span class="p">(</span><span class="n">sim</span><span class="p">:</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">SimulationContext</span><span class="p">,</span> <span class="n">scene</span><span class="p">:</span> <span class="n">InteractiveScene</span><span class="p">):</span>
-<span class="linenos">107</span>    <span class="n">sim_dt</span> <span class="o">=</span> <span class="n">sim</span><span class="o">.</span><span class="n">get_physics_dt</span><span class="p">()</span>
-<span class="linenos">108</span>    <span class="n">sim_time</span> <span class="o">=</span> <span class="mf">0.0</span>
-<span class="linenos">109</span>    <span class="n">count</span> <span class="o">=</span> <span class="mi">0</span>
-<span class="linenos">110</span>
-<span class="linenos">111</span>    <span class="k">while</span> <span class="n">simulation_app</span><span class="o">.</span><span class="n">is_running</span><span class="p">():</span>
-<span class="linenos">112</span>        <span class="c1"># reset</span>
-<span class="linenos">113</span>        <span class="k">if</span> <span class="n">count</span> <span class="o">%</span> <span class="mi">500</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
-<span class="linenos">114</span>            <span class="c1"># reset counters</span>
-<span class="linenos">115</span>            <span class="n">count</span> <span class="o">=</span> <span class="mi">0</span>
-<span class="linenos">116</span>            <span class="c1"># reset the scene entities to their initial positions offset by the environment origins</span>
-<span class="linenos">117</span>            <span class="n">root_jetbot_state</span> <span class="o">=</span> <span class="n">scene</span><span class="p">[</span><span class="s2">&quot;Jetbot&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_root_state</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
-<span class="linenos">118</span>            <span class="n">root_jetbot_state</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">3</span><span class="p">]</span> <span class="o">+=</span> <span class="n">scene</span><span class="o">.</span><span class="n">env_origins</span>
-<span class="linenos">119</span>            <span class="n">root_dofbot_state</span> <span class="o">=</span> <span class="n">scene</span><span class="p">[</span><span class="s2">&quot;Dofbot&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_root_state</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
-<span class="linenos">120</span>            <span class="n">root_dofbot_state</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">3</span><span class="p">]</span> <span class="o">+=</span> <span class="n">scene</span><span class="o">.</span><span class="n">env_origins</span>
-<span class="linenos">121</span>
-<span class="linenos">122</span>            <span class="c1"># copy the default root state to the sim for the jetbot&#39;s orientation and velocity</span>
-<span class="linenos">123</span>            <span class="n">scene</span><span class="p">[</span><span class="s2">&quot;Jetbot&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">write_root_pose_to_sim</span><span class="p">(</span><span class="n">root_jetbot_state</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">7</span><span class="p">])</span>
-<span class="linenos">124</span>            <span class="n">scene</span><span class="p">[</span><span class="s2">&quot;Jetbot&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">write_root_velocity_to_sim</span><span class="p">(</span><span class="n">root_jetbot_state</span><span class="p">[:,</span> <span class="mi">7</span><span class="p">:])</span>
-<span class="linenos">125</span>            <span class="n">scene</span><span class="p">[</span><span class="s2">&quot;Dofbot&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">write_root_pose_to_sim</span><span class="p">(</span><span class="n">root_dofbot_state</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">7</span><span class="p">])</span>
-<span class="linenos">126</span>            <span class="n">scene</span><span class="p">[</span><span class="s2">&quot;Dofbot&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">write_root_velocity_to_sim</span><span class="p">(</span><span class="n">root_dofbot_state</span><span class="p">[:,</span> <span class="mi">7</span><span class="p">:])</span>
-<span class="linenos">127</span>
-<span class="linenos">128</span>            <span class="c1"># copy the default joint states to the sim</span>
+<span class="linenos">106</span>    <span class="k">while</span> <span class="n">simulation_app</span><span class="o">.</span><span class="n">is_running</span><span class="p">():</span>
+<span class="linenos">107</span>        <span class="c1"># reset</span>
+<span class="linenos">108</span>        <span class="k">if</span> <span class="n">count</span> <span class="o">%</span> <span class="mi">500</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+<span class="linenos">109</span>            <span class="c1"># reset counters</span>
+<span class="linenos">110</span>            <span class="n">count</span> <span class="o">=</span> <span class="mi">0</span>
+<span class="linenos">111</span>            <span class="c1"># reset the scene entities to their initial positions offset by the environment origins</span>
+<span class="linenos">112</span>            <span class="n">root_jetbot_state</span> <span class="o">=</span> <span class="n">scene</span><span class="p">[</span><span class="s2">&quot;Jetbot&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_root_state</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+<span class="linenos">113</span>            <span class="n">root_jetbot_state</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">3</span><span class="p">]</span> <span class="o">+=</span> <span class="n">scene</span><span class="o">.</span><span class="n">env_origins</span>
+<span class="linenos">114</span>            <span class="n">root_dofbot_state</span> <span class="o">=</span> <span class="n">scene</span><span class="p">[</span><span class="s2">&quot;Dofbot&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_root_state</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+<span class="linenos">115</span>            <span class="n">root_dofbot_state</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">3</span><span class="p">]</span> <span class="o">+=</span> <span class="n">scene</span><span class="o">.</span><span class="n">env_origins</span>
+<span class="linenos">116</span>
+<span class="linenos">117</span>            <span class="c1"># copy the default root state to the sim for the jetbot&#39;s orientation and velocity</span>
+<span class="linenos">118</span>            <span class="n">scene</span><span class="p">[</span><span class="s2">&quot;Jetbot&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">write_root_pose_to_sim</span><span class="p">(</span><span class="n">root_jetbot_state</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">7</span><span class="p">])</span>
+<span class="linenos">119</span>            <span class="n">scene</span><span class="p">[</span><span class="s2">&quot;Jetbot&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">write_root_velocity_to_sim</span><span class="p">(</span><span class="n">root_jetbot_state</span><span class="p">[:,</span> <span class="mi">7</span><span class="p">:])</span>
+<span class="linenos">120</span>            <span class="n">scene</span><span class="p">[</span><span class="s2">&quot;Dofbot&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">write_root_pose_to_sim</span><span class="p">(</span><span class="n">root_dofbot_state</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">7</span><span class="p">])</span>
+<span class="linenos">121</span>            <span class="n">scene</span><span class="p">[</span><span class="s2">&quot;Dofbot&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">write_root_velocity_to_sim</span><span class="p">(</span><span class="n">root_dofbot_state</span><span class="p">[:,</span> <span class="mi">7</span><span class="p">:])</span>
+<span class="linenos">122</span>
+<span class="linenos">123</span>            <span class="c1"># copy the default joint states to the sim</span>
+<span class="linenos">124</span>            <span class="n">joint_pos</span><span class="p">,</span> <span class="n">joint_vel</span> <span class="o">=</span> <span class="p">(</span>
+<span class="linenos">125</span>                <span class="n">scene</span><span class="p">[</span><span class="s2">&quot;Jetbot&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_joint_pos</span><span class="o">.</span><span class="n">clone</span><span class="p">(),</span>
+<span class="linenos">126</span>                <span class="n">scene</span><span class="p">[</span><span class="s2">&quot;Jetbot&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_joint_vel</span><span class="o">.</span><span class="n">clone</span><span class="p">(),</span>
+<span class="linenos">127</span>            <span class="p">)</span>
+<span class="linenos">128</span>            <span class="n">scene</span><span class="p">[</span><span class="s2">&quot;Jetbot&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">write_joint_state_to_sim</span><span class="p">(</span><span class="n">joint_pos</span><span class="p">,</span> <span class="n">joint_vel</span><span class="p">)</span>
 <span class="linenos">129</span>            <span class="n">joint_pos</span><span class="p">,</span> <span class="n">joint_vel</span> <span class="o">=</span> <span class="p">(</span>
-<span class="linenos">130</span>                <span class="n">scene</span><span class="p">[</span><span class="s2">&quot;Jetbot&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_joint_pos</span><span class="o">.</span><span class="n">clone</span><span class="p">(),</span>
-<span class="linenos">131</span>                <span class="n">scene</span><span class="p">[</span><span class="s2">&quot;Jetbot&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_joint_vel</span><span class="o">.</span><span class="n">clone</span><span class="p">(),</span>
+<span class="linenos">130</span>                <span class="n">scene</span><span class="p">[</span><span class="s2">&quot;Dofbot&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_joint_pos</span><span class="o">.</span><span class="n">clone</span><span class="p">(),</span>
+<span class="linenos">131</span>                <span class="n">scene</span><span class="p">[</span><span class="s2">&quot;Dofbot&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_joint_vel</span><span class="o">.</span><span class="n">clone</span><span class="p">(),</span>
 <span class="linenos">132</span>            <span class="p">)</span>
-<span class="linenos">133</span>            <span class="n">scene</span><span class="p">[</span><span class="s2">&quot;Jetbot&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">write_joint_state_to_sim</span><span class="p">(</span><span class="n">joint_pos</span><span class="p">,</span> <span class="n">joint_vel</span><span class="p">)</span>
-<span class="linenos">134</span>            <span class="n">joint_pos</span><span class="p">,</span> <span class="n">joint_vel</span> <span class="o">=</span> <span class="p">(</span>
-<span class="linenos">135</span>                <span class="n">scene</span><span class="p">[</span><span class="s2">&quot;Dofbot&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_joint_pos</span><span class="o">.</span><span class="n">clone</span><span class="p">(),</span>
-<span class="linenos">136</span>                <span class="n">scene</span><span class="p">[</span><span class="s2">&quot;Dofbot&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_joint_vel</span><span class="o">.</span><span class="n">clone</span><span class="p">(),</span>
-<span class="linenos">137</span>            <span class="p">)</span>
-<span class="linenos">138</span>            <span class="n">scene</span><span class="p">[</span><span class="s2">&quot;Dofbot&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">write_joint_state_to_sim</span><span class="p">(</span><span class="n">joint_pos</span><span class="p">,</span> <span class="n">joint_vel</span><span class="p">)</span>
-<span class="linenos">139</span>            <span class="c1"># clear internal buffers</span>
-<span class="linenos">140</span>            <span class="n">scene</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
-<span class="linenos">141</span>            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[INFO]: Resetting Jetbot and Dofbot state...&quot;</span><span class="p">)</span>
-<span class="linenos">142</span>
-<span class="linenos">143</span>        <span class="c1"># drive around</span>
-<span class="linenos">144</span>        <span class="k">if</span> <span class="n">count</span> <span class="o">%</span> <span class="mi">100</span> <span class="o">&lt;</span> <span class="mi">75</span><span class="p">:</span>
-<span class="linenos">145</span>            <span class="c1"># Drive straight by setting equal wheel velocities</span>
-<span class="linenos">146</span>            <span class="n">action</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">([[</span><span class="mf">10.0</span><span class="p">,</span> <span class="mf">10.0</span><span class="p">]])</span>
-<span class="linenos">147</span>        <span class="k">else</span><span class="p">:</span>
-<span class="linenos">148</span>            <span class="c1"># Turn by applying different velocities</span>
-<span class="linenos">149</span>            <span class="n">action</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">([[</span><span class="mf">5.0</span><span class="p">,</span> <span class="o">-</span><span class="mf">5.0</span><span class="p">]])</span>
-<span class="linenos">150</span>
-<span class="linenos">151</span>        <span class="n">scene</span><span class="p">[</span><span class="s2">&quot;Jetbot&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">set_joint_velocity_target</span><span class="p">(</span><span class="n">action</span><span class="p">)</span>
+<span class="linenos">133</span>            <span class="n">scene</span><span class="p">[</span><span class="s2">&quot;Dofbot&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">write_joint_state_to_sim</span><span class="p">(</span><span class="n">joint_pos</span><span class="p">,</span> <span class="n">joint_vel</span><span class="p">)</span>
+<span class="linenos">134</span>            <span class="c1"># clear internal buffers</span>
+<span class="linenos">135</span>            <span class="n">scene</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
+<span class="linenos">136</span>            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[INFO]: Resetting Jetbot and Dofbot state...&quot;</span><span class="p">)</span>
+<span class="linenos">137</span>
+<span class="linenos">138</span>        <span class="c1"># drive around</span>
+<span class="linenos">139</span>        <span class="k">if</span> <span class="n">count</span> <span class="o">%</span> <span class="mi">100</span> <span class="o">&lt;</span> <span class="mi">75</span><span class="p">:</span>
+<span class="linenos">140</span>            <span class="c1"># Drive straight by setting equal wheel velocities</span>
+<span class="linenos">141</span>            <span class="n">action</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">([[</span><span class="mf">10.0</span><span class="p">,</span> <span class="mf">10.0</span><span class="p">]])</span>
+<span class="linenos">142</span>        <span class="k">else</span><span class="p">:</span>
+<span class="linenos">143</span>            <span class="c1"># Turn by applying different velocities</span>
+<span class="linenos">144</span>            <span class="n">action</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">([[</span><span class="mf">5.0</span><span class="p">,</span> <span class="o">-</span><span class="mf">5.0</span><span class="p">]])</span>
+<span class="linenos">145</span>
+<span class="linenos">146</span>        <span class="n">scene</span><span class="p">[</span><span class="s2">&quot;Jetbot&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">set_joint_velocity_target</span><span class="p">(</span><span class="n">action</span><span class="p">)</span>
+<span class="linenos">147</span>
+<span class="linenos">148</span>        <span class="c1"># wave</span>
+<span class="linenos">149</span>        <span class="n">wave_action</span> <span class="o">=</span> <span class="n">scene</span><span class="p">[</span><span class="s2">&quot;Dofbot&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_joint_pos</span>
+<span class="linenos">150</span>        <span class="n">wave_action</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">:</span><span class="mi">4</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.25</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="mi">2</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">pi</span> <span class="o">*</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="n">sim_time</span><span class="p">)</span>
+<span class="linenos">151</span>        <span class="n">scene</span><span class="p">[</span><span class="s2">&quot;Dofbot&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">set_joint_position_target</span><span class="p">(</span><span class="n">wave_action</span><span class="p">)</span>
 <span class="linenos">152</span>
-<span class="linenos">153</span>        <span class="c1"># wave</span>
-<span class="linenos">154</span>        <span class="n">wave_action</span> <span class="o">=</span> <span class="n">scene</span><span class="p">[</span><span class="s2">&quot;Dofbot&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_joint_pos</span>
-<span class="linenos">155</span>        <span class="n">wave_action</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">:</span><span class="mi">4</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.25</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="mi">2</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">pi</span> <span class="o">*</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="n">sim_time</span><span class="p">)</span>
-<span class="linenos">156</span>        <span class="n">scene</span><span class="p">[</span><span class="s2">&quot;Dofbot&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">set_joint_position_target</span><span class="p">(</span><span class="n">wave_action</span><span class="p">)</span>
-<span class="linenos">157</span>
-<span class="linenos">158</span>        <span class="n">scene</span><span class="o">.</span><span class="n">write_data_to_sim</span><span class="p">()</span>
-<span class="linenos">159</span>        <span class="n">sim</span><span class="o">.</span><span class="n">step</span><span class="p">()</span>
-<span class="linenos">160</span>        <span class="n">sim_time</span> <span class="o">+=</span> <span class="n">sim_dt</span>
-<span class="linenos">161</span>        <span class="n">count</span> <span class="o">+=</span> <span class="mi">1</span>
-<span class="linenos">162</span>        <span class="n">scene</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">sim_dt</span><span class="p">)</span>
-<span class="linenos">163</span>
-<span class="linenos">164</span>
-<span class="linenos">165</span><span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">():</span>
-<span class="linenos">166</span><span class="w">    </span><span class="sd">&quot;&quot;&quot;Main function.&quot;&quot;&quot;</span>
-<span class="linenos">167</span>    <span class="c1"># Initialize the simulation context</span>
-<span class="linenos">168</span>    <span class="n">sim_cfg</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">SimulationCfg</span><span class="p">(</span><span class="n">device</span><span class="o">=</span><span class="n">args_cli</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
-<span class="linenos">169</span>    <span class="n">sim</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">SimulationContext</span><span class="p">(</span><span class="n">sim_cfg</span><span class="p">)</span>
-<span class="linenos">170</span>
-<span class="linenos">171</span>    <span class="n">sim</span><span class="o">.</span><span class="n">set_camera_view</span><span class="p">([</span><span class="mf">3.5</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">3.2</span><span class="p">],</span> <span class="p">[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">])</span>
-<span class="linenos">172</span>    <span class="c1"># design scene</span>
-<span class="linenos">173</span>    <span class="n">scene_cfg</span> <span class="o">=</span> <span class="n">NewRobotsSceneCfg</span><span class="p">(</span><span class="n">args_cli</span><span class="o">.</span><span class="n">num_envs</span><span class="p">,</span> <span class="n">env_spacing</span><span class="o">=</span><span class="mf">2.0</span><span class="p">)</span>
-<span class="linenos">174</span>    <span class="n">scene</span> <span class="o">=</span> <span class="n">InteractiveScene</span><span class="p">(</span><span class="n">scene_cfg</span><span class="p">)</span>
-<span class="linenos">175</span>    <span class="c1"># Play the simulator</span>
-<span class="linenos">176</span>    <span class="n">sim</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
-<span class="linenos">177</span>    <span class="c1"># Now we are ready!</span>
-<span class="linenos">178</span>    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[INFO]: Setup complete...&quot;</span><span class="p">)</span>
-<span class="linenos">179</span>    <span class="c1"># Run the simulator</span>
-<span class="linenos">180</span>    <span class="n">run_simulator</span><span class="p">(</span><span class="n">sim</span><span class="p">,</span> <span class="n">scene</span><span class="p">)</span>
-<span class="linenos">181</span>
-<span class="linenos">182</span>
-<span class="linenos">183</span><span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
-<span class="linenos">184</span>    <span class="n">main</span><span class="p">()</span>
-<span class="linenos">185</span>    <span class="n">simulation_app</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+<span class="linenos">153</span>        <span class="n">scene</span><span class="o">.</span><span class="n">write_data_to_sim</span><span class="p">()</span>
+<span class="linenos">154</span>        <span class="n">sim</span><span class="o">.</span><span class="n">step</span><span class="p">()</span>
+<span class="linenos">155</span>        <span class="n">sim_time</span> <span class="o">+=</span> <span class="n">sim_dt</span>
+<span class="linenos">156</span>        <span class="n">count</span> <span class="o">+=</span> <span class="mi">1</span>
+<span class="linenos">157</span>        <span class="n">scene</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">sim_dt</span><span class="p">)</span>
+<span class="linenos">158</span>
+<span class="linenos">159</span>
+<span class="linenos">160</span><span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">():</span>
+<span class="linenos">161</span><span class="w">    </span><span class="sd">&quot;&quot;&quot;Main function.&quot;&quot;&quot;</span>
+<span class="linenos">162</span>    <span class="c1"># Initialize the simulation context</span>
+<span class="linenos">163</span>    <span class="n">sim_cfg</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">SimulationCfg</span><span class="p">(</span><span class="n">device</span><span class="o">=</span><span class="n">args_cli</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+<span class="linenos">164</span>    <span class="n">sim</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">SimulationContext</span><span class="p">(</span><span class="n">sim_cfg</span><span class="p">)</span>
+<span class="linenos">165</span>
+<span class="linenos">166</span>    <span class="n">sim</span><span class="o">.</span><span class="n">set_camera_view</span><span class="p">([</span><span class="mf">3.5</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">3.2</span><span class="p">],</span> <span class="p">[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">])</span>
+<span class="linenos">167</span>    <span class="c1"># design scene</span>
+<span class="linenos">168</span>    <span class="n">scene_cfg</span> <span class="o">=</span> <span class="n">NewRobotsSceneCfg</span><span class="p">(</span><span class="n">args_cli</span><span class="o">.</span><span class="n">num_envs</span><span class="p">,</span> <span class="n">env_spacing</span><span class="o">=</span><span class="mf">2.0</span><span class="p">)</span>
+<span class="linenos">169</span>    <span class="n">scene</span> <span class="o">=</span> <span class="n">InteractiveScene</span><span class="p">(</span><span class="n">scene_cfg</span><span class="p">)</span>
+<span class="linenos">170</span>    <span class="c1"># Play the simulator</span>
+<span class="linenos">171</span>    <span class="n">sim</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
+<span class="linenos">172</span>    <span class="c1"># Now we are ready!</span>
+<span class="linenos">173</span>    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[INFO]: Setup complete...&quot;</span><span class="p">)</span>
+<span class="linenos">174</span>    <span class="c1"># Run the simulator</span>
+<span class="linenos">175</span>    <span class="n">run_simulator</span><span class="p">(</span><span class="n">sim</span><span class="p">,</span> <span class="n">scene</span><span class="p">)</span>
+<span class="linenos">176</span>
+<span class="linenos">177</span>
+<span class="linenos">178</span><span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
+<span class="linenos">179</span>    <span class="n">main</span><span class="p">()</span>
+<span class="linenos">180</span>    <span class="n">simulation_app</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
 </pre></div>
 </div>
 </div>
@@ -838,17 +833,17 @@ the tutorial script imports two robots: The first robot, the <code class="docuti
 <p>The Jetbot is a simple, two wheeled differential base with a camera on top. The asset is used for a number of demonstrations and
 tutorials in Isaac Sim, so we know it’s good to go! To bring it into Isaac lab, we must first define one of these configurations.
 Because a robot is an articulation with joint drives, we define an <code class="docutils literal notranslate"><span class="pre">ArticulationCfg</span></code> that describes the robot.</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">simulation_app</span> <span class="o">=</span> <span class="n">app_launcher</span><span class="o">.</span><span class="n">app</span>
-
-<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
-<span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
-
-<span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab.sim</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">sim_utils</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab.sim</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">sim_utils</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.actuators</span><span class="w"> </span><span class="kn">import</span> <span class="n">ImplicitActuatorCfg</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.assets</span><span class="w"> </span><span class="kn">import</span> <span class="n">AssetBaseCfg</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.assets.articulation</span><span class="w"> </span><span class="kn">import</span> <span class="n">ArticulationCfg</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.scene</span><span class="w"> </span><span class="kn">import</span> <span class="n">InteractiveScene</span><span class="p">,</span> <span class="n">InteractiveSceneCfg</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils.assets</span><span class="w"> </span><span class="kn">import</span> <span class="n">ISAAC_NUCLEUS_DIR</span>
+
+<span class="n">JETBOT_CONFIG</span> <span class="o">=</span> <span class="n">ArticulationCfg</span><span class="p">(</span>
+    <span class="n">spawn</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">UsdFileCfg</span><span class="p">(</span><span class="n">usd_path</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">ISAAC_NUCLEUS_DIR</span><span class="si">}</span><span class="s2">/Robots/Jetbot/jetbot.usd&quot;</span><span class="p">),</span>
+    <span class="n">actuators</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;wheel_acts&quot;</span><span class="p">:</span> <span class="n">ImplicitActuatorCfg</span><span class="p">(</span><span class="n">joint_names_expr</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;.*&quot;</span><span class="p">],</span> <span class="n">damping</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">stiffness</span><span class="o">=</span><span class="kc">None</span><span class="p">)},</span>
+<span class="p">)</span>
 
 </pre></div>
 </div>
@@ -869,12 +864,7 @@ Other regex can also be used to group joints and associated configurations.</p>
 <p>Both stiffness and damping must be specified in the implicit actuator, but a value of <code class="docutils literal notranslate"><span class="pre">None</span></code> will use the defaults defined in the USD asset.</p>
 </div>
 <p>While this is the minimal configuration, there are a number of other parameters we could specify</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">JETBOT_CONFIG</span> <span class="o">=</span> <span class="n">ArticulationCfg</span><span class="p">(</span>
-    <span class="n">spawn</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">UsdFileCfg</span><span class="p">(</span><span class="n">usd_path</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">ISAAC_NUCLEUS_DIR</span><span class="si">}</span><span class="s2">/Robots/Jetbot/jetbot.usd&quot;</span><span class="p">),</span>
-    <span class="n">actuators</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;wheel_acts&quot;</span><span class="p">:</span> <span class="n">ImplicitActuatorCfg</span><span class="p">(</span><span class="n">joint_names_expr</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;.*&quot;</span><span class="p">],</span> <span class="n">damping</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">stiffness</span><span class="o">=</span><span class="kc">None</span><span class="p">)},</span>
-<span class="p">)</span>
-
-<span class="n">DOFBOT_CONFIG</span> <span class="o">=</span> <span class="n">ArticulationCfg</span><span class="p">(</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">DOFBOT_CONFIG</span> <span class="o">=</span> <span class="n">ArticulationCfg</span><span class="p">(</span>
     <span class="n">spawn</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">UsdFileCfg</span><span class="p">(</span>
         <span class="n">usd_path</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">ISAAC_NUCLEUS_DIR</span><span class="si">}</span><span class="s2">/Robots/Dofbot/dofbot.usd&quot;</span><span class="p">,</span>
         <span class="n">rigid_props</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">RigidBodyPropertiesCfg</span><span class="p">(</span>
@@ -913,6 +903,11 @@ Other regex can also be used to group joints and associated configurations.</p>
             <span class="n">joint_names_expr</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;joint4&quot;</span><span class="p">],</span>
             <span class="n">effort_limit_sim</span><span class="o">=</span><span class="mf">100.0</span><span class="p">,</span>
             <span class="n">velocity_limit_sim</span><span class="o">=</span><span class="mf">100.0</span><span class="p">,</span>
+            <span class="n">stiffness</span><span class="o">=</span><span class="mf">10000.0</span><span class="p">,</span>
+            <span class="n">damping</span><span class="o">=</span><span class="mf">100.0</span><span class="p">,</span>
+        <span class="p">),</span>
+    <span class="p">},</span>
+<span class="p">)</span>
 </pre></div>
 </div>
 <p>This configuration can be used to add a Dofbot to the scene, and it contains some of those parameters.
@@ -930,12 +925,7 @@ Something else worth noting here is the coordinate system of the initial positio
 In this case, by specifying a position of <code class="docutils literal notranslate"><span class="pre">(0.25,</span> <span class="pre">-0.25,</span> <span class="pre">0.0)</span></code> we are offsetting the spawn position of the robot <strong>from the origin of the environment</strong>, and not the world.</p>
 <p>Armed with the configurations for these robots, we can now add them to the scene and interact with them in the usual way
 for the direct workflow: by defining an <code class="docutils literal notranslate"><span class="pre">InteractiveSceneCfg</span></code> containing the articulation configs for the robots …</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span>        <span class="p">),</span>
-    <span class="p">},</span>
-<span class="p">)</span>
-
-
-<span class="k">class</span><span class="w"> </span><span class="nc">NewRobotsSceneCfg</span><span class="p">(</span><span class="n">InteractiveSceneCfg</span><span class="p">):</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">class</span><span class="w"> </span><span class="nc">NewRobotsSceneCfg</span><span class="p">(</span><span class="n">InteractiveSceneCfg</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Designs the scene.&quot;&quot;&quot;</span>
 
     <span class="c1"># Ground-plane</span>
@@ -945,15 +935,15 @@ for the direct workflow: by defining an <code class="docutils literal notranslat
     <span class="n">dome_light</span> <span class="o">=</span> <span class="n">AssetBaseCfg</span><span class="p">(</span>
         <span class="n">prim_path</span><span class="o">=</span><span class="s2">&quot;/World/Light&quot;</span><span class="p">,</span> <span class="n">spawn</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">DomeLightCfg</span><span class="p">(</span><span class="n">intensity</span><span class="o">=</span><span class="mf">3000.0</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="p">(</span><span class="mf">0.75</span><span class="p">,</span> <span class="mf">0.75</span><span class="p">,</span> <span class="mf">0.75</span><span class="p">))</span>
     <span class="p">)</span>
-</pre></div>
-</div>
-<p>…and then stepping the simulation while updating the scene entities appropriately.</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span>    <span class="c1"># robot</span>
+
+    <span class="c1"># robot</span>
     <span class="n">Jetbot</span> <span class="o">=</span> <span class="n">JETBOT_CONFIG</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">prim_path</span><span class="o">=</span><span class="s2">&quot;</span><span class="si">{ENV_REGEX_NS}</span><span class="s2">/Jetbot&quot;</span><span class="p">)</span>
     <span class="n">Dofbot</span> <span class="o">=</span> <span class="n">DOFBOT_CONFIG</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">prim_path</span><span class="o">=</span><span class="s2">&quot;</span><span class="si">{ENV_REGEX_NS}</span><span class="s2">/Dofbot&quot;</span><span class="p">)</span>
 
-
-<span class="k">def</span><span class="w"> </span><span class="nf">run_simulator</span><span class="p">(</span><span class="n">sim</span><span class="p">:</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">SimulationContext</span><span class="p">,</span> <span class="n">scene</span><span class="p">:</span> <span class="n">InteractiveScene</span><span class="p">):</span>
+</pre></div>
+</div>
+<p>…and then stepping the simulation while updating the scene entities appropriately.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span><span class="w"> </span><span class="nf">run_simulator</span><span class="p">(</span><span class="n">sim</span><span class="p">:</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">SimulationContext</span><span class="p">,</span> <span class="n">scene</span><span class="p">:</span> <span class="n">InteractiveScene</span><span class="p">):</span>
     <span class="n">sim_dt</span> <span class="o">=</span> <span class="n">sim</span><span class="o">.</span><span class="n">get_physics_dt</span><span class="p">()</span>
     <span class="n">sim_time</span> <span class="o">=</span> <span class="mf">0.0</span>
     <span class="n">count</span> <span class="o">=</span> <span class="mi">0</span>
@@ -1006,6 +996,11 @@ for the direct workflow: by defining an <code class="docutils literal notranslat
         <span class="n">scene</span><span class="p">[</span><span class="s2">&quot;Dofbot&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">set_joint_position_target</span><span class="p">(</span><span class="n">wave_action</span><span class="p">)</span>
 
         <span class="n">scene</span><span class="o">.</span><span class="n">write_data_to_sim</span><span class="p">()</span>
+        <span class="n">sim</span><span class="o">.</span><span class="n">step</span><span class="p">()</span>
+        <span class="n">sim_time</span> <span class="o">+=</span> <span class="n">sim_dt</span>
+        <span class="n">count</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="n">scene</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">sim_dt</span><span class="p">)</span>
+
 </pre></div>
 </div>
 <div class="admonition note">
