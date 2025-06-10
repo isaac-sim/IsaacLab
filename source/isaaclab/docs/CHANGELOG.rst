@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.40.5 (2025-05-22)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed collision filtering logic for CPU simulation. The automatic collision filtering feature
+  currently has limitations for CPU simulation. Collision filtering needs to be manually enabled when using CPU simulation.
+
+
 0.40.4 (2025-06-03)
 ~~~~~~~~~~~~~~~~~~~
 
