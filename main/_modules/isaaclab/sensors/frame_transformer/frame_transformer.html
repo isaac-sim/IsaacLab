@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.1.0" />
-    <meta name="docbuild:last-update" content="Jun 09, 2025"/>
+    <meta name="docbuild:last-update" content="Jun 10, 2025"/>
   </head>
   
   
@@ -571,7 +571,14 @@
 <span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab.sim</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">sim_utils</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab.utils.string</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">string_utils</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.markers</span><span class="w"> </span><span class="kn">import</span> <span class="n">VisualizationMarkers</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils.math</span><span class="w"> </span><span class="kn">import</span> <span class="n">combine_frame_transforms</span><span class="p">,</span> <span class="n">convert_quat</span><span class="p">,</span> <span class="n">is_identity_pose</span><span class="p">,</span> <span class="n">subtract_frame_transforms</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils.math</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">combine_frame_transforms</span><span class="p">,</span>
+    <span class="n">convert_quat</span><span class="p">,</span>
+    <span class="n">is_identity_pose</span><span class="p">,</span>
+    <span class="n">normalize</span><span class="p">,</span>
+    <span class="n">quat_from_angle_axis</span><span class="p">,</span>
+    <span class="n">subtract_frame_transforms</span><span class="p">,</span>
+<span class="p">)</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">..sensor_base</span><span class="w"> </span><span class="kn">import</span> <span class="n">SensorBase</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">.frame_transformer_data</span><span class="w"> </span><span class="kn">import</span> <span class="n">FrameTransformerData</span>
@@ -977,38 +984,40 @@
             <span class="k">if</span> <span class="ow">not</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">&quot;frame_visualizer&quot;</span><span class="p">):</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">frame_visualizer</span> <span class="o">=</span> <span class="n">VisualizationMarkers</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">visualizer_cfg</span><span class="p">)</span>
 
-                <span class="k">try</span><span class="p">:</span>
-                    <span class="c1"># isaacsim.util is not available in headless mode</span>
-                    <span class="kn">import</span><span class="w"> </span><span class="nn">isaacsim.util.debug_draw._debug_draw</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">isaac_debug_draw</span>
-
-                    <span class="bp">self</span><span class="o">.</span><span class="n">debug_draw</span> <span class="o">=</span> <span class="n">isaac_debug_draw</span><span class="o">.</span><span class="n">acquire_debug_draw_interface</span><span class="p">()</span>
-                <span class="k">except</span> <span class="ne">ImportError</span><span class="p">:</span>
-                    <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;isaacsim.util.debug_draw module not found. Debug visualization will be limited.&quot;</span><span class="p">)</span>
-
             <span class="c1"># set their visibility to true</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">frame_visualizer</span><span class="o">.</span><span class="n">set_visibility</span><span class="p">(</span><span class="kc">True</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">&quot;frame_visualizer&quot;</span><span class="p">):</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">frame_visualizer</span><span class="o">.</span><span class="n">set_visibility</span><span class="p">(</span><span class="kc">False</span><span class="p">)</span>
-                <span class="c1"># clear the lines</span>
-                <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">&quot;debug_draw&quot;</span><span class="p">):</span>
-                    <span class="bp">self</span><span class="o">.</span><span class="n">debug_draw</span><span class="o">.</span><span class="n">clear_lines</span><span class="p">()</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_debug_vis_callback</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">event</span><span class="p">):</span>
-        <span class="c1"># Update the visualized markers</span>
-        <span class="n">all_pos</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">([</span><span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">source_pos_w</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">target_pos_w</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">)],</span> <span class="n">dim</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
-        <span class="n">all_quat</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">([</span><span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">source_quat_w</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">target_quat_w</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">4</span><span class="p">)],</span> <span class="n">dim</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">frame_visualizer</span><span class="o">.</span><span class="n">visualize</span><span class="p">(</span><span class="n">all_pos</span><span class="p">,</span> <span class="n">all_quat</span><span class="p">)</span>
+        <span class="c1"># Get the all frames pose</span>
+        <span class="n">frames_pos</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">([</span><span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">source_pos_w</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">target_pos_w</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">)],</span> <span class="n">dim</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+        <span class="n">frames_quat</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">([</span><span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">source_quat_w</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">target_quat_w</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">4</span><span class="p">)],</span> <span class="n">dim</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
 
-        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">&quot;debug_draw&quot;</span><span class="p">):</span>
-            <span class="c1"># Draw lines connecting the source frame to the target frames</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">debug_draw</span><span class="o">.</span><span class="n">clear_lines</span><span class="p">()</span>
-            <span class="c1"># make the lines color yellow</span>
-            <span class="n">source_pos</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">source_pos_w</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span>
-            <span class="n">colors</span> <span class="o">=</span> <span class="p">[[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">]]</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">_num_envs</span>
-            <span class="k">for</span> <span class="n">frame_index</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_target_frame_names</span><span class="p">)):</span>
-                <span class="n">target_pos</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">target_pos_w</span><span class="p">[:,</span> <span class="n">frame_index</span><span class="p">]</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">debug_draw</span><span class="o">.</span><span class="n">draw_lines</span><span class="p">(</span><span class="n">source_pos</span><span class="p">,</span> <span class="n">target_pos</span><span class="p">,</span> <span class="n">colors</span><span class="p">,</span> <span class="p">[</span><span class="mf">1.5</span><span class="p">]</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">_num_envs</span><span class="p">)</span>
+        <span class="c1"># Get the all connecting lines between frames pose</span>
+        <span class="n">lines_pos</span><span class="p">,</span> <span class="n">lines_quat</span><span class="p">,</span> <span class="n">lines_length</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_connecting_lines</span><span class="p">(</span>
+            <span class="n">start_pos</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">source_pos_w</span><span class="o">.</span><span class="n">repeat_interleave</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">target_pos_w</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="mi">1</span><span class="p">),</span> <span class="n">dim</span><span class="o">=</span><span class="mi">0</span><span class="p">),</span>
+            <span class="n">end_pos</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">target_pos_w</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">),</span>
+        <span class="p">)</span>
+
+        <span class="c1"># Initialize default (identity) scales and marker indices for all markers (frames + lines)</span>
+        <span class="n">marker_scales</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="n">frames_pos</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span> <span class="o">+</span> <span class="n">lines_pos</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="mi">0</span><span class="p">),</span> <span class="mi">3</span><span class="p">)</span>
+        <span class="n">marker_indices</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">marker_scales</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="mi">0</span><span class="p">))</span>
+
+        <span class="c1"># Set the z-scale of line markers to represent their actual length</span>
+        <span class="n">marker_scales</span><span class="p">[</span><span class="o">-</span><span class="n">lines_length</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span> <span class="p">:,</span> <span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">lines_length</span>
+
+        <span class="c1"># Assign marker config index 1 to line markers</span>
+        <span class="n">marker_indices</span><span class="p">[</span><span class="o">-</span><span class="n">lines_length</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span> <span class="p">:]</span> <span class="o">=</span> <span class="mi">1</span>
+
+        <span class="c1"># Update the frame and the connecting line visualizer</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">frame_visualizer</span><span class="o">.</span><span class="n">visualize</span><span class="p">(</span>
+            <span class="n">translations</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">((</span><span class="n">frames_pos</span><span class="p">,</span> <span class="n">lines_pos</span><span class="p">),</span> <span class="n">dim</span><span class="o">=</span><span class="mi">0</span><span class="p">),</span>
+            <span class="n">orientations</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">((</span><span class="n">frames_quat</span><span class="p">,</span> <span class="n">lines_quat</span><span class="p">),</span> <span class="n">dim</span><span class="o">=</span><span class="mi">0</span><span class="p">),</span>
+            <span class="n">scales</span><span class="o">=</span><span class="n">marker_scales</span><span class="p">,</span>
+            <span class="n">marker_indices</span><span class="o">=</span><span class="n">marker_indices</span><span class="p">,</span>
+        <span class="p">)</span>
 
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Internal simulation callbacks.</span>
@@ -1019,7 +1028,56 @@
         <span class="c1"># call parent</span>
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">_invalidate_initialize_callback</span><span class="p">(</span><span class="n">event</span><span class="p">)</span>
         <span class="c1"># set all existing views to None to invalidate them</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_frame_physx_view</span> <span class="o">=</span> <span class="kc">None</span></div>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_frame_physx_view</span> <span class="o">=</span> <span class="kc">None</span>
+
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Internal helpers.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_get_connecting_lines</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">start_pos</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">end_pos</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Given start and end points, compute the positions (mid-point), orientations, and lengths of the connecting lines.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            start_pos: The start positions of the connecting lines. Shape is (N, 3).</span>
+<span class="sd">            end_pos: The end positions of the connecting lines. Shape is (N, 3).</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            positions: The position of each connecting line. Shape is (N, 3).</span>
+<span class="sd">            orientations: The orientation of each connecting line in quaternion. Shape is (N, 4).</span>
+<span class="sd">            lengths: The length of each connecting line. Shape is (N,).</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">direction</span> <span class="o">=</span> <span class="n">end_pos</span> <span class="o">-</span> <span class="n">start_pos</span>
+        <span class="n">lengths</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">direction</span><span class="p">,</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+        <span class="n">positions</span> <span class="o">=</span> <span class="p">(</span><span class="n">start_pos</span> <span class="o">+</span> <span class="n">end_pos</span><span class="p">)</span> <span class="o">/</span> <span class="mi">2</span>
+
+        <span class="c1"># Get default direction (along z-axis)</span>
+        <span class="n">default_direction</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">([</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">],</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">)</span><span class="o">.</span><span class="n">expand</span><span class="p">(</span><span class="n">start_pos</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="mi">0</span><span class="p">),</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+
+        <span class="c1"># Normalize direction vector</span>
+        <span class="n">direction_norm</span> <span class="o">=</span> <span class="n">normalize</span><span class="p">(</span><span class="n">direction</span><span class="p">)</span>
+
+        <span class="c1"># Calculate rotation from default direction to target direction</span>
+        <span class="n">rotation_axis</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">cross</span><span class="p">(</span><span class="n">default_direction</span><span class="p">,</span> <span class="n">direction_norm</span><span class="p">)</span>
+        <span class="n">rotation_axis_norm</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">rotation_axis</span><span class="p">,</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+
+        <span class="c1"># Handle case where vectors are parallel</span>
+        <span class="n">mask</span> <span class="o">=</span> <span class="n">rotation_axis_norm</span> <span class="o">&gt;</span> <span class="mf">1e-6</span>
+        <span class="n">rotation_axis</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">where</span><span class="p">(</span>
+            <span class="n">mask</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">),</span>
+            <span class="n">normalize</span><span class="p">(</span><span class="n">rotation_axis</span><span class="p">),</span>
+            <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">([</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">],</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">)</span><span class="o">.</span><span class="n">expand</span><span class="p">(</span><span class="n">start_pos</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="mi">0</span><span class="p">),</span> <span class="o">-</span><span class="mi">1</span><span class="p">),</span>
+        <span class="p">)</span>
+
+        <span class="c1"># Calculate rotation angle</span>
+        <span class="n">cos_angle</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">default_direction</span> <span class="o">*</span> <span class="n">direction_norm</span><span class="p">,</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+        <span class="n">cos_angle</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">clamp</span><span class="p">(</span><span class="n">cos_angle</span><span class="p">,</span> <span class="o">-</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">)</span>
+        <span class="n">angle</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">acos</span><span class="p">(</span><span class="n">cos_angle</span><span class="p">)</span>
+        <span class="n">orientations</span> <span class="o">=</span> <span class="n">quat_from_angle_axis</span><span class="p">(</span><span class="n">angle</span><span class="p">,</span> <span class="n">rotation_axis</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">positions</span><span class="p">,</span> <span class="n">orientations</span><span class="p">,</span> <span class="n">lengths</span></div>
 </pre></div>
 
                 </article>
@@ -1067,7 +1125,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jun 09, 2025.
+  Last updated on Jun 10, 2025.
   <br/>
 </p>
   </div>

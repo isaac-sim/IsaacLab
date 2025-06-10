@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.1.0" />
-    <meta name="docbuild:last-update" content="Jun 09, 2025"/>
+    <meta name="docbuild:last-update" content="Jun 10, 2025"/>
   </head>
   
   
@@ -720,7 +720,8 @@
 
             <span class="c1"># since env_ids is only applicable when replicating physics, we have to fallback to the previous method</span>
             <span class="c1"># to filter collisions if replicate_physics is not enabled</span>
-            <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">replicate_physics</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">filter_collisions</span><span class="p">:</span>
+            <span class="c1"># additionally, env_ids is only supported in GPU simulation</span>
+            <span class="k">if</span> <span class="p">(</span><span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">replicate_physics</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">filter_collisions</span><span class="p">)</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">device</span> <span class="o">==</span> <span class="s2">&quot;cpu&quot;</span><span class="p">:</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">filter_collisions</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_global_prim_paths</span><span class="p">)</span></div>
 
 <div class="viewcode-block" id="InteractiveScene.clone_environments"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.scene.html#isaaclab.scene.InteractiveScene.clone_environments">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">clone_environments</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">copy_from_source</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">):</span>
@@ -753,9 +754,10 @@
 
         <span class="c1"># since env_ids is only applicable when replicating physics, we have to fallback to the previous method</span>
         <span class="c1"># to filter collisions if replicate_physics is not enabled</span>
-        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">replicate_physics</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">filter_collisions</span><span class="p">:</span>
+        <span class="c1"># additionally, env_ids is only supported in GPU simulation</span>
+        <span class="k">if</span> <span class="p">(</span><span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">replicate_physics</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">filter_collisions</span><span class="p">)</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">device</span> <span class="o">==</span> <span class="s2">&quot;cpu&quot;</span><span class="p">:</span>
             <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
-                <span class="s2">&quot;Collision filtering can only be automatically enabled when replicate_physics=True.&quot;</span>
+                <span class="s2">&quot;Collision filtering can only be automatically enabled when replicate_physics=True and GPU simulation.&quot;</span>
                 <span class="s2">&quot; Please call scene.filter_collisions(global_prim_paths) to filter collisions across environments.&quot;</span>
             <span class="p">)</span>
 
@@ -1300,7 +1302,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jun 09, 2025.
+  Last updated on Jun 10, 2025.
   <br/>
 </p>
   </div>
