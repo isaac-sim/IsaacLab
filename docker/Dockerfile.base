@@ -99,7 +99,9 @@ RUN echo "export ISAACLAB_PATH=${ISAACLAB_PATH}" >> ${HOME}/.bashrc && \
     echo "alias pip='${ISAACLAB_PATH}/_isaac_sim/python.sh -m pip'" >> ${HOME}/.bashrc && \
     echo "alias pip3='${ISAACLAB_PATH}/_isaac_sim/python.sh -m pip'" >> ${HOME}/.bashrc && \
     echo "alias tensorboard='${ISAACLAB_PATH}/_isaac_sim/python.sh ${ISAACLAB_PATH}/_isaac_sim/tensorboard'" >> ${HOME}/.bashrc && \
-    echo "export TZ=$(date +%Z)" >> ${HOME}/.bashrc
+    echo "export TZ=$(date +%Z)" >> ${HOME}/.bashrc && \
+    echo "shopt -s histappend" >> /root/.bashrc && \
+    echo "PROMPT_COMMAND='history -a'" >> /root/.bashrc
 
 # make working directory as the Isaac Lab directory
 # this is the default directory when the container is run
