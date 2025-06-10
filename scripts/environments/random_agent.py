@@ -47,8 +47,6 @@ def main():
     # create environment
     env = gym.make(args_cli.task, cfg=env_cfg)
 
-
-
     # print info (this is vectorized environment)
     print(f"[INFO]: Gym observation space: {env.observation_space}")
     print(f"[INFO]: Gym action space: {env.action_space}")
@@ -58,6 +56,7 @@ def main():
     out = env.unwrapped.get_IO_descriptors
     # Make a yaml file with the output
     import yaml
+
     with open("obs_descriptors.yaml", "w") as f:
         yaml.safe_dump(out, f)
 

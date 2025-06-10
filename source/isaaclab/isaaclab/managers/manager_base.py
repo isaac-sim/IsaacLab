@@ -353,7 +353,7 @@ class ManagerBase(ABC):
         # check if function is callable
         if not callable(func_static):
             raise AttributeError(f"The term '{term_name}' is not callable. Received: {term_cfg.func}")
-        
+
         # check statically if the term's arguments are matched by params
         term_params = list(term_cfg.params.keys())
         args = inspect.signature(func_static).parameters
