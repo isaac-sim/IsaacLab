@@ -244,8 +244,6 @@ class ObservationManager(ManagerBase):
                 )
             # iterate over all the terms in each group
             group_term_names = self._group_obs_term_names[group_name]
-            # buffer to store obs per group
-            group_obs = dict.fromkeys(group_term_names, None)
             # read attributes for each term
             obs_terms = zip(group_term_names, self._group_obs_term_cfgs[group_name])
 
@@ -254,9 +252,8 @@ class ObservationManager(ManagerBase):
                 try:
                     term_cfg.func(self._env, **term_cfg.params, inspect=True)
                     desc = term_cfg.func._descriptor.__dict__.copy()
-                    print(f"desc: {desc}")
                     overloads = {}
-                    for k,v in term_cfg.__dict__.items():
+                    for k, v in term_cfg.__dict__.items():
                         if k in ["modifiers", "clip", "scale", "history_length", "flatten_history_dim"]:
                             overloads[k] = v
                     desc.update(overloads)
@@ -268,10 +265,8 @@ class ObservationManager(ManagerBase):
         formatted_data = {}
         for item in data:
             name = item.pop("name")
-            formatted_item = {}
-            formatted_item["overloads"] = {}
-            formatted_item["extras"] = {}
-            for k,v in item.items():
+            formatted_item = {"overloads": {}, "extras": {}}
+            for k, v in item.items():
                 # Check if v is a tuple and convert to list
                 if isinstance(v, tuple):
                     v = list(v)
@@ -281,12 +276,11 @@ class ObservationManager(ManagerBase):
                     formatted_item["extras"][k] = v
                 else:
                     formatted_item[k] = v
-                
 
             formatted_data[name] = formatted_item
 
         return formatted_data
-    
+
     """
     Operations.
     """
