@@ -122,6 +122,25 @@ class JointAction(ActionTerm):
     @property
     def processed_actions(self) -> torch.Tensor:
         return self._processed_actions
+    
+    @property
+    def IO_descriptor(self):
+        data = {
+            "name": self.__class__.__name__,
+            "mdp_type": "Action",
+            "full_path": self.__class__.__module__ + "." + self.__class__.__name__,
+            "description": self.__doc__,
+            "shape": (self.action_dim,),
+            "dtype": str(self.raw_actions.dtype),
+            "action_type": "JointState",
+            "joint_names": self._joint_names,
+            "scale": self._scale,
+            "offset": self._offset[0].detach().cpu().numpy().tolist(), # This seems to be always [4xNum_joints] IDK why. Need to check.
+        }
+        
+        if self.cfg.clip is not None:
+            data["clip"] = self._clip
+        return data
 
     """
     Operations.

@@ -248,12 +248,16 @@ class ObservationManager(ManagerBase):
             obs_terms = zip(group_term_names, self._group_obs_term_cfgs[group_name])
 
             for term_name, term_cfg in obs_terms:
-                # dummy call to cache some values
+                # Call to the observation function to get the IO descriptor with the inspect flag set to True
                 try:
                     term_cfg.func(self._env, **term_cfg.params, inspect=True)
+                    # Copy the descriptor and update with the term's own extra parameters
                     desc = term_cfg.func._descriptor.__dict__.copy()
+                    # Create a dictionary to store the overloads
                     overloads = {}
+                    # Iterate over the term's own parameters and add them to the overloads dictionary
                     for k, v in term_cfg.__dict__.items():
+                        # For now we do not add the noise modifier
                         if k in ["modifiers", "clip", "scale", "history_length", "flatten_history_dim"]:
                             overloads[k] = v
                     desc.update(overloads)
