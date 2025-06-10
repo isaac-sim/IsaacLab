@@ -361,6 +361,17 @@ class AppLauncher:
                 " exceeded, then the animation is not recorded."
             ),
         )
+        # special flag for backwards compatibility
+        arg_group.add_argument(
+            "--use_isaacsim_45",
+            type=bool,
+            default=False,
+            help=(
+                "Uses previously version of Isaac Sim 4.5. This will reference the Isaac Sim 4.5 compatible app files"
+                " and will result in some features being unavailable. For full feature set, please update to Isaac Sim"
+                " 5.0."
+            ),
+        )
 
         # Corresponding to the beginning of the function,
         # if we have removed -h/--help handling, we add it back.
@@ -702,6 +713,10 @@ class AppLauncher:
         # If nothing is provided resolve the experience file based on the headless flag
         kit_app_exp_path = os.environ["EXP_PATH"]
         isaaclab_app_exp_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), *[".."] * 4, "apps")
+        # For Isaac Sim 4.5 compatibility, we use the 4.5 app files in a different folder
+        if launcher_args.get("use_isaacsim_45", False):
+            isaaclab_app_exp_path = os.path.join(isaaclab_app_exp_path, "isaacsim_4_5")
+
         if self._sim_experience_file == "":
             # check if the headless flag is set
             # xr rendering overrides camera rendering settings
@@ -755,6 +770,10 @@ class AppLauncher:
         if recording_enabled:
             if self._headless:
                 raise ValueError("Animation recording is not supported in headless mode.")
+            if launcher_args.get("use_isaacsim_45", False):
+                raise RuntimeError(
+                    "Animation recording is not supported in Isaac Sim 4.5. Please update to Isaac Sim 5.0."
+                )
             sys.argv += ["--enable", "omni.physx.pvd"]
 
     def _resolve_kit_args(self, launcher_args: dict):

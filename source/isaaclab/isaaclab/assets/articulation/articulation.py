@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING
 import omni.log
 import omni.physics.tensors.impl.api as physx
 from isaacsim.core.simulation_manager import SimulationManager
+from isaacsim.core.version import get_version
 from pxr import PhysxSchema, UsdPhysics
 
 import isaaclab.sim as sim_utils
@@ -1377,7 +1378,7 @@ class Articulation(AssetBase):
         # process configuration
         self._process_cfg()
         self._process_actuators_cfg()
-        self._process_fixed_tendons()
+        self._process_tendons()
         # validate configuration
         self._validate_cfg()
         # update the robot data
@@ -1397,7 +1398,7 @@ class Articulation(AssetBase):
         # asset named data
         self._data.joint_names = self.joint_names
         self._data.body_names = self.body_names
-        # tendon names are set in _process_fixed_tendons function
+        # tendon names are set in _process_tendons function
 
         # -- joint properties
         self._data.default_joint_pos_limits = self.root_physx_view.get_dof_limits().to(self.device).clone()
@@ -1570,13 +1571,22 @@ class Articulation(AssetBase):
                 f" joints available: {total_act_joints} != {self.num_joints - self.num_fixed_tendons}."
             )
 
-    def _process_fixed_tendons(self):
-        """Process fixed tendons."""
+    def _process_tendons(self):
+        """Process fixed and spatialtendons."""
         # create a list to store the fixed tendon names
         self._fixed_tendon_names = list()
         self._spatial_tendon_names = list()
         # parse fixed tendons properties if they exist
         if self.num_fixed_tendons > 0 or self.num_spatial_tendons > 0:
+            # for spatial tendons, check if we are using isaac sim 5.0
+            if self.num_spatial_tendons > 0:
+                isaac_sim_version = get_version()
+                # checks for Isaac Sim v5.0 as spatial tendons are only available since 5.0
+                if int(isaac_sim_version[2]) < 5:
+                    raise RuntimeError(
+                        "Spatial tendons are not available in Isaac Sim 4.5. Please update to Isaac Sim 5.0."
+                    )
+
             joint_paths = self.root_physx_view.dof_paths[0]
 
             # iterate over all joints to find tendons attached to them
