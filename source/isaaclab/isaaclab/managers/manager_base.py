@@ -353,30 +353,17 @@ class ManagerBase(ABC):
         # check if function is callable
         if not callable(func_static):
             raise AttributeError(f"The term '{term_name}' is not callable. Received: {term_cfg.func}")
-
+        
         # check statically if the term's arguments are matched by params
         term_params = list(term_cfg.params.keys())
         args = inspect.signature(func_static).parameters
         args_with_defaults = [arg for arg in args if args[arg].default is not inspect.Parameter.empty]
         args_without_defaults = [arg for arg in args if args[arg].default is inspect.Parameter.empty]
-        # ignore first two arguments for env and env_ids
-        # Think: Check for cases when kwargs are set inside the function? 
-        if "kwargs" in args_without_defaults:
-            args_without_defaults.remove("kwargs")
-            args_with_defaults.append("kwargs")
         args = args_without_defaults + args_with_defaults
-        
-        print("args", args)
-        print("args_without_defaults", args_without_defaults)
-        print("args_with_defaults", args_with_defaults)
-        print("min_argc", min_argc)
-        print("term_params", term_params)
-        print("term_cfg", term_cfg)
-
+        # ignore first two arguments for env and env_ids
+        # Think: Check for cases when kwargs are set inside the function?
         if len(args) > min_argc:
-            if "kwargs" in args:
-                pass
-            elif set(args[min_argc:]) != set(term_params + args_with_defaults):
+            if set(args[min_argc:]) != set(term_params + args_with_defaults):
                 raise ValueError(
                     f"The term '{term_name}' expects mandatory parameters: {args_without_defaults[min_argc:]}"
                     f" and optional parameters: {args_with_defaults}, but received: {term_params}."
