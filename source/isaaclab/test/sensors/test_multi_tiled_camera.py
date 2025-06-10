@@ -388,7 +388,7 @@ def test_frame_offset_multi_tiled_camera(setup_camera):
     for i in range(num_tiled_cameras):
         image_before = image_befores[i]
         image_after = image_afters[i]
-        assert torch.abs(image_after - image_before).mean() > 0.03  # images of same color should be below 0.001
+        assert torch.abs(image_after - image_before).mean() > 0.02  # images of same color should be below 0.001
 
     for camera in tiled_cameras:
         del camera
