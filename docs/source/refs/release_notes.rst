@@ -33,6 +33,13 @@ Updates and Changes
   * ``Robots/ShadowHand/shadow_hand_instanceable.usd`` --> ``Robots/ShadowRobot/ShadowHand/shadow_hand_instanceable.usd``
 
 
+Current Known Issues
+--------------------
+
+* Some environments, such as ``Isaac-Repose-Cube-Allegro-v0`` is taking a significant long time to create the scene.
+  We are looking into this and will try to reduce down the scene creation time to be less than previous releases.
+
+
 v2.1.0
 ======
 

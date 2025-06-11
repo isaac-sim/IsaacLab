@@ -55,7 +55,7 @@ For detailed Isaac Sim installation instructions, please refer to
 2. Build Isaac Sim
 
     ```
-    cd isaacsim
+    cd IsaacSim
     ./build.sh
     ```
 
@@ -74,13 +74,13 @@ For detailed Isaac Sim installation instructions, please refer to
     Linux:
 
     ```
-    ln -s isaacsim/_build/linux-x86_64/release _isaac_sim
+    ln -s IsaacSim/_build/linux-x86_64/release _isaac_sim
     ```
 
     Windows:
 
     ```
-    mklink /D _isaac_sim isaacsim\_build\windows-x86_64\release
+    mklink /D _isaac_sim IsaacSim\_build\windows-x86_64\release
     ```
 
 5. Install Isaac Lab
