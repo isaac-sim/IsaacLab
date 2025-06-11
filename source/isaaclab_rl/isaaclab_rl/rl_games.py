@@ -3,11 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
-# All rights reserved.
-#
-# SPDX-License-Identifier: BSD-3-Clause
-
 """Wrapper to configure an environment instance to RL-Games vectorized environment.
 
 The following example shows how to wrap an environment for RL-Games and register the environment construction

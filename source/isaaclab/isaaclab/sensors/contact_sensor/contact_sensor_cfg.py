@@ -3,11 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
-# All rights reserved.
-#
-# SPDX-License-Identifier: BSD-3-Clause
-
 from isaaclab.markers import VisualizationMarkersCfg
 from isaaclab.markers.config import CONTACT_SENSOR_MARKER_CFG
 from isaaclab.utils import configclass

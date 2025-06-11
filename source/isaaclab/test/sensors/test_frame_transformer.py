@@ -3,11 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
-# All rights reserved.
-#
-# SPDX-License-Identifier: BSD-3-Clause
-
 """Launch Isaac Sim Simulator first."""
 
 from isaaclab.app import AppLauncher
@@ -186,7 +181,7 @@ def test_frame_transformer_feet_wrt_base(sim):
 
         # check absolute frame transforms in world frame
         # -- ground-truth
-        root_pose_w = scene.articulations["robot"].data.root_state_w[:, :7]
+        root_pose_w = scene.articulations["robot"].data.root_pose_w
         feet_pos_w_gt = scene.articulations["robot"].data.body_pos_w[:, feet_indices]
         feet_quat_w_gt = scene.articulations["robot"].data.body_quat_w[:, feet_indices]
         # -- frame transformer
@@ -362,9 +357,9 @@ def test_frame_transformer_robot_body_to_external_cube(sim):
 
         # check absolute frame transforms in world frame
         # -- ground-truth
-        root_pose_w = scene.articulations["robot"].data.root_state_w[:, :7]
-        cube_pos_w_gt = scene.rigid_objects["cube"].data.root_state_w[:, :3]
-        cube_quat_w_gt = scene.rigid_objects["cube"].data.root_state_w[:, 3:7]
+        root_pose_w = scene.articulations["robot"].data.root_pose_w
+        cube_pos_w_gt = scene.rigid_objects["cube"].data.root_pos_w
+        cube_quat_w_gt = scene.rigid_objects["cube"].data.root_quat_w
         # -- frame transformer
         source_pos_w_tf = scene.sensors["frame_transformer"].data.source_pos_w
         source_quat_w_tf = scene.sensors["frame_transformer"].data.source_quat_w
@@ -451,8 +446,8 @@ def test_frame_transformer_offset_frames(sim):
 
         # check absolute frame transforms in world frame
         # -- ground-truth
-        cube_pos_w_gt = scene["cube"].data.root_state_w[:, :3]
-        cube_quat_w_gt = scene["cube"].data.root_state_w[:, 3:7]
+        cube_pos_w_gt = scene["cube"].data.root_pos_w
+        cube_quat_w_gt = scene["cube"].data.root_quat_w
         # -- frame transformer
         source_pos_w_tf = scene.sensors["frame_transformer"].data.source_pos_w
         source_quat_w_tf = scene.sensors["frame_transformer"].data.source_quat_w
@@ -544,7 +539,7 @@ def test_frame_transformer_all_bodies(sim):
 
         # check absolute frame transforms in world frame
         # -- ground-truth
-        root_pose_w = scene.articulations["robot"].data.root_state_w[:, :7]
+        root_pose_w = scene.articulations["robot"].data.root_pose_w
         bodies_pos_w_gt = scene.articulations["robot"].data.body_pos_w
         bodies_quat_w_gt = scene.articulations["robot"].data.body_quat_w
 

@@ -3,11 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
-# All rights reserved.
-#
-# SPDX-License-Identifier: BSD-3-Clause
-
 """This script demonstrates different rigid and deformable meshes in the scene.
 
 It randomly spawns different types of meshes in the scene. The meshes can be rigid or deformable
