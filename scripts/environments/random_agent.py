@@ -52,26 +52,6 @@ def main():
     print(f"[INFO]: Gym action space: {env.action_space}")
     # reset environment
     env.reset()
-
-    outs = env.unwrapped.get_IO_descriptors
-    out = outs["observations"]
-    out_actions = outs["actions"]
-    # Make a yaml file with the output
-    import yaml
-
-    with open("obs_descriptors.yaml", "w") as f:
-        yaml.safe_dump(outs, f)
-
-    for k, v in out_actions.items():
-        print(f"--- Action term: {k} ---")
-        for k1, v1 in v.items():
-            print(f"{k1}: {v1}")
-
-    for k, v in out.items():
-        print(f"--- Obs term: {k} ---")
-        for k1, v1 in v.items():
-            print(f"{k1}: {v1}")
-    exit(0)
     # simulate environment
     while simulation_app.is_running():
         # run everything in inference mode
