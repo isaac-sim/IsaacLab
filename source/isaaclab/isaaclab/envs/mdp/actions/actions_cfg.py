@@ -32,6 +32,7 @@ class JointActionCfg(ActionTermCfg):
     preserve_order: bool = False
     """Whether to preserve the order of the joint names in the action output. Defaults to False."""
 
+
 @configclass
 class JointPositionActionCfg(JointActionCfg):
     """Configuration for the joint position action term.
