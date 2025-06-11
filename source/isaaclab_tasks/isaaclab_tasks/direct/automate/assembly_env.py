@@ -11,6 +11,7 @@ from datetime import datetime
 
 import carb
 import isaacsim.core.utils.torch as torch_utils
+import wandb
 import warp as wp
 
 import isaaclab.sim as sim_utils
@@ -71,7 +72,6 @@ class AssemblyEnv(DirectRLEnv):
             self._init_eval_loading()
 
         if self.cfg_task.wandb:
-            import wandb
             wandb.init(project="automate", name=self.cfg_task.assembly_id + "_" + datetime.now().strftime("%m/%d/%Y"))
 
     def _init_eval_loading(self):

@@ -33,7 +33,7 @@ def update_task_param(task_cfg, assembly_id, if_sbc, if_log_eval, if_wandb):
         elif "eval_filename: str = " in line:
             line = eval_file_pattern.sub(r"\1'{}'".format(f"evaluation_{assembly_id}.h5"), line)
         elif "wandb: bool =" in line:
-            line = if_wandb.sub(rf"\1{str(wandb)}", line)
+            line = if_wandb_pattern.sub(rf"\1{str(if_wandb)}", line)
 
         updated_lines.append(line)
 
@@ -58,7 +58,7 @@ def main():
     parser.add_argument("--train", action="store_true", help="Run training mode.")
     parser.add_argument("--log_eval", action="store_true", help="Log evaluation results.")
     parser.add_argument("--headless", action="store_true", help="Run in headless mode.")
-    parser.add_argument("--max_iteractions", type=int, default=1500, help="Number of iteraction for policy learning.")
+    parser.add_argument("--max_iterations", type=int, default=1500, help="Number of iteraction for policy learning.")
     args = parser.parse_args()
 
     update_task_param(args.cfg_path, args.assembly_id, args.train, args.log_eval, args.wandb)
@@ -66,13 +66,13 @@ def main():
     bash_command = None
     if sys.platform.startswith('win'):
         bash_command = "isaaclab.bat -p"
-    elif sys.platform..startswith('linux'):
+    elif sys.platform.startswith('linux'):
         bash_command = "./isaaclab.sh -p"
     if args.train:
         bash_command += (
             " scripts/reinforcement_learning/rl_games/train.py --task=Isaac-AutoMate-Assembly-Direct-v0"
         )
-        bash_command += f" --seed={str(args.seed)} --max_iteractions={str(args.max_iteractions)}"
+        bash_command += f" --seed={str(args.seed)} --max_iterations={str(args.max_iterations)}"
     else:
         if not args.checkpoint:
             raise ValueError("No checkpoint provided for evaluation.")
