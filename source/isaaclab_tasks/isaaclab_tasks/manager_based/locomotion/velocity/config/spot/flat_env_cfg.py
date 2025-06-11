@@ -296,7 +296,7 @@ class SpotTerminationsCfg:
 @configclass
 class SpotFlatEnvCfg(LocomotionVelocityRoughEnvCfg):
 
-    # Basic settings'
+    # Basic settings
     observations: SpotObservationsCfg = SpotObservationsCfg()
     actions: SpotActionsCfg = SpotActionsCfg()
     commands: SpotCommandsCfg = SpotCommandsCfg()
@@ -375,5 +375,3 @@ class SpotFlatEnvCfg_PLAY(SpotFlatEnvCfg):
         # disable randomization for play
         self.observations.policy.enable_corruption = False
         # remove random pushing event
-        # self.events.base_external_force_torque = None
-        # self.events.push_robot = None

@@ -112,3 +112,5 @@ class CassieRoughEnvCfg_PLAY(CassieRoughEnvCfg):
         self.commands.base_velocity.ranges.heading = (0.0, 0.0)
         # disable randomization for play
         self.observations.policy.enable_corruption = False
+        # disable com randomization
+        self.events.base_com = None
