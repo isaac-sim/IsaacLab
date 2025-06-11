@@ -87,8 +87,14 @@ class PhysxCfg:
     """Enable a second broad-phase pass that makes it possible to prevent objects from tunneling through each other.
     Default is False."""
 
-    enable_stabilization: bool = True
-    """Enable/disable additional stabilization pass in solver. Default is True."""
+    enable_stabilization: bool = False
+    """Enable/disable additional stabilization pass in solver. Default is False.
+
+    .. note::
+
+        Setting this flag to True should only be done if the simulation steps are very large (less than 30Hz).
+        Enabling this flag can lead to incorrect forces being read from the contact sensor.
+    """
 
     enable_enhanced_determinism: bool = False
     """Enable/disable improved determinism at the expense of performance. Defaults to False.
