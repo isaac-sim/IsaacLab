@@ -56,7 +56,10 @@ def main():
     # Make a yaml file with the output
     import yaml
 
-    with open("obs_descriptors.yaml", "w") as f:
+    name = args_cli.task.lower().replace("-", "_")
+    name = name.replace(" ", "_")
+
+    with open(f"{name}_IO_descriptors.yaml", "w") as f:
         yaml.safe_dump(outs, f)
 
     for k, v in out_actions.items():
