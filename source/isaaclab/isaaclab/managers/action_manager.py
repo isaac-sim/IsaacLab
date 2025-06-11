@@ -8,16 +8,18 @@
 from __future__ import annotations
 
 import inspect
+import re
 import torch
 import weakref
 from abc import abstractmethod
 from collections.abc import Sequence
 from prettytable import PrettyTable
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import omni.kit.app
 
 from isaaclab.assets import AssetBase
+from isaaclab.envs.utils.io_descriptors import GenericActionIODescriptor
 
 from .manager_base import ManagerBase, ManagerTermBase
 from .manager_term_cfg import ActionTermCfg
@@ -50,6 +52,7 @@ class ActionTerm(ManagerTermBase):
         super().__init__(cfg, env)
         # parse config to obtain asset to which the term is applied
         self._asset: AssetBase = self._env.scene[self.cfg.asset_name]
+        self._IO_descriptor = GenericActionIODescriptor()
 
         # add handle for debug visualization (this is set to a valid handle inside set_debug_vis)
         self._debug_vis_handle = None
@@ -90,6 +93,14 @@ class ActionTerm(ManagerTermBase):
         # check if function raises NotImplementedError
         source_code = inspect.getsource(self._set_debug_vis_impl)
         return "NotImplementedError" not in source_code
+
+    @property
+    def IO_descriptor(self) -> GenericActionIODescriptor:
+        """The IO descriptor for the action term."""
+        self._IO_descriptor.name = re.sub(r"([a-z])([A-Z])", r"\1_\2", self.__class__.__name__).lower()
+        self._IO_descriptor.full_path = f"{self.__class__.__module__}.{self.__class__.__name__}"
+        self._IO_descriptor.description = self.__class__.__doc__
+        return self._IO_descriptor
 
     """
     Operations.
@@ -260,7 +271,7 @@ class ActionManager(ManagerBase):
         return has_debug_vis
 
     @property
-    def get_IO_descriptors(self):
+    def get_IO_descriptors(self) -> dict[str, dict[str, Any]]:
         """Get the IO descriptors for the action manager.
 
         Returns:
@@ -269,16 +280,16 @@ class ActionManager(ManagerBase):
 
         data = []
 
-        for term in self._terms.values():
+        for term_name, term in self._terms.items():
             try:
-                data.append(term.IO_descriptor)
+                data.append(term.IO_descriptor.__dict__.copy())
             except Exception as e:
-                print(f"Error getting IO descriptor for term: {e}")
+                print(f"Error getting IO descriptor for term '{term_name}': {e}")
 
         formatted_data = {}
         for item in data:
             name = item.pop("name")
-            formatted_item = {"extras": {}}
+            formatted_item = {"extras": item.pop("extras")}
             for k, v in item.items():
                 # Check if v is a tuple and convert to list
                 if isinstance(v, tuple):

@@ -23,6 +23,7 @@ from isaaclab.sim.utils import find_matching_prims
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
+    from isaaclab.envs.utils.io_descriptors import GenericActionIODescriptor
 
     from . import actions_cfg
 
@@ -147,6 +148,23 @@ class DifferentialInverseKinematicsAction(ActionTerm):
         jacobian[:, :3, :] = torch.bmm(base_rot_matrix, jacobian[:, :3, :])
         jacobian[:, 3:, :] = torch.bmm(base_rot_matrix, jacobian[:, 3:, :])
         return jacobian
+
+    @property
+    def IO_descriptor(self) -> GenericActionIODescriptor:
+        super().IO_descriptor
+        self._IO_descriptor.shape = (self.action_dim,)
+        self._IO_descriptor.dtype = str(self.raw_actions.dtype)
+        self._IO_descriptor.action_type = "TaskSpaceAction"
+        self._IO_descriptor.body_name = self._body_name
+        self._IO_descriptor.joint_names = self._joint_names
+        self._IO_descriptor.scale = self._scale
+        if self.cfg.clip is not None:
+            self._IO_descriptor.clip = self.cfg.clip
+        else:
+            self._IO_descriptor.clip = None
+        self._IO_descriptor.extras["controller_cfg"] = self.cfg.controller.__dict__
+        self._IO_descriptor.extras["body_offset"] = self.cfg.body_offset.__dict__
+        return self._IO_descriptor
 
     """
     Operations.
@@ -408,6 +426,23 @@ class OperationalSpaceControllerAction(ActionTerm):
         jacobian[:, :3, :] = torch.bmm(base_rot_matrix, jacobian[:, :3, :])
         jacobian[:, 3:, :] = torch.bmm(base_rot_matrix, jacobian[:, 3:, :])
         return jacobian
+
+    @property
+    def IO_descriptor(self) -> GenericActionIODescriptor:
+        super().IO_descriptor
+        self._IO_descriptor.shape = (self.action_dim,)
+        self._IO_descriptor.dtype = str(self.raw_actions.dtype)
+        self._IO_descriptor.action_type = "TaskSpaceAction"
+        self._IO_descriptor.body_name = self._ee_body_name
+        self._IO_descriptor.joint_names = self._joint_names
+        self._IO_descriptor.scale = self._scale
+        if self.cfg.clip is not None:
+            self._IO_descriptor.clip = self.cfg.clip
+        else:
+            self._IO_descriptor.clip = None
+        self._IO_descriptor.extras["controller_cfg"] = self.cfg.controller.__dict__
+        self._IO_descriptor.extras["body_offset"] = self.cfg.body_offset.__dict__
+        return self._IO_descriptor
 
     """
     Operations.

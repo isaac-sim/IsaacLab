@@ -217,7 +217,10 @@ class ManagerBasedEnv:
         Returns:
             A dictionary with keys as the group names and values as the IO descriptors.
         """
-        return {"observations": self.observation_manager.get_IO_descriptors, "actions": self.action_manager.get_IO_descriptors}
+        return {
+            "observations": self.observation_manager.get_IO_descriptors,
+            "actions": self.action_manager.get_IO_descriptors,
+        }
 
     """
     Operations - Setup.

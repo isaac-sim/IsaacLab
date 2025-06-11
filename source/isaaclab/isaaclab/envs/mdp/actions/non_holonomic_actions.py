@@ -18,6 +18,7 @@ from isaaclab.utils.math import euler_xyz_from_quat
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
+    from isaaclab.envs.utils.io_descriptors import GenericActionIODescriptor
 
     from . import actions_cfg
 
@@ -133,6 +134,21 @@ class NonHolonomicAction(ActionTerm):
     @property
     def processed_actions(self) -> torch.Tensor:
         return self._processed_actions
+
+    @property
+    def IO_descriptor(self) -> GenericActionIODescriptor:
+        super().IO_descriptor
+        self._IO_descriptor.shape = (self.action_dim,)
+        self._IO_descriptor.dtype = str(self.raw_actions.dtype)
+        self._IO_descriptor.action_type = "non holonomic actions"
+        self._IO_descriptor.scale = self._scale
+        self._IO_descriptor.offset = self._offset
+        self._IO_descriptor.clip = self._clip
+        self._IO_descriptor.body_name = self._body_name
+        self._IO_descriptor.x_joint_name = self._joint_names[0]
+        self._IO_descriptor.y_joint_name = self._joint_names[1]
+        self._IO_descriptor.yaw_joint_name = self._joint_names[2]
+        return self._IO_descriptor
 
     """
     Operations.
