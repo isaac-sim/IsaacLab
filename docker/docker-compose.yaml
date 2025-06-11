@@ -60,6 +60,10 @@ x-default-isaac-lab-volumes: &default-isaac-lab-volumes
   - type: volume
     source: isaac-lab-data
     target: ${DOCKER_ISAACLAB_PATH}/data_storage
+    # This volume is used to store the history of the bash shell
+  - type: bind
+    source: .isaac-lab-docker-history
+    target: ${DOCKER_USER_HOME}/.bash_history
 
 x-default-isaac-lab-environment: &default-isaac-lab-environment
   - ISAACSIM_PATH=${DOCKER_ISAACLAB_PATH}/_isaac_sim
