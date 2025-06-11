@@ -3,6 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+import sys
 import argparse
 import os
 import re
@@ -61,8 +62,13 @@ def main():
         args.disassembly_dir,
     )
 
-    bash_command = (
-        "./isaaclab.sh -p scripts/reinforcement_learning/rl_games/train.py --task=Isaac-AutoMate-Disassembly-Direct-v0"
+    if sys.platform.startswith('win'):
+        bash_command = "isaaclab.bat -p"
+    elif sys.platform.startswith('linux'):
+        bash_command = "./isaaclab.sh -p"
+
+    bash_command += (
+        " scripts/reinforcement_learning/rl_games/train.py --task=Isaac-AutoMate-Disassembly-Direct-v0"
     )
 
     bash_command += f" --num_envs={str(args.num_envs)}"

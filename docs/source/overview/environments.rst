@@ -216,11 +216,11 @@ We provide environments for both disassembly and assembly.
 
   For addition instructions and Windows installation, please refer to the `CUDA installation page <https://developer.nvidia.com/cuda-12-8-0-download-archive>`_.
 
-* |disassembly-link|: The plug starts inserted in the socket. A low-level controller lifts th plug out and moves it to a random position. These trajectories serve as demonstrations for the reverse process, i.e., learning to assemble. To run disassembly for a specific task: ``./isaaclab.sh -p source/isaaclab_tasks/isaaclab_tasks/direct/automate/run_disassembly_w_id.py --assembly_id=ASSEMBLY_ID``
+* |disassembly-link|: The plug starts inserted in the socket. A low-level controller lifts the plug out and moves it to a random position. This process is purely scripted and does not involve any learned policy. Therefore, it does not require policy training or evaluation. The resulting trajectories serve as demonstrations for the reverse process, i.e., learning to assemble. To run disassembly for a specific task: ``python source/isaaclab_tasks/isaaclab_tasks/direct/automate/run_disassembly_w_id.py --assembly_id=ASSEMBLY_ID --disassembly_dir=DISASSEMBLY_DIR``. All generated trajectories are saved to a local directory ``DISASSEMBLY_DIR``.
 * |assembly-link|: The goal is to insert the plug into the socket. You can use this environment to train a policy via reinforcement learning or evaluate a pre-trained checkpoint.
 
-  * To train an assembly policy: ``./isaaclab.sh -p source/isaaclab_tasks/isaaclab_tasks/direct/automate/run_w_id.py --assembly_id=ASSEMBLY_ID --train``
-  * To evaluate an assembly policy: ``./isaaclab.sh -p source/isaaclab_tasks/isaaclab_tasks/direct/automate/run_w_id.py --assembly_id=ASSEMBLY_ID --checkpoint=CHECKPOINT --log_eval``
+  * To train an assembly policy: ``python source/isaaclab_tasks/isaaclab_tasks/direct/automate/run_w_id.py --assembly_id=ASSEMBLY_ID --train --max_iteractions=MAX_ITERACTIONS``. If using wandb to record learning curves, we add the flag ``--wandb`` in the command. The policy checkpoints are stored in the directory ``logs/rl_games/Assembly/test``. 
+  * To evaluate an assembly policy: ``python source/isaaclab_tasks/isaaclab_tasks/direct/automate/run_w_id.py --assembly_id=ASSEMBLY_ID --checkpoint=CHECKPOINT --log_eval``. The evaluation results are stored in ``evaluation_{ASSEMBLY_ID}.h5``. 
 
 .. table::
     :widths: 33 37 30
