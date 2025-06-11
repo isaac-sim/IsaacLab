@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.42.6 (2025-06-11)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Remove deprecated usage of quat_rotate from articulation data class and replace with quat_apply.
+
+
 0.42.5 (2025-05-22)
 ~~~~~~~~~~~~~~~~~~~
 
