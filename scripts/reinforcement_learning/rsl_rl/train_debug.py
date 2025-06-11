@@ -16,7 +16,7 @@ from isaaclab.app import AppLauncher
 import cli_args  # isort: skip
 
 set_default_task_flag=True
-debug_task = "Isaac-Velocity-Flat-IHMC-Nadia-v0"
+debug_task = "Isaac-Velocity-Flat-Alexander-v0"
 debug_num_envs = 8196
 debug_headless=True
 debug_resume=False
