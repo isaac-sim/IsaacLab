@@ -3,10 +3,10 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-import sys
 import argparse
 import re
 import subprocess
+import sys
 
 
 def update_task_param(task_cfg, assembly_id, if_sbc, if_log_eval, if_wandb):
@@ -58,27 +58,23 @@ def main():
     parser.add_argument("--train", action="store_true", help="Run training mode.")
     parser.add_argument("--log_eval", action="store_true", help="Log evaluation results.")
     parser.add_argument("--headless", action="store_true", help="Run in headless mode.")
-    parser.add_argument("--max_iterations", type=int, default=1500, help="Number of iteraction for policy learning.")
+    parser.add_argument("--max_iterations", type=int, default=1500, help="Number of iteration for policy learning.")
     args = parser.parse_args()
 
     update_task_param(args.cfg_path, args.assembly_id, args.train, args.log_eval, args.wandb)
 
     bash_command = None
-    if sys.platform.startswith('win'):
+    if sys.platform.startswith("win"):
         bash_command = "isaaclab.bat -p"
-    elif sys.platform.startswith('linux'):
+    elif sys.platform.startswith("linux"):
         bash_command = "./isaaclab.sh -p"
     if args.train:
-        bash_command += (
-            " scripts/reinforcement_learning/rl_games/train.py --task=Isaac-AutoMate-Assembly-Direct-v0"
-        )
+        bash_command += " scripts/reinforcement_learning/rl_games/train.py --task=Isaac-AutoMate-Assembly-Direct-v0"
         bash_command += f" --seed={str(args.seed)} --max_iterations={str(args.max_iterations)}"
     else:
         if not args.checkpoint:
             raise ValueError("No checkpoint provided for evaluation.")
-        bash_command += (
-            " scripts/reinforcement_learning/rl_games/play.py --task=Isaac-AutoMate-Assembly-Direct-v0"
-        )
+        bash_command += " scripts/reinforcement_learning/rl_games/play.py --task=Isaac-AutoMate-Assembly-Direct-v0"
 
     bash_command += f" --num_envs={str(args.num_envs)}"
 

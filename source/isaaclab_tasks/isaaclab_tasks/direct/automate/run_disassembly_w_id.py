@@ -3,11 +3,11 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-import sys
 import argparse
 import os
 import re
 import subprocess
+import sys
 
 
 def update_task_param(task_cfg, assembly_id, disassembly_dir):
@@ -62,14 +62,12 @@ def main():
         args.disassembly_dir,
     )
 
-    if sys.platform.startswith('win'):
+    if sys.platform.startswith("win"):
         bash_command = "isaaclab.bat -p"
-    elif sys.platform.startswith('linux'):
+    elif sys.platform.startswith("linux"):
         bash_command = "./isaaclab.sh -p"
 
-    bash_command += (
-        " scripts/reinforcement_learning/rl_games/train.py --task=Isaac-AutoMate-Disassembly-Direct-v0"
-    )
+    bash_command += " scripts/reinforcement_learning/rl_games/train.py --task=Isaac-AutoMate-Disassembly-Direct-v0"
 
     bash_command += f" --num_envs={str(args.num_envs)}"
     bash_command += f" --seed={str(args.seed)}"
