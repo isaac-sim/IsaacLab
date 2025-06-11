@@ -15,7 +15,7 @@ from isaaclab.app import AppLauncher
 import cli_args  # isort: skip
 
 set_default_task_flag=True
-debug_task = "Isaac-Velocity-Flat-Unitree-A1-v0"
+debug_task = "Isaac-Velocity-Flat-Alexander-v0"
 debug_num_envs = 32
 
 # add argparse arguments
