@@ -435,12 +435,17 @@ class OperationalSpaceControllerAction(ActionTerm):
         self._IO_descriptor.action_type = "TaskSpaceAction"
         self._IO_descriptor.body_name = self._ee_body_name
         self._IO_descriptor.joint_names = self._joint_names
-        self._IO_descriptor.scale = self._scale
+        self._IO_descriptor.position_scale = self.cfg.position_scale
+        self._IO_descriptor.orientation_scale = self.cfg.orientation_scale
+        self._IO_descriptor.wrench_scale = self.cfg.wrench_scale
+        self._IO_descriptor.stiffness_scale = self.cfg.stiffness_scale
+        self._IO_descriptor.damping_ratio_scale = self.cfg.damping_ratio_scale
+        self._IO_descriptor.nullspace_joint_pos_target = self.cfg.nullspace_joint_pos_target
         if self.cfg.clip is not None:
             self._IO_descriptor.clip = self.cfg.clip
         else:
             self._IO_descriptor.clip = None
-        self._IO_descriptor.extras["controller_cfg"] = self.cfg.controller.__dict__
+        self._IO_descriptor.extras["controller_cfg"] = self.cfg.controller_cfg.__dict__
         self._IO_descriptor.extras["body_offset"] = self.cfg.body_offset.__dict__
         return self._IO_descriptor
 
