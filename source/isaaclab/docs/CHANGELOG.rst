@@ -1,7 +1,7 @@
 Changelog
 ---------
 
-0.42.21 (2025-06-25)
+0.42.22 (2025-06-25)
 ~~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -12,7 +12,7 @@ Added
   env instance
 
 
-0.42.20 (2025-07-11)
+0.42.21 (2025-07-11)
 ~~~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -22,7 +22,7 @@ Fixed
 restricting the resetting joint indices be that user defined joint indices.
 
 
-0.42.19 (2025-07-11)
+0.42.20 (2025-07-11)
 ~~~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -32,7 +32,7 @@ Fixed
   env_ids are passed.
 
 
-0.42.18 (2025-07-09)
+0.42.19 (2025-07-09)
 ~~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -49,7 +49,7 @@ Fixed
   buffer on recording.
 
 
-0.42.17 (2025-07-10)
+0.42.18 (2025-07-10)
 ~~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -80,7 +80,7 @@ Changed
 * Changed the implementation of :func:`~isaaclab.utils.math.copysign` to better reflect the documented functionality.
 
 
-0.42.16 (2025-07-08)
+0.42.17 (2025-07-08)
 ~~~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -90,7 +90,7 @@ Fixed
   :class:`~isaaclab.assets.articulation.RigidObjectCollectionData`
 
 
-0.42.15 (2025-07-08)
+0.42.16 (2025-07-08)
 ~~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -99,7 +99,7 @@ Added
 * Added ability to set platform height independent of object height for trimesh terrains.
 
 
-0.42.14 (2025-07-01)
+0.42.15 (2025-07-01)
 ~~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -110,7 +110,7 @@ Added
 * Added deprecation warnings to the existing :attr:`max_height_noise` but still functions.
 
 
-0.42.13 (2025-07-03)
+0.42.14 (2025-07-03)
 ~~~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -119,7 +119,7 @@ Fixed
 * Fixed unittest tests that are floating inside pytests for articulation and rendering
 
 
-0.42.12 (2025-07-03)
+0.42.13 (2025-07-03)
 ~~~~~~~~~~~~~~~~~~~~
 
 Changed
@@ -129,7 +129,7 @@ Changed
   videos with the ``--video`` flag.
 
 
-0.42.11 (2025-06-27)
+0.42.12 (2025-06-27)
 ~~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -144,7 +144,7 @@ Fixed
 * Fixed the implementation mistake in :func:`~isaaclab.utils.math.quat_inv`.
 
 
-0.42.10 (2025-06-25)
+0.42.11 (2025-06-25)
 ~~~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -153,8 +153,8 @@ Fixed
 * Fixed :func:`~isaaclab.utils.dict.update_class_from_dict` preventing setting flat Iterables with different lengths.
 
 
-0.42.9 (2025-06-25)
-~~~~~~~~~~~~~~~~~~~
+0.42.10 (2025-06-25)
+~~~~~~~~~~~~~~~~~~~~
 
 Added
 ^^^^^
@@ -163,7 +163,7 @@ Added
   sampling, which is now the default behavior. If set to False, the previous behavior of sharing the same bias value across all components is retained.
 
 
-0.42.8 (2025-06-18)
+0.42.9 (2025-06-18)
 ~~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -175,7 +175,7 @@ Fixed
 * added pytest that check against these data consistencies
 
 
-0.42.7 (2025-06-24)
+0.42.8 (2025-06-24)
 ~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -189,22 +189,22 @@ Changed
 * Renamed :func:`~isaaclab.utils.noise.NoiseModel.apply` method to :func:`~isaaclab.utils.noise.NoiseModel.__call__`.
 
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-
-0.40.6 (2025-06-12)
-=======
-0.41.6 (2025-06-12)
->>>>>>> cf094c211f (Updates to Isaac Sim 5.0 (#379))
-=======
-0.42.6 (2025-06-12)
->>>>>>> b048c33739 (Adds support for Stage in Memory (#375))
+0.42.7 (2025-06-12)
 ~~~~~~~~~~~~~~~~~~~
 
 Fixed
 ^^^^^
 
 * Fixed potential issues in :func:`~isaaclab.envs.mdp.events.randomize_visual_texture_material` related to handling visual prims during texture randomization.
+
+
+0.42.6 (2025-06-11)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Remove deprecated usage of quat_rotate from articulation data class and replace with quat_apply.
 
 
 0.42.5 (2025-05-22)
