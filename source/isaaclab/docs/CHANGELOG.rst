@@ -6,6 +6,7 @@ Changelog
 
 Fixed
 ^^^^^
+
 * Fixed potential issues in :func:`~isaaclab.envs.mdp.events.randomize_visual_texture_material` related to handling visual prims during texture randomization.
 
 
