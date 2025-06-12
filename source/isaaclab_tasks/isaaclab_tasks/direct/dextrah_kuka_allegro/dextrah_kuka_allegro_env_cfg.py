@@ -14,9 +14,8 @@ from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import PhysxCfg, SimulationCfg
 from isaaclab.sim.spawners.materials.physics_materials_cfg import RigidBodyMaterialCfg
 from isaaclab.utils import configclass
-from isaaclab.envs import ViewerCfg
 from isaaclab_assets.robots.kuka_allegro import KUKA_ALLEGRO_CFG  # isort: skip
-from .action_cfg import LimitsScaledJointPositionActionCfg
+from .fabric_action_cfg import FabricActionCfg
 
 # from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 ISAACLAB_NUCLEUS_DIR = "source/isaaclab_assets/data"
@@ -102,30 +101,7 @@ class DextrahKukaAllegroEnvCfg(DirectRLEnvCfg):
     episode_length_s = 10.  # 10.0
     state_space = -1  # set by DextrahKukaAllegroEnv Implementation code
     observation_space = -1  # set by DextrahKukaAllegroEnv Implementation code
-    action_space = 23 * 2
-
-    # viewer = ViewerCfg(eye=(-2.25, 0., 0.75), lookat=(0., 0., 0.3), origin_type='env')
-    viewer = ViewerCfg(eye=(-5.0, 1., 0.75), lookat=(0., 1., 0.3), origin_type='env')
-    joint_pos_action_cfg = mdp.RelativeJointPositionActionCfg(
-        asset_name="robot",
-        joint_names=[".*"],
-        scale=0.5,
-    )
-    # joint_pos_action_cfg = mdp.JointPositionActionCfg(
-    #     asset_name="robot",
-    #     joint_names=[".*"],
-    #     scale=0.5,
-    # )
-    # joint_pos_action_cfg = LimitsScaledJointPositionActionCfg(
-    #     asset_name="robot",
-    #     joint_names=[".*"],
-    #     ema_lambda=1.0
-    # )
-    joint_vel_action_cfg = mdp.JointVelocityActionCfg(
-        asset_name="robot",
-        joint_names=[".*"],
-        scale=0.1,
-    )
+    action_space = 11 # 6 palm pose + 5 PCA
 
     # simulation
     sim: SimulationCfg = SimulationCfg(
@@ -153,13 +129,13 @@ class DextrahKukaAllegroEnvCfg(DirectRLEnvCfg):
                 'iiwa7_joint_5': -1.76,
                 'iiwa7_joint_6': 0.90,
                 'iiwa7_joint_7': 0.64,
-                'index_joint_(0|1|2)': 0.0,
-                'middle_joint_(0|1|2)': 0.3,
-                'ring_joint_(0|1|2)': 0.3,
-                'thumb_joint_(0|1|2)': 0.3,
-                'index_joint_3': 1.5,
-                'middle_joint_3': 0.60147215,
-                'ring_joint_3': 0.33795027,
+                '(index|middle|ring)_joint_0': 0.0,
+                '(index|middle|ring)_joint_1': 0.3,
+                '(index|middle|ring)_joint_2': 0.3,
+                '(index|middle|ring)_joint_3': 0.3,
+                'thumb_joint_0': 1.5,
+                'thumb_joint_1': 0.60147215,
+                'thumb_joint_2': 0.33795027,
                 'thumb_joint_3': 0.60845138
             },
         ),
@@ -197,7 +173,7 @@ class DextrahKukaAllegroEnvCfg(DirectRLEnvCfg):
                 max_depenetration_velocity=1000.0,
             ),
         ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(-0.55, 0.0, 0.32)),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(-0.55, 0.1, 0.32)),
     )
 
     # table
@@ -215,18 +191,21 @@ class DextrahKukaAllegroEnvCfg(DirectRLEnvCfg):
     # scene
     scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=4096, env_spacing=2., replicate_physics=False)
     events: EventCfg = EventCfg()
+    fabric_action_cfg = FabricActionCfg(asset_name="robot")
+
+    
     robot_scene_cfg = SceneEntityCfg(
         "robot",
         body_names=["palm_link", "index_biotac_tip", "middle_biotac_tip", "ring_biotac_tip", "thumb_biotac_tip"],
         joint_names=".*"
     )
 
-    curled_q = [0., 0., 0., 1.5, 0., 0., 0., 0.6015, 0., 0., 0., 0.3380, 0., 0., 0., 0.6085]  # isaac-sim order
+    curled_q = [0., 0., 0., 1.5, 0., 0., 0., 0.6015, 0., 0., 0., 0.3380, 0., 0., 0., 0.6085]
     object_goal = [-0.5, 0., 0.75]
 
     # reward weights
     hand_to_object_weight = 1.
-    hand_to_object_sharpness = 5.
+    hand_to_object_sharpness = 10.
     object_to_goal_weight = 5.
     lift_sharpness = 8.5
 
@@ -251,6 +230,10 @@ class DextrahKukaAllegroEnvCfg(DirectRLEnvCfg):
     # Object scaling
     object_scale = (0.5, 1.75)
     deactivate_object_scaling = True
+    
+    # Action space related parameters
+    max_pose_angle = -1.
+
 
     # These serve to set the maximum value ranges for the different physics parameters
     adr_cfg_dict = {

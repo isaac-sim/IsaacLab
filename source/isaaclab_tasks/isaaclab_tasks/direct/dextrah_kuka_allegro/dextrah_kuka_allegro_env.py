@@ -19,7 +19,11 @@ from isaaclab.utils.math import quat_from_angle_axis, quat_mul, sample_uniform, 
 
 from .dextrah_kuka_allegro_env_cfg import DextrahKukaAllegroEnvCfg
 from .dextrah_adr import DextrahADR
+from .fabric_action import FabricAction
 
+
+module_path = os.path.dirname(__file__)
+root_path = os.path.dirname(os.path.dirname(module_path))
 
 class DextrahKukaAllegroEnv(DirectRLEnv):
     cfg: DextrahKukaAllegroEnvCfg
@@ -27,13 +31,10 @@ class DextrahKukaAllegroEnv(DirectRLEnv):
     def __init__(self, cfg: DextrahKukaAllegroEnvCfg, render_mode: str | None = None, **kwargs):
         super().__init__(cfg, render_mode, **kwargs)
 
-        self._actions = torch.zeros((self.num_envs, self.cfg.action_space), device=self.device)
         self.cfg.robot_scene_cfg.resolve(self.scene)
         self.object_goal = torch.tensor(self.cfg.object_goal, device=self.device).repeat((self.num_envs, 1))
         self.object_goal += self.scene.env_origins
-        self.curled_q = torch.tensor(self.cfg.curled_q, device=self.device).repeat(self.num_envs, 1).contiguous()
-        self.joint_pos_action = self.cfg.joint_pos_action_cfg.class_type(self.cfg.joint_pos_action_cfg, self)
-        self.joint_vel_action = self.cfg.joint_vel_action_cfg.class_type(self.cfg.joint_vel_action_cfg, self)
+        self.curled_q =torch.tensor(self.cfg.curled_q, device=self.device).repeat(self.num_envs, 1).contiguous()
 
         # Set up ADR
         self.dextrah_adr = DextrahADR(self.event_manager, self.cfg.adr_cfg_dict, self.cfg.adr_custom_cfg_dict)
@@ -54,10 +55,8 @@ class DextrahKukaAllegroEnv(DirectRLEnv):
         self.object_rot_bias = torch.zeros(self.num_envs, 1, device=self.device)
         self.object_pos_noise_width = torch.zeros(self.num_envs, 1, device=self.device)
         self.object_rot_noise_width = torch.zeros(self.num_envs, 1, device=self.device)
-        self.joint_pos_bias = torch.zeros(self.num_envs, 1, device=self.device)
-        self.joint_vel_bias = torch.zeros(self.num_envs, 1, device=self.device)
-        self.joint_pos_noise_width = torch.zeros(self.num_envs, 1, device=self.device)
-        self.joint_vel_noise_width = torch.zeros(self.num_envs, 1, device=self.device)
+        self.cfg.fabric_action_cfg.fabric_damping_gain = self.dextrah_adr.get_custom_param_value("fabric_damping", "gain")
+        self.action_term: FabricAction = self.cfg.fabric_action_cfg.class_type(self.cfg.fabric_action_cfg, self)  # type: ignore
         center = self.cfg.objects_cfg.init_state.pos
         self.oob_limits = torch.tensor([
             [center[0] - self.cfg.obj_spawn_width[0] / 2., center[1] - self.cfg.obj_spawn_width[1] / 2., 0.2],
@@ -86,8 +85,8 @@ class DextrahKukaAllegroEnv(DirectRLEnv):
         light_cfg.func("/World/Light", light_cfg)
 
         num_unique_objects = len(self.object.cfg.spawn.assets_cfg)
-        num_teacher_observations = 148 + num_unique_objects
-        self.cfg.state_space = 180 + num_unique_objects
+        num_teacher_observations = 167 + num_unique_objects
+        self.cfg.state_space = 214 + num_unique_objects
         self.cfg.observation_space = num_teacher_observations
 
         self.multi_object_idx = torch.remainder(torch.arange(self.num_envs), num_unique_objects).to(self.device)
@@ -101,19 +100,17 @@ class DextrahKukaAllegroEnv(DirectRLEnv):
         if int(os.environ.get("WORLD_SIZE", 1)) > 1:
             dist.all_reduce(local_adr_increment, op=dist.ReduceOp.MIN)
         self.global_min_adr_increment = local_adr_increment
-
-        self._actions = actions.clone()
-        self.joint_pos_action.process_actions(actions[:, :23])
-        self.joint_vel_action.process_actions(actions[:, 23:])
         self.apply_object_wrench()
 
-    def _apply_action(self) -> None:
-        self.joint_pos_action.apply_actions()
-        self.joint_vel_action.apply_actions()
+        self.cfg.fabric_action_cfg.fabric_damping_gain = self.dextrah_adr.get_custom_param_value("fabric_damping", "gain")
+        self.action_term.process_actions(actions)
 
+    def _apply_action(self) -> None:
+        # # Set position target
+        self.cfg.fabric_action_cfg.pd_vel_factor = self.dextrah_adr.get_custom_param_value("pd_targets", "velocity_target_factor")
+        self.action_term.apply_actions()
+        
     def _get_observations(self) -> dict:
-        joint_pos = self.robot.data.joint_pos[:, self.cfg.robot_scene_cfg.joint_ids]
-        joint_vel = self.robot.data.joint_vel[:, self.cfg.robot_scene_cfg.joint_ids]
         hand_pos = self.robot.data.body_pos_w[:, self.cfg.robot_scene_cfg.body_ids].view(self.num_envs, -1)
         hand_pos -= self.scene.env_origins.repeat((1, len(self.cfg.robot_scene_cfg.body_ids)))
         hand_vel = self.robot.data.body_vel_w[:, self.cfg.robot_scene_cfg.body_ids].view(self.num_envs, -1)
@@ -122,39 +119,33 @@ class DextrahKukaAllegroEnv(DirectRLEnv):
         hand_forces = self.robot.root_physx_view.get_link_incoming_joint_force()[:, self.cfg.robot_scene_cfg.body_ids]
         measured_joint_torques = self.robot.root_physx_view.get_dof_projected_joint_forces()
 
-        joint_pos_noisy = joint_pos + self.joint_pos_noise_width * rand_like(joint_pos) + self.joint_pos_bias
-        joint_vel_noisy = joint_vel + self.joint_vel_noise_width * rand_like(joint_pos) + self.joint_vel_bias
-        joint_vel_noisy *= self.dextrah_adr.get_custom_param_value("observation_annealing", "coefficient")
-
-        hand_pos_noisy = self.robot.data.body_pos_w[:, self.cfg.robot_scene_cfg.body_ids].view(self.num_envs, -1)
-        hand_pos_noisy -= self.scene.env_origins.repeat((1, len(self.cfg.robot_scene_cfg.body_ids)))
-        hand_vel_noisy = self.robot.data.body_vel_w[:, self.cfg.robot_scene_cfg.body_ids].view(self.num_envs, -1)
-        hand_vel_noisy *= self.dextrah_adr.get_custom_param_value("observation_annealing", "coefficient")
-
         object_pos_noisy = object_pos + self.object_pos_noise_width * rand_like(object_pos) + self.object_pos_bias
         object_rot_noisy = object_rot + self.object_rot_noise_width * rand_like(object_rot) + self.object_rot_bias
 
         teacher_policy_obs = torch.cat(
             (
-                joint_pos_noisy,  # 0:23
-                joint_vel_noisy,  # 23:46
-                hand_pos_noisy,  # 46:61
-                hand_vel_noisy,  # 61:91
-                object_pos_noisy,  # 91:94
-                object_rot_noisy,  # 94:98
-                self.object_goal - self.scene.env_origins,  # 98:101
-                self.multi_object_idx_onehot,  # 101:253
-                self.object_scale,  # 253:254
-                self._actions,  # 254:300
+                self.action_term.robot_dof_pos_noisy,
+                self.action_term.robot_dof_vel_noisy,
+                self.action_term.hand_pos_noisy,
+                self.action_term.hand_vel_noisy,
+                object_pos_noisy,
+                object_rot_noisy,
+                self.object_goal - self.scene.env_origins,
+                self.multi_object_idx_onehot,
+                self.object_scale,
+                self.action_term.raw_actions,
+                self.action_term.fabric_q_for_obs,
+                self.action_term.fabric_qd_for_obs,
+                self.action_term.fabric_qdd_for_obs,
             ), dim=-1,
         )
 
         critic_obs = torch.cat(
             (
-                joint_pos,  # 0:23
-                joint_vel,  # 23:46
-                hand_pos,  # 46:61
-                hand_vel,  # 61:76
+                self.action_term.robot_dof_pos,
+                self.action_term.robot_dof_vel,
+                hand_pos,
+                hand_vel,
                 hand_forces.view(self.num_envs, -1)[:, :3],
                 measured_joint_torques,
                 object_pos,
@@ -163,7 +154,10 @@ class DextrahKukaAllegroEnv(DirectRLEnv):
                 self.object_goal - self.scene.env_origins,
                 self.multi_object_idx_onehot,
                 self.object_scale,
-                self._actions,
+                self.action_term.raw_actions,
+                self.action_term.fabric_q.clone(),
+                self.action_term.fabric_qd.clone(),
+                self.action_term.fabric_qdd.clone(),
             ), dim=-1,
         )
 
@@ -199,10 +193,10 @@ class DextrahKukaAllegroEnv(DirectRLEnv):
         self.extras["true_objective_max"] = self.true_objective.float().max()
 
         rewards = {
-            "hand_to_object" : self.cfg.hand_to_object_weight * hand_to_object_rew * self.step_dt,
-            "object_to_goal" : self.cfg.object_to_goal_weight * object_to_goal_rew * self.step_dt,
-            "finger_curl_reg" : finger_curl_reg_weight * finger_curl_reg * self.step_dt,
-            "lift_reward" : lift_weight * lift_rew * self.step_dt
+            "hand_to_object" : self.cfg.hand_to_object_weight * hand_to_object_rew,  # * self.step_dt,
+            "object_to_goal" : self.cfg.object_to_goal_weight * object_to_goal_rew,  # * self.step_dt,
+            "finger_curl_reg" : finger_curl_reg_weight * finger_curl_reg,  # * self.step_dt,
+            "lift_reward" : lift_weight * lift_rew,  # * self.step_dt
         }
         for key, value in rewards.items():
             self._episode_sums[key] += value
@@ -210,7 +204,8 @@ class DextrahKukaAllegroEnv(DirectRLEnv):
 
     def _get_dones(self) -> tuple[torch.Tensor, torch.Tensor]:
         # This should be in starte
-        object_pos = self.object.data.root_pos_w - self.scene.env_origins
+        object_pos = self.object.data.root_pos_w
+        object_pos_local = object_pos - self.scene.env_origins
         # bookkeeping for ADR
         in_success_region = torch.norm(object_pos - self.object_goal, dim=-1) < self.cfg.object_goal_tol
         self.time_in_success_region = torch.where(in_success_region, self.time_in_success_region + self.cfg.sim.dt*self.cfg.decimation, 0.)
@@ -218,8 +213,7 @@ class DextrahKukaAllegroEnv(DirectRLEnv):
             self.true_objective = self.dextrah_adr.num_increments() + 0.0 * in_success_region.float()
         else:
             self.true_objective = self.dextrah_adr.num_increments() + 50.0 * in_success_region.float().mean() * torch.ones_like(in_success_region).float()
-
-        outside_bounds = ((object_pos < self.oob_limits[0]) | (object_pos > self.oob_limits[1])).any(dim=1)
+        outside_bounds = ((object_pos_local < self.oob_limits[0]) | (object_pos_local > self.oob_limits[1])).any(dim=1)
         time_out = self.episode_length_buf >= self.max_episode_length - 1
 
         return outside_bounds, time_out
@@ -229,7 +223,7 @@ class DextrahKukaAllegroEnv(DirectRLEnv):
             env_ids = self.robot._ALL_INDICES
 
         # Update DR ranges this needs to happen before reset
-        object_pos = self.object.data.root_pos_w - self.scene.env_origins
+        object_pos = self.object.data.root_pos_w
         in_success_region = torch.norm(object_pos - self.object_goal, dim=-1) < self.cfg.object_goal_tol
         if self.cfg.enable_adr:
             time_elapsed = self.step_since_last_dr_change >= self.cfg.min_steps_for_dr_change
@@ -256,8 +250,8 @@ class DextrahKukaAllegroEnv(DirectRLEnv):
         rotation = self.dextrah_adr.get_custom_param_value("object_spawn", "rotation")
         rot_noise = sample_uniform(-rotation, rotation, (num_ids, 2), device=self.device)  # noise for X and Y rotation
         object_start_state[:, 3:7] = quat_mul(
-            quat_from_angle_axis(rot_noise[:, 0] * 3.14, torch.tensor([1., 0., 0.], device=self.device).repeat((num_ids, 1))),
-            quat_from_angle_axis(rot_noise[:, 1] * 3.14, torch.tensor([0., 1., 0.], device=self.device).repeat((num_ids, 1)))
+            quat_from_angle_axis(rot_noise[:, 0] * 3.14, torch.tensor([1., 0., 0.], device=self.device).repeat((len(env_ids), 1))),
+            quat_from_angle_axis(rot_noise[:, 1] * 3.14, torch.tensor([0., 1., 0.], device=self.device).repeat((len(env_ids), 1)))
         )
 
         self.object.write_root_state_to_sim(object_start_state, env_ids)
@@ -303,20 +297,11 @@ class DextrahKukaAllegroEnv(DirectRLEnv):
         self.object_pos_noise_width[env_ids, :] = self.dextrah_adr.get_custom_param_value("object_state_noise", "object_pos_noise") * rand()
         self.object_rot_noise_width[env_ids, :] = self.dextrah_adr.get_custom_param_value("object_state_noise", "object_rot_noise") * rand()
 
-        # ROBOT NOISE---------------------------------------------------------------------------
-        # Sample widths of uniform distribution controlling robot state bias
-        joint_pos_bias_width = self.dextrah_adr.get_custom_param_value("robot_state_noise", "joint_pos_bias") * rand()
-        joint_vel_bias_width = self.dextrah_adr.get_custom_param_value("robot_state_noise", "joint_vel_bias") * rand()
-        self.joint_pos_bias[env_ids, :] = joint_pos_bias_width * (rand() - 0.5)
-        self.joint_vel_bias[env_ids, :] = joint_vel_bias_width * (rand() - 0.5)
-
-        # TODO: alternative (need to check with ankur)
-        # self.joint_pos_bias[env_ids, :] = self.dextrah_adr.get_custom_param_value("robot_state_noise", "joint_pos_bias") * (rand() - 0.5)
-        # self.joint_vel_bias[env_ids, :] = self.dextrah_adr.get_custom_param_value("robot_state_noise", "joint_vel_bias") * (rand() - 0.5)
-
-        # Sample width of per-step noise
-        self.joint_pos_noise_width[env_ids, :] = self.dextrah_adr.get_custom_param_value("robot_state_noise", "joint_pos_noise") * rand()
-        self.joint_vel_noise_width[env_ids, :] = self.dextrah_adr.get_custom_param_value("robot_state_noise", "joint_vel_noise") * rand()
+        self.cfg.fabric_action_cfg.robot_joint_pos_bias_width = self.dextrah_adr.get_custom_param_value("robot_state_noise", "joint_pos_bias")
+        self.cfg.fabric_action_cfg.robot_joint_vel_bias_width = self.dextrah_adr.get_custom_param_value("robot_state_noise", "joint_vel_bias")
+        self.cfg.fabric_action_cfg.robot_joint_pos_noise = self.dextrah_adr.get_custom_param_value("robot_state_noise", "joint_pos_noise")
+        self.cfg.fabric_action_cfg.robot_joint_vel_noise = self.dextrah_adr.get_custom_param_value("robot_state_noise", "joint_vel_noise")
+        self.action_term._reset_idx(env_ids)
 
         extras = dict()
         for key in self._episode_sums.keys():
@@ -332,20 +317,18 @@ class DextrahKukaAllegroEnv(DirectRLEnv):
 
         # Update whether to apply wrench based on whether object is at goal
         hand_to_object_pos_error = torch.norm(hand_pos - object_pos[:, None, :], dim=-1).max(dim=-1).values
-        num_bodies = self.object.num_bodies
         # Generates the random wrench
         max_linear_accel = self.dextrah_adr.get_custom_param_value("object_wrench", "max_linear_accel")
-        acc_scalar = torch.rand(self.num_envs, 1, device=self.device)
+        acc_scalar = torch.rand(self.num_envs, 1, 1, device=self.device)
         max_force = (max_linear_accel * self.object_mass).unsqueeze(2)
         max_torque = (self.object_mass * max_linear_accel * self.cfg.torsional_radius).unsqueeze(2)
-        forces = max_force * acc_scalar * normalize(torch.randn(self.num_envs, num_bodies, 3, device=self.device))
-        torques = max_torque * acc_scalar * normalize(torch.randn(self.num_envs, num_bodies, 3, device=self.device))
+        forces = max_force * acc_scalar * normalize(torch.randn(self.num_envs, 1, 3, device=self.device))
+        torques = max_torque * acc_scalar * normalize(torch.randn(self.num_envs, 1, 3, device=self.device))
 
         wrench_triggered = (self.episode_length_buf.view(-1, 1, 1) % self.cfg.wrench_trigger_every) == 0
         apply_wrench_mask = (hand_to_object_pos_error <= self.cfg.hand_to_object_dist_threshold)[:, None, None]
-
-        self.object_applied_force = torch.where(apply_wrench_mask, self.object_applied_force, torch.zeros_like(self.object_applied_force))
-        self.object_applied_torque = torch.where(apply_wrench_mask, self.object_applied_torque, torch.zeros_like(self.object_applied_torque))
+        self.object_applied_force = torch.where(apply_wrench_mask, self.object_applied_force, torch.zeros((self.num_envs, 1, 3), device=self.device))
+        self.object_applied_torque = torch.where(apply_wrench_mask, self.object_applied_torque, torch.zeros((self.num_envs, 1, 3), device=self.device))
 
         self.object_applied_force = torch.where(wrench_triggered, forces, self.object_applied_force)
         self.object_applied_torque = torch.where(wrench_triggered, torques, self.object_applied_torque)
