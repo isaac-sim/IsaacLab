@@ -82,12 +82,6 @@ class FabricAction(ActionTerm):
             preserve_order=True,
         )
         self.robot_hand_bodies_cfg.resolve(env.scene)
-        
-        # Robot noise
-        self.robot_joint_pos_bias = torch.zeros(self.num_envs, 1, device=self.device)
-        self.robot_joint_vel_bias = torch.zeros(self.num_envs, 1, device=self.device)
-        self.robot_joint_pos_noise_width = torch.zeros(self.num_envs, 1, device=self.device)
-        self.robot_joint_vel_noise_width = torch.zeros(self.num_envs, 1, device=self.device)
 
         self._reset_idx(env_ids=torch.arange(env.num_envs))
     
@@ -192,33 +186,10 @@ class FabricAction(ActionTerm):
 
     def _reset_idx(self, env_ids: Sequence[int] | None):
         self.reset(env_ids=env_ids)
-        robot_joint_pos_bias_width = self.cfg.robot_joint_pos_bias_width * torch.rand(len(env_ids), device=self.device)
-        robot_joint_vel_bias_width = self.cfg.robot_joint_vel_bias_width * torch.rand(len(env_ids), device=self.device)
-        self.robot_joint_pos_bias[env_ids, 0] = robot_joint_pos_bias_width * (torch.rand(len(env_ids), device=self.device) - 0.5)
-        self.robot_joint_vel_bias[env_ids, 0] = robot_joint_vel_bias_width * (torch.rand(len(env_ids), device=self.device) - 0.5)
-        self.robot_joint_pos_noise_width[env_ids, 0] = self.cfg.robot_joint_pos_noise * torch.rand(len(env_ids), device=self.device)
-        self.robot_joint_vel_noise_width[env_ids, 0] = self.cfg.robot_joint_vel_noise * torch.rand(len(env_ids), device=self.device)
-        
+
         self.fabric_start_pos = self.fabric_q.clone()
         self.fabric_start_vel = self.fabric_qd.clone()
         self.fabric_start_pos[env_ids, :] = self._asset.data.joint_pos[env_ids[:, None], self.robot_hand_bodies_cfg.joint_ids].clone()
         self.fabric_start_vel[env_ids, :] = self._asset.data.joint_vel[env_ids[:, None], self.robot_hand_bodies_cfg.joint_ids].clone()
         self.fabric_q.copy_(self.fabric_start_pos)
         self.fabric_qd.copy_(self.fabric_start_vel)
-
-        self.robot_dof_pos = self._asset.data.joint_pos[:, self.robot_hand_bodies_cfg.joint_ids]
-        noise = 2. * (torch.rand_like(self.robot_dof_pos) - 0.5)
-        self.robot_dof_pos_noisy = self.robot_dof_pos + self.robot_joint_pos_noise_width * noise + self.robot_joint_pos_bias
-
-        self.robot_dof_vel = self._asset.data.joint_vel[:, self.robot_hand_bodies_cfg.joint_ids]
-        noise = 2. * (torch.rand_like(self.robot_dof_pos) - 0.5)
-        self.robot_dof_vel_noisy = self.robot_dof_vel + self.robot_joint_vel_noise_width * noise + self.robot_joint_vel_bias
-        self.robot_dof_vel_noisy *= self.cfg.observation_annealing_coefficient
-
-        self._asset.data.joint_pos[:, self.robot_hand_bodies_cfg.joint_ids].clone()
-        self.hand_pos_noisy, hand_points_jac = self.hand_points_taskmap(self.robot_dof_pos_noisy, None)
-        self.hand_vel_noisy = torch.bmm(hand_points_jac, self.robot_dof_vel_noisy.unsqueeze(2)).squeeze(2)
-
-        self.fabric_q_for_obs = self.fabric_q.clone()
-        self.fabric_qd_for_obs = self.fabric_qd.clone() * self.cfg.observation_annealing_coefficient
-        self.fabric_qdd_for_obs = self.fabric_qdd.clone() * self.cfg.observation_annealing_coefficient

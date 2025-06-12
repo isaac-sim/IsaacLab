@@ -55,6 +55,10 @@ class DextrahKukaAllegroEnv(DirectRLEnv):
         self.object_rot_bias = torch.zeros(self.num_envs, 1, device=self.device)
         self.object_pos_noise_width = torch.zeros(self.num_envs, 1, device=self.device)
         self.object_rot_noise_width = torch.zeros(self.num_envs, 1, device=self.device)
+        self.joint_pos_bias = torch.zeros(self.num_envs, 1, device=self.device)
+        self.joint_vel_bias = torch.zeros(self.num_envs, 1, device=self.device)
+        self.joint_pos_noise_width = torch.zeros(self.num_envs, 1, device=self.device)
+        self.joint_vel_noise_width = torch.zeros(self.num_envs, 1, device=self.device)
         self.cfg.fabric_action_cfg.fabric_damping_gain = self.dextrah_adr.get_custom_param_value("fabric_damping", "gain")
         self.action_term: FabricAction = self.cfg.fabric_action_cfg.class_type(self.cfg.fabric_action_cfg, self)  # type: ignore
         center = self.cfg.objects_cfg.init_state.pos
@@ -86,7 +90,7 @@ class DextrahKukaAllegroEnv(DirectRLEnv):
 
         num_unique_objects = len(self.object.cfg.spawn.assets_cfg)
         num_teacher_observations = 167 + num_unique_objects
-        self.cfg.state_space = 214 + num_unique_objects
+        self.cfg.state_space = 199 + num_unique_objects
         self.cfg.observation_space = num_teacher_observations
 
         self.multi_object_idx = torch.remainder(torch.arange(self.num_envs), num_unique_objects).to(self.device)
@@ -111,23 +115,35 @@ class DextrahKukaAllegroEnv(DirectRLEnv):
         self.action_term.apply_actions()
         
     def _get_observations(self) -> dict:
-        hand_pos = self.robot.data.body_pos_w[:, self.cfg.robot_scene_cfg.body_ids].view(self.num_envs, -1)
-        hand_pos -= self.scene.env_origins.repeat((1, len(self.cfg.robot_scene_cfg.body_ids)))
-        hand_vel = self.robot.data.body_vel_w[:, self.cfg.robot_scene_cfg.body_ids].view(self.num_envs, -1)
         object_pos = self.object.data.root_pos_w - self.scene.env_origins
         object_rot = self.object.data.root_quat_w
-        hand_forces = self.robot.root_physx_view.get_link_incoming_joint_force()[:, self.cfg.robot_scene_cfg.body_ids]
-        measured_joint_torques = self.robot.root_physx_view.get_dof_projected_joint_forces()
-
         object_pos_noisy = object_pos + self.object_pos_noise_width * rand_like(object_pos) + self.object_pos_bias
         object_rot_noisy = object_rot + self.object_rot_noise_width * rand_like(object_rot) + self.object_rot_bias
 
+        hand_forces = self.robot.root_physx_view.get_link_incoming_joint_force()[:, self.cfg.robot_scene_cfg.body_ids]
+        measured_joint_torques = self.robot.root_physx_view.get_dof_projected_joint_forces()
+
+        joint_pos = self.robot.data.joint_pos[:, self.cfg.robot_scene_cfg.joint_ids]
+        joint_vel = self.robot.data.joint_vel[:, self.cfg.robot_scene_cfg.joint_ids]
+        joint_pos_noisy = joint_pos + self.joint_pos_noise_width * rand_like(joint_pos) + self.joint_pos_bias
+        joint_vel_noisy = joint_vel + self.joint_vel_noise_width * rand_like(joint_pos) + self.joint_vel_bias
+        joint_vel_noisy *= self.dextrah_adr.get_custom_param_value("observation_annealing", "coefficient")
+        
+        hand_pos = self.robot.data.body_pos_w[:, self.cfg.robot_scene_cfg.body_ids].view(self.num_envs, -1)
+        hand_pos -= self.scene.env_origins.repeat((1, len(self.cfg.robot_scene_cfg.body_ids)))
+        hand_vel = self.robot.data.body_vel_w[:, self.cfg.robot_scene_cfg.body_ids, :3].view(self.num_envs, -1)
+        hand_pos_noisy = self.robot.data.body_pos_w[:, self.cfg.robot_scene_cfg.body_ids].view(self.num_envs, -1)
+        hand_pos_noisy -= self.scene.env_origins.repeat((1, len(self.cfg.robot_scene_cfg.body_ids)))
+        hand_vel_noisy = self.robot.data.body_vel_w[:, self.cfg.robot_scene_cfg.body_ids, :3].view(self.num_envs, -1)
+        hand_vel_noisy *= self.dextrah_adr.get_custom_param_value("observation_annealing", "coefficient")
+
+
         teacher_policy_obs = torch.cat(
             (
-                self.action_term.robot_dof_pos_noisy,
-                self.action_term.robot_dof_vel_noisy,
-                self.action_term.hand_pos_noisy,
-                self.action_term.hand_vel_noisy,
+                joint_pos_noisy,
+                joint_vel_noisy,
+                hand_pos_noisy,
+                hand_vel_noisy,
                 object_pos_noisy,
                 object_rot_noisy,
                 self.object_goal - self.scene.env_origins,
@@ -142,8 +158,8 @@ class DextrahKukaAllegroEnv(DirectRLEnv):
 
         critic_obs = torch.cat(
             (
-                self.action_term.robot_dof_pos,
-                self.action_term.robot_dof_vel,
+                joint_pos,
+                joint_vel,
                 hand_pos,
                 hand_vel,
                 hand_forces.view(self.num_envs, -1)[:, :3],
@@ -296,11 +312,22 @@ class DextrahKukaAllegroEnv(DirectRLEnv):
         # Sample width of per-step noise
         self.object_pos_noise_width[env_ids, :] = self.dextrah_adr.get_custom_param_value("object_state_noise", "object_pos_noise") * rand()
         self.object_rot_noise_width[env_ids, :] = self.dextrah_adr.get_custom_param_value("object_state_noise", "object_rot_noise") * rand()
+        
+        # ROBOT NOISE---------------------------------------------------------------------------
+        # Sample widths of uniform distribution controlling robot state bias
+        joint_pos_bias_width = self.dextrah_adr.get_custom_param_value("robot_state_noise", "joint_pos_bias") * rand()
+        joint_vel_bias_width = self.dextrah_adr.get_custom_param_value("robot_state_noise", "joint_vel_bias") * rand()
+        self.joint_pos_bias[env_ids, :] = joint_pos_bias_width * (rand() - 0.5)
+        self.joint_vel_bias[env_ids, :] = joint_vel_bias_width * (rand() - 0.5)
 
-        self.cfg.fabric_action_cfg.robot_joint_pos_bias_width = self.dextrah_adr.get_custom_param_value("robot_state_noise", "joint_pos_bias")
-        self.cfg.fabric_action_cfg.robot_joint_vel_bias_width = self.dextrah_adr.get_custom_param_value("robot_state_noise", "joint_vel_bias")
-        self.cfg.fabric_action_cfg.robot_joint_pos_noise = self.dextrah_adr.get_custom_param_value("robot_state_noise", "joint_pos_noise")
-        self.cfg.fabric_action_cfg.robot_joint_vel_noise = self.dextrah_adr.get_custom_param_value("robot_state_noise", "joint_vel_noise")
+        # TODO: alternative (need to check with ankur)
+        # self.joint_pos_bias[env_ids, :] = self.dextrah_adr.get_custom_param_value("robot_state_noise", "joint_pos_bias") * (rand() - 0.5)
+        # self.joint_vel_bias[env_ids, :] = self.dextrah_adr.get_custom_param_value("robot_state_noise", "joint_vel_bias") * (rand() - 0.5)
+
+        # Sample width of per-step noise
+        self.joint_pos_noise_width[env_ids, :] = self.dextrah_adr.get_custom_param_value("robot_state_noise", "joint_pos_noise") * rand()
+        self.joint_vel_noise_width[env_ids, :] = self.dextrah_adr.get_custom_param_value("robot_state_noise", "joint_vel_noise") * rand()
+
         self.action_term._reset_idx(env_ids)
 
         extras = dict()
