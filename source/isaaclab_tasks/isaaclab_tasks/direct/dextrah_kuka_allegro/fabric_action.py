@@ -17,12 +17,43 @@ from fabrics_sim.utils.utils import initialize_warp, capture_fabric
 from fabrics_sim.worlds.world_mesh_model import WorldMeshesModel
 from fabrics_sim.utils.path_utils import get_robot_urdf_path
 from fabrics_sim.taskmaps.robot_frame_origins_taskmap import RobotFrameOriginsTaskMap
-from .dextrah_kuka_allegro_utils import compute_absolute_action, to_torch
 from . import dextrah_kuka_allegro_constants as constants
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
     from .fabric_action_cfg import FabricActionCfg
+
+def to_torch(x, dtype=torch.float, device='cuda:0', requires_grad=False):
+    return torch.tensor(x, dtype=dtype, device=device, requires_grad=requires_grad)
+
+@torch.jit.script
+def scale(x, lower, upper):
+    return 0.5 * (x + 1.0) * (upper - lower) + lower
+
+@torch.jit.script
+def tensor_clamp(t, min_t, max_t):
+    return torch.max(torch.min(t, max_t), min_t)
+
+
+def compute_absolute_action(
+    raw_actions: torch.Tensor,
+    lower_limits: torch.Tensor,
+    upper_limits: torch.Tensor,
+) -> torch.Tensor:
+
+    # Apply actions to hand
+    absolute_action = scale(
+        x=raw_actions,
+        lower=lower_limits,
+        upper=upper_limits,
+    )
+    absolute_action = tensor_clamp(
+        t=absolute_action,
+        min_t=lower_limits,
+        max_t=upper_limits,
+    )
+
+    return absolute_action
 
 class FabricAction(ActionTerm):
     cfg: FabricActionCfg
