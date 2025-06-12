@@ -33,7 +33,7 @@ pip install route using virtual environments.
    If you are using Ubuntu 20.04, you will need to follow the :ref:`Binary Installation Guide <isaaclab-binaries-installation>` instead of the pip install route described below.
 
 
-To begin, we first define our virtual environment.
+To begin, we first define our virtual environment. We recommend using `miniconda <https://docs.conda.io/en/latest/miniconda.html>`_ to create a virtual environment.
 
 
 .. code-block:: bash
