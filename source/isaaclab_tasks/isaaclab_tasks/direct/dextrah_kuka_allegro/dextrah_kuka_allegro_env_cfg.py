@@ -10,6 +10,7 @@ from isaaclab.assets import ArticulationCfg, RigidObjectCfg
 from isaaclab.envs import DirectRLEnvCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import SceneEntityCfg
+from isaaclab.envs import ViewerCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import PhysxCfg, SimulationCfg
 from isaaclab.sim.spawners.materials.physics_materials_cfg import RigidBodyMaterialCfg
@@ -102,6 +103,7 @@ class DextrahKukaAllegroEnvCfg(DirectRLEnvCfg):
     state_space = -1  # set by DextrahKukaAllegroEnv Implementation code
     observation_space = -1  # set by DextrahKukaAllegroEnv Implementation code
     action_space = 11 # 6 palm pose + 5 PCA
+    viewer = ViewerCfg(eye=(-5.0, 1., 0.75), lookat=(0., 1., 0.3), origin_type='env')
 
     # simulation
     sim: SimulationCfg = SimulationCfg(
