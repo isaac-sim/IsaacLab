@@ -89,8 +89,8 @@ class DextrahKukaAllegroEnv(DirectRLEnv):
         light_cfg.func("/World/Light", light_cfg)
 
         num_unique_objects = len(self.object.cfg.spawn.assets_cfg)
-        num_teacher_observations = 167 + num_unique_objects
-        self.cfg.state_space = 199 + num_unique_objects
+        num_teacher_observations = 98 + num_unique_objects
+        self.cfg.state_space = 130 + num_unique_objects
         self.cfg.observation_space = num_teacher_observations
 
         self.multi_object_idx = torch.remainder(torch.arange(self.num_envs), num_unique_objects).to(self.device)
@@ -150,9 +150,6 @@ class DextrahKukaAllegroEnv(DirectRLEnv):
                 self.multi_object_idx_onehot,
                 self.object_scale,
                 self.action_term.raw_actions,
-                self.action_term.fabric_q_for_obs,
-                self.action_term.fabric_qd_for_obs,
-                self.action_term.fabric_qdd_for_obs,
             ), dim=-1,
         )
 
@@ -171,9 +168,6 @@ class DextrahKukaAllegroEnv(DirectRLEnv):
                 self.multi_object_idx_onehot,
                 self.object_scale,
                 self.action_term.raw_actions,
-                self.action_term.fabric_q.clone(),
-                self.action_term.fabric_qd.clone(),
-                self.action_term.fabric_qdd.clone(),
             ), dim=-1,
         )
 
