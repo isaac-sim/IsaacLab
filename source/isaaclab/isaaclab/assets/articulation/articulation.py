@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -281,10 +281,8 @@ class Articulation(AssetBase):
             root_state: Root state in simulation frame. Shape is (len(env_ids), 13).
             env_ids: Environment indices. If None, then all indices are used.
         """
-
-        # set into simulation
-        self.write_root_pose_to_sim(root_state[:, :7], env_ids=env_ids)
-        self.write_root_velocity_to_sim(root_state[:, 7:], env_ids=env_ids)
+        self.write_root_link_pose_to_sim(root_state[:, :7], env_ids=env_ids)
+        self.write_root_com_velocity_to_sim(root_state[:, 7:], env_ids=env_ids)
 
     def write_root_com_state_to_sim(self, root_state: torch.Tensor, env_ids: Sequence[int] | None = None):
         """Set the root center of mass state over selected environment indices into the simulation.
@@ -296,7 +294,6 @@ class Articulation(AssetBase):
             root_state: Root state in simulation frame. Shape is (len(env_ids), 13).
             env_ids: Environment indices. If None, then all indices are used.
         """
-        # set into simulation
         self.write_root_com_pose_to_sim(root_state[:, :7], env_ids=env_ids)
         self.write_root_com_velocity_to_sim(root_state[:, 7:], env_ids=env_ids)
 
@@ -310,7 +307,6 @@ class Articulation(AssetBase):
             root_state: Root state in simulation frame. Shape is (len(env_ids), 13).
             env_ids: Environment indices. If None, then all indices are used.
         """
-        # set into simulation
         self.write_root_link_pose_to_sim(root_state[:, :7], env_ids=env_ids)
         self.write_root_link_velocity_to_sim(root_state[:, 7:], env_ids=env_ids)
 
@@ -323,23 +319,7 @@ class Articulation(AssetBase):
             root_pose: Root poses in simulation frame. Shape is (len(env_ids), 7).
             env_ids: Environment indices. If None, then all indices are used.
         """
-        # resolve all indices
-        physx_env_ids = env_ids
-        if env_ids is None:
-            env_ids = slice(None)
-            physx_env_ids = self._ALL_INDICES
-        # note: we need to do this here since tensors are not set into simulation until step.
-        # set into internal buffers
-        self._data.root_state_w[env_ids, :7] = root_pose.clone()
-        # convert root quaternion from wxyz to xyzw
-        root_poses_xyzw = self._data.root_state_w[:, :7].clone()
-        root_poses_xyzw[:, 3:] = math_utils.convert_quat(root_poses_xyzw[:, 3:], to="xyzw")
-        # Need to invalidate the buffer to trigger the update with the new root pose.
-        self._data._body_state_w.timestamp = -1.0
-        self._data._body_link_state_w.timestamp = -1.0
-        self._data._body_com_state_w.timestamp = -1.0
-        # set into simulation
-        self.root_physx_view.set_root_transforms(root_poses_xyzw, indices=physx_env_ids)
+        self.write_root_link_pose_to_sim(root_pose, env_ids=env_ids)
 
     def write_root_link_pose_to_sim(self, root_pose: torch.Tensor, env_ids: Sequence[int] | None = None):
         """Set the root link pose over selected environment indices into the simulation.
@@ -355,17 +335,27 @@ class Articulation(AssetBase):
         if env_ids is None:
             env_ids = slice(None)
             physx_env_ids = self._ALL_INDICES
+
         # note: we need to do this here since tensors are not set into simulation until step.
         # set into internal buffers
-        self._data.root_link_state_w[env_ids, :7] = root_pose.clone()
-        self._data.root_state_w[env_ids, :7] = self._data.root_link_state_w[env_ids, :7]
+        self._data.root_link_pose_w[env_ids] = root_pose.clone()
+        # update these buffers only if the user is using them. Otherwise this adds to overhead.
+        if self._data._root_link_state_w.data is not None:
+            self._data.root_link_state_w[env_ids, :7] = self._data.root_link_pose_w[env_ids]
+        if self._data._root_state_w.data is not None:
+            self._data.root_state_w[env_ids, :7] = self._data.root_link_pose_w[env_ids]
+
         # convert root quaternion from wxyz to xyzw
-        root_poses_xyzw = self._data.root_link_state_w[:, :7].clone()
+        root_poses_xyzw = self._data.root_link_pose_w.clone()
         root_poses_xyzw[:, 3:] = math_utils.convert_quat(root_poses_xyzw[:, 3:], to="xyzw")
-        # Need to invalidate the buffer to trigger the update with the new root pose.
+
+        # Need to invalidate the buffer to trigger the update with the new state.
+        self._data._body_link_pose_w.timestamp = -1.0
+        self._data._body_com_pose_w.timestamp = -1.0
         self._data._body_state_w.timestamp = -1.0
         self._data._body_link_state_w.timestamp = -1.0
         self._data._body_com_state_w.timestamp = -1.0
+
         # set into simulation
         self.root_physx_view.set_root_transforms(root_poses_xyzw, indices=physx_env_ids)
 
@@ -380,23 +370,31 @@ class Articulation(AssetBase):
             env_ids: Environment indices. If None, then all indices are used.
         """
         # resolve all indices
-        physx_env_ids = env_ids
         if env_ids is None:
-            env_ids = slice(None)
-            physx_env_ids = self._ALL_INDICES
+            local_env_ids = slice(env_ids)
+        else:
+            local_env_ids = env_ids
 
-        com_pos = self.data.com_pos_b[env_ids, 0, :]
-        com_quat = self.data.com_quat_b[env_ids, 0, :]
+        # set into internal buffers
+        self._data.root_com_pose_w[local_env_ids] = root_pose.clone()
+        # update these buffers only if the user is using them. Otherwise this adds to overhead.
+        if self._data._root_com_state_w.data is not None:
+            self._data.root_com_state_w[local_env_ids, :7] = self._data.root_com_pose_w[local_env_ids]
 
+        # get CoM pose in link frame
+        com_pos_b = self.data.body_com_pos_b[local_env_ids, 0, :]
+        com_quat_b = self.data.body_com_quat_b[local_env_ids, 0, :]
+        # transform input CoM pose to link frame
         root_link_pos, root_link_quat = math_utils.combine_frame_transforms(
             root_pose[..., :3],
             root_pose[..., 3:7],
-            math_utils.quat_rotate(math_utils.quat_inv(com_quat), -com_pos),
-            math_utils.quat_inv(com_quat),
+            math_utils.quat_apply(math_utils.quat_inv(com_quat_b), -com_pos_b),
+            math_utils.quat_inv(com_quat_b),
         )
-
         root_link_pose = torch.cat((root_link_pos, root_link_quat), dim=-1)
-        self.write_root_link_pose_to_sim(root_pose=root_link_pose, env_ids=physx_env_ids)
+
+        # write transformed pose in link frame to sim
+        self.write_root_link_pose_to_sim(root_pose=root_link_pose, env_ids=env_ids)
 
     def write_root_velocity_to_sim(self, root_velocity: torch.Tensor, env_ids: Sequence[int] | None = None):
         """Set the root center of mass velocity over selected environment indices into the simulation.
@@ -408,17 +406,7 @@ class Articulation(AssetBase):
             root_velocity: Root center of mass velocities in simulation world frame. Shape is (len(env_ids), 6).
             env_ids: Environment indices. If None, then all indices are used.
         """
-        # resolve all indices
-        physx_env_ids = env_ids
-        if env_ids is None:
-            env_ids = slice(None)
-            physx_env_ids = self._ALL_INDICES
-        # note: we need to do this here since tensors are not set into simulation until step.
-        # set into internal buffers
-        self._data.root_state_w[env_ids, 7:] = root_velocity.clone()
-        self._data.body_acc_w[env_ids] = 0.0
-        # set into simulation
-        self.root_physx_view.set_root_velocities(self._data.root_state_w[:, 7:], indices=physx_env_ids)
+        self.write_root_com_velocity_to_sim(root_velocity=root_velocity, env_ids=env_ids)
 
     def write_root_com_velocity_to_sim(self, root_velocity: torch.Tensor, env_ids: Sequence[int] | None = None):
         """Set the root center of mass velocity over selected environment indices into the simulation.
@@ -430,19 +418,25 @@ class Articulation(AssetBase):
             root_velocity: Root center of mass velocities in simulation world frame. Shape is (len(env_ids), 6).
             env_ids: Environment indices. If None, then all indices are used.
         """
-
         # resolve all indices
         physx_env_ids = env_ids
         if env_ids is None:
             env_ids = slice(None)
             physx_env_ids = self._ALL_INDICES
+
         # note: we need to do this here since tensors are not set into simulation until step.
         # set into internal buffers
-        self._data.root_com_state_w[env_ids, 7:] = root_velocity.clone()
-        self._data.root_state_w[env_ids, 7:] = self._data.root_com_state_w[env_ids, 7:]
+        self._data.root_com_vel_w[env_ids] = root_velocity.clone()
+        # update these buffers only if the user is using them. Otherwise this adds to overhead.
+        if self._data._root_com_state_w.data is not None:
+            self._data.root_com_state_w[env_ids, 7:] = self._data.root_com_vel_w[env_ids]
+        if self._data._root_state_w.data is not None:
+            self._data.root_state_w[env_ids, 7:] = self._data.root_com_vel_w[env_ids]
+        # make the acceleration zero to prevent reporting old values
         self._data.body_acc_w[env_ids] = 0.0
+
         # set into simulation
-        self.root_physx_view.set_root_velocities(self._data.root_com_state_w[:, 7:], indices=physx_env_ids)
+        self.root_physx_view.set_root_velocities(self._data.root_com_vel_w, indices=physx_env_ids)
 
     def write_root_link_velocity_to_sim(self, root_velocity: torch.Tensor, env_ids: Sequence[int] | None = None):
         """Set the root link velocity over selected environment indices into the simulation.
@@ -455,20 +449,28 @@ class Articulation(AssetBase):
             env_ids: Environment indices. If None, then all indices are used.
         """
         # resolve all indices
-        physx_env_ids = env_ids
         if env_ids is None:
-            env_ids = slice(None)
-            physx_env_ids = self._ALL_INDICES
+            local_env_ids = slice(env_ids)
+        else:
+            local_env_ids = env_ids
 
+        # set into internal buffers
+        self._data.root_link_vel_w[local_env_ids] = root_velocity.clone()
+        # update these buffers only if the user is using them. Otherwise this adds to overhead.
+        if self._data._root_link_state_w.data is not None:
+            self._data.root_link_state_w[local_env_ids, 7:] = self._data.root_link_vel_w[local_env_ids]
+
+        # get CoM pose in link frame
+        quat = self.data.root_link_quat_w[local_env_ids]
+        com_pos_b = self.data.body_com_pos_b[local_env_ids, 0, :]
+        # transform input velocity to center of mass frame
         root_com_velocity = root_velocity.clone()
-        quat = self.data.root_link_state_w[env_ids, 3:7]
-        com_pos_b = self.data.com_pos_b[env_ids, 0, :]
-        # transform given velocity to center of mass
         root_com_velocity[:, :3] += torch.linalg.cross(
-            root_com_velocity[:, 3:], math_utils.quat_rotate(quat, com_pos_b), dim=-1
+            root_com_velocity[:, 3:], math_utils.quat_apply(quat, com_pos_b), dim=-1
         )
-        # write center of mass velocity to sim
-        self.write_root_com_velocity_to_sim(root_velocity=root_com_velocity, env_ids=physx_env_ids)
+
+        # write transformed velocity in CoM frame to sim
+        self.write_root_com_velocity_to_sim(root_velocity=root_com_velocity, env_ids=env_ids)
 
     def write_joint_state_to_sim(
         self,
@@ -1147,37 +1149,48 @@ class Articulation(AssetBase):
     def _initialize_impl(self):
         # obtain global simulation view
         self._physics_sim_view = SimulationManager.get_physics_sim_view()
-        # obtain the first prim in the regex expression (all others are assumed to be a copy of this)
-        template_prim = sim_utils.find_first_matching_prim(self.cfg.prim_path)
-        if template_prim is None:
-            raise RuntimeError(f"Failed to find prim for expression: '{self.cfg.prim_path}'.")
-        template_prim_path = template_prim.GetPath().pathString
 
-        # find articulation root prims
-        root_prims = sim_utils.get_all_matching_child_prims(
-            template_prim_path, predicate=lambda prim: prim.HasAPI(UsdPhysics.ArticulationRootAPI)
-        )
-        if len(root_prims) == 0:
-            raise RuntimeError(
-                f"Failed to find an articulation when resolving '{self.cfg.prim_path}'."
-                " Please ensure that the prim has 'USD ArticulationRootAPI' applied."
-            )
-        if len(root_prims) > 1:
-            raise RuntimeError(
-                f"Failed to find a single articulation when resolving '{self.cfg.prim_path}'."
-                f" Found multiple '{root_prims}' under '{template_prim_path}'."
-                " Please ensure that there is only one articulation in the prim path tree."
-            )
+        if self.cfg.articulation_root_prim_path is not None:
+            # The articulation root prim path is specified explicitly, so we can just use this.
+            root_prim_path_expr = self.cfg.prim_path + self.cfg.articulation_root_prim_path
+        else:
+            # No articulation root prim path was specified, so we need to search
+            # for it. We search for this in the first environment and then
+            # create a regex that matches all environments.
+            first_env_matching_prim = sim_utils.find_first_matching_prim(self.cfg.prim_path)
+            if first_env_matching_prim is None:
+                raise RuntimeError(f"Failed to find prim for expression: '{self.cfg.prim_path}'.")
+            first_env_matching_prim_path = first_env_matching_prim.GetPath().pathString
 
-        # resolve articulation root prim back into regex expression
-        root_prim_path = root_prims[0].GetPath().pathString
-        root_prim_path_expr = self.cfg.prim_path + root_prim_path[len(template_prim_path) :]
+            # Find all articulation root prims in the first environment.
+            first_env_root_prims = sim_utils.get_all_matching_child_prims(
+                first_env_matching_prim_path,
+                predicate=lambda prim: prim.HasAPI(UsdPhysics.ArticulationRootAPI),
+            )
+            if len(first_env_root_prims) == 0:
+                raise RuntimeError(
+                    f"Failed to find an articulation when resolving '{first_env_matching_prim_path}'."
+                    " Please ensure that the prim has 'USD ArticulationRootAPI' applied."
+                )
+            if len(first_env_root_prims) > 1:
+                raise RuntimeError(
+                    f"Failed to find a single articulation when resolving '{first_env_matching_prim_path}'."
+                    f" Found multiple '{first_env_root_prims}' under '{first_env_matching_prim_path}'."
+                    " Please ensure that there is only one articulation in the prim path tree."
+                )
+
+            # Now we convert the found articulation root from the first
+            # environment back into a regex that matches all environments.
+            first_env_root_prim_path = first_env_root_prims[0].GetPath().pathString
+            root_prim_path_relative_to_prim_path = first_env_root_prim_path[len(first_env_matching_prim_path) :]
+            root_prim_path_expr = self.cfg.prim_path + root_prim_path_relative_to_prim_path
+
         # -- articulation
         self._root_physx_view = self._physics_sim_view.create_articulation_view(root_prim_path_expr.replace(".*", "*"))
 
         # check if the articulation was created
         if self._root_physx_view._backend is None:
-            raise RuntimeError(f"Failed to create articulation at: {self.cfg.prim_path}. Please check PhysX logs.")
+            raise RuntimeError(f"Failed to create articulation at: {root_prim_path_expr}. Please check PhysX logs.")
 
         # log information about the articulation
         omni.log.info(f"Articulation initialized at: {self.cfg.prim_path} with root '{root_prim_path_expr}'.")
