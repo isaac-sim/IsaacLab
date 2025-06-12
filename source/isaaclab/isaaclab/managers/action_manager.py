@@ -99,7 +99,7 @@ class ActionTerm(ManagerTermBase):
         """The IO descriptor for the action term."""
         self._IO_descriptor.name = re.sub(r"([a-z])([A-Z])", r"\1_\2", self.__class__.__name__).lower()
         self._IO_descriptor.full_path = f"{self.__class__.__module__}.{self.__class__.__name__}"
-        self._IO_descriptor.description = self.__class__.__doc__
+        self._IO_descriptor.description = " ".join(self.__class__.__doc__.split())
         return self._IO_descriptor
 
     """

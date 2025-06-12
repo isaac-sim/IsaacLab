@@ -184,7 +184,7 @@ Joint state.
 """
 
 
-@generic_io_descriptor(observation_type="JointState", on_inspect=[record_joint_names, record_dtype, record_shape])
+@generic_io_descriptor(observation_type="JointState", on_inspect=[record_joint_names, record_dtype, record_shape], units="rad")
 def joint_pos(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
     """The joint positions of the asset.
 
@@ -195,7 +195,7 @@ def joint_pos(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("
     return asset.data.joint_pos[:, asset_cfg.joint_ids]
 
 
-@generic_io_descriptor(observation_type="JointState", on_inspect=[record_joint_names, record_dtype, record_shape])
+@generic_io_descriptor(observation_type="JointState", on_inspect=[record_joint_names, record_dtype, record_shape], units="rad")
 def joint_pos_rel(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
     """The joint positions of the asset w.r.t. the default joint positions.
 
@@ -223,7 +223,7 @@ def joint_pos_limit_normalized(
     )
 
 
-@generic_io_descriptor(observation_type="JointState", on_inspect=[record_joint_names, record_dtype, record_shape])
+@generic_io_descriptor(observation_type="JointState", on_inspect=[record_joint_names, record_dtype, record_shape], units="rad/s")
 def joint_vel(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")):
     """The joint velocities of the asset.
 
@@ -234,7 +234,7 @@ def joint_vel(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("
     return asset.data.joint_vel[:, asset_cfg.joint_ids]
 
 
-@generic_io_descriptor(observation_type="JointState", on_inspect=[record_joint_names, record_dtype, record_shape])
+@generic_io_descriptor(observation_type="JointState", on_inspect=[record_joint_names, record_dtype, record_shape], units="rad/s")
 def joint_vel_rel(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")):
     """The joint velocities of the asset w.r.t. the default joint velocities.
 
@@ -245,7 +245,7 @@ def joint_vel_rel(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityC
     return asset.data.joint_vel[:, asset_cfg.joint_ids] - asset.data.default_joint_vel[:, asset_cfg.joint_ids]
 
 
-@generic_io_descriptor(observation_type="JointState", on_inspect=[record_joint_names, record_dtype, record_shape])
+@generic_io_descriptor(observation_type="JointState", on_inspect=[record_joint_names, record_dtype, record_shape], units="N.m")
 def joint_effort(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
     """The joint applied effort of the robot.
 

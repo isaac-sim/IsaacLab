@@ -152,7 +152,7 @@ def generic_io_descriptor(
         descriptor.dtype = str(descriptor.dtype)
         # Check if description is set in the descriptor
         if descriptor.description is None:
-            descriptor.description = func.__doc__
+            descriptor.description = " ".join(func.__doc__.split())
 
         # Adds the descriptor to the wrapped function as an attribute
         wrapper._descriptor = descriptor
