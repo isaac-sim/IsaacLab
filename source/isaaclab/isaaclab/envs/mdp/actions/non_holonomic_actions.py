@@ -109,11 +109,17 @@ class NonHolonomicAction(ActionTerm):
         self._offset = torch.tensor(self.cfg.offset, device=self.device).unsqueeze(0)
         # parse clip
         if self.cfg.clip is not None:
+            allowed_clipping_keys = ["v", "yaw"]
             if isinstance(cfg.clip, dict):
+                for key in self.cfg.clip.keys():
+                    if key not in allowed_clipping_keys:
+                        raise ValueError(f"Unsupported clip key: {key}. Supported keys are {allowed_clipping_keys}.")
                 self._clip = torch.tensor([[-float("inf"), float("inf")]], device=self.device).repeat(
                     self.num_envs, self.action_dim, 1
                 )
-                index_list, _, value_list = string_utils.resolve_matching_names_values(self.cfg.clip, self._joint_names)
+                index_list, _, value_list = string_utils.resolve_matching_names_values(
+                    self.cfg.clip, allowed_clipping_keys
+                )
                 self._clip[:, index_list] = torch.tensor(value_list, device=self.device)
             else:
                 raise ValueError(f"Unsupported clip type: {type(cfg.clip)}. Supported types are dict.")

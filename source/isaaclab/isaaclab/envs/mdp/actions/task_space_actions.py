@@ -13,7 +13,6 @@ import omni.log
 from pxr import UsdPhysics
 
 import isaaclab.utils.math as math_utils
-import isaaclab.utils.string as string_utils
 from isaaclab.assets.articulation import Articulation
 from isaaclab.controllers.differential_ik import DifferentialIKController
 from isaaclab.controllers.operational_space import OperationalSpaceController
@@ -109,13 +108,78 @@ class DifferentialInverseKinematicsAction(ActionTerm):
             self._offset_pos, self._offset_rot = None, None
 
         # parse clip
-        if self.cfg.clip is not None:
-            if isinstance(cfg.clip, dict):
-                self._clip = torch.tensor([[-float("inf"), float("inf")]], device=self.device).repeat(
-                    self.num_envs, self.action_dim, 1
-                )
-                index_list, _, value_list = string_utils.resolve_matching_names_values(self.cfg.clip, self._joint_names)
-                self._clip[:, index_list] = torch.tensor(value_list, device=self.device)
+        if cfg.clip is not None:
+            if isinstance(self.cfg.clip, dict):
+                if self.cfg.controller.command_type == "position":
+                    # Assign independent clip for each dimension of the position command
+                    allowed_clipping_keys = ["position"]
+                    # Check if the clip keys are supported
+                    for key in self.cfg.clip.keys():
+                        if key not in allowed_clipping_keys:
+                            raise ValueError(
+                                f"Unsupported clip key: {key}. Supported keys are {allowed_clipping_keys}."
+                            )
+                    # Check if the position key is present
+                    if "position" not in self.cfg.clip.keys():
+                        raise ValueError(f"Unsupported clip key: {key}. Supported keys are {allowed_clipping_keys}.")
+                    # Check if the position key has 3 dimensions
+                    if len(self.cfg.clip["position"]) != 3:
+                        raise ValueError(
+                            f"Expected 3 dimensions for position command. Found {len(self.cfg.clip['position'])}."
+                        )
+                    # Check that each tuple in the position key has 2 values
+                    for tuple in self.cfg.clip["position"]:
+                        if len(tuple) != 2:
+                            raise ValueError(f"Expected tuple of (min, max) for position command. Found {tuple}.")
+                    # Create the clip tensor
+                    self._clip = torch.tensor(self.num_envs, 3, 2, device=self.device)
+                    self._clip[:, 0] = torch.tensor(self.cfg.clip["position"][0], device=self.device)
+                    self._clip[:, 1] = torch.tensor(self.cfg.clip["position"][1], device=self.device)
+                    self._clip[:, 2] = torch.tensor(self.cfg.clip["position"][2], device=self.device)
+                elif self.cfg.controller.command_type == "pose":
+                    allowed_clipping_keys = ["position", "orientation"]
+                    # Check if the clip keys are supported
+                    for key in self.cfg.clip.keys():
+                        if key not in allowed_clipping_keys:
+                            raise ValueError(
+                                f"Unsupported clip key: {key}. Supported keys are {allowed_clipping_keys}."
+                            )
+                    # Check if the position key is present
+                    if "position" not in self.cfg.clip.keys():
+                        raise ValueError("Missing required `position` key in clip dictionary.")
+                    if "orientation" not in self.cfg.clip.keys():
+                        raise ValueError("Missing required `orientation` key in clip dictionary.")
+                    # Check if the position key has 3 dimensions
+                    if len(self.cfg.clip["position"]) != 3:
+                        raise ValueError(
+                            f"Expected 3 dimensions for position command. Found {len(self.cfg.clip['position'])}."
+                        )
+                    # Check if the orientation key has 3 dimensions
+                    if len(self.cfg.clip["orientation"]) != 3:
+                        raise ValueError(
+                            f"Expected 3 dimensions for orientation command. Found {len(self.cfg.clip['orientation'])}."
+                        )
+                    # Check that each tuple in the position key has 2 values
+                    for tuple in self.cfg.clip["position"]:
+                        if len(tuple) != 2:
+                            raise ValueError(f"Expected tuple of (min, max) for position command. Found {tuple}.")
+                    # Check that each tuple in the orientation key has 2 values
+                    for tuple in self.cfg.clip["orientation"]:
+                        if len(tuple) != 2:
+                            raise ValueError(f"Expected tuple of (min, max) for orientation command. Found {tuple}.")
+                    # Create the clip tensor
+                    self._clip = torch.tensor(self.num_envs, 7, 2, device=self.device)
+                    self._clip[:, 0] = torch.tensor(self.cfg.clip["position"][0], device=self.device)
+                    self._clip[:, 1] = torch.tensor(self.cfg.clip["position"][1], device=self.device)
+                    self._clip[:, 2] = torch.tensor(self.cfg.clip["position"][2], device=self.device)
+                    self._clip[:, 3] = torch.tensor(self.cfg.clip["orientation"][0], device=self.device)
+                    self._clip[:, 4] = torch.tensor(self.cfg.clip["orientation"][1], device=self.device)
+                    self._clip[:, 5] = torch.tensor(self.cfg.clip["orientation"][2], device=self.device)
+                else:
+                    raise ValueError(
+                        f"Unsupported command type: {self.cfg.controller.command_type}. Supported types are `position`"
+                        " and `pose`."
+                    )
             else:
                 raise ValueError(f"Unsupported clip type: {type(cfg.clip)}. Supported types are dict.")
 
@@ -156,12 +220,66 @@ class DifferentialInverseKinematicsAction(ActionTerm):
         # store the raw actions
         self._raw_actions[:] = actions
         self._processed_actions[:] = self.raw_actions * self._scale
-        if self.cfg.clip is not None:
-            self._processed_actions = torch.clamp(
-                self._processed_actions, min=self._clip[:, :, 0], max=self._clip[:, :, 1]
-            )
         # obtain quantities from simulation
         ee_pos_curr, ee_quat_curr = self._compute_frame_pose()
+        # clip the actions if needed
+        if self.cfg.clip is not None:
+            if self.cfg.controller.use_relative_mode:
+                if self.cfg.controller.command_type == "position":
+                    # Add the current position to the target position to get the target position in the world frame
+                    target_position_w = self._processed_actions[:, :3] + ee_pos_curr
+                    # Clip the target position in the world frame
+                    clamped_target_position_w = torch.clamp(
+                        target_position_w, min=self._clip[:, :, 0], max=self._clip[:, :, 1]
+                    )
+                    # Subtract the current position to get the target position in the body frame
+                    self._processed_actions[:, :3] = clamped_target_position_w - ee_pos_curr
+                elif self.cfg.controller.command_type == "pose":
+                    # Apply the delta pose to the current pose to get the target pose in the world frame
+                    target_position_w, target_quat_w = math_utils.apply_delta_pose(
+                        ee_pos_curr, ee_quat_curr, self._processed_actions
+                    )
+                    # Cast the target_quat_w to euler angles
+                    target_euler_angles_w = math_utils.euler_xyz_from_quat(target_quat_w)
+                    # Clip the pose
+                    clamped_target_position_w = torch.clamp(
+                        target_position_w, min=self._clip[:, :3, 0], max=self._clip[:, :3, 1]
+                    )
+                    clamped_target_euler_angles_w = torch.clamp(
+                        target_euler_angles_w, min=self._clip[:, 3:, 0], max=self._clip[:, 3:, 1]
+                    )
+                    # Subtract the current orientation to get the target orientation in the world frame and apply module [-pi, pi]
+                    clamped_target_euler_angles_rel = math_utils.wrap_to_pi(
+                        clamped_target_euler_angles_w - self._processed_actions[:, 3:6]
+                    )
+                    # Apply the clamped target pose to the current pose to get the target pose in the body frame
+                    self._processed_actions[:, :3] = target_position_w - ee_pos_curr
+                    self._processed_actions[:, 3:] = clamped_target_euler_angles_rel
+            else:
+                if self.cfg.controller.command_type == "position":
+                    # Clip the target position in the world frame
+                    self._processed_actions[:, :3] = torch.clamp(
+                        self._processed_actions[:, :3], min=self._clip[:, :3, 0], max=self._clip[:, :3, 1]
+                    )
+                elif self.cfg.controller.command_type == "pose":
+                    # Clip the target position in the world frame
+                    self._processed_actions[:, :3] = torch.clamp(
+                        self._processed_actions[:, :3], min=self._clip[:, :3, 0], max=self._clip[:, :3, 1]
+                    )
+                    # Cast the target quaternion to euler angles
+                    target_euler_angles_w = math_utils.euler_xyz_from_quat(self._processed_actions[:, 3:7])
+                    # Clip the euler angles
+                    clamped_target_euler_angles_w = torch.clamp(
+                        target_euler_angles_w, min=self._clip[:, 3:, 0], max=self._clip[:, 3:, 1]
+                    )
+                    # Cast the clamped euler angles back to quaternion
+                    clamped_target_quat_w = math_utils.quat_from_euler_xyz(
+                        clamped_target_euler_angles_w[:, 0],
+                        clamped_target_euler_angles_w[:, 1],
+                        clamped_target_euler_angles_w[:, 2],
+                    )
+                    # Apply the clamped desired pose to the current pose to get the desired pose in the body frame
+                    self._processed_actions[:, 3:] = clamped_target_quat_w
         # set command into controller
         self._ik_controller.set_command(self._processed_actions, ee_pos_curr, ee_quat_curr)
 
@@ -377,6 +495,32 @@ class OperationalSpaceControllerAction(ActionTerm):
         self._nullspace_joint_pos_target = None
         self._resolve_nullspace_joint_pos_targets()
 
+        # parse clip
+        if cfg.clip_pose_abs is not None:
+            if len(self.cfg.clip_pose_abs) != 6:
+                raise ValueError("clip_pose_abs must be a list of 6 tuples.")
+            for t in self.cfg.clip_pose_abs:
+                if len(t) != 2:
+                    raise ValueError("Each tuple in clip_pose_abs must contain 2 values.")
+            self._clip_pose_abs = torch.zeros((self.num_envs, 6, 2), device=self.device)
+            self._clip_pose_abs[:] = torch.tensor(self.cfg.clip_pose_abs, device=self.device)
+        if cfg.clip_pose_rel is not None:
+            if len(self.cfg.clip_pose_rel) != 6:
+                raise ValueError("clip_pose_rel must be a list of 6 tuples.")
+            for t in self.cfg.clip_pose_rel:
+                if len(t) != 2:
+                    raise ValueError("Each tuple in clip_pose_rel must contain 2 values.")
+            self._clip_pose_rel = torch.zeros((self.num_envs, 6, 2), device=self.device)
+            self._clip_pose_rel[:] = torch.tensor(self.cfg.clip_pose_rel, device=self.device)
+        if cfg.clip_wrench_abs is not None:
+            if len(self.cfg.clip_wrench_abs) != 6:
+                raise ValueError("clip_wrench_abs must be a list of 6 tuples.")
+            for t in self.cfg.clip_wrench_abs:
+                if len(t) != 2:
+                    raise ValueError("Each tuple in clip_wrench_abs must contain 2 values.")
+            self._clip_wrench_abs = torch.zeros((self.num_envs, 6, 2), device=self.device)
+            self._clip_wrench_abs[:] = torch.tensor(self.cfg.clip_wrench_abs, device=self.device)
+
     """
     Properties.
     """
@@ -417,7 +561,7 @@ class OperationalSpaceControllerAction(ActionTerm):
         """Pre-processes the raw actions and sets them as commands for for operational space control.
 
         Args:
-            actions (torch.Tensor): The raw actions for operational space control. It is a tensor of
+            actions: The raw actions for operational space control. It is a tensor of
                 shape (``num_envs``, ``action_dim``).
         """
 
@@ -465,7 +609,7 @@ class OperationalSpaceControllerAction(ActionTerm):
         """Resets the raw actions and the sensors if available.
 
         Args:
-            env_ids (Sequence[int] | None): The environment indices to reset. If ``None``, all environments are reset.
+            env_ids: The environment indices to reset. If ``None``, all environments are reset.
         """
         self._raw_actions[env_ids] = 0.0
         if self._contact_sensor is not None:
@@ -665,7 +809,7 @@ class OperationalSpaceControllerAction(ActionTerm):
         """Pre-processes the raw actions for operational space control.
 
         Args:
-            actions (torch.Tensor): The raw actions for operational space control. It is a tensor of
+            actions: The raw actions for operational space control. It is a tensor of
                 shape (``num_envs``, ``action_dim``).
         """
         # Store the raw actions. Please note that the actions contain task space targets
@@ -675,20 +819,48 @@ class OperationalSpaceControllerAction(ActionTerm):
         self._processed_actions[:] = self._raw_actions
         # Go through the command types one by one, and apply the pre-processing if needed.
         if self._pose_abs_idx is not None:
-            self._processed_actions[:, self._pose_abs_idx : self._pose_abs_idx + 3] *= self._position_scale
-            self._processed_actions[:, self._pose_abs_idx + 3 : self._pose_abs_idx + 7] *= self._orientation_scale
+            if self.cfg.clip_pose_abs is not None:
+                self._processed_actions[:, self._pose_abs_idx : self._pose_abs_idx + 3] = torch.clamp(
+                    self._processed_actions[:, self._pose_abs_idx : self._pose_abs_idx + 3] * self._position_scale,
+                    min=self._clip_pose_abs[:, :3, 0],
+                    max=self._clip_pose_abs[:, :3, 1],
+                )
+                rpy = math_utils.euler_xyz_from_quat(
+                    self.processed_actions[:, self._pose_abs_idx + 3 : self._pose_abs_idx + 7] * self._orientation_scale
+                )
+                rpy_clamped = torch.clamp(rpy, min=self._clip_pose_abs[:, 3:6, 0], max=self._clip_pose_abs[:, 3:6, 1])
+                self.processed_actions[:, self._pose_abs_idx + 3 : self._pose_abs_idx + 7] = (
+                    math_utils.quat_from_euler_xyz(rpy_clamped[:, 0], rpy_clamped[:, 1], rpy_clamped[:, 2])
+                )
+            else:
+                self._processed_actions[:, self._pose_abs_idx : self._pose_abs_idx + 3] *= self._position_scale
+                self._processed_actions[:, self._pose_abs_idx + 3 : self._pose_abs_idx + 7] *= self._orientation_scale
         if self._pose_rel_idx is not None:
-            self._processed_actions[:, self._pose_rel_idx : self._pose_rel_idx + 3] *= self._position_scale
-            self._processed_actions[:, self._pose_rel_idx + 3 : self._pose_rel_idx + 6] *= self._orientation_scale
+            if self.cfg.clip_pose_rel is not None:
+                self._processed_actions[:, self._pose_rel_idx : self._pose_rel_idx + 3] = torch.clamp(
+                    self._processed_actions[:, self._pose_rel_idx : self._pose_rel_idx + 3] * self._position_scale,
+                    min=self._clip_pose_rel[:, :3, 0],
+                    max=self._clip_pose_rel[:, :3, 1],
+                )
+                rpy = math_utils.euler_xyz_from_quat(
+                    self.processed_actions[:, self._pose_rel_idx + 3 : self._pose_rel_idx + 7] * self._orientation_scale
+                )
+                rpy_clamped = torch.clamp(rpy, min=self._clip_pose_rel[:, 3:6, 0], max=self._clip_pose_rel[:, 3:6, 1])
+                self.processed_actions[:, self._pose_rel_idx + 3 : self._pose_rel_idx + 7] = (
+                    math_utils.quat_from_euler_xyz(rpy_clamped[:, 0], rpy_clamped[:, 1], rpy_clamped[:, 2])
+                )
+            else:
+                self._processed_actions[:, self._pose_rel_idx : self._pose_rel_idx + 3] *= self._position_scale
+                self._processed_actions[:, self._pose_rel_idx + 3 : self._pose_rel_idx + 6] *= self._orientation_scale
         if self._wrench_abs_idx is not None:
-            self._processed_actions[:, self._wrench_abs_idx : self._wrench_abs_idx + 6] *= self._wrench_scale
-        if self._stiffness_idx is not None:
-            self._processed_actions[:, self._stiffness_idx : self._stiffness_idx + 6] *= self._stiffness_scale
-            self._processed_actions[:, self._stiffness_idx : self._stiffness_idx + 6] = torch.clamp(
-                self._processed_actions[:, self._stiffness_idx : self._stiffness_idx + 6],
-                min=self.cfg.controller_cfg.motion_stiffness_limits_task[0],
-                max=self.cfg.controller_cfg.motion_stiffness_limits_task[1],
-            )
+            if self.cfg.clip_wrench_abs is not None:
+                self._processed_actions[:, self._wrench_abs_idx : self._wrench_abs_idx + 6] = torch.clamp(
+                    self._processed_actions[:, self._wrench_abs_idx : self._wrench_abs_idx + 6] * self._wrench_scale,
+                    min=self._clip_wrench_abs[:, :6, 0],
+                    max=self._clip_wrench_abs[:, :6, 1],
+                )
+            else:
+                self._processed_actions[:, self._wrench_abs_idx : self._wrench_abs_idx + 6] *= self._wrench_scale
         if self._damping_ratio_idx is not None:
             self._processed_actions[
                 :, self._damping_ratio_idx : self._damping_ratio_idx + 6
