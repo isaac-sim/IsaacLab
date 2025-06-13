@@ -546,7 +546,7 @@ class Articulation(AssetBase):
         self._data._body_com_state_w.timestamp = -1.0
         # set into simulation
         # self.root_physx_view.set_dof_positions(self._data.joint_pos, indices=physx_env_ids)
-        self._root_newton_view.set_dof_positions(NewtonManager.get_state_0(), self._data.joint_pos)
+        self._root_newton_view.set_dof_positions(NewtonManager.get_state_0(), self._data.joint_pos.clone())
 
     def write_joint_velocity_to_sim(
         self,
@@ -576,7 +576,7 @@ class Articulation(AssetBase):
         self._data._previous_joint_vel[env_ids, joint_ids] = velocity
         self._data.joint_acc[env_ids, joint_ids] = 0.0
         # set into simulation
-        self._root_newton_view.set_dof_velocities(NewtonManager.get_state_0(), self._data.joint_vel)
+        self._root_newton_view.set_dof_velocities(NewtonManager.get_state_0(), self._data.joint_vel.clone())
 
     """
     Operations - Simulation Parameters Writers.

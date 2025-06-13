@@ -64,7 +64,7 @@ class ArticulationData:
         self.FORWARD_VEC_B = torch.tensor((1.0, 0.0, 0.0), device=self.device).repeat(root_newton_view.count, 1)
 
         # Initialize history for finite differencing
-        self._previous_joint_vel = wp.to_torch(self._root_newton_view.get_dof_velocities(NewtonManager.get_state_0()))
+        self._previous_joint_vel = wp.to_torch(self._root_newton_view.get_dof_velocities(NewtonManager.get_state_0())).clone()
 
         # Initialize the lazy buffers.
         self._root_state_w = TimestampedBuffer()
@@ -378,8 +378,10 @@ class ArticulationData:
             # Newton reads poses as [x, y, z, qx, qy, qz, qw] Isaac reads as [x, y, z, qw, qx, qy, qz]
             pose = wp.to_torch(self._root_newton_view.get_root_transforms(NewtonManager.get_state_0())).clone()
             pose[:, 3:7] = math_utils.convert_quat(pose[:, 3:7], to="wxyz")
+            print(f"pose: {pose}")
             # Newton reads velocities as [wx, wy, wz, vx, vy, vz] Isaac reads as [vx, vy, vz, wx, wy, wz]
             velocity = wp.to_torch(self._root_newton_view.get_root_velocities(NewtonManager.get_state_0())).clone()
+            print(f"velocity: {velocity}")
             velocity = torch.cat((velocity[:, 3:], velocity[:, :3]), dim=-1)
             # set the buffer data and timestamp
             self._root_state_w.data = torch.cat((pose, velocity), dim=-1)
@@ -544,7 +546,7 @@ class ArticulationData:
         """Joint positions of all joints. Shape is (num_instances, num_joints)."""
         if self._joint_pos.timestamp < self._sim_timestamp:
             # read data from simulation and set the buffer data and timestamp
-            self._joint_pos.data = wp.to_torch(self._root_newton_view.get_dof_positions(NewtonManager.get_state_0()))
+            self._joint_pos.data = wp.to_torch(self._root_newton_view.get_dof_positions(NewtonManager.get_state_0())).clone()
             self._joint_pos.timestamp = self._sim_timestamp
         return self._joint_pos.data
 
@@ -553,7 +555,7 @@ class ArticulationData:
         """Joint velocities of all joints. Shape is (num_instances, num_joints)."""
         if self._joint_vel.timestamp < self._sim_timestamp:
             # read data from simulation and set the buffer data and timestamp
-            self._joint_vel.data = wp.to_torch(self._root_newton_view.get_dof_velocities(NewtonManager.get_state_0()))
+            self._joint_vel.data = wp.to_torch(self._root_newton_view.get_dof_velocities(NewtonManager.get_state_0())).clone()
             self._joint_vel.timestamp = self._sim_timestamp
         return self._joint_vel.data
 
@@ -645,7 +647,7 @@ class ArticulationData:
         if self._root_link_state_w.timestamp < self._sim_timestamp:
             # read data from simulation (pose is of link)
             # pose = self._root_physx_view.get_root_transforms()
-            pose = wp.to_torch(self._root_newton_view.get_root_transforms(NewtonManager.get_state_0()))
+            pose = wp.to_torch(self._root_newton_view.get_root_transforms(NewtonManager.get_state_0())).clone()
             return pose[:, :3]
         return self.root_link_state_w[:, :3]
 
@@ -735,7 +737,7 @@ class ArticulationData:
         if self._root_com_state_w.timestamp < self._sim_timestamp:
             # read data from simulation (pose is of link)
             # velocity = self._root_physx_view.get_root_velocities()
-            velocity = wp.to_torch(self._root_newton_view.get_root_velocities(NewtonManager.get_state_0()))
+            velocity = wp.to_torch(self._root_newton_view.get_root_velocities(NewtonManager.get_state_0())).clone()
             return velocity
         return self.root_com_state_w[:, 7:13]
 
@@ -748,7 +750,7 @@ class ArticulationData:
         if self._root_com_state_w.timestamp < self._sim_timestamp:
             # read data from simulation (pose is of link)
             # velocity = self._root_physx_view.get_root_velocities()
-            velocity = wp.to_torch(self._root_newton_view.get_root_velocities(NewtonManager.get_state_0()))
+            velocity = wp.to_torch(self._root_newton_view.get_root_velocities(NewtonManager.get_state_0())).clone()
             return velocity[:, 0:3]
         return self.root_com_state_w[:, 7:10]
 
@@ -758,12 +760,11 @@ class ArticulationData:
 
         This quantity is the angular velocity of the root rigid body's center of mass frame relative to the world.
         """
-        raise NotImplementedError("Root center of mass angular velocity in world frame is not implemented for Newton.")
         if self._root_com_state_w.timestamp < self._sim_timestamp:
             self._physics_sim_view.update_articulations_kinematic()
             # read data from simulation (pose is of link)
             # velocity = self._root_physx_view.get_root_velocities()
-            velocity = wp.to_torch(self._root_newton_view.get_root_velocities(NewtonManager.get_state_0()))
+            velocity = wp.to_torch(self._root_newton_view.get_root_velocities(NewtonManager.get_state_0())).clone()
             return velocity[:, 3:6]
         return self.root_com_state_w[:, 10:13]
 
