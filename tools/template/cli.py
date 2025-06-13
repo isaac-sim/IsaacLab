@@ -179,6 +179,18 @@ def main() -> None:
         ),
     )
 
+    # custom robot support (if 'external')
+    use_custom_usd = None
+    if is_external_project:
+        use_custom_usd = (
+            cli_handler.input_select(
+                "Do you want to include a custom robot USD file?",
+                choices=["Yes", "No"],
+                default="No",
+            )
+            == "Yes"
+        )
+
     # Isaac Lab workflow
     # - show supported workflows and features
     workflow_table = rich.table.Table(title="RL environment features support according to Isaac Lab workflows")
@@ -246,6 +258,7 @@ def main() -> None:
         "external": is_external_project,
         "path": project_path,
         "name": project_name,
+        "custom_usd": use_custom_usd,
         "workflows": workflow,
         "rl_libraries": rl_library_algorithms,
     }
