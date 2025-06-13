@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.40.6 (2025-06-13)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :meth:`~isaaclab.env.mdp.curriculums.modify_environment_parameter``
+
+
 0.40.5 (2025-05-22)
 ~~~~~~~~~~~~~~~~~~~
 
