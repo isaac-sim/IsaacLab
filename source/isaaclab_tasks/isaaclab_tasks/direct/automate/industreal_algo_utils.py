@@ -51,6 +51,9 @@ import warp as wp
 
 from isaaclab.utils.assets import retrieve_file_path
 
+# Force garbage collection for large arrays
+import gc
+
 """
 Simulation-Aware Policy Update (SAPU)
 """
@@ -150,8 +153,14 @@ def get_sdf_reward(
 
         sdf_reward[i] = torch.mean(sdf_dist)
 
+        del mesh_copy
+        del mesh_points
+        del mesh_indices
+        del sampled_points
+
     sdf_reward = -torch.log(sdf_reward)
 
+    gp.collect() # Force garbage collection to free memory
     return sdf_reward
 
 
