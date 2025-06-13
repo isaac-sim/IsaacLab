@@ -830,9 +830,9 @@ class OperationalSpaceControllerAction(ActionTerm):
                     min=self._clip_pose_abs[:, :3, 0],
                     max=self._clip_pose_abs[:, :3, 1],
                 )
-                rpy = math_utils.euler_xyz_from_quat(
+                rpy = torch.transpose(torch.stack(math_utils.euler_xyz_from_quat(
                     self.processed_actions[:, self._pose_abs_idx + 3 : self._pose_abs_idx + 7] * self._orientation_scale
-                )
+                )), 0, 1)
                 rpy_clamped = torch.clamp(rpy, min=self._clip_pose_abs[:, 3:6, 0], max=self._clip_pose_abs[:, 3:6, 1])
                 self.processed_actions[:, self._pose_abs_idx + 3 : self._pose_abs_idx + 7] = (
                     math_utils.quat_from_euler_xyz(rpy_clamped[:, 0], rpy_clamped[:, 1], rpy_clamped[:, 2])
@@ -847,9 +847,9 @@ class OperationalSpaceControllerAction(ActionTerm):
                     min=self._clip_pose_rel[:, :3, 0],
                     max=self._clip_pose_rel[:, :3, 1],
                 )
-                rpy = math_utils.euler_xyz_from_quat(
+                rpy = torch.transpose(torch.stack(math_utils.euler_xyz_from_quat(
                     self.processed_actions[:, self._pose_rel_idx + 3 : self._pose_rel_idx + 7] * self._orientation_scale
-                )
+                )), 0, 1)
                 rpy_clamped = torch.clamp(rpy, min=self._clip_pose_rel[:, 3:6, 0], max=self._clip_pose_rel[:, 3:6, 1])
                 self.processed_actions[:, self._pose_rel_idx + 3 : self._pose_rel_idx + 7] = (
                     math_utils.quat_from_euler_xyz(rpy_clamped[:, 0], rpy_clamped[:, 1], rpy_clamped[:, 2])
