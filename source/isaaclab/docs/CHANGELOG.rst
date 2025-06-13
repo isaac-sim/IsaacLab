@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.40.6 (2025-06-13)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Adds ability to set platform height independent of object height for trimesh terrains.
+
+
 0.40.5 (2025-05-22)
 ~~~~~~~~~~~~~~~~~~~
 
