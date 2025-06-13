@@ -14,12 +14,12 @@ from collections.abc import Sequence
 import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation, RigidObject
 from isaaclab.envs import DirectRLEnv
+from isaaclab.managers import ActionTerm
 from isaaclab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_plane
 from isaaclab.utils.math import quat_from_angle_axis, quat_mul, sample_uniform, normalize
 
 from .dextrah_kuka_allegro_env_cfg import DextrahKukaAllegroEnvCfg
 from .dextrah_adr import DextrahADR
-from .fabric_action import FabricAction
 
 
 module_path = os.path.dirname(__file__)
@@ -59,8 +59,7 @@ class DextrahKukaAllegroEnv(DirectRLEnv):
         self.joint_vel_bias = torch.zeros(self.num_envs, 1, device=self.device)
         self.joint_pos_noise_width = torch.zeros(self.num_envs, 1, device=self.device)
         self.joint_vel_noise_width = torch.zeros(self.num_envs, 1, device=self.device)
-        self.cfg.fabric_action_cfg.fabric_damping_gain = self.dextrah_adr.get_custom_param_value("fabric_damping", "gain")
-        self.action_term: FabricAction = self.cfg.fabric_action_cfg.class_type(self.cfg.fabric_action_cfg, self)  # type: ignore
+        self.action_term: ActionTerm = self.cfg.action_cfg.class_type(self.cfg.action_cfg, self)  # type: ignore
         center = self.cfg.objects_cfg.init_state.pos
         self.oob_limits = torch.tensor([
             [center[0] - self.cfg.obj_spawn_width[0] / 2., center[1] - self.cfg.obj_spawn_width[1] / 2., 0.2],
@@ -89,8 +88,8 @@ class DextrahKukaAllegroEnv(DirectRLEnv):
         light_cfg.func("/World/Light", light_cfg)
 
         num_unique_objects = len(self.object.cfg.spawn.assets_cfg)
-        num_teacher_observations = 98 + num_unique_objects
-        self.cfg.state_space = 130 + num_unique_objects
+        num_teacher_observations = 87 + num_unique_objects + self.cfg.action_space
+        self.cfg.state_space = 119 + num_unique_objects + self.cfg.action_space
         self.cfg.observation_space = num_teacher_observations
 
         self.multi_object_idx = torch.remainder(torch.arange(self.num_envs), num_unique_objects).to(self.device)
@@ -106,12 +105,10 @@ class DextrahKukaAllegroEnv(DirectRLEnv):
         self.global_min_adr_increment = local_adr_increment
         self.apply_object_wrench()
 
-        self.cfg.fabric_action_cfg.fabric_damping_gain = self.dextrah_adr.get_custom_param_value("fabric_damping", "gain")
         self.action_term.process_actions(actions)
 
     def _apply_action(self) -> None:
         # # Set position target
-        self.cfg.fabric_action_cfg.pd_vel_factor = self.dextrah_adr.get_custom_param_value("pd_targets", "velocity_target_factor")
         self.action_term.apply_actions()
         
     def _get_observations(self) -> dict:
@@ -294,35 +291,17 @@ class DextrahKukaAllegroEnv(DirectRLEnv):
 
         # OBJECT NOISE---------------------------------------------------------------------------
         rand = lambda : torch.rand((num_ids, 1), device=self.device)
-        object_pos_bias_width = self.dextrah_adr.get_custom_param_value("object_state_noise", "object_pos_bias") * rand()
-        object_rot_bias_width = self.dextrah_adr.get_custom_param_value("object_state_noise", "object_rot_bias") * rand()
-        self.object_pos_bias[env_ids, :] = object_pos_bias_width * (rand() - 0.5)
-        self.object_rot_bias[env_ids, :] = object_rot_bias_width * (rand() - 0.5)
-
-        # TODO: alternative (need to check with ankur)
-        # self.object_pos_bias[env_ids, :] = self.dextrah_adr.get_custom_param_value("object_state_noise", "object_pos_bias") * (rand() - 0.5)
-        # self.object_rot_bias[env_ids, :] = self.dextrah_adr.get_custom_param_value("object_state_noise", "object_rot_bias") * (rand() - 0.5)
-
-        # Sample width of per-step noise
+        self.object_pos_bias[env_ids, :] = self.dextrah_adr.get_custom_param_value("object_state_noise", "object_pos_bias") * (rand() - 0.5)
+        self.object_rot_bias[env_ids, :] = self.dextrah_adr.get_custom_param_value("object_state_noise", "object_rot_bias") * (rand() - 0.5)
         self.object_pos_noise_width[env_ids, :] = self.dextrah_adr.get_custom_param_value("object_state_noise", "object_pos_noise") * rand()
         self.object_rot_noise_width[env_ids, :] = self.dextrah_adr.get_custom_param_value("object_state_noise", "object_rot_noise") * rand()
-        
+
         # ROBOT NOISE---------------------------------------------------------------------------
-        # Sample widths of uniform distribution controlling robot state bias
-        joint_pos_bias_width = self.dextrah_adr.get_custom_param_value("robot_state_noise", "joint_pos_bias") * rand()
-        joint_vel_bias_width = self.dextrah_adr.get_custom_param_value("robot_state_noise", "joint_vel_bias") * rand()
-        self.joint_pos_bias[env_ids, :] = joint_pos_bias_width * (rand() - 0.5)
-        self.joint_vel_bias[env_ids, :] = joint_vel_bias_width * (rand() - 0.5)
-
-        # TODO: alternative (need to check with ankur)
-        # self.joint_pos_bias[env_ids, :] = self.dextrah_adr.get_custom_param_value("robot_state_noise", "joint_pos_bias") * (rand() - 0.5)
-        # self.joint_vel_bias[env_ids, :] = self.dextrah_adr.get_custom_param_value("robot_state_noise", "joint_vel_bias") * (rand() - 0.5)
-
-        # Sample width of per-step noise
+        self.joint_pos_bias[env_ids, :] = self.dextrah_adr.get_custom_param_value("robot_state_noise", "joint_pos_bias") * (rand() - 0.5)
+        self.joint_vel_bias[env_ids, :] = self.dextrah_adr.get_custom_param_value("robot_state_noise", "joint_vel_bias") * (rand() - 0.5)
         self.joint_pos_noise_width[env_ids, :] = self.dextrah_adr.get_custom_param_value("robot_state_noise", "joint_pos_noise") * rand()
         self.joint_vel_noise_width[env_ids, :] = self.dextrah_adr.get_custom_param_value("robot_state_noise", "joint_vel_noise") * rand()
-
-        self.action_term._reset_idx(env_ids)
+        self.action_term.reset(env_ids)
 
         extras = dict()
         for key in self._episode_sums.keys():

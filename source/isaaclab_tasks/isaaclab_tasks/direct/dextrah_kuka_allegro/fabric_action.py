@@ -82,8 +82,7 @@ class FabricAction(ActionTerm):
             preserve_order=True,
         )
         self.robot_hand_bodies_cfg.resolve(env.scene)
-
-        self._reset_idx(env_ids=torch.arange(env.num_envs))
+        self.reset(env_ids=torch.arange(env.num_envs))
     
     @property
     def action_dim(self) -> int:
@@ -172,11 +171,10 @@ class FabricAction(ActionTerm):
             self.fabric_q.copy_(self.fabric_q_new)
             self.fabric_qd.copy_(self.fabric_qd_new)
             self.fabric_qdd.copy_(self.fabric_qdd_new)
-        
-        vel_scale = self.cfg.pd_vel_factor
+
         dof_pos_targets = torch.clone(self.fabric_q)
         dof_vel_targets = torch.clone(self.fabric_qd)
-        self._processed_actions = torch.cat([dof_pos_targets, vel_scale * dof_vel_targets], dim=1)
+        self._processed_actions = torch.cat([dof_pos_targets, self.cfg.pd_vel_factor * dof_vel_targets], dim=1)
     
     def apply_actions(self) -> None:
         # Set fabric states to position and velocity targets
@@ -184,12 +182,13 @@ class FabricAction(ActionTerm):
         self._asset.set_joint_velocity_target(self._processed_actions[:, self._asset.num_joints:], joint_ids=self.robot_hand_bodies_cfg.joint_ids)
 
 
-    def _reset_idx(self, env_ids: Sequence[int] | None):
-        self.reset(env_ids=env_ids)
-
+    def reset(self, env_ids: Sequence[int] | None):
         self.fabric_start_pos = self.fabric_q.clone()
         self.fabric_start_vel = self.fabric_qd.clone()
         self.fabric_start_pos[env_ids, :] = self._asset.data.joint_pos[env_ids[:, None], self.robot_hand_bodies_cfg.joint_ids].clone()
         self.fabric_start_vel[env_ids, :] = self._asset.data.joint_vel[env_ids[:, None], self.robot_hand_bodies_cfg.joint_ids].clone()
         self.fabric_q.copy_(self.fabric_start_pos)
         self.fabric_qd.copy_(self.fabric_start_vel)
+        
+        self.cfg.fabric_damping_gain = self._env.dextrah_adr.get_custom_param_value("fabric_damping", "gain")
+        self.cfg.pd_vel_factor = self._env.dextrah_adr.get_custom_param_value("pd_targets", "velocity_target_factor")

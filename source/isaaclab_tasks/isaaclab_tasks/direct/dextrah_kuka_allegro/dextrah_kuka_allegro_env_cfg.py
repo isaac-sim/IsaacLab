@@ -16,7 +16,7 @@ from isaaclab.sim import PhysxCfg, SimulationCfg
 from isaaclab.sim.spawners.materials.physics_materials_cfg import RigidBodyMaterialCfg
 from isaaclab.utils import configclass
 from isaaclab_assets.robots.kuka_allegro import KUKA_ALLEGRO_CFG  # isort: skip
-from .action_cfg import FabricActionCfg
+from . import action_cfg
 
 # from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 ISAACLAB_NUCLEUS_DIR = "source/isaaclab_assets/data"
@@ -102,7 +102,6 @@ class DextrahKukaAllegroEnvCfg(DirectRLEnvCfg):
     episode_length_s = 10.  # 10.0
     state_space = -1  # set by DextrahKukaAllegroEnv Implementation code
     observation_space = -1  # set by DextrahKukaAllegroEnv Implementation code
-    action_space = 11 # 6 palm pose + 5 PCA
     viewer = ViewerCfg(eye=(-5.0, 1., 0.75), lookat=(0., 1., 0.3), origin_type='env')
 
     # simulation
@@ -193,8 +192,14 @@ class DextrahKukaAllegroEnvCfg(DirectRLEnvCfg):
     # scene
     scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=4096, env_spacing=2., replicate_physics=False)
     events: EventCfg = EventCfg()
-    fabric_action_cfg = FabricActionCfg(asset_name="robot")
 
+    # action_cfg = action_cfg.FabricActionCfg(asset_name="robot")
+    # action_space = 11
+    # action_cfg = action_cfg.PCAHandActionCfg(asset_name="robot")
+    # action_space = 12
+    # action_cfg = action_cfg.LimitsScaledJointPositionActionCfg(asset_name="robot", joint_names=[".*"])
+    action_cfg = mdp.RelativeJointPositionActionCfg(asset_name="robot", joint_names=[".*"], scale=0.3)
+    action_space = 23
     
     robot_scene_cfg = SceneEntityCfg(
         "robot",
@@ -232,10 +237,6 @@ class DextrahKukaAllegroEnvCfg(DirectRLEnvCfg):
     # Object scaling
     object_scale = (0.5, 1.75)
     deactivate_object_scaling = True
-    
-    # Action space related parameters
-    max_pose_angle = -1.
-
 
     # These serve to set the maximum value ranges for the different physics parameters
     adr_cfg_dict = {

@@ -8,8 +8,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-
 from isaaclab.managers.action_manager import ActionTerm, ActionTermCfg
+from isaaclab.managers import SceneEntityCfg
 from isaaclab.utils import configclass
 from isaaclab.envs.mdp import JointActionCfg
 from . import action
@@ -27,6 +27,47 @@ class LimitsScaledJointPositionActionCfg(JointActionCfg):
 
     ema_lambda: float = 0.9
 
+@configclass
+class PCAHandActionCfg(ActionTermCfg):
+    
+    class_type: type[ActionTerm] = action.PCAAction
+    
+    pca_joints_cfg: SceneEntityCfg = SceneEntityCfg(
+        "robot",
+        joint_names=[
+            "index_joint_0", "index_joint_1", "index_joint_2", "index_joint_3",
+            "middle_joint_0", "middle_joint_1", "middle_joint_2", "middle_joint_3",
+            "ring_joint_0", "ring_joint_1", "ring_joint_2", "ring_joint_3",
+            "thumb_joint_0", "thumb_joint_1", "thumb_joint_2", "thumb_joint_3",
+        ],
+        preserve_order=True
+    )
+
+    arm_joints_cfg: SceneEntityCfg = SceneEntityCfg("robot", joint_names="iiwa7_.*")
+
+    pca_matrix = [
+            [-3.8872e-02,  3.7917e-01,  4.4703e-01,  7.1016e-03,
+             2.1159e-03, 3.2014e-01,  4.4660e-01,  5.2108e-02,  
+             5.6869e-05,  2.9845e-01, 3.8575e-01,  7.5774e-03,
+             -1.4790e-02,  9.8163e-02,  4.3551e-02, 3.1699e-01],
+            [-5.1148e-02, -1.3007e-01,  5.7727e-02,  5.7914e-01,
+             1.0156e-02, -1.8469e-01,  5.3809e-02,  5.4888e-01,
+             1.3351e-04, -1.7747e-01, 2.7809e-02,  4.8187e-01,
+             2.9753e-02,  2.6149e-02,  6.6994e-02, 1.8117e-01],
+            [-5.7137e-02, -3.4707e-01,  3.3365e-01, -1.8029e-01,
+            -4.3560e-02, -4.7666e-01,  3.2517e-01, -1.5208e-01,
+            -5.9691e-05, -4.5790e-01, 3.6536e-01, -1.3916e-01,
+            2.3925e-03,  3.7238e-02, -1.0124e-01, -1.7442e-02],
+            [2.2795e-02, -3.4090e-02,  3.4366e-02, -2.6531e-02,
+             2.3471e-02, 4.6123e-02,  9.8059e-02, -1.2619e-03,
+             -1.6452e-04, -1.3741e-02, 1.3813e-01,  2.8677e-02,
+             2.2661e-01, -5.9911e-01,  7.0257e-01, -2.4525e-01],
+            [-4.4911e-02, -4.7156e-01,  9.3124e-02,  2.3135e-01,
+             -2.4607e-03, 9.5564e-02,  1.2470e-01,  3.6613e-02, 
+             1.3821e-04,  4.6072e-01, 9.9315e-02, -8.1080e-02,
+             -4.7617e-01, -2.7734e-01, -2.3989e-01, -3.1222e-01]
+        ]
+
 
 @configclass
 class FabricActionCfg(ActionTermCfg):
@@ -39,7 +80,7 @@ class FabricActionCfg(ActionTermCfg):
     
     action_dim = 11
 
-    max_pose_angle = -1.
+    max_pose_angle = 45.
 
     fabric_damping_gain = 10
 
