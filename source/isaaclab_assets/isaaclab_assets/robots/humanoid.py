@@ -63,6 +63,7 @@ HUMANOID_CFG = ArticulationCfg(
                 ".*_shin": 0.1,
                 ".*_foot.*": 1.0,
             },
+            velocity_limit_sim={".*": 100.0},
         ),
     },
 )
