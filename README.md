@@ -34,7 +34,7 @@ Below, we outline the recent Isaac Lab releases and GitHub branches and their co
 
 Note that the `feature/isaacsim_5_0` will contain active updates and may contain some breaking changes
 until the official Isaac Lab 2.2 release.
-It currently requires the [Isaac Sim 5.0 branch]() available on GitHub built from source.
+It currently requires the [Isaac Sim 5.0 branch](https://github.com/isaac-sim/IsaacSim) available on GitHub built from source.
 Please refer to the README in the `feature/isaacsim_5_0` branch for instructions for using Isaac Lab with Isaac Sim 5.0.
 We are actively working on introducing backwards compatibility support for Isaac Sim 4.5 for this branch.
 
