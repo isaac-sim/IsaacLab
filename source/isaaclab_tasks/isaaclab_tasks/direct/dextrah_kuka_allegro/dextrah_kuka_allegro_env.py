@@ -89,7 +89,7 @@ class DextrahKukaAllegroEnv(DirectRLEnv):
 
         num_unique_objects = len(self.object.cfg.spawn.assets_cfg)
         num_teacher_observations = 87 + num_unique_objects + self.cfg.action_space
-        self.cfg.state_space = 119 + num_unique_objects + self.cfg.action_space
+        self.cfg.state_space = 146 + num_unique_objects + self.cfg.action_space
         self.cfg.observation_space = num_teacher_observations
 
         self.multi_object_idx = torch.remainder(torch.arange(self.num_envs), num_unique_objects).to(self.device)
@@ -156,7 +156,7 @@ class DextrahKukaAllegroEnv(DirectRLEnv):
                 joint_vel,
                 hand_pos,
                 hand_vel,
-                hand_forces.view(self.num_envs, -1)[:, :3],
+                hand_forces.view(self.num_envs, -1),
                 measured_joint_torques,
                 object_pos,
                 object_rot,
@@ -194,10 +194,7 @@ class DextrahKukaAllegroEnv(DirectRLEnv):
         # Add reward signals to tensorboard
         self.extras["num_adr_increases"] = self.dextrah_adr.num_increments()
         self.extras["in_success_region"] = in_success_region.float().mean()
-        self.extras["true_objective"] = self.true_objective
         self.extras["true_objective_mean"] = self.true_objective.float().mean()
-        self.extras["true_objective_min"] = self.true_objective.float().min()
-        self.extras["true_objective_max"] = self.true_objective.float().max()
 
         rewards = {
             "hand_to_object" : self.cfg.hand_to_object_weight * hand_to_object_rew,  # * self.step_dt,
