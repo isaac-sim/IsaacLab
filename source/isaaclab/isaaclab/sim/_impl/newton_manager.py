@@ -1,10 +1,10 @@
-import newton.core.articulation
+import newton.sim.articulation
 import warp as wp
 import newton.utils
 from newton.utils.selection import ContactViewManager, ContactView
 from isaacsim.core.utils.stage import print_stage_prim_paths, get_current_stage
 from newton import Model, State, Control
-from newton.core import ModelBuilder
+from newton.sim import ModelBuilder
 import usdrt
 
 @wp.kernel(enable_backward=False)
@@ -53,7 +53,7 @@ class NewtonManager:
         NewtonManager._state_1 = NewtonManager._model.state()
         NewtonManager._state_temp = NewtonManager._model.state()
         NewtonManager._control = NewtonManager._model.control()
-        newton.core.articulation.eval_fk(NewtonManager._model, NewtonManager._model.joint_q, NewtonManager._model.joint_qd, NewtonManager._state_0, None)
+        newton.sim.articulation.eval_fk(NewtonManager._model, NewtonManager._model.joint_q, NewtonManager._model.joint_qd, NewtonManager._state_0, None)
         NewtonManager._usdrt_stage = get_current_stage(fabric=True)
         for i, prim_path in enumerate(NewtonManager._model.body_key):
             #print("Being added to fabric: ", prim_path)
@@ -180,7 +180,7 @@ class NewtonManager:
 
     @classmethod
     def forward_kinematics(cls, selection):
-        newton.core.articulation.eval_fk(
+        newton.sim.articulation.eval_fk(
             NewtonManager._model, NewtonManager._state_0.joint_q, NewtonManager._state_0.joint_qd, NewtonManager._state_0, selection.articulation_mask 
         )
 

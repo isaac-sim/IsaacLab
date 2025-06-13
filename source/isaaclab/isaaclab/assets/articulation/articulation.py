@@ -125,7 +125,7 @@ class Articulation(AssetBase):
     @property
     def num_joints(self) -> int:
         """Number of joints in articulation."""
-        return self._root_newton_view.joint_dof_count
+        return self._root_newton_view.joint_axis_count
 
     @property
     def num_fixed_tendons(self) -> int:
@@ -142,7 +142,7 @@ class Articulation(AssetBase):
     def joint_names(self) -> list[str]:
         """Ordered names of joints in articulation."""
         #return ['left_upper_arm:0', 'left_upper_arm:2', 'lower_waist:0','lower_waist:1',  'right_upper_arm:0', 'right_upper_arm:2', 'left_lower_arm', 'pelvis', 'right_lower_arm', 'left_thigh:0', 'left_thigh:1', 'left_thigh:2', 'right_thigh:0', 'right_thigh:1', 'right_thigh:2', 'left_shin', 'right_shin', 'left_foot:0', 'left_foot:1', 'right_foot:0', 'right_foot:1']
-        return self._root_newton_view.joint_dof_names
+        return self._root_newton_view.joint_axis_names
 
     @property
     def fixed_tendon_names(self) -> list[str]:
@@ -209,7 +209,8 @@ class Articulation(AssetBase):
         self._apply_actuator_model()
         # write actions into simulation
         # self.root_physx_view.set_dof_actuation_forces(self._joint_effort_target_sim, self._ALL_INDICES)
-        self._root_newton_view.set_attribute("joint_f", NewtonManager.get_control(), self._joint_effort_target_sim)
+        self._root_newton_view.set_dof_forces(NewtonManager.get_control(), self._joint_effort_target_sim)
+        #self._root_newton_view.set_attribute("joint_f", NewtonManager.get_control(), self._joint_effort_target_sim)
         # position and velocity targets only for implicit actuators
         #TODO: write position and velocity targets to simulation
         # if self._has_implicit_actuators:
@@ -545,7 +546,7 @@ class Articulation(AssetBase):
         self._data._body_com_state_w.timestamp = -1.0
         # set into simulation
         # self.root_physx_view.set_dof_positions(self._data.joint_pos, indices=physx_env_ids)
-        self._root_newton_view.set_attribute("joint_q", NewtonManager.get_state_0(), self._data.joint_pos)
+        self._root_newton_view.set_dof_positions(NewtonManager.get_state_0(), self._data.joint_pos)
 
     def write_joint_velocity_to_sim(
         self,
@@ -575,7 +576,7 @@ class Articulation(AssetBase):
         self._data._previous_joint_vel[env_ids, joint_ids] = velocity
         self._data.joint_acc[env_ids, joint_ids] = 0.0
         # set into simulation
-        self._root_newton_view.set_attribute("joint_qd", NewtonManager.get_state_0(), self._data.joint_vel)
+        self._root_newton_view.set_dof_velocities(NewtonManager.get_state_0(), self._data.joint_vel)
 
     """
     Operations - Simulation Parameters Writers.
@@ -804,7 +805,8 @@ class Articulation(AssetBase):
         # set into internal buffers
         self._data.joint_armature[env_ids, joint_ids] = armature
         # set into simulation: Only used by the Featherstone solver
-        self._root_newton_view.set_attribute("joint_armature", NewtonManager.get_model(), self._data.joint_armature)
+        #self._root_newton_view.set_attribute("joint_armature", NewtonManager.get_model(), self._data.joint_armature)
+        self._root_newton_view.set_dof_armatures(NewtonManager.get_model(), self._data.joint_armature)
         #self.root_physx_view.set_dof_armatures(self._data.joint_armature.cpu(), indices=physx_env_ids.cpu())
 
     def write_joint_friction_coefficient_to_sim(
@@ -1210,18 +1212,18 @@ class Articulation(AssetBase):
         # self._root_physx_view = self._physics_sim_view.create_articulation_view(root_prim_path_expr.replace(".*", "*"))
         # print(root_prim_path_expr.replace(".*", "*").repl ace("env_*", "*"))
         # print(NewtonManager.get_model().articulation_key)
-        self._root_newton_view = NewtonArticulationView(NewtonManager.get_model(), root_prim_path_expr.replace(".*", "*").replace("env_*", "*"), include_free_joint=False)
+        self._root_newton_view = NewtonArticulationView(NewtonManager.get_model(), root_prim_path_expr.replace(".*", "*").replace("env_*", "*"))
         # if self._root_physx_view._backend is None:
         #     raise RuntimeError(f"Failed to create articulation at: {self.cfg.prim_path}. Please check PhysX logs.")
 
         # log information about the articulation
-        omni.log.info(f"Articulation initialized at: {self.cfg.prim_path} with root '{root_prim_path_expr}'.")
-        omni.log.info(f"Is fixed root: {self.is_fixed_base}")
-        omni.log.info(f"Number of bodies: {self.num_bodies}")
-        omni.log.info(f"Body names: {self.body_names}")
-        omni.log.info(f"Number of joints: {self.num_joints}")
-        omni.log.info(f"Joint names: {self.joint_names}")
-        omni.log.info(f"Number of fixed tendons: {self.num_fixed_tendons}")
+        print(f"[INFO]:Articulation initialized at: {self.cfg.prim_path} with root '{root_prim_path_expr}'.")
+        print(f"[INFO]:Is fixed root: {self.is_fixed_base}")
+        print(f"[INFO]:Number of bodies: {self.num_bodies}")
+        print(f"[INFO]:Body names: {self.body_names}")
+        print(f"[INFO]:Number of joints: {self.num_joints}")
+        print(f"[INFO]:Joint names: {self.joint_names}")
+        print(f"[INFO]:Number of fixed tendons: {self.num_fixed_tendons}")
 
         # container for data access
         self._data = ArticulationData(self._root_newton_view, self.device)
@@ -1267,7 +1269,7 @@ class Articulation(AssetBase):
                                                          wp.to_torch(self._root_newton_view.get_attribute("joint_limit_upper", NewtonManager.get_model()))), dim=2)
         self._data.default_joint_stiffness = wp.to_torch(self._root_newton_view.get_attribute("joint_target_ke", NewtonManager.get_model())).clone()
         self._data.default_joint_damping = wp.to_torch(self._root_newton_view.get_attribute("joint_target_kd", NewtonManager.get_model())).clone()
-        self._data.default_joint_armature = wp.to_torch(self._root_newton_view.get_attribute("joint_armature", NewtonManager.get_model())).clone()
+        self._data.default_joint_armature = wp.to_torch(self._root_newton_view.get_dof_armatures(NewtonManager.get_model())).clone()
         self._data.default_joint_friction_coeff = (
             torch.zeros([self.num_instances, self.num_joints], dtype=torch.float32, device=self.device).clone()
         )
