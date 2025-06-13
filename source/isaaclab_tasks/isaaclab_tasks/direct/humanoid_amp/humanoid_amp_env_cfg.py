@@ -66,7 +66,7 @@ class HumanoidAmpEnvCfg(DirectRLEnvCfg):
         actuators={
             "body": ImplicitActuatorCfg(
                 joint_names_expr=[".*"],
-                velocity_limit=100.0,
+                velocity_limit_sim=100.0,
                 stiffness=None,
                 damping=None,
             ),
