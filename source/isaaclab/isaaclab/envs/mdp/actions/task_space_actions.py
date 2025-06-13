@@ -168,7 +168,11 @@ class DifferentialInverseKinematicsAction(ActionTerm):
                         if len(tuple) != 2:
                             raise ValueError(f"Expected tuple of (min, max) for orientation command. Found {tuple}.")
                     # Create the clip tensor
-                    self._clip = torch.tensor(self.num_envs, 7, 2, device=self.device)
+                    self._clip = torch.zeros((self.num_envs, 6, 2), device=self.device, dtype=torch.float32)
+                    out = torch.tensor(self.cfg.clip["position"][0], device=self.device)
+                    print(self._clip.shape, out.shape)
+                    print(out)
+                
                     self._clip[:, 0] = torch.tensor(self.cfg.clip["position"][0], device=self.device)
                     self._clip[:, 1] = torch.tensor(self.cfg.clip["position"][1], device=self.device)
                     self._clip[:, 2] = torch.tensor(self.cfg.clip["position"][2], device=self.device)
@@ -182,6 +186,7 @@ class DifferentialInverseKinematicsAction(ActionTerm):
                     )
             else:
                 raise ValueError(f"Unsupported clip type: {type(cfg.clip)}. Supported types are dict.")
+            print(self._clip)
 
     """
     Properties.
@@ -240,7 +245,7 @@ class DifferentialInverseKinematicsAction(ActionTerm):
                         ee_pos_curr, ee_quat_curr, self._processed_actions
                     )
                     # Cast the target_quat_w to euler angles
-                    target_euler_angles_w = math_utils.euler_xyz_from_quat(target_quat_w)
+                    target_euler_angles_w = torch.transpose(torch.stack(math_utils.euler_xyz_from_quat(target_quat_w)), 0, 1)
                     # Clip the pose
                     clamped_target_position_w = torch.clamp(
                         target_position_w, min=self._clip[:, :3, 0], max=self._clip[:, :3, 1]
@@ -253,7 +258,7 @@ class DifferentialInverseKinematicsAction(ActionTerm):
                         clamped_target_euler_angles_w - self._processed_actions[:, 3:6]
                     )
                     # Apply the clamped target pose to the current pose to get the target pose in the body frame
-                    self._processed_actions[:, :3] = target_position_w - ee_pos_curr
+                    self._processed_actions[:, :3] = clamped_target_position_w - ee_pos_curr
                     self._processed_actions[:, 3:] = clamped_target_euler_angles_rel
             else:
                 if self.cfg.controller.command_type == "position":
@@ -267,7 +272,7 @@ class DifferentialInverseKinematicsAction(ActionTerm):
                         self._processed_actions[:, :3], min=self._clip[:, :3, 0], max=self._clip[:, :3, 1]
                     )
                     # Cast the target quaternion to euler angles
-                    target_euler_angles_w = math_utils.euler_xyz_from_quat(self._processed_actions[:, 3:7])
+                    target_euler_angles_w = torch.transpose(torch.stack(math_utils.euler_xyz_from_quat(self._processed_actions[:, 3:7])), 0, 1)
                     # Clip the euler angles
                     clamped_target_euler_angles_w = torch.clamp(
                         target_euler_angles_w, min=self._clip[:, 3:, 0], max=self._clip[:, 3:, 1]
