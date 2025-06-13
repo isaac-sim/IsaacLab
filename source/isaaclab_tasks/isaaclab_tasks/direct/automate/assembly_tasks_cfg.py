@@ -138,6 +138,7 @@ class AssemblyTask:
     if_logging_eval: bool = False
     num_eval_trials: int = 100
     eval_filename: str = "evaluation_00015.h5"
+    wandb: bool = False
 
     # Fine-tuning
     sample_from: str = "rand"  # gp, gmm, idv, rand
