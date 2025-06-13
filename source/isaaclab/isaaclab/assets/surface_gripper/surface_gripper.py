@@ -8,14 +8,18 @@ from __future__ import annotations
 import torch
 import warnings
 import weakref
+from typing import TYPE_CHECKING
 
 import omni.timeline
 from isaacsim.core.simulation_manager import IsaacEvents, SimulationManager
+from isaacsim.core.utils.extensions import enable_extension
 from isaacsim.core.version import get_version
-from isaacsim.robot.surface_gripper import GripperView
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBase
+
+if TYPE_CHECKING:
+    from isaacsim.robot.surface_gripper import GripperView
 
 from .surface_gripper_cfg import SurfaceGripperCfg
 
@@ -265,6 +269,9 @@ class SurfaceGripper(AssetBase):
             The SurfaceGripper is only supported on CPU for now. Please set the simulation backend to run on CPU.
             Use `--device cpu` to run the simulation on CPU.
         """
+
+        enable_extension("isaacsim.robot.surface_gripper")
+        from isaacsim.robot.surface_gripper import GripperView
 
         # Check that we are using the CPU backend.
         if self._device != "cpu":
