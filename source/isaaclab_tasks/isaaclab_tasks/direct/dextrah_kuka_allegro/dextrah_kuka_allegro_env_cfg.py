@@ -103,7 +103,7 @@ class DextrahKukaAllegroEnvCfg(DirectRLEnvCfg):
     state_space = -1  # set by DextrahKukaAllegroEnv Implementation code
     observation_space = -1  # set by DextrahKukaAllegroEnv Implementation code
     viewer = ViewerCfg(eye=(-5.0, 1., 0.75), lookat=(0., 1., 0.3), origin_type='env')
-
+    is_finite_horizon = True
     # simulation
     sim: SimulationCfg = SimulationCfg(
         dt=1 / 120,
