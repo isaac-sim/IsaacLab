@@ -8,7 +8,7 @@ from __future__ import annotations
 import torch
 from typing import TYPE_CHECKING
 
-from isaaclab.assets import RigidObject, Articulation
+from isaaclab.assets import RigidObject
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.utils.math import combine_frame_transforms
 
@@ -28,15 +28,15 @@ def object_ee_distance(
     env: ManagerBasedRLEnv,
     std: float,
     object_cfg: SceneEntityCfg = SceneEntityCfg("object"),
-    robot_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
 ) -> torch.Tensor:
     """Reward the agent for reaching the object using tanh-kernel."""
 
-    robot: Articulation = env.scene[robot_cfg.name]
+    asset: RigidObject = env.scene[asset_cfg.name]
     object: RigidObject = env.scene[object_cfg.name]
-    hand_pos = robot.data.body_pos_w[:, robot_cfg.body_ids]
+    asset_pos = asset.data.body_pos_w[:, asset_cfg.body_ids]
     object_pos = object.data.root_pos_w
-    object_ee_distance = torch.norm(hand_pos - object_pos[:, None, :], dim=-1).max(dim=-1).values
+    object_ee_distance = torch.norm(asset_pos - object_pos[:, None, :], dim=-1).max(dim=-1).values
     return 1 - torch.tanh(object_ee_distance / std)
 
 
