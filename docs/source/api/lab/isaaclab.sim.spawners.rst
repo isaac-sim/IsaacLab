@@ -239,6 +239,12 @@ From Files
     :members:
     :exclude-members: __init__, func
 
+.. autofunction:: spawn_from_mesh_file
+
+.. autoclass:: MeshFileCfg
+    :members:
+    :exclude-members: __init__, func
+
 .. autofunction:: spawn_ground_plane
 
 .. autoclass:: GroundPlaneCfg
