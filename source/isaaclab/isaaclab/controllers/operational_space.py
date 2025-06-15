@@ -179,9 +179,9 @@ class OperationalSpaceController:
         """Set the task-space targets and impedance parameters.
 
         Args:
-            command (torch.Tensor): A concatenated tensor of shape (``num_envs``, ``action_dim``) containing task-space
+            command: A concatenated tensor of shape (``num_envs``, ``action_dim``) containing task-space
                 targets (i.e., pose/wrench) and impedance parameters.
-            current_ee_pose_b (torch.Tensor, optional): Current end-effector pose, in root frame, of shape
+            current_ee_pose_b: Current end-effector pose, in root frame, of shape
                 (``num_envs``, 7), containing position and quaternion ``(w, x, y, z)``. Required for relative
                 commands. Defaults to None.
             current_task_frame_pose_b: Current pose of the task frame, in root frame, in which the targets and the
@@ -392,7 +392,7 @@ class OperationalSpaceController:
             ValueError: When an invalid null-space control method is provided.
 
         Returns:
-            Tensor: The joint efforts computed by the controller. It is a tensor of shape (``num_envs``, ``num_DoF``).
+            The joint efforts computed by the controller. It is a tensor of shape (``num_envs``, ``num_DoF``).
         """
 
         # deduce number of DoF
