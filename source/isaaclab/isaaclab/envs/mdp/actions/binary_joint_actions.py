@@ -84,17 +84,6 @@ class BinaryJointAction(ActionTerm):
             )
         self._close_command[index_list] = torch.tensor(value_list, device=self.device)
 
-        # parse clip
-        if self.cfg.clip is not None:
-            if isinstance(cfg.clip, dict):
-                self._clip = torch.tensor([[-float("inf"), float("inf")]], device=self.device).repeat(
-                    self.num_envs, self.action_dim, 1
-                )
-                index_list, _, value_list = string_utils.resolve_matching_names_values(self.cfg.clip, self._joint_names)
-                self._clip[:, index_list] = torch.tensor(value_list, device=self.device)
-            else:
-                raise ValueError(f"Unsupported clip type: {type(cfg.clip)}. Supported types are dict.")
-
     """
     Properties.
     """
@@ -127,10 +116,6 @@ class BinaryJointAction(ActionTerm):
             binary_mask = actions < 0
         # compute the command
         self._processed_actions = torch.where(binary_mask, self._close_command, self._open_command)
-        if self.cfg.clip is not None:
-            self._processed_actions = torch.clamp(
-                self._processed_actions, min=self._clip[:, :, 0], max=self._clip[:, :, 1]
-            )
 
     def reset(self, env_ids: Sequence[int] | None = None) -> None:
         self._raw_actions[env_ids] = 0.0
