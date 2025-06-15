@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -7,6 +7,7 @@ import argparse
 import os
 import re
 import subprocess
+import sys
 
 
 def update_task_param(task_cfg, assembly_id, disassembly_dir):
@@ -45,7 +46,7 @@ def main():
         "--cfg_path",
         type=str,
         help="Path to the file containing assembly_id.",
-        default="source/isaaclab_tasks/isaaclab_tasks/direct/assembly/disassembly_tasks_cfg.py",
+        default="source/isaaclab_tasks/isaaclab_tasks/direct/automate/disassembly_tasks_cfg.py",
     )
     parser.add_argument("--assembly_id", type=str, default="00731", help="New assembly ID to set.")
     parser.add_argument("--num_envs", type=int, default=128, help="Number of parallel environment.")
@@ -61,9 +62,12 @@ def main():
         args.disassembly_dir,
     )
 
-    bash_command = (
-        "./isaaclab.sh -p scripts/reinforcement_learning/rl_games/train.py --task=Isaac-Disassembly-Direct-v0"
-    )
+    if sys.platform.startswith("win"):
+        bash_command = "isaaclab.bat -p"
+    elif sys.platform.startswith("linux"):
+        bash_command = "./isaaclab.sh -p"
+
+    bash_command += " scripts/reinforcement_learning/rl_games/train.py --task=Isaac-AutoMate-Disassembly-Direct-v0"
 
     bash_command += f" --num_envs={str(args.num_envs)}"
     bash_command += f" --seed={str(args.seed)}"
