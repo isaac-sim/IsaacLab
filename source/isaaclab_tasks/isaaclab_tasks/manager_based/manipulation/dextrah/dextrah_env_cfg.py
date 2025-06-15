@@ -91,7 +91,7 @@ class CommandsCfg:
         asset_name="robot",
         body_name=MISSING,  # will be set by agent env cfg
         resampling_time_range=(10.0, 10.0),
-        debug_vis=False,
+        debug_vis=True,
         ranges=mdp.UniformPoseCommandCfg.Ranges(
             pos_x=[-0.5, -0.5], pos_y=[0., 0.], pos_z=[0.65, 0.65], roll=[0., 0.], pitch=[0., 0.], yaw=[0., 0.]
         ),
@@ -266,13 +266,13 @@ class CurriculumCfg:
                 'observation_manager.cfg.policy.hand_tips_pos.noise.n_max' : ADR(0., 0.01),
                 'observation_manager.cfg.policy.object_pose.noise.n_min' : ADR(0., -0.03),
                 'observation_manager.cfg.policy.object_pose.noise.n_max' : ADR(0., 0.03),
-                
+
                 'command_manager.cfg.object_pose.ranges.pos_x[0]' : ADR(-.5, -.75),
                 'command_manager.cfg.object_pose.ranges.pos_x[1]' : ADR(-.5, -.25),
                 'command_manager.cfg.object_pose.ranges.pos_y[0]' : ADR(0., -.25),
                 'command_manager.cfg.object_pose.ranges.pos_y[1]' : ADR(0., .25),
                 'command_manager.cfg.object_pose.ranges.pos_z[1]' : ADR(.65, .75),
-                
+
                 'reward_manager.cfg.lift.weight' : ADR(5.0, 0.),
                 'reward_manager.cfg.finger_curl_reg.weight' : ADR(-0.01, -0.005),
                 'reward_manager.cfg.object_to_goal.params.std' : ADR(0.3, 0.1),
@@ -306,7 +306,7 @@ class DextrahEnvCfg(ManagerBasedEnvCfg):
 
     # Scene settings
     viewer: ViewerCfg = ViewerCfg(eye=(-5.0, 1., 0.75), lookat=(0., 1., 0.3), origin_type='env')
-    scene: SceneCfg = SceneCfg(num_envs=4096, env_spacing=2.5, replicate_physics=False)
+    scene: SceneCfg = SceneCfg(num_envs=4096, env_spacing=1.5, replicate_physics=False)
     # Basic settings
     observations: ObservationsCfg = ObservationsCfg()
     actions: ActionsCfg = ActionsCfg()
