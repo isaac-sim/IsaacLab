@@ -54,7 +54,7 @@ def body_state_w(
     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
 ) -> torch.Tensor:
     asset: Articulation = env.scene[asset_cfg.name]
-    pose = asset.data.body_state_w[:, asset_cfg.body_ids]
+    pose = asset.data.body_state_w[:, asset_cfg.body_ids].clone()
     pose[..., :3] = pose[..., :3] - env.scene.env_origins.unsqueeze(1)
     return pose.reshape(env.num_envs, -1)
 
