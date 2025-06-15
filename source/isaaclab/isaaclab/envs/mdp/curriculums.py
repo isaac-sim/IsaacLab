@@ -34,3 +34,27 @@ def modify_reward_weight(env: ManagerBasedRLEnv, env_ids: Sequence[int], term_na
         # update term settings
         term_cfg.weight = weight
         env.reward_manager.set_term_cfg(term_name, term_cfg)
+
+
+def modify_environment_parameter(
+    env: ManagerBasedRLEnv,
+    env_ids: Sequence[int],
+    get_term_fn: callable,
+    modify_term_fn: callable,
+    value: float,
+    num_steps: int,
+):
+    """General function to modify termination, reward, or command parameters in an RL environment.
+    Args:
+        env: The learning environment.
+        env_ids: Not used since all environments are affected.
+        get_term_fn: Function to retrieve the term configuration.
+        modify_term_fn: Function to modify and set the retrieved term configuration.
+        value: Value for command modifications, how it is used should be defined via modify_term_fn.
+        num_steps: The step interval at which the modification is applied
+                   (i.e., at steps num_steps, 2*num_steps, 3*num_steps, etc., but not at step 0).
+    """
+    # Check if it's time to apply the modification
+    if env.common_step_counter % num_steps == 0 and env.common_step_counter != 0:
+        term_cfg = get_term_fn(env)
+        modify_term_fn(env, term_cfg, value)
