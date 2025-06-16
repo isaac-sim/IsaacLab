@@ -89,6 +89,7 @@ For detailed Isaac Sim installation instructions, please refer to
 
     ```
     ./isaaclab.sh -i
+    source IsaacSim/_build/linux-x86_64/release/setup_conda_env.sh
     ```
 
     Windows:
