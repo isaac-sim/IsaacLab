@@ -16,7 +16,7 @@ Resources with Available/Open-Source Code
 
 Explore these external resources featuring practical implementations with available/open-source code:
 
-- **Deploying Policies in Isaac Sim**:
+- **Deploying Policies in Isaac Sim**
     Step-by-step guide to deploying exported RL
     policies trained in Isaac Lab, covering demos for
     Unitree H1 and Boston Dynamics Spot and sim-to-real
@@ -30,9 +30,10 @@ Explore these external resources featuring practical implementations with availa
     `Blog post on NVIDIA Technical Blog <https://developer.nvidia.com/blog/closing-the-sim-to-real-gap-training-spot-quadruped-locomotion-with-nvidia-isaac-lab/>`_
 
 - **Kinova Gen3 RL & Sim2Real Toolkit**
-    Modular extension for Isaac Lab that trains RL reach-task
-    policies on Kinova Gen3 and runs them in simulation or on
-    the real arm via a minimal ROS 2 sim-to-real interface -
+    Modular Isaac Lab extension to train reach-task policies
+    for the Kinova Gen3 arm, and deploy them on the real
+    robot via a minimal ROS2 interface. Includes pre-trained 
+    models -
     `Project repository on GitHub <https://github.com/louislelay/kinova_isaaclab_sim2real>`_
 
 - **Wheeled Lab for Mobile Robots**
@@ -41,3 +42,10 @@ Explore these external resources featuring practical implementations with availa
     RC cars, all trained in Isaac Lab and tested on
     low-cost hardware -
     `Project website on UW Robot Learning GitHub Pages <https://uwrobotlearning.github.io/WheeledLab/>`_
+
+- **rl_sar: Sim2Real Framework for RL**
+    C++/Python framework for sim and real deployment of RL
+    policies on quadrupeds, humanoids, and wheeled robots.
+    Supports ROS1/ROS2 and integrates with Isaac Lab via
+    `robot_lab` -
+    `Project repository on GitHub <https://github.com/fan-ziqi/rl_sar>`_
