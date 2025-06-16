@@ -358,7 +358,10 @@ class Articulation(AssetBase):
         self._data._body_com_state_w.timestamp = -1.0
         # set into simulation
         # self.root_physx_view.set_root_transforms(root_poses_xyzw, indices=physx_env_ids)
-        self._root_newton_view.set_root_transforms(NewtonManager.get_state_0(), root_poses_xyzw)
+        self._mask.fill_(False)
+        self._mask[physx_env_ids] = True
+        #print(root_poses_xyzw.shape)
+        self._root_newton_view.set_root_transforms(NewtonManager.get_state_0(), root_poses_xyzw, mask=self._mask)
 
     def write_root_link_pose_to_sim(self, root_pose: torch.Tensor, env_ids: Sequence[int] | None = None):
         """Set the root link pose over selected environment indices into the simulation.
@@ -387,7 +390,9 @@ class Articulation(AssetBase):
         self._data._body_com_state_w.timestamp = -1.0
         # set into simulation
         # self.root_physx_view.set_root_transforms(root_poses_xyzw, indices=physx_env_ids)
-        self._root_newton_view.set_root_transforms(NewtonManager.get_state_0(), root_poses_xyzw)
+        self._mask.fill_(False)
+        self._mask[physx_env_ids] = True
+        self._root_newton_view.set_root_transforms(NewtonManager.get_state_0(), root_poses_xyzw, mask=self._mask)
 
     def write_root_com_pose_to_sim(self, root_pose: torch.Tensor, env_ids: Sequence[int] | None = None):
         """Set the root center of mass pose over selected environment indices into the simulation.
@@ -441,7 +446,9 @@ class Articulation(AssetBase):
         # set into simulation
         # Newton reads velocities as [wx, wy, wz, vx, vy, vz] Isaac reads as [vx, vy, vz, wx, wy, wz]
         velocity = torch.cat((self._data.root_state_w[:, 10:], self._data.root_state_w[:, 7:10]), dim=-1)
-        self._root_newton_view.set_root_velocities(NewtonManager.get_state_0(), velocity)
+        self._mask.fill_(False)
+        self._mask[physx_env_ids] = True
+        self._root_newton_view.set_root_velocities(NewtonManager.get_state_0(), velocity, mask=self._mask)
         # self.root_physx_view.set_root_velocities(self._data.root_state_w[:, 7:], indices=physx_env_ids)
         
 
@@ -468,7 +475,9 @@ class Articulation(AssetBase):
         self._data.body_acc_w[env_ids] = 0.0
         # set into simulation
         # self.root_physx_view.set_root_velocities(self._data.root_com_state_w[:, 7:], indices=physx_env_ids)
-        self._root_newton_view.set_root_velocities(NewtonManager.get_state_0(), self._data.root_state_w[:, 7:].clone())
+        self._mask.fill_(False)
+        self._mask[physx_env_ids] = True
+        self._root_newton_view.set_root_velocities(NewtonManager.get_state_0(), self._data.root_state_w[:, 7:].clone(), mask=self._mask)
 
     def write_root_link_velocity_to_sim(self, root_velocity: torch.Tensor, env_ids: Sequence[int] | None = None):
         """Set the root link velocity over selected environment indices into the simulation.
@@ -546,7 +555,9 @@ class Articulation(AssetBase):
         self._data._body_com_state_w.timestamp = -1.0
         # set into simulation
         # self.root_physx_view.set_dof_positions(self._data.joint_pos, indices=physx_env_ids)
-        self._root_newton_view.set_dof_positions(NewtonManager.get_state_0(), self._data.joint_pos.clone())
+        self._mask.fill_(False)
+        self._mask[physx_env_ids] = True
+        self._root_newton_view.set_dof_positions(NewtonManager.get_state_0(), self._data.joint_pos.clone(), mask=self._mask)
 
     def write_joint_velocity_to_sim(
         self,
@@ -576,7 +587,9 @@ class Articulation(AssetBase):
         self._data._previous_joint_vel[env_ids, joint_ids] = velocity
         self._data.joint_acc[env_ids, joint_ids] = 0.0
         # set into simulation
-        self._root_newton_view.set_dof_velocities(NewtonManager.get_state_0(), self._data.joint_vel.clone())
+        self._mask.fill_(False)
+        self._mask[physx_env_ids] = True
+        self._root_newton_view.set_dof_velocities(NewtonManager.get_state_0(), self._data.joint_vel.clone(), mask=self._mask)
 
     """
     Operations - Simulation Parameters Writers.
@@ -609,7 +622,9 @@ class Articulation(AssetBase):
         # set into internal buffers
         self._data.joint_stiffness[env_ids, joint_ids] = stiffness
         # set into simulation
-        self._root_newton_view.set_attribute("joint_target_ke", NewtonManager.get_model(), self._data.joint_stiffness)
+        self._mask.fill_(False)
+        self._mask[physx_env_ids] = True
+        #self._root_newton_view.set_attribute("joint_target_ke", NewtonManager.get_model(), self._data.joint_stiffness, mask=self._mask)
         #self.root_physx_view.set_dof_stiffnesses(self._data.joint_stiffness.cpu(), indices=physx_env_ids.cpu())
 
     def write_joint_damping_to_sim(
@@ -639,7 +654,9 @@ class Articulation(AssetBase):
         # set into internal buffers
         self._data.joint_damping[env_ids, joint_ids] = damping
         # set into simulation
-        self._root_newton_view.set_attribute("joint_target_kd", NewtonManager.get_model(), self._data.joint_damping)
+        self._mask.fill_(False)
+        self._mask[physx_env_ids] = True
+        #self._root_newton_view.set_attribute("joint_target_kd", NewtonManager.get_model(), self._data.joint_damping, mask=self._mask)
         #self.root_physx_view.set_dof_dampings(self._data.joint_damping.cpu(), indices=physx_env_ids.cpu())
 
     def write_joint_position_limit_to_sim(
@@ -690,9 +707,10 @@ class Articulation(AssetBase):
                 # info level is only written to log file
                 omni.log.info(violation_message)
         # set into simulation
-
-        self._root_newton_view.set_attribute("joint_limit_lower", NewtonManager.get_model(), self._data.joint_pos_limits[..., 0])
-        self._root_newton_view.set_attribute("joint_limit_upper", NewtonManager.get_model(), self._data.joint_pos_limits[..., 1])
+        self._mask.fill_(False)
+        self._mask[physx_env_ids] = True
+        #self._root_newton_view.set_attribute("joint_limit_lower", NewtonManager.get_model(), self._data.joint_pos_limits[..., 0], mask=self._mask)
+        #self._root_newton_view.set_attribute("joint_limit_upper", NewtonManager.get_model(), self._data.joint_pos_limits[..., 1], mask=self._mask)
 
         # compute the soft limits based on the joint limits
         # TODO: Optimize this computation for only selected joints
@@ -806,7 +824,9 @@ class Articulation(AssetBase):
         self._data.joint_armature[env_ids, joint_ids] = armature
         # set into simulation: Only used by the Featherstone solver
         #self._root_newton_view.set_attribute("joint_armature", NewtonManager.get_model(), self._data.joint_armature)
-        self._root_newton_view.set_dof_armatures(NewtonManager.get_model(), self._data.joint_armature)
+        self._mask.fill_(False)
+        self._mask[physx_env_ids] = True
+        self._root_newton_view.set_dof_armatures(NewtonManager.get_model(), self._data.joint_armature, mask=self._mask)
         #self.root_physx_view.set_dof_armatures(self._data.joint_armature.cpu(), indices=physx_env_ids.cpu())
 
     def write_joint_friction_coefficient_to_sim(
@@ -1212,7 +1232,7 @@ class Articulation(AssetBase):
         # self._root_physx_view = self._physics_sim_view.create_articulation_view(root_prim_path_expr.replace(".*", "*"))
         # print(root_prim_path_expr.replace(".*", "*").repl ace("env_*", "*"))
         # print(NewtonManager.get_model().articulation_key)
-        self._root_newton_view = NewtonArticulationView(NewtonManager.get_model(), root_prim_path_expr.replace(".*", "*").replace("env_*", "*"))
+        self._root_newton_view = NewtonArticulationView(NewtonManager.get_model(), root_prim_path_expr.replace(".*", "*").replace("env_*", "*"), verbose=True)
         # if self._root_physx_view._backend is None:
         #     raise RuntimeError(f"Failed to create articulation at: {self.cfg.prim_path}. Please check PhysX logs.")
 
@@ -1250,6 +1270,9 @@ class Articulation(AssetBase):
         self.has_external_wrench = False
         self._external_force_b = torch.zeros((self.num_instances, self.num_bodies, 3), device=self.device)
         self._external_torque_b = torch.zeros_like(self._external_force_b)
+
+        # mask for writing to simulation
+        self._mask = torch.zeros(self.num_instances, dtype=torch.bool, device=self.device)
 
         # asset named data
         self._data.joint_names = self.joint_names
