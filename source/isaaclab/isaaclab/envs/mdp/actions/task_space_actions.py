@@ -759,7 +759,7 @@ class OperationalSpaceControllerAction(ActionTerm):
                 self._processed_actions[:, self._pose_abs_idx + 3 : self._pose_abs_idx + 7],
             )
             delta_pose[:, :3] = torch.clamp(delta_pose[:, :3], -self._position_clip, self._position_clip)
-            delta_pose[:, 3:] = torch.clamp(delta_pose[:, 3:], -self._orientation_clip, self._orientation_clip)
+            delta_pose[:, 3:] = self._clamp_angleaxis(delta_pose[:, 3:], self._orientation_clip)
             (
                 self._processed_actions[:, self._pose_abs_idx : self._pose_abs_idx + 3],
                 self._processed_actions[:, self._pose_abs_idx + 3 : self._pose_abs_idx + 7],
@@ -776,10 +776,8 @@ class OperationalSpaceControllerAction(ActionTerm):
                 max=self._position_clip,
             )
             self._processed_actions[:, self._pose_rel_idx + 3 : self._pose_rel_idx + 6] *= self._orientation_scale
-            self._processed_actions[:, self._pose_rel_idx + 3 : self._pose_rel_idx + 6] = torch.clamp(
-                self._processed_actions[:, self._pose_rel_idx + 3 : self._pose_rel_idx + 6],
-                min=-self._orientation_clip,
-                max=self._orientation_clip,
+            self._processed_actions[:, self._pose_rel_idx + 3 : self._pose_rel_idx + 6] = self._clamp_angleaxis(
+                self._processed_actions[:, self._pose_rel_idx + 3 : self._pose_rel_idx + 6], self._orientation_clip
             )
         if self._wrench_abs_idx is not None:
             self._processed_actions[:, self._wrench_abs_idx : self._wrench_abs_idx + 6] *= self._wrench_scale
@@ -843,3 +841,24 @@ class OperationalSpaceControllerAction(ActionTerm):
                 raise ValueError(f"{name} must have shape ({self.num_envs}, 1), got {param.shape}")
             return param
         raise ValueError(f"{name} must be a scalar or 1D/2D tensor")
+
+    def _clamp_angleaxis(self, v: torch.Tensor, max_angle: float | torch.Tensor) -> torch.Tensor:
+        """
+        Returns the angle-clamped version of an angle-axis rotation vector.
+
+        Args:
+            v: The angle-axis rotation vector, tensor of shape (``self.num_envs``, 3).
+            max_angle: The angle to clamp the vector norm to, tensor of shape (``self.num_envs``, 1) or a scalar.
+        Returns:
+            Clamped angle axis vector, tensor of shape (``self.num_envs``, 3).
+        """
+        angle = torch.linalg.norm(v, dim=-1, keepdim=True)
+        max_angle = torch.as_tensor(max_angle, dtype=v.dtype, device=v.device)
+
+        # if it is per-sample (N,) or (N,1), add the singleton so it broadcasts with angle
+        if max_angle.ndim == angle.ndim - 1:
+            max_angle = max_angle.unsqueeze(-1)
+
+        # scale = min(angle, max_angle) / angle  (and 1 for zero vectors)
+        scale = torch.where(angle > 0, torch.minimum(angle, max_angle) / angle, torch.ones_like(angle))
+        return v * scale
