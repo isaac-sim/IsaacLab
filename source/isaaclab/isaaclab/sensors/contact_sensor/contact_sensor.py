@@ -16,7 +16,7 @@ import carb
 import omni.physics.tensors.impl.api as physx
 from isaacsim.core.simulation_manager import SimulationManager
 from isaaclab.sim._impl.newton_manager import NewtonManager
-from newton.utils.selection import ContactView
+#from newton.utils.selection import ContactView
 from pxr import PhysxSchema
 
 import isaaclab.sim as sim_utils
