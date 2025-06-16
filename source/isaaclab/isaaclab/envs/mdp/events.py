@@ -333,7 +333,9 @@ def randomize_rigid_body_mass(
     )
 
     # set the mass into the physics simulation
-    asset.root_newton_view.set_attribute("body_mass", asset.root_newton_model, wp.from_torch(masses), indices  = env_ids)
+    mask = torch.zeros((env.scene.num_envs,), dtype=torch.bool, device=env.device)
+    mask[env_ids] = True
+    asset.root_newton_view.set_attribute("body_mass", asset.root_newton_model, wp.from_torch(masses), mask=mask)
     #asset.root_physx_view.set_masses(masses, env_ids)
 
     # recompute inertia tensors if needed
@@ -352,7 +354,7 @@ def randomize_rigid_body_mass(
             inertias[env_ids] = asset.data.default_inertia[env_ids] * ratios
         # set the inertia tensors into the physics simulation
         #asset.root_physx_view.set_inertias(inertias, env_ids)
-        asset.root_newton_view.set_attribute("body_inertia", asset.root_newton_model, wp.from_torch(inertias.reshape(env.scene.num_envs, asset.num_bodies, 3,3), dtype=wp.mat33, requires_grad=False), indices  = env_ids)
+        asset.root_newton_view.set_attribute("body_inertia", asset.root_newton_model, wp.from_torch(inertias.reshape(env.scene.num_envs, asset.num_bodies, 3,3), dtype=wp.mat33, requires_grad=False), mask=mask)
 
 def randomize_rigid_body_collider_offsets(
     env: ManagerBasedEnv,
