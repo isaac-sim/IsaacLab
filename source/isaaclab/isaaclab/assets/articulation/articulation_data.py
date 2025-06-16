@@ -378,11 +378,13 @@ class ArticulationData:
             # Newton reads poses as [x, y, z, qx, qy, qz, qw] Isaac reads as [x, y, z, qw, qx, qy, qz]
             pose = wp.to_torch(self._root_newton_view.get_root_transforms(NewtonManager.get_state_0())).clone()
             pose[:, 3:7] = math_utils.convert_quat(pose[:, 3:7], to="wxyz")
-            print(f"pose: {pose}")
             # Newton reads velocities as [wx, wy, wz, vx, vy, vz] Isaac reads as [vx, vy, vz, wx, wy, wz]
-            velocity = wp.to_torch(self._root_newton_view.get_root_velocities(NewtonManager.get_state_0())).clone()
-            print(f"velocity: {velocity}")
-            velocity = torch.cat((velocity[:, 3:], velocity[:, :3]), dim=-1)
+            velocities = self._root_newton_view.get_root_velocities(NewtonManager.get_state_0())
+            if velocities is not None:
+                velocity = wp.to_torch(self._root_newton_view.get_root_velocities(NewtonManager.get_state_0())).clone()
+                velocity = torch.cat((velocity[:, 3:], velocity[:, :3]), dim=-1)
+            else:
+                velocity = torch.zeros((pose.shape[0], 6), dtype=pose.dtype, device=self.device)
             # set the buffer data and timestamp
             self._root_state_w.data = torch.cat((pose, velocity), dim=-1)
             self._root_state_w.timestamp = self._sim_timestamp
