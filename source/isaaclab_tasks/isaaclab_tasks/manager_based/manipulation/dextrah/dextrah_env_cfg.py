@@ -229,7 +229,7 @@ class RewardsCfg:
 
     lift = RewTerm(func=mdp.PointCloud, params={"num_points": 128, "min_height": 0.26}, weight=1.0)
 
-    object_to_goal = RewTerm(func=mdp.object_goal_distance_v0, params={"std": 15., "command_name": "object_pose", "min_height": 0.26}, weight=5.0)
+    object_to_goal = RewTerm(func=mdp.object_goal_distance_v0, params={"std": 8., "command_name": "object_pose", "min_height": 0.26}, weight=5.0)
 
     finger_curl_reg = RewTerm(func=mdp.joint_deviation_l1, params={"asset_cfg": SceneEntityCfg("robot")}, weight=-0.0001)
 
