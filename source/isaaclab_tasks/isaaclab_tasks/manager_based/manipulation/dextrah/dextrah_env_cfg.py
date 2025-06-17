@@ -57,7 +57,7 @@ class SceneCfg(InteractiveSceneCfg):
                 max_depenetration_velocity=1000.0,
             ),
         ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(-0.55, 0.1, 0.30)),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(-0.55, 0.1, 0.32)),
     )
 
     # table
@@ -120,9 +120,8 @@ class ObservationsCfg:
     class CriticCfg(PolicyCfg):
         measured_body_forces = ObsTerm(func=mdp.body_incoming_wrench, params={"asset_cfg": SceneEntityCfg("robot")})
         measured_joint_torques = ObsTerm(func=mdp.projected_joint_force, params={"asset_cfg": SceneEntityCfg("robot")})
-        object_vel = ObsTerm(func=mdp.root_lin_vel_w, params={"asset_cfg": SceneEntityCfg("object")})
-        object_vel = ObsTerm(func=mdp.root_ang_vel_w, params={"asset_cfg": SceneEntityCfg("object")})
-        object_scale = ObsTerm(func=mdp.all_ones)
+        object_lin_vel = ObsTerm(func=mdp.root_lin_vel_w, params={"asset_cfg": SceneEntityCfg("object")})
+        object_ang_vel = ObsTerm(func=mdp.root_ang_vel_w, params={"asset_cfg": SceneEntityCfg("object")})
 
         def __post_init__(self):
             self.enable_corruption = False
@@ -223,19 +222,16 @@ class ActionsCfg:
 @configclass
 class RewardsCfg:
     """Reward terms for the MDP."""
+    
     fingers_to_object = RewTerm(
-        func=mdp.object_ee_distance, params={"std": 0.15, "asset_cfg": SceneEntityCfg("robot")}, weight=1.0
+        func=mdp.object_ee_distance, params={"std": 0.2, "asset_cfg": SceneEntityCfg("robot")}, weight=1.0
     )
 
-    object_to_goal = RewTerm(
-        func=mdp.object_goal_distance,
-        params={"std": 0.3, "minimal_height": 0.31, "command_name": "object_pose"},
-        weight=15.0
-    )
+    lift = RewTerm(func=mdp.PointCloud, params={"num_points": 128, "min_height": 0.26}, weight=1.0)
 
-    lift = RewTerm(func=mdp.object_is_lifted, params={"minimal_height": 0.31}, weight=5.0)
+    object_to_goal = RewTerm(func=mdp.object_goal_distance_v0, params={"std": 15., "command_name": "object_pose", "min_height": 0.26}, weight=5.0)
 
-    finger_curl_reg = RewTerm(func=mdp.joint_deviation_l1, params={"asset_cfg": SceneEntityCfg("robot")}, weight=-0.01)
+    finger_curl_reg = RewTerm(func=mdp.joint_deviation_l1, params={"asset_cfg": SceneEntityCfg("robot")}, weight=-0.0001)
 
 @configclass
 class TerminationsCfg:
@@ -257,6 +253,7 @@ class CurriculumCfg:
         params={
             "asset_cfg": SceneEntityCfg("robot"),
             "object_cfg": SceneEntityCfg("object"),
+            "max_difficulty": 50,
             "adr_terms": {
                 'observation_manager.cfg.policy.joint_pos.noise.n_min' : ADR(0., -0.1),
                 'observation_manager.cfg.policy.joint_pos.noise.n_max' : ADR(0., 0.1),
@@ -274,8 +271,8 @@ class CurriculumCfg:
                 'command_manager.cfg.object_pose.ranges.pos_z[1]' : ADR(.65, .75),
 
                 'reward_manager.cfg.lift.weight' : ADR(5.0, 0.),
-                'reward_manager.cfg.finger_curl_reg.weight' : ADR(-0.01, -0.005),
-                'reward_manager.cfg.object_to_goal.params.std' : ADR(0.3, 0.1),
+                'reward_manager.cfg.finger_curl_reg.weight' : ADR(-0.001, -0.01),
+                'reward_manager.cfg.object_to_goal.params.std' : ADR(15., 20.),
 
                 'event_manager.cfg.reset_object.params.pose_range.x[0]': ADR(0., -.5),
                 'event_manager.cfg.reset_object.params.pose_range.x[1]': ADR(0., .5),
@@ -316,6 +313,7 @@ class DextrahEnvCfg(ManagerBasedEnvCfg):
     terminations: TerminationsCfg = TerminationsCfg()
     events: EventCfg = EventCfg()
     curriculum: CurriculumCfg = CurriculumCfg()
+    # curriculum = None
     is_finite_horizon = True
 
     def __post_init__(self):
@@ -329,3 +327,8 @@ class DextrahEnvCfg(ManagerBasedEnvCfg):
         self.sim.physx.bounce_threshold_velocity = 0.2
         self.sim.physx.bounce_threshold_velocity = 0.01
         self.sim.physx.gpu_max_rigid_patch_count = 4 * 5 * 2**15
+        
+        self.rewards.finger_curl_reg.weight /= (self.sim.dt * self.decimation)
+        self.rewards.fingers_to_object.weight /= (self.sim.dt * self.decimation)
+        self.rewards.object_to_goal.weight /= (self.sim.dt * self.decimation)
+        self.rewards.lift.weight /= (self.sim.dt * self.decimation)

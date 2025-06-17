@@ -16,7 +16,7 @@ from isaaclab.sim import PhysxCfg, SimulationCfg
 from isaaclab.sim.spawners.materials.physics_materials_cfg import RigidBodyMaterialCfg
 from isaaclab.utils import configclass
 from isaaclab_assets.robots.kuka_allegro import KUKA_ALLEGRO_CFG  # isort: skip
-from . import action_cfg
+from . import action_cfg as act
 
 # from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 ISAACLAB_NUCLEUS_DIR = "source/isaaclab_assets/data"
@@ -193,13 +193,8 @@ class DextrahKukaAllegroEnvCfg(DirectRLEnvCfg):
     scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=4096, env_spacing=2., replicate_physics=False)
     events: EventCfg = EventCfg()
 
-    action_cfg = action_cfg.FabricActionCfg(asset_name="robot")
-    action_space = 11
-    # action_cfg = action_cfg.PCAHandActionCfg(asset_name="robot")
-    # action_space = 12
-    # action_cfg = action_cfg.LimitsScaledJointPositionActionCfg(asset_name="robot", joint_names=[".*"])
-    # action_cfg = mdp.RelativeJointPositionActionCfg(asset_name="robot", joint_names=[".*"], scale=0.2)
-    # action_space = 23
+    action_cfg: mdp.RelativeJointPositionActionCfg = mdp.RelativeJointPositionActionCfg(asset_name="robot", joint_names=[".*"], scale=0.1)
+    action_space = 23
     
     robot_scene_cfg = SceneEntityCfg(
         "robot",
@@ -305,3 +300,21 @@ class DextrahKukaAllegroEnvCfg(DirectRLEnvCfg):
             "coefficient": (0., 0.)
         },
     }
+
+
+@configclass
+class DextrahKukaAllegroRelJointPosEnvCfg(DextrahKukaAllegroEnvCfg):
+    action_cfg: mdp.RelativeJointPositionActionCfg = mdp.RelativeJointPositionActionCfg(asset_name="robot", joint_names=[".*"], scale=0.1)
+    action_space = 23
+
+
+@configclass
+class DextrahKukaAllegroPCAEnvCfg(DextrahKukaAllegroEnvCfg):
+    action_cfg: act.PCAHandActionCfg = act.PCAHandActionCfg(asset_name="robot")
+    action_space = 12
+    
+
+@configclass
+class DextrahKukaAllegroFabricEnvCfg(DextrahKukaAllegroEnvCfg):
+    action_cfg: act.FabricActionCfg = act.FabricActionCfg(asset_name="robot")
+    action_space = 11

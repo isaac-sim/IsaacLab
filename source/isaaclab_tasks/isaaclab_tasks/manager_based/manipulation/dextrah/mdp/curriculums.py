@@ -76,14 +76,13 @@ class DifficultyScheduler(ManagerTermBase):
 
         distance = torch.norm(des_pos_w - self.object.data.root_pos_w[env_ids, :3], dim=1)
         move_up = distance < dist_tol
-        if move_up.any():
-            self.current_adr_difficulties[env_ids] = torch.where(
-                move_up, self.current_adr_difficulties[env_ids] + 1, self.current_adr_difficulties[env_ids] - 1,
-            ).clamp(min=0., max=max_difficulty)
-            for term in self.adr_terms:
-                term.update((torch.mean(self.current_adr_difficulties) / max_difficulty).item())
+        self.current_adr_difficulties[env_ids] = torch.where(
+            move_up, self.current_adr_difficulties[env_ids] + 1, self.current_adr_difficulties[env_ids] - 1,
+        ).clamp(min=0., max=max_difficulty)
+        for term in self.adr_terms:
+            term.update((torch.mean(self.current_adr_difficulties) / max(max_difficulty, 1)).item())
 
-        return torch.mean(self.current_adr_difficulties) / max_difficulty
+        return torch.mean(self.current_adr_difficulties) / max(max_difficulty, 1)
 
 def get(root: Any, path: str) -> Any:
     """

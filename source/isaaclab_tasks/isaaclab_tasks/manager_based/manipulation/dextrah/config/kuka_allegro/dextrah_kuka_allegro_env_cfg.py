@@ -6,16 +6,23 @@ from ... import mdp
 
 
 @configclass
-class KukaAllegroActionCfg:
-    action = mdp.FabricActionCfg(asset_name="robot")
-    # action = mdp.PCAHandActionCfg(asset_name="robot")
-    # action = mdp.RelativeJointPositionActionCfg(asset_name="robot", joint_names=[".*"], scale=0.2)
+class KukaAllegroRelJointPosActionCfg:
+    action = mdp.RelativeJointPositionActionCfg(asset_name="robot", joint_names=[".*"], scale=0.1)
+
+
+@configclass
+class KukaAllegroPCAActionCfg:
+    actions = mdp.PCAHandActionCfg(asset_name="robot")
+
+
+@configclass
+class KukaAllegroFabricActionCfg:
+    actions = mdp.FabricActionCfg(asset_name="robot")
+
 
 
 @configclass
 class DextrahKukaAllegroEnvCfg(DextrahEnvCfg):
-
-    actions: KukaAllegroActionCfg = KukaAllegroActionCfg()
 
     def __post_init__(self: DextrahEnvCfg):
         super().__post_init__()
@@ -62,3 +69,18 @@ class DextrahKukaAllegroEnvCfg(DextrahEnvCfg):
         self.observations.critic.measured_body_forces.params["asset_cfg"].body_names = ["palm_link", ".*_tip"]
         self.rewards.fingers_to_object.params["asset_cfg"].body_names = ["palm_link", ".*_tip"]
         self.rewards.finger_curl_reg.params["asset_cfg"].joint_names = "(thumb|index|middle|ring).*"
+
+
+@configclass
+class DextrahKukaAllegroEnvRelJointPosCfg(DextrahKukaAllegroEnvCfg):
+    actions: KukaAllegroRelJointPosActionCfg = KukaAllegroRelJointPosActionCfg()
+
+
+@configclass
+class DextrahKukaAllegroEnvPCACfg(DextrahKukaAllegroEnvCfg):
+    actions: KukaAllegroPCAActionCfg = KukaAllegroPCAActionCfg()
+
+
+@configclass
+class DextrahKukaAllegroEnvFabricCfg(DextrahKukaAllegroEnvCfg):
+    actions: KukaAllegroFabricActionCfg = KukaAllegroFabricActionCfg()
