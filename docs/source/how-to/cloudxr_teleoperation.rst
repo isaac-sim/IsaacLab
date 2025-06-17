@@ -69,7 +69,7 @@ Prior to using CloudXR with Isaac Lab, please review the following system requir
     * Required for best performance: 16 cores Intel Core i9, X-series or higher AMD Ryzen 9,
       Threadripper or higher
     * Required for best performance: 64GB RAM
-    * Required for best performance: 2x RTX 6000 Ada GPUs (or equivalent)
+    * Required for best performance: 2x RTX PRO 6000 GPUs (or equivalent e.g. 2x RTX 5090)
 
   * Apple Vision Pro
 

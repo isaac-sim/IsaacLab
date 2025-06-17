@@ -12,8 +12,8 @@ This section explains how to deploy CloudXR Teleoperation for Isaac Lab on a Kub
 System Requirements
 -------------------
 
-* **Minimum requirement**: Kubernetes cluster with a node that has at least 1 NVIDIA RTX 6000 Ada Generation / L40 GPU or equivalent
-* **Recommended requirement**: Kubernetes cluster with a node that has at least 2 RTX 6000 Ada Generation / L40 GPUs or equivalent
+* **Minimum requirement**: Kubernetes cluster with a node that has at least 1 NVIDIA RTX PRO 6000 / L40 GPU or equivalent
+* **Recommended requirement**: Kubernetes cluster with a node that has at least 2 RTX PRO 6000 / L40 GPUs or equivalent
 
 Software Dependencies
 ---------------------
