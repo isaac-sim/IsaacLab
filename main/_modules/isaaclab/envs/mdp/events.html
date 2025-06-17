@@ -1778,8 +1778,25 @@
             <span class="n">body_names_regex</span> <span class="o">=</span> <span class="s2">&quot;.*&quot;</span>
 
         <span class="c1"># create the affected prim path</span>
-        <span class="c1"># TODO: Remove the hard-coded &quot;/visuals&quot; part.</span>
-        <span class="n">prim_path</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">asset</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">prim_path</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="n">body_names_regex</span><span class="si">}</span><span class="s2">/visuals&quot;</span>
+        <span class="c1"># Check if the pattern with &#39;/visuals&#39; yields results when matching `body_names_regex`.</span>
+        <span class="c1"># If not, fall back to a broader pattern without &#39;/visuals&#39;.</span>
+        <span class="n">asset_main_prim_path</span> <span class="o">=</span> <span class="n">asset</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">prim_path</span>
+        <span class="c1"># Try the pattern with &#39;/visuals&#39; first for the generic case</span>
+        <span class="n">pattern_with_visuals</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">asset_main_prim_path</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="n">body_names_regex</span><span class="si">}</span><span class="s2">/visuals&quot;</span>
+        <span class="c1"># Use sim_utils to check if any prims currently match this pattern</span>
+        <span class="n">matching_prims</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">find_matching_prim_paths</span><span class="p">(</span><span class="n">pattern_with_visuals</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">matching_prims</span><span class="p">:</span>
+            <span class="c1"># If matches are found, use the pattern with /visuals</span>
+            <span class="n">prim_path</span> <span class="o">=</span> <span class="n">pattern_with_visuals</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># If no matches found, fall back to the broader pattern without /visuals</span>
+            <span class="c1"># This pattern (e.g., /World/envs/env_.*/Table/.*) should match visual prims</span>
+            <span class="c1"># whether they end in /visuals or have other structures.</span>
+            <span class="n">prim_path</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">asset_main_prim_path</span><span class="si">}</span><span class="s2">/.*&quot;</span>
+            <span class="n">carb</span><span class="o">.</span><span class="n">log_info</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;Pattern &#39;</span><span class="si">{</span><span class="n">pattern_with_visuals</span><span class="si">}</span><span class="s2">&#39; found no prims. Falling back to &#39;</span><span class="si">{</span><span class="n">prim_path</span><span class="si">}</span><span class="s2">&#39; for texture&quot;</span>
+                <span class="s2">&quot; randomization.&quot;</span>
+            <span class="p">)</span>
 
         <span class="c1"># Create the omni-graph node for the randomization term</span>
         <span class="k">def</span><span class="w"> </span><span class="nf">rep_texture_randomization</span><span class="p">():</span>
@@ -1789,7 +1806,6 @@
                 <span class="n">rep</span><span class="o">.</span><span class="n">randomizer</span><span class="o">.</span><span class="n">texture</span><span class="p">(</span>
                     <span class="n">textures</span><span class="o">=</span><span class="n">texture_paths</span><span class="p">,</span> <span class="n">project_uvw</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">texture_rotate</span><span class="o">=</span><span class="n">rep</span><span class="o">.</span><span class="n">distribution</span><span class="o">.</span><span class="n">uniform</span><span class="p">(</span><span class="o">*</span><span class="n">texture_rotation</span><span class="p">)</span>
                 <span class="p">)</span>
-
             <span class="k">return</span> <span class="n">prims_group</span><span class="o">.</span><span class="n">node</span>
 
         <span class="c1"># Register the event to the replicator</span>
