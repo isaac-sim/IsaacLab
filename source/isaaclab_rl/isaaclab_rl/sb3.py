@@ -22,6 +22,7 @@ import gymnasium as gym
 import numpy as np
 import torch
 import torch.nn as nn  # noqa: F401
+import warnings
 from typing import Any
 
 from stable_baselines3.common.utils import constant_fn
@@ -29,16 +30,20 @@ from stable_baselines3.common.vec_env.base_vec_env import VecEnv, VecEnvObs, Vec
 
 from isaaclab.envs import DirectRLEnv, ManagerBasedRLEnv
 
+# remove SB3 warnings because PPO with bigger net actually benefits from GPU
+warnings.filterwarnings("ignore", message="You are trying to run PPO on the GPU")
+
 """
 Configuration Parser.
 """
 
 
-def process_sb3_cfg(cfg: dict) -> dict:
+def process_sb3_cfg(cfg: dict, num_envs: int) -> dict:
     """Convert simple YAML types to Stable-Baselines classes/components.
 
     Args:
         cfg: A configuration dictionary.
+        num_envs: the number of parallel environments (used to compute `batch_size` for a desired number of minibatches)
 
     Returns:
         A dictionary containing the converted configuration.
@@ -54,18 +59,23 @@ def process_sb3_cfg(cfg: dict) -> dict:
             else:
                 if key in ["policy_kwargs", "replay_buffer_class", "replay_buffer_kwargs"]:
                     hyperparams[key] = eval(value)
-                elif key in ["learning_rate", "clip_range", "clip_range_vf", "delta_std"]:
+                elif key in ["learning_rate", "clip_range", "clip_range_vf"]:
                     if isinstance(value, str):
                         _, initial_value = value.split("_")
                         initial_value = float(initial_value)
                         hyperparams[key] = lambda progress_remaining: progress_remaining * initial_value
                     elif isinstance(value, (float, int)):
-                        # Negative value: ignore (ex: for clipping)
+                        # negative value: ignore (ex: for clipping)
                         if value < 0:
                             continue
                         hyperparams[key] = constant_fn(float(value))
                     else:
                         raise ValueError(f"Invalid value for {key}: {hyperparams[key]}")
+
+        # Convert to a desired batch_size (n_steps=2048 by default for SB3 PPO)
+        if "n_minibatches" in hyperparams:
+            hyperparams["batch_size"] = (hyperparams.get("n_steps", 2048) * num_envs) // hyperparams["n_minibatches"]
+            del hyperparams["n_minibatches"]
 
         return hyperparams
 
@@ -89,8 +99,8 @@ class Sb3VecEnvWrapper(VecEnv):
 
     Note:
         While Stable-Baselines3 supports Gym 0.26+ API, their vectorized environment
-        still uses the old API (i.e. it is closer to Gym 0.21). Thus, we implement
-        the old API for the vectorized environment.
+        uses their own API (i.e. it is closer to Gym 0.21). Thus, we implement
+        the API for the vectorized environment.
 
     We also add monitoring functionality that computes the un-discounted episode
     return and length. This information is added to the info dicts under key `episode`.
@@ -123,12 +133,13 @@ class Sb3VecEnvWrapper(VecEnv):
 
     """
 
-    def __init__(self, env: ManagerBasedRLEnv | DirectRLEnv):
+    def __init__(self, env: ManagerBasedRLEnv | DirectRLEnv, fast_variant: bool = True):
         """Initialize the wrapper.
 
         Args:
             env: The environment to wrap around.
-
+            fast_variant: Use fast variant for processing info
+                (Only episodic reward, lengths and truncation info are included)
         Raises:
             ValueError: When the environment is not an instance of :class:`ManagerBasedRLEnv` or :class:`DirectRLEnv`.
         """
@@ -140,6 +151,7 @@ class Sb3VecEnvWrapper(VecEnv):
             )
         # initialize the wrapper
         self.env = env
+        self.fast_variant = fast_variant
         # collect common information
         self.num_envs = self.unwrapped.num_envs
         self.sim_device = self.unwrapped.device
@@ -156,8 +168,8 @@ class Sb3VecEnvWrapper(VecEnv):
         # initialize vec-env
         VecEnv.__init__(self, self.num_envs, observation_space, action_space)
         # add buffer for logging episodic information
-        self._ep_rew_buf = torch.zeros(self.num_envs, device=self.sim_device)
-        self._ep_len_buf = torch.zeros(self.num_envs, device=self.sim_device)
+        self._ep_rew_buf = np.zeros(self.num_envs)
+        self._ep_len_buf = np.zeros(self.num_envs)
 
     def __str__(self):
         """Returns the wrapper name and the :attr:`env` representation string."""
@@ -190,11 +202,11 @@ class Sb3VecEnvWrapper(VecEnv):
 
     def get_episode_rewards(self) -> list[float]:
         """Returns the rewards of all the episodes."""
-        return self._ep_rew_buf.cpu().tolist()
+        return self._ep_rew_buf.tolist()
 
     def get_episode_lengths(self) -> list[int]:
         """Returns the number of time-steps of all the episodes."""
-        return self._ep_len_buf.cpu().tolist()
+        return self._ep_len_buf.tolist()
 
     """
     Operations - MDP
@@ -206,8 +218,8 @@ class Sb3VecEnvWrapper(VecEnv):
     def reset(self) -> VecEnvObs:  # noqa: D102
         obs_dict, _ = self.env.reset()
         # reset episodic information buffers
-        self._ep_rew_buf.zero_()
-        self._ep_len_buf.zero_()
+        self._ep_rew_buf = np.zeros(self.num_envs)
+        self._ep_len_buf = np.zeros(self.num_envs)
         # convert data types to numpy depending on backend
         return self._process_obs(obs_dict)
 
@@ -224,28 +236,30 @@ class Sb3VecEnvWrapper(VecEnv):
     def step_wait(self) -> VecEnvStepReturn:  # noqa: D102
         # record step information
         obs_dict, rew, terminated, truncated, extras = self.env.step(self._async_actions)
-        # update episode un-discounted return and length
-        self._ep_rew_buf += rew
-        self._ep_len_buf += 1
         # compute reset ids
         dones = terminated | truncated
-        reset_ids = (dones > 0).nonzero(as_tuple=False)
 
         # convert data types to numpy depending on backend
         # note: ManagerBasedRLEnv uses torch backend (by default).
         obs = self._process_obs(obs_dict)
-        rew = rew.detach().cpu().numpy()
+        rewards = rew.detach().cpu().numpy()
         terminated = terminated.detach().cpu().numpy()
         truncated = truncated.detach().cpu().numpy()
         dones = dones.detach().cpu().numpy()
+
+        reset_ids = dones.nonzero()[0]
+
+        # update episode un-discounted return and length
+        self._ep_rew_buf += rewards
+        self._ep_len_buf += 1
         # convert extra information to list of dicts
         infos = self._process_extras(obs, terminated, truncated, extras, reset_ids)
 
         # reset info for terminated environments
-        self._ep_rew_buf[reset_ids] = 0
+        self._ep_rew_buf[reset_ids] = 0.0
         self._ep_len_buf[reset_ids] = 0
 
-        return obs, rew, dones, infos
+        return obs, rewards, dones, infos
 
     def close(self):  # noqa: D102
         self.env.close()
@@ -279,7 +293,8 @@ class Sb3VecEnvWrapper(VecEnv):
             return env_method(*method_args, indices=indices, **method_kwargs)
 
     def env_is_wrapped(self, wrapper_class, indices=None):  # noqa: D102
-        raise NotImplementedError("Checking if environment is wrapped is not supported.")
+        # fake implementation to be able to use `evaluate_policy()` helper
+        return [False]
 
     def get_images(self):  # noqa: D102
         raise NotImplementedError("Getting images is not supported.")
@@ -306,6 +321,29 @@ class Sb3VecEnvWrapper(VecEnv):
         self, obs: np.ndarray, terminated: np.ndarray, truncated: np.ndarray, extras: dict, reset_ids: np.ndarray
     ) -> list[dict[str, Any]]:
         """Convert miscellaneous information into dictionary for each sub-environment."""
+        # faster version: only process env that terminated and add bootstrapping info
+        if self.fast_variant:
+            infos = [{} for _ in range(self.num_envs)]
+
+            for idx in reset_ids:
+                # fill-in episode monitoring info
+                infos[idx]["episode"] = {
+                    "r": self._ep_rew_buf[idx],
+                    "l": self._ep_len_buf[idx],
+                }
+
+                # fill-in bootstrap information
+                infos[idx]["TimeLimit.truncated"] = truncated[idx] and not terminated[idx]
+
+                # add information about terminal observation separately
+                if isinstance(obs, dict):
+                    terminal_obs = {key: value[idx] for key, value in obs.items()}
+                else:
+                    terminal_obs = obs[idx]
+                infos[idx]["terminal_observation"] = terminal_obs
+
+            return infos
+
         # create empty list of dictionaries to fill
         infos: list[dict[str, Any]] = [dict.fromkeys(extras.keys()) for _ in range(self.num_envs)]
         # fill-in information for each sub-environment

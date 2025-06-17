@@ -187,7 +187,7 @@ Stable-Baselines3
 
 -  Training an agent with
    `Stable-Baselines3 <https://stable-baselines3.readthedocs.io/en/master/index.html>`__
-   on ``Isaac-Cartpole-v0``:
+   on ``Isaac-Velocity-Flat-Unitree-A1-v0``:
 
    .. tab-set::
       :sync-group: os
@@ -200,14 +200,13 @@ Stable-Baselines3
             # install python module (for stable-baselines3)
             ./isaaclab.sh -i sb3
             # run script for training
-            # note: we set the device to cpu since SB3 doesn't optimize for GPU anyway
-            ./isaaclab.sh -p scripts/reinforcement_learning/sb3/train.py --task Isaac-Cartpole-v0 --headless --device cpu
+            ./isaaclab.sh -p scripts/reinforcement_learning/sb3/train.py --task Isaac-Velocity-Flat-Unitree-A1-v0 --headless
             # run script for playing with 32 environments
-            ./isaaclab.sh -p scripts/reinforcement_learning/sb3/play.py --task Isaac-Cartpole-v0 --num_envs 32 --checkpoint /PATH/TO/model.zip
+            ./isaaclab.sh -p scripts/reinforcement_learning/sb3/play.py --task Isaac-Velocity-Flat-Unitree-A1-v0 --num_envs 32 --checkpoint /PATH/TO/model.zip
             # run script for playing a pre-trained checkpoint with 32 environments
-            ./isaaclab.sh -p scripts/reinforcement_learning/sb3/play.py --task Isaac-Cartpole-v0 --num_envs 32 --use_pretrained_checkpoint
+            ./isaaclab.sh -p scripts/reinforcement_learning/sb3/play.py --task Isaac-Velocity-Flat-Unitree-A1-v0 --num_envs 32 --use_pretrained_checkpoint
             # run script for recording video of a trained agent (requires installing `ffmpeg`)
-            ./isaaclab.sh -p scripts/reinforcement_learning/sb3/play.py --task Isaac-Cartpole-v0 --headless --video --video_length 200
+            ./isaaclab.sh -p scripts/reinforcement_learning/sb3/play.py --task Isaac-Velocity-Flat-Unitree-A1-v0 --headless --video --video_length 200
 
       .. tab-item:: :icon:`fa-brands fa-windows` Windows
          :sync: windows
@@ -217,14 +216,13 @@ Stable-Baselines3
             :: install python module (for stable-baselines3)
             isaaclab.bat -i sb3
             :: run script for training
-            :: note: we set the device to cpu since SB3 doesn't optimize for GPU anyway
-            isaaclab.bat -p scripts\reinforcement_learning\sb3\train.py --task Isaac-Cartpole-v0 --headless --device cpu
+            isaaclab.bat -p scripts\reinforcement_learning\sb3\train.py --task Isaac-Velocity-Flat-Unitree-A1-v0 --headless
             :: run script for playing with 32 environments
-            isaaclab.bat -p scripts\reinforcement_learning\sb3\play.py --task Isaac-Cartpole-v0 --num_envs 32 --checkpoint /PATH/TO/model.zip
+            isaaclab.bat -p scripts\reinforcement_learning\sb3\play.py --task Isaac-Velocity-Flat-Unitree-A1-v0 --num_envs 32 --checkpoint /PATH/TO/model.zip
             :: run script for playing a pre-trained checkpoint with 32 environments
-            isaaclab.bat -p scripts\reinforcement_learning\sb3\play.py --task Isaac-Cartpole-v0 --num_envs 32 --use_pretrained_checkpoint
+            isaaclab.bat -p scripts\reinforcement_learning\sb3\play.py --task Isaac-Velocity-Flat-Unitree-A1-v0 --num_envs 32 --use_pretrained_checkpoint
             :: run script for recording video of a trained agent (requires installing `ffmpeg`)
-            isaaclab.bat -p scripts\reinforcement_learning\sb3\play.py --task Isaac-Cartpole-v0 --headless --video --video_length 200
+            isaaclab.bat -p scripts\reinforcement_learning\sb3\play.py --task Isaac-Velocity-Flat-Unitree-A1-v0 --headless --video --video_length 200
 
 All the scripts above log the training progress to `Tensorboard`_ in the ``logs`` directory in the root of
 the repository. The logs directory follows the pattern ``logs/<library>/<task>/<date-time>``, where ``<library>``

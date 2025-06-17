@@ -3,17 +3,16 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Script to train RL agent with Stable Baselines3.
 
-Since Stable-Baselines3 does not support buffers living on GPU directly,
-we recommend using smaller number of environments. Otherwise,
-there will be significant overhead in GPU->CPU transfer.
-"""
+"""Script to train RL agent with Stable Baselines3."""
 
 """Launch Isaac Sim Simulator first."""
 
 import argparse
+import contextlib
+import signal
 import sys
+from pathlib import Path
 
 from isaaclab.app import AppLauncher
 
@@ -25,7 +24,14 @@ parser.add_argument("--video_interval", type=int, default=2000, help="Interval b
 parser.add_argument("--num_envs", type=int, default=None, help="Number of environments to simulate.")
 parser.add_argument("--task", type=str, default=None, help="Name of the task.")
 parser.add_argument("--seed", type=int, default=None, help="Seed used for the environment")
+parser.add_argument("--log_interval", type=int, default=100_000, help="Log data every n timesteps.")
 parser.add_argument("--max_iterations", type=int, default=None, help="RL Policy training iterations.")
+parser.add_argument(
+    "--keep_all_info",
+    action="store_true",
+    default=False,
+    help="Use a slower SB3 wrapper but keep all the extra training info.",
+)
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
@@ -41,6 +47,24 @@ sys.argv = [sys.argv[0]] + hydra_args
 app_launcher = AppLauncher(args_cli)
 simulation_app = app_launcher.app
 
+
+def cleanup_pbar(*args):
+    """
+    A small helper to stop training and
+    cleanup progress bar properly on ctrl+c
+    """
+    import gc
+
+    tqdm_objects = [obj for obj in gc.get_objects() if "tqdm" in type(obj).__name__]
+    for tqdm_object in tqdm_objects:
+        if "tqdm_rich" in type(tqdm_object).__name__:
+            tqdm_object.close()
+    raise KeyboardInterrupt
+
+
+# disable KeyboardInterrupt override
+signal.signal(signal.SIGINT, cleanup_pbar)
+
 """Rest everything follows."""
 
 import gymnasium as gym
@@ -50,8 +74,7 @@ import random
 from datetime import datetime
 
 from stable_baselines3 import PPO
-from stable_baselines3.common.callbacks import CheckpointCallback
-from stable_baselines3.common.logger import configure
+from stable_baselines3.common.callbacks import CheckpointCallback, LogEveryNTimesteps
 from stable_baselines3.common.vec_env import VecNormalize
 
 from isaaclab.envs import (
@@ -104,8 +127,12 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     dump_pickle(os.path.join(log_dir, "params", "env.pkl"), env_cfg)
     dump_pickle(os.path.join(log_dir, "params", "agent.pkl"), agent_cfg)
 
+    # save command used to run the script
+    command = " ".join(sys.orig_argv)
+    (Path(log_dir) / "command.txt").write_text(command)
+
     # post-process agent configuration
-    agent_cfg = process_sb3_cfg(agent_cfg)
+    agent_cfg = process_sb3_cfg(agent_cfg, env_cfg.scene.num_envs)
     # read configurations about the agent-training
     policy_arch = agent_cfg.pop("policy")
     n_timesteps = agent_cfg.pop("n_timesteps")
@@ -130,31 +157,49 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         env = gym.wrappers.RecordVideo(env, **video_kwargs)
 
     # wrap around environment for stable baselines
-    env = Sb3VecEnvWrapper(env)
+    env = Sb3VecEnvWrapper(env, fast_variant=not args_cli.keep_all_info)
 
-    if "normalize_input" in agent_cfg:
+    norm_keys = {"normalize_input", "normalize_value", "clip_obs"}
+    norm_args = {}
+    for key in norm_keys:
+        if key in agent_cfg:
+            norm_args[key] = agent_cfg.pop(key)
+
+    if norm_args and norm_args.get("normalize_input"):
+        print(f"Normalizing input, {norm_args=}")
         env = VecNormalize(
             env,
             training=True,
-            norm_obs="normalize_input" in agent_cfg and agent_cfg.pop("normalize_input"),
-            norm_reward="normalize_value" in agent_cfg and agent_cfg.pop("normalize_value"),
-            clip_obs="clip_obs" in agent_cfg and agent_cfg.pop("clip_obs"),
+            norm_obs=norm_args["normalize_input"],
+            norm_reward=norm_args.get("normalize_value", False),
+            clip_obs=norm_args.get("clip_obs", 100.0),
             gamma=agent_cfg["gamma"],
             clip_reward=np.inf,
         )
 
     # create agent from stable baselines
-    agent = PPO(policy_arch, env, verbose=1, **agent_cfg)
-    # configure the logger
-    new_logger = configure(log_dir, ["stdout", "tensorboard"])
-    agent.set_logger(new_logger)
+    agent = PPO(policy_arch, env, verbose=1, tensorboard_log=log_dir, **agent_cfg)
 
     # callbacks for agent
     checkpoint_callback = CheckpointCallback(save_freq=1000, save_path=log_dir, name_prefix="model", verbose=2)
+    callbacks = [checkpoint_callback, LogEveryNTimesteps(n_steps=args_cli.log_interval)]
+
     # train the agent
-    agent.learn(total_timesteps=n_timesteps, callback=checkpoint_callback)
+    with contextlib.suppress(KeyboardInterrupt):
+        agent.learn(
+            total_timesteps=n_timesteps,
+            callback=callbacks,
+            progress_bar=True,
+            log_interval=None,
+        )
     # save the final model
     agent.save(os.path.join(log_dir, "model"))
+    print("Saving to:")
+    print(os.path.join(log_dir, "model.zip"))
+
+    if isinstance(env, VecNormalize):
+        print("Saving normalization")
+        env.save(os.path.join(log_dir, "model_vecnormalize.pkl"))
 
     # close the simulator
     env.close()
