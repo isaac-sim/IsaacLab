@@ -85,11 +85,14 @@ Prior to using CloudXR with Isaac Lab, please review the following system requir
 
   * Wifi 6 capable router
 
-    * A strong wireless connection is essential for a high-quality streaming experience
+    * A strong wireless connection is essential for a high-quality streaming experience. Refer to the
+      requirements of `Omniverse Spatial Streaming`_ for more details.
     * We recommend using a dedicated router, as concurrent usage will degrade quality
     * The Apple Vision Pro and Isaac Lab workstation must be IP-reachable from one another (note:
       many institutional wireless networks will prevent devices from reaching each other, resulting
       in the Apple Vision Pro being unable to find the Isaac Lab workstation on the network)
+
+.. _`Omniverse Spatial Streaming`: https://docs.omniverse.nvidia.com/avp/latest/setup-network.html
 
 
 .. _run-isaac-lab-with-the-cloudxr-runtime:
