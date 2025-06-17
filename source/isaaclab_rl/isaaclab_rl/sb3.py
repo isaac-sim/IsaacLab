@@ -38,11 +38,12 @@ Configuration Parser.
 """
 
 
-def process_sb3_cfg(cfg: dict) -> dict:
+def process_sb3_cfg(cfg: dict, num_envs: int) -> dict:
     """Convert simple YAML types to Stable-Baselines classes/components.
 
     Args:
         cfg: A configuration dictionary.
+        num_envs: the number of parallel environments (used to computed batch_size)
 
     Returns:
         A dictionary containing the converted configuration.
@@ -70,6 +71,11 @@ def process_sb3_cfg(cfg: dict) -> dict:
                         hyperparams[key] = constant_fn(float(value))
                     else:
                         raise ValueError(f"Invalid value for {key}: {hyperparams[key]}")
+
+        # Convert to a desired batch_size (n_steps=2048 by default for SB3 PPO)
+        if "n_minibatches" in hyperparams:
+            hyperparams["batch_size"] = (hyperparams.get("n_steps", 2048) * num_envs) // hyperparams["n_minibatches"]
+            del hyperparams["n_minibatches"]
 
         return hyperparams
 

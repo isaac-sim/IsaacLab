@@ -103,12 +103,13 @@ def main():
         checkpoint_path = args_cli.checkpoint
     log_dir = os.path.dirname(checkpoint_path)
 
-    agent_cfg = load_yaml(os.path.join(log_dir, "params", "agent.yaml"))
-    # post-process agent configuration
-    agent_cfg = process_sb3_cfg(agent_cfg)
-
     # create isaac environment
     env = gym.make(args_cli.task, cfg=env_cfg, render_mode="rgb_array" if args_cli.video else None)
+
+    # load the exact config used for training (instead of the default config)
+    agent_cfg = load_yaml(os.path.join(log_dir, "params", "agent.yaml"))
+    # post-process agent configuration
+    agent_cfg = process_sb3_cfg(agent_cfg, env.unwrapped.num_envs)
 
     # convert to single-agent instance if required by the RL algorithm
     if isinstance(env.unwrapped, DirectMARLEnv):
