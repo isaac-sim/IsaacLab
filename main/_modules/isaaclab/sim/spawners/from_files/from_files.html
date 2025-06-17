@@ -560,7 +560,13 @@
 <span class="kn">import</span><span class="w"> </span><span class="nn">isaacsim.core.utils.stage</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">stage_utils</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">omni.kit.commands</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">omni.log</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">pxr</span><span class="w"> </span><span class="kn">import</span> <span class="n">Gf</span><span class="p">,</span> <span class="n">Sdf</span><span class="p">,</span> <span class="n">Semantics</span><span class="p">,</span> <span class="n">Usd</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pxr</span><span class="w"> </span><span class="kn">import</span> <span class="n">Gf</span><span class="p">,</span> <span class="n">Sdf</span><span class="p">,</span> <span class="n">Usd</span>
+
+<span class="c1"># from Isaac Sim 4.2 onwards, pxr.Semantics is deprecated</span>
+<span class="k">try</span><span class="p">:</span>
+    <span class="kn">import</span><span class="w"> </span><span class="nn">Semantics</span>
+<span class="k">except</span> <span class="ne">ModuleNotFoundError</span><span class="p">:</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">pxr</span><span class="w"> </span><span class="kn">import</span> <span class="n">Semantics</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.sim</span><span class="w"> </span><span class="kn">import</span> <span class="n">converters</span><span class="p">,</span> <span class="n">schemas</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.sim.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">bind_physics_material</span><span class="p">,</span> <span class="n">bind_visual_material</span><span class="p">,</span> <span class="n">clone</span><span class="p">,</span> <span class="n">select_usd_variants</span>
