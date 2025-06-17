@@ -43,7 +43,7 @@ def process_sb3_cfg(cfg: dict, num_envs: int) -> dict:
 
     Args:
         cfg: A configuration dictionary.
-        num_envs: the number of parallel environments (used to computed batch_size)
+        num_envs: the number of parallel environments (used to compute `batch_size` for a desired number of minibatches)
 
     Returns:
         A dictionary containing the converted configuration.
