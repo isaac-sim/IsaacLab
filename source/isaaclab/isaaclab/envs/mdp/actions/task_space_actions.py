@@ -358,12 +358,17 @@ class OperationalSpaceControllerAction(ActionTerm):
         # create the joint effort tensor
         self._joint_efforts = torch.zeros(self.num_envs, self._num_DoF, device=self.device)
 
-        # save the scale as tensors
-        self._position_scale = torch.tensor(self.cfg.position_scale, device=self.device)
-        self._orientation_scale = torch.tensor(self.cfg.orientation_scale, device=self.device)
-        self._wrench_scale = torch.tensor(self.cfg.wrench_scale, device=self.device)
-        self._stiffness_scale = torch.tensor(self.cfg.stiffness_scale, device=self.device)
-        self._damping_ratio_scale = torch.tensor(self.cfg.damping_ratio_scale, device=self.device)
+        # save the scale as batched tensors
+        self._position_scale = torch.full((self.num_envs, 1), self.cfg.position_scale, device=self.device)
+        self._orientation_scale = torch.full((self.num_envs, 1), self.cfg.orientation_scale, device=self.device)
+        self._wrench_scale = torch.full((self.num_envs, 1), self.cfg.wrench_scale, device=self.device)
+        self._stiffness_scale = torch.full((self.num_envs, 1), self.cfg.stiffness_scale, device=self.device)
+        self._damping_ratio_scale = torch.full((self.num_envs, 1), self.cfg.damping_ratio_scale, device=self.device)
+
+        # save the clip thresholds as batched tensors
+        self._position_clip = torch.full((self.num_envs, 1), abs(self.cfg.position_clip), device=self.device)
+        self._orientation_clip = torch.full((self.num_envs, 1), abs(self.cfg.orientation_clip), device=self.device)
+        self._wrench_clip = torch.full((self.num_envs, 1), abs(self.cfg.wrench_clip), device=self.device)
 
         # indexes for the various command elements (e.g., pose_rel, stifness, etc.) within the command tensor
         self._pose_abs_idx = None
@@ -398,10 +403,12 @@ class OperationalSpaceControllerAction(ActionTerm):
 
     @property
     def jacobian_w(self) -> torch.Tensor:
+        """Geometric Jacobian of the ee body in world frame."""
         return self._asset.root_physx_view.get_jacobians()[:, self._jacobi_ee_body_idx, :, self._jacobi_joint_idx]
 
     @property
     def jacobian_b(self) -> torch.Tensor:
+        """Geometric Jacobian of the ee body in root frame."""
         jacobian = self.jacobian_w
         base_rot = self._asset.data.root_quat_w
         base_rot_matrix = math_utils.matrix_from_quat(math_utils.quat_inv(base_rot))
@@ -417,7 +424,7 @@ class OperationalSpaceControllerAction(ActionTerm):
         """Pre-processes the raw actions and sets them as commands for for operational space control.
 
         Args:
-            actions (torch.Tensor): The raw actions for operational space control. It is a tensor of
+            actions: The raw actions for operational space control. It is a tensor of
                 shape (``num_envs``, ``action_dim``).
         """
 
@@ -461,11 +468,11 @@ class OperationalSpaceControllerAction(ActionTerm):
         )
         self._asset.set_joint_effort_target(self._joint_efforts, joint_ids=self._joint_ids)
 
-    def reset(self, env_ids: Sequence[int] | None = None) -> None:
+    def reset(self, env_ids: Sequence[int] | None = None):
         """Resets the raw actions and the sensors if available.
 
         Args:
-            env_ids (Sequence[int] | None): The environment indices to reset. If ``None``, all environments are reset.
+            env_ids: The environment indices to reset. If ``None``, all environments are reset.
         """
         self._raw_actions[env_ids] = 0.0
         if self._contact_sensor is not None:
@@ -474,18 +481,82 @@ class OperationalSpaceControllerAction(ActionTerm):
             self._task_frame_transformer.reset(env_ids)
 
     """
+    Parameter modification functions.
+
+    """
+
+    def modify_clip_values(
+        self,
+        pos_clip: float | torch.Tensor | None = None,
+        ori_clip: float | torch.Tensor | None = None,
+        wrench_clip: float | torch.Tensor | None = None,
+    ):
+        """Modify the clipping values for the pose and wrench commands.
+
+        Args:
+            pos_clip: The new clipping value for the position command. If ``None``, the current value is kept.
+            ori_clip: The new clipping value for the orientation command. If ``None``, the current value is kept.
+            wrench_clip: The new clipping value for the wrench command. If ``None``, the current value is kept.
+        """
+
+        if pos_clip is not None:
+            pos_clip = self._validate_modified_param(pos_clip, "pos_clip")
+            self._position_clip.copy_(pos_clip)
+        if ori_clip is not None:
+            ori_clip = self._validate_modified_param(ori_clip, "ori_clip")
+            self._orientation_clip.copy_(ori_clip)
+        if wrench_clip is not None:
+            wrench_clip = self._validate_modified_param(wrench_clip, "wrench")
+            self._wrench_clip.copy_(wrench_clip)
+
+    def modify_scale_values(
+        self,
+        pos_scale: float | torch.Tensor | None = None,
+        ori_scale: float | torch.Tensor | None = None,
+        wrench_scale: float | torch.Tensor | None = None,
+        stiffness_scale: float | torch.Tensor | None = None,
+        damping_ratio_scale: float | torch.Tensor | None = None,
+    ):
+        """Modify the scaling factors for the commands.
+
+        Args:
+            pos_scale: New scaling factor for the position command. If ``None``, the current value is kept.
+            ori_scale: New scaling factor for the orientation command. If ``None``, the current value is kept.
+            wrench_scale: New scaling factor for the wrench command. If ``None``, the current value is kept.
+            stiffness_scale: New scaling factor for the stiffness command. If ``None``, the current value is kept.
+            damping_ratio_scale: New scaling factor for the damping ratio command. If ``None``, the current value is
+                kept.
+        """
+
+        if pos_scale is not None:
+            pos_scale = self._validate_modified_param(pos_scale, "pos_scale")
+            self._position_scale.copy_(pos_scale)
+        if ori_scale is not None:
+            ori_scale = self._validate_modified_param(ori_scale, "ori_scale")
+            self._orientation_scale.copy_(ori_scale)
+        if wrench_scale is not None:
+            wrench_scale = self._validate_modified_param(wrench_scale, "wrench_scale")
+            self._wrench_scale.copy_(wrench_scale)
+        if stiffness_scale is not None:
+            stiffness_scale = self._validate_modified_param(stiffness_scale, "stiffness_scale")
+            self._stiffness_scale.copy_(stiffness_scale)
+        if damping_ratio_scale is not None:
+            damping_ratio_scale = self._validate_modified_param(damping_ratio_scale, "damping_ratio_scale")
+            self._damping_ratio_scale.copy_(damping_ratio_scale)
+
+    """
     Helper functions.
 
     """
 
-    def _first_RigidObject_child_path(self):
+    def _first_RigidObject_child_path(self) -> str:
         """Finds the first ``RigidObject`` child under the articulation asset.
 
         Raises:
             ValueError: If no child ``RigidObject`` is found under the articulation asset.
 
         Returns:
-            str: The path to the first ``RigidObject`` child under the articulation asset.
+            The path to the first ``RigidObject`` child under the articulation asset.
         """
         child_prims = find_matching_prims(self._asset.cfg.prim_path + "/.*")
         rigid_child_prim = None
@@ -665,7 +736,7 @@ class OperationalSpaceControllerAction(ActionTerm):
         """Pre-processes the raw actions for operational space control.
 
         Args:
-            actions (torch.Tensor): The raw actions for operational space control. It is a tensor of
+            actions: The raw actions for operational space control. It is a tensor of
                 shape (``num_envs``, ``action_dim``).
         """
         # Store the raw actions. Please note that the actions contain task space targets
@@ -677,11 +748,44 @@ class OperationalSpaceControllerAction(ActionTerm):
         if self._pose_abs_idx is not None:
             self._processed_actions[:, self._pose_abs_idx : self._pose_abs_idx + 3] *= self._position_scale
             self._processed_actions[:, self._pose_abs_idx + 3 : self._pose_abs_idx + 7] *= self._orientation_scale
+            # Do the clipping on the delta pose wrt the default zero pose
+            zero_pose = torch.zeros(self.num_envs, 7, device=self.device)  # Rotation part quaternion
+            zero_pose[:, 3] = 1.0  # Unit quad has w=1
+            delta_pose = torch.zeros(self.num_envs, 6, device=self.device)  # Rotation part axis-angle
+            delta_pose[:, :3], delta_pose[:, 3:] = math_utils.compute_pose_error(
+                zero_pose[:, :3],
+                zero_pose[:, 3:7],
+                self._processed_actions[:, self._pose_abs_idx : self._pose_abs_idx + 3],
+                self._processed_actions[:, self._pose_abs_idx + 3 : self._pose_abs_idx + 7],
+            )
+            delta_pose[:, :3] = torch.clamp(delta_pose[:, :3], -self._position_clip, self._position_clip)
+            delta_pose[:, 3:] = self._clamp_angleaxis(delta_pose[:, 3:], self._orientation_clip)
+            (
+                self._processed_actions[:, self._pose_abs_idx : self._pose_abs_idx + 3],
+                self._processed_actions[:, self._pose_abs_idx + 3 : self._pose_abs_idx + 7],
+            ) = math_utils.apply_delta_pose(
+                zero_pose[:, :3],
+                zero_pose[:, 3:7],
+                delta_pose,
+            )
         if self._pose_rel_idx is not None:
             self._processed_actions[:, self._pose_rel_idx : self._pose_rel_idx + 3] *= self._position_scale
+            self._processed_actions[:, self._pose_rel_idx : self._pose_rel_idx + 3] = torch.clamp(
+                self._processed_actions[:, self._pose_rel_idx : self._pose_rel_idx + 3],
+                min=-self._position_clip,
+                max=self._position_clip,
+            )
             self._processed_actions[:, self._pose_rel_idx + 3 : self._pose_rel_idx + 6] *= self._orientation_scale
+            self._processed_actions[:, self._pose_rel_idx + 3 : self._pose_rel_idx + 6] = self._clamp_angleaxis(
+                self._processed_actions[:, self._pose_rel_idx + 3 : self._pose_rel_idx + 6], self._orientation_clip
+            )
         if self._wrench_abs_idx is not None:
             self._processed_actions[:, self._wrench_abs_idx : self._wrench_abs_idx + 6] *= self._wrench_scale
+            self._processed_actions[:, self._wrench_abs_idx : self._wrench_abs_idx + 6] = torch.clamp(
+                self._processed_actions[:, self._wrench_abs_idx : self._wrench_abs_idx + 6],
+                min=-self._wrench_clip,
+                max=self._wrench_clip,
+            )
         if self._stiffness_idx is not None:
             self._processed_actions[:, self._stiffness_idx : self._stiffness_idx + 6] *= self._stiffness_scale
             self._processed_actions[:, self._stiffness_idx : self._stiffness_idx + 6] = torch.clamp(
@@ -698,3 +802,63 @@ class OperationalSpaceControllerAction(ActionTerm):
                 min=self.cfg.controller_cfg.motion_damping_ratio_limits_task[0],
                 max=self.cfg.controller_cfg.motion_damping_ratio_limits_task[1],
             )
+
+    def _validate_modified_param(self, param: float | torch.Tensor, name: str) -> torch.Tensor:
+        """
+        Validates and formats the input for parameter modification functions.
+
+        The param can be:
+        - A scalar (0D tensor or a 1D tensor with a single element): expanded to shape (``self.num_envs``, 1)
+        - A 1D tensor with shape (``self.num_envs``,): unsqueezed to shape (``self.num_envs``, 1)
+        - A 2D tensor with shape (``self.num_envs``, 1): used as is
+
+        Args:
+            param: The input param value (scalar or tensor) to validate.
+            name: A descriptive name for error messages.
+
+        Returns:
+            The output param, a tensor of shape (``self.num_envs``, 1).
+
+        Raises:
+            ValueError: If `param` is not a scalar or a 1D/2D tensor with the expected size.
+        """
+
+        if not isinstance(param, torch.Tensor):
+            param = torch.tensor(param, device=self.device)
+
+        if param.ndim == 0:
+            return param.expand(self.num_envs, 1)
+        elif param.ndim == 1:
+            if param.shape[0] == 1:
+                # 1D tensor with a single element, treat it as a scalar.
+                return param.squeeze(0).expand(self.num_envs, 1)
+            elif param.shape[0] == self.num_envs:
+                return param.unsqueeze(1)
+            else:
+                raise ValueError(f"{name} must have 1 or {self.num_envs} elements, got {param.shape[0]}")
+        elif param.ndim == 2:
+            if param.shape != (self.num_envs, 1):
+                raise ValueError(f"{name} must have shape ({self.num_envs}, 1), got {param.shape}")
+            return param
+        raise ValueError(f"{name} must be a scalar or 1D/2D tensor")
+
+    def _clamp_angleaxis(self, v: torch.Tensor, max_angle: float | torch.Tensor) -> torch.Tensor:
+        """
+        Returns the angle-clamped version of an angle-axis rotation vector.
+
+        Args:
+            v: The angle-axis rotation vector, tensor of shape (``self.num_envs``, 3).
+            max_angle: The angle to clamp the vector norm to, tensor of shape (``self.num_envs``, 1) or a scalar.
+        Returns:
+            Clamped angle axis vector, tensor of shape (``self.num_envs``, 3).
+        """
+        angle = torch.linalg.norm(v, dim=-1, keepdim=True)
+        max_angle = torch.as_tensor(max_angle, dtype=v.dtype, device=v.device)
+
+        # if it is per-sample (N,) or (N,1), add the singleton so it broadcasts with angle
+        if max_angle.ndim == angle.ndim - 1:
+            max_angle = max_angle.unsqueeze(-1)
+
+        # scale = min(angle, max_angle) / angle  (and 1 for zero vectors)
+        scale = torch.where(angle > 0, torch.minimum(angle, max_angle) / angle, torch.ones_like(angle))
+        return v * scale

@@ -304,6 +304,20 @@ class OperationalSpaceControllerActionCfg(ActionTermCfg):
     damping_ratio_scale: float = 1.0
     """Scale factor for the damping ratio commands. Defaults to 1.0."""
 
+    position_clip: float = float("inf")
+    """Clip threshold factor for the position target. Defaults to +∞ (no clipping)."""
+
+    orientation_clip: float = float("inf")
+    """Clip threshold factor for the orientation target. Defaults to +∞ (no clipping).
+
+    Note: The clipping operates on the *magnitude* of the delta angle-axis vector
+        (the rotation angle), and it behaves the same for both absolute (`pose_abs`)
+        and relative (`pose_rel`) orientation targets.
+    """
+
+    wrench_clip: float = float("inf")
+    """Clip threshold factor for the wrench target. Defaults to +∞ (no clipping)."""
+
     nullspace_joint_pos_target: str = "none"
     """The joint targets for the null-space control: ``"none"``, ``"zero"``, ``"default"``, ``"center"``.
 
