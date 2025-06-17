@@ -1,10 +1,10 @@
+# Adapted from rsl_rl config
 seed: 42
-
 policy: "MlpPolicy"
 n_timesteps: !!float 5e7
 # For 4 minibatches with 4096 envs
-# mini-batchsize = (n_envs * n_steps) / n_minibatches
-batch_size: 32768
+# batch_size = (n_envs * n_steps) / n_minibatches = 32768
+n_minibatches: 4
 n_steps: 32
 gamma: 0.99
 learning_rate: !!float 5e-4
@@ -16,5 +16,7 @@ max_grad_norm: 1.0
 vf_coef: 0.5
 policy_kwargs: "dict(
   activation_fn=nn.ELU,
-  net_arch=dict(pi=[400, 200, 100], vf=[400, 200, 100])
+  net_arch=[400, 200, 100],
+  optimizer_kwargs=dict(eps=1e-8),
+  ortho_init=False,
   )"
