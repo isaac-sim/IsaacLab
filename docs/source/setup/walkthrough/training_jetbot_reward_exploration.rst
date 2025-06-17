@@ -20,7 +20,7 @@ the x axis, so we apply the ``root_link_quat_w`` to ``[1,0,0]`` to get the forwa
         observations = {"policy": obs}
         return observations
 
- So now what should the reward be?
+So now what should the reward be?
 
 When the robot is behaving as desired, it will be driving at full speed in the direction of the command. If we reward both
 "driving forward" and "alignment to the command", then maximizing that combined signal should result in driving to the command... right?
