@@ -160,7 +160,7 @@ def get_sdf_reward(
 
     sdf_reward = -torch.log(sdf_reward)
 
-    gp.collect() # Force garbage collection to free memory
+    gc.collect() # Force garbage collection to free memory
     return sdf_reward
 
 
