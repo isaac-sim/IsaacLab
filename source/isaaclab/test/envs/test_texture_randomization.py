@@ -242,13 +242,14 @@ class TestTextureRandomization(unittest.TestCase):
 
     def test_texture_randomization_fallback(self):
         """Test texture randomization fallback mechanism when /visuals pattern doesn't match."""
-        
+
         def mock_find_matching_prim_paths(pattern):
             """Mock function that simulates a case where /visuals pattern doesn't match."""
             # If the pattern contains '/visuals', return empty list to trigger fallback
-            if pattern.endswith('/visuals'):
+            if pattern.endswith("/visuals"):
                 return []
-        
+            return None
+
         for device in ["cpu", "cuda"]:
             with self.subTest(device=device):
                 # create a new stage
@@ -260,7 +261,9 @@ class TestTextureRandomization(unittest.TestCase):
                 env_cfg.scene.replicate_physics = False
                 env_cfg.sim.device = device
 
-                with patch.object(mdp.events.sim_utils, 'find_matching_prim_paths', side_effect=mock_find_matching_prim_paths):
+                with patch.object(
+                    mdp.events.sim_utils, "find_matching_prim_paths", side_effect=mock_find_matching_prim_paths
+                ):
                     # This should trigger the fallback mechanism and log the fallback message
                     env = ManagerBasedEnv(cfg=env_cfg)
 
