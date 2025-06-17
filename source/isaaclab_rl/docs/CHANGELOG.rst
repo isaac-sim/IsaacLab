@@ -9,6 +9,7 @@ Changed
 * Optimized Stable-Baselines3 wrapper ``Sb3VecEnvWrapper`` (now 4x faster) by using Numpy buffers and only logging episode and truncation information by default.
 * Upgraded minimum SB3 version to 2.6.0 and added optional dependencies for progress bar
 
+
 0.1.4 (2025-04-10)
 ~~~~~~~~~~~~~~~~~~
 
@@ -37,6 +38,7 @@ Added
 ^^^^^
 
 * Added symmetry and curiosity-based exploration configurations for RSL-RL wrapper.
+
 
 0.1.1 (2025-03-10)
 ~~~~~~~~~~~~~~~~~~

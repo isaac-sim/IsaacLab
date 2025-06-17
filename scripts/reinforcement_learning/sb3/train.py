@@ -4,11 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 
-"""Script to train RL agent with Stable Baselines3.
-
-Example: ./isaaclab.sh -p scripts/reinforcement_learning/sb3/train.py
-    --task Isaac-Velocity-Flat-Unitree-A1-v0 --num_envs 2048 --headless --seed 2
-"""
+"""Script to train RL agent with Stable Baselines3."""
 
 """Launch Isaac Sim Simulator first."""
 

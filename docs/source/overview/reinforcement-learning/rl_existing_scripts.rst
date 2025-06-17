@@ -200,7 +200,7 @@ Stable-Baselines3
             # install python module (for stable-baselines3)
             ./isaaclab.sh -i sb3
             # run script for training
-            ./isaaclab.sh -p scripts/reinforcement_learning/sb3/train.py --num_envs 2048 --task Isaac-Velocity-Flat-Unitree-A1-v0 --headless
+            ./isaaclab.sh -p scripts/reinforcement_learning/sb3/train.py --task Isaac-Velocity-Flat-Unitree-A1-v0 --headless
             # run script for playing with 32 environments
             ./isaaclab.sh -p scripts/reinforcement_learning/sb3/play.py --task Isaac-Velocity-Flat-Unitree-A1-v0 --num_envs 32 --checkpoint /PATH/TO/model.zip
             # run script for playing a pre-trained checkpoint with 32 environments
@@ -216,7 +216,7 @@ Stable-Baselines3
             :: install python module (for stable-baselines3)
             isaaclab.bat -i sb3
             :: run script for training
-            isaaclab.bat -p scripts\reinforcement_learning\sb3\train.py --num_envs 2048 --task Isaac-Velocity-Flat-Unitree-A1-v0 --headless
+            isaaclab.bat -p scripts\reinforcement_learning\sb3\train.py --task Isaac-Velocity-Flat-Unitree-A1-v0 --headless
             :: run script for playing with 32 environments
             isaaclab.bat -p scripts\reinforcement_learning\sb3\play.py --task Isaac-Velocity-Flat-Unitree-A1-v0 --num_envs 32 --checkpoint /PATH/TO/model.zip
             :: run script for playing a pre-trained checkpoint with 32 environments
