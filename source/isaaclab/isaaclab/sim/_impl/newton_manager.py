@@ -132,23 +132,13 @@ class NewtonManager:
 
     @classmethod
     def step(cls):
-        print("--------------------------------")
-        print("Before simulation steps")
-        print(f"NewtonManager._state_0.joint_q : {NewtonManager._state_0.joint_q[:2]}")
-        print(f"NewtonManager._state_0.joint_qd: {NewtonManager._state_0.joint_qd[:2]}")
-        print(f"NewtonManager._state_1.joint_q : {NewtonManager._state_1.joint_q[:2]}")
-        print(f"NewtonManager._state_1.joint_qd: {NewtonManager._state_1.joint_qd[:2]}")
         with wp.ScopedTimer("step", active=False):
             if NewtonManager._use_cuda_graph:
                 wp.capture_launch(NewtonManager._graph)
             else:
                 NewtonManager.simulate()
         NewtonManager._sim_time += (NewtonManager._sim_dt * NewtonManager._decimation)
-        print("After simulation steps")
-        print(f"NewtonManager._state_0.joint_q : {NewtonManager._state_0.joint_q[:2]}")
-        print(f"NewtonManager._state_0.joint_qd: {NewtonManager._state_0.joint_qd[:2]}")
-        print(f"NewtonManager._state_1.joint_q : {NewtonManager._state_1.joint_q[:2]}")
-        print(f"NewtonManager._state_1.joint_qd: {NewtonManager._state_1.joint_qd[:2]}")
+
     @classmethod
     def set_simulation_dt(cls, sim_dt, decimation):
         NewtonManager._sim_dt = sim_dt

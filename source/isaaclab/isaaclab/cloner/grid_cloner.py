@@ -168,6 +168,7 @@ class GridCloner(Cloner):
                 (self._spacing, self._spacing, 0.0),
                 # USD importer args
                 collapse_fixed_joints=False,
+                joint_ordering="dfs"
             )
             NewtonManager.set_builder(builder)
 
