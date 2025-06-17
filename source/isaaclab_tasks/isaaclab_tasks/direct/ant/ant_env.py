@@ -23,7 +23,7 @@ class AntEnvCfg(DirectRLEnvCfg):
     # env
     episode_length_s = 15.0
     decimation = 2
-    action_scale = 0.5
+    action_scale = 0.5 * 10
     action_space = 8
     observation_space = 36
     state_space = 0
