@@ -279,7 +279,6 @@ class ContactSensor(SensorBase):
         # construct regex expression for the body names
         body_names_regex = r"(" + "|".join(body_names) + r")"
         body_names_regex = f"{self.cfg.prim_path.rsplit('/', 1)[0]}/{body_names_regex}$"
-        body_names_regex = "/World/envs/env_.*/Robot/(base/Capsule|LF_HIP|LF_THIGH|LF_SHANK|LF_FOOT|LH_HIP|LH_THIGH|LH_SHANK|LH_FOOT|RF_HIP|RF_THIGH|RF_SHANK|RF_FOOT|RH_HIP|RH_THIGH|RH_SHANK|RH_FOOT)$",
         # convert regex expressions to glob expressions for PhysX
         #body_names_glob = body_names_regex.replace(".*", "*")
         filter_prim_paths_glob = [expr.replace(".*", "*") for expr in self.cfg.filter_prim_paths_expr]
