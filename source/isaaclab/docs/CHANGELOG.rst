@@ -1,13 +1,22 @@
 Changelog
 ---------
 
+0.40.7 (2025-06-18)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added RTX LiDAR :class:`~isaaclab.sensors.rtx_lidar.rtx_lidar` and corresponding observations in :class:`~isaaclab.envs.mdp.observations`
+
+
 0.40.6 (2025-06-12)
 ~~~~~~~~~~~~~~~~~~~
 
 Added
 ^^^^^
 
-* Added RTX LiDAR `~isaaclab.sensor` and corresponding observations in `~isaaclab.mdp.observations`
+* Added RTX LiDAR :class:`~isaaclab.sensors.rtx_lidar.rtx_lidar` and corresponding observations in :class:`~isaaclab.envs.mdp.observations`
 
 
 Fixed
