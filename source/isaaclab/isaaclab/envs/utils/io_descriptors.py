@@ -1,16 +1,24 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 from __future__ import annotations
 
-from isaaclab.utils import configclass
 from collections.abc import Callable
-from typing import Any, Concatenate, ParamSpec, TypeVar, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Concatenate, ParamSpec, TypeVar
+
+from isaaclab.utils import configclass
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
+    from isaaclab.assets.articulation import Articulation
     import torch
 
+import dataclasses
 import functools
 import inspect
-import dataclasses
+
 
 @configclass
 class GenericActionIODescriptor:
@@ -22,6 +30,7 @@ class GenericActionIODescriptor:
     dtype: str = None
     action_type: str = None
     extras: dict[str, Any] = {}
+
 
 @configclass
 class GenericIODescriptor:
