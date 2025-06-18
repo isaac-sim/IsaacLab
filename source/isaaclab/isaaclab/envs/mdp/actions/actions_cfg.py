@@ -367,44 +367,42 @@ class OperationalSpaceControllerActionCfg(ActionTermCfg):
         ``OperationalSpaceControllerCfg``.
     """
 
-    # TODO: Here the clip effects are not homogeneous, but they have unique names that relate
-    # to specific control modes so it's fine to me.
+    # TODO: Here the clip effects are not homogeneous, I don't like that depending on the controller mode the behavior
+    # is different. It makes it hard to understand what does what. Should we have an explicit velocity clip? 
 
-    clip_pose_abs: list[tuple[float, float]] | None = None
-    """Clip range for the absolute pose targets. Defaults to None for no clipping.
-
-    The expected format is a list of tuples, each containing two values. This effectively bounds
-    the reachable range of the end-effector in the world frame.
+    clip_position: list[tuple[float, float]] | None = None
+    """Clip range for the position targets. Defaults to None for no clipping.
+    
+    The expected format is a list of tuples, each containing two values. When using the controller in ``"abs"`` mode
+    this limits the reachable range of the end-effector in the world frame. When using the controller in ``"rel"`` mode
+    this limits the maximum velocity of the end-effector in the task frame. This must match the number of active axes
+    in :attr:`controller_cfg.motion_control_axes_task`.
 
     Example:
     ..code-block:: python
-        clip_pose_abs = [
+        clip_position = [
             (min_x, max_x),
             (min_y, max_y),
             (min_z, max_z),
+        ]
+    """
+    clip_orientation: list[tuple[float, float]] | None = None
+    """Clip range for the orientation targets. Defaults to None for no clipping.
+
+    The expected format is a list of tuples, each containing two values. When using the controller in ``"abs"`` mode
+    this limits the reachable range of the end-effector in the world frame. When using the controller in ``"rel"`` mode
+    this limits the maximum velocity of the end-effector in the task frame. This must match the number of active axes
+    in :attr:`controller_cfg.motion_control_axes_task`.
+
+    Example:
+    ..code-block:: python
+        clip_orientation = [
             (min_roll, max_roll),
             (min_pitch, max_pitch),
             (min_yaw, max_yaw),
         ]
     """
-    clip_pose_rel: list[tuple[float, float]] | None = None
-    """Clip range for the relative pose targets. Defaults to None for no clipping.
-
-    The expected format is a list of tuples, each containing two values. This effectively limits
-    the end-effector's velocity in the task frame.
-
-    Example:
-    ..code-block:: python
-        clip_pose_rel = [
-            (min_x, max_x),
-            (min_y, max_y),
-            (min_z, max_z),
-            (min_roll, max_roll),
-            (min_pitch, max_pitch),
-            (min_yaw, max_yaw),
-        ]
-    """
-    clip_wrench_abs: list[tuple[float, float]] | None = None
+    clip_wrench: list[tuple[float, float]] | None = None
     """Clip range for the absolute wrench targets. Defaults to None for no clipping.
 
     The expected format is a list of tuples, each containing two values. This effectively limits
@@ -412,7 +410,7 @@ class OperationalSpaceControllerActionCfg(ActionTermCfg):
 
     Example:
     ..code-block:: python
-        clip_wrench_abs = [
+        clip_wrench = [
             (min_fx, max_fx),
             (min_fy, max_fy),
             (min_fz, max_fz),
