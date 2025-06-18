@@ -38,9 +38,7 @@ from isaaclab_tasks.utils import parse_env_cfg
 def main():
     """Random actions agent with Isaac Lab environment."""
     # create environment configuration
-    env_cfg = parse_env_cfg(
-        args_cli.task, device=args_cli.device, num_envs=1, use_fabric=True
-    )
+    env_cfg = parse_env_cfg(args_cli.task, device=args_cli.device, num_envs=1, use_fabric=True)
     # create environment
     env = gym.make(args_cli.task, cfg=env_cfg)
 
