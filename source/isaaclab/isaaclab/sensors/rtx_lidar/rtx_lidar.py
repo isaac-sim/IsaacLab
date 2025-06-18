@@ -83,7 +83,7 @@ class RtxLidar(SensorBase):
         self._data = RtxLidarData()
 
     def __del__(self):
-        """Unsubscribes from callbacks and detach from the replicator registry and clean up any custom lidar configs."""
+        """Unsubscribes from callbacks and detach from the replicator registry and clean up any custom rtx lidar configs."""
         # unsubscribe callbacks
         super().__del__()
         # delete from replicator registry
@@ -122,7 +122,7 @@ class RtxLidar(SensorBase):
 
     @property
     def render_product_paths(self) -> list[str]:
-        """The path of the render products for the cameras.
+        """The path of the render products for the RTX LiDAR.
 
         This can be used via replicator interfaces to attach to writes or external annotator registry.
         """
@@ -135,7 +135,7 @@ class RtxLidar(SensorBase):
     def reset(self, env_ids: Sequence[int] | None = None):
         if not self._is_initialized:
             raise RuntimeError(
-                "Camera could not be initialized. Please ensure --enable_cameras is used to enable rendering."
+                "RTX LiDAR could not be initialized. Please ensure --enable_cameras is used to enable rendering."
             )
         # reset the timestamps
         super().reset(env_ids)
@@ -164,7 +164,7 @@ class RtxLidar(SensorBase):
         carb_settings_iface = carb.settings.get_settings()
         if not carb_settings_iface.get("/isaaclab/cameras_enabled"):
             raise RuntimeError(
-                "A camera was spawned without the --enable_cameras flag. Please use --enable_cameras to enable"
+                "A RTX LiDAR was spawned without the --enable_cameras flag. Please use --enable_cameras to enable"
                 " rendering."
             )
 
@@ -199,7 +199,7 @@ class RtxLidar(SensorBase):
             lidar_prim = stage.GetPrimAtPath(lidar_prim_path)
             # Check if prim is a camera
             if not lidar_prim.IsA(UsdGeom.Camera):
-                raise RuntimeError(f"Prim at path '{lidar_prim_path}' is not a Camera.")
+                raise RuntimeError(f"Prim at path '{lidar_prim_path}' is not a Camera (which is the base prim for RTXLiDAR).")
             # Add to list
             sensor_prim = UsdGeom.Camera(lidar_prim)
             self._sensor_prims.append(sensor_prim)
@@ -216,27 +216,27 @@ class RtxLidar(SensorBase):
                 "outputTimestamp": True,  # always turn on timestamp field
             }
 
+            DATA_TYPE_TO_PARAM_KEY = {
+                "azimuth": "outputAzimuth",
+                "elevation": "outputElevation",
+                "normal": "outputNormal",
+                "velocity": "outputVelocity",
+                "beamId": "outputBeamId",
+                "emitterId": "outputEmitterId",
+                "materialId": "outputMaterialId",
+                "objectId": "outputObjectId",
+            }
+
             # create annotator node
             annotator_type = "RtxSensorCpuIsaacCreateRTXLidarScanBuffer"
             rep_annotator = rep.AnnotatorRegistry.get_annotator(annotator_type)
+
             # turn on any optional data type returns
+
             for name in self.cfg.optional_data_types:
-                if name == "azimuth":
-                    init_params["outputAzimuth"] = True
-                elif name == "elevation":
-                    init_params["outputElevation"] = True
-                elif name == "normal":
-                    init_params["outputNormal"] = True
-                elif name == "velocity":
-                    init_params["outputVelocity"] = True
-                elif name == "beamId":
-                    init_params["outputBeamId"] = True
-                elif name == "emitterId":
-                    init_params["outputEmitterId"] = True
-                elif name == "materialId":
-                    init_params["outputMaterialId"] = True
-                elif name == "objectId":
-                    init_params["outputObjectId"] = True
+                param_key = DATA_TYPE_TO_PARAM_KEY.get(name)
+                if param_key:
+                    init_params[param_key] = True
 
             # transform the data output to be relative to sensor frame
             if self.cfg.data_frame == "sensor":
@@ -312,7 +312,7 @@ class RtxLidar(SensorBase):
     def _process_annotator_output(self, name: str, output: Any) -> tuple[torch.tensor, dict | None]:
         """Process the annotator output.
 
-        This function is called after the data has been collected from all the cameras.
+        This function is called after the data has been collected from all the RTXLiDARs.
         """
         # extract info and data from the output
         if isinstance(output, dict):
@@ -321,13 +321,9 @@ class RtxLidar(SensorBase):
         else:
             data = output
             info = None
+
         # convert data into torch tensor
         data = convert_to_torch(data, device=self.device)
-
-        # process data for different segmentation types
-        # Note: Replicator returns raw buffers of dtype int32 for segmentation types
-        #   so we need to convert them to uint8 4 channel images for colorized types
-
         return data, info
 
     """

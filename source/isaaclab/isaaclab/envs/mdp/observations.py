@@ -311,7 +311,7 @@ def point_cloud(
         data_type: The data type to pull from the desired lidar. Defaults to "data".
 
     Returns:
-        The point cloud in the sensor frame. Shape is (num_envs, idk)
+        The point cloud in the sensor frame. Shape is (num_envs, num_points, 3)
     """
 
     sensor: RtxLidar = env.scene[sensor_cfg.name]

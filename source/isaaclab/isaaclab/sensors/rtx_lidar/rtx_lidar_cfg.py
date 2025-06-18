@@ -45,11 +45,11 @@ class RtxLidarCfg(SensorBaseCfg):
     Please refer to the :class:'RtxLidar' and :class:'RtxLidarData' for a list and description of available data types.
     """
     data_frame: Literal["world", "sensor"] = "world"
-    """The frame to represent the output.data.
+    """The frame to represent the :attr:`RtxLidar.data` in.
 
-    If 'world' the output.data will be in the world frame. If 'sensor' the output.data will be in the sensor frame.
+    If 'world' the :attr:`RtxLidar.data` will be in the world frame. If 'sensor' the :attr:`RtxLidar.data` will be in the sensor frame.
     """
-    spawn: LidarCfg = MISSING
+    spawn: LidarCfg | None = None
     """Spawn configuration for the asset.
 
     If None, then the prim is not spawned by the asset. Instead, it is assumed that the
