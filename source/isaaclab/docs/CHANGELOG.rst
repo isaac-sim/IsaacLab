@@ -4,6 +4,12 @@ Changelog
 0.40.6 (2025-06-12)
 ~~~~~~~~~~~~~~~~~~~
 
+Added
+^^^^^
+
+* Added RTX LiDAR `~isaaclab.sensor` and corresponding observations in `~isaaclab.mdp.observations`
+
+
 Fixed
 ^^^^^
 
