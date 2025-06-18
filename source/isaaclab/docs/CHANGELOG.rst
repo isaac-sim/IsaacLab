@@ -13,12 +13,6 @@ Added
 0.40.6 (2025-06-12)
 ~~~~~~~~~~~~~~~~~~~
 
-Added
-^^^^^
-
-* Added RTX LiDAR :class:`~isaaclab.sensors.rtx_lidar.rtx_lidar` and corresponding observations in :class:`~isaaclab.envs.mdp.observations`
-
-
 Fixed
 ^^^^^
 
