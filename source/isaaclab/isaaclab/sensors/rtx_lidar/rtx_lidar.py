@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -199,7 +199,9 @@ class RtxLidar(SensorBase):
             lidar_prim = stage.GetPrimAtPath(lidar_prim_path)
             # Check if prim is a camera
             if not lidar_prim.IsA(UsdGeom.Camera):
-                raise RuntimeError(f"Prim at path '{lidar_prim_path}' is not a Camera (which is the base prim for RTXLiDAR).")
+                raise RuntimeError(
+                    f"Prim at path '{lidar_prim_path}' is not a Camera (which is the base prim for RTXLiDAR)."
+                )
             # Add to list
             sensor_prim = UsdGeom.Camera(lidar_prim)
             self._sensor_prims.append(sensor_prim)
