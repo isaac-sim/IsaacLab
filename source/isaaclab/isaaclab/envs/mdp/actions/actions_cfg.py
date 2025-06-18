@@ -25,12 +25,18 @@ class JointActionCfg(ActionTermCfg):
 
     joint_names: list[str] = MISSING
     """List of joint names or regex expressions that the action will be mapped to."""
+
     scale: float | dict[str, float] = 1.0
     """Scale factor for the action (float or dict of regex expressions). Defaults to 1.0."""
+
     offset: float | dict[str, float] = 0.0
     """Offset factor for the action (float or dict of regex expressions). Defaults to 0.0."""
+
     preserve_order: bool = False
     """Whether to preserve the order of the joint names in the action output. Defaults to False."""
+
+    clip: dict[str, tuple] | None = None
+    """Clip range for the action (dict of regex expressions). Defaults to None."""
 
 
 @configclass
@@ -124,6 +130,9 @@ class JointPositionToLimitsActionCfg(ActionTermCfg):
         This operation is performed after applying the scale factor.
     """
 
+    clip: dict[str, tuple] | None = None
+    """Clip range for the action (dict of regex expressions). Defaults to None."""
+
 
 @configclass
 class EMAJointPositionToLimitsActionCfg(JointPositionToLimitsActionCfg):
@@ -155,8 +164,10 @@ class BinaryJointActionCfg(ActionTermCfg):
 
     joint_names: list[str] = MISSING
     """List of joint names or regex expressions that the action will be mapped to."""
+
     open_command_expr: dict[str, float] = MISSING
     """The joint command to move to *open* configuration."""
+
     close_command_expr: dict[str, float] = MISSING
     """The joint command to move to *close* configuration."""
 
@@ -197,16 +208,27 @@ class NonHolonomicActionCfg(ActionTermCfg):
 
     body_name: str = MISSING
     """Name of the body which has the dummy mechanism connected to."""
+
     x_joint_name: str = MISSING
     """The dummy joint name in the x direction."""
+
     y_joint_name: str = MISSING
     """The dummy joint name in the y direction."""
+
     yaw_joint_name: str = MISSING
     """The dummy joint name in the yaw direction."""
+
     scale: tuple[float, float] = (1.0, 1.0)
     """Scale factor for the action. Defaults to (1.0, 1.0)."""
+
     offset: tuple[float, float] = (0.0, 0.0)
     """Offset factor for the action. Defaults to (0.0, 0.0)."""
+
+    clip: dict[str, tuple] | None = None
+    """Clip range for the action (dict of regex expressions).
+
+    The expected keys are "v", and "yaw". Defaults to None for no clipping.
+    """
 
 
 ##
@@ -240,14 +262,48 @@ class DifferentialInverseKinematicsActionCfg(ActionTermCfg):
 
     joint_names: list[str] = MISSING
     """List of joint names or regex expressions that the action will be mapped to."""
+
     body_name: str = MISSING
     """Name of the body or frame for which IK is performed."""
+
     body_offset: OffsetCfg | None = None
     """Offset of target frame w.r.t. to the body frame. Defaults to None, in which case no offset is applied."""
+
     scale: float | tuple[float, ...] = 1.0
     """Scale factor for the action. Defaults to 1.0."""
+
     controller: DifferentialIKControllerCfg = MISSING
     """The configuration for the differential IK controller."""
+
+    # TODO: Should this be simplified to a list of tuples? More compact, less readable?
+    # TODO: Do we want to have an homogeneous behavior for the clip range? I think we do
+    # or we'd need unique clip names so that it's not confusing to the user.
+
+    clip: dict[str, tuple] | None = None
+    """Clip range of the controller's command in the world frame (dict of regex expressions).
+
+    The expected keys are "position", "orientation", and "wrench". Defaults to None for no clipping.
+    For "position" we expect a tuple of (min, max) for each dimension. (x, y, z) in this order.
+    For "orientation" we expect a tuple of (min, max) for each dimension. (roll, pitch, yaw) in this order.
+
+    Example:
+    ..code-block:: python
+        {
+            "position": ((-1.0, 1.0), (-1.0, 1.0), (-1.0, 1.0)), # (x, y, z)
+            "orientation": ((-1.0, 1.0), (-1.0, 1.0), (-1.0, 1.0)), # (roll, pitch, yaw)
+        }
+
+    ..note::
+        This means that regardless of the :attr:`controller.use_relative_mode` setting, the clip range is always
+        applied in the world frame. This is done so that the meaning of the clip range is consistent across
+        different modes.
+
+    ..note::
+        If the :attr:`controller.command_type` is set to "pose", then both the position and orientation clip ranges
+        must be provided. To clip either one or the other, one can set large values to the clip range.
+
+
+    """
 
 
 @configclass
@@ -309,4 +365,57 @@ class OperationalSpaceControllerActionCfg(ActionTermCfg):
 
     Note: Functional only when ``nullspace_control`` is set to ``"position"`` within the
         ``OperationalSpaceControllerCfg``.
+    """
+
+    # TODO: Here the clip effects are not homogeneous, I don't like that depending on the controller mode the behavior
+    # is different. It makes it hard to understand what does what. Should we have an explicit velocity clip?
+
+    clip_position: list[tuple[float, float]] | None = None
+    """Clip range for the position targets. Defaults to None for no clipping.
+
+    The expected format is a list of tuples, each containing two values. When using the controller in ``"abs"`` mode
+    this limits the reachable range of the end-effector in the world frame. When using the controller in ``"rel"`` mode
+    this limits the maximum velocity of the end-effector in the task frame. This must match the number of active axes
+    in :attr:`controller_cfg.motion_control_axes_task`.
+
+    Example:
+    ..code-block:: python
+        clip_position = [
+            (min_x, max_x),
+            (min_y, max_y),
+            (min_z, max_z),
+        ]
+    """
+    clip_orientation: list[tuple[float, float]] | None = None
+    """Clip range for the orientation targets. Defaults to None for no clipping.
+
+    The expected format is a list of tuples, each containing two values. When using the controller in ``"abs"`` mode
+    this limits the reachable range of the end-effector in the world frame. When using the controller in ``"rel"`` mode
+    this limits the maximum velocity of the end-effector in the task frame. This must match the number of active axes
+    in :attr:`controller_cfg.motion_control_axes_task`.
+
+    Example:
+    ..code-block:: python
+        clip_orientation = [
+            (min_roll, max_roll),
+            (min_pitch, max_pitch),
+            (min_yaw, max_yaw),
+        ]
+    """
+    clip_wrench: list[tuple[float, float]] | None = None
+    """Clip range for the absolute wrench targets. Defaults to None for no clipping.
+
+    The expected format is a list of tuples, each containing two values. This effectively limits
+    the maximum force and torque that can be commanded in the task frame.
+
+    Example:
+    ..code-block:: python
+        clip_wrench = [
+            (min_fx, max_fx),
+            (min_fy, max_fy),
+            (min_fz, max_fz),
+            (min_tx, max_tx),
+            (min_ty, max_ty),
+            (min_tz, max_tz),
+        ]
     """
