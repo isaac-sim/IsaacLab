@@ -164,6 +164,7 @@ def main():
     # Get environment configuration based on mode
     env_cfg = get_environment_config(args_cli.mode)
     env_cfg.scene.num_envs = args_cli.num_envs
+
     # Setup base environment
     env = ManagerBasedRLEnv(cfg=env_cfg)
 

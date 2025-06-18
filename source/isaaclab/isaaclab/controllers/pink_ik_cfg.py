@@ -60,3 +60,10 @@ class PinkIKControllerCfg:
 
     fail_on_joint_limit_violation: bool = True
     """Fail the IK solver if a joint limit is violated."""
+    hand_rotational_offset: tuple[float, float, float, float] = (1.0, 0.0, 0.0, 0.0)
+    """Rotational offset quaternion (w, x, y, z) between USD hand orientation and nominal orientation.
+    
+    The nominal orientation is defined as thumbs pointing up and fingers pointing forward.
+    This offset is applied to align the USD hand orientation with the expected nominal pose.
+    Default is identity quaternion (1, 0, 0, 0) representing no rotation.
+    """

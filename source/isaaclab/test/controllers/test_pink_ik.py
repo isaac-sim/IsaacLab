@@ -7,6 +7,7 @@
 import json
 import os
 import sys
+from pathlib import Path
 
 # Import pinocchio in the main script to force the use of the dependencies installed by IsaacLab and not the one installed by Isaac Sim
 # pinocchio is required by the Pink IK controller
@@ -23,9 +24,10 @@ simulation_app = AppLauncher(headless=True).app
 import contextlib
 import gymnasium as gym
 import numpy as np
-import torch
-
 import pytest
+import torch
+import time
+
 from pink.configuration import Configuration
 
 from isaaclab.utils.math import axis_angle_from_quat, matrix_from_quat, quat_from_matrix, quat_inv
@@ -34,11 +36,14 @@ import isaaclab_tasks  # noqa: F401
 import isaaclab_tasks.manager_based.manipulation.pick_place  # noqa: F401
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
 
+from pink.configuration import Configuration
+
 
 @pytest.fixture(scope="module")
 def test_cfg():
     """Load test configuration."""
-    config_path = os.path.join(os.path.dirname(__file__), "test_configs", "pink_ik_gr1_test_configs.json")
+    # config_path = os.path.join(os.path.dirname(__file__), "test_configs", "pink_ik_gr1_test_configs.json")
+    config_path = os.path.join(os.path.dirname(__file__), "test_configs", "pink_ik_g1_test_configs.json")
     with open(config_path) as f:
         return json.load(f)
 
@@ -56,7 +61,9 @@ def test_params(test_cfg):
 
 def create_test_env(num_envs):
     """Create a test environment with the Pink IK controller."""
-    env_name = "Isaac-PickPlace-GR1T2-WaistEnabled-Abs-v0"
+    # env_name = "Isaac-PickPlace-GR1T2-WaistEnabled-Abs-v0"
+    # env_name = "Isaac-PickPlace-FixedBaseUpperBodyIK-GR1T2-Abs-v0"
+    env_name = "Isaac-PickPlace-FixedBaseUpperBodyIK-G1-Abs-v0"
     device = "cuda:0"
 
     try:
@@ -75,10 +82,10 @@ def create_test_env(num_envs):
 def env_and_cfg():
     """Create environment and configuration for tests."""
     env, env_cfg = create_test_env(num_envs=1)
-
+    
     # Set up camera view
     env.sim.set_camera_view(eye=[2.5, 2.5, 2.5], target=[0.0, 0.0, 1.0])
-
+    
     return env, env_cfg
 
 
@@ -86,11 +93,11 @@ def env_and_cfg():
 def test_setup(env_and_cfg):
     """Set up test case - runs before each test."""
     env, env_cfg = env_and_cfg
-
-    num_joints_in_robot_hands = env_cfg.actions.pink_ik_cfg.controller.num_hand_joints
+    
+    num_joints_in_robot_hands = env_cfg.actions.upper_body_ik.controller.num_hand_joints
 
     # Get Action Term and IK controller
-    action_term = env.action_manager.get_term(name="pink_ik_cfg")
+    action_term = env.action_manager.get_term(name="upper_body_ik")
     pink_controllers = action_term._ik_controllers
     articulation = action_term._asset
 
@@ -100,8 +107,8 @@ def test_setup(env_and_cfg):
         pink_controllers[0].robot_wrapper.data,
         pink_controllers[0].robot_wrapper.q0,
     )
-    left_target_link_name = env_cfg.actions.pink_ik_cfg.target_eef_link_names["left_wrist"]
-    right_target_link_name = env_cfg.actions.pink_ik_cfg.target_eef_link_names["right_wrist"]
+    left_target_link_name = env_cfg.actions.upper_body_ik.target_eef_link_names["left_wrist"]
+    right_target_link_name = env_cfg.actions.upper_body_ik.target_eef_link_names["right_wrist"]
 
     return {
         "env": env,
@@ -156,7 +163,7 @@ def run_movement_test(test_setup, test_config, test_cfg, aux_function=None):
     """Run a movement test with the given configuration."""
     env = test_setup["env"]
     num_joints_in_robot_hands = test_setup["num_joints_in_robot_hands"]
-
+    
     left_hand_poses = np.array(test_config["left_hand_pose"], dtype=np.float32)
     right_hand_poses = np.array(test_config["right_hand_pose"], dtype=np.float32)
 
@@ -227,6 +234,7 @@ def calculate_rotation_error(current_rot, target_rot):
 
 def compute_errors(test_setup, env, left_target_pose, right_target_pose):
     """Compute all error metrics for the current state."""
+    env_cfg = test_setup["env_cfg"]
     action_term = test_setup["action_term"]
     pink_controllers = test_setup["pink_controllers"]
     articulation = test_setup["articulation"]
@@ -234,7 +242,7 @@ def compute_errors(test_setup, env, left_target_pose, right_target_pose):
     left_target_link_name = test_setup["left_target_link_name"]
     right_target_link_name = test_setup["right_target_link_name"]
     num_joints_in_robot_hands = test_setup["num_joints_in_robot_hands"]
-
+    
     # Get current hand positions and orientations
     left_hand_pos, left_hand_rot = get_link_pose(env, left_target_link_name)
     right_hand_pos, right_hand_rot = get_link_pose(env, right_target_link_name)
@@ -245,9 +253,9 @@ def compute_errors(test_setup, env, left_target_pose, right_target_pose):
     left_hand_pose_setpoint = torch.tensor(left_target_pose, device=device).unsqueeze(0).repeat(num_envs, 1)
     right_hand_pose_setpoint = torch.tensor(right_target_pose, device=device).unsqueeze(0).repeat(num_envs, 1)
     # compensate for the hand rotational offset
-    # nominal_hand_pose_rotmat = matrix_from_quat(torch.tensor(env_cfg.actions.pink_ik_cfg.controller.hand_rotational_offset, device=env.device))
-    left_hand_pose_setpoint[:, 3:7] = quat_from_matrix(matrix_from_quat(left_hand_pose_setpoint[:, 3:7]))
-    right_hand_pose_setpoint[:, 3:7] = quat_from_matrix(matrix_from_quat(right_hand_pose_setpoint[:, 3:7]))
+    nominal_hand_pose_rotmat = matrix_from_quat(torch.tensor(env_cfg.actions.upper_body_ik.controller.hand_rotational_offset, device=env.device))
+    left_hand_pose_setpoint[:, 3:7] = quat_from_matrix(matrix_from_quat(left_hand_pose_setpoint[:, 3:7]) @ nominal_hand_pose_rotmat)
+    right_hand_pose_setpoint[:, 3:7] = quat_from_matrix(matrix_from_quat(right_hand_pose_setpoint[:, 3:7]) @ nominal_hand_pose_rotmat)
 
     # Calculate position and rotation errors
     left_pos_error = left_hand_pose_setpoint[:, :3] - left_hand_pos
@@ -261,7 +269,7 @@ def compute_errors(test_setup, env, left_target_pose, right_target_pose):
 
     # Get current and target positions
     curr_joints = articulation.data.joint_pos[:, pink_controlled_joint_ids].cpu().numpy()[0]
-    target_joints = action_term.processed_actions[:, :num_joints_in_robot_hands].cpu().numpy()[0]
+    target_joints = action_term.processed_actions[:, : num_joints_in_robot_hands].cpu().numpy()[0]
 
     # Reorder joints for Pink IK
     curr_joints = np.array(curr_joints)[ik_controller.isaac_lab_to_pink_ordering]
@@ -270,18 +278,22 @@ def compute_errors(test_setup, env, left_target_pose, right_target_pose):
     # Run forward kinematics
     kinematics_model.update(curr_joints)
     left_curr_pos = kinematics_model.get_transform_frame_to_world(
-        frame="GR1T2_fourier_hand_6dof_left_hand_pitch_link"
+        frame="g1_29dof_with_hand_rev_1_0_left_wrist_yaw_link"
+        # frame="GR1T2_fourier_hand_6dof_left_hand_pitch_link"
     ).translation
     right_curr_pos = kinematics_model.get_transform_frame_to_world(
-        frame="GR1T2_fourier_hand_6dof_right_hand_pitch_link"
+        frame="g1_29dof_with_hand_rev_1_0_right_wrist_yaw_link"
+        # frame="GR1T2_fourier_hand_6dof_right_hand_pitch_link"
     ).translation
 
     kinematics_model.update(target_joints)
     left_target_pos = kinematics_model.get_transform_frame_to_world(
-        frame="GR1T2_fourier_hand_6dof_left_hand_pitch_link"
+        frame="g1_29dof_with_hand_rev_1_0_left_wrist_yaw_link"
+        # frame="GR1T2_fourier_hand_6dof_left_hand_pitch_link"
     ).translation
     right_target_pos = kinematics_model.get_transform_frame_to_world(
-        frame="GR1T2_fourier_hand_6dof_right_hand_pitch_link"
+        frame="g1_29dof_with_hand_rev_1_0_right_wrist_yaw_link"
+        # frame="GR1T2_fourier_hand_6dof_right_hand_pitch_link"
     ).translation
 
     # Calculate PD errors

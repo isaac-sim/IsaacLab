@@ -95,7 +95,6 @@ class G1DexRetargeting:
         self.right_dof_names = self._dex_right_hand.optimizer.robot.dof_joint_names
         self.dof_names = self.left_dof_names + self.right_dof_names
         self.isaac_lab_hand_joint_names = hand_joint_names
-        print(self.isaac_lab_hand_joint_names)
 
         omni.log.info("[G1DexRetargeter] init done.")
 
@@ -137,8 +136,8 @@ class G1DexRetargeting:
         """
         joint_position = np.zeros((21, 3))
         hand_joints = list(hand_poses.values())
-        for i in range(len(_HAND_JOINTS_INDEX)):
-            joint = hand_joints[_HAND_JOINTS_INDEX[i]]
+        for i, joint_index in enumerate(_HAND_JOINTS_INDEX):
+            joint = hand_joints[joint_index]
             joint_position[i] = joint[:3]
 
         # Convert hand pose to the canonical frame.

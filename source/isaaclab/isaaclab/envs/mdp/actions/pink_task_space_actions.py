@@ -53,9 +53,10 @@ class PinkInverseKinematicsAction(ActionTerm):
         self._hand_joint_ids, self._hand_joint_names = self._asset.find_joints(self.cfg.hand_joint_names)
         self._joint_ids = self._pink_controlled_joint_ids + self._hand_joint_ids
         self._joint_names = self._pink_controlled_joint_names + self._hand_joint_names
+        self._env = env
 
         # Initialize the Pink IK controller
-        assert env.num_envs > 0, "Number of environments specified are less than 1."
+        assert self._env.num_envs > 0, "Number of environments specified are less than 1."
         self._ik_controllers = []
         for _ in range(env.num_envs):
             self._ik_controllers.append(
@@ -74,21 +75,27 @@ class PinkInverseKinematicsAction(ActionTerm):
         self.total_time = 0  # Variable to accumulate the total time
         self.num_runs = 0  # Counter for the number of runs
 
+        # Get homogeneous transform to nominal hand pose with zero translation
+        self.nominal_hand_pose_rotmat = math_utils.matrix_from_quat(torch.tensor(self.cfg.controller.hand_rotational_offset, device=self.device))
+        self.nominal_hand_pose_transform = math_utils.make_pose(
+            torch.zeros(3, device=self.device), self.nominal_hand_pose_rotmat
+        )
+
         # Save the base_link_frame pose in the world frame as a transformation matrix in
         # order to transform the desired pose of the controlled_frame to be with respect to the base_link_frame
         # Shape of env.scene[self.cfg.articulation_name].data.body_link_state_w is (num_instances, num_bodies, 13)
-        base_link_frame_in_world_origin = env.scene[self.cfg.controller.articulation_name].data.body_link_state_w[
+        base_link_frame_in_world_origin = self._env.scene[self.cfg.controller.articulation_name].data.body_link_state_w[
             :,
-            env.scene[self.cfg.controller.articulation_name].data.body_names.index(self.cfg.controller.base_link_name),
+            self._env.scene[self.cfg.controller.articulation_name].data.body_names.index(self.cfg.controller.base_link_name),
             :7,
         ]
 
         # Get robot base link frame in env origin frame
-        base_link_frame_in_env_origin = copy.deepcopy(base_link_frame_in_world_origin)
-        base_link_frame_in_env_origin[:, :3] -= self._env.scene.env_origins
+        base_link_frame_in_world_rf = copy.deepcopy(base_link_frame_in_world_origin)
+        base_link_frame_in_world_rf[:, :3] -= self._env.scene.env_origins
 
-        self.base_link_frame_in_env_origin = math_utils.make_pose(
-            base_link_frame_in_env_origin[:, :3], math_utils.matrix_from_quat(base_link_frame_in_env_origin[:, 3:7])
+        self.base_link_frame_in_world_rf = math_utils.make_pose(
+            base_link_frame_in_world_rf[:, :3], math_utils.matrix_from_quat(base_link_frame_in_world_rf[:, 3:7])
         )
 
     # """
@@ -157,31 +164,33 @@ class PinkInverseKinematicsAction(ActionTerm):
         # But the pink IK controller expects the desired pose of the controlled_frame with respect to the base_link_frame
         # So we need to transform the desired pose of the controlled_frame to be with respect to the base_link_frame
 
-        # Get the controlled_frame pose wrt to the env origin frame
-        all_controlled_frames_in_env_origin = []
+        # Get the controlled_frame pose wrt to the world reference frame
+        all_controlled_frames_in_world_rf = []
         # The contrllers for all envs are the same, hence just using the first one to get the number of variable_input_tasks
         for task_index in range(len(self._ik_controllers[0].cfg.variable_input_tasks)):
-            controlled_frame_in_env_origin_pos = actions_clone[
+            controlled_frame_in_world_rf_pos = actions_clone[
                 :, task_index * self.pose_dim : task_index * self.pose_dim + self.position_dim
             ]
-            controlled_frame_in_env_origin_quat = actions_clone[
+            controlled_frame_in_world_rf_quat = actions_clone[
                 :, task_index * self.pose_dim + self.position_dim : (task_index + 1) * self.pose_dim
             ]
-            controlled_frame_in_env_origin = math_utils.make_pose(
-                controlled_frame_in_env_origin_pos, math_utils.matrix_from_quat(controlled_frame_in_env_origin_quat)
+            controlled_frame_in_world_rf = math_utils.make_pose(
+                controlled_frame_in_world_rf_pos, math_utils.matrix_from_quat(controlled_frame_in_world_rf_quat)
             )
-            all_controlled_frames_in_env_origin.append(controlled_frame_in_env_origin)
+            all_controlled_frames_in_world_rf.append(controlled_frame_in_world_rf)
         # Stack all the controlled_frame poses in the env origin frame. Shape is (num_tasks, num_envs , 4, 4)
-        all_controlled_frames_in_env_origin = torch.stack(all_controlled_frames_in_env_origin)
+        all_controlled_frames_in_world_rf = torch.stack(all_controlled_frames_in_world_rf)
 
         # Transform the controlled_frame to be with respect to the base_link_frame using batched matrix multiplication
-        controlled_frame_in_base_link_frame = math_utils.pose_in_A_to_pose_in_B(
-            all_controlled_frames_in_env_origin, math_utils.pose_inv(self.base_link_frame_in_env_origin)
+        controlled_frame_in_base_link_rf = math_utils.pose_in_A_to_pose_in_B(
+            all_controlled_frames_in_world_rf, math_utils.pose_inv(self.base_link_frame_in_world_rf)
         )
 
-        controlled_frame_in_base_link_frame_pos, controlled_frame_in_base_link_frame_mat = math_utils.unmake_pose(
-            controlled_frame_in_base_link_frame
+        controlled_frame_in_base_link_frame_pos, controlled_frame_in_base_link_frame_rotmat = math_utils.unmake_pose(
+            controlled_frame_in_base_link_rf
         )
+        # Add the hand rotational offset to the controlled_frame rotation
+        controlled_frame_in_base_link_frame_rotmat = controlled_frame_in_base_link_frame_rotmat @ self.nominal_hand_pose_rotmat
 
         # Loop through each task and set the target
         for env_index, ik_controller in enumerate(self._ik_controllers):
@@ -189,7 +198,7 @@ class PinkInverseKinematicsAction(ActionTerm):
                 if isinstance(task, FrameTask):
                     target = task.transform_target_to_world
                     target.translation = controlled_frame_in_base_link_frame_pos[task_index, env_index, :].cpu().numpy()
-                    target.rotation = controlled_frame_in_base_link_frame_mat[task_index, env_index, :].cpu().numpy()
+                    target.rotation = controlled_frame_in_base_link_frame_rotmat[task_index, env_index, :].cpu().numpy()
                     task.set_target(target)
 
     def apply_actions(self):

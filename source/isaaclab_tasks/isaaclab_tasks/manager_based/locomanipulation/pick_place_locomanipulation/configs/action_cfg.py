@@ -16,5 +16,6 @@ class JointPositionPolicyActionCfg(mdp.JointPositionActionCfg):
     """Configuration for the locomotion policy action term."""
 
     class_type: type[ActionTerm] = JointPositionPolicyAction
+    """The class type for the joint position policy action term."""
 
     policy_path: str = MISSING

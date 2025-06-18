@@ -22,8 +22,6 @@ from isaaclab_assets.robots.fourier import GR1T2_CFG  # isort: skip
 GR1T2_LOCOMANIPULATION_ROBOT_CFG = GR1T2_CFG.replace(
     prim_path="/World/envs/env_.*/Robot",
     init_state=ArticulationCfg.InitialStateCfg(
-        pos=(0, 0, 0.93),
-        rot=(0.7071, 0, 0, 0.7071),
         joint_pos={
             # right-arm
             "right_shoulder_pitch_joint": 0.0,

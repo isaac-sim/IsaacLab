@@ -51,12 +51,22 @@ class FixedBaseUpperBodyIKGR1T2SceneCfg(InteractiveSceneCfg):
         spawn=sim_utils.DomeLightCfg(color=(0.75, 0.75, 0.75), intensity=3000.0),
     )
 
+    def __post_init__(self):
+        """Post initialization."""
+        # Set the robot to fixed base
+        self.robot.init_state.pos = (0, 0, 0.93)
+        self.robot.init_state.rot = (0.7071, 0, 0, 0.7071)
 
 @configclass
 class ActionsCfg:
     """Action specifications for the MDP."""
 
     upper_body_ik = GR1T2_UPPER_BODY_IK_ACTION_CFG
+
+    def __post_init__(self):
+        """Post initialization."""
+        # Rotation by -90 degrees around Y-axis: (cos(90/2), 0, sin(90/2), 0) = (0.7071, 0, -0.7071, 0)
+        self.upper_body_ik.controller.hand_rotational_offset = (0.7071, 0.0, -0.7071, 0.0)
 
 
 @configclass

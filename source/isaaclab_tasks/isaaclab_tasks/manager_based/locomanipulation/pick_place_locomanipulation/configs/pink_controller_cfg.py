@@ -29,14 +29,14 @@ G1_UPPER_BODY_IK_CONTROLLER_CFG = PinkIKControllerCfg(
             position_cost=1.0,  # [cost] / [m]
             orientation_cost=1.0,  # [cost] / [rad]
             lm_damping=10,  # dampening for solver for step jumps
-            gain=0.1,
+            gain=0.8,
         ),
         FrameTask(
             "g1_29dof_with_hand_rev_1_0_right_wrist_yaw_link",
             position_cost=1.0,  # [cost] / [m]
             orientation_cost=1.0,  # [cost] / [rad]
             lm_damping=10,  # dampening for solver for step jumps
-            gain=0.1,
+            gain=0.8,
         ),
     ],
     fixed_input_tasks=[],
@@ -77,10 +77,25 @@ G1_UPPER_BODY_IK_ACTION_CFG = PinkInverseKinematicsActionCfg(
         ".*_thumb_.*",
     ],
     hand_joint_names=[
-        ".*_index_.*",
-        ".*_middle_.*",
-        ".*_thumb_.*",
+        "left_hand_index_0_joint",      # Index finger proximal
+        "left_hand_middle_0_joint",     # Middle finger proximal
+        "left_hand_thumb_0_joint",      # Thumb base (yaw axis)
+        "right_hand_index_0_joint",     # Index finger proximal
+        "right_hand_middle_0_joint",    # Middle finger proximal
+        "right_hand_thumb_0_joint",     # Thumb base (yaw axis)
+        "left_hand_index_1_joint",      # Index finger distal
+        "left_hand_middle_1_joint",     # Middle finger distal
+        "left_hand_thumb_1_joint",      # Thumb middle (pitch axis)
+        "right_hand_index_1_joint",     # Index finger distal
+        "right_hand_middle_1_joint",    # Middle finger distal
+        "right_hand_thumb_1_joint",      # Thumb middle (pitch axis)
+        "left_hand_thumb_2_joint",      # Thumb tip
+        "right_hand_thumb_2_joint",     # Thumb tip
     ],
+    target_eef_link_names={
+        "left_wrist": "left_wrist_yaw_link",
+        "right_wrist": "right_wrist_yaw_link",
+    },
     # the robot in the sim scene we are controlling
     asset_name="robot",
     # Configuration for the IK controller
@@ -222,6 +237,10 @@ GR1T2_UPPER_BODY_IK_ACTION_CFG = PinkInverseKinematicsActionCfg(
         "L_thumb_distal_joint",
         "R_thumb_distal_joint",
     ],
+    target_eef_link_names={
+        "left_wrist": "left_hand_pitch_link",
+        "right_wrist": "right_hand_pitch_link",
+    },
     # the robot in the sim scene we are controlling
     asset_name="robot",
     # Configuration for the IK controller

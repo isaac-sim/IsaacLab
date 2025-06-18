@@ -10,7 +10,11 @@ from pathlib import Path
 
 import isaaclab.controllers.utils as ControllerUtils
 import isaaclab.sim as sim_utils
-from isaaclab.assets import ArticulationCfg, AssetBaseCfg
+from isaaclab.actuators import ImplicitActuatorCfg
+from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
+from isaaclab.controllers.pink_ik import PinkIKControllerCfg
+from isaaclab.devices.device_base import DevicesCfg
+from isaaclab.devices.openxr import OpenXRDeviceCfg, XrCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
@@ -24,6 +28,12 @@ from source.isaaclab_tasks.isaaclab_tasks.manager_based.locomanipulation.pick_pl
 )
 from source.isaaclab_tasks.isaaclab_tasks.manager_based.locomanipulation.pick_place_locomanipulation.configs.pink_controller_cfg import (  # isort: skip
     G1_UPPER_BODY_IK_ACTION_CFG,
+)
+from isaaclab.devices.openxr.commands.humanoid.g1_upper_body_command_term import (
+    G1UpperBodyCommandTermCfg,
+)
+from isaaclab.devices.openxr.commands.humanoid.g1_upper_body_command_term import (
+    G1UpperBodyCommandTermCfg,
 )
 
 
@@ -84,6 +94,33 @@ class TerminationsCfg:
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
 
 
+@configclass
+class UpperAndLowerBodyCommandCfg:
+    """Command terms for the upper and lower body."""
+
+    upper_body_command = G1UpperBodyCommandTermCfg(
+        resampling_time_range=(0, 0),
+        device_name="handtracking",
+        enable_visualization=True,
+        num_hand_joints=2 * 26,
+        hand_joint_names=[
+            "left_hand_index_0_joint",      # Index finger proximal
+            "left_hand_middle_0_joint",     # Middle finger proximal
+            "left_hand_thumb_0_joint",      # Thumb base (yaw axis)
+            "right_hand_index_0_joint",     # Index finger proximal
+            "right_hand_middle_0_joint",    # Middle finger proximal
+            "right_hand_thumb_0_joint",     # Thumb base (yaw axis)
+            "left_hand_index_1_joint",      # Index finger distal
+            "left_hand_middle_1_joint",     # Middle finger distal
+            "left_hand_thumb_1_joint",      # Thumb middle (pitch axis)
+            "right_hand_index_1_joint",     # Index finger distal
+            "right_hand_middle_1_joint",    # Middle finger distal
+            "right_hand_thumb_1_joint",      # Thumb middle (pitch axis)
+            "left_hand_thumb_2_joint",      # Thumb tip
+            "right_hand_thumb_2_joint",     # Thumb tip
+        ],
+    )
+
 ##
 # MDP settings
 ##
@@ -108,9 +145,15 @@ class FixedBaseUpperBodyIKG1EnvCfg(ManagerBasedRLEnvCfg):
     actions: ActionsCfg = ActionsCfg()
 
     # Unused managers
-    commands = None
+    commands = UpperAndLowerBodyCommandCfg()
     rewards = None
     curriculum = None
+
+    # Position of the XR anchor in the world frame
+    xr: XrCfg = XrCfg(
+        anchor_pos=(0.0, 0.0, 0.2),
+        anchor_rot=(1.0, 0.0, 0.0, 0.0),
+    )
 
     def __post_init__(self):
         """Post initialization."""
@@ -133,3 +176,12 @@ class FixedBaseUpperBodyIKG1EnvCfg(ManagerBasedRLEnvCfg):
         # Set the URDF and mesh paths for the IK controller
         self.actions.upper_body_ik.controller.urdf_path = temp_urdf_output_path
         self.actions.upper_body_ik.controller.mesh_path = temp_urdf_meshes_output_path
+
+        self.teleop_devices = DevicesCfg(
+            devices={
+                "handtracking": OpenXRDeviceCfg(
+                    sim_device=self.sim.device,
+                    xr_cfg=self.xr,
+                ),
+            }
+        )

@@ -10,7 +10,11 @@ from pathlib import Path
 
 import isaaclab.controllers.utils as ControllerUtils
 import isaaclab.sim as sim_utils
-from isaaclab.assets import ArticulationCfg, AssetBaseCfg
+from isaaclab.actuators import DCMotorCfg, ImplicitActuatorCfg
+from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
+from isaaclab.controllers.pink_ik import PinkIKControllerCfg
+from isaaclab.devices.device_base import DevicesCfg
+from isaaclab.devices.openxr import OpenXRDeviceCfg, XrCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
@@ -120,6 +124,12 @@ class LocomanipulationG1EnvCfg(ManagerBasedRLEnvCfg):
     rewards = None
     curriculum = None
 
+    # Position of the XR anchor in the world frame
+    xr: XrCfg = XrCfg(
+        anchor_pos=(0.0, 0.0, 0.3),
+        anchor_rot=(1.0, 0.0, 0.0, 0.0),
+    )
+
     def __post_init__(self):
         """Post initialization."""
         # general settings
@@ -141,3 +151,12 @@ class LocomanipulationG1EnvCfg(ManagerBasedRLEnvCfg):
         # Set the URDF and mesh paths for the IK controller
         self.actions.upper_body_ik.controller.urdf_path = temp_urdf_output_path
         self.actions.upper_body_ik.controller.mesh_path = temp_urdf_meshes_output_path
+
+        self.teleop_devices = DevicesCfg(
+            devices={
+                "handtracking": OpenXRDeviceCfg(
+                    sim_device=self.sim.device,
+                    xr_cfg=self.xr,
+                ),
+            }
+        )
