@@ -94,11 +94,10 @@ class NewtonManager:
     def simulate(cls):
         state_0_dict = NewtonManager._state_0.__dict__
         state_1_dict = NewtonManager._state_1.__dict__
-        state_temp_dict = NewtonManager._state_temp.__dict__ # <-- Is this still used?
+        state_temp_dict = NewtonManager._state_temp.__dict__
         for i in range(NewtonManager._decimation):
             NewtonManager._state_0.clear_forces()
             NewtonManager._solver.step(NewtonManager._model, NewtonManager._state_0, NewtonManager._state_1, NewtonManager._control, None, NewtonManager._sim_dt)
-            #NewtonManager._state_0, NewtonManager._state_1 = NewtonManager._state_1, NewtonManager._state_0
             if i < NewtonManager._decimation - 1 or not NewtonManager._use_cuda_graph:
                 # we can just swap the state references
                 NewtonManager._state_0, NewtonManager._state_1 = NewtonManager._state_1, NewtonManager._state_0
