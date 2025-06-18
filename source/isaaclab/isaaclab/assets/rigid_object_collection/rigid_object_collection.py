@@ -317,6 +317,18 @@ class RigidObjectCollection(AssetBase):
             self._data.object_link_state_w[env_ids[:, None], object_ids, :7] = object_pose.clone()
         if self._data._object_state_w.data is not None:
             self._data.object_state_w[env_ids[:, None], object_ids, :7] = object_pose.clone()
+        if self._data._object_com_state_w.data is not None:
+            # get CoM pose in link frame
+            com_pos_b = self.data.object_com_pos_b[env_ids[:, None], object_ids]
+            com_quat_b = self.data.object_com_quat_b[env_ids[:, None], object_ids]
+            com_pos, com_quat = math_utils.combine_frame_transforms(
+                object_pose[..., :3],
+                object_pose[..., 3:7],
+                com_pos_b,
+                com_quat_b,
+            )
+            self._data.object_com_state_w[env_ids[:, None], object_ids, :3] = com_pos
+            self._data.object_com_state_w[env_ids[:, None], object_ids, 3:7] = com_quat
 
         # convert the quaternion from wxyz to xyzw
         poses_xyzw = self._data.object_link_pose_w.clone()
@@ -415,6 +427,8 @@ class RigidObjectCollection(AssetBase):
             self._data.object_com_state_w[env_ids[:, None], object_ids, 7:] = object_velocity.clone()
         if self._data._object_state_w.data is not None:
             self._data.object_state_w[env_ids[:, None], object_ids, 7:] = object_velocity.clone()
+        if self._data._object_link_state_w.data is not None:
+            self._data.object_link_state_w[env_ids[:, None], object_ids, 7:] = object_velocity.clone()
         # make the acceleration zero to prevent reporting old values
         self._data.object_com_acc_w[env_ids[:, None], object_ids] = 0.0
 

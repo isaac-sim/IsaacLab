@@ -1608,5 +1608,88 @@ def test_body_incoming_joint_wrench_b_single_joint(sim, num_articulations, devic
                 sim.reset()
 
 
+@pytest.mark.parametrize("num_articulations", [1, 2])
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("gravity_enabled", [False])
+def test_write_joint_state_data_consistency(sim, num_articulations, device, gravity_enabled):
+    """Test the setters for root_state using both the link frame and center of mass as reference frame.
+
+    This test verifies that after write_joint_state_to_sim operations:
+    1. state, com_state, link_state value consistency
+    2. body_pose, link
+    Args:
+        sim: The simulation fixture
+        num_articulations: Number of articulations to test
+        device: The device to run the simulation on
+    """
+    sim._app_control_on_stop_handle = None
+    articulation_cfg = generate_articulation_cfg(articulation_type="anymal")
+    articulation, env_pos = generate_articulation(articulation_cfg, num_articulations, device)
+    env_idx = torch.tensor([x for x in range(num_articulations)])
+
+    # Play sim
+    sim.reset()
+
+    limits = torch.zeros(num_articulations, articulation.num_joints, 2, device=device)
+    limits[..., 0] = (torch.rand(num_articulations, articulation.num_joints, device=device) + 5.0) * -1.0
+    limits[..., 1] = torch.rand(num_articulations, articulation.num_joints, device=device) + 5.0
+    articulation.write_joint_position_limit_to_sim(limits)
+
+    from torch.distributions import Uniform
+
+    pos_dist = Uniform(articulation.data.joint_pos_limits[..., 0], articulation.data.joint_pos_limits[..., 1])
+    vel_dist = Uniform(-articulation.data.joint_vel_limits, articulation.data.joint_vel_limits)
+
+    original_body_states = articulation.data.body_state_w.clone()
+
+    rand_joint_pos = pos_dist.sample()
+    rand_joint_vel = vel_dist.sample()
+
+    articulation.write_joint_state_to_sim(rand_joint_pos, rand_joint_vel)
+    articulation.root_physx_view.get_jacobians()
+    # make sure valued updated
+    assert torch.count_nonzero(original_body_states[:, 1:] != articulation.data.body_state_w[:, 1:]) > (
+        len(original_body_states[:, 1:]) / 2
+    )
+    # validate body - link consistency
+    torch.testing.assert_close(articulation.data.body_state_w[..., :7], articulation.data.body_link_state_w[..., :7])
+    # skip 7:10 because they differs from link frame, this should be fine because we are only checking
+    # if velocity update is triggered, which can be determined by comparing angular velocity
+    torch.testing.assert_close(articulation.data.body_state_w[..., 10:], articulation.data.body_link_state_w[..., 10:])
+
+    # validate link - com conistency
+    expected_com_pos, expected_com_quat = math_utils.combine_frame_transforms(
+        articulation.data.body_link_state_w[..., :3].view(-1, 3),
+        articulation.data.body_link_state_w[..., 3:7].view(-1, 4),
+        articulation.data.body_com_pos_b.view(-1, 3),
+        articulation.data.body_com_quat_b.view(-1, 4),
+    )
+    torch.testing.assert_close(expected_com_pos.view(len(env_idx), -1, 3), articulation.data.body_com_pos_w)
+    torch.testing.assert_close(expected_com_quat.view(len(env_idx), -1, 4), articulation.data.body_com_quat_w)
+
+    # validate body - com consistency
+    torch.testing.assert_close(articulation.data.body_state_w[..., 7:10], articulation.data.body_com_lin_vel_w)
+    torch.testing.assert_close(articulation.data.body_state_w[..., 10:], articulation.data.body_com_ang_vel_w)
+
+    # validate pos_w, quat_w, pos_b, quat_b is consistent with pose_w and pose_b
+    expected_com_pose_w = torch.cat((articulation.data.body_com_pos_w, articulation.data.body_com_quat_w), dim=2)
+    expected_com_pose_b = torch.cat((articulation.data.body_com_pos_b, articulation.data.body_com_quat_b), dim=2)
+    expected_body_pose_w = torch.cat((articulation.data.body_pos_w, articulation.data.body_quat_w), dim=2)
+    expected_body_link_pose_w = torch.cat(
+        (articulation.data.body_link_pos_w, articulation.data.body_link_quat_w), dim=2
+    )
+    torch.testing.assert_close(articulation.data.body_com_pose_w, expected_com_pose_w)
+    torch.testing.assert_close(articulation.data.body_com_pose_b, expected_com_pose_b)
+    torch.testing.assert_close(articulation.data.body_pose_w, expected_body_pose_w)
+    torch.testing.assert_close(articulation.data.body_link_pose_w, expected_body_link_pose_w)
+
+    # validate pose_w is consistent state[..., :7]
+    torch.testing.assert_close(articulation.data.body_pose_w, articulation.data.body_state_w[..., :7])
+    torch.testing.assert_close(articulation.data.body_vel_w, articulation.data.body_state_w[..., 7:])
+    torch.testing.assert_close(articulation.data.body_link_pose_w, articulation.data.body_link_state_w[..., :7])
+    torch.testing.assert_close(articulation.data.body_com_pose_w, articulation.data.body_com_state_w[..., :7])
+    torch.testing.assert_close(articulation.data.body_vel_w, articulation.data.body_state_w[..., 7:])
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "--maxfail=1"])

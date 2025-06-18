@@ -220,11 +220,18 @@ class RigidObject(AssetBase):
             self._data.root_link_state_w[env_ids, :7] = self._data.root_link_pose_w[env_ids]
         if self._data._root_state_w.data is not None:
             self._data.root_state_w[env_ids, :7] = self._data.root_link_pose_w[env_ids]
-
+        if self._data._root_com_state_w.data is not None:
+            expected_com_pos, expected_com_quat = math_utils.combine_frame_transforms(
+                self._data.root_link_pose_w[env_ids, :3],
+                self._data.root_link_pose_w[env_ids, 3:7],
+                self.data.body_com_pos_b[env_ids, 0, :],
+                self.data.body_com_quat_b[env_ids, 0, :],
+            )
+            self._data.root_com_state_w[env_ids, :3] = expected_com_pos
+            self._data.root_com_state_w[env_ids, 3:7] = expected_com_quat
         # convert root quaternion from wxyz to xyzw
         root_poses_xyzw = self._data.root_link_pose_w.clone()
         root_poses_xyzw[:, 3:] = math_utils.convert_quat(root_poses_xyzw[:, 3:], to="xyzw")
-
         # set into simulation
         self.root_physx_view.set_transforms(root_poses_xyzw, indices=physx_env_ids)
 
@@ -301,9 +308,10 @@ class RigidObject(AssetBase):
             self._data.root_com_state_w[env_ids, 7:] = self._data.root_com_vel_w[env_ids]
         if self._data._root_state_w.data is not None:
             self._data.root_state_w[env_ids, 7:] = self._data.root_com_vel_w[env_ids]
+        if self._data._root_link_state_w.data is not None:
+            self._data.root_link_state_w[env_ids, 7:] = self._data.root_com_vel_w[env_ids]
         # make the acceleration zero to prevent reporting old values
         self._data.body_com_acc_w[env_ids] = 0.0
-
         # set into simulation
         self.root_physx_view.set_velocities(self._data.root_com_vel_w, indices=physx_env_ids)
 
