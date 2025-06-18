@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.10.35 (2025-06-17)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Relaxed upper range pin for protobuf python dependency for more permissive installation.
+
+
 0.10.34 (2025-06-16)
 ~~~~~~~~~~~~~~~~~~~~
 

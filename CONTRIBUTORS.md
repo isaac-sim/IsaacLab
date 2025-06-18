@@ -74,6 +74,7 @@ Guidelines for modifications:
 * Jinqi Wei
 * Johnson Sun
 * Kaixi Bao
+* Kris Wilson
 * Kourosh Darvish
 * Kousheek Chakraborty
 * Lionel Gulich
