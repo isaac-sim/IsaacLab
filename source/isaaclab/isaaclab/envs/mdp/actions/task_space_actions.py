@@ -500,31 +500,8 @@ class OperationalSpaceControllerAction(ActionTerm):
         self._nullspace_joint_pos_target = None
         self._resolve_nullspace_joint_pos_targets()
 
-        # parse clip
-        if cfg.clip_pose_abs is not None:
-            if len(self.cfg.clip_pose_abs) != 6:
-                raise ValueError("clip_pose_abs must be a list of 6 tuples.")
-            for t in self.cfg.clip_pose_abs:
-                if len(t) != 2:
-                    raise ValueError("Each tuple in clip_pose_abs must contain 2 values.")
-            self._clip_pose_abs = torch.zeros((self.num_envs, 6, 2), device=self.device)
-            self._clip_pose_abs[:] = torch.tensor(self.cfg.clip_pose_abs, device=self.device)
-        if cfg.clip_pose_rel is not None:
-            if len(self.cfg.clip_pose_rel) != 6:
-                raise ValueError("clip_pose_rel must be a list of 6 tuples.")
-            for t in self.cfg.clip_pose_rel:
-                if len(t) != 2:
-                    raise ValueError("Each tuple in clip_pose_rel must contain 2 values.")
-            self._clip_pose_rel = torch.zeros((self.num_envs, 6, 2), device=self.device)
-            self._clip_pose_rel[:] = torch.tensor(self.cfg.clip_pose_rel, device=self.device)
-        if cfg.clip_wrench_abs is not None:
-            if len(self.cfg.clip_wrench_abs) != 6:
-                raise ValueError("clip_wrench_abs must be a list of 6 tuples.")
-            for t in self.cfg.clip_wrench_abs:
-                if len(t) != 2:
-                    raise ValueError("Each tuple in clip_wrench_abs must contain 2 values.")
-            self._clip_wrench_abs = torch.zeros((self.num_envs, 6, 2), device=self.device)
-            self._clip_wrench_abs[:] = torch.tensor(self.cfg.clip_wrench_abs, device=self.device)
+        # parse clipping cfg
+        self._parse_clipping_cfg(self.cfg)
 
     """
     Properties.
@@ -621,6 +598,118 @@ class OperationalSpaceControllerAction(ActionTerm):
             self._contact_sensor.reset(env_ids)
         if self._task_frame_transformer is not None:
             self._task_frame_transformer.reset(env_ids)
+            
+    """
+    Parameter modification functions.
+    """
+
+    def _validate_clipping_values(self, value: list[tuple[float, float]] | torch.Tensor, name: str) -> torch.Tensor:
+        if isinstance(value, torch.Tensor):
+            assert value.shape == (self.num_envs, 6, 2), f"Expected {name} to be a tensor of shape ({self.num_envs}, 6, 2) but got {value.shape}"
+        elif isinstance(value, list):
+            if len(value) != 6:
+                value = self._gen_clip(self.cfg.controller_cfg.motion_control_axes_task, value, name)
+            for i in range(6):
+                self._clip_pose_abs[:, i, 0] = -value[i][0]
+                self._clip_pose_abs[:, i, 1] = value[i][1]
+        else:
+            raise ValueError(f"Expected {name} to be a tensor or a list but got {type(value)}")
+        return value
+    
+    def _validate_scale_values(self, target, value, name):
+        if isinstance(value, torch.Tensor):
+            assert value.shape == (self.num_envs,), f"Expected {name} to be a tensor of shape ({self.num_envs},) but got {value.shape}"
+        elif isinstance(value, float):
+            value = torch.full((self.num_envs,), value, device=self.device)
+        return value
+
+    def set_clipping_values(
+        self,
+        pose_abs_clip: list[tuple[float, float]] | torch.Tensor | None = None,
+        pose_rel_clip: list[tuple[float, float]] | torch.Tensor | None = None,
+        wrench_clip: list[tuple[float, float]] | torch.Tensor | None = None,
+    ):
+        """Sets the clipping values for the pose and wrench commands.
+
+        If a tensor is provided, it must be of shape (num_envs, 6, 2). The setter performs a direct assignment so no
+        copy is made. If a list is provided, it must be a list of tuples, each containing two values. The setter will
+        convert the list to a tensor and assign it to the clipping values.
+        
+        Args:
+            pose_abs_clip: The clipping values for the pose absolute command.
+            pose_rel_clip: The clipping values for the pose relative command.
+            wrench_clip: The clipping values for the wrench command.
+        """
+        
+        if pose_abs_clip is not None:
+            if isinstance(pose_abs_clip, torch.Tensor):
+                assert pose_abs_clip.shape == (self.num_envs, 6, 2), f"Expected pose_abs_clip to be a tensor of shape ({self.num_envs}, 6, 2) but got {pose_abs_clip.shape}"
+                self._clip_pose_abs = pose_abs_clip
+            elif isinstance(pose_abs_clip, list):
+                if len(pose_abs_clip) != 6:
+                    raise ValueError("pose_abs_clip must be a list of 6 tuples")
+                for i in range(6):
+                    self._clip_pose_abs[:, i, 0] = -pose_abs_clip[i][0]
+                    self._clip_pose_abs[:, i, 1] = pose_abs_clip[i][1]
+            else:
+                raise ValueError(f"Expected pose_abs_clip to be a tensor or a list but got {type(pose_abs_clip)}")
+
+        if pose_rel_clip is not None:
+            if isinstance(pose_rel_clip, torch.Tensor):
+                assert pose_rel_clip.shape == (self.num_envs, 6, 2), f"Expected pose_rel_clip to be a tensor of shape ({self.num_envs}, 6, 2) but got {pose_rel_clip.shape}"
+                self._clip_pose_rel = pose_rel_clip
+            elif isinstance(pose_abs_clip, list):
+                if len(pose_abs_clip) != 6:
+                    raise ValueError("pose_abs_clip must be a list of 6 tuples")
+                for i in range(6):
+                    self._clip_pose_abs[:, i, 0] = -pose_abs_clip[i][0]
+                    self._clip_pose_abs[:, i, 1] = pose_abs_clip[i][1]
+            else:
+                raise ValueError(f"Expected pose_rel_clip to be a tensor or a list but got {type(pose_rel_clip)}")
+            
+        if wrench_clip is not None:
+            if isinstance(wrench_clip, torch.Tensor):
+                assert wrench_clip.shape == (self.num_envs, 6, 2), f"Expected wrench_clip to be a tensor of shape ({self.num_envs}, 6, 2) but got {wrench_clip.shape}"
+                self._clip_wrench_abs = wrench_clip
+            elif isinstance(pose_abs_clip, list):
+                if len(pose_abs_clip) != 6:
+                    raise ValueError("pose_abs_clip must be a list of 6 tuples")
+                for i in range(6):
+                    self._clip_pose_abs[:, i, 0] = -pose_abs_clip[i][0]
+                    self._clip_pose_abs[:, i, 1] = pose_abs_clip[i][1]
+            else:
+                raise ValueError(f"Expected wrench_clip to be a tensor or a list but got {type(wrench_clip)}")
+
+    def set_scale_values(
+        self,
+        pos_scale: float | torch.Tensor | None = None,
+        ori_scale: float | torch.Tensor | None = None,
+        wrench_scale: float | torch.Tensor | None = None,
+        stiffness_scale: float | torch.Tensor | None = None,
+        damping_ratio_scale: float | torch.Tensor | None = None,
+    ):
+
+        if pos_scale is not None:
+            if isinstance(pos_scale, torch.Tensor):
+                assert pos_scale.shape == (self.num_envs,), f"Expected pos_scale to be a tensor of shape ({self.num_envs},) but got {pos_scale.shape}"
+                self._position_scale = pos_scale
+            elif isinstance(pos_scale, float):
+                self._position_scale = torch.full((self.num_envs,), pos_scale, device=self.device)
+            else:
+                raise ValueError(f"Expected pos_scale to be a tensor or a float but got {type(pos_scale)}")
+        if ori_scale is not None:
+            ori_scale = self._validate_modified_param(ori_scale, "ori_scale")
+            self._orientation_scale.copy_(ori_scale)
+        if wrench_scale is not None:
+            wrench_scale = self._validate_modified_param(wrench_scale, "wrench_scale")
+            self._wrench_scale.copy_(wrench_scale)
+        if stiffness_scale is not None:
+            stiffness_scale = self._validate_modified_param(stiffness_scale, "stiffness_scale")
+            self._stiffness_scale.copy_(stiffness_scale)
+        if damping_ratio_scale is not None:
+            damping_ratio_scale = self._validate_modified_param(damping_ratio_scale, "damping_ratio_scale")
+            self._damping_ratio_scale.copy_(damping_ratio_scale)
+
 
     """
     Helper functions.
@@ -830,9 +919,8 @@ class OperationalSpaceControllerAction(ActionTerm):
                     min=self._clip_pose_abs[:, :3, 0],
                     max=self._clip_pose_abs[:, :3, 1],
                 )
-                rpy = torch.transpose(torch.stack(math_utils.euler_xyz_from_quat(
-                    self.processed_actions[:, self._pose_abs_idx + 3 : self._pose_abs_idx + 7] * self._orientation_scale
-                )), 0, 1)
+                normed_quat = math_utils.normalize(self.processed_actions[:, self._pose_abs_idx + 3 : self._pose_abs_idx + 7] * self._orientation_scale)
+                rpy = torch.transpose(torch.stack(math_utils.euler_xyz_from_quat(normed_quat)), 0, 1)
                 rpy_clamped = torch.clamp(rpy, min=self._clip_pose_abs[:, 3:6, 0], max=self._clip_pose_abs[:, 3:6, 1])
                 self.processed_actions[:, self._pose_abs_idx + 3 : self._pose_abs_idx + 7] = (
                     math_utils.quat_from_euler_xyz(rpy_clamped[:, 0], rpy_clamped[:, 1], rpy_clamped[:, 2])
@@ -851,7 +939,7 @@ class OperationalSpaceControllerAction(ActionTerm):
                     self.processed_actions[:, self._pose_rel_idx + 3 : self._pose_rel_idx + 7] * self._orientation_scale
                 )), 0, 1)
                 rpy_clamped = torch.clamp(rpy, min=self._clip_pose_rel[:, 3:6, 0], max=self._clip_pose_rel[:, 3:6, 1])
-                self.processed_actions[:, self._pose_rel_idx + 3 : self._pose_rel_idx + 7] = (
+                self.processed_actions[:, self._pose_rel_idx + 3 : self._pose_rel_idx + 6] = (
                     math_utils.quat_from_euler_xyz(rpy_clamped[:, 0], rpy_clamped[:, 1], rpy_clamped[:, 2])
                 )
             else:
@@ -875,3 +963,62 @@ class OperationalSpaceControllerAction(ActionTerm):
                 min=self.cfg.controller_cfg.motion_damping_ratio_limits_task[0],
                 max=self.cfg.controller_cfg.motion_damping_ratio_limits_task[1],
             )
+
+    @staticmethod
+    def _gen_clip(control_flags, clip_cfg: list[tuple[float, float]], name: str) -> list[tuple[float, float]]:
+        """Generates the clipping configuration for the operational space controller.
+        
+        The expected format is a list of tuples, each containing two values. Note that the order in which the tuples are provided
+        must match the order of the active axes in motion_control_axes_task.
+
+        Args:
+            control_flags: The control flags for the operational space controller.
+            clip_cfg: The clipping configuration for the operational space controller.
+            name: The name of the clipping configuration.
+        """
+        # Ensure the length of the clip_cfg is the same as the number of active axes
+        if len(clip_cfg) != sum(control_flags):
+            raise ValueError(f"{name} must be a list of tuples of the same length as there are active axes in motion_control_axes_task. There are {sum(control_flags)} active axes and {len(clip_cfg)} tuples in {name}.")
+        clip_pose_abs_new = []
+        # Iterate over the control flags and add the corresponding clip to the list
+        for i, flag in enumerate(control_flags):
+            # If the axis is active, add the corresponding clip
+            if flag:
+                # Get the corresponding clip
+                clip = clip_cfg[sum(control_flags[:i])]
+                # Ensure the clip is a tuple of 2 values
+                if len(clip) != 2:
+                    raise ValueError(f"Each tuple in {name} must contain 2 values.")
+                clip_pose_abs_new.append(clip)
+            else:
+                # If the axis is not active, add a clip of (-inf, inf). (Don't clip)
+                clip_pose_abs_new.append((-float('inf'), float('inf')))
+        return clip_pose_abs_new    
+
+    def _parse_clipping_cfg(self, cfg: actions_cfg.OperationalSpaceControllerActionCfg) -> None:
+        """Parses the clipping configuration for the operational space controller.
+        
+        Args:
+            cfg: The configuration of the action term.
+        """
+
+        # Parse clip based on the controller cfg
+
+
+        # Parse clip_pose_abs
+        if cfg.clip_pose_abs is not None:
+            clip_pose_abs = self._gen_clip(self.cfg.controller_cfg.motion_control_axes_task, cfg.clip_pose_abs, "clip_pose_abs")
+            self._clip_pose_abs = torch.zeros((self.num_envs, 6, 2), device=self.device)
+            self._clip_pose_abs[:] = torch.tensor(clip_pose_abs, device=self.device)
+
+        # Parse clip_pose_rel
+        if cfg.clip_pose_rel is not None:
+            clip_pose_rel = self._gen_clip(self.cfg.controller_cfg.motion_control_axes_task, cfg.clip_pose_rel, "clip_pose_rel")
+            self._clip_pose_rel = torch.zeros((self.num_envs, 6, 2), device=self.device)
+            self._clip_pose_rel[:] = torch.tensor(clip_pose_rel, device=self.device)
+
+        # Parse clip_wrench_abs
+        if cfg.clip_wrench_abs is not None:
+            clip_wrench_abs = self._gen_clip(self.cfg.controller_cfg.contact_wrench_control_axes_task, cfg.clip_wrench_abs, "clip_wrench_abs")
+            self._clip_wrench_abs = torch.zeros((self.num_envs, 6, 2), device=self.device)
+            self._clip_wrench_abs[:] = torch.tensor(clip_wrench_abs, device=self.device)
