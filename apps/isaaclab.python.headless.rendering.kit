@@ -18,6 +18,7 @@ keywords = ["experience", "app", "isaaclab", "python", "camera", "minimal"]
 # Isaac Lab minimal app
 "isaaclab.python.headless" = {}
 "omni.replicator.core" = {}
+"isaacsim.sensors.rtx" = {}
 
 # Rendering
 "omni.kit.material.library" = {}
@@ -85,6 +86,11 @@ app.vulkan = true
 
 # disable replicator orchestrator for better runtime perf
 exts."omni.replicator.core".Orchestrator.enabled = false
+
+# move the default lidar config file paths
+app.sensors.nv.lidar.profileBaseFolder.'++' = [
+    "${app}/../source/isaaclab/isaaclab/sensors/rtx_lidar/",
+]
 
 [settings.exts."omni.kit.registry.nucleus"]
 registries = [
