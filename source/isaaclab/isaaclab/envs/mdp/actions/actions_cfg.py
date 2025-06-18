@@ -368,11 +368,11 @@ class OperationalSpaceControllerActionCfg(ActionTermCfg):
     """
 
     # TODO: Here the clip effects are not homogeneous, I don't like that depending on the controller mode the behavior
-    # is different. It makes it hard to understand what does what. Should we have an explicit velocity clip? 
+    # is different. It makes it hard to understand what does what. Should we have an explicit velocity clip?
 
     clip_position: list[tuple[float, float]] | None = None
     """Clip range for the position targets. Defaults to None for no clipping.
-    
+
     The expected format is a list of tuples, each containing two values. When using the controller in ``"abs"`` mode
     this limits the reachable range of the end-effector in the world frame. When using the controller in ``"rel"`` mode
     this limits the maximum velocity of the end-effector in the task frame. This must match the number of active axes
