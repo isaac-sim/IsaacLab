@@ -1,6 +1,19 @@
 Changelog
 ---------
 
+0.40.7 (2025-06-18)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed data inconsistency between read_body, read_link, read_com when write_body, write_com, write_joint performed, in
+ :class:`~isaaclab.assets.Articulation`, :class:`~isaaclab.assets.RigidObject`, and
+ :class:`~isaaclab.assets.RigidObjectCollection`
+* added pytest that check against these data consistencies
+
+
+
 0.40.6 (2025-06-12)
 ~~~~~~~~~~~~~~~~~~~
 
