@@ -32,8 +32,8 @@ To begin, we first define our virtual environment.
 
 .. code-block:: bash
 
-    # create a virtual environment named env_isaaclab with python3.10
-    conda create -n env_isaaclab python=3.10
+    # create a virtual environment named env_isaaclab with python3.11
+    conda create -n env_isaaclab python=3.11
     # activate the virtual environment
     conda activate env_isaaclab
 
