@@ -30,9 +30,12 @@ class FrankaCubeEnvCfg(CubeEnvCfg):
         # Set Franka as robot
         self.scene.robot = FRANKA_PANDA_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
 
-        # Set actions for the specific robot type (franka)
+         # Set actions for the specific robot type (franka)
         self.actions.arm_action = mdp.JointPositionActionCfg(
-            asset_name="robot", joint_names=["panda_joint.*"], scale=0.5, use_default_offset=True
+            asset_name="robot", 
+            joint_names=["panda_joint.*"], 
+            scale=0.5, 
+            use_default_offset=True
         )
         self.actions.gripper_action = mdp.BinaryJointPositionActionCfg(
             asset_name="robot",
@@ -40,6 +43,7 @@ class FrankaCubeEnvCfg(CubeEnvCfg):
             open_command_expr={"panda_finger_.*": 0.04},
             close_command_expr={"panda_finger_.*": 0.0},
         )
+        print("Action shape : ", self.actions.__dict__)
         # Set the body name for the end effector
         self.commands.object_pose.body_name = "panda_hand"
 
@@ -82,6 +86,20 @@ class FrankaCubeEnvCfg(CubeEnvCfg):
                     name="end_effector",
                     offset=OffsetCfg(
                         pos=[0.0, 0.0, 0.1034],
+                    ),
+                ),
+                FrameTransformerCfg.FrameCfg(
+                    prim_path="{ENV_REGEX_NS}/Robot/panda_rightfinger",
+                    name="tool_rightfinger",
+                    offset=OffsetCfg(
+                        pos=(0.0, 0.0, 0.046),
+                    ),
+                ),
+                FrameTransformerCfg.FrameCfg(
+                    prim_path="{ENV_REGEX_NS}/Robot/panda_leftfinger",
+                    name="tool_leftfinger",
+                    offset=OffsetCfg(
+                        pos=(0.0, 0.0, 0.046),
                     ),
                 ),
             ],

@@ -160,6 +160,24 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
         spawn=sim_utils.DomeLightCfg(color=(0.75, 0.75, 0.75), intensity=3000.0),
     )
 
+    flask = RigidObjectCfg(
+            prim_path="{ENV_REGEX_NS}/flask",
+            init_state=RigidObjectCfg.InitialStateCfg(pos=[0.65, 0.4, 0.05],rot=[1, 0, 0, 0]),
+            spawn=UsdFileCfg(
+                usd_path="/workspace/isaaclab/source/isaaclab_assets/data/Props/glassware/solid_conical_flask.usd",
+                scale=(1, 1, 1),
+                rigid_props=RigidBodyPropertiesCfg(
+                    solver_position_iteration_count=16,
+                    solver_velocity_iteration_count=1,
+                    max_angular_velocity=1000.0,
+                    max_linear_velocity=1000.0,
+                    max_depenetration_velocity=5.0,
+                    disable_gravity=False,
+                ),
+                semantic_tags=[("class", "flask")],
+            ),
+        ) 
+
     
     
 
@@ -178,7 +196,7 @@ class CommandsCfg:
         resampling_time_range=(10.0, 10.0),
         debug_vis=True,
         ranges=mdp.UniformPoseCommandCfg.Ranges(
-            pos_x=(0.4,0.4), pos_y=(-0.25, -0.25), pos_z=(0.5, 0.5), roll=(0.0, 0.0), pitch=(0.0, 0.0), yaw=(0.0, 0.0)
+            pos_x=(0.3,0.3), pos_y=(-0.28, -0.28), pos_z=(0.1, 0.1), roll=(0.0, 0.0), pitch=(0.0, 0.0), yaw=(0.0, 0.0)
         ),
     )
 
@@ -281,7 +299,7 @@ class EventCfg:
         func=mdp.reset_root_state_uniform,
         mode="reset",
         params={
-            "pose_range": {"x": (-0.1, 0.1), "y": (-0.25, 0.25), "z": (0.0, 0.0)},
+            "pose_range": {"x": (0, 0.2), "y": (0, 0.25), "z": (0.0, 0.0)},
             "velocity_range": {},
             "asset_cfg": SceneEntityCfg("object", body_names="Object"),
         },
@@ -331,7 +349,7 @@ class TerminationsCfg:
 
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
 
-    joint_violation = DoneTerm(func=mdp.joint_pos_out_of_limit)
+    #joint_violation = DoneTerm(func=mdp.joint_pos_out_of_limit)
     
    # object_orientation = DoneTerm(func=mdp.bad_orientation)
 
@@ -383,13 +401,14 @@ class CubeEnvCfg(ManagerBasedRLEnvCfg):
 
     def __post_init__(self):
         """Post initialization."""
+        print("debug cfg : ", self.observations.policy.actions)
         # general settings
         self.decimation = 2
         self.episode_length_s = 60
         # simulation settings
         self.sim.dt = 0.01  # 100Hz
         self.sim.render_interval = self.decimation
-        self.viewer.eye = (0.5, 0.5, 0.5)
+        self.viewer.eye = (1.0, 1.0, 1.0)
         self.viewer.lookat = (0.0, 0.0, -0.1)
         self.terminations.set_loghelper(self.loghelper)
         self.observations.subtask_terms.set_loghelper(self.loghelper)

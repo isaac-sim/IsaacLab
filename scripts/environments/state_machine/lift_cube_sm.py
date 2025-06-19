@@ -259,19 +259,23 @@ class PickAndLiftSm:
 def main():
     # parse configuration
     env_cfg: LiftEnvCfg = parse_env_cfg(
-        "Isaac-Lift-Cube-Franka-IK-Abs-v0",
+        #"Isaac-Lift-Cube-Franka-IK-Abs-v0",
+        "Dev-IK-Rel-v0",
         device=args_cli.device,
         num_envs=args_cli.num_envs,
         use_fabric=not args_cli.disable_fabric,
     )
     # create environment
-    env = gym.make("Isaac-Lift-Cube-Franka-IK-Abs-v0", cfg=env_cfg)
+    #env = gym.make("Isaac-Lift-Cube-Franka-IK-Abs-v0", cfg=env_cfg)
+    env = gym.make("Dev-IK-Rel-v0", cfg=env_cfg)
     # reset environment at start
     env.reset()
-
+    print("Setup action buffer : shape : ", env.unwrapped.action_space.shape)
     # create action buffers (position + quaternion)
     actions = torch.zeros(env.unwrapped.action_space.shape, device=env.unwrapped.device)
     actions[:, 3] = 1.0
+    
+    print("actions : ", actions)
     # desired object orientation (we only do position control of object)
     desired_orientation = torch.zeros((env.unwrapped.num_envs, 4), device=env.unwrapped.device)
     desired_orientation[:, 1] = 1.0
@@ -279,13 +283,16 @@ def main():
     pick_sm = PickAndLiftSm(
         env_cfg.sim.dt * env_cfg.decimation, env.unwrapped.num_envs, env.unwrapped.device, position_threshold=0.01
     )
-
+    print("debug1 : " , env.unwrapped.action_space.shape)
+    n=0
     while simulation_app.is_running():
-        # run everything in inference mode
+        # run everything in inference mode+
+        print("loop : ", n)
         with torch.inference_mode():
             # step environment
+            print("debug2 : " , env.unwrapped.action_space.shape)
             dones = env.step(actions)[-2]
-
+            #print("debug2 : " , env.unwrapped.action_space.shape)
             # observations
             # -- end-effector frame
             ee_frame_sensor = env.unwrapped.scene["ee_frame"]
@@ -303,11 +310,18 @@ def main():
                 torch.cat([object_position, desired_orientation], dim=-1),
                 torch.cat([desired_position, desired_orientation], dim=-1),
             )
+         
+            
+            print(f"End of loop : {actions.shape}")
+            print("Action space shape:", env.unwrapped.action_space.shape)
+            
 
+            
+           
             # reset state machine
             if dones.any():
                 pick_sm.reset_idx(dones.nonzero(as_tuple=False).squeeze(-1))
-
+        n=n+1    
     # close the environment
     env.close()
 

@@ -105,7 +105,8 @@ RUN echo "export ISAACLAB_PATH=${ISAACLAB_PATH}" >> ${HOME}/.bashrc && \
 # install TensorFlow and nightly PyTorch
 RUN --mount=type=cache,target=${DOCKER_USER_HOME}/.cache/pip \
     ${ISAACLAB_PATH}/_isaac_sim/python.sh -m pip install --upgrade --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/cu128 && \
-    ${ISAACLAB_PATH}/_isaac_sim/python.sh -m pip install tensorflow
+    ${ISAACLAB_PATH}/_isaac_sim/python.sh -m pip install tensorflow \
+    ${ISAACLAB_PATH}/_isaac_sim/python.sh -m pip install scikit-learn \
 # make working directory as the Isaac Lab directory
 # this is the default directory when the container is run
 WORKDIR ${ISAACLAB_PATH}

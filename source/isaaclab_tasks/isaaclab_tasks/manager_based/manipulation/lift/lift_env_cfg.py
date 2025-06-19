@@ -208,6 +208,7 @@ class LiftEnvCfg(ManagerBasedRLEnvCfg):
 
     def __post_init__(self):
         """Post initialization."""
+        print("debug cfg : ", self.observations.policy.actions)
         # general settings
         self.decimation = 2
         self.episode_length_s = 5.0

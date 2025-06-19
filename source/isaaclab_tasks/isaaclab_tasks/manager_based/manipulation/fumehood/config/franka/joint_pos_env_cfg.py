@@ -172,6 +172,16 @@ class FrankaFumehoodEnvCfg(FumehoodEnvCfg):
                         rigid_props=cube_properties,
                         semantic_tags=[("class", "flask")],
                     ),
+                ) ,
+                "stirplate" : RigidObjectCfg(
+                    prim_path="{ENV_REGEX_NS}/stirplate",
+                    init_state=RigidObjectCfg.InitialStateCfg(pos=[0.7, 0.2, 0.05],rot=[1, 0, 0, 0]),
+                    spawn=UsdFileCfg(
+                        usd_path="/workspace/isaaclab/source/isaaclab_assets/data/Props/lab_equipment/mag_hotplate.usd",
+                        scale=(1, 1, 1),
+                        rigid_props=cube_properties,
+                        semantic_tags=[("class", "flask")],
+                    ),
                 ) 
 
             }
