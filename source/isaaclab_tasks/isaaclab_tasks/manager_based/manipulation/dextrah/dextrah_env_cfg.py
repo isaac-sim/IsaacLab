@@ -231,7 +231,7 @@ class RewardsCfg:
 
     object_to_goal = RewTerm(func=mdp.object_goal_distance_v0, params={"std": 8., "command_name": "object_pose", "min_height": 0.26}, weight=5.0)
 
-    finger_curl_reg = RewTerm(func=mdp.joint_deviation_l1, params={"asset_cfg": SceneEntityCfg("robot")}, weight=-0.0001)
+    finger_curl_reg = RewTerm(func=mdp.joint_deviation_l1, params={"asset_cfg": SceneEntityCfg("robot")}, weight=-0.01)
 
 @configclass
 class TerminationsCfg:
@@ -253,7 +253,9 @@ class CurriculumCfg:
         params={
             "asset_cfg": SceneEntityCfg("robot"),
             "object_cfg": SceneEntityCfg("object"),
-            "max_difficulty": 50,
+            "init_difficulty": 0,
+            "min_difficulty": 0,
+            "max_difficulty": 10,
             "adr_terms": {
                 'observation_manager.cfg.policy.joint_pos.noise.n_min' : ADR(0., -0.1),
                 'observation_manager.cfg.policy.joint_pos.noise.n_max' : ADR(0., 0.1),
@@ -270,14 +272,14 @@ class CurriculumCfg:
                 'command_manager.cfg.object_pose.ranges.pos_y[1]' : ADR(0., .25),
                 'command_manager.cfg.object_pose.ranges.pos_z[1]' : ADR(.65, .75),
 
-                'reward_manager.cfg.lift.weight' : ADR(5.0, 0.),
-                'reward_manager.cfg.finger_curl_reg.weight' : ADR(-0.001, -0.01),
+                'reward_manager.cfg.lift.weight' : ADR(1.0 * 60, 0.),
+                'reward_manager.cfg.finger_curl_reg.weight' : ADR(-0.01 * 60, -0.05 * 60),
                 'reward_manager.cfg.object_to_goal.params.std' : ADR(15., 20.),
 
-                'event_manager.cfg.reset_object.params.pose_range.x[0]': ADR(0., -.5),
-                'event_manager.cfg.reset_object.params.pose_range.x[1]': ADR(0., .5),
-                'event_manager.cfg.reset_object.params.pose_range.y[0]': ADR(0., -.8),
-                'event_manager.cfg.reset_object.params.pose_range.y[1]': ADR(0., .8),
+                'event_manager.cfg.reset_object.params.pose_range.x[0]': ADR(0., -.25),
+                'event_manager.cfg.reset_object.params.pose_range.x[1]': ADR(0., .25),
+                'event_manager.cfg.reset_object.params.pose_range.y[0]': ADR(0., -.35),
+                'event_manager.cfg.reset_object.params.pose_range.y[1]': ADR(0., .35),
                 'event_manager.cfg.reset_object.params.pose_range.yaw[0]': ADR(0., -3.14),
                 'event_manager.cfg.reset_object.params.pose_range.yaw[1]': ADR(0., 3.14),
                 
@@ -313,14 +315,13 @@ class DextrahEnvCfg(ManagerBasedEnvCfg):
     terminations: TerminationsCfg = TerminationsCfg()
     events: EventCfg = EventCfg()
     curriculum: CurriculumCfg = CurriculumCfg()
-    # curriculum = None
     is_finite_horizon = True
 
     def __post_init__(self):
         """Post initialization."""
         # general settings
         self.decimation = 2
-        self.episode_length_s = 10.0
+        self.episode_length_s = 4
         # simulation settings
         self.sim.dt = 1 / 120  # 60Hz
         self.sim.render_interval = self.decimation

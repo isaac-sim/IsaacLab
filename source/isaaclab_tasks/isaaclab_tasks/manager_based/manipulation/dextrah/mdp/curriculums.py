@@ -65,6 +65,7 @@ class DifficultyScheduler(ManagerTermBase):
         object_cfg: SceneEntityCfg = SceneEntityCfg("object"),
         dist_tol: float = 0.1,
         init_difficulty: int = 0,
+        min_difficulty: int = 0,
         max_difficulty: int = 50,
         adr_terms: dict[str, ADRTermCfg] = {}
     ):
@@ -78,7 +79,7 @@ class DifficultyScheduler(ManagerTermBase):
         move_up = distance < dist_tol
         self.current_adr_difficulties[env_ids] = torch.where(
             move_up, self.current_adr_difficulties[env_ids] + 1, self.current_adr_difficulties[env_ids] - 1,
-        ).clamp(min=0., max=max_difficulty)
+        ).clamp(min=min_difficulty, max=max_difficulty)
         for term in self.adr_terms:
             term.update((torch.mean(self.current_adr_difficulties) / max(max_difficulty, 1)).item())
 
