@@ -1,0 +1,179 @@
+params:
+  seed: 42
+
+  # environment wrapper clipping
+  env:
+    # added to the wrapper
+    clip_observations: 5.0
+    # can make custom wrapper?
+    clip_actions: 1.0
+
+  algo:
+    name: a2c_continuous
+
+  model:
+    name: continuous_a2c_logstd
+
+  network:
+    name: actor_critic
+    separate: False
+
+    space:
+      continuous:
+        mu_activation: None
+        sigma_activation: None
+        mu_init:
+          name: default
+        sigma_init:
+          name: const_initializer
+          val: 0
+        fixed_sigma: True
+    mlp:
+      units: [512, 512]
+      activation: elu
+      d2rl: False
+      initializer:
+        name: default
+      regularizer:
+        name: None
+    rnn:
+      name: lstm
+      units: 1024
+      layers: 1
+      before_mlp: True
+      layer_norm: True
+      concat_input: True
+      concat_output: True
+
+  load_checkpoint: False # flag which sets whether to load the checkpoint
+  load_path: '' # path to the checkpoint to load
+
+  config:
+    name: dextrah_lstm
+    env_name: rlgpu
+    device: 'cuda:0'
+    device_name: 'cuda:0'
+    multi_gpu: False
+    ppo: True
+    mixed_precision: False
+    normalize_input: True
+    normalize_value: True
+    value_bootstrap: False
+    num_actors: -1  # configured from the script (based on num_envs)
+    reward_shaper:
+      scale_value: 0.01
+    normalize_advantage: True
+    gamma: 0.998
+    tau: 0.95
+    learning_rate: 3e-4
+    lr_schedule: linear #adaptive
+    schedule_type: standard
+    kl_threshold: 0.013
+    score_to_win: 100000
+    max_epochs: 30000
+    save_best_after: 100
+    save_frequency: 200
+    print_stats: True
+    grad_norm: 1.0
+    entropy_coef: 0.002
+    truncate_grads: True
+    e_clip: 0.2
+    horizon_length: 16
+    minibatch_size: 16384
+    mini_epochs: 4
+    critic_coef: 4
+    clip_value: True
+    seq_length: 16
+    bound_loss_type: regularization
+    bounds_loss_coef: 0.005
+    zero_rnn_on_done: True
+
+    central_value_config:
+      minibatch_size: 16384 
+      mini_epochs: 4
+      learning_rate: 5e-5
+      kl_threshold: 0.016
+      clip_value: True
+      normalize_input: True
+      truncate_grads: True
+
+      network:
+        name: actor_critic
+        central_value: True
+        mlp:
+          units: [1024, 512] 
+          activation: elu
+          d2rl: False
+          initializer:
+            name: default
+          regularizer:
+            name: None
+        rnn:
+          name: lstm
+          units: 2048
+          layers: 1
+          before_mlp: False
+          layer_norm: True
+          concat_input: True
+          concat_output: True
+
+
+    player:
+      deterministic: True
+      games_num: 100000
+      print_stats: True
+
+hydra:
+  output_subdir: null
+  run:
+    dir: .
+
+pbt: 
+  enabled: False
+
+  policy_idx: 0  # policy index in a population: should always be specified explicitly! Each run in a population should have a unique idx from [0..N-1]
+  num_policies: 4  # total number of policies in the population, the total number of learners. Override through CLI!
+  workspace: "pbt_workspace"  # suffix of the workspace dir name inside train_dir, used to distinguish different PBT runs with the same experiment name. Recommended to specify a unique name
+
+  # special mode that enables PBT features for debugging even if only one policy is present. Never enable in actual experiments
+  dbg_mode: False
+
+  # PBT hyperparams
+  interval_steps: 10000000  # Interval in env steps between PBT iterations (checkpointing, mutation, etc.)
+  start_after: 10000000  # Start PBT after this many env frames are collected
+
+  # Fraction of the underperforming policies whose weights are to be replaced by better performing policies
+  # This is rounded up, i.e. for 8 policies and fraction 0.3 we replace ceil(0.3*8)=3 worst policies
+  replace_fraction: 0.3
+
+  # Replace an underperforming policy only if its reward is lower by at least this fraction of standard deviation
+  # within the population.
+  replace_threshold_frac_std: 0.5
+
+  # Replace an underperforming policy only if its reward is lower by at least this fraction of the absolute value
+  # of the objective of a better policy
+  replace_threshold_frac_absolute: 0.05
+
+  # Probability to mutate a certain parameter
+  mutation_rate: 0.15
+
+  # min and max values for the mutation of a parameter
+  # The mutation is performed by multiplying or dividing (randomly) the parameter value by a value sampled from [change_min, change_max]
+  change_min: 1.1
+  change_max: 1.5
+
+  mutation:
+
+    agent.params.config.learning_rate: "mutate_float"
+    agent.params.config.grad_norm: "mutate_float"
+    agent.params.config.entropy_coef: "mutate_float"
+    agent.params.config.critic_coef: "mutate_float"
+    agent.params.config.bounds_loss_coef: "mutate_float"
+    agent.params.config.kl_threshold: "mutate_float"
+
+    agent.params.config.e_clip: "mutate_eps_clip"
+
+    agent.params.config.mini_epochs: "mutate_mini_epochs"
+
+    agent.params.config.gamma: "mutate_discount"
+    agent.params.config.tau: "mutate_discount"
