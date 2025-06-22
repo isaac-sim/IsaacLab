@@ -77,7 +77,7 @@ from isaaclab.utils.dict import print_dict
 from isaaclab.utils.io import dump_pickle, dump_yaml
 
 from isaaclab_rl.rl_games import RlGamesGpuEnv, RlGamesVecEnvWrapper
-
+from isaaclab_rl.rl_games_utils import MultiObserver
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.hydra import hydra_task_config
 
@@ -176,7 +176,25 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     # set number of actors into agent config
     agent_cfg["params"]["config"]["num_actors"] = env.unwrapped.num_envs
     # create runner from rl-games
-    runner = Runner(IsaacAlgoObserver())
+
+    observers = [IsaacAlgoObserver()]
+
+    agent_cfg["args_cli"] = {}
+    agent_cfg["args_cli"]["task"] = args_cli.task
+    agent_cfg["args_cli"]["num_envs"] = args_cli.num_envs
+    agent_cfg["args_cli"]["distributed"] = args_cli.distributed
+    agent_cfg["args_cli"]["num_gpus"] = os.environ.get("WORLD_SIZE", 1)
+    agent_cfg["args_cli"]["global_rank"] = int(os.environ.get("RANK", 0))
+    agent_cfg["args_cli"]["enable_cameras"] = False
+    agent_cfg["wandb_activate"] = args_cli.track
+    global_rank = int(os.environ.get("RANK", 0))
+
+    if "pbt" in agent_cfg and agent_cfg["pbt"]["enabled"]:
+        from isaaclab_rl.pbt.pbt import PbtAlgoObserver
+        pbt_observer = PbtAlgoObserver(agent_cfg)
+        observers.append(pbt_observer)
+
+    runner = Runner(MultiObserver(observers))
     runner.load(agent_cfg)
 
     # reset the agent and env

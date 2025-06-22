@@ -50,6 +50,7 @@ params:
 
   config:
     name: dextrah_lstm
+    full_experiment_name: ''
     env_name: rlgpu
     device: 'cuda:0'
     device_name: 'cuda:0'
@@ -79,17 +80,17 @@ params:
     truncate_grads: True
     e_clip: 0.2
     horizon_length: 16
-    minibatch_size: 16384
+    minibatch_size: 4
     mini_epochs: 4
     critic_coef: 4
     clip_value: True
-    seq_length: 16
+    seq_length: 2
     bound_loss_type: regularization
     bounds_loss_coef: 0.005
     zero_rnn_on_done: True
 
     central_value_config:
-      minibatch_size: 16384 
+      minibatch_size: 4 
       mini_epochs: 4
       learning_rate: 5e-5
       kl_threshold: 0.016
@@ -129,7 +130,7 @@ hydra:
     dir: .
 
 pbt: 
-  enabled: False
+  enabled: True
 
   policy_idx: 0  # policy index in a population: should always be specified explicitly! Each run in a population should have a unique idx from [0..N-1]
   num_policies: 8  # total number of policies in the population, the total number of learners. Override through CLI!

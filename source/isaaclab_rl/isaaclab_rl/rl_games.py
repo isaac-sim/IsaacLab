@@ -333,6 +333,19 @@ class RlGamesGpuEnv(IVecEnv):
     def reset(self):  # noqa: D102
         return self.env.reset()
 
+    def get_env_state(self):
+        state = {
+            "scene": self.env.unwrapped.scene.get_state(),
+            "curriculum": self.env.unwrapped.curriculum_manager._term_cfgs[0].func.get_state()
+        }
+        return state
+
+    def set_env_state(self, env_state: dict[str, dict[str, dict[str, torch.Tensor]]]):
+        scene = env_state['scene']
+        curriculum = env_state['curriculum']
+        self.env.unwrapped.scene.reset_to(scene, env_ids=torch.arange(self.env.num_envs, device=self.env.device))
+        self.env.unwrapped.curriculum_manager._term_cfgs[0].func.set_state(curriculum)
+
     def get_number_of_agents(self) -> int:
         """Get number of agents in the environment.
 

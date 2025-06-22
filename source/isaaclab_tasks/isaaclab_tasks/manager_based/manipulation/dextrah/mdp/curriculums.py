@@ -56,6 +56,12 @@ class DifficultyScheduler(ManagerTermBase):
         adr_terms_cfg: dict[str, ADRTermCfg] = cfg.params.get('adr_terms')
         self.adr_terms: list[ADRTerm] = [ADRTerm(env, name, term_cfg) for name, term_cfg in adr_terms_cfg.items()]
         self.current_adr_difficulties = torch.ones(env.num_envs, device=env.device) * self.cfg.params.get("init_difficulty", 0)
+    
+    def get_state(self):
+        return self.current_adr_difficulties
+    
+    def set_state(self, state: torch.Tensor):
+        self.current_adr_difficulties = state.clone().to(self._env.device)
 
     def __call__(
         self,
