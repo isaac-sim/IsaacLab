@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.10.34 (2025-06-16)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Show available RL library configs on error message when an entry point key is not available for a given task.
+
+
 0.10.33 (2025-05-15)
 ~~~~~~~~~~~~~~~~~~~~
 

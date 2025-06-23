@@ -10,6 +10,15 @@ Fixed
 * Fixed :meth:`omni.isaac.lab.utils.dict.update_class_from_dict` preventing setting flat Iterables with different lengths.
 
 
+0.40.6 (2025-06-12)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed potential issues in :func:`~isaaclab.envs.mdp.events.randomize_visual_texture_material` related to handling visual prims during texture randomization.
+
+
 0.40.5 (2025-05-22)
 ~~~~~~~~~~~~~~~~~~~
 
