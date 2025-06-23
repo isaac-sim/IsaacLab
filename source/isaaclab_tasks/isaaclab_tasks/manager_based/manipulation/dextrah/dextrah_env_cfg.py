@@ -194,6 +194,16 @@ class EventCfg:
             "distribution": "uniform",
         },
     )
+    
+    reset_robot = EventTerm(
+        func=mdp.reset_root_state_uniform,
+        mode="reset",
+        params={
+            "pose_range": {"x": [-0., 0.], "y": [-0., 0.], "yaw": [-0., 0.]},
+            "velocity_range": {"x": [-0., 0.], "y": [-0., 0.], "z": [-0., 0.]},
+            "asset_cfg": SceneEntityCfg("robot"),
+        },
+    )
 
     reset_robot_joints = EventTerm(
         func=mdp.reset_joints_by_scale,
@@ -321,7 +331,7 @@ class DextrahEnvCfg(ManagerBasedEnvCfg):
         """Post initialization."""
         # general settings
         self.decimation = 2
-        self.episode_length_s = 4
+        self.episode_length_s = 5
         # simulation settings
         self.sim.dt = 1 / 120  # 60Hz
         self.sim.render_interval = self.decimation
