@@ -3,11 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
-# All rights reserved.
-#
-# SPDX-License-Identifier: BSD-3-Clause
-
 """Common functions that can be used to create observation terms.
 
 The functions can be passed to the :class:`isaaclab.managers.ObservationTermCfg` object to enable
@@ -150,7 +145,7 @@ def body_projected_gravity_b(
 
     body_quat = asset.data.body_quat_w[:, asset_cfg.body_ids]
     gravity_dir = asset.data.GRAVITY_VEC_W.unsqueeze(1)
-    return math_utils.quat_rotate_inverse(body_quat, gravity_dir).view(env.num_envs, -1)
+    return math_utils.quat_apply_inverse(body_quat, gravity_dir).view(env.num_envs, -1)
 
 
 """

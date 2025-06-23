@@ -3,11 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
-# All rights reserved.
-#
-# SPDX-License-Identifier: BSD-3-Clause
-
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, RigidObjectCfg
 from isaaclab.utils import configclass
@@ -143,6 +138,7 @@ class AssemblyTask:
     if_logging_eval: bool = False
     num_eval_trials: int = 100
     eval_filename: str = "evaluation_00015.h5"
+    wandb: bool = False
 
     # Fine-tuning
     sample_from: str = "rand"  # gp, gmm, idv, rand

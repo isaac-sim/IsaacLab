@@ -33,30 +33,15 @@ pip install route using virtual environments.
    If you are using Ubuntu 20.04, you will need to follow the :ref:`Binary Installation Guide <isaaclab-binaries-installation>` instead of the pip install route described below.
 
 
-To begin, we first define our virtual environment.
+To begin, we first define our virtual environment. We recommend using `miniconda <https://docs.conda.io/en/latest/miniconda.html>`_ to create a virtual environment.
 
-.. tab-set::
-    :sync-group: os
 
-    .. tab-item:: :icon:`fa-brands fa-linux` Linux
-        :sync: linux
+.. code-block:: bash
 
-        .. code-block:: bash
-
-            # create a virtual environment named env_isaaclab with python3.10
-            python3.10 -m venv env_isaaclab
-            # activate the virtual environment
-            source env_isaaclab/bin/activate
-
-    .. tab-item:: :icon:`fa-brands fa-windows` Windows
-        :sync: windows
-
-        .. code-block:: batch
-
-            # create a virtual environment named env_isaaclab with python3.10
-            python3.10 -m venv env_isaaclab
-            # activate the virtual environment
-            env_isaaclab\Scripts\activate
+    # create a virtual environment named env_isaaclab with python3.10
+    conda create -n env_isaaclab python=3.10
+    # activate the virtual environment
+    conda activate env_isaaclab
 
 Next, we need to install the CUDA-enabled version of PyTorch 2.5.1. This step is optional for Linux, but required for Windows to ensure a CUDA-compatible version of PyTorch is installed. If in doubt on which
 version to use, use 11.8.
