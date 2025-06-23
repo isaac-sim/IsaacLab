@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+## [Unreleased]
+~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed :class:`~isaaclab.utils.noise.noise_model.NoiseModelWithAdditiveBias` to sample each bias feature dimension independently.
+  Previously, for multi-dimensional data, e.g., a 3D position vector, all feature dimensions shared the same bias value.
+
+
 0.40.6 (2025-06-12)
 ~~~~~~~~~~~~~~~~~~~
 
