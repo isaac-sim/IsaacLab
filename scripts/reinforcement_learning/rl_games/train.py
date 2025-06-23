@@ -185,7 +185,10 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     agent_cfg["args_cli"]["distributed"] = args_cli.distributed
     agent_cfg["args_cli"]["num_gpus"] = os.environ.get("WORLD_SIZE", 1)
     agent_cfg["args_cli"]["global_rank"] = int(os.environ.get("RANK", 0))
-    agent_cfg["args_cli"]["enable_cameras"] = False
+    agent_cfg["args_cli"]["enable_cameras"] = 'rendering' in simulation_app.DEFAULT_LAUNCHER_CONFIG['experience'].split('/')[-1]
+    agent_cfg["args_cli"]["video"] = args_cli.video
+    agent_cfg["args_cli"]["video_interval"] = args_cli.video_interval
+    agent_cfg["args_cli"]["video_length"] = args_cli.video_length
     agent_cfg["wandb_activate"] = args_cli.track
     global_rank = int(os.environ.get("RANK", 0))
 

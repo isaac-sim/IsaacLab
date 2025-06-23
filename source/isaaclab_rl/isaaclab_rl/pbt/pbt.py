@@ -46,6 +46,9 @@ class PbtAlgoObserver(AlgoObserver):
         self.cli_task_name = params["args_cli"]["task"]
         self.task_num_envs = params["args_cli"]["num_envs"]
         self.camera_enabled = params["args_cli"]["enable_cameras"]
+        self.video = params["args_cli"]["video"]
+        self.video_length = params["args_cli"]["video_length"]
+        self.video_interval = params["args_cli"]["video_interval"]
         
         self.distributed = params["args_cli"]["distributed"]
         self.num_gpus = params["args_cli"]["num_gpus"]
@@ -146,15 +149,14 @@ class PbtAlgoObserver(AlgoObserver):
         os.makedirs(self.curr_policy_workspace_dir, exist_ok=True)
 
     def process_infos(self, infos, done_indices):
-    
+        infos['true_objective'] = infos['episode']['Curriculum/adr']
         if self.global_rank != 0:
             return
         
         if 'true_objective' in infos:
             for done_idx in done_indices:
-                true_objective_value = infos['true_objective'][done_idx]
-                # print(f'[in PBT]{true_objective_value=}')
-                self.last_target_objectives.append(true_objective_value.item())
+                true_objective_value = infos['true_objective']
+                self.last_target_objectives.append(true_objective_value)
 
             self.target_objective_known = len(self.last_target_objectives) >= self.last_target_objectives.maxlen
             if self.target_objective_known:
@@ -185,8 +187,7 @@ class PbtAlgoObserver(AlgoObserver):
             
             print(f'Restarting the process with new params on {self.global_rank=}, {self.device=}')
             self._restart_with_new_params(self.restart_params['new_params'], 
-                                          self.restart_params['restart_from_checkpoint'], 
-                                          self.restart_params['experiment_name'])
+                                          self.restart_params['restart_from_checkpoint'])
             return 
         
                               
@@ -576,7 +577,7 @@ class PbtAlgoObserver(AlgoObserver):
         else:
             return
 
-    def _restart_with_new_params(self, new_params, restart_from_checkpoint, experiment_name):
+    def _restart_with_new_params(self, new_params, restart_from_checkpoint):
         
         
         import os
@@ -589,7 +590,7 @@ class PbtAlgoObserver(AlgoObserver):
         
         print(f'previous command line args: {cli_args}')
 
-        SKIP_KEYS = ['checkpoint', 'full_experiment_name', 'hydra.run.dir']
+        SKIP_KEYS = ['checkpoint', 'hydra.run.dir']
 
         modified_args = [cli_args[0]]  # initialize with path to the Python script        
         
@@ -603,10 +604,19 @@ class PbtAlgoObserver(AlgoObserver):
                     continue
 
                 modified_args.append(f'{arg_name}={arg_value}')
-
-        modified_args.append(f'agent.params.config.full_experiment_name={experiment_name}')
         modified_args.append(f'--checkpoint={restart_from_checkpoint}')
         modified_args.append(f'agent.hydra.run.dir={self.hydra_dir}')
+        if self.with_wandb:
+            import wandb
+            modified_args.append('--track')
+            modified_args.append(f'--wandb-entity={wandb.run.entity}')
+            modified_args.append(f'--wandb-name={wandb.run.name}')
+        if self.video:
+            modified_args.append('--video')
+            modified_args.append(f'--video_length={self.video_length}')
+            modified_args.append(f'--video_length={self.video_interval}')
+        if self.camera_enabled:
+            modified_args.append('--enable_cameras')
 
         # add all of the new (possibly mutated) parameters
         for param, value in new_params.items():
