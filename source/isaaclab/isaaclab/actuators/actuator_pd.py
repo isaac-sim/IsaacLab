@@ -169,6 +169,16 @@ class IdealPDActuator(ActuatorBase):
     The parameters :math:`\gamma` is the gear ratio of the gear box connecting the motor and the actuated joint ends,
     and :math:`\tau_{motor, max}` is the maximum motor effort possible. These parameters are read from
     the configuration instance passed to the class.
+
+    An optional functionality of delay is implemented, using a circular buffer that stores the actuator commands for
+    a certain number of physics steps. The most recent actuation value is pushed to the buffer at every physics step,
+    but the final actuation value applied to the simulation is delayed by a certain number of physics steps.
+
+    The amount of time delay is configurable and can be set to a random value between the minimum and maximum time
+    delay bounds at every reset. The minimum and maximum time delay values are set in the configuration instance passed
+    to the class.
+
+    Note that, before clipping, this Actuator scales the computed effort depending on the motor_strength.
     """
 
     cfg: IdealPDActuatorCfg
@@ -178,17 +188,69 @@ class IdealPDActuator(ActuatorBase):
     Operations.
     """
 
+    def __init__(self, cfg: IdealPDActuatorCfg, *args, **kwargs):
+        super().__init__(cfg, *args, **kwargs)
+        if cfg.max_delay < cfg.min_delay:
+            raise ValueError("IdealPDActuatorCfg: max_delay must be greater than or equal to min_delay")
+        # instantiate the delay buffers
+        if cfg.max_delay > 0:
+            self.positions_delay_buffer = DelayBuffer(cfg.max_delay, self._num_envs, device=self._device)
+            self.velocities_delay_buffer = DelayBuffer(cfg.max_delay, self._num_envs, device=self._device)
+            self.efforts_delay_buffer = DelayBuffer(cfg.max_delay, self._num_envs, device=self._device)
+        # all of the envs
+        self._ALL_INDICES = torch.arange(self._num_envs, dtype=torch.long, device=self._device)
+        # configs for the motor strength
+        if self.cfg.motor_strength is not None:
+            self._motor_strength_ranges = self.cfg.motor_strength
+        else:
+            self._motor_strength_ranges = (1.0, 1.0)
+
+        self._motor_strength = torch.empty((len(self.computed_effort), 1), device=self._device)
+        self._current_motor_strength = self._motor_strength.uniform_(*self._motor_strength_ranges)
+
     def reset(self, env_ids: Sequence[int]):
-        pass
+        # number of environments (since env_ids can be a slice)
+        if env_ids is None or env_ids == slice(None):
+            num_envs = self._num_envs
+        else:
+            num_envs = len(env_ids)
+        # set a new random delay for environments in env_ids
+        if self.cfg.max_delay > 0:
+            time_lags = torch.randint(
+                low=self.cfg.min_delay,
+                high=self.cfg.max_delay + 1,
+                size=(num_envs,),
+                dtype=torch.int,
+                device=self._device,
+            )
+            # set delays
+            self.positions_delay_buffer.set_time_lag(time_lags, env_ids)
+            self.velocities_delay_buffer.set_time_lag(time_lags, env_ids)
+            self.efforts_delay_buffer.set_time_lag(time_lags, env_ids)
+            # reset buffers
+            self.positions_delay_buffer.reset(env_ids)
+            self.velocities_delay_buffer.reset(env_ids)
+            self.efforts_delay_buffer.reset(env_ids)
+
+        # resample a motor strength within the motor strength ranges
+        self._current_motor_strength[env_ids] = self._motor_strength.uniform_(*self._motor_strength_ranges)[env_ids]
 
     def compute(
         self, control_action: ArticulationActions, joint_pos: torch.Tensor, joint_vel: torch.Tensor
     ) -> ArticulationActions:
+        # apply delay based on the delay the model for all the set points
+        if self.cfg.max_delay > 0:
+            control_action.joint_positions = self.positions_delay_buffer.compute(control_action.joint_positions)
+            control_action.joint_velocities = self.velocities_delay_buffer.compute(control_action.joint_velocities)
+            control_action.joint_efforts = self.efforts_delay_buffer.compute(control_action.joint_efforts)
+
         # compute errors
         error_pos = control_action.joint_positions - joint_pos
         error_vel = control_action.joint_velocities - joint_vel
         # calculate the desired joint torques
         self.computed_effort = self.stiffness * error_pos + self.damping * error_vel + control_action.joint_efforts
+        # apply motor_strength
+        self.computed_effort *= self._current_motor_strength
         # clip the torques based on the motor limits
         self.applied_effort = self._clip_effort(self.computed_effort)
         # set the computed actions back into the control action
@@ -318,80 +380,17 @@ class DelayedPDActuator(IdealPDActuator):
 
     def __init__(self, cfg: DelayedPDActuatorCfg, *args, **kwargs):
         super().__init__(cfg, *args, **kwargs)
-        # instantiate the delay buffers
-        self.positions_delay_buffer = DelayBuffer(cfg.max_delay, self._num_envs, device=self._device)
-        self.velocities_delay_buffer = DelayBuffer(cfg.max_delay, self._num_envs, device=self._device)
-        self.efforts_delay_buffer = DelayBuffer(cfg.max_delay, self._num_envs, device=self._device)
-        # all of the envs
-        self._ALL_INDICES = torch.arange(self._num_envs, dtype=torch.long, device=self._device)
-
-        # configs for the motor strength
-        if self.cfg.motor_strength is not None:
-            self._motor_strength_ranges = self.cfg.motor_strength
-        else:
-            self._motor_strength_ranges = (1.0, 1.0)
-
-        self._motor_strength = torch.empty((len(self.computed_effort), 1), device=self._device)
-        self._current_motor_strength = self._motor_strength.uniform_(*self._motor_strength_ranges)
-
-    def reset(self, env_ids: Sequence[int]):
-        super().reset(env_ids)
-        # number of environments (since env_ids can be a slice)
-        if env_ids is None or env_ids == slice(None):
-            num_envs = self._num_envs
-        else:
-            num_envs = len(env_ids)
-        # set a new random delay for environments in env_ids
-        time_lags = torch.randint(
-            low=self.cfg.min_delay,
-            high=self.cfg.max_delay + 1,
-            size=(num_envs,),
-            dtype=torch.int,
-            device=self._device,
+        print(
+            DeprecationWarning(
+                "DelayPDActuator has been deprecated. All functionality has been added to IdealPDActuator"
+            )
         )
-        # set delays
-        self.positions_delay_buffer.set_time_lag(time_lags, env_ids)
-        self.velocities_delay_buffer.set_time_lag(time_lags, env_ids)
-        self.efforts_delay_buffer.set_time_lag(time_lags, env_ids)
-        # reset buffers
-        self.positions_delay_buffer.reset(env_ids)
-        self.velocities_delay_buffer.reset(env_ids)
-        self.efforts_delay_buffer.reset(env_ids)
-
-        # resample a motor strength within the motor strength ranges
-        self._current_motor_strength[env_ids] = self._motor_strength.uniform_(*self._motor_strength_ranges)[env_ids]
-
-    def compute(
-        self, control_action: ArticulationActions, joint_pos: torch.Tensor, joint_vel: torch.Tensor
-    ) -> ArticulationActions:
-        # apply delay based on the delay the model for all the setpoints
-        control_action.joint_positions = self.positions_delay_buffer.compute(control_action.joint_positions)
-        control_action.joint_velocities = self.velocities_delay_buffer.compute(control_action.joint_velocities)
-        control_action.joint_efforts = self.efforts_delay_buffer.compute(control_action.joint_efforts)
-
-        # compute errors
-        error_pos = control_action.joint_positions - joint_pos
-        error_vel = control_action.joint_velocities - joint_vel
-        # calculate the desired joint torques
-        self.computed_effort = self.stiffness * error_pos + self.damping * error_vel + control_action.joint_efforts
-
-        # scale the torques based on the motor strength
-        self.computed_effort *= self._current_motor_strength
-
-        # clip the torques based on the motor limits
-        self.applied_effort = self._clip_effort(self.computed_effort)
-
-        # set the computed actions back into the control action
-        control_action.joint_efforts = self.applied_effort
-        control_action.joint_positions = None
-        control_action.joint_velocities = None
-        return control_action
 
 
-class RemotizedPDActuator(DelayedPDActuator):
+class RemotizedPDActuator(IdealPDActuator):
     """Ideal PD actuator with angle-dependent torque limits.
 
-    This class extends the :class:`DelayedPDActuator` class by adding angle-dependent torque limits to the actuator.
+    This class extends the :class:`IdealPDActuator` class by adding angle-dependent torque limits to the actuator.
     The torque limits are applied by querying a lookup table describing the relationship between the joint angle
     and the maximum output torque. The lookup table is provided in the configuration instance passed to the class.
 

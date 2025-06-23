@@ -183,6 +183,17 @@ class IdealPDActuatorCfg(ActuatorBaseCfg):
 
     class_type: type = actuator_pd.IdealPDActuator
 
+    min_delay: int = 0
+    """Minimum number of physics time-steps with which the actuator command may be delayed. Defaults to 0."""
+
+    max_delay: int = 0
+    """Maximum number of physics time-steps with which the actuator command may be delayed. Defaults to 0."""
+
+    motor_strength: tuple[float, float] = (1.0, 1.0)
+    """The strength of the motor which is characterized by the motor torque. Defaults to (1.0, 1.0).
+
+    The final applied torque will be scaled with a value between the range of the tuple."""
+
 
 @configclass
 class DCMotorCfg(IdealPDActuatorCfg):
@@ -250,15 +261,12 @@ class DelayedPDActuatorCfg(IdealPDActuatorCfg):
 
     class_type: type = actuator_pd.DelayedPDActuator
 
-    min_delay: int = 0
-    """Minimum number of physics time-steps with which the actuator command may be delayed. Defaults to 0."""
-
-    max_delay: int = 0
-    """Maximum number of physics time-steps with which the actuator command may be delayed. Defaults to 0."""
-
-    motor_strength: tuple[float, float] = (1.0, 1.0)
-    """The strength of the motor which is characterized by the motor torque. Defaults to (1.0, 1.0).
-    The final applied torque will be scaled with a value between the range of the tuple."""
+    def __post_init__(self):
+        print(
+            DeprecationWarning(
+                "DelayPDActuatorCfg has been deprecated. All functionality has been added to IdealPDActuatorCfg"
+            )
+        )
 
 
 @configclass
