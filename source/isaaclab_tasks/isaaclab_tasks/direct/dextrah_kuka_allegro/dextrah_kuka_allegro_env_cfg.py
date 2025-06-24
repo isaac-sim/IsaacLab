@@ -99,7 +99,7 @@ class DextrahKukaAllegroEnvCfg(DirectRLEnvCfg):
 
     # Class Expectant Variables
     decimation = 2  # 60 Hz
-    episode_length_s = 10.  # 10.0
+    episode_length_s = 5.  # 10.0
     state_space = -1  # set by DextrahKukaAllegroEnv Implementation code
     observation_space = -1  # set by DextrahKukaAllegroEnv Implementation code
     viewer = ViewerCfg(eye=(-5.0, 1., 0.75), lookat=(0., 1., 0.3), origin_type='env')
