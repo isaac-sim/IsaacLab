@@ -1,0 +1,48 @@
+{
+    "state": {
+        "arm_joint_pos": {
+            "start": 0,
+            "end": 5,
+            "description": "SO100 arm joint positions (a_1 to a_5)"
+        },
+        "gripper_pos": {
+            "start": 5,
+            "end": 6,
+            "description": "Gripper joint position"
+        }
+    },
+    "action": {
+        "eef_pose": {
+            "start": 0,
+            "end": 7
+        },
+        "gripper_pos": {
+            "start": 7,
+            "end": 8
+        }
+    },
+    "video": {
+        "table_cam": {
+            "original_key": "observation.table_cam", 
+            "description": "External table camera view of workspace"
+        }
+    },
+    "annotation": {
+        "human.action.task_description": {
+            "description": "Human-provided task description"
+        }
+    },
+    "metadata": {
+        "robot_type": "SO100",
+        "control_mode": "Pink_IK_Absolute",
+        "task": "cube_stacking",
+        "cameras": ["table_cam"],
+        "camera_resolution": [512, 512],
+        "dof": 6,
+        "workspace_bounds": {
+            "x": [-0.5, 0.5],
+            "y": [-0.5, 0.5], 
+            "z": [0.0, 0.5]
+        }
+    }
+} 

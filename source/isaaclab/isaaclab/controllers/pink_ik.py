@@ -105,6 +105,9 @@ class PinkIKController:
         # Update Pink's robot configuration with the current joint positions
         self.pink_configuration.update(joint_positions_pink)
 
+        # for task in self.cfg.variable_input_tasks:
+        #     print("compute_error", task.compute_error(self.pink_configuration))
+
         # pink.solve_ik can raise an exception if the solver fails
         try:
             velocity = solve_ik(

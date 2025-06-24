@@ -313,6 +313,7 @@ def replay_episode(
                 continue
         action_tensor = torch.Tensor(action).reshape([1, action.shape[0]])
         env.step(torch.Tensor(action_tensor))
+        # input("Press Enter to continue...")
     if success_term is not None:
         if not bool(success_term.func(env, **success_term.params)[0]):
             return False

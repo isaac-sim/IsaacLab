@@ -29,8 +29,8 @@ def cubes_stacked(
     cube_3_cfg: SceneEntityCfg = SceneEntityCfg("cube_3"),
     xy_threshold: float = 0.05,
     height_threshold: float = 0.005,
-    height_diff: float = 0.0468,
-    gripper_open_val: torch.tensor = torch.tensor([0.04]),
+    height_diff: float = 0.0233,
+    gripper_open_val: torch.tensor = torch.tensor([0.5]),
     atol=0.0001,
     rtol=0.0001,
 ):
@@ -40,27 +40,30 @@ def cubes_stacked(
     cube_3: RigidObject = env.scene[cube_3_cfg.name]
 
     pos_diff_c12 = cube_1.data.root_pos_w - cube_2.data.root_pos_w
-    pos_diff_c23 = cube_2.data.root_pos_w - cube_3.data.root_pos_w
 
     # Compute cube position difference in x-y plane
     xy_dist_c12 = torch.norm(pos_diff_c12[:, :2], dim=1)
-    xy_dist_c23 = torch.norm(pos_diff_c23[:, :2], dim=1)
 
     # Compute cube height difference
     h_dist_c12 = torch.norm(pos_diff_c12[:, 2:], dim=1)
-    h_dist_c23 = torch.norm(pos_diff_c23[:, 2:], dim=1)
 
     # Check cube positions
-    stacked = torch.logical_and(xy_dist_c12 < xy_threshold, xy_dist_c23 < xy_threshold)
-    stacked = torch.logical_and(h_dist_c12 - height_diff < height_threshold, stacked)
-    stacked = torch.logical_and(h_dist_c23 - height_diff < height_threshold, stacked)
-
+    stacked = xy_dist_c12 < xy_threshold
+    print("stacked xy", stacked)
+    print("xy_dist_c12", xy_dist_c12)
+    print("xy_threshold", xy_threshold)
+    # stacked = torch.logical_and(height_diff - h_dist_c12  < height_threshold, stacked)
+    stacked = torch.logical_and(height_diff - h_dist_c12  < height_threshold, stacked)
+    print("stacked h", stacked)
+    print("h_dist_c12", h_dist_c12)
+    print("height_diff", height_diff)
+    print("height_threshold", height_threshold)
+    
     # Check gripper positions
     stacked = torch.logical_and(
-        torch.isclose(robot.data.joint_pos[:, -1], gripper_open_val.to(env.device), atol=atol, rtol=rtol), stacked
+        torch.isclose(robot.data.joint_pos[:, -1], gripper_open_val.to(env.device), atol=0.0001, rtol=0.0001), stacked
     )
-    stacked = torch.logical_and(
-        torch.isclose(robot.data.joint_pos[:, -2], gripper_open_val.to(env.device), atol=atol, rtol=rtol), stacked
-    )
+    print("stacked gripper", stacked)
+    print("stacked", stacked)
 
     return stacked

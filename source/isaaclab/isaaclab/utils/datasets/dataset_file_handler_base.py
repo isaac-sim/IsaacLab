@@ -28,7 +28,7 @@ class DatasetFileHandlerBase(ABC):
         return NotImplementedError
 
     @abstractmethod
-    def create(self, file_path: str, env_name: str = None):
+    def create(self, file_path: str, env_name: str | None = None, env = None):
         """Create a new file."""
         return NotImplementedError
 

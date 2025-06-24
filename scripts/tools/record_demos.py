@@ -6,8 +6,10 @@
 Script to record demonstrations with Isaac Lab environments using human teleoperation.
 
 This script allows users to record demonstrations operated by human teleoperation for a specified task.
-The recorded demonstrations are stored as episodes in a hdf5 file. Users can specify the task, teleoperation
-device, dataset directory, and environment stepping rate through command-line arguments.
+The recorded demonstrations are stored as episodes in either HDF5 format or LeRobot format, determined
+by the file extension of the dataset_file argument (.hdf5 for HDF5, .lerobot for LeRobot format).
+Users can specify the task, teleoperation device, dataset directory, and environment stepping rate 
+through command-line arguments.
 
 required arguments:
     --task                    Name of the task.
@@ -15,10 +17,17 @@ required arguments:
 optional arguments:
     -h, --help                Show this help message and exit
     --teleop_device           Device for interacting with environment. (default: keyboard)
-    --dataset_file            File path to export recorded demos. (default: "./datasets/dataset.hdf5")
+    --dataset_file            File path to export recorded demos. Format determined by extension: .hdf5 or .lerobot (default: "./datasets/dataset.hdf5")
     --step_hz                 Environment stepping rate in Hz. (default: 30)
     --num_demos               Number of demonstrations to record. (default: 0)
     --num_success_steps       Number of continuous steps with task success for concluding a demo as successful. (default: 10)
+
+Examples:
+    # Record in HDF5 format (default)
+    ./isaaclab.sh -p scripts/tools/record_demos.py --task Isaac-Stack-Cube-Franka-IK-Rel-v0 --teleop_device spacemouse
+
+    # Record in LeRobot format for VLA training
+    ./isaaclab.sh -p scripts/tools/record_demos.py --task Isaac-Stack-Cube-Franka-IK-Rel-v0 --teleop_device spacemouse --dataset_file ./datasets/demo.lerobot
 """
 
 """Launch Isaac Sim Simulator first."""
@@ -42,8 +51,9 @@ parser = argparse.ArgumentParser(description="Record demonstrations for Isaac La
 parser.add_argument("--task", type=str, default=None, help="Name of the task.")
 parser.add_argument("--teleop_device", type=str, default="keyboard", help="Device for interacting with environment.")
 parser.add_argument(
-    "--dataset_file", type=str, default="./datasets/dataset.hdf5", help="File path to export recorded demos."
+    "--dataset_file", type=str, default="./datasets/dataset.hdf5", help="File path to export recorded demos. Format determined by extension: .hdf5 or .lerobot"
 )
+
 parser.add_argument("--step_hz", type=int, default=30, help="Environment stepping rate in Hz.")
 parser.add_argument(
     "--num_demos", type=int, default=0, help="Number of demonstrations to record. Set to 0 for infinite."
@@ -103,6 +113,14 @@ from isaaclab.managers import DatasetExportMode
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
+
+# Import dataset handlers
+from isaaclab.utils.datasets import HDF5DatasetFileHandler
+try:
+    from isaaclab.utils.datasets import LeRobotDatasetFileHandler
+    LEROBOT_AVAILABLE = True
+except ImportError:
+    LEROBOT_AVAILABLE = False
 
 
 class RateLimiter:
@@ -222,10 +240,34 @@ def main():
 
     env_cfg.observations.policy.concatenate_terms = False
 
-    env_cfg.recorders: ActionStateRecorderManagerCfg = ActionStateRecorderManagerCfg()
+    # Configure dataset format based on file extension
+    use_lerobot_format = args_cli.dataset_file.endswith('.lerobot')
+    
+    if use_lerobot_format:
+        if not LEROBOT_AVAILABLE:
+            omni.log.error("LeRobot format requested but dependencies not available.")
+            omni.log.error("Please install: pip install datasets opencv-python imageio[ffmpeg]")
+            exit(1)
+        
+        omni.log.info(f"Recording dataset in LeRobot format: {args_cli.dataset_file}")
+        omni.log.info("LeRobot format benefits:")
+        omni.log.info("  • Compatible with HuggingFace LeRobot ecosystem")
+        omni.log.info("  • Efficient video compression with MP4")
+        omni.log.info("  • Standardized naming conventions")
+        omni.log.info("  • Easy sharing via HuggingFace Hub")
+    else:
+        omni.log.info(f"Recording dataset in HDF5 format: {args_cli.dataset_file}")
+
+    env_cfg.recorders = ActionStateRecorderManagerCfg()
     env_cfg.recorders.dataset_export_dir_path = output_dir
     env_cfg.recorders.dataset_filename = output_file_name
     env_cfg.recorders.dataset_export_mode = DatasetExportMode.EXPORT_SUCCEEDED_ONLY
+    
+    # Set dataset file handler based on format
+    if use_lerobot_format:
+        env_cfg.recorders.dataset_file_handler_class_type = LeRobotDatasetFileHandler
+    else:
+        env_cfg.recorders.dataset_file_handler_class_type = HDF5DatasetFileHandler
 
     # create environment
     env = gym.make(args_cli.task, cfg=env_cfg).unwrapped
@@ -350,7 +392,15 @@ def main():
 
     # reset before starting
     env.sim.reset()
-    env.reset()
+    obv, _ = env.reset()
+
+    actions = torch.cat([obv["policy"]["eef_pos"][0], obv["policy"]["eef_quat"][0], torch.tensor([1.0], device=env.device)], dim=0).unsqueeze(0)
+    print("actions", actions)
+    # actions tensor([[ 0.2050, -0.0051,  0.2188,  0.0571, -0.0446,  0.7064,  0.7041,  1.0000]],
+    #    device='cuda:0')
+    
+    actions[0, 2] += 0.1
+    # print("actions", actions)
     teleop_interface.reset()
 
     # simulate environment -- run everything in inference mode
@@ -377,13 +427,31 @@ def main():
             # perform action on environment
             if running_recording_instance:
                 # compute actions based on environment
-                actions = pre_process_actions(teleop_data, env.num_envs, env.device)
+                # actions = pre_process_actions(teleop_data, env.num_envs, env.device)
+                delta_pose, gripper_command = teleop_data
+                
+                # print("obv", obv)
+                # # Convert actions[0, -1] to a 1D tensor before concatenation
+                # gripper_action = actions[0][-1].unsqueeze(0)
+                # actions = torch.cat([obv["policy"]["eef_pos"][0], obv["policy"]["eef_quat"][0], gripper_action], dim=0).unsqueeze(0)
+
+                # print("actions", actions)
+
+                # actions[0, 2] += 0.01
+                # compute actions
+                control_gain = 0.1
+                actions[0, 0] += delta_pose[0] * control_gain
+                actions[0, 1] += delta_pose[1] * control_gain
+                actions[0, 2] += delta_pose[2] * control_gain
+                actions[0, 7] = -1 if gripper_command else 1
+                print("actions", actions)
                 obv = env.step(actions)
-                if subtasks is not None:
-                    if subtasks == {}:
-                        subtasks = obv[0].get("subtask_terms")
-                    elif subtasks:
-                        show_subtask_instructions(instruction_display, subtasks, obv, env.cfg)
+                obv = obv[0]
+                # if subtasks is not None:
+                #     if subtasks == {}:
+                #         subtasks = obv[0].get("subtask_terms")
+                #     elif subtasks:
+                #         show_subtask_instructions(instruction_display, subtasks, obv, env.cfg)
             else:
                 env.sim.render()
 
