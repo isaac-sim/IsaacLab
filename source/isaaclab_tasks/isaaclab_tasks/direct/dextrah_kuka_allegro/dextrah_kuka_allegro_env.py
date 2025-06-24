@@ -194,7 +194,7 @@ class DextrahKukaAllegroEnv(DirectRLEnv):
         # Add reward signals to tensorboard
         self.extras["num_adr_increases"] = self.dextrah_adr.num_increments()
         self.extras["in_success_region"] = in_success_region.float().mean()
-        self.extras["true_objective_mean"] = self.true_objective.float().mean()
+        self.extras["true_objective"] = int(self.true_objective.float().mean())
 
         rewards = {
             "hand_to_object" : self.cfg.hand_to_object_weight * hand_to_object_rew,  # * self.step_dt,
