@@ -11,7 +11,8 @@ It uses the `warp` library to run the state machine in parallel on the GPU.
 
 .. code-block:: bash
 
-    ./isaaclab.sh -p scripts/environments/state_machine/lift_cube_sm.py --num_envs 32
+    ./isaaclab.bat -p scripts/environments/state_machine/lift_cube_sm.py --num_envs 32
+    ffmpeg -framerate 30 -i frames/rgb_out_env0_%04d.png -vf scale=640:480 -c:v libx264 -pix_fmt yuv420p output_video.mp4
 
 """
 
@@ -26,14 +27,14 @@ parser = argparse.ArgumentParser(description="Pick and lift state machine for li
 parser.add_argument(
     "--disable_fabric", action="store_true", default=False, help="Disable fabric and use USD I/O operations."
 )
-parser.add_argument("--num_envs", type=int, default=None, help="Number of environments to simulate.")
+parser.add_argument("--num_envs", type=int, default=4, help="Number of environments to simulate.")
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
 args_cli = parser.parse_args()
 
 # launch omniverse app
-app_launcher = AppLauncher(headless=args_cli.headless)
+app_launcher = AppLauncher(headless=args_cli.headless, enable_cameras = True)
 simulation_app = app_launcher.app
 
 """Rest everything else."""
@@ -49,7 +50,36 @@ from isaaclab.assets.rigid_object.rigid_object_data import RigidObjectData
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.manager_based.manipulation.lift.lift_env_cfg import LiftEnvCfg
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
+from isaaclab.sensors.camera import tiled_camera
+import numpy as np
 
+import os
+
+import random
+
+import torch
+
+
+import isaacsim.core.utils.prims as prim_utils
+
+import omni.replicator.core as rep
+
+
+import isaaclab.sim as sim_utils
+
+from isaaclab.assets import RigidObject, RigidObjectCfg
+
+from isaaclab.markers import VisualizationMarkers
+
+from isaaclab.markers.config import RAY_CASTER_MARKER_CFG
+
+from isaaclab.sensors.camera import Camera, CameraCfg
+
+from isaaclab.sensors.camera.utils import create_pointcloud_from_depth
+
+from isaaclab.utils import convert_dict_to_backend
+
+from isaaclab.sensors import save_images_to_file
 # initialize warp
 wp.init()
 
@@ -256,6 +286,12 @@ class PickAndLiftSm:
         return torch.cat([des_ee_pose, self.des_gripper_state.unsqueeze(-1)], dim=-1)
 
 
+
+# Add to the scene
+
+from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
+from isaaclab_tasks.manager_based.manipulation.lift.lift_env_cfg import LiftEnvCfg
+
 def main():
     # parse configuration
     env_cfg: LiftEnvCfg = parse_env_cfg(
@@ -264,11 +300,11 @@ def main():
         num_envs=args_cli.num_envs,
         use_fabric=not args_cli.disable_fabric,
     )
+    
     # create environment
-    env = gym.make("Isaac-Lift-Cube-Franka-IK-Abs-v0", cfg=env_cfg)
+    env = gym.make("Isaac-Lift-Cube-Franka-v0", cfg=env_cfg)
     # reset environment at start
     env.reset()
-
     # create action buffers (position + quaternion)
     actions = torch.zeros(env.unwrapped.action_space.shape, device=env.unwrapped.device)
     actions[:, 3] = 1.0
@@ -279,13 +315,34 @@ def main():
     pick_sm = PickAndLiftSm(
         env_cfg.sim.dt * env_cfg.decimation, env.unwrapped.num_envs, env.unwrapped.device, position_threshold=0.01
     )
+    frame_idx =0
+    import omni.usd
+    stage = omni.usd.get_context().get_stage()
+    if stage.GetPrimAtPath("/Visuals"):
+        stage.RemovePrim("/Visuals")
 
     while simulation_app.is_running():
         # run everything in inference mode
         with torch.inference_mode():
             # step environment
             dones = env.step(actions)[-2]
+            camera = env.unwrapped.scene["camera"]
 
+            from isaaclab.sensors import save_images_to_file
+            import os
+
+# Fetch camera data
+            rgb_images = env.unwrapped.scene["camera"].data.output["rgb"]
+
+# Normalize & move to CPU
+            rgb_normalized = rgb_images[0:1].float().cpu() / 255.0
+
+# Debug: Ensure we're saving in the right place
+            print("Saving image to:", f"frames/rgb_out_env0_{frame_idx:04d}.png")
+
+# Save image using Isaac Lab utility
+            save_images_to_file(rgb_normalized, f"frames/rgb_out_env0_{frame_idx:04d}.png")
+            frame_idx+=1
             # observations
             # -- end-effector frame
             ee_frame_sensor = env.unwrapped.scene["ee_frame"]
@@ -296,7 +353,8 @@ def main():
             object_position = object_data.root_pos_w - env.unwrapped.scene.env_origins
             # -- target object frame
             desired_position = env.unwrapped.command_manager.get_command("object_pose")[..., :3]
-
+            
+            
             # advance state machine
             actions = pick_sm.compute(
                 torch.cat([tcp_rest_position, tcp_rest_orientation], dim=-1),

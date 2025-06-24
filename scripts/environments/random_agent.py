@@ -34,15 +34,18 @@ import torch
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import parse_env_cfg
-
+from isaaclab_tasks.manager_based.manipulation.lift.lift_env_cfg import LiftEnvCfg
 # PLACEHOLDER: Extension template (do not remove this comment)
 
 
 def main():
     """Random actions agent with Isaac Lab environment."""
     # create environment configuration
-    env_cfg = parse_env_cfg(
-        args_cli.task, device=args_cli.device, num_envs=args_cli.num_envs, use_fabric=not args_cli.disable_fabric
+    env_cfg: LiftEnvCfg = parse_env_cfg(
+        "Isaac-Lift-Cube-Franka-IK-Abs-v0",
+        device=args_cli.device,
+        num_envs=args_cli.num_envs,
+        use_fabric=not args_cli.disable_fabric,
     )
     # create environment
     env = gym.make(args_cli.task, cfg=env_cfg)
@@ -50,16 +53,32 @@ def main():
     # print info (this is vectorized environment)
     print(f"[INFO]: Gym observation space: {env.observation_space}")
     print(f"[INFO]: Gym action space: {env.action_space}")
+    scene = env.unwrapped.scene
+    from isaaclab.sensors.camera import TiledCamera
+    tiled_camera = scene["camera"]
+    data_type = "rgb"
+    frame_idx =0
+    import omni.usd
+    stage = omni.usd.get_context().get_stage()
+    if stage.GetPrimAtPath("/Visuals"):
+        stage.RemovePrim("/Visuals")
     # reset environment
     env.reset()
-    # simulate environment
     while simulation_app.is_running():
         # run everything in inference mode
         with torch.inference_mode():
-            # sample actions from -1 to 1
+            # step environment
+            '''
+            from isaaclab.sensors import save_images_to_file
+            import os
+            rgb_images = tiled_camera.data.output[data_type]
+            rgb_normalized = rgb_images[0:1].float().cpu() / 255.0
+            save_images_to_file(rgb_normalized, f"frames/rgb_out_env0_{frame_idx:04d}.png")
+            frame_idx+=1'''
             actions = 2 * torch.rand(env.action_space.shape, device=env.unwrapped.device) - 1
             # apply actions
             env.step(actions)
+   
 
     # close the simulator
     env.close()
