@@ -876,10 +876,9 @@ class DisassemblyEnv(DirectRLEnv):
             with open(log_filename, "w+") as out_file:
                 json.dump(log_item, out_file, indent=6)
 
-            print("Trajectory collection complete! Collected %d trajectories." % len(self.log_arm_dof_pos))
+            print(f"Trajectory collection complete! Collected {len(self.log_arm_dof_pos)} trajectories!")
             exit(0)
         else:
             print(
-                "Collected %d trajectories so far (target: > %d)"
-                % (len(self.log_arm_dof_pos), self.cfg_task.num_log_traj)
+                f"Collected {len(self.log_arm_dof_pos)} trajectories so far (target: > {self.cfg_task.num_log_traj})."
             )
