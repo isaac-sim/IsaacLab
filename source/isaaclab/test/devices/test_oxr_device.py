@@ -1,3 +1,8 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 # Copyright (c) 2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
@@ -8,7 +13,7 @@
 
 from __future__ import annotations
 
-from isaaclab.app import AppLauncher, run_tests
+from isaaclab.app import AppLauncher
 
 # Can set this to False to see the GUI for debugging.
 HEADLESS = True
@@ -73,7 +78,7 @@ class TestOpenXRDevice(unittest.TestCase):
         # Create environment.
         env = ManagerBasedEnv(cfg=env_cfg)
 
-        device = OpenXRDevice(env_cfg.xr, OpenXRDevice.Hand.RIGHT)
+        device = OpenXRDevice(env_cfg.xr)
 
         # Check that the xr anchor prim is created with the correct pose.
         xr_anchor_prim = XFormPrim("/XRAnchor")
@@ -97,7 +102,7 @@ class TestOpenXRDevice(unittest.TestCase):
         # Create environment.
         env = ManagerBasedEnv(cfg=env_cfg)
 
-        device = OpenXRDevice(None, OpenXRDevice.Hand.RIGHT)
+        device = OpenXRDevice(None)
 
         # Check that the xr anchor prim is created with the correct default pose.
         xr_anchor_prim = XFormPrim("/XRAnchor")
@@ -121,8 +126,8 @@ class TestOpenXRDevice(unittest.TestCase):
         # Create environment.
         env = ManagerBasedEnv(cfg=env_cfg)
 
-        device_1 = OpenXRDevice(None, OpenXRDevice.Hand.LEFT)
-        device_2 = OpenXRDevice(None, OpenXRDevice.Hand.RIGHT)
+        device_1 = OpenXRDevice(None)
+        device_2 = OpenXRDevice(None)
 
         # Check that the xr anchor prim is created with the correct default pose.
         xr_anchor_prim = XFormPrim("/XRAnchor")
@@ -138,7 +143,3 @@ class TestOpenXRDevice(unittest.TestCase):
         device_1.reset()
         device_2.reset()
         env.close()
-
-
-if __name__ == "__main__":
-    run_tests()

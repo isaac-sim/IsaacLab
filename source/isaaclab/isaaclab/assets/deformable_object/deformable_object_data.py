@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -122,10 +122,7 @@ class DeformableObjectData:
         Shape is (num_instances, max_sim_vertices_per_body, 6).
         """
         if self._nodal_state_w.timestamp < self._sim_timestamp:
-            nodal_positions = self.nodal_pos_w
-            nodal_velocities = self.nodal_vel_w
-            # set the buffer data and timestamp
-            self._nodal_state_w.data = torch.cat((nodal_positions, nodal_velocities), dim=-1)
+            self._nodal_state_w.data = torch.cat((self.nodal_pos_w, self.nodal_vel_w), dim=-1)
             self._nodal_state_w.timestamp = self._sim_timestamp
         return self._nodal_state_w.data
 
