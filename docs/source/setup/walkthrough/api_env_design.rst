@@ -78,7 +78,7 @@ the prim path with ``/World/envs/env_.*/Robot`` we are implicitly saying that ev
 The Environment
 -----------------
 
-Next, let's take a look at the contents of the other python file in our task directory: ``isaac_lab_tutorial_env_cfg.py``
+Next, let's take a look at the contents of the other python file in our task directory: ``isaac_lab_tutorial_env.py``
 
 .. code-block:: python
 
