@@ -884,7 +884,7 @@ Comprehensive List of Environments
     * - Isaac-Velocity-Flat-Unitree-A1-v0
       - Isaac-Velocity-Flat-Unitree-A1-Play-v0
       - Manager Based
-      - **rsl_rl** (PPO), **skrl** (PPO)
+      - **rsl_rl** (PPO), **skrl** (PPO), **sb3** (PPO)
     * - Isaac-Velocity-Flat-Unitree-Go1-v0
       - Isaac-Velocity-Flat-Unitree-Go1-Play-v0
       - Manager Based
@@ -924,7 +924,7 @@ Comprehensive List of Environments
     * - Isaac-Velocity-Rough-Unitree-A1-v0
       - Isaac-Velocity-Rough-Unitree-A1-Play-v0
       - Manager Based
-      - **rsl_rl** (PPO), **skrl** (PPO)
+      - **rsl_rl** (PPO), **skrl** (PPO), **sb3** (PPO)
     * - Isaac-Velocity-Rough-Unitree-Go1-v0
       - Isaac-Velocity-Rough-Unitree-Go1-Play-v0
       - Manager Based
