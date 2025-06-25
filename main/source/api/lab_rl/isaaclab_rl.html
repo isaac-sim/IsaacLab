@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.1.0" />
-    <meta name="docbuild:last-update" content="Jun 24, 2025"/>
+    <meta name="docbuild:last-update" content="Jun 25, 2025"/>
   </head>
   
   
@@ -2629,7 +2629,7 @@ will be wrapped as single-agent or multi-agent.</p></li>
 <p><strong>Functions:</strong></p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
 <tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_rl.sb3.process_sb3_cfg" title="isaaclab_rl.sb3.process_sb3_cfg"><code class="xref py py-obj docutils literal notranslate"><span class="pre">process_sb3_cfg</span></code></a>(cfg)</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_rl.sb3.process_sb3_cfg" title="isaaclab_rl.sb3.process_sb3_cfg"><code class="xref py py-obj docutils literal notranslate"><span class="pre">process_sb3_cfg</span></code></a>(cfg, num_envs)</p></td>
 <td><p>Convert simple YAML types to Stable-Baselines classes/components.</p></td>
 </tr>
 </tbody>
@@ -2646,11 +2646,14 @@ will be wrapped as single-agent or multi-agent.</p></li>
 </div>
 <dl class="py function">
 <dt class="sig sig-object py" id="isaaclab_rl.sb3.process_sb3_cfg">
-<span class="sig-prename descclassname"><span class="pre">isaaclab_rl.sb3.</span></span><span class="sig-name descname"><span class="pre">process_sb3_cfg</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cfg</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.13)"><span class="pre">dict</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.13)"><span class="pre">dict</span></a></span></span><a class="reference internal" href="../../../_modules/isaaclab_rl/sb3.html#process_sb3_cfg"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab_rl.sb3.process_sb3_cfg" title="Permalink to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">isaaclab_rl.sb3.</span></span><span class="sig-name descname"><span class="pre">process_sb3_cfg</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cfg</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.13)"><span class="pre">dict</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">num_envs</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><span class="pre">int</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.13)"><span class="pre">dict</span></a></span></span><a class="reference internal" href="../../../_modules/isaaclab_rl/sb3.html#process_sb3_cfg"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab_rl.sb3.process_sb3_cfg" title="Permalink to this definition">#</a></dt>
 <dd><p>Convert simple YAML types to Stable-Baselines classes/components.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>cfg</strong> – A configuration dictionary.</p>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>cfg</strong> – A configuration dictionary.</p></li>
+<li><p><strong>num_envs</strong> – the number of parallel environments (used to compute <cite>batch_size</cite> for a desired number of minibatches)</p></li>
+</ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
 <dd class="field-even"><p>A dictionary containing the converted configuration.</p>
@@ -2675,8 +2678,8 @@ over the environment from <code class="xref py py-class docutils literal notrans
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>While Stable-Baselines3 supports Gym 0.26+ API, their vectorized environment
-still uses the old API (i.e. it is closer to Gym 0.21). Thus, we implement
-the old API for the vectorized environment.</p>
+uses their own API (i.e. it is closer to Gym 0.21). Thus, we implement
+the API for the vectorized environment.</p>
 </div>
 <p>We also add monitoring functionality that computes the un-discounted episode
 return and length. This information is added to the info dicts under key <cite>episode</cite>.</p>
@@ -2709,7 +2712,7 @@ wrapper.</p>
 <p><strong>Methods:</strong></p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
 <tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_rl.sb3.Sb3VecEnvWrapper.__init__" title="isaaclab_rl.sb3.Sb3VecEnvWrapper.__init__"><code class="xref py py-obj docutils literal notranslate"><span class="pre">__init__</span></code></a>(env)</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_rl.sb3.Sb3VecEnvWrapper.__init__" title="isaaclab_rl.sb3.Sb3VecEnvWrapper.__init__"><code class="xref py py-obj docutils literal notranslate"><span class="pre">__init__</span></code></a>(env[, fast_variant])</p></td>
 <td><p>Initialize the wrapper.</p></td>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_rl.sb3.Sb3VecEnvWrapper.class_name" title="isaaclab_rl.sb3.Sb3VecEnvWrapper.class_name"><code class="xref py py-obj docutils literal notranslate"><span class="pre">class_name</span></code></a>()</p></td>
@@ -2735,11 +2738,15 @@ wrapper.</p>
 </div>
 <dl class="py method">
 <dt class="sig sig-object py" id="isaaclab_rl.sb3.Sb3VecEnvWrapper.__init__">
-<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">env</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="../lab/isaaclab.envs.html#isaaclab.envs.ManagerBasedRLEnv" title="isaaclab.envs.manager_based_rl_env.ManagerBasedRLEnv"><span class="pre">ManagerBasedRLEnv</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference internal" href="../lab/isaaclab.envs.html#isaaclab.envs.DirectRLEnv" title="isaaclab.envs.direct_rl_env.DirectRLEnv"><span class="pre">DirectRLEnv</span></a></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/isaaclab_rl/sb3.html#Sb3VecEnvWrapper.__init__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab_rl.sb3.Sb3VecEnvWrapper.__init__" title="Permalink to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">env</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="../lab/isaaclab.envs.html#isaaclab.envs.ManagerBasedRLEnv" title="isaaclab.envs.manager_based_rl_env.ManagerBasedRLEnv"><span class="pre">ManagerBasedRLEnv</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference internal" href="../lab/isaaclab.envs.html#isaaclab.envs.DirectRLEnv" title="isaaclab.envs.direct_rl_env.DirectRLEnv"><span class="pre">DirectRLEnv</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">fast_variant</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/isaaclab_rl/sb3.html#Sb3VecEnvWrapper.__init__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab_rl.sb3.Sb3VecEnvWrapper.__init__" title="Permalink to this definition">#</a></dt>
 <dd><p>Initialize the wrapper.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>env</strong> – The environment to wrap around.</p>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>env</strong> – The environment to wrap around.</p></li>
+<li><p><strong>fast_variant</strong> – Use fast variant for processing info
+(Only episodic reward, lengths and truncation info are included)</p></li>
+</ul>
 </dd>
 <dt class="field-even">Raises<span class="colon">:</span></dt>
 <dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.13)"><strong>ValueError</strong></a> – When the environment is not an instance of <code class="xref py py-class docutils literal notranslate"><span class="pre">ManagerBasedRLEnv</span></code> or <code class="xref py py-class docutils literal notranslate"><span class="pre">DirectRLEnv</span></code>.</p>
@@ -3050,7 +3057,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jun 24, 2025.
+  Last updated on Jun 25, 2025.
   <br/>
 </p>
   </div>

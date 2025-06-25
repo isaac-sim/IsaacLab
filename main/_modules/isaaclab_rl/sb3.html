@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.1.0" />
-    <meta name="docbuild:last-update" content="Jun 24, 2025"/>
+    <meta name="docbuild:last-update" content="Jun 25, 2025"/>
   </head>
   
   
@@ -571,6 +571,7 @@
 <span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">torch.nn</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">nn</span>  <span class="c1"># noqa: F401</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">warnings</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">stable_baselines3.common.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">constant_fn</span>
@@ -578,16 +579,20 @@
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.envs</span><span class="w"> </span><span class="kn">import</span> <span class="n">DirectRLEnv</span><span class="p">,</span> <span class="n">ManagerBasedRLEnv</span>
 
+<span class="c1"># remove SB3 warnings because PPO with bigger net actually benefits from GPU</span>
+<span class="n">warnings</span><span class="o">.</span><span class="n">filterwarnings</span><span class="p">(</span><span class="s2">&quot;ignore&quot;</span><span class="p">,</span> <span class="n">message</span><span class="o">=</span><span class="s2">&quot;You are trying to run PPO on the GPU&quot;</span><span class="p">)</span>
+
 <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">Configuration Parser.</span>
 <span class="sd">&quot;&quot;&quot;</span>
 
 
-<div class="viewcode-block" id="process_sb3_cfg"><a class="viewcode-back" href="../../source/api/lab_rl/isaaclab_rl.html#isaaclab_rl.sb3.process_sb3_cfg">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">process_sb3_cfg</span><span class="p">(</span><span class="n">cfg</span><span class="p">:</span> <span class="nb">dict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+<div class="viewcode-block" id="process_sb3_cfg"><a class="viewcode-back" href="../../source/api/lab_rl/isaaclab_rl.html#isaaclab_rl.sb3.process_sb3_cfg">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">process_sb3_cfg</span><span class="p">(</span><span class="n">cfg</span><span class="p">:</span> <span class="nb">dict</span><span class="p">,</span> <span class="n">num_envs</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Convert simple YAML types to Stable-Baselines classes/components.</span>
 
 <span class="sd">    Args:</span>
 <span class="sd">        cfg: A configuration dictionary.</span>
+<span class="sd">        num_envs: the number of parallel environments (used to compute `batch_size` for a desired number of minibatches)</span>
 
 <span class="sd">    Returns:</span>
 <span class="sd">        A dictionary containing the converted configuration.</span>
@@ -603,18 +608,23 @@
             <span class="k">else</span><span class="p">:</span>
                 <span class="k">if</span> <span class="n">key</span> <span class="ow">in</span> <span class="p">[</span><span class="s2">&quot;policy_kwargs&quot;</span><span class="p">,</span> <span class="s2">&quot;replay_buffer_class&quot;</span><span class="p">,</span> <span class="s2">&quot;replay_buffer_kwargs&quot;</span><span class="p">]:</span>
                     <span class="n">hyperparams</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="nb">eval</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
-                <span class="k">elif</span> <span class="n">key</span> <span class="ow">in</span> <span class="p">[</span><span class="s2">&quot;learning_rate&quot;</span><span class="p">,</span> <span class="s2">&quot;clip_range&quot;</span><span class="p">,</span> <span class="s2">&quot;clip_range_vf&quot;</span><span class="p">,</span> <span class="s2">&quot;delta_std&quot;</span><span class="p">]:</span>
+                <span class="k">elif</span> <span class="n">key</span> <span class="ow">in</span> <span class="p">[</span><span class="s2">&quot;learning_rate&quot;</span><span class="p">,</span> <span class="s2">&quot;clip_range&quot;</span><span class="p">,</span> <span class="s2">&quot;clip_range_vf&quot;</span><span class="p">]:</span>
                     <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
                         <span class="n">_</span><span class="p">,</span> <span class="n">initial_value</span> <span class="o">=</span> <span class="n">value</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;_&quot;</span><span class="p">)</span>
                         <span class="n">initial_value</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">initial_value</span><span class="p">)</span>
                         <span class="n">hyperparams</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">progress_remaining</span><span class="p">:</span> <span class="n">progress_remaining</span> <span class="o">*</span> <span class="n">initial_value</span>
                     <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="p">(</span><span class="nb">float</span><span class="p">,</span> <span class="nb">int</span><span class="p">)):</span>
-                        <span class="c1"># Negative value: ignore (ex: for clipping)</span>
+                        <span class="c1"># negative value: ignore (ex: for clipping)</span>
                         <span class="k">if</span> <span class="n">value</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
                             <span class="k">continue</span>
                         <span class="n">hyperparams</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">constant_fn</span><span class="p">(</span><span class="nb">float</span><span class="p">(</span><span class="n">value</span><span class="p">))</span>
                     <span class="k">else</span><span class="p">:</span>
                         <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Invalid value for </span><span class="si">{</span><span class="n">key</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">hyperparams</span><span class="p">[</span><span class="n">key</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+        <span class="c1"># Convert to a desired batch_size (n_steps=2048 by default for SB3 PPO)</span>
+        <span class="k">if</span> <span class="s2">&quot;n_minibatches&quot;</span> <span class="ow">in</span> <span class="n">hyperparams</span><span class="p">:</span>
+            <span class="n">hyperparams</span><span class="p">[</span><span class="s2">&quot;batch_size&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">hyperparams</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;n_steps&quot;</span><span class="p">,</span> <span class="mi">2048</span><span class="p">)</span> <span class="o">*</span> <span class="n">num_envs</span><span class="p">)</span> <span class="o">//</span> <span class="n">hyperparams</span><span class="p">[</span><span class="s2">&quot;n_minibatches&quot;</span><span class="p">]</span>
+            <span class="k">del</span> <span class="n">hyperparams</span><span class="p">[</span><span class="s2">&quot;n_minibatches&quot;</span><span class="p">]</span>
 
         <span class="k">return</span> <span class="n">hyperparams</span>
 
@@ -638,8 +648,8 @@
 
 <span class="sd">    Note:</span>
 <span class="sd">        While Stable-Baselines3 supports Gym 0.26+ API, their vectorized environment</span>
-<span class="sd">        still uses the old API (i.e. it is closer to Gym 0.21). Thus, we implement</span>
-<span class="sd">        the old API for the vectorized environment.</span>
+<span class="sd">        uses their own API (i.e. it is closer to Gym 0.21). Thus, we implement</span>
+<span class="sd">        the API for the vectorized environment.</span>
 
 <span class="sd">    We also add monitoring functionality that computes the un-discounted episode</span>
 <span class="sd">    return and length. This information is added to the info dicts under key `episode`.</span>
@@ -672,12 +682,13 @@
 
 <span class="sd">    &quot;&quot;&quot;</span>
 
-<div class="viewcode-block" id="Sb3VecEnvWrapper.__init__"><a class="viewcode-back" href="../../source/api/lab_rl/isaaclab_rl.html#isaaclab_rl.sb3.Sb3VecEnvWrapper.__init__">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedRLEnv</span> <span class="o">|</span> <span class="n">DirectRLEnv</span><span class="p">):</span>
+<div class="viewcode-block" id="Sb3VecEnvWrapper.__init__"><a class="viewcode-back" href="../../source/api/lab_rl/isaaclab_rl.html#isaaclab_rl.sb3.Sb3VecEnvWrapper.__init__">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedRLEnv</span> <span class="o">|</span> <span class="n">DirectRLEnv</span><span class="p">,</span> <span class="n">fast_variant</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Initialize the wrapper.</span>
 
 <span class="sd">        Args:</span>
 <span class="sd">            env: The environment to wrap around.</span>
-
+<span class="sd">            fast_variant: Use fast variant for processing info</span>
+<span class="sd">                (Only episodic reward, lengths and truncation info are included)</span>
 <span class="sd">        Raises:</span>
 <span class="sd">            ValueError: When the environment is not an instance of :class:`ManagerBasedRLEnv` or :class:`DirectRLEnv`.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
@@ -689,6 +700,7 @@
             <span class="p">)</span>
         <span class="c1"># initialize the wrapper</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">env</span> <span class="o">=</span> <span class="n">env</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">fast_variant</span> <span class="o">=</span> <span class="n">fast_variant</span>
         <span class="c1"># collect common information</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">num_envs</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">unwrapped</span><span class="o">.</span><span class="n">num_envs</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">sim_device</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">unwrapped</span><span class="o">.</span><span class="n">device</span>
@@ -705,8 +717,8 @@
         <span class="c1"># initialize vec-env</span>
         <span class="n">VecEnv</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_envs</span><span class="p">,</span> <span class="n">observation_space</span><span class="p">,</span> <span class="n">action_space</span><span class="p">)</span>
         <span class="c1"># add buffer for logging episodic information</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_ep_rew_buf</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_envs</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">sim_device</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_ep_len_buf</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_envs</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">sim_device</span><span class="p">)</span></div>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_ep_rew_buf</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_envs</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_ep_len_buf</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_envs</span><span class="p">)</span></div>
 
     <span class="k">def</span><span class="w"> </span><span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Returns the wrapper name and the :attr:`env` representation string.&quot;&quot;&quot;</span>
@@ -739,11 +751,11 @@
 
 <div class="viewcode-block" id="Sb3VecEnvWrapper.get_episode_rewards"><a class="viewcode-back" href="../../source/api/lab_rl/isaaclab_rl.html#isaaclab_rl.sb3.Sb3VecEnvWrapper.get_episode_rewards">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">get_episode_rewards</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">float</span><span class="p">]:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Returns the rewards of all the episodes.&quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ep_rew_buf</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span></div>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ep_rew_buf</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span></div>
 
 <div class="viewcode-block" id="Sb3VecEnvWrapper.get_episode_lengths"><a class="viewcode-back" href="../../source/api/lab_rl/isaaclab_rl.html#isaaclab_rl.sb3.Sb3VecEnvWrapper.get_episode_lengths">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">get_episode_lengths</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">]:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Returns the number of time-steps of all the episodes.&quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ep_len_buf</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span></div>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ep_len_buf</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span></div>
 
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Operations - MDP</span>
@@ -755,8 +767,8 @@
     <span class="k">def</span><span class="w"> </span><span class="nf">reset</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">VecEnvObs</span><span class="p">:</span>  <span class="c1"># noqa: D102</span>
         <span class="n">obs_dict</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">env</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
         <span class="c1"># reset episodic information buffers</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_ep_rew_buf</span><span class="o">.</span><span class="n">zero_</span><span class="p">()</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_ep_len_buf</span><span class="o">.</span><span class="n">zero_</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_ep_rew_buf</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_envs</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_ep_len_buf</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_envs</span><span class="p">)</span>
         <span class="c1"># convert data types to numpy depending on backend</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_process_obs</span><span class="p">(</span><span class="n">obs_dict</span><span class="p">)</span>
 
@@ -773,28 +785,30 @@
     <span class="k">def</span><span class="w"> </span><span class="nf">step_wait</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">VecEnvStepReturn</span><span class="p">:</span>  <span class="c1"># noqa: D102</span>
         <span class="c1"># record step information</span>
         <span class="n">obs_dict</span><span class="p">,</span> <span class="n">rew</span><span class="p">,</span> <span class="n">terminated</span><span class="p">,</span> <span class="n">truncated</span><span class="p">,</span> <span class="n">extras</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">env</span><span class="o">.</span><span class="n">step</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_async_actions</span><span class="p">)</span>
-        <span class="c1"># update episode un-discounted return and length</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_ep_rew_buf</span> <span class="o">+=</span> <span class="n">rew</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_ep_len_buf</span> <span class="o">+=</span> <span class="mi">1</span>
         <span class="c1"># compute reset ids</span>
         <span class="n">dones</span> <span class="o">=</span> <span class="n">terminated</span> <span class="o">|</span> <span class="n">truncated</span>
-        <span class="n">reset_ids</span> <span class="o">=</span> <span class="p">(</span><span class="n">dones</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">)</span><span class="o">.</span><span class="n">nonzero</span><span class="p">(</span><span class="n">as_tuple</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
 
         <span class="c1"># convert data types to numpy depending on backend</span>
         <span class="c1"># note: ManagerBasedRLEnv uses torch backend (by default).</span>
         <span class="n">obs</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_process_obs</span><span class="p">(</span><span class="n">obs_dict</span><span class="p">)</span>
-        <span class="n">rew</span> <span class="o">=</span> <span class="n">rew</span><span class="o">.</span><span class="n">detach</span><span class="p">()</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">()</span>
+        <span class="n">rewards</span> <span class="o">=</span> <span class="n">rew</span><span class="o">.</span><span class="n">detach</span><span class="p">()</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">()</span>
         <span class="n">terminated</span> <span class="o">=</span> <span class="n">terminated</span><span class="o">.</span><span class="n">detach</span><span class="p">()</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">()</span>
         <span class="n">truncated</span> <span class="o">=</span> <span class="n">truncated</span><span class="o">.</span><span class="n">detach</span><span class="p">()</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">()</span>
         <span class="n">dones</span> <span class="o">=</span> <span class="n">dones</span><span class="o">.</span><span class="n">detach</span><span class="p">()</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">()</span>
+
+        <span class="n">reset_ids</span> <span class="o">=</span> <span class="n">dones</span><span class="o">.</span><span class="n">nonzero</span><span class="p">()[</span><span class="mi">0</span><span class="p">]</span>
+
+        <span class="c1"># update episode un-discounted return and length</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_ep_rew_buf</span> <span class="o">+=</span> <span class="n">rewards</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_ep_len_buf</span> <span class="o">+=</span> <span class="mi">1</span>
         <span class="c1"># convert extra information to list of dicts</span>
         <span class="n">infos</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_process_extras</span><span class="p">(</span><span class="n">obs</span><span class="p">,</span> <span class="n">terminated</span><span class="p">,</span> <span class="n">truncated</span><span class="p">,</span> <span class="n">extras</span><span class="p">,</span> <span class="n">reset_ids</span><span class="p">)</span>
 
         <span class="c1"># reset info for terminated environments</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_ep_rew_buf</span><span class="p">[</span><span class="n">reset_ids</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_ep_rew_buf</span><span class="p">[</span><span class="n">reset_ids</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.0</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_ep_len_buf</span><span class="p">[</span><span class="n">reset_ids</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
 
-        <span class="k">return</span> <span class="n">obs</span><span class="p">,</span> <span class="n">rew</span><span class="p">,</span> <span class="n">dones</span><span class="p">,</span> <span class="n">infos</span>
+        <span class="k">return</span> <span class="n">obs</span><span class="p">,</span> <span class="n">rewards</span><span class="p">,</span> <span class="n">dones</span><span class="p">,</span> <span class="n">infos</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">close</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>  <span class="c1"># noqa: D102</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">env</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
@@ -828,7 +842,8 @@
             <span class="k">return</span> <span class="n">env_method</span><span class="p">(</span><span class="o">*</span><span class="n">method_args</span><span class="p">,</span> <span class="n">indices</span><span class="o">=</span><span class="n">indices</span><span class="p">,</span> <span class="o">**</span><span class="n">method_kwargs</span><span class="p">)</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">env_is_wrapped</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">wrapper_class</span><span class="p">,</span> <span class="n">indices</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>  <span class="c1"># noqa: D102</span>
-        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s2">&quot;Checking if environment is wrapped is not supported.&quot;</span><span class="p">)</span>
+        <span class="c1"># fake implementation to be able to use `evaluate_policy()` helper</span>
+        <span class="k">return</span> <span class="p">[</span><span class="kc">False</span><span class="p">]</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">get_images</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>  <span class="c1"># noqa: D102</span>
         <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s2">&quot;Getting images is not supported.&quot;</span><span class="p">)</span>
@@ -855,6 +870,29 @@
         <span class="bp">self</span><span class="p">,</span> <span class="n">obs</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span> <span class="n">terminated</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span> <span class="n">truncated</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span> <span class="n">extras</span><span class="p">:</span> <span class="nb">dict</span><span class="p">,</span> <span class="n">reset_ids</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span>
     <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Convert miscellaneous information into dictionary for each sub-environment.&quot;&quot;&quot;</span>
+        <span class="c1"># faster version: only process env that terminated and add bootstrapping info</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">fast_variant</span><span class="p">:</span>
+            <span class="n">infos</span> <span class="o">=</span> <span class="p">[{}</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_envs</span><span class="p">)]</span>
+
+            <span class="k">for</span> <span class="n">idx</span> <span class="ow">in</span> <span class="n">reset_ids</span><span class="p">:</span>
+                <span class="c1"># fill-in episode monitoring info</span>
+                <span class="n">infos</span><span class="p">[</span><span class="n">idx</span><span class="p">][</span><span class="s2">&quot;episode&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+                    <span class="s2">&quot;r&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ep_rew_buf</span><span class="p">[</span><span class="n">idx</span><span class="p">],</span>
+                    <span class="s2">&quot;l&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ep_len_buf</span><span class="p">[</span><span class="n">idx</span><span class="p">],</span>
+                <span class="p">}</span>
+
+                <span class="c1"># fill-in bootstrap information</span>
+                <span class="n">infos</span><span class="p">[</span><span class="n">idx</span><span class="p">][</span><span class="s2">&quot;TimeLimit.truncated&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">truncated</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">terminated</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span>
+
+                <span class="c1"># add information about terminal observation separately</span>
+                <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">obs</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+                    <span class="n">terminal_obs</span> <span class="o">=</span> <span class="p">{</span><span class="n">key</span><span class="p">:</span> <span class="n">value</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span> <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">obs</span><span class="o">.</span><span class="n">items</span><span class="p">()}</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">terminal_obs</span> <span class="o">=</span> <span class="n">obs</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span>
+                <span class="n">infos</span><span class="p">[</span><span class="n">idx</span><span class="p">][</span><span class="s2">&quot;terminal_observation&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">terminal_obs</span>
+
+            <span class="k">return</span> <span class="n">infos</span>
+
         <span class="c1"># create empty list of dictionaries to fill</span>
         <span class="n">infos</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">=</span> <span class="p">[</span><span class="nb">dict</span><span class="o">.</span><span class="n">fromkeys</span><span class="p">(</span><span class="n">extras</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_envs</span><span class="p">)]</span>
         <span class="c1"># fill-in information for each sub-environment</span>
@@ -942,7 +980,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jun 24, 2025.
+  Last updated on Jun 25, 2025.
   <br/>
 </p>
   </div>

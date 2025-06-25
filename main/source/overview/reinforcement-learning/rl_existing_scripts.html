@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.1.0" />
-    <meta name="docbuild:last-update" content="Jun 24, 2025"/>
+    <meta name="docbuild:last-update" content="Jun 25, 2025"/>
   </head>
   
   
@@ -817,7 +817,7 @@ isaaclab.bat -p scripts\reinforcement_learning\skrl\play.py --task Isaac-Shadow-
 <ul>
 <li><p>Training an agent with
 <a class="reference external" href="https://stable-baselines3.readthedocs.io/en/master/index.html">Stable-Baselines3</a>
-on <code class="docutils literal notranslate"><span class="pre">Isaac-Cartpole-v0</span></code>:</p>
+on <code class="docutils literal notranslate"><span class="pre">Isaac-Velocity-Flat-Unitree-A1-v0</span></code>:</p>
 <div class="sd-tab-set docutils">
 <input checked="checked" id="sd-tab-item-10" name="sd-tab-set-5" type="radio">
 <label class="sd-tab-label" data-sync-group="os" data-sync-id="linux" for="sd-tab-item-10">
@@ -825,14 +825,13 @@ on <code class="docutils literal notranslate"><span class="pre">Isaac-Cartpole-v
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># install python module (for stable-baselines3)</span>
 ./isaaclab.sh<span class="w"> </span>-i<span class="w"> </span>sb3
 <span class="c1"># run script for training</span>
-<span class="c1"># note: we set the device to cpu since SB3 doesn&#39;t optimize for GPU anyway</span>
-./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/reinforcement_learning/sb3/train.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Cartpole-v0<span class="w"> </span>--headless<span class="w"> </span>--device<span class="w"> </span>cpu
+./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/reinforcement_learning/sb3/train.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Velocity-Flat-Unitree-A1-v0<span class="w"> </span>--headless
 <span class="c1"># run script for playing with 32 environments</span>
-./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/reinforcement_learning/sb3/play.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Cartpole-v0<span class="w"> </span>--num_envs<span class="w"> </span><span class="m">32</span><span class="w"> </span>--checkpoint<span class="w"> </span>/PATH/TO/model.zip
+./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/reinforcement_learning/sb3/play.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Velocity-Flat-Unitree-A1-v0<span class="w"> </span>--num_envs<span class="w"> </span><span class="m">32</span><span class="w"> </span>--checkpoint<span class="w"> </span>/PATH/TO/model.zip
 <span class="c1"># run script for playing a pre-trained checkpoint with 32 environments</span>
-./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/reinforcement_learning/sb3/play.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Cartpole-v0<span class="w"> </span>--num_envs<span class="w"> </span><span class="m">32</span><span class="w"> </span>--use_pretrained_checkpoint
+./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/reinforcement_learning/sb3/play.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Velocity-Flat-Unitree-A1-v0<span class="w"> </span>--num_envs<span class="w"> </span><span class="m">32</span><span class="w"> </span>--use_pretrained_checkpoint
 <span class="c1"># run script for recording video of a trained agent (requires installing `ffmpeg`)</span>
-./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/reinforcement_learning/sb3/play.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Cartpole-v0<span class="w"> </span>--headless<span class="w"> </span>--video<span class="w"> </span>--video_length<span class="w"> </span><span class="m">200</span>
+./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/reinforcement_learning/sb3/play.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Velocity-Flat-Unitree-A1-v0<span class="w"> </span>--headless<span class="w"> </span>--video<span class="w"> </span>--video_length<span class="w"> </span><span class="m">200</span>
 </pre></div>
 </div>
 </div>
@@ -842,14 +841,13 @@ on <code class="docutils literal notranslate"><span class="pre">Isaac-Cartpole-v
 <div class="highlight-batch notranslate"><div class="highlight"><pre><span></span><span class="p">:</span><span class="c1">: install python module (for stable-baselines3)</span>
 isaaclab.bat -i sb3
 <span class="p">:</span><span class="c1">: run script for training</span>
-<span class="p">:</span><span class="c1">: note: we set the device to cpu since SB3 doesn&#39;t optimize for GPU anyway</span>
-isaaclab.bat -p scripts\reinforcement_learning\sb3\train.py --task Isaac-Cartpole-v0 --headless --device cpu
+isaaclab.bat -p scripts\reinforcement_learning\sb3\train.py --task Isaac-Velocity-Flat-Unitree-A1-v0 --headless
 <span class="p">:</span><span class="c1">: run script for playing with 32 environments</span>
-isaaclab.bat -p scripts\reinforcement_learning\sb3\play.py --task Isaac-Cartpole-v0 --num_envs 32 --checkpoint /PATH/TO/model.zip
+isaaclab.bat -p scripts\reinforcement_learning\sb3\play.py --task Isaac-Velocity-Flat-Unitree-A1-v0 --num_envs 32 --checkpoint /PATH/TO/model.zip
 <span class="p">:</span><span class="c1">: run script for playing a pre-trained checkpoint with 32 environments</span>
-isaaclab.bat -p scripts\reinforcement_learning\sb3\play.py --task Isaac-Cartpole-v0 --num_envs 32 --use_pretrained_checkpoint
+isaaclab.bat -p scripts\reinforcement_learning\sb3\play.py --task Isaac-Velocity-Flat-Unitree-A1-v0 --num_envs 32 --use_pretrained_checkpoint
 <span class="p">:</span><span class="c1">: run script for recording video of a trained agent (requires installing `ffmpeg`)</span>
-isaaclab.bat -p scripts\reinforcement_learning\sb3\play.py --task Isaac-Cartpole-v0 --headless --video --video_length 200
+isaaclab.bat -p scripts\reinforcement_learning\sb3\play.py --task Isaac-Velocity-Flat-Unitree-A1-v0 --headless --video --video_length 200
 </pre></div>
 </div>
 </div>
@@ -965,7 +963,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jun 24, 2025.
+  Last updated on Jun 25, 2025.
   <br/>
 </p>
   </div>
