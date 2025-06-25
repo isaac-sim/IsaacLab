@@ -451,6 +451,10 @@ On Windows machines, please terminate the process from Command Prompt using
 
 If you see this, then the installation was successful! |:tada:|
 
+If you see an error ``ModuleNotFoundError: No module named 'isaacsim'``, ensure that the conda environment is activated
+and ``source _isaac_sim/setup_conda_env.sh`` has been executed.
+
+
 Train a robot!
 ~~~~~~~~~~~~~~~
 
