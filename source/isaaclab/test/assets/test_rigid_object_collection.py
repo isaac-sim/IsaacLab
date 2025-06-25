@@ -26,7 +26,16 @@ import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObjectCfg, RigidObjectCollection, RigidObjectCollectionCfg
 from isaaclab.sim import build_simulation_context
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
-from isaaclab.utils.math import default_orientation, quat_apply_inverse, quat_mul, random_orientation
+from isaaclab.utils.math import (
+    combine_frame_transforms,
+    default_orientation,
+    quat_apply_inverse,
+    quat_inv,
+    quat_mul,
+    quat_rotate,
+    random_orientation,
+    subtract_frame_transforms,
+)
 
 
 def generate_cubes_scene(
@@ -601,3 +610,128 @@ def test_gravity_vec_w(sim, num_envs, num_cubes, device, gravity_enabled):
 
         # Check the body accelerations are correct
         torch.testing.assert_close(object_collection.data.object_acc_w, gravity)
+
+
+@pytest.mark.parametrize("num_envs", [1, 3])
+@pytest.mark.parametrize("num_cubes", [1, 2])
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("with_offset", [True])
+@pytest.mark.parametrize("state_location", ["com", "link", "root"])
+@pytest.mark.parametrize("gravity_enabled", [False])
+def test_write_object_state_functions_data_consistency(
+    sim, num_envs, num_cubes, device, with_offset, state_location, gravity_enabled
+):
+    """Test the setters for object_state using both the link frame and center of mass as reference frame."""
+    # Create a scene with random cubes
+    cube_object, env_pos = generate_cubes_scene(num_envs=num_envs, num_cubes=num_cubes, height=0.0, device=device)
+    view_ids = torch.tensor([x for x in range(num_cubes * num_cubes)])
+    env_ids = torch.tensor([x for x in range(num_envs)])
+    object_ids = torch.tensor([x for x in range(num_cubes)])
+
+    sim.reset()
+
+    # Check if cube_object is initialized
+    assert cube_object.is_initialized
+
+    # change center of mass offset from link frame
+    offset = (
+        torch.tensor([0.1, 0.0, 0.0], device=device).repeat(num_envs, num_cubes, 1)
+        if with_offset
+        else torch.tensor([0.0, 0.0, 0.0], device=device).repeat(num_envs, num_cubes, 1)
+    )
+
+    com = cube_object.reshape_view_to_data(cube_object.root_physx_view.get_coms())
+    com[..., :3] = offset.to("cpu")
+    cube_object.root_physx_view.set_coms(cube_object.reshape_data_to_view(com.clone()), view_ids)
+
+    # check center of mass has been set
+    torch.testing.assert_close(cube_object.reshape_view_to_data(cube_object.root_physx_view.get_coms()), com)
+
+    rand_state = torch.rand_like(cube_object.data.object_link_state_w)
+    rand_state[..., :3] += cube_object.data.object_link_pos_w
+    # make quaternion a unit vector
+    rand_state[..., 3:7] = torch.nn.functional.normalize(rand_state[..., 3:7], dim=-1)
+
+    env_ids = env_ids.to(device)
+    object_ids = object_ids.to(device)
+    sim.step()
+    cube_object.update(sim.cfg.dt)
+
+    object_link_to_com_pos, object_link_to_com_quat = subtract_frame_transforms(
+        cube_object.data.object_link_state_w[..., :3].view(-1, 3),
+        cube_object.data.object_link_state_w[..., 3:7].view(-1, 4),
+        cube_object.data.object_com_state_w[..., :3].view(-1, 3),
+        cube_object.data.object_com_state_w[..., 3:7].view(-1, 4),
+    )
+
+    if state_location == "com":
+        cube_object.write_object_com_state_to_sim(rand_state, env_ids=env_ids, object_ids=object_ids)
+    elif state_location == "link":
+        cube_object.write_object_link_state_to_sim(rand_state, env_ids=env_ids, object_ids=object_ids)
+    elif state_location == "root":
+        cube_object.write_object_state_to_sim(rand_state, env_ids=env_ids, object_ids=object_ids)
+
+    if state_location == "com":
+        expected_root_link_pos, expected_root_link_quat = combine_frame_transforms(
+            cube_object.data.object_com_state_w[..., :3].view(-1, 3),
+            cube_object.data.object_com_state_w[..., 3:7].view(-1, 4),
+            quat_rotate(quat_inv(object_link_to_com_quat), -object_link_to_com_pos),
+            quat_inv(object_link_to_com_quat),
+        )
+        # torch.testing.assert_close(rand_state, cube_object.data.object_com_state_w)
+        expected_object_link_pose = torch.cat((expected_root_link_pos, expected_root_link_quat), dim=1).view(
+            num_envs, -1, 7
+        )
+        # test both root_pose and root_link_state_w successfully updated when root_com_state_w updates
+        torch.testing.assert_close(expected_object_link_pose, cube_object.data.object_link_state_w[..., :7])
+        # skip 7:10 because they differs from link frame, this should be fine because we are only checking
+        # if velocity update is triggered, which can be determined by comparing angular velocity
+        torch.testing.assert_close(
+            cube_object.data.object_com_state_w[..., 10:], cube_object.data.object_link_state_w[..., 10:]
+        )
+        torch.testing.assert_close(expected_object_link_pose, cube_object.data.object_state_w[..., :7])
+        torch.testing.assert_close(
+            cube_object.data.object_com_state_w[..., 10:], cube_object.data.object_state_w[..., 10:]
+        )
+    elif state_location == "link":
+        expected_com_pos, expected_com_quat = combine_frame_transforms(
+            cube_object.data.object_link_state_w[..., :3].view(-1, 3),
+            cube_object.data.object_link_state_w[..., 3:7].view(-1, 4),
+            object_link_to_com_pos,
+            object_link_to_com_quat,
+        )
+        expected_object_com_pose = torch.cat((expected_com_pos, expected_com_quat), dim=1).view(num_envs, -1, 7)
+        # test both root_pose and root_com_state_w successfully updated when root_link_state_w updates
+        torch.testing.assert_close(expected_object_com_pose, cube_object.data.object_com_state_w[..., :7])
+        # skip 7:10 because they differs from link frame, this should be fine because we are only checking
+        # if velocity update is triggered, which can be determined by comparing angular velocity
+        torch.testing.assert_close(
+            cube_object.data.object_link_state_w[..., 10:], cube_object.data.object_com_state_w[..., 10:]
+        )
+        torch.testing.assert_close(
+            cube_object.data.object_link_state_w[..., :7], cube_object.data.object_state_w[..., :7]
+        )
+        torch.testing.assert_close(
+            cube_object.data.object_link_state_w[..., 10:], cube_object.data.object_state_w[..., 10:]
+        )
+    elif state_location == "root":
+        expected_object_com_pos, expected_object_com_quat = combine_frame_transforms(
+            cube_object.data.object_state_w[..., :3].view(-1, 3),
+            cube_object.data.object_state_w[..., 3:7].view(-1, 4),
+            object_link_to_com_pos,
+            object_link_to_com_quat,
+        )
+        expected_object_com_pose = torch.cat((expected_object_com_pos, expected_object_com_quat), dim=1).view(
+            num_envs, -1, 7
+        )
+        # test both root_com_state_w and root_link_state_w successfully updated when root_pose updates
+        torch.testing.assert_close(expected_object_com_pose, cube_object.data.object_com_state_w[..., :7])
+        torch.testing.assert_close(
+            cube_object.data.object_state_w[..., 7:], cube_object.data.object_com_state_w[..., 7:]
+        )
+        torch.testing.assert_close(
+            cube_object.data.object_state_w[..., :7], cube_object.data.object_link_state_w[..., :7]
+        )
+        torch.testing.assert_close(
+            cube_object.data.object_state_w[..., 10:], cube_object.data.object_link_state_w[..., 10:]
+        )
