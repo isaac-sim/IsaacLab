@@ -1,14 +1,13 @@
-# Copyright (c) 2024-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
-
 # needed to import for allowing type-hinting: torch.Tensor | None
 from __future__ import annotations
 
 """Launch Isaac Sim Simulator first."""
 
-from isaaclab.app import AppLauncher, run_tests
+from isaaclab.app import AppLauncher
 
 # launch omniverse app
 simulation_app = AppLauncher(headless=True).app
@@ -19,10 +18,11 @@ import os
 import shutil
 import tempfile
 import torch
-import unittest
 import uuid
 from collections import namedtuple
 from collections.abc import Sequence
+
+import pytest
 
 from isaaclab.envs import ManagerBasedEnv
 from isaaclab.managers import DatasetExportMode, RecorderManager, RecorderManagerBaseCfg, RecorderTerm, RecorderTermCfg
@@ -91,74 +91,67 @@ def create_dummy_env(device: str = "cpu") -> ManagerBasedEnv:
     )
 
 
-class TestRecorderManager(unittest.TestCase):
-    """Test cases for various situations with recorder manager."""
+@pytest.fixture
+def dataset_dir():
+    """Create directory to dump results."""
+    test_dir = tempfile.mkdtemp()
+    yield test_dir
+    # Cleanup
+    shutil.rmtree(test_dir)
 
-    def setUp(self) -> None:
-        self.dataset_dir = tempfile.mkdtemp()
 
-    def tearDown(self):
-        # delete the temporary directory after the test
-        shutil.rmtree(self.dataset_dir)
+def test_str(dataset_dir):
+    """Test the string representation of the recorder manager."""
+    # create recorder manager
+    cfg = DummyRecorderManagerCfg()
+    recorder_manager = RecorderManager(cfg, create_dummy_env())
+    assert len(recorder_manager.active_terms) == 2
+    # print the expected string
+    print(recorder_manager)
 
-    def create_dummy_recorder_manager_cfg(self) -> DummyRecorderManagerCfg:
-        """Get the dummy recorder manager configurations."""
+
+def test_initialize_dataset_file(dataset_dir):
+    """Test the initialization of the dataset file."""
+    # create recorder manager
+    cfg = DummyRecorderManagerCfg()
+    cfg.dataset_export_dir_path = dataset_dir
+    cfg.dataset_filename = f"{uuid.uuid4()}.hdf5"
+    _ = RecorderManager(cfg, create_dummy_env())
+
+    # check if the dataset is created
+    assert os.path.exists(os.path.join(cfg.dataset_export_dir_path, cfg.dataset_filename))
+
+
+def test_record(dataset_dir):
+    """Test the recording of the data."""
+    for device in ("cuda:0", "cpu"):
+        env = create_dummy_env(device)
+        # create recorder manager
         cfg = DummyRecorderManagerCfg()
-        cfg.dataset_export_dir_path = self.dataset_dir
+        cfg.dataset_export_dir_path = dataset_dir
         cfg.dataset_filename = f"{uuid.uuid4()}.hdf5"
-        return cfg
+        recorder_manager = RecorderManager(cfg, env)
 
-    def test_str(self):
-        """Test the string representation of the recorder manager."""
-        # create recorder manager
-        cfg = DummyRecorderManagerCfg()
-        recorder_manager = RecorderManager(cfg, create_dummy_env())
-        self.assertEqual(len(recorder_manager.active_terms), 2)
-        # print the expected string
-        print()
-        print(recorder_manager)
+        # record the step data
+        recorder_manager.record_pre_step()
+        recorder_manager.record_post_step()
 
-    def test_initialize_dataset_file(self):
-        """Test the initialization of the dataset file."""
-        # create recorder manager
-        cfg = self.create_dummy_recorder_manager_cfg()
-        _ = RecorderManager(cfg, create_dummy_env())
+        recorder_manager.record_pre_step()
+        recorder_manager.record_post_step()
 
-        # check if the dataset is created
-        self.assertTrue(os.path.exists(os.path.join(cfg.dataset_export_dir_path, cfg.dataset_filename)))
+        # check the recorded data
+        for env_id in range(env.num_envs):
+            episode = recorder_manager.get_episode(env_id)
+            assert episode.data["record_pre_step"].shape == (2, 4)
+            assert episode.data["record_post_step"].shape == (2, 5)
 
-    def test_record(self):
-        """Test the recording of the data."""
-        for device in ("cuda:0", "cpu"):
-            with self.subTest(device=device):
-                env = create_dummy_env(device)
-                # create recorder manager
-                recorder_manager = RecorderManager(self.create_dummy_recorder_manager_cfg(), env)
+        # Trigger pre-reset callbacks which then export and clean the episode data
+        recorder_manager.record_pre_reset(env_ids=None)
+        for env_id in range(env.num_envs):
+            episode = recorder_manager.get_episode(env_id)
+            assert episode.is_empty()
 
-                # record the step data
-                recorder_manager.record_pre_step()
-                recorder_manager.record_post_step()
-
-                recorder_manager.record_pre_step()
-                recorder_manager.record_post_step()
-
-                # check the recorded data
-                for env_id in range(env.num_envs):
-                    episode = recorder_manager.get_episode(env_id)
-                    self.assertEqual(episode.data["record_pre_step"].shape, (2, 4))
-                    self.assertEqual(episode.data["record_post_step"].shape, (2, 5))
-
-                # Trigger pre-reset callbacks which then export and clean the episode data
-                recorder_manager.record_pre_reset(env_ids=None)
-                for env_id in range(env.num_envs):
-                    episode = recorder_manager.get_episode(env_id)
-                    self.assertTrue(episode.is_empty())
-
-                recorder_manager.record_post_reset(env_ids=None)
-                for env_id in range(env.num_envs):
-                    episode = recorder_manager.get_episode(env_id)
-                    self.assertEqual(episode.data["record_post_reset"].shape, (1, 3))
-
-
-if __name__ == "__main__":
-    run_tests()
+        recorder_manager.record_post_reset(env_ids=None)
+        for env_id in range(env.num_envs):
+            episode = recorder_manager.get_episode(env_id)
+            assert episode.data["record_post_reset"].shape == (1, 3)

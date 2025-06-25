@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -57,7 +57,7 @@ parser.add_argument(
     "--collision-approximation",
     type=str,
     default="convexDecomposition",
-    choices=["convexDecomposition", "convexHull", "none"],
+    choices=["convexDecomposition", "convexHull", "boundingCube", "boundingSphere", "meshSimplification", "none"],
     help=(
         'The method used for approximating collision mesh. Set to "none" '
         "to not add a collision mesh to the converted mesh."

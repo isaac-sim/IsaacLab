@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -357,6 +357,14 @@ class ActionManager(ManagerBase):
             The action term with the specified name.
         """
         return self._terms[name]
+
+    def serialize(self) -> dict:
+        """Serialize the action manager configuration.
+
+        Returns:
+            A dictionary of serialized action term configurations.
+        """
+        return {term_name: term.serialize() for term_name, term in self._terms.items()}
 
     """
     Helper functions.
