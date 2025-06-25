@@ -309,6 +309,11 @@ class SimulationCfg:
     Note:
         When enabled, the GUI will not update the physics parameters in real-time. To enable real-time
         updates, please set this flag to :obj:`False`.
+
+        When using GPU simulation, it is required to enable Fabric to visualize updates in the renderer.
+        Transform updates are propagated to the renderer through Fabric. If Fabric is disabled with GPU simulation,
+        the renderer will not be able to render any updates in the simulation, although simulation will still be
+        running under the hood.
     """
 
     physx: PhysxCfg = PhysxCfg()

@@ -554,6 +554,10 @@ Environments based on fixed-arm manipulation tasks.
 Comprehensive List of Environments
 ==================================
 
+For environments that have a different task name listed under ``Inference Task Name``, please use the Inference Task Name
+provided when running ``play.py`` or any inferencing workflows. These tasks provide more suitable configurations for
+inferencing, including reading from an already trained checkpoint and disabling runtime perturbations used for training.
+
 .. list-table::
     :widths: 33 25 19 25
 
@@ -884,7 +888,7 @@ Comprehensive List of Environments
     * - Isaac-Velocity-Flat-Unitree-A1-v0
       - Isaac-Velocity-Flat-Unitree-A1-Play-v0
       - Manager Based
-      - **rsl_rl** (PPO), **skrl** (PPO)
+      - **rsl_rl** (PPO), **skrl** (PPO), **sb3** (PPO)
     * - Isaac-Velocity-Flat-Unitree-Go1-v0
       - Isaac-Velocity-Flat-Unitree-Go1-Play-v0
       - Manager Based
@@ -924,7 +928,7 @@ Comprehensive List of Environments
     * - Isaac-Velocity-Rough-Unitree-A1-v0
       - Isaac-Velocity-Rough-Unitree-A1-Play-v0
       - Manager Based
-      - **rsl_rl** (PPO), **skrl** (PPO)
+      - **rsl_rl** (PPO), **skrl** (PPO), **sb3** (PPO)
     * - Isaac-Velocity-Rough-Unitree-Go1-v0
       - Isaac-Velocity-Rough-Unitree-Go1-Play-v0
       - Manager Based
