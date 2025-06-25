@@ -1,4 +1,5 @@
 from isaaclab.utils import configclass
+from isaaclab.managers import SceneEntityCfg
 from isaaclab.assets import ArticulationCfg
 from isaaclab_assets.robots.kuka_allegro import KUKA_ALLEGRO_CFG  # isort: skip
 from ...dextrah_env_cfg import DextrahEnvCfg
@@ -68,9 +69,7 @@ class DextrahKukaAllegroEnvCfg(DextrahEnvCfg):
         self.observations.policy.hand_tips_pos.params["asset_cfg"].body_names = ["palm_link", ".*_tip"]
         self.observations.critic.hand_tips_pos.params["asset_cfg"].body_names = ["palm_link", ".*_tip"]
         self.observations.critic.measured_body_forces.params["asset_cfg"].body_names = ["palm_link", ".*_tip"]
-        self.rewards.fingers_to_object.params["asset_cfg"].body_names = ["palm_link", ".*_tip"]
-        self.rewards.finger_curl_reg.params["asset_cfg"].joint_names = "(thumb|index|middle|ring).*"
-
+        self.rewards.fingers_to_object.params["asset_cfg"] = SceneEntityCfg("robot", body_names=["palm_link", ".*_tip"])  
 
 @configclass
 class DextrahKukaAllegroEnvRelJointPosCfg(DextrahKukaAllegroEnvCfg):

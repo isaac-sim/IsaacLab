@@ -9,7 +9,6 @@ import os
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, RigidObjectCfg, AssetBaseCfg
 from isaaclab.envs import ManagerBasedEnvCfg
-from isaaclab.managers import CurriculumTermCfg as CurrTerm
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
@@ -22,7 +21,8 @@ from isaaclab.utils.noise import AdditiveUniformNoiseCfg as Unoise
 from isaaclab.utils import configclass
 
 from . import mdp
-from .mdp import ADRTermCfg as ADR
+from .mdp.curriculums import cfg_get
+from .adr_curriculum import CurriculumCfg
 
 # from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 ISAACLAB_NUCLEUS_DIR = "source/isaaclab_assets/data"
@@ -93,7 +93,7 @@ class CommandsCfg:
         resampling_time_range=(10.0, 10.0),
         debug_vis=True,
         ranges=mdp.UniformPoseCommandCfg.Ranges(
-            pos_x=[-0.5, -0.5], pos_y=[0., 0.], pos_z=[0.65, 0.65], roll=[0., 0.], pitch=[0., 0.], yaw=[0., 0.]
+            pos_x=(-0.5, -0.5), pos_y=(0., 0.), pos_z=(0.65, 0.65), roll=(0., 0.), pitch=(0., 0.), yaw=(0., 0.)
         ),
     )
 
@@ -104,11 +104,11 @@ class ObservationsCfg:
     @configclass
     class PolicyCfg(ObsGroup):
         """Observations for policy group."""
-        joint_pos = ObsTerm(func=mdp.joint_pos, noise=Unoise(n_min=-0.1, n_max=0.1))
-        joint_vel = ObsTerm(func=mdp.joint_vel, noise=Unoise(n_min=-0.1, n_max=0.1))
+        joint_pos = ObsTerm(func=mdp.joint_pos, noise=Unoise(n_min=-0., n_max=0.))
+        joint_vel = ObsTerm(func=mdp.joint_vel, noise=Unoise(n_min=-0., n_max=0.))
         hand_tips_pos = ObsTerm(
-            func=mdp.body_state_w, noise=Unoise(n_min=-0.01, n_max=0.01), params={"asset_cfg": SceneEntityCfg("robot")})
-        object_pose = ObsTerm(func=mdp.object_pose_in_robot_root_frame, noise=Unoise(n_min=-0.01, n_max=0.01))
+            func=mdp.body_state_w, noise=Unoise(n_min=-0., n_max=0.), params={"asset_cfg": SceneEntityCfg("robot")})
+        object_pose = ObsTerm(func=mdp.object_pose_in_robot_root_frame, noise=Unoise(n_min=-0., n_max=0.))
         target_object_position = ObsTerm(func=mdp.generated_commands, params={"command_name": "object_pose"})
         actions = ObsTerm(func=mdp.last_action)
 
@@ -141,8 +141,8 @@ class EventCfg:
         mode="reset",
         params={
             "asset_cfg": SceneEntityCfg("robot", body_names=".*"),
-            "static_friction_range": [0.8, 1.2],
-            "dynamic_friction_range": [0.8, 1.0],
+            "static_friction_range": [1., 1.],
+            "dynamic_friction_range": [1., 1.],
             "restitution_range": [0.0, 0.0],
             "num_buckets": 250
         },
@@ -153,8 +153,8 @@ class EventCfg:
         mode="reset",
         params={
             "asset_cfg": SceneEntityCfg("robot", joint_names=".*"),
-            "stiffness_distribution_params": [0.5, 1.],
-            "damping_distribution_params": [0.5, 1.],
+            "stiffness_distribution_params": [1., 1.],
+            "damping_distribution_params": [1., 1.],
             "operation": "scale",
             "distribution": "uniform"
         },
@@ -177,8 +177,8 @@ class EventCfg:
         mode="reset",
         params={
             "asset_cfg": SceneEntityCfg("object", body_names=".*"),
-            "static_friction_range": [0.8, 1.2],
-            "dynamic_friction_range": [0.8, 1.0],
+            "static_friction_range": [1., 1.],
+            "dynamic_friction_range": [1., 1.],
             "restitution_range": [0.0, 0.0],
             "num_buckets": 250,
         },
@@ -189,7 +189,7 @@ class EventCfg:
         mode="reset",
         params={
             "asset_cfg": SceneEntityCfg("object"),
-            "mass_distribution_params": [0.5, 1.0],
+            "mass_distribution_params": [1., 1.],
             "operation": "scale",
             "distribution": "uniform",
         },
@@ -233,13 +233,15 @@ class ActionsCfg:
 class RewardsCfg:
     """Reward terms for the MDP."""
     
-    fingers_to_object = RewTerm(
-        func=mdp.object_ee_distance, params={"std": 0.2, "asset_cfg": SceneEntityCfg("robot")}, weight=1.0
-    )
+    action_l2 = RewTerm(func=mdp.action_l2, weight=-0.005)
+    
+    action_rate_l2 = RewTerm(func=mdp.action_rate_l2, weight=-0.005)
+    
+    fingers_to_object = RewTerm(func=mdp.object_ee_distance, params={"std": 0.2}, weight=1.0)
 
-    lift = RewTerm(func=mdp.PointCloud, params={"num_points": 128, "min_height": 0.26}, weight=1.0)
+    lift = RewTerm(func=mdp.PointCloud, params={"num_points": 128, "min_height": 0.26}, weight=2.0)
 
-    object_to_goal = RewTerm(func=mdp.object_goal_distance_v0, params={"std": 8., "command_name": "object_pose", "min_height": 0.26}, weight=5.0)
+    object_to_goal = RewTerm(func=mdp.object_goal_distance_v0, params={"std": 8., "min_height": 0.26}, weight=5.0)
 
     finger_curl_reg = RewTerm(func=mdp.joint_deviation_l1, params={"asset_cfg": SceneEntityCfg("robot")}, weight=-0.01)
 
@@ -254,68 +256,13 @@ class TerminationsCfg:
         params={"in_bound_range": {"x":(-1., 0.), "y": (-.8, .8), "z": (.2, 2.)}, "asset_cfg": SceneEntityCfg("object")}
     )
 
-@configclass
-class CurriculumCfg:
-    """Curriculum terms for the MDP."""
-
-    adr = CurrTerm(
-        func=mdp.DifficultyScheduler,
-        params={
-            "asset_cfg": SceneEntityCfg("robot"),
-            "object_cfg": SceneEntityCfg("object"),
-            "init_difficulty": 0,
-            "min_difficulty": 0,
-            "max_difficulty": 10,
-            "adr_terms": {
-                'observation_manager.cfg.policy.joint_pos.noise.n_min' : ADR(0., -0.1),
-                'observation_manager.cfg.policy.joint_pos.noise.n_max' : ADR(0., 0.1),
-                'observation_manager.cfg.policy.joint_vel.noise.n_min' : ADR(0., -0.2),
-                'observation_manager.cfg.policy.joint_vel.noise.n_max' : ADR(0., 0.2),
-                'observation_manager.cfg.policy.hand_tips_pos.noise.n_min' : ADR(0., -0.01),
-                'observation_manager.cfg.policy.hand_tips_pos.noise.n_max' : ADR(0., 0.01),
-                'observation_manager.cfg.policy.object_pose.noise.n_min' : ADR(0., -0.03),
-                'observation_manager.cfg.policy.object_pose.noise.n_max' : ADR(0., 0.03),
-
-                'command_manager.cfg.object_pose.ranges.pos_x[0]' : ADR(-.5, -.75),
-                'command_manager.cfg.object_pose.ranges.pos_x[1]' : ADR(-.5, -.25),
-                'command_manager.cfg.object_pose.ranges.pos_y[0]' : ADR(0., -.25),
-                'command_manager.cfg.object_pose.ranges.pos_y[1]' : ADR(0., .25),
-                'command_manager.cfg.object_pose.ranges.pos_z[1]' : ADR(.65, .75),
-
-                'reward_manager.cfg.lift.weight' : ADR(1.0 * 60, 0.),
-                'reward_manager.cfg.finger_curl_reg.weight' : ADR(-0.01 * 60, -0.05 * 60),
-                'reward_manager.cfg.object_to_goal.params.std' : ADR(15., 20.),
-
-                'event_manager.cfg.reset_object.params.pose_range.x[0]': ADR(0., -.25),
-                'event_manager.cfg.reset_object.params.pose_range.x[1]': ADR(0., .25),
-                'event_manager.cfg.reset_object.params.pose_range.y[0]': ADR(0., -.35),
-                'event_manager.cfg.reset_object.params.pose_range.y[1]': ADR(0., .35),
-                'event_manager.cfg.reset_object.params.pose_range.yaw[0]': ADR(0., -3.14),
-                'event_manager.cfg.reset_object.params.pose_range.yaw[1]': ADR(0., 3.14),
-                
-                'event_manager.cfg.robot_physics_material.params.static_friction_range[0]': ADR(1., 0.5),
-                'event_manager.cfg.robot_physics_material.params.dynamic_friction_range[0]': ADR(1., 0.3),
-                'event_manager.cfg.robot_physics_material.params.restitution_range[1]': ADR(0., 1.),
-                'event_manager.cfg.joint_stiffness_and_damping.params.stiffness_distribution_params[0]': ADR(1., 0.5),
-                'event_manager.cfg.joint_stiffness_and_damping.params.stiffness_distribution_params[1]': ADR(1., 2.0),
-                'event_manager.cfg.joint_stiffness_and_damping.params.damping_distribution_params[0]': ADR(1., 0.5),
-                'event_manager.cfg.joint_stiffness_and_damping.params.damping_distribution_params[1]': ADR(1., 2.0),
-                'event_manager.cfg.joint_friction.params.friction_distribution_params[1]': ADR(0., 5.),         
-                'event_manager.cfg.object_physics_material.params.static_friction_range[0]': ADR(1., 0.5),
-                'event_manager.cfg.object_physics_material.params.dynamic_friction_range[0]': ADR(1., 0.3),
-                'event_manager.cfg.object_physics_material.params.restitution_range[1]': ADR(0., 1.),
-                'event_manager.cfg.object_scale_mass.params.mass_distribution_params[0]': ADR(1., 0.5),
-                'event_manager.cfg.object_scale_mass.params.mass_distribution_params[1]': ADR(1., 3.0),
-            },
-        }
-    )
 
 @configclass
 class DextrahEnvCfg(ManagerBasedEnvCfg):
 
     # Scene settings
     viewer: ViewerCfg = ViewerCfg(eye=(-5.0, 1., 0.75), lookat=(0., 1., 0.3), origin_type='env')
-    scene: SceneCfg = SceneCfg(num_envs=4096, env_spacing=1.5, replicate_physics=False)
+    scene: SceneCfg = SceneCfg(num_envs=4096, env_spacing=1.0, replicate_physics=False)
     # Basic settings
     observations: ObservationsCfg = ObservationsCfg()
     actions: ActionsCfg = ActionsCfg()
@@ -339,7 +286,8 @@ class DextrahEnvCfg(ManagerBasedEnvCfg):
         self.sim.physx.bounce_threshold_velocity = 0.01
         self.sim.physx.gpu_max_rigid_patch_count = 4 * 5 * 2**15
         
-        self.rewards.finger_curl_reg.weight /= (self.sim.dt * self.decimation)
-        self.rewards.fingers_to_object.weight /= (self.sim.dt * self.decimation)
-        self.rewards.object_to_goal.weight /= (self.sim.dt * self.decimation)
-        self.rewards.lift.weight /= (self.sim.dt * self.decimation)
+        for term in self.curriculum.__dict__.values():
+            if term.func is mdp.modify_term_cfg:
+                cfg_address = term.params['address'].replace("_manager.cfg", "s")
+                cfg_variable = cfg_get(self, cfg_address)
+                term.params["modify_params"]["iv"] = cfg_variable

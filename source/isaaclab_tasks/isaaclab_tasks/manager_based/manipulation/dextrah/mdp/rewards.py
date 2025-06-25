@@ -88,8 +88,8 @@ def object_goal_distance(
 def object_goal_distance_v0(
     env: ManagerBasedRLEnv,
     std: float,
-    command_name: str,
     min_height: float,
+    command_name: str = "object_pose",
     robot_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
     object_cfg: SceneEntityCfg = SceneEntityCfg("object"),
 ) -> torch.Tensor:
