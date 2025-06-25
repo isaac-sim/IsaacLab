@@ -154,7 +154,8 @@ class NoiseModelWithAdditiveBias(NoiseModel):
         # store the bias noise configuration
         self._bias_noise_cfg = noise_model_cfg.bias_noise_cfg
         self._bias = torch.zeros((num_envs, 1), device=self._device)
-        self._feature_dim: int | None = None
+        self._num_components: int | None = None
+        self._sample_bias_per_component = noise_model_cfg.sample_bias_per_component
 
     def reset(self, env_ids: Sequence[int] | None = None):
         """Reset the noise model.
@@ -180,11 +181,11 @@ class NoiseModelWithAdditiveBias(NoiseModel):
         Returns:
             The data with the noise applied. Shape is the same as the input data.
         """
-        # on first apply, expand bias to match last dim of data
-        if self._feature_dim is None:
-            *_, self._feature_dim = data.shape
-            # expand bias from (num_envs,1) to (num_envs, feature_dim)
-            self._bias = self._bias.repeat(1, self._feature_dim)
+        # if sample_bias_per_component, on first apply, expand bias to match last dim of data
+        if self._sample_bias_per_component and self._num_components is None:
+            *_, self._num_components = data.shape
+            # expand bias from (num_envs,1) to (num_envs, num_components)
+            self._bias = self._bias.repeat(1, self._num_components)
             # now re-sample that expanded bias in-place
             self.reset()
         return super().__call__(data) + self._bias
