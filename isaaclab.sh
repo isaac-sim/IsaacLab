@@ -390,6 +390,7 @@ while [[ $# -gt 0 ]]; do
             if ! command -v pre-commit &>/dev/null; then
                 echo "[INFO] Installing pre-commit..."
                 pip install pre-commit
+                sudo apt-get install -y pre-commit
             fi
             # always execute inside the Isaac Lab directory
             echo "[INFO] Formatting the repository..."
