@@ -1,7 +1,7 @@
 Changelog
 ---------
 
-0.40.7 (2025-06-18)
+0.40.8 (2025-06-18)
 ~~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -12,6 +12,19 @@ Fixed
  :class:`~isaaclab.assets.RigidObjectCollection`
 * added pytest that check against these data consistencies
 
+
+0.40.7 (2025-06-24)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* :class:`NoiseModel` support for manager-based workflows.
+
+Changed
+^^^^^^^
+
+* Renamed :func:`~isaaclab.utils.noise.NoiseModel.apply` method to :func:`~isaaclab.utils.noise.NoiseModel.__call__`.
 
 
 0.40.6 (2025-06-12)
