@@ -802,8 +802,8 @@
 </li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.noise.GaussianNoiseCfg"><code class="docutils literal notranslate"><span class="pre">GaussianNoiseCfg</span></code></a><ul class="nav section-nav flex-column">
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.noise.GaussianNoiseCfg.mean"><code class="docutils literal notranslate"><span class="pre">GaussianNoiseCfg.mean</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.noise.GaussianNoiseCfg.operation"><code class="docutils literal notranslate"><span class="pre">GaussianNoiseCfg.operation</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.noise.GaussianNoiseCfg.std"><code class="docutils literal notranslate"><span class="pre">GaussianNoiseCfg.std</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.noise.GaussianNoiseCfg.operation"><code class="docutils literal notranslate"><span class="pre">GaussianNoiseCfg.operation</span></code></a></li>
 </ul>
 </li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.noise.NoiseModelCfg"><code class="docutils literal notranslate"><span class="pre">NoiseModelCfg</span></code></a><ul class="nav section-nav flex-column">
@@ -825,12 +825,10 @@
 </li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.noise.NoiseModel"><code class="docutils literal notranslate"><span class="pre">NoiseModel</span></code></a><ul class="nav section-nav flex-column">
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.noise.NoiseModel.reset"><code class="docutils literal notranslate"><span class="pre">NoiseModel.reset()</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.noise.NoiseModel.apply"><code class="docutils literal notranslate"><span class="pre">NoiseModel.apply()</span></code></a></li>
 </ul>
 </li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.noise.NoiseModelWithAdditiveBias"><code class="docutils literal notranslate"><span class="pre">NoiseModelWithAdditiveBias</span></code></a><ul class="nav section-nav flex-column">
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.noise.NoiseModelWithAdditiveBias.reset"><code class="docutils literal notranslate"><span class="pre">NoiseModelWithAdditiveBias.reset()</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.noise.NoiseModelWithAdditiveBias.apply"><code class="docutils literal notranslate"><span class="pre">NoiseModelWithAdditiveBias.apply()</span></code></a></li>
 </ul>
 </li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.noise.constant_noise"><code class="docutils literal notranslate"><span class="pre">constant_noise()</span></code></a></li>
@@ -3994,11 +3992,11 @@ with the noise applied. These functions are then used in the <a class="reference
 <tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.utils.noise.GaussianNoiseCfg.mean" title="isaaclab.utils.noise.GaussianNoiseCfg.mean"><code class="xref py py-obj docutils literal notranslate"><span class="pre">mean</span></code></a></p></td>
 <td><p>The mean of the noise.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.utils.noise.GaussianNoiseCfg.operation" title="isaaclab.utils.noise.GaussianNoiseCfg.operation"><code class="xref py py-obj docutils literal notranslate"><span class="pre">operation</span></code></a></p></td>
-<td><p>The operation to apply the noise on the data.</p></td>
-</tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.utils.noise.GaussianNoiseCfg.std" title="isaaclab.utils.noise.GaussianNoiseCfg.std"><code class="xref py py-obj docutils literal notranslate"><span class="pre">std</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.utils.noise.GaussianNoiseCfg.std" title="isaaclab.utils.noise.GaussianNoiseCfg.std"><code class="xref py py-obj docutils literal notranslate"><span class="pre">std</span></code></a></p></td>
 <td><p>The standard deviation of the noise.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.utils.noise.GaussianNoiseCfg.operation" title="isaaclab.utils.noise.GaussianNoiseCfg.operation"><code class="xref py py-obj docutils literal notranslate"><span class="pre">operation</span></code></a></p></td>
+<td><p>The operation to apply the noise on the data.</p></td>
 </tr>
 </tbody>
 </table>
@@ -4010,15 +4008,15 @@ with the noise applied. These functions are then used in the <a class="reference
 </dd></dl>
 
 <dl class="py attribute">
-<dt class="sig sig-object py" id="isaaclab.utils.noise.GaussianNoiseCfg.operation">
-<span class="sig-name descname"><span class="pre">operation</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Literal</span><span class="p"><span class="pre">[</span></span><span class="s"><span class="pre">'add'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'scale'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'abs'</span></span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#isaaclab.utils.noise.GaussianNoiseCfg.operation" title="Permalink to this definition">#</a></dt>
-<dd><p>The operation to apply the noise on the data. Defaults to “add”.</p>
-</dd></dl>
-
-<dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab.utils.noise.GaussianNoiseCfg.std">
 <span class="sig-name descname"><span class="pre">std</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.7)"><span class="pre">torch.Tensor</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a></em><a class="headerlink" href="#isaaclab.utils.noise.GaussianNoiseCfg.std" title="Permalink to this definition">#</a></dt>
 <dd><p>The standard deviation of the noise. Defaults to 1.0.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab.utils.noise.GaussianNoiseCfg.operation">
+<span class="sig-name descname"><span class="pre">operation</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Literal</span><span class="p"><span class="pre">[</span></span><span class="s"><span class="pre">'add'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'scale'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'abs'</span></span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#isaaclab.utils.noise.GaussianNoiseCfg.operation" title="Permalink to this definition">#</a></dt>
+<dd><p>The operation to apply the noise on the data. Defaults to “add”.</p>
 </dd></dl>
 
 </dd></dl>
@@ -4158,9 +4156,6 @@ with the noise applied. These functions are then used in the <a class="reference
 <tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.utils.noise.NoiseModel.reset" title="isaaclab.utils.noise.NoiseModel.reset"><code class="xref py py-obj docutils literal notranslate"><span class="pre">reset</span></code></a>([env_ids])</p></td>
 <td><p>Reset the noise model.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.utils.noise.NoiseModel.apply" title="isaaclab.utils.noise.NoiseModel.apply"><code class="xref py py-obj docutils literal notranslate"><span class="pre">apply</span></code></a>(data)</p></td>
-<td><p>Apply the noise to the data.</p></td>
-</tr>
 </tbody>
 </table>
 </div>
@@ -4174,20 +4169,6 @@ This is useful when implementing temporal noise models such as random walk.</p>
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><p><strong>env_ids</strong> – The environment ids to reset the noise model for. Defaults to None,
 in which case all environments are considered.</p>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="isaaclab.utils.noise.NoiseModel.apply">
-<span class="sig-name descname"><span class="pre">apply</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.7)"><span class="pre">torch.Tensor</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.7)"><span class="pre">torch.Tensor</span></a></span></span><a class="reference internal" href="../../../_modules/isaaclab/utils/noise/noise_model.html#NoiseModel.apply"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.utils.noise.NoiseModel.apply" title="Permalink to this definition">#</a></dt>
-<dd><p>Apply the noise to the data.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>data</strong> – The data to apply the noise to. Shape is (num_envs, …).</p>
-</dd>
-<dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>The data with the noise applied. Shape is the same as the input data.</p>
 </dd>
 </dl>
 </dd></dl>
@@ -4206,9 +4187,6 @@ in which case all environments are considered.</p>
 <tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.utils.noise.NoiseModelWithAdditiveBias.reset" title="isaaclab.utils.noise.NoiseModelWithAdditiveBias.reset"><code class="xref py py-obj docutils literal notranslate"><span class="pre">reset</span></code></a>([env_ids])</p></td>
 <td><p>Reset the noise model.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.utils.noise.NoiseModelWithAdditiveBias.apply" title="isaaclab.utils.noise.NoiseModelWithAdditiveBias.apply"><code class="xref py py-obj docutils literal notranslate"><span class="pre">apply</span></code></a>(data)</p></td>
-<td><p>Apply bias noise to the data.</p></td>
-</tr>
 </tbody>
 </table>
 </div>
@@ -4221,20 +4199,6 @@ in which case all environments are considered.</p>
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><p><strong>env_ids</strong> – The environment ids to reset the noise model for. Defaults to None,
 in which case all environments are considered.</p>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="isaaclab.utils.noise.NoiseModelWithAdditiveBias.apply">
-<span class="sig-name descname"><span class="pre">apply</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.7)"><span class="pre">torch.Tensor</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.7)"><span class="pre">torch.Tensor</span></a></span></span><a class="reference internal" href="../../../_modules/isaaclab/utils/noise/noise_model.html#NoiseModelWithAdditiveBias.apply"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.utils.noise.NoiseModelWithAdditiveBias.apply" title="Permalink to this definition">#</a></dt>
-<dd><p>Apply bias noise to the data.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>data</strong> – The data to apply the noise to. Shape is (num_envs, …).</p>
-</dd>
-<dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>The data with the noise applied. Shape is the same as the input data.</p>
 </dd>
 </dl>
 </dd></dl>
@@ -5086,8 +5050,8 @@ The returned tensor contains <code class="xref py py-obj docutils literal notran
 </li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.noise.GaussianNoiseCfg"><code class="docutils literal notranslate"><span class="pre">GaussianNoiseCfg</span></code></a><ul class="nav section-nav flex-column">
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.noise.GaussianNoiseCfg.mean"><code class="docutils literal notranslate"><span class="pre">GaussianNoiseCfg.mean</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.noise.GaussianNoiseCfg.operation"><code class="docutils literal notranslate"><span class="pre">GaussianNoiseCfg.operation</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.noise.GaussianNoiseCfg.std"><code class="docutils literal notranslate"><span class="pre">GaussianNoiseCfg.std</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.noise.GaussianNoiseCfg.operation"><code class="docutils literal notranslate"><span class="pre">GaussianNoiseCfg.operation</span></code></a></li>
 </ul>
 </li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.noise.NoiseModelCfg"><code class="docutils literal notranslate"><span class="pre">NoiseModelCfg</span></code></a><ul class="nav section-nav flex-column">
@@ -5109,12 +5073,10 @@ The returned tensor contains <code class="xref py py-obj docutils literal notran
 </li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.noise.NoiseModel"><code class="docutils literal notranslate"><span class="pre">NoiseModel</span></code></a><ul class="nav section-nav flex-column">
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.noise.NoiseModel.reset"><code class="docutils literal notranslate"><span class="pre">NoiseModel.reset()</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.noise.NoiseModel.apply"><code class="docutils literal notranslate"><span class="pre">NoiseModel.apply()</span></code></a></li>
 </ul>
 </li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.noise.NoiseModelWithAdditiveBias"><code class="docutils literal notranslate"><span class="pre">NoiseModelWithAdditiveBias</span></code></a><ul class="nav section-nav flex-column">
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.noise.NoiseModelWithAdditiveBias.reset"><code class="docutils literal notranslate"><span class="pre">NoiseModelWithAdditiveBias.reset()</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.noise.NoiseModelWithAdditiveBias.apply"><code class="docutils literal notranslate"><span class="pre">NoiseModelWithAdditiveBias.apply()</span></code></a></li>
 </ul>
 </li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.noise.constant_noise"><code class="docutils literal notranslate"><span class="pre">constant_noise()</span></code></a></li>

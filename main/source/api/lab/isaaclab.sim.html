@@ -1238,6 +1238,10 @@ of primitives in the scene.</p>
 <p class="admonition-title">Note</p>
 <p>When enabled, the GUI will not update the physics parameters in real-time. To enable real-time
 updates, please set this flag to <a class="reference external" href="https://docs.python.org/3/library/constants.html#False" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">False</span></code></a>.</p>
+<p>When using GPU simulation, it is required to enable Fabric to visualize updates in the renderer.
+Transform updates are propagated to the renderer through Fabric. If Fabric is disabled with GPU simulation,
+the renderer will not be able to render any updates in the simulation, although simulation will still be
+running under the hood.</p>
 </div>
 </dd></dl>
 

@@ -679,7 +679,7 @@
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">pass</span></div>
 
-<div class="viewcode-block" id="NoiseModel.apply"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.utils.html#isaaclab.utils.noise.NoiseModel.apply">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">apply</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Apply the noise to the data.</span>
 
 <span class="sd">        Args:</span>
@@ -688,7 +688,7 @@
 <span class="sd">        Returns:</span>
 <span class="sd">            The data with the noise applied. Shape is the same as the input data.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_noise_model_cfg</span><span class="o">.</span><span class="n">noise_cfg</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_noise_model_cfg</span><span class="o">.</span><span class="n">noise_cfg</span><span class="p">)</span></div></div>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_noise_model_cfg</span><span class="o">.</span><span class="n">noise_cfg</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_noise_model_cfg</span><span class="o">.</span><span class="n">noise_cfg</span><span class="p">)</span></div>
 
 
 <div class="viewcode-block" id="NoiseModelWithAdditiveBias"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.utils.html#isaaclab.utils.noise.NoiseModelWithAdditiveBias">[docs]</a><span class="k">class</span><span class="w"> </span><span class="nc">NoiseModelWithAdditiveBias</span><span class="p">(</span><span class="n">NoiseModel</span><span class="p">):</span>
@@ -719,7 +719,7 @@
         <span class="c1"># reset the bias term</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_bias</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_bias_noise_cfg</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_bias</span><span class="p">[</span><span class="n">env_ids</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">_bias_noise_cfg</span><span class="p">)</span></div>
 
-<div class="viewcode-block" id="NoiseModelWithAdditiveBias.apply"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.utils.html#isaaclab.utils.noise.NoiseModelWithAdditiveBias.apply">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">apply</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Apply bias noise to the data.</span>
 
 <span class="sd">        Args:</span>
@@ -728,7 +728,7 @@
 <span class="sd">        Returns:</span>
 <span class="sd">            The data with the noise applied. Shape is the same as the input data.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">apply</span><span class="p">(</span><span class="n">data</span><span class="p">)</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">_bias</span></div></div>
+        <span class="k">return</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__call__</span><span class="p">(</span><span class="n">data</span><span class="p">)</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">_bias</span></div>
 </pre></div>
 
                 </article>

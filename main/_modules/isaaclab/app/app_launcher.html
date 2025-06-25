@@ -1210,7 +1210,8 @@
             <span class="c1"># pass command line variable to kit</span>
             <span class="n">sys</span><span class="o">.</span><span class="n">argv</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;--/plugins/carb.tasking.plugin/threadCount=</span><span class="si">{</span><span class="n">num_threads_per_process</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 
-        <span class="c1"># set physics and rendering device</span>
+        <span class="c1"># set rendering device. We do not need to set physics_gpu because it will automatically pick the same one</span>
+        <span class="c1"># as the active_gpu device. Setting physics_gpu explicitly may result in a different device to be used.</span>
         <span class="n">launcher_args</span><span class="p">[</span><span class="s2">&quot;physics_gpu&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">device_id</span>
         <span class="n">launcher_args</span><span class="p">[</span><span class="s2">&quot;active_gpu&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">device_id</span>
 

@@ -878,7 +878,7 @@
         <span class="n">action</span> <span class="o">=</span> <span class="n">action</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
         <span class="c1"># add action noise</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">action_noise_model</span><span class="p">:</span>
-            <span class="n">action</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_action_noise_model</span><span class="o">.</span><span class="n">apply</span><span class="p">(</span><span class="n">action</span><span class="p">)</span>
+            <span class="n">action</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_action_noise_model</span><span class="p">(</span><span class="n">action</span><span class="p">)</span>
 
         <span class="c1"># process actions</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_pre_physics_step</span><span class="p">(</span><span class="n">action</span><span class="p">)</span>
@@ -935,7 +935,7 @@
         <span class="c1"># add observation noise</span>
         <span class="c1"># note: we apply no noise to the state space (since it is used for critic networks)</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">observation_noise_model</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">obs_buf</span><span class="p">[</span><span class="s2">&quot;policy&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_observation_noise_model</span><span class="o">.</span><span class="n">apply</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">obs_buf</span><span class="p">[</span><span class="s2">&quot;policy&quot;</span><span class="p">])</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">obs_buf</span><span class="p">[</span><span class="s2">&quot;policy&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_observation_noise_model</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">obs_buf</span><span class="p">[</span><span class="s2">&quot;policy&quot;</span><span class="p">])</span>
 
         <span class="c1"># return observations, rewards, resets and extras</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">obs_buf</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">reward_buf</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">reset_terminated</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">reset_time_outs</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">extras</span></div>

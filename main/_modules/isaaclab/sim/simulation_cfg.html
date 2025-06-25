@@ -858,6 +858,11 @@
 <span class="sd">    Note:</span>
 <span class="sd">        When enabled, the GUI will not update the physics parameters in real-time. To enable real-time</span>
 <span class="sd">        updates, please set this flag to :obj:`False`.</span>
+
+<span class="sd">        When using GPU simulation, it is required to enable Fabric to visualize updates in the renderer.</span>
+<span class="sd">        Transform updates are propagated to the renderer through Fabric. If Fabric is disabled with GPU simulation,</span>
+<span class="sd">        the renderer will not be able to render any updates in the simulation, although simulation will still be</span>
+<span class="sd">        running under the hood.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">physx</span><span class="p">:</span> <span class="n">PhysxCfg</span> <span class="o">=</span> <span class="n">PhysxCfg</span><span class="p">()</span>

@@ -625,7 +625,20 @@
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The class type of the noise model.&quot;&quot;&quot;</span>
 
     <span class="n">noise_cfg</span><span class="p">:</span> <span class="n">NoiseCfg</span> <span class="o">=</span> <span class="n">MISSING</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;The noise configuration to use.&quot;&quot;&quot;</span></div>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The noise configuration to use.&quot;&quot;&quot;</span>
+
+    <span class="n">func</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">],</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Function or callable class used by this noise model.</span>
+
+<span class="sd">    The function must take a single `torch.Tensor` (the batch of observations) as input</span>
+<span class="sd">    and return a `torch.Tensor` of the same shape with noise applied.</span>
+
+<span class="sd">    It also supports `callable classes &lt;https://docs.python.org/3/reference/datamodel.html#object.__call__&gt;`_,</span>
+<span class="sd">    i.e. classes that implement the ``__call__()`` method. In this case, the class should inherit from the</span>
+<span class="sd">    :class:`NoiseModel` class and implement the required methods.</span>
+
+<span class="sd">    This field is used internally by :class:ObservationManager and is not meant to be set directly.</span>
+<span class="sd">    &quot;&quot;&quot;</span></div>
 
 
 <div class="viewcode-block" id="NoiseModelWithAdditiveBiasCfg"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.utils.html#isaaclab.utils.noise.NoiseModelWithAdditiveBiasCfg">[docs]</a><span class="nd">@configclass</span>

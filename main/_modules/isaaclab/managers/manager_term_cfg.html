@@ -563,7 +563,7 @@
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">configclass</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils.modifiers</span><span class="w"> </span><span class="kn">import</span> <span class="n">ModifierCfg</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils.noise</span><span class="w"> </span><span class="kn">import</span> <span class="n">NoiseCfg</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils.noise</span><span class="w"> </span><span class="kn">import</span> <span class="n">NoiseCfg</span><span class="p">,</span> <span class="n">NoiseModelCfg</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">.scene_entity_cfg</span><span class="w"> </span><span class="kn">import</span> <span class="n">SceneEntityCfg</span>
 
@@ -714,7 +714,7 @@
 <span class="sd">    For more information on modifiers, see the :class:`~isaaclab.utils.modifiers.ModifierCfg` class.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="n">noise</span><span class="p">:</span> <span class="n">NoiseCfg</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">noise</span><span class="p">:</span> <span class="n">NoiseCfg</span> <span class="o">|</span> <span class="n">NoiseModelCfg</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The noise to add to the observation. Defaults to None, in which case no noise is added.&quot;&quot;&quot;</span>
 
     <span class="n">clip</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
