@@ -777,6 +777,10 @@ inferencing, including reading from an already trained checkpoint and disabling 
       -
       - Manager Based
       -
+    * - Isaac-Tracking-LocoManip-Digit-v0
+      - Isaac-Tracking-LocoManip-Digit-Play-v0
+      - Manager Based
+      - **rsl_rl** (PPO)
     * - Isaac-Navigation-Flat-Anymal-C-v0
       - Isaac-Navigation-Flat-Anymal-C-Play-v0
       - Manager Based
@@ -885,6 +889,10 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - Isaac-Velocity-Flat-Cassie-Play-v0
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO)
+    * - Isaac-Velocity-Flat-Digit-v0
+      - Isaac-Velocity-Flat-Digit-Play-v0
+      - Manager Based
+      - **rsl_rl** (PPO)
     * - Isaac-Velocity-Flat-G1-v0
       - Isaac-Velocity-Flat-G1-Play-v0
       - Manager Based
@@ -929,6 +937,10 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - Isaac-Velocity-Rough-Cassie-Play-v0
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO)
+    * - Isaac-Velocity-Rough-Digit-v0
+      - Isaac-Velocity-Rough-Digit-Play-v0
+      - Manager Based
+      - **rsl_rl** (PPO)
     * - Isaac-Velocity-Rough-G1-v0
       - Isaac-Velocity-Rough-G1-Play-v0
       - Manager Based
