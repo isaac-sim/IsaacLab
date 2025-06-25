@@ -29,7 +29,7 @@ In the following example, we will show you how to use Isaac Lab Mimic to generat
 The number of demonstrations can be increased or decreased, 1000 demonstrations have been shown to provide good training results for this task.
 
 Additionally, the number of environments in the ``--num_envs`` parameter can be adjusted to speed up data generation.
-The suggested number of 10 can be executed on a moderate laptop GPU.
+The suggested number of 10 can be executed on a moderate laptop CPU.
 On a more powerful desktop machine, use a larger number of environments for a significant speedup of this step.
 
 Cosmos Augmentation
@@ -77,8 +77,8 @@ Example usage for the cube stacking task:
 .. code:: bash
 
     python scripts/tools/hdf5_to_mp4.py \
-    --input_file datasets/mimic_generated_dataset.hdf5 \
-    --output_dir datasets/mimic_generated_dataset_mp4
+    --input_file datasets/mimic_dataset_1k.hdf5 \
+    --output_dir datasets/mimic_dataset_1k_mp4
 
 Running Cosmos for Visual Augmentation
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -163,7 +163,7 @@ Example command to use the Cosmos Transfer1 model for this usecase:
     export NUM_GPU="${NUM_GPU:=1}"
     PYTHONPATH=$(pwd) torchrun --nproc_per_node=$NUM_GPU --nnodes=1 --node_rank=0 cosmos_transfer1/diffusion/inference/transfer.py \
         --checkpoint_dir $CHECKPOINT_DIR \
-        --video_save_folder outputs/mimic_cosmos \
+        --video_save_folder outputs/cosmos_dataset_1k_mp4 \
         --controlnet_specs ./controlnet_specs/demo_0.json \
         --offload_text_encoder_model \
         --offload_guardrail_models \
@@ -176,10 +176,10 @@ Example ``./controlnet_specs/demo_0.json`` json file to use with the above comma
     {
         "prompt": "A robotic arm is picking up and stacking cubes inside a foggy industrial scrapyard at dawn, surrounded by piles of old robotic parts and twisted metal. The background includes large magnetic cranes, rusted conveyor belts, and flickering yellow floodlights struggling to penetrate the fog. The robot arm is bright teal with a glossy surface and silver stripes on the outer edges; the joints rotate smoothly and the pistons reflect a pale cyan hue. The robot arm is mounted on a table that is light oak wood with a natural grain pattern and a glossy varnish that reflects overhead lights softly; small burn marks dot one corner. The arm is connected to the base mounted on the table. The bottom cube is deep blue, the second cube is bright red, and the top cube is vivid green, maintaining their correct order after stacking. Sunlight pouring in from a large, open window bathes the table and robotic arm in a warm golden light. The shadows are soft, and the scene feels natural and inviting with a slight contrast between light and shadow.",
         "negative_prompt": "The video captures a game playing, with bad crappy graphics and cartoonish frames. It represents a recording of old outdated games. The images are very pixelated and of poor CG quality. There are many subtitles in the footage. Overall, the video is unrealistic and appears cg. Plane background.",
-        "input_video_path" : "mimic_generated_dataset_mp4/demo_0_table_cam.mp4",
+        "input_video_path" : "mimic_dataset_1k_mp4/demo_0_table_cam.mp4",
         "sigma_max": 50,
         "vis": {
-            "input_control": "mimic_generated_dataset_mp4/demo_0_table_cam.mp4",
+            "input_control": "mimic_dataset_1k_mp4/demo_0_table_cam.mp4",
             "control_weight": 0.3
         },
         "edge": {
@@ -230,8 +230,8 @@ Example usage for the cube stacking task:
 .. code:: bash
 
     python scripts/tools/mp4_to_hdf5.py \
-    --input_file datasets/mimic_generated_dataset.hdf5 \
-    --videos_dir datasets/cosmos_dataset_mp4 \
+    --input_file datasets/mimic_dataset_1k.hdf5 \
+    --videos_dir datasets/cosmos_dataset_1k_mp4 \
     --output_file datasets/cosmos_dataset_1k.hdf5
 
 Pre-generated Dataset
@@ -270,7 +270,7 @@ Example usage for the cube stacking task:
 .. code:: bash
 
     python scripts/tools/merge_hdf5_datasets.py \
-    --input_files datasets/mimic_generated_dataset.hdf5 datasets/cosmos_dataset.hdf5 \
+    --input_files datasets/mimic_dataset_1k.hdf5 datasets/cosmos_dataset_1k.hdf5 \
     --output_file datasets/mimic_cosmos_dataset.hdf5
 
 Model Training and Evaluation
@@ -299,7 +299,8 @@ Using the generated data, we can now train a visuomotor BC agent for ``Isaac-Sta
 
     ./isaaclab.sh -p scripts/imitation_learning/robomimic/train.py \
     --task Isaac-Stack-Cube-Franka-IK-Rel-Visuomotor-v0 --algo bc \
-    --dataset ./datasets/mimic_cosmos_dataset.hdf5
+    --dataset ./datasets/mimic_cosmos_dataset.hdf5 \
+    --name bc_rnn_image_franka_stack_mimic_cosmos
 
 .. note::
    By default the trained models and logs will be saved to ``IssacLab/logs/robomimic``.
@@ -377,8 +378,8 @@ Example usage for the cube stacking task:
 
     ./isaaclab.sh -p scripts/imitation_learning/robomimic/robust_eval.py \
     --task Isaac-Stack-Cube-Franka-IK-Rel-Visuomotor-v0 \
-    --input_dir logs/robomimic/Isaac-Stack-Cube-Franka-IK-Rel-Visuomotor-v0/bc_rnn_image_franka_stack_mimic_cosmos_table_only/*/models \
-    --log_dir robust_results/bc_rnn_image_franka_stack_mimic_cosmos_table_only \
+    --input_dir logs/robomimic/Isaac-Stack-Cube-Franka-IK-Rel-Visuomotor-v0/bc_rnn_image_franka_stack_mimic_cosmos/*/models \
+    --log_dir robust_results/bc_rnn_image_franka_stack_mimic_cosmos \
     --log_file result \
     --enable_cameras \
     --seeds 0 \

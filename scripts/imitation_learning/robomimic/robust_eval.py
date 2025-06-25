@@ -235,7 +235,7 @@ def main() -> None:
     env_cfg.eval_mode = True
 
     # Create environment
-    env = gym.make(args_cli.task, cfg=env_cfg)
+    env = gym.make(args_cli.task, cfg=env_cfg).unwrapped
 
     # Acquire device
     device = TorchUtils.get_torch_device(try_to_use_cuda=True)
