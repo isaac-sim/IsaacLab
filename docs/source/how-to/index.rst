@@ -134,3 +134,16 @@ teleoperation in Isaac Lab.
     :maxdepth: 1
 
     cloudxr_teleoperation
+
+
+Understanding Simulation Performance
+------------------------------------
+
+This guide provides tips on optimizing simulation performance for different simulation use cases.
+Additional resources are also linked to provide relevant performance guides for Isaac Sim and
+Omniverse Physics.
+
+.. toctree::
+    :maxdepth: 1
+
+    simulation_performance

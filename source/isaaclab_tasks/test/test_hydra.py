@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -7,7 +7,7 @@
 
 import sys
 
-from isaaclab.app import AppLauncher, run_tests
+from isaaclab.app import AppLauncher
 
 # launch the simulator
 app_launcher = AppLauncher(headless=True)
@@ -17,7 +17,6 @@ simulation_app = app_launcher.app
 """Rest everything follows."""
 
 import functools
-import unittest
 from collections.abc import Callable
 
 import hydra
@@ -62,51 +61,45 @@ def hydra_task_config_test(task_name: str, agent_cfg_entry_point: str) -> Callab
     return decorator
 
 
-class TestHydra(unittest.TestCase):
-    """Test the Hydra configuration system."""
+def test_hydra():
+    """Test the hydra configuration system."""
 
-    def test_hydra(self):
-        """Test the hydra configuration system."""
+    # set hardcoded command line arguments
+    sys.argv = [
+        sys.argv[0],
+        "env.decimation=42",  # test simple env modification
+        "env.events.physics_material.params.asset_cfg.joint_ids='slice(0 ,1, 2)'",  # test slice setting
+        "env.scene.robot.init_state.joint_vel={.*: 4.0}",  # test regex setting
+        "env.rewards.feet_air_time=null",  # test setting to none
+        "agent.max_iterations=3",  # test simple agent modification
+    ]
 
-        # set hardcoded command line arguments
-        sys.argv = [
-            sys.argv[0],
-            "env.decimation=42",  # test simple env modification
-            "env.events.physics_material.params.asset_cfg.joint_ids='slice(0 ,1, 2)'",  # test slice setting
-            "env.scene.robot.init_state.joint_vel={.*: 4.0}",  # test regex setting
-            "env.rewards.feet_air_time=null",  # test setting to none
-            "agent.max_iterations=3",  # test simple agent modification
-        ]
+    @hydra_task_config_test("Isaac-Velocity-Flat-H1-v0", "rsl_rl_cfg_entry_point")
+    def main(env_cfg, agent_cfg):
+        # env
+        assert env_cfg.decimation == 42
+        assert env_cfg.events.physics_material.params["asset_cfg"].joint_ids == slice(0, 1, 2)
+        assert env_cfg.scene.robot.init_state.joint_vel == {".*": 4.0}
+        assert env_cfg.rewards.feet_air_time is None
+        # agent
+        assert agent_cfg.max_iterations == 3
 
-        @hydra_task_config_test("Isaac-Velocity-Flat-H1-v0", "rsl_rl_cfg_entry_point")
-        def main(env_cfg, agent_cfg, self):
-            # env
-            self.assertEqual(env_cfg.decimation, 42)
-            self.assertEqual(env_cfg.events.physics_material.params["asset_cfg"].joint_ids, slice(0, 1, 2))
-            self.assertEqual(env_cfg.scene.robot.init_state.joint_vel, {".*": 4.0})
-            self.assertIsNone(env_cfg.rewards.feet_air_time)
-            # agent
-            self.assertEqual(agent_cfg.max_iterations, 3)
-
-        main(self)
-        # clean up
-        sys.argv = [sys.argv[0]]
-        hydra.core.global_hydra.GlobalHydra.instance().clear()
-
-    def test_nested_iterable_dict(self):
-        """Test the hydra configuration system when dict is nested in an Iterable."""
-
-        @hydra_task_config_test("Isaac-Lift-Cube-Franka-v0", "rsl_rl_cfg_entry_point")
-        def main(env_cfg, agent_cfg, self):
-            # env
-            self.assertEqual(env_cfg.scene.ee_frame.target_frames[0].name, "end_effector")
-            self.assertEqual(env_cfg.scene.ee_frame.target_frames[0].offset.pos[2], 0.1034)
-
-        main(self)
-        # clean up
-        sys.argv = [sys.argv[0]]
-        hydra.core.global_hydra.GlobalHydra.instance().clear()
+    main()
+    # clean up
+    sys.argv = [sys.argv[0]]
+    hydra.core.global_hydra.GlobalHydra.instance().clear()
 
 
-if __name__ == "__main__":
-    run_tests()
+def test_nested_iterable_dict():
+    """Test the hydra configuration system when dict is nested in an Iterable."""
+
+    @hydra_task_config_test("Isaac-Lift-Cube-Franka-v0", "rsl_rl_cfg_entry_point")
+    def main(env_cfg, agent_cfg):
+        # env
+        assert env_cfg.scene.ee_frame.target_frames[0].name == "end_effector"
+        assert env_cfg.scene.ee_frame.target_frames[0].offset.pos[2] == 0.1034
+
+    main()
+    # clean up
+    sys.argv = [sys.argv[0]]
+    hydra.core.global_hydra.GlobalHydra.instance().clear()

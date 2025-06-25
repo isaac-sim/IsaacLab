@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING, Any
 
 from isaaclab.utils import configclass
 from isaaclab.utils.modifiers import ModifierCfg
-from isaaclab.utils.noise import NoiseCfg
+from isaaclab.utils.noise import NoiseCfg, NoiseModelCfg
 
 from .scene_entity_cfg import SceneEntityCfg
 
@@ -165,7 +165,7 @@ class ObservationTermCfg(ManagerTermBaseCfg):
     For more information on modifiers, see the :class:`~isaaclab.utils.modifiers.ModifierCfg` class.
     """
 
-    noise: NoiseCfg | None = None
+    noise: NoiseCfg | NoiseModelCfg | None = None
     """The noise to add to the observation. Defaults to None, in which case no noise is added."""
 
     clip: tuple[float, float] | None = None
@@ -201,10 +201,20 @@ class ObservationGroupCfg:
     concatenate_terms: bool = True
     """Whether to concatenate the observation terms in the group. Defaults to True.
 
-    If true, the observation terms in the group are concatenated along the last dimension.
+    If true, the observation terms in the group are concatenated along the dimension specified through :attr:`concatenate_dim`.
     Otherwise, they are kept separate and returned as a dictionary.
 
     If the observation group contains terms of different dimensions, it must be set to False.
+    """
+
+    concatenate_dim: int = -1
+    """Dimension along to concatenate the different observation terms. Defaults to -1, which
+    means the last dimension of the observation terms.
+
+    If :attr:`concatenate_terms` is True, this parameter specifies the dimension along which the observation terms are concatenated.
+    The indicated dimension depends on the shape of the observations. For instance, for a 2D RGB image of shape (H, W, C), the dimension
+    0 means concatenating along the height, 1 along the width, and 2 along the channels. The offset due
+    to the batched environment is handled automatically.
     """
 
     enable_corruption: bool = False
