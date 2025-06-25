@@ -1,6 +1,20 @@
 Changelog
 ---------
 
+0.40.7 (2025-06-24)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* :class:`NoiseModel` support for manager-based workflows.
+
+Changed
+^^^^^^^
+
+* Renamed :func:`~isaaclab.utils.noise.NoiseModel.apply` method to :func:`~isaaclab.utils.noise.NoiseModel.__call__`.
+
+
 0.40.6 (2025-06-12)
 ~~~~~~~~~~~~~~~~~~~
 
