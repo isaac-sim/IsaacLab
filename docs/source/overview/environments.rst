@@ -554,6 +554,10 @@ Environments based on fixed-arm manipulation tasks.
 Comprehensive List of Environments
 ==================================
 
+For environments that have a different task name listed under ``Inference Task Name``, please use the Inference Task Name
+provided when running ``play.py`` or any inferencing workflows. These tasks provide more suitable configurations for
+inferencing, including reading from an already trained checkpoint and disabling runtime perturbations used for training.
+
 .. list-table::
     :widths: 33 25 19 25
 
