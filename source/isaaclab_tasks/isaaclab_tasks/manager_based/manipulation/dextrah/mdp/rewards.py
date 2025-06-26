@@ -114,7 +114,7 @@ def object_goal_distance_v0(
 
     return torch.where(lifted, torch.exp(-std * distance), 0)
 
-class PointCloud(ManagerTermBase):
+class lifted(ManagerTermBase):
 
     def __init__(self, cfg, env: ManagerBasedRLEnv):
         from pxr import UsdGeom

@@ -239,7 +239,7 @@ class RewardsCfg:
     
     fingers_to_object = RewTerm(func=mdp.object_ee_distance, params={"std": 0.2}, weight=1.0)
 
-    lift = RewTerm(func=mdp.PointCloud, params={"num_points": 128, "min_height": 0.26}, weight=2.0)
+    lift = RewTerm(func=mdp.lifted, params={"num_points": 128, "min_height": 0.26}, weight=2.0)
 
     object_to_goal = RewTerm(func=mdp.object_goal_distance_v0, params={"std": 8., "min_height": 0.26}, weight=5.0)
 
