@@ -25,7 +25,7 @@ from . import stack_joint_pos_env_cfg
 ##
 # Pre-defined configs
 ##
-from isaaclab_assets.robots.so_100 import SO_100_HIGH_PD_CFG  # isort: skip
+from isaaclab_assets.robots.so_100 import SO_100_CFG  # isort: skip
 
 
 @configclass
@@ -95,18 +95,19 @@ class SO100CubeStackPinkIKAbsVisuomotorEnvCfg(stack_joint_pos_env_cfg.SO100CubeS
 
         # Set SO100 as robot
         # We switch here to a stiffer PD controller for IK tracking to be better.
-        self.scene.robot = SO_100_HIGH_PD_CFG.replace(
+        self.scene.robot = SO_100_CFG.replace(
             prim_path="{ENV_REGEX_NS}/Robot",
             init_state=ArticulationCfg.InitialStateCfg(
                 pos=(0, 0, 0.0),
                 rot=(0.7071, 0, 0, 0.7071),
                 joint_pos={
                     # SO100 joints
-                    "a_1": 0.0,
-                    "a_2": 1.5708,
-                    "a_3": -1.5708,
-                    "a_4": 1.2,
-                    "a_5": 0.0,
+                    "shoulder_pan_joint": 0.0,
+                    "shoulder_lift_joint": 1.5708,
+                    "elbow_flex_joint": -1.5708,
+                    "wrist_flex_joint": 1.2,
+                    "wrist_roll_joint": 0.0,
+                    "gripper_joint": 0.0,
                 },
                 joint_vel={".*": 0.0},
             ),
@@ -115,14 +116,14 @@ class SO100CubeStackPinkIKAbsVisuomotorEnvCfg(stack_joint_pos_env_cfg.SO100CubeS
         # Set actions for the specific robot type (SO100)
         self.actions.arm_action = PinkInverseKinematicsActionCfg(
             pink_controlled_joint_names=[
-                "a_1",
-                "a_2",
-                "a_3",
-                "a_4",
-                "a_5",
+                "shoulder_pan_joint",
+                "shoulder_lift_joint",
+                "elbow_flex_joint",
+                "wrist_flex_joint",
+                "wrist_roll_joint",
             ],
             # Joints to be locked in URDF
-            ik_urdf_fixed_joint_names=["a_6"],
+            ik_urdf_fixed_joint_names=["gripper_joint"],
             hand_joint_names=[],
             # the robot in the sim scene we are controlling
             asset_name="robot",

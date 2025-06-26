@@ -6,7 +6,6 @@
 import gymnasium as gym
 
 from . import stack_joint_pos_env_cfg
-from . import stack_ik_rel_env_cfg
 from . import stack_pink_ik_abs_env_cfg
 from . import stack_pink_ik_abs_visuomotor_env_cfg
 ##
@@ -22,15 +21,6 @@ gym.register(
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     kwargs={
         "env_cfg_entry_point": stack_joint_pos_env_cfg.SO100CubeStackJointPosEnvCfg,
-    },
-    disable_env_checker=True,
-)
-
-gym.register(
-    id="Isaac-Stack-Cube-SO100-IK-Rel-v0",
-    entry_point="isaaclab.envs:ManagerBasedRLEnv",
-    kwargs={
-        "env_cfg_entry_point": stack_ik_rel_env_cfg.SO100CubeStackIKRelEnvCfg,
     },
     disable_env_checker=True,
 )

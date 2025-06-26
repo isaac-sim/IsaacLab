@@ -40,17 +40,17 @@ SO_100_CFG = ArticulationCfg(
     ),
     init_state=ArticulationCfg.InitialStateCfg(
         joint_pos={
-            "a_1": 0.0,
-            "a_2": 0.0,
-            "a_3": 0.0,
-            "a_4": 0.0,
-            "a_5": 0.0,
-            "a_6": 0.0,
+            "shoulder_pan_joint": 0.0,
+            "shoulder_lift_joint": 0.0,
+            "elbow_flex_joint": 0.0,
+            "wrist_flex_joint": 0.0,
+            "wrist_roll_joint": 0.0,
+            "gripper_joint": 0.0,
         },
     ),
     actuators={
         "all_joints": ImplicitActuatorCfg(
-            joint_names_expr=["a_[1-5]"],
+            joint_names_expr=["shoulder_pan_joint", "shoulder_lift_joint", "elbow_flex_joint", "wrist_flex_joint", "wrist_roll_joint"],
             effort_limit=None,
             velocity_limit=None,
             stiffness=None,
@@ -58,7 +58,7 @@ SO_100_CFG = ArticulationCfg(
             armature=0.0,
         ),
         "gripper": ImplicitActuatorCfg(
-            joint_names_expr=["a_6"],
+            joint_names_expr=["gripper_joint"],
             effort_limit_sim=0.1,
             velocity_limit_sim=2.175,
             stiffness=8.0,
@@ -68,14 +68,4 @@ SO_100_CFG = ArticulationCfg(
     },
     soft_joint_pos_limit_factor=1.0,
 )
-"""Configuration of Franka Emika Panda robot."""
-
-
-SO_100_HIGH_PD_CFG = SO_100_CFG.copy()
-SO_100_HIGH_PD_CFG.spawn.rigid_props.disable_gravity = True
-# SO_100_HIGH_PD_CFG.actuators["all_joints"].stiffness = 400.0
-# SO_100_HIGH_PD_CFG.actuators["all_joints"].damping = 80.0
-"""Configuration of Franka Emika Panda robot with stiffer PD control.
-
-This configuration is useful for task-space control using differential IK.
-"""
+"""Configuration of SO‑100 robot arm."""
