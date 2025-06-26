@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.1.0" />
-    <meta name="docbuild:last-update" content="Jun 25, 2025"/>
+    <meta name="docbuild:last-update" content="Jun 26, 2025"/>
   </head>
   
   
@@ -946,6 +946,7 @@
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.mdp.rewards.action_rate_l2"><code class="docutils literal notranslate"><span class="pre">action_rate_l2()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.mdp.rewards.action_l2"><code class="docutils literal notranslate"><span class="pre">action_l2()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.mdp.rewards.undesired_contacts"><code class="docutils literal notranslate"><span class="pre">undesired_contacts()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.mdp.rewards.desired_contacts"><code class="docutils literal notranslate"><span class="pre">desired_contacts()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.mdp.rewards.contact_forces"><code class="docutils literal notranslate"><span class="pre">contact_forces()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.mdp.rewards.track_lin_vel_xy_exp"><code class="docutils literal notranslate"><span class="pre">track_lin_vel_xy_exp()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.mdp.rewards.track_ang_vel_z_exp"><code class="docutils literal notranslate"><span class="pre">track_ang_vel_z_exp()</span></code></a></li>
@@ -4018,13 +4019,16 @@ the reward introduced by the function.</p>
 <tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.envs.mdp.rewards.undesired_contacts" title="isaaclab.envs.mdp.rewards.undesired_contacts"><code class="xref py py-obj docutils literal notranslate"><span class="pre">undesired_contacts</span></code></a>(env, threshold, sensor_cfg)</p></td>
 <td><p>Penalize undesired contacts as the number of violations that are above a threshold.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.envs.mdp.rewards.contact_forces" title="isaaclab.envs.mdp.rewards.contact_forces"><code class="xref py py-obj docutils literal notranslate"><span class="pre">contact_forces</span></code></a>(env, threshold, sensor_cfg)</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.envs.mdp.rewards.desired_contacts" title="isaaclab.envs.mdp.rewards.desired_contacts"><code class="xref py py-obj docutils literal notranslate"><span class="pre">desired_contacts</span></code></a>(env, sensor_cfg[, threshold])</p></td>
+<td><p>Penalize if none of the desired contacts are present.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.envs.mdp.rewards.contact_forces" title="isaaclab.envs.mdp.rewards.contact_forces"><code class="xref py py-obj docutils literal notranslate"><span class="pre">contact_forces</span></code></a>(env, threshold, sensor_cfg)</p></td>
 <td><p>Penalize contact forces as the amount of violations of the net contact force.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.envs.mdp.rewards.track_lin_vel_xy_exp" title="isaaclab.envs.mdp.rewards.track_lin_vel_xy_exp"><code class="xref py py-obj docutils literal notranslate"><span class="pre">track_lin_vel_xy_exp</span></code></a>(env, std, command_name)</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.envs.mdp.rewards.track_lin_vel_xy_exp" title="isaaclab.envs.mdp.rewards.track_lin_vel_xy_exp"><code class="xref py py-obj docutils literal notranslate"><span class="pre">track_lin_vel_xy_exp</span></code></a>(env, std, command_name)</p></td>
 <td><p>Reward tracking of linear velocity commands (xy axes) using exponential kernel.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.envs.mdp.rewards.track_ang_vel_z_exp" title="isaaclab.envs.mdp.rewards.track_ang_vel_z_exp"><code class="xref py py-obj docutils literal notranslate"><span class="pre">track_ang_vel_z_exp</span></code></a>(env, std, command_name)</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.envs.mdp.rewards.track_ang_vel_z_exp" title="isaaclab.envs.mdp.rewards.track_ang_vel_z_exp"><code class="xref py py-obj docutils literal notranslate"><span class="pre">track_ang_vel_z_exp</span></code></a>(env, std, command_name)</p></td>
 <td><p>Reward tracking of angular velocity commands (yaw) using exponential kernel.</p></td>
 </tr>
 </tbody>
@@ -4204,6 +4208,12 @@ For implicit actuators, we currently cannot retrieve the applied torques from th
 <dt class="sig sig-object py" id="isaaclab.envs.mdp.rewards.undesired_contacts">
 <span class="sig-prename descclassname"><span class="pre">isaaclab.envs.mdp.rewards.</span></span><span class="sig-name descname"><span class="pre">undesired_contacts</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">env</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="isaaclab.envs.html#isaaclab.envs.ManagerBasedRLEnv" title="isaaclab.envs.ManagerBasedRLEnv"><span class="pre">ManagerBasedRLEnv</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">threshold</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">sensor_cfg</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="isaaclab.managers.html#isaaclab.managers.SceneEntityCfg" title="isaaclab.managers.SceneEntityCfg"><span class="pre">SceneEntityCfg</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.7)"><span class="pre">torch.Tensor</span></a></span></span><a class="reference internal" href="../../../_modules/isaaclab/envs/mdp/rewards.html#undesired_contacts"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.envs.mdp.rewards.undesired_contacts" title="Permalink to this definition">#</a></dt>
 <dd><p>Penalize undesired contacts as the number of violations that are above a threshold.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="isaaclab.envs.mdp.rewards.desired_contacts">
+<span class="sig-prename descclassname"><span class="pre">isaaclab.envs.mdp.rewards.</span></span><span class="sig-name descname"><span class="pre">desired_contacts</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">env</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sensor_cfg</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="isaaclab.managers.html#isaaclab.managers.SceneEntityCfg" title="isaaclab.managers.scene_entity_cfg.SceneEntityCfg"><span class="pre">SceneEntityCfg</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">threshold</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">1.0</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.7)"><span class="pre">torch.Tensor</span></a></span></span><a class="reference internal" href="../../../_modules/isaaclab/envs/mdp/rewards.html#desired_contacts"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.envs.mdp.rewards.desired_contacts" title="Permalink to this definition">#</a></dt>
+<dd><p>Penalize if none of the desired contacts are present.</p>
 </dd></dl>
 
 <dl class="py function">
@@ -4757,6 +4767,7 @@ the curriculum introduced by the function.</p>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.mdp.rewards.action_rate_l2"><code class="docutils literal notranslate"><span class="pre">action_rate_l2()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.mdp.rewards.action_l2"><code class="docutils literal notranslate"><span class="pre">action_l2()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.mdp.rewards.undesired_contacts"><code class="docutils literal notranslate"><span class="pre">undesired_contacts()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.mdp.rewards.desired_contacts"><code class="docutils literal notranslate"><span class="pre">desired_contacts()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.mdp.rewards.contact_forces"><code class="docutils literal notranslate"><span class="pre">contact_forces()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.mdp.rewards.track_lin_vel_xy_exp"><code class="docutils literal notranslate"><span class="pre">track_lin_vel_xy_exp()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.mdp.rewards.track_ang_vel_z_exp"><code class="docutils literal notranslate"><span class="pre">track_ang_vel_z_exp()</span></code></a></li>
@@ -4812,7 +4823,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jun 25, 2025.
+  Last updated on Jun 26, 2025.
   <br/>
 </p>
   </div>
