@@ -127,6 +127,7 @@ class G1RoughEnvCfg(LocomotionVelocityRoughEnvCfg):
                 "yaw": (0.0, 0.0),
             },
         }
+        self.events.base_com = None
 
         # Rewards
         self.rewards.lin_vel_z_l2.weight = 0.0
@@ -178,4 +179,3 @@ class G1RoughEnvCfg_PLAY(G1RoughEnvCfg):
         # remove random pushing
         self.events.base_external_force_torque = None
         self.events.push_robot = None
-        self.events.base_com = None
