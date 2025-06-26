@@ -234,7 +234,7 @@ class CurriculumCfg:
         params={
             "address": "rewards.lift.weight",
             "modify_fn": mdp.initial_final_interpolate_fn,
-            "modify_params": {"iv": 2.0, "fv": 0.0, "difficulty_term_str": "adr"}
+            "modify_params": {"iv": 2.0, "fv": 0., "difficulty_term_str": "adr"}
         }
     )
     
@@ -243,7 +243,7 @@ class CurriculumCfg:
         params={
             "address": "rewards.action_rate_l2.weight",
             "modify_fn": mdp.initial_final_interpolate_fn,
-            "modify_params": {"iv": -0.005, "fv": -0.025, "difficulty_term_str": "adr"}
+            "modify_params": {"iv": -.005, "fv": -.025, "difficulty_term_str": "adr"}
         }
     )
     
@@ -252,7 +252,7 @@ class CurriculumCfg:
         params={
             "address": "rewards.action_l2.weight",
             "modify_fn": mdp.initial_final_interpolate_fn,
-            "modify_params": {"iv": -0.005, "fv": -0.025, "difficulty_term_str": "adr"}
+            "modify_params": {"iv": -.005, "fv": -.025, "difficulty_term_str": "adr"}
         }
     )
 
@@ -261,7 +261,7 @@ class CurriculumCfg:
         params={
             "address": "rewards.finger_curl_reg.weight",
             "modify_fn": mdp.initial_final_interpolate_fn,
-            "modify_params": {"iv": -0.01, "fv": -0.025, "difficulty_term_str": "adr"}
+            "modify_params": {"iv": -.025, "fv": -.075, "difficulty_term_str": "adr"}
         }
     )
 
@@ -270,6 +270,15 @@ class CurriculumCfg:
         params={
             "address": "rewards.object_to_goal.params.std",
             "modify_fn": mdp.initial_final_interpolate_fn,
-            "modify_params": {"iv": 15.0, "fv": 20.0, "difficulty_term_str": "adr"}
+            "modify_params": {"iv": 15., "fv": 20., "difficulty_term_str": "adr"}
+        }
+    )
+
+    fingers_to_object_weight_adr = CurrTerm(
+        func=mdp.modify_term_cfg,
+        params={
+            "address": "rewards.fingers_to_object.weight",
+            "modify_fn": mdp.initial_final_interpolate_fn,
+            "modify_params": {"iv": 1., "fv": 0., "difficulty_term_str": "adr"}
         }
     )

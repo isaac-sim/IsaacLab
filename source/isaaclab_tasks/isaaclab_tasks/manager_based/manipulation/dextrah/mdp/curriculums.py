@@ -27,36 +27,37 @@ if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
 
 
-# Matches “name[3]” → group(1)=name, group(2)=3
-_INDEX_RE = re.compile(r"^(\w+)\[(\d+)\]$")
+def initial_final_interpolate_fn(env: ManagerBasedRLEnv, env_id, data, iv, fv, difficulty_term_str):
+    iv_, fv_ = torch.tensor(iv, device=env.device), torch.tensor(fv, device=env.device)
+    difficulty_term: DifficultyScheduler = env.curriculum_manager.get_term_cfg(difficulty_term_str).func
+    new_val = difficulty_term.difficulty_frac * (fv_ - iv_) + iv_
+    if isinstance(data, float):
+        return new_val.item()
+    elif isinstance(data, int):
+        return int(new_val.item())
+    elif isinstance(data, (tuple, list)):
+        raw = new_val.tolist()
+        # assume iv is sequence of all ints or all floats:
+        is_int = isinstance(iv[0], int)
+        casted = [int(x) if is_int else float(x) for x in raw]
+        return tuple(casted) if isinstance(data, tuple) else casted
+    else:
+        raise TypeError(f"Does not support the type {type(data)}")
 
-@configclass
-class ADRTermCfg:
-    init_v: float = MISSING
-    final_v: float = MISSING
 
-
-class ADRTerm:
-    def __init__(self, env: ManagerBasedRLEnv, address:str, cfg: ADRTermCfg):
-        self.env = env
-        self.address = address
-        self.cfg = cfg
-
-    def update(self, factor: float) -> None:
-        val = factor * (self.cfg.final_v - self.cfg.init_v) + self.cfg.init_v
-        set(self.env, self.address, val)
-
+def value_override(env: ManagerBasedRLEnv, env_id, data, new_val, num_steps):
+    if env.common_step_counter > num_steps:
+        return new_val
 
 class DifficultyScheduler(ManagerTermBase):
     
     def __init__(self, cfg, env):
         super().__init__(cfg, env)
-        self.asset: Articulation = env.scene[cfg.params.get("asset_cfg").name]
-        self.object: RigidObject = env.scene[cfg.params.get("object_cfg").name]
-        adr_terms_cfg: dict[str, ADRTermCfg] = cfg.params.get('adr_terms')
-        self.adr_terms: list[ADRTerm] = [ADRTerm(env, name, term_cfg) for name, term_cfg in adr_terms_cfg.items()]
-        self.current_adr_difficulties = torch.ones(env.num_envs, device=env.device) * self.cfg.params.get("init_difficulty", 0)
-    
+        init_difficulty = self.cfg.params.get("init_difficulty", 0)
+        self.asset: Articulation = env.scene[cfg.params.get("asset_cfg", SceneEntityCfg("robot")).name]
+        self.object: RigidObject = env.scene[cfg.params.get("object_cfg", SceneEntityCfg("object")).name]
+        self.current_adr_difficulties = torch.ones(env.num_envs, device=env.device) * init_difficulty
+        self.difficulty_frac = 0
     def get_state(self):
         return self.current_adr_difficulties
     
@@ -73,7 +74,6 @@ class DifficultyScheduler(ManagerTermBase):
         init_difficulty: int = 0,
         min_difficulty: int = 0,
         max_difficulty: int = 50,
-        adr_terms: dict[str, ADRTermCfg] = {}
     ):
         command = env.command_manager.get_command("object_pose")
         des_pos_b = command[env_ids, :3]
@@ -86,18 +86,19 @@ class DifficultyScheduler(ManagerTermBase):
         self.current_adr_difficulties[env_ids] = torch.where(
             move_up, self.current_adr_difficulties[env_ids] + 1, self.current_adr_difficulties[env_ids] - 1,
         ).clamp(min=min_difficulty, max=max_difficulty)
-        for term in self.adr_terms:
-            term.update((torch.mean(self.current_adr_difficulties) / max(max_difficulty, 1)).item())
+        
+        self.difficulty_frac = torch.mean(self.current_adr_difficulties) / max(max_difficulty, 1)
+        return self.difficulty_frac
 
-        return torch.mean(self.current_adr_difficulties) / max(max_difficulty, 1)
-
-def get(root: Any, path: str) -> Any:
+def cfg_get(root: Any, path: str) -> Any:
     """
     Retrieve a deeply nested attribute/key/index from `root` using a string path.
     Examples:
       get_by_path(obj, "a.b.c")
       get_by_path(obj, "a.list_field[2].x")
     """
+    # Matches “name[3]” → group(1)=name, group(2)=3
+    _INDEX_RE = re.compile(r"^(\w+)\[(\d+)\]$")
     current = root
     for part in path.split("."):
         m = _INDEX_RE.match(part)
@@ -111,13 +112,15 @@ def get(root: Any, path: str) -> Any:
             current = current[part] if isinstance(current, dict) else getattr(current, part)
     return current
 
-def set(root: Any, path: str, value: Any) -> None:
+def cfg_set(root: Any, path: str, value: Any) -> None:
     """
     Assign `value` to the leaf specified by `path` on `root`.
     Examples:
       set_by_path(obj, "a.b.c", 123)
       set_by_path(obj, "a.list_field[2].x", "foo")
     """
+    # Matches “name[3]” → group(1)=name, group(2)=3
+    _INDEX_RE = re.compile(r"^(\w+)\[(\d+)\]$")
     parts = path.split(".")
     target = root
     # walk to the parent of the leaf

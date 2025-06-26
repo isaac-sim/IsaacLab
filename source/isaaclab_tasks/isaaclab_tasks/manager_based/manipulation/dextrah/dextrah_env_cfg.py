@@ -237,7 +237,7 @@ class RewardsCfg:
     
     action_rate_l2 = RewTerm(func=mdp.action_rate_l2, weight=-0.005)
     
-    fingers_to_object = RewTerm(func=mdp.object_ee_distance, params={"std": 0.2}, weight=1.0)
+    fingers_to_object = RewTerm(func=mdp.object_ee_distance, params={"std": 0.4}, weight=1.0)
 
     lift = RewTerm(func=mdp.lifted, params={"num_points": 128, "min_height": 0.26}, weight=2.0)
 
@@ -262,7 +262,7 @@ class DextrahEnvCfg(ManagerBasedEnvCfg):
 
     # Scene settings
     viewer: ViewerCfg = ViewerCfg(eye=(-5.0, 1., 0.75), lookat=(0., 1., 0.3), origin_type='env')
-    scene: SceneCfg = SceneCfg(num_envs=4096, env_spacing=1.0, replicate_physics=False)
+    scene: SceneCfg = SceneCfg(num_envs=4096, env_spacing=1.5, replicate_physics=False)
     # Basic settings
     observations: ObservationsCfg = ObservationsCfg()
     actions: ActionsCfg = ActionsCfg()
