@@ -1,13 +1,23 @@
 Changelog
 ---------
 
-0.40.9 (2025-06-25)
-~~~~~~~~~~~~~~~~~~~
+0.40.10 (2025-06-25)
+~~~~~~~~~~~~~~~~~~~~
 
 Fixed
 ^^^^^
 
 * Fixed :meth:`omni.isaac.lab.utils.dict.update_class_from_dict` preventing setting flat Iterables with different lengths.
+
+
+0.40.9 (2025-06-25)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``sample_bias_per_component`` flag to :class:`~isaaclab.utils.noise.noise_model.NoiseModelWithAdditiveBias` to enable independent per-component bias
+ sampling, which is now the default behavior. If set to False, the previous behavior of sharing the same bias value across all components is retained.
 
 
 0.40.8 (2025-06-18)

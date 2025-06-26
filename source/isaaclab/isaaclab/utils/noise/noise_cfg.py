@@ -103,3 +103,9 @@ class NoiseModelWithAdditiveBiasCfg(NoiseModelCfg):
 
     Based on this configuration, the bias is sampled at every reset of the noise model.
     """
+
+    sample_bias_per_component: bool = True
+    """Whether to sample a separate bias for each data component.
+
+    Defaults to True.
+    """
