@@ -288,6 +288,12 @@ Environments based on legged locomotion tasks.
     +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+
     | |velocity-rough-g1|          | |velocity-rough-g1-link|                     | Track a velocity command on rough terrain with the Unitree G1 robot          |
     +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+
+    | |velocity-flat-digit|        | |velocity-flat-digit-link|                   | Track a velocity command on flat terrain with the Agility Digit robot        |
+    +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+
+    | |velocity-rough-digit|       | |velocity-rough-digit-link|                  | Track a velocity command on rough terrain with the Agility Digit robot       |
+    +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+
+    | |tracking-loco-manip-digit|  | |tracking-loco-manip-digit-link|             | Track a root velocity and hand pose command with the Agility Digit robot     |
+    +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+
 
 .. |velocity-flat-anymal-b-link| replace:: `Isaac-Velocity-Flat-Anymal-B-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/locomotion/velocity/config/anymal_b/flat_env_cfg.py>`__
 .. |velocity-rough-anymal-b-link| replace:: `Isaac-Velocity-Rough-Anymal-B-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/locomotion/velocity/config/anymal_b/rough_env_cfg.py>`__
@@ -318,6 +324,9 @@ Environments based on legged locomotion tasks.
 .. |velocity-flat-g1-link| replace:: `Isaac-Velocity-Flat-G1-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/locomotion/velocity/config/g1/flat_env_cfg.py>`__
 .. |velocity-rough-g1-link| replace:: `Isaac-Velocity-Rough-G1-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/locomotion/velocity/config/g1/rough_env_cfg.py>`__
 
+.. |velocity-flat-digit-link| replace:: `Isaac-Velocity-Flat-Digit-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/locomotion/velocity/config/digit/flat_env_cfg.py>`__
+.. |velocity-rough-digit-link| replace:: `Isaac-Velocity-Rough-Digit-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/locomotion/velocity/config/digit/rough_env_cfg.py>`__
+.. |tracking-loco-manip-digit-link| replace:: `Isaac-Tracking-Flat-Digit-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/locomotion/tracking/config/digit/loco_manip_env_cfg.py>`__
 
 .. |velocity-flat-anymal-b| image:: ../_static/tasks/locomotion/anymal_b_flat.jpg
 .. |velocity-rough-anymal-b| image:: ../_static/tasks/locomotion/anymal_b_rough.jpg
@@ -336,6 +345,9 @@ Environments based on legged locomotion tasks.
 .. |velocity-rough-h1| image:: ../_static/tasks/locomotion/h1_rough.jpg
 .. |velocity-flat-g1| image:: ../_static/tasks/locomotion/g1_flat.jpg
 .. |velocity-rough-g1| image:: ../_static/tasks/locomotion/g1_rough.jpg
+.. |velocity-flat-digit| image:: ../_static/tasks/locomotion/agility_digit_flat.jpg
+.. |velocity-rough-digit| image:: ../_static/tasks/locomotion/agility_digit_rough.jpg
+.. |tracking-loco-manip-digit| image:: ../_static/tasks/locomotion/agility_digit_loco_manip.jpg
 
 Navigation
 ~~~~~~~~~~
@@ -765,6 +777,10 @@ inferencing, including reading from an already trained checkpoint and disabling 
       -
       - Manager Based
       -
+    * - Isaac-Tracking-LocoManip-Digit-v0
+      - Isaac-Tracking-LocoManip-Digit-Play-v0
+      - Manager Based
+      - **rsl_rl** (PPO)
     * - Isaac-Navigation-Flat-Anymal-C-v0
       - Isaac-Navigation-Flat-Anymal-C-Play-v0
       - Manager Based
@@ -873,6 +889,10 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - Isaac-Velocity-Flat-Cassie-Play-v0
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO)
+    * - Isaac-Velocity-Flat-Digit-v0
+      - Isaac-Velocity-Flat-Digit-Play-v0
+      - Manager Based
+      - **rsl_rl** (PPO)
     * - Isaac-Velocity-Flat-G1-v0
       - Isaac-Velocity-Flat-G1-Play-v0
       - Manager Based
@@ -917,6 +937,10 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - Isaac-Velocity-Rough-Cassie-Play-v0
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO)
+    * - Isaac-Velocity-Rough-Digit-v0
+      - Isaac-Velocity-Rough-Digit-Play-v0
+      - Manager Based
+      - **rsl_rl** (PPO)
     * - Isaac-Velocity-Rough-G1-v0
       - Isaac-Velocity-Rough-G1-Play-v0
       - Manager Based
