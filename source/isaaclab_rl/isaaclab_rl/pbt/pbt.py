@@ -149,7 +149,10 @@ class PbtAlgoObserver(AlgoObserver):
         os.makedirs(self.curr_policy_workspace_dir, exist_ok=True)
 
     def process_infos(self, infos, done_indices):
-        infos['true_objective'] = infos['episode']['Curriculum/adr']
+        if "true_objective" not in infos and 'Curriculum/adr' in infos['episode']:
+            infos['true_objective'] = infos['episode']['Curriculum/adr']
+        if "true_objective" in infos and isinstance(infos["true_objective"], torch.Tensor):
+            infos['true_objective'] =  int(infos["true_objective"].float().mean())
         if self.global_rank != 0:
             return
         
