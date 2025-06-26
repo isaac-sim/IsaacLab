@@ -1,6 +1,139 @@
 Changelog
 ---------
 
+0.40.9 (2025-06-25)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``sample_bias_per_component`` flag to :class:`~isaaclab.utils.noise.noise_model.NoiseModelWithAdditiveBias` to enable independent per-component bias
+ sampling, which is now the default behavior. If set to False, the previous behavior of sharing the same bias value across all components is retained.
+
+
+0.40.8 (2025-06-18)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed data inconsistency between read_body, read_link, read_com when write_body, write_com, write_joint performed, in
+ :class:`~isaaclab.assets.Articulation`, :class:`~isaaclab.assets.RigidObject`, and
+ :class:`~isaaclab.assets.RigidObjectCollection`
+* added pytest that check against these data consistencies
+
+
+0.40.7 (2025-06-24)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* :class:`NoiseModel` support for manager-based workflows.
+
+Changed
+^^^^^^^
+
+* Renamed :func:`~isaaclab.utils.noise.NoiseModel.apply` method to :func:`~isaaclab.utils.noise.NoiseModel.__call__`.
+
+
+0.40.6 (2025-06-12)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed potential issues in :func:`~isaaclab.envs.mdp.events.randomize_visual_texture_material` related to handling visual prims during texture randomization.
+
+
+0.40.5 (2025-05-22)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed collision filtering logic for CPU simulation. The automatic collision filtering feature
+  currently has limitations for CPU simulation. Collision filtering needs to be manually enabled when using CPU simulation.
+
+
+0.40.4 (2025-06-03)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Removes the hardcoding to :class:`~isaaclab.terrains.terrain_generator.TerrainGenerator` in
+  :class:`~isaaclab.terrains.terrain_generator.TerrainImporter` and instead the ``class_type`` is used which is
+  passed in the ``TerrainGeneratorCfg``.
+
+
+0.40.3 (2025-03-20)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Made separate data buffers for poses and velocities for the :class:`~isaaclab.assets.Articulation`,
+  :class:`~isaaclab.assets.RigidObject`, and :class:`~isaaclab.assets.RigidObjectCollection` classes.
+  Previously, the two data buffers were stored together in a single buffer requiring an additional
+  concatenation operation when accessing the data.
+* Cleaned up ordering of members inside the data classes for the assets to make them easier
+  to comprehend. This reduced the code duplication within the class and made the class
+  more readable.
+
+
+0.40.2 (2025-05-10)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Updated gymnasium to >= 1.0
+* Added support for specifying module:task_name as task name to avoid module import for ``gym.make``
+
+
+0.40.1 (2025-06-02)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added time observation functions to ~isaaclab.envs.mdp.observations module,
+  :func:`~isaaclab.envs.mdp.observations.current_time_s` and :func:`~isaaclab.envs.mdp.observations.remaining_time_s`.
+
+Changed
+^^^^^^^
+
+* Moved initialization of ``episode_length_buf`` outside of :meth:`load_managers()` of :class:`~isaaclab.envs.ManagerBasedRLEnv`
+  to make it available for mdp functions.
+
+
+0.40.0 (2025-05-16)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added deprecation warning for :meth:`~isaaclab.utils.math.quat_rotate` and
+  :meth:`~isaaclab.utils.math.quat_rotate_inverse`
+
+Changed
+^^^^^^^
+
+* Changed all calls to :meth:`~isaaclab.utils.math.quat_rotate` and :meth:`~isaaclab.utils.math.quat_rotate_inverse` to
+  :meth:`~isaaclab.utils.math.quat_apply` and :meth:`~isaaclab.utils.math.quat_apply_inverse` for speed.
+
+
+0.39.7 (2025-05-19)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^^
+
+* Raising exceptions in step, render and reset if they occurred inside the initialization callbacks
+  of assets and sensors.used from the experience files and the double definition is removed.
+
+
 0.39.6 (2025-01-30)
 ~~~~~~~~~~~~~~~~~~~
 
@@ -66,9 +199,6 @@ Fixed
 
 0.39.1 (2025-05-14)
 ~~~~~~~~~~~~~~~~~~~
-
-Added
-^^^^^
 
 * Added a new attribute :attr:`articulation_root_prim_path` to the :class:`~isaaclab.assets.ArticulationCfg` class
   to allow explicitly specifying the prim path of the articulation root.
