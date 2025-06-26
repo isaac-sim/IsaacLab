@@ -2,7 +2,6 @@
 
 # Note: Semantic Versioning is used: https://semver.org/
 version = "0.10.34"
->>>>>>> main
 
 # Description
 title = "Isaac Lab Environments"
