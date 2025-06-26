@@ -32,7 +32,7 @@ simulation_app = app_launcher.app
 import gymnasium as gym
 import torch
 
-import isaaclab_tasks  # noqa: F401
+
 from isaaclab_tasks.utils import parse_env_cfg
 from isaaclab_tasks.manager_based.manipulation.lift.lift_env_cfg import LiftEnvCfg
 # PLACEHOLDER: Extension template (do not remove this comment)
@@ -73,6 +73,9 @@ def main():
             import os
             rgb_images = tiled_camera.data.output[data_type]
             rgb_normalized = rgb_images[0:1].float().cpu() / 255.0
+            print("rgbimages" ,rgb_images, "rgb normalised", rgb_normalized)
+            with open("file.txt", "w") as f:
+                f.write(str(rgb_images))
             save_images_to_file(rgb_normalized, f"frames/rgb_out_env0_{frame_idx:04d}.png")
             frame_idx+=1'''
             actions = 2 * torch.rand(env.action_space.shape, device=env.unwrapped.device) - 1

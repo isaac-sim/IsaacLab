@@ -43,6 +43,7 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
     camera: TiledCameraCfg = MISSING
     camera_ext1: TiledCameraCfg = MISSING
     camera_ext2: TiledCameraCfg = MISSING
+    camera_bird: TiledCameraCfg = MISSING
     # Table
     table = AssetBaseCfg(
         prim_path="{ENV_REGEX_NS}/Table",

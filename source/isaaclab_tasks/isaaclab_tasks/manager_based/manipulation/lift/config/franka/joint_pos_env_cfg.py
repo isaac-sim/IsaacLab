@@ -78,7 +78,17 @@ class FrankaCubeLiftEnvCfg(LiftEnvCfg):
         ),
         offset=CameraCfg.OffsetCfg(pos=(0.5,1.2,0.32007), rot=(-0.05416,0.05416,0.70503,-0.70503), convention="ros"),
         )
-
+        self.scene.camera_bird = TiledCameraCfg(
+        prim_path="{ENV_REGEX_NS}/bird",
+        update_period=0.1,
+        height=480,
+        width=640,
+        data_types=["rgb", "distance_to_image_plane"],
+        spawn=sim_utils.PinholeCameraCfg(
+            focal_length=15.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 1.0e5)
+        ),
+        offset=CameraCfg.OffsetCfg(pos=(0.68951,0.13776,2.33924), rot=(0.0317,-0.00871,0.99885,0.03491), convention="ros"),
+        )
         # Set Cube as object
         self.scene.object = RigidObjectCfg(
             prim_path="{ENV_REGEX_NS}/Object",
@@ -100,7 +110,7 @@ class FrankaCubeLiftEnvCfg(LiftEnvCfg):
 
         self.scene.cuboid = AssetBaseCfg(
             prim_path="{ENV_REGEX_NS}/walls",
-            spawn=sim_utils.CuboidCfg(size=[2.0,2.0,2.0]),
+            spawn=sim_utils.CuboidCfg(size=[5.0,5.0,5.0]),
             init_state=AssetBaseCfg.InitialStateCfg(pos=[0.79755,0.59112,-0.05549])
         )
 
