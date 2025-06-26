@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -78,6 +78,19 @@ class NoiseModelCfg:
     noise_cfg: NoiseCfg = MISSING
     """The noise configuration to use."""
 
+    func: Callable[[torch.Tensor], torch.Tensor] | None = None
+    """Function or callable class used by this noise model.
+
+    The function must take a single `torch.Tensor` (the batch of observations) as input
+    and return a `torch.Tensor` of the same shape with noise applied.
+
+    It also supports `callable classes <https://docs.python.org/3/reference/datamodel.html#object.__call__>`_,
+    i.e. classes that implement the ``__call__()`` method. In this case, the class should inherit from the
+    :class:`NoiseModel` class and implement the required methods.
+
+    This field is used internally by :class:ObservationManager and is not meant to be set directly.
+    """
+
 
 @configclass
 class NoiseModelWithAdditiveBiasCfg(NoiseModelCfg):
@@ -89,4 +102,10 @@ class NoiseModelWithAdditiveBiasCfg(NoiseModelCfg):
     """The noise configuration for the bias.
 
     Based on this configuration, the bias is sampled at every reset of the noise model.
+    """
+
+    sample_bias_per_component: bool = True
+    """Whether to sample a separate bias for each data component.
+
+    Defaults to True.
     """

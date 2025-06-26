@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -145,7 +145,7 @@ def body_projected_gravity_b(
 
     body_quat = asset.data.body_quat_w[:, asset_cfg.body_ids]
     gravity_dir = asset.data.GRAVITY_VEC_W.unsqueeze(1)
-    return math_utils.quat_rotate_inverse(body_quat, gravity_dir).view(env.num_envs, -1)
+    return math_utils.quat_apply_inverse(body_quat, gravity_dir).view(env.num_envs, -1)
 
 
 """
@@ -598,3 +598,18 @@ Commands.
 def generated_commands(env: ManagerBasedRLEnv, command_name: str) -> torch.Tensor:
     """The generated command from command term in the command manager with the given name."""
     return env.command_manager.get_command(command_name)
+
+
+"""
+Time.
+"""
+
+
+def current_time_s(env: ManagerBasedRLEnv) -> torch.Tensor:
+    """The current time in the episode (in seconds)."""
+    return env.episode_length_buf.unsqueeze(1) * env.step_dt
+
+
+def remaining_time_s(env: ManagerBasedRLEnv) -> torch.Tensor:
+    """The maximum time remaining in the episode (in seconds)."""
+    return env.max_episode_length_s - env.episode_length_buf.unsqueeze(1) * env.step_dt
