@@ -232,6 +232,8 @@ class DigitRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
         self.events.base_external_force_torque.params["asset_cfg"] = SceneEntityCfg("robot", body_names="torso_base")
         # Don't randomize the initial joint positions because we have closed loops.
         self.events.reset_robot_joints.params["position_range"] = (1.0, 1.0)
+        # remove COM randomization
+        self.events.base_com = None
 
         # Commands
         self.commands.base_velocity.ranges.lin_vel_x = (-0.8, 0.8)

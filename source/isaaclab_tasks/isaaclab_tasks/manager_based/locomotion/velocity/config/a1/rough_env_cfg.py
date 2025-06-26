@@ -46,6 +46,7 @@ class UnitreeA1RoughEnvCfg(LocomotionVelocityRoughEnvCfg):
                 "yaw": (0.0, 0.0),
             },
         }
+        self.events.base_com = None
 
         # rewards
         self.rewards.feet_air_time.params["sensor_cfg"].body_names = ".*_foot"
@@ -82,4 +83,3 @@ class UnitreeA1RoughEnvCfg_PLAY(UnitreeA1RoughEnvCfg):
         # remove random pushing event
         self.events.base_external_force_torque = None
         self.events.push_robot = None
-        self.events.base_com = None
