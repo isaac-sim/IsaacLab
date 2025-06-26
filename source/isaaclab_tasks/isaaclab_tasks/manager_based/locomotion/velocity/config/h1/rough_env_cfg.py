@@ -95,6 +95,7 @@ class H1RoughEnvCfg(LocomotionVelocityRoughEnvCfg):
                 "yaw": (0.0, 0.0),
             },
         }
+        self.events.base_com = None
 
         # Terminations
         self.terminations.base_contact.params["sensor_cfg"].body_names = [".*torso_link"]
@@ -142,4 +143,3 @@ class H1RoughEnvCfg_PLAY(H1RoughEnvCfg):
         # remove random pushing
         self.events.base_external_force_torque = None
         self.events.push_robot = None
-        self.events.base_com = None

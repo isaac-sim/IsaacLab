@@ -194,10 +194,11 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
             entity=args_cli.wandb_entity,
             name=experiment_name,
             sync_tensorboard=True,
-            config=agent_cfg,
             monitor_gym=True,
             save_code=True,
         )
+        wandb.config.update({"env_cfg": env_cfg.to_dict()})
+        wandb.config.update({"agent_cfg": agent_cfg})
 
     if args_cli.checkpoint is not None:
         runner.run({"train": True, "play": False, "sigma": train_sigma, "checkpoint": resume_path})
