@@ -1,7 +1,11 @@
 [package]
 
 # Note: Semantic Versioning is used: https://semver.org/
+<<<<<<< cleanup/remove-termination-sensor-dup
 version = "0.10.32"
+=======
+version = "0.10.34"
+>>>>>>> main
 
 # Description
 title = "Isaac Lab Environments"

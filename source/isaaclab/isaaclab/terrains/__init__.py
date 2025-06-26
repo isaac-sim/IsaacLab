@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -19,10 +19,10 @@ There are two main components in this package:
   * :meth:`TerrainImporter.import_usd`: spawn a prim as reference to input USD file.
 
 """
-
 from .height_field import *  # noqa: F401, F403
+from .sub_terrain_cfg import FlatPatchSamplingCfg, SubTerrainBaseCfg
 from .terrain_generator import TerrainGenerator
-from .terrain_generator_cfg import FlatPatchSamplingCfg, SubTerrainBaseCfg, TerrainGeneratorCfg
+from .terrain_generator_cfg import TerrainGeneratorCfg
 from .terrain_importer import TerrainImporter
 from .terrain_importer_cfg import TerrainImporterCfg
 from .trimesh import *  # noqa: F401, F403
