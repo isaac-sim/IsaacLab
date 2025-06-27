@@ -103,6 +103,7 @@ Guidelines for modifications:
 * Rosario Scalise
 * Ryley McCarroll
 * Shafeef Omar
+* Shaoshu Su
 * Shundo Kishi
 * Stefan Van de Mosselaer
 * Stephan Pleines
