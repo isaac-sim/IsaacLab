@@ -270,6 +270,21 @@ def imu_orientation(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntit
     return asset.data.quat_w
 
 
+def imu_projected_gravity(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("imu")) -> torch.Tensor:
+    """Imu sensor orientation w.r.t the env.scene.origin.
+
+    Args:
+        env: The environment.
+        asset_cfg: The SceneEntity associated with an Imu sensor.
+
+    Returns:
+        Gravity projected on imu_frame, shape of torch.tensor is (num_env,3).
+    """
+
+    asset: Imu = env.scene[asset_cfg.name]
+    return asset.data.projected_gravity_b
+
+
 def imu_ang_vel(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("imu")) -> torch.Tensor:
     """Imu sensor angular velocity w.r.t. environment origin expressed in the sensor frame.
 
