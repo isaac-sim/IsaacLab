@@ -82,13 +82,14 @@ def main():
     )
 
     task_name = args_cli.task.split(":")[-1]
+    train_task_name = task_name.replace("-Play", "")
 
     # directory for logging into
-    log_root_path = os.path.join("logs", "sb3", task_name)
+    log_root_path = os.path.join("logs", "sb3", train_task_name)
     log_root_path = os.path.abspath(log_root_path)
     # checkpoint and log_dir stuff
     if args_cli.use_pretrained_checkpoint:
-        checkpoint_path = get_published_pretrained_checkpoint("sb3", task_name)
+        checkpoint_path = get_published_pretrained_checkpoint("sb3", train_task_name)
         if not checkpoint_path:
             print("[INFO] Unfortunately a pre-trained checkpoint is currently unavailable for this task.")
             return
@@ -98,7 +99,7 @@ def main():
             checkpoint = "model_.*.zip"
         else:
             checkpoint = "model.zip"
-        checkpoint_path = get_checkpoint_path(log_root_path, ".*", checkpoint)
+        checkpoint_path = get_checkpoint_path(log_root_path, ".*", checkpoint, sort_alpha=False)
     else:
         checkpoint_path = args_cli.checkpoint
     log_dir = os.path.dirname(checkpoint_path)
