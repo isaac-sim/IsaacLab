@@ -37,6 +37,9 @@ parser.add_argument(
 )
 parser.add_argument("--task", type=str, default=None, help="Name of the task.")
 parser.add_argument("--input_dir", type=str, default=None, help="Directory containing models to evaluate.")
+parser.add_argument(
+    "--start_epoch", type=int, default=100, help="Epoch of the checkpoint to start the evaluation from."
+)
 parser.add_argument("--horizon", type=int, default=400, help="Step horizon of each rollout.")
 parser.add_argument("--num_rollouts", type=int, default=15, help="Number of rollouts for each setting.")
 parser.add_argument("--num_seeds", type=int, default=3, help="Number of random seeds to evaluate.")
@@ -279,7 +282,7 @@ def main() -> None:
                 for model in model_checkpoints:
                     # Skip early checkpoints
                     model_epoch = int(model.split(".")[0].split("_")[-1])
-                    if model_epoch <= 100:
+                    if model_epoch <= args_cli.start_epoch:
                         continue
 
                     model_path = os.path.join(args_cli.input_dir, model)

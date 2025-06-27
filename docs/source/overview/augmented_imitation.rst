@@ -92,14 +92,14 @@ We use the RGB, depth and shaded segmentation videos from the previous step as i
    :align: center
    :alt: RGB, depth and segmentation control inputs to Cosmos
 
-We provide an example augmentation output from `Cosmos Transfer1 <https://github.com/nvidia-cosmos/cosmos-transfer1/tree/1dca0bd1b3060d112bfec23c287572beabff9758>`_ below:
+We provide an example augmentation output from `Cosmos Transfer1 <https://github.com/nvidia-cosmos/cosmos-transfer1/tree/e4055e39ee9c53165e85275bdab84ed20909714a>`_ below:
 
 .. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/cosmos_output.gif
    :width: 100%
    :align: center
    :alt: Cosmos Transfer1 augmentation output
 
-We recommend using the `Cosmos Transfer1 <https://github.com/nvidia-cosmos/cosmos-transfer1/tree/1dca0bd1b3060d112bfec23c287572beabff9758>`_ model for visual augmentation as we found it to produce the best results in the form of a highly diverse dataset with a wide range of visual variations. You can refer to `this example <https://github.com/nvidia-cosmos/cosmos-transfer1/blob/1dca0bd1b3060d112bfec23c287572beabff9758/examples/inference_cosmos_transfer1_7b.md#example-2-multimodal-control>`_ for reference on how to use Transfer1 for this usecase. We further recommend the following settings to be used with the Transfer1 model for this task:
+We recommend using the `Cosmos Transfer1 <https://github.com/nvidia-cosmos/cosmos-transfer1/tree/e4055e39ee9c53165e85275bdab84ed20909714a>`_ model for visual augmentation as we found it to produce the best results in the form of a highly diverse dataset with a wide range of visual variations. You can refer to the installation instructions `here <https://github.com/nvidia-cosmos/cosmos-transfer1/blob/e4055e39ee9c53165e85275bdab84ed20909714a/INSTALL.md#environment-setup>`_, the checkpoint download instructions `here <https://github.com/nvidia-cosmos/cosmos-transfer1/blob/e4055e39ee9c53165e85275bdab84ed20909714a/examples/inference_cosmos_transfer1_7b.md#download-checkpoints>`_ and `this example <https://github.com/nvidia-cosmos/cosmos-transfer1/blob/e4055e39ee9c53165e85275bdab84ed20909714a/examples/inference_cosmos_transfer1_7b.md#example-2-multimodal-control>`_ for reference on how to use Transfer1 for this usecase. We further recommend the following settings to be used with the Transfer1 model for this task:
 
 .. rubric:: Hyperparameters
 
@@ -348,6 +348,8 @@ Below is an explanation of the different settings used for evaluation:
     :widths: 30 70
     :header-rows: 0
 
+    * - ``--start_epoch``
+      - Epoch of the checkpoint to start the evaluation from. (default: 100)
     * - ``--horizon``
       - Step horizon of each rollout. (default: 400)
     * - ``--num_rollouts``
