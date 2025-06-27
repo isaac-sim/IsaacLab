@@ -214,7 +214,8 @@ class LeRobotDatasetFileHandler(DatasetFileHandlerBase):
             env: The manager-based environment instance
         """
         if not file_path.endswith(".lerobot"):
-            raise ValueError("Dataset file path must end with .lerobot")
+            # add .lerobot extension
+            file_path += ".lerobot"
         
         self._dataset_path = Path(file_path)
         
