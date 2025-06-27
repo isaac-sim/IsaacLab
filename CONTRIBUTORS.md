@@ -29,6 +29,7 @@ Guidelines for modifications:
 * Matthew Trepte
 * Mayank Mittal
 * Nikita Rudin
+* Octi (Zhengyu) Zhang
 * Pascal Roth
 * Sheikh Dawood
 * Ossama Ahmed
@@ -121,7 +122,6 @@ Guidelines for modifications:
 * Yijie Guo
 * Yujian Zhang
 * Yun Liu
-* Zhengyu Zhang
 * Ziqi Fan
 * Zoe McCarthy
 * David Leon
