@@ -8,6 +8,7 @@
 """Launch Isaac Sim Simulator first."""
 
 import argparse
+from pathlib import Path
 
 from isaaclab.app import AppLauncher
 
@@ -32,6 +33,12 @@ parser.add_argument(
     help="When no checkpoint provided, use the last saved model. Otherwise use the best saved model.",
 )
 parser.add_argument("--real-time", action="store_true", default=False, help="Run in real-time, if possible.")
+parser.add_argument(
+    "--keep_all_info",
+    action="store_true",
+    default=False,
+    help="Use a slower SB3 wrapper but keep all the extra training info.",
+)
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
@@ -47,7 +54,6 @@ simulation_app = app_launcher.app
 """Rest everything follows."""
 
 import gymnasium as gym
-import numpy as np
 import os
 import time
 import torch
@@ -57,12 +63,13 @@ from stable_baselines3.common.vec_env import VecNormalize
 
 from isaaclab.envs import DirectMARLEnv, multi_agent_to_single_agent
 from isaaclab.utils.dict import print_dict
+from isaaclab.utils.io import load_yaml
 from isaaclab.utils.pretrained_checkpoint import get_published_pretrained_checkpoint
 
 from isaaclab_rl.sb3 import Sb3VecEnvWrapper, process_sb3_cfg
 
 import isaaclab_tasks  # noqa: F401
-from isaaclab_tasks.utils.parse_cfg import get_checkpoint_path, load_cfg_from_registry, parse_env_cfg
+from isaaclab_tasks.utils.parse_cfg import get_checkpoint_path, parse_env_cfg
 
 # PLACEHOLDER: Extension template (do not remove this comment)
 
@@ -73,34 +80,37 @@ def main():
     env_cfg = parse_env_cfg(
         args_cli.task, device=args_cli.device, num_envs=args_cli.num_envs, use_fabric=not args_cli.disable_fabric
     )
-    agent_cfg = load_cfg_from_registry(args_cli.task, "sb3_cfg_entry_point")
 
     task_name = args_cli.task.split(":")[-1]
+    train_task_name = task_name.replace("-Play", "")
 
     # directory for logging into
-    log_root_path = os.path.join("logs", "sb3", task_name)
+    log_root_path = os.path.join("logs", "sb3", train_task_name)
     log_root_path = os.path.abspath(log_root_path)
     # checkpoint and log_dir stuff
     if args_cli.use_pretrained_checkpoint:
-        checkpoint_path = get_published_pretrained_checkpoint("sb3", task_name)
+        checkpoint_path = get_published_pretrained_checkpoint("sb3", train_task_name)
         if not checkpoint_path:
             print("[INFO] Unfortunately a pre-trained checkpoint is currently unavailable for this task.")
             return
     elif args_cli.checkpoint is None:
+        # FIXME: last checkpoint doesn't seem to really use the last one'
         if args_cli.use_last_checkpoint:
             checkpoint = "model_.*.zip"
         else:
             checkpoint = "model.zip"
-        checkpoint_path = get_checkpoint_path(log_root_path, ".*", checkpoint)
+        checkpoint_path = get_checkpoint_path(log_root_path, ".*", checkpoint, sort_alpha=False)
     else:
         checkpoint_path = args_cli.checkpoint
     log_dir = os.path.dirname(checkpoint_path)
 
-    # post-process agent configuration
-    agent_cfg = process_sb3_cfg(agent_cfg)
-
     # create isaac environment
     env = gym.make(args_cli.task, cfg=env_cfg, render_mode="rgb_array" if args_cli.video else None)
+
+    # load the exact config used for training (instead of the default config)
+    agent_cfg = load_yaml(os.path.join(log_dir, "params", "agent.yaml"))
+    # post-process agent configuration
+    agent_cfg = process_sb3_cfg(agent_cfg, env.unwrapped.num_envs)
 
     # convert to single-agent instance if required by the RL algorithm
     if isinstance(env.unwrapped, DirectMARLEnv):
@@ -118,18 +128,25 @@ def main():
         print_dict(video_kwargs, nesting=4)
         env = gym.wrappers.RecordVideo(env, **video_kwargs)
     # wrap around environment for stable baselines
-    env = Sb3VecEnvWrapper(env)
+    env = Sb3VecEnvWrapper(env, fast_variant=not args_cli.keep_all_info)
+
+    vec_norm_path = checkpoint_path.replace("/model", "/model_vecnormalize").replace(".zip", ".pkl")
+    vec_norm_path = Path(vec_norm_path)
 
     # normalize environment (if needed)
-    if "normalize_input" in agent_cfg:
+    if vec_norm_path.exists():
+        print(f"Loading saved normalization: {vec_norm_path}")
+        env = VecNormalize.load(vec_norm_path, env)
+        #  do not update them at test time
+        env.training = False
+        # reward normalization is not needed at test time
+        env.norm_reward = False
+    elif "normalize_input" in agent_cfg:
         env = VecNormalize(
             env,
             training=True,
             norm_obs="normalize_input" in agent_cfg and agent_cfg.pop("normalize_input"),
-            norm_reward="normalize_value" in agent_cfg and agent_cfg.pop("normalize_value"),
             clip_obs="clip_obs" in agent_cfg and agent_cfg.pop("clip_obs"),
-            gamma=agent_cfg["gamma"],
-            clip_reward=np.inf,
         )
 
     # create agent from stable baselines
