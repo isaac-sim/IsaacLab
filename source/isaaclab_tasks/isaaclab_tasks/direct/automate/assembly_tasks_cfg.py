@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -64,7 +64,7 @@ class RobotCfg:
 
 
 @configclass
-class DisassemblyTask:
+class AssemblyTask:
     robot_cfg: RobotCfg = RobotCfg()
     name: str = ""
     duration_s = 5.0
@@ -90,7 +90,59 @@ class DisassemblyTask:
     fixed_asset_init_orn_deg: float = 0.0
     fixed_asset_init_orn_range_deg: float = 10.0
 
+    # Held Asset (applies to all tasks)
+    # held_asset_pos_noise: list = [0.0, 0.006, 0.003]  # noise level of the held asset in gripper
+    held_asset_init_pos_noise: list = [0.01, 0.01, 0.01]
+    held_asset_pos_noise: list = [0.0, 0.0, 0.0]
+    held_asset_rot_init: float = 0.0
+
+    # Reward
+    ee_success_yaw: float = 0.0  # nut_threading task only.
+    action_penalty_scale: float = 0.0
+    action_grad_penalty_scale: float = 0.0
+    # Reward function details can be found in Appendix B of https://arxiv.org/pdf/2408.04587.
+    # Multi-scale keypoints are used to capture different phases of the task.
+    # Each reward passes the keypoint distance, x, through a squashing function:
+    #     r(x) = 1/(exp(-ax) + b + exp(ax)).
+    # Each list defines [a, b] which control the slope and maximum of the squashing function.
+    num_keypoints: int = 4
+    keypoint_scale: float = 0.15
+
+    # Fixed-asset height fraction for which different bonuses are rewarded (see individual tasks).
+    success_threshold: float = 0.04
+    engage_threshold: float = 0.9
+
+    # SDF reward
+    sdf_rwd_scale: float = 1.0
+    num_mesh_sample_points: int = 1000
+
+    # Imitation reward
+    imitation_rwd_scale: float = 1.0
+    soft_dtw_gamma: float = 0.01  # set to 0 if want to use the original DTW without any smoothing
     num_point_robot_traj: int = 10  # number of waypoints included in the end-effector trajectory
+
+    # SBC
+    initial_max_disp: float = 0.01  # max initial downward displacement of plug at beginning of curriculum
+    curriculum_success_thresh: float = 0.8  # success rate threshold for increasing curriculum difficulty
+    curriculum_failure_thresh: float = 0.5  # success rate threshold for decreasing curriculum difficulty
+    curriculum_freespace_range: float = 0.01
+    num_curriculum_step: int = 10
+    curriculum_height_step: list = [
+        -0.005,
+        0.003,
+    ]  # how much to increase max initial downward displacement after hitting success or failure thresh
+
+    if_sbc: bool = True
+
+    # Logging evaluation results
+    if_logging_eval: bool = False
+    num_eval_trials: int = 100
+    eval_filename: str = "evaluation_00015.h5"
+    wandb: bool = False
+
+    # Fine-tuning
+    sample_from: str = "rand"  # gp, gmm, idv, rand
+    num_gp_candidates: int = 1000
 
 
 @configclass
@@ -112,13 +164,11 @@ class Hole8mm(FixedAssetCfg):
 
 
 @configclass
-class Extraction(DisassemblyTask):
-    name = "extraction"
+class Insertion(AssemblyTask):
+    name = "insertion"
 
-    assembly_id = "00731"
+    assembly_id = "00015"
     assembly_dir = f"{ASSET_DIR}/{assembly_id}/"
-    disassembly_dir = "disassembly_dir"
-    num_log_traj = 100
 
     fixed_asset_cfg = Hole8mm()
     held_asset_cfg = Peg8mm()
@@ -127,9 +177,7 @@ class Extraction(DisassemblyTask):
 
     plug_grasp_json = f"{ASSET_DIR}/plug_grasps.json"
     disassembly_dist_json = f"{ASSET_DIR}/disassembly_dist.json"
-
-    move_gripper_sim_steps = 64
-    disassemble_sim_steps = 64
+    disassembly_path_json = f"{assembly_dir}/disassemble_traj.json"
 
     # Robot
     hand_init_pos: list = [0.0, 0.0, 0.047]  # Relative to fixed asset tip.
@@ -144,15 +192,22 @@ class Extraction(DisassemblyTask):
     fixed_asset_init_orn_range_deg: float = 10.0
     fixed_asset_z_offset: float = 0.1435
 
-    fingertip_centered_pos_initial: list = [
-        0.0,
-        0.0,
-        0.2,
-    ]  # initial position of midpoint between fingertips above table
-    fingertip_centered_rot_initial: list = [3.141593, 0.0, 0.0]  # initial rotation of fingertips (Euler)
-    gripper_rand_pos_noise: list = [0.05, 0.05, 0.05]
-    gripper_rand_rot_noise: list = [0.174533, 0.174533, 0.174533]  # +-10 deg for roll/pitch/yaw
-    gripper_rand_z_offset: float = 0.05
+    # Held Asset (applies to all tasks)
+    # held_asset_pos_noise: list = [0.003, 0.0, 0.003]  # noise level of the held asset in gripper
+    held_asset_init_pos_noise: list = [0.01, 0.01, 0.01]
+    held_asset_pos_noise: list = [0.0, 0.0, 0.0]
+    held_asset_rot_init: float = 0.0
+
+    # Rewards
+    keypoint_coef_baseline: list = [5, 4]
+    keypoint_coef_coarse: list = [50, 2]
+    keypoint_coef_fine: list = [100, 0]
+    # Fraction of socket height.
+    success_threshold: float = 0.04
+    engage_threshold: float = 0.9
+    engage_height_thresh: float = 0.01
+    success_height_thresh: float = 0.003
+    close_error_thresh: float = 0.015
 
     fixed_asset: ArticulationCfg = ArticulationCfg(
         # fixed_asset: RigidObjectCfg = RigidObjectCfg(

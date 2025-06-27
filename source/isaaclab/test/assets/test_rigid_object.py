@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -28,7 +28,15 @@ from isaaclab.assets import RigidObject, RigidObjectCfg
 from isaaclab.sim import build_simulation_context
 from isaaclab.sim.spawners import materials
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
-from isaaclab.utils.math import default_orientation, quat_apply_inverse, quat_mul, random_orientation
+from isaaclab.utils.math import (
+    combine_frame_transforms,
+    default_orientation,
+    quat_apply_inverse,
+    quat_inv,
+    quat_mul,
+    quat_rotate,
+    random_orientation,
+)
 
 
 def generate_cubes_scene(
@@ -807,7 +815,7 @@ def test_body_root_state_properties(num_cubes, device, with_offset):
             else:
                 # cubes are spinning around center of mass
                 # position will not match
-                # center of mass position will be constant (i.e. spining around com)
+                # center of mass position will be constant (i.e. spinning around com)
                 torch.testing.assert_close(env_pos + offset, root_com_state_w[..., :3])
                 torch.testing.assert_close(env_pos + offset, body_com_state_w[..., :3].squeeze(-2))
                 # link position will be moving but should stay constant away from center of mass
@@ -823,7 +831,7 @@ def test_body_root_state_properties(num_cubes, device, with_offset):
                 torch.testing.assert_close(-offset, body_link_state_pos_rel_com.squeeze(-2))
 
                 # orientation of com will be a constant rotation from link orientation
-                com_quat_b = cube_object.data.com_quat_b
+                com_quat_b = cube_object.data.body_com_quat_b
                 com_quat_w = quat_mul(body_link_state_w[..., 3:7], com_quat_b)
                 torch.testing.assert_close(com_quat_w, body_com_state_w[..., 3:7])
                 torch.testing.assert_close(com_quat_w.squeeze(-2), root_com_state_w[..., 3:7])
@@ -833,7 +841,7 @@ def test_body_root_state_properties(num_cubes, device, with_offset):
                 torch.testing.assert_close(body_state_w[..., 3:7], body_link_state_w[..., 3:7])
 
                 # lin_vel will not match
-                # center of mass vel will be constant (i.e. spining around com)
+                # center of mass vel will be constant (i.e. spinning around com)
                 torch.testing.assert_close(torch.zeros_like(root_com_state_w[..., 7:10]), root_com_state_w[..., 7:10])
                 torch.testing.assert_close(torch.zeros_like(body_com_state_w[..., 7:10]), body_com_state_w[..., 7:10])
                 # link frame will be moving, and should be equal to input angular velocity cross offset
@@ -878,7 +886,7 @@ def test_write_root_state(num_cubes, device, with_offset, state_location):
         com[..., :3] = offset.to("cpu")
         cube_object.root_physx_view.set_coms(com, env_idx)
 
-        # check ceter of mass has been set
+        # check center of mass has been set
         torch.testing.assert_close(cube_object.root_physx_view.get_coms(), com)
 
         rand_state = torch.zeros_like(cube_object.data.root_state_w)
@@ -910,3 +918,109 @@ def test_write_root_state(num_cubes, device, with_offset, state_location):
                 torch.testing.assert_close(rand_state, cube_object.data.root_com_state_w)
             elif state_location == "link":
                 torch.testing.assert_close(rand_state, cube_object.data.root_link_state_w)
+
+
+@pytest.mark.parametrize("num_cubes", [1, 2])
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("with_offset", [True])
+@pytest.mark.parametrize("state_location", ["com", "link", "root"])
+def test_write_state_functions_data_consistency(num_cubes, device, with_offset, state_location):
+    """Test the setters for root_state using both the link frame and center of mass as reference frame."""
+    with build_simulation_context(device=device, gravity_enabled=False, auto_add_lighting=True) as sim:
+        sim._app_control_on_stop_handle = None
+        # Create a scene with random cubes
+        cube_object, env_pos = generate_cubes_scene(num_cubes=num_cubes, height=0.0, device=device)
+        env_idx = torch.tensor([x for x in range(num_cubes)])
+
+        # Play sim
+        sim.reset()
+
+        # Check if cube_object is initialized
+        assert cube_object.is_initialized
+
+        # change center of mass offset from link frame
+        if with_offset:
+            offset = torch.tensor([0.1, 0.0, 0.0], device=device).repeat(num_cubes, 1)
+        else:
+            offset = torch.tensor([0.0, 0.0, 0.0], device=device).repeat(num_cubes, 1)
+
+        com = cube_object.root_physx_view.get_coms()
+        com[..., :3] = offset.to("cpu")
+        cube_object.root_physx_view.set_coms(com, env_idx)
+
+        # check ceter of mass has been set
+        torch.testing.assert_close(cube_object.root_physx_view.get_coms(), com)
+
+        rand_state = torch.rand_like(cube_object.data.root_state_w)
+        # rand_state[..., :7] = cube_object.data.default_root_state[..., :7]
+        rand_state[..., :3] += env_pos
+        # make quaternion a unit vector
+        rand_state[..., 3:7] = torch.nn.functional.normalize(rand_state[..., 3:7], dim=-1)
+
+        env_idx = env_idx.to(device)
+
+        # perform step
+        sim.step()
+        # update buffers
+        cube_object.update(sim.cfg.dt)
+
+        if state_location == "com":
+            cube_object.write_root_com_state_to_sim(rand_state)
+        elif state_location == "link":
+            cube_object.write_root_link_state_to_sim(rand_state)
+        elif state_location == "root":
+            cube_object.write_root_state_to_sim(rand_state)
+
+        if state_location == "com":
+            expected_root_link_pos, expected_root_link_quat = combine_frame_transforms(
+                cube_object.data.root_com_state_w[:, :3],
+                cube_object.data.root_com_state_w[:, 3:7],
+                quat_rotate(
+                    quat_inv(cube_object.data.body_com_pose_b[:, 0, 3:7]), -cube_object.data.body_com_pose_b[:, 0, :3]
+                ),
+                quat_inv(cube_object.data.body_com_pose_b[:, 0, 3:7]),
+            )
+            expected_root_link_pose = torch.cat((expected_root_link_pos, expected_root_link_quat), dim=1)
+            # test both root_pose and root_link_state_w successfully updated when root_com_state_w updates
+            torch.testing.assert_close(expected_root_link_pose, cube_object.data.root_link_state_w[:, :7])
+            # skip 7:10 because they differs from link frame, this should be fine because we are only checking
+            # if velocity update is triggered, which can be determined by comparing angular velocity
+            torch.testing.assert_close(
+                cube_object.data.root_com_state_w[:, 10:], cube_object.data.root_link_state_w[:, 10:]
+            )
+            torch.testing.assert_close(expected_root_link_pose, cube_object.data.root_state_w[:, :7])
+            torch.testing.assert_close(cube_object.data.root_com_state_w[:, 10:], cube_object.data.root_state_w[:, 10:])
+        elif state_location == "link":
+            expected_com_pos, expected_com_quat = combine_frame_transforms(
+                cube_object.data.root_link_state_w[:, :3],
+                cube_object.data.root_link_state_w[:, 3:7],
+                cube_object.data.body_com_pose_b[:, 0, :3],
+                cube_object.data.body_com_pose_b[:, 0, 3:7],
+            )
+            expected_com_pose = torch.cat((expected_com_pos, expected_com_quat), dim=1)
+            # test both root_pose and root_com_state_w successfully updated when root_link_state_w updates
+            torch.testing.assert_close(expected_com_pose, cube_object.data.root_com_state_w[:, :7])
+            # skip 7:10 because they differs from link frame, this should be fine because we are only checking
+            # if velocity update is triggered, which can be determined by comparing angular velocity
+            torch.testing.assert_close(
+                cube_object.data.root_link_state_w[:, 10:], cube_object.data.root_com_state_w[:, 10:]
+            )
+            torch.testing.assert_close(cube_object.data.root_link_state_w[:, :7], cube_object.data.root_state_w[:, :7])
+            torch.testing.assert_close(
+                cube_object.data.root_link_state_w[:, 10:], cube_object.data.root_state_w[:, 10:]
+            )
+        elif state_location == "root":
+            expected_com_pos, expected_com_quat = combine_frame_transforms(
+                cube_object.data.root_state_w[:, :3],
+                cube_object.data.root_state_w[:, 3:7],
+                cube_object.data.body_com_pose_b[:, 0, :3],
+                cube_object.data.body_com_pose_b[:, 0, 3:7],
+            )
+            expected_com_pose = torch.cat((expected_com_pos, expected_com_quat), dim=1)
+            # test both root_com_state_w and root_link_state_w successfully updated when root_pose updates
+            torch.testing.assert_close(expected_com_pose, cube_object.data.root_com_state_w[:, :7])
+            torch.testing.assert_close(cube_object.data.root_state_w[:, 7:], cube_object.data.root_com_state_w[:, 7:])
+            torch.testing.assert_close(cube_object.data.root_state_w[:, :7], cube_object.data.root_link_state_w[:, :7])
+            torch.testing.assert_close(
+                cube_object.data.root_state_w[:, 10:], cube_object.data.root_link_state_w[:, 10:]
+            )

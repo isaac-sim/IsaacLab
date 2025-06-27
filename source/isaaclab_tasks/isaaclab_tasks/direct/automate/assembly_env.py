@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -7,9 +7,12 @@ import json
 import numpy as np
 import os
 import torch
+from datetime import datetime
 
 import carb
 import isaacsim.core.utils.torch as torch_utils
+import wandb
+import warp as wp
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation, RigidObject
@@ -19,14 +22,17 @@ from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, retrieve_file_path
 from isaaclab.utils.math import axis_angle_from_quat
 
 from . import automate_algo_utils as automate_algo
+from . import automate_log_utils as automate_log
 from . import factory_control as fc
-from .disassembly_env_cfg import OBS_DIM_CFG, STATE_DIM_CFG, DisassemblyEnvCfg
+from . import industreal_algo_utils as industreal_algo
+from .assembly_env_cfg import OBS_DIM_CFG, STATE_DIM_CFG, AssemblyEnvCfg
+from .soft_dtw_cuda import SoftDTW
 
 
-class DisassemblyEnv(DirectRLEnv):
-    cfg: DisassemblyEnvCfg
+class AssemblyEnv(DirectRLEnv):
+    cfg: AssemblyEnvCfg
 
-    def __init__(self, cfg: DisassemblyEnvCfg, render_mode: str | None = None, **kwargs):
+    def __init__(self, cfg: AssemblyEnvCfg, render_mode: str | None = None, **kwargs):
 
         # Update number of obs/states
         cfg.observation_space = sum([OBS_DIM_CFG[obs] for obs in cfg.obs_order])
@@ -40,13 +46,54 @@ class DisassemblyEnv(DirectRLEnv):
         self._set_default_dynamics_parameters()
         self._compute_intermediate_values(dt=self.physics_dt)
 
+        # Load asset meshes in warp for SDF-based dense reward
+        wp.init()
+        self.wp_device = wp.get_preferred_device()
+        self.plug_mesh, self.plug_sample_points, self.socket_mesh = industreal_algo.load_asset_mesh_in_warp(
+            self.cfg_task.assembly_dir + self.cfg_task.held_asset_cfg.obj_path,
+            self.cfg_task.assembly_dir + self.cfg_task.fixed_asset_cfg.obj_path,
+            self.cfg_task.num_mesh_sample_points,
+            self.wp_device,
+        )
+
         # Get the gripper open width based on plug object bounding box
         self.gripper_open_width = automate_algo.get_gripper_open_width(
             self.cfg_task.assembly_dir + self.cfg_task.held_asset_cfg.obj_path
         )
 
-        # initialized logging variables for disassembly paths
-        self._init_log_data_per_assembly()
+        # Create criterion for dynamic time warping (later used for imitation reward)
+        self.soft_dtw_criterion = SoftDTW(use_cuda=True, gamma=self.cfg_task.soft_dtw_gamma)
+
+        # Evaluate
+        if self.cfg_task.if_logging_eval:
+            self._init_eval_logging()
+
+        if self.cfg_task.sample_from != "rand":
+            self._init_eval_loading()
+
+        if self.cfg_task.wandb:
+            wandb.init(project="automate", name=self.cfg_task.assembly_id + "_" + datetime.now().strftime("%m/%d/%Y"))
+
+    def _init_eval_loading(self):
+        eval_held_asset_pose, eval_fixed_asset_pose, eval_success = automate_log.load_log_from_hdf5(
+            self.cfg_task.eval_filename
+        )
+
+        if self.cfg_task.sample_from == "gp":
+            self.gp = automate_algo.model_succ_w_gp(eval_held_asset_pose, eval_fixed_asset_pose, eval_success)
+        elif self.cfg_task.sample_from == "gmm":
+            self.gmm = automate_algo.model_succ_w_gmm(eval_held_asset_pose, eval_fixed_asset_pose, eval_success)
+
+    def _init_eval_logging(self):
+
+        self.held_asset_pose_log = torch.empty(
+            (0, 7), dtype=torch.float32, device=self.device
+        )  # (position, quaternion)
+        self.fixed_asset_pose_log = torch.empty((0, 7), dtype=torch.float32, device=self.device)
+        self.success_log = torch.empty((0, 1), dtype=torch.float32, device=self.device)
+
+        # Turn off SBC during evaluation so all plugs are initialized outside of the socket
+        self.cfg_task.if_sbc = False
 
     def _set_body_inertias(self):
         """Note: this is to account for the asset_options.armature parameter in IGE."""
@@ -111,6 +158,8 @@ class DisassemblyEnv(DirectRLEnv):
         self.held_base_quat = self.identity_quat.clone().detach()
 
         self.plug_grasps, self.disassembly_dists = self._load_assembly_info()
+        self.curriculum_height_bound, self.curriculum_height_step = self._get_curriculum_info(self.disassembly_dists)
+        self._load_disassembly_data()
 
         # Load grasp pose from json files given assembly ID
         # Grasp pose tensors
@@ -140,12 +189,23 @@ class DisassemblyEnv(DirectRLEnv):
         self.target_held_base_pos = torch.zeros((self.num_envs, 3), device=self.device)
         self.target_held_base_quat = self.identity_quat.clone().detach()
 
+        offsets = self._get_keypoint_offsets(self.cfg_task.num_keypoints)
+        self.keypoint_offsets = offsets * self.cfg_task.keypoint_scale
+        self.keypoints_held = torch.zeros((self.num_envs, self.cfg_task.num_keypoints, 3), device=self.device)
+        self.keypoints_fixed = torch.zeros_like(self.keypoints_held, device=self.device)
+
         # Used to compute target poses.
         self.fixed_success_pos_local = torch.zeros((self.num_envs, 3), device=self.device)
         self.fixed_success_pos_local[:, 2] = 0.0
 
         self.ep_succeeded = torch.zeros((self.num_envs,), dtype=torch.long, device=self.device)
         self.ep_success_times = torch.zeros((self.num_envs,), dtype=torch.long, device=self.device)
+
+        # SBC
+        if self.cfg_task.if_sbc:
+            self.curr_max_disp = self.curriculum_height_bound[:, 0]
+        else:
+            self.curr_max_disp = self.curriculum_height_bound[:, 1]
 
     def _load_assembly_info(self):
         """Load grasp pose and disassembly distance for plugs in each environment."""
@@ -162,6 +222,44 @@ class DisassemblyEnv(DirectRLEnv):
 
         return torch.as_tensor(plug_grasps).to(self.device), torch.as_tensor(disassembly_dists).to(self.device)
 
+    def _get_curriculum_info(self, disassembly_dists):
+        """Calculate the ranges and step sizes for Sampling-based Curriculum (SBC) in each environment."""
+
+        curriculum_height_bound = torch.zeros((self.num_envs, 2), dtype=torch.float32, device=self.device)
+        curriculum_height_step = torch.zeros((self.num_envs, 2), dtype=torch.float32, device=self.device)
+
+        curriculum_height_bound[:, 1] = disassembly_dists + self.cfg_task.curriculum_freespace_range
+
+        curriculum_height_step[:, 0] = curriculum_height_bound[:, 1] / self.cfg_task.num_curriculum_step
+        curriculum_height_step[:, 1] = -curriculum_height_step[:, 0] / 2.0
+
+        return curriculum_height_bound, curriculum_height_step
+
+    def _load_disassembly_data(self):
+        """Load pre-collected disassembly trajectories (end-effector position only)."""
+
+        retrieve_file_path(self.cfg_task.disassembly_path_json, download_dir="./")
+        with open(os.path.basename(self.cfg_task.disassembly_path_json)) as f:
+            disassembly_traj = json.load(f)
+
+        eef_pos_traj = []
+
+        for i in range(len(disassembly_traj)):
+            curr_ee_traj = np.asarray(disassembly_traj[i]["fingertip_centered_pos"]).reshape((-1, 3))
+            curr_ee_goal = np.asarray(disassembly_traj[i]["fingertip_centered_pos"]).reshape((-1, 3))[0, :]
+
+            # offset each trajectory to be relative to the goal
+            eef_pos_traj.append(curr_ee_traj - curr_ee_goal)
+
+        self.eef_pos_traj = torch.tensor(eef_pos_traj, dtype=torch.float32, device=self.device).squeeze()
+
+    def _get_keypoint_offsets(self, num_keypoints):
+        """Get uniformly-spaced keypoints along a line of unit length, centered at 0."""
+        keypoint_offsets = torch.zeros((num_keypoints, 3), device=self.device)
+        keypoint_offsets[:, -1] = torch.linspace(0.0, 1.0, num_keypoints, device=self.device) - 0.5
+
+        return keypoint_offsets
+
     def _setup_scene(self):
         """Initialize simulation scene."""
         spawn_ground_plane(prim_path="/World/ground", cfg=GroundPlaneCfg(), translation=(0.0, 0.0, -0.4))
@@ -174,8 +272,6 @@ class DisassemblyEnv(DirectRLEnv):
 
         self._robot = Articulation(self.cfg.robot)
         self._fixed_asset = Articulation(self.cfg_task.fixed_asset)
-        # self._held_asset = Articulation(self.cfg_task.held_asset)
-        # self._fixed_asset = RigidObject(self.cfg_task.fixed_asset)
         self._held_asset = RigidObject(self.cfg_task.held_asset)
 
         self.scene.clone_environments(copy_from_source=False)
@@ -183,8 +279,6 @@ class DisassemblyEnv(DirectRLEnv):
 
         self.scene.articulations["robot"] = self._robot
         self.scene.articulations["fixed_asset"] = self._fixed_asset
-        # self.scene.articulations["held_asset"] = self._held_asset
-        # self.scene.rigid_objects["fixed_asset"] = self._fixed_asset
         self.scene.rigid_objects["held_asset"] = self._held_asset
 
         # add lights
@@ -254,6 +348,19 @@ class DisassemblyEnv(DirectRLEnv):
             self.fixed_quat, self.fixed_pos, self.identity_quat, self.fixed_success_pos_local
         )
 
+        # Compute pos of keypoints on held asset, and fixed asset in world frame
+        for idx, keypoint_offset in enumerate(self.keypoint_offsets):
+            self.keypoints_held[:, idx] = torch_utils.tf_combine(
+                self.held_base_quat, self.held_base_pos, self.identity_quat, keypoint_offset.repeat(self.num_envs, 1)
+            )[1]
+            self.keypoints_fixed[:, idx] = torch_utils.tf_combine(
+                self.target_held_base_quat,
+                self.target_held_base_pos,
+                self.identity_quat,
+                keypoint_offset.repeat(self.num_envs, 1),
+            )[1]
+
+        self.keypoint_dist = torch.norm(self.keypoints_held - self.keypoints_fixed, p=2, dim=-1).mean(-1)
         self.last_update_timestamp = self._robot._data._sim_timestamp
 
     def _get_observations(self):
@@ -300,6 +407,10 @@ class DisassemblyEnv(DirectRLEnv):
         env_ids = self.reset_buf.nonzero(as_tuple=False).squeeze(-1)
         if len(env_ids) > 0:
             self._reset_buffers(env_ids)
+
+        self.actions = (
+            self.cfg.ctrl.ema_factor * action.clone().to(self.device) + (1 - self.cfg.ctrl.ema_factor) * self.actions
+        )
 
     def move_gripper_in_place(self, ctrl_target_gripper_dof_pos):
         """Keep gripper in current position as gripper closes."""
@@ -424,31 +535,112 @@ class DisassemblyEnv(DirectRLEnv):
         """Update intermediate values used for rewards and observations."""
         self._compute_intermediate_values(dt=self.physics_dt)
         time_out = self.episode_length_buf >= self.max_episode_length - 1
-
-        if time_out[0]:
-
-            self.close_gripper(env_ids=np.array(range(self.num_envs)).reshape(-1))
-            self._disassemble_plug_from_socket()
-
-            if_intersect = (self.held_pos[:, 2] < self.fixed_pos[:, 2] + self.disassembly_dists).cpu().numpy()
-            success_env_ids = np.argwhere(if_intersect == 0).reshape(-1)
-
-            self._log_robot_state(success_env_ids)
-            self._log_object_state(success_env_ids)
-            self._save_log_traj()
-
         return time_out, time_out
 
     def _get_rewards(self):
         """Update rewards and compute success statistics."""
         # Get successful and failed envs at current timestep
 
-        rew_buf = self._update_rew_buf()
+        curr_successes = automate_algo.check_plug_inserted_in_socket(
+            self.held_pos,
+            self.fixed_pos,
+            self.disassembly_dists,
+            self.keypoints_held,
+            self.keypoints_fixed,
+            self.cfg_task.close_error_thresh,
+            self.episode_length_buf,
+        )
+
+        rew_buf = self._update_rew_buf(curr_successes)
+        self.ep_succeeded = torch.logical_or(self.ep_succeeded, curr_successes)
+
+        if self.cfg_task.wandb:
+            wandb.log(self.extras)
+
+        # Only log episode success rates at the end of an episode.
+        if torch.any(self.reset_buf):
+            self.extras["successes"] = torch.count_nonzero(self.ep_succeeded) / self.num_envs
+
+            sbc_rwd_scale = automate_algo.get_curriculum_reward_scale(
+                curr_max_disp=self.curr_max_disp,
+                curriculum_height_bound=self.curriculum_height_bound,
+            )
+
+            rew_buf *= sbc_rwd_scale
+
+            if self.cfg_task.if_sbc:
+
+                self.curr_max_disp = automate_algo.get_new_max_disp(
+                    curr_success=torch.count_nonzero(self.ep_succeeded) / self.num_envs,
+                    cfg_task=self.cfg_task,
+                    curriculum_height_bound=self.curriculum_height_bound,
+                    curriculum_height_step=self.curriculum_height_step,
+                    curr_max_disp=self.curr_max_disp,
+                )
+
+            self.extras["curr_max_disp"] = self.curr_max_disp
+            if self.cfg_task.wandb:
+                wandb.log({
+                    "success": torch.mean(self.ep_succeeded.float()),
+                    "reward": torch.mean(rew_buf),
+                    "sbc_rwd_scale": sbc_rwd_scale,
+                })
+
+            if self.cfg_task.if_logging_eval:
+                self.success_log = torch.cat([self.success_log, self.ep_succeeded.reshape((self.num_envs, 1))], dim=0)
+
+                if self.success_log.shape[0] >= self.cfg_task.num_eval_trials:
+                    automate_log.write_log_to_hdf5(
+                        self.held_asset_pose_log,
+                        self.fixed_asset_pose_log,
+                        self.success_log,
+                        self.cfg_task.eval_filename,
+                    )
+                    exit(0)
+
+        self.prev_actions = self.actions.clone()
         return rew_buf
 
-    def _update_rew_buf(self):
+    def _update_rew_buf(self, curr_successes):
         """Compute reward at current timestep."""
-        return torch.zeros((self.num_envs,), device=self.device)
+        rew_dict = dict({})
+
+        # SDF-based reward.
+        rew_dict["sdf"] = industreal_algo.get_sdf_reward(
+            self.plug_mesh,
+            self.plug_sample_points,
+            self.held_pos,
+            self.held_quat,
+            self.fixed_pos,
+            self.fixed_quat,
+            self.wp_device,
+            self.device,
+        )
+
+        rew_dict["curr_successes"] = curr_successes.clone().float()
+
+        # Imitation Reward: Calculate reward
+        curr_eef_pos = (self.fingertip_midpoint_pos - self.gripper_goal_pos).reshape(
+            -1, 3
+        )  # relative position instead of absolute position
+        rew_dict["imitation"] = automate_algo.get_imitation_reward_from_dtw(
+            self.eef_pos_traj, curr_eef_pos, self.prev_fingertip_midpoint_pos, self.soft_dtw_criterion, self.device
+        )
+
+        self.prev_fingertip_midpoint_pos = torch.cat(
+            (self.prev_fingertip_midpoint_pos[:, 1:, :], curr_eef_pos.unsqueeze(1).clone().detach()), dim=1
+        )
+
+        rew_buf = (
+            self.cfg_task.sdf_rwd_scale * rew_dict["sdf"]
+            + self.cfg_task.imitation_rwd_scale * rew_dict["imitation"]
+            + rew_dict["curr_successes"]
+        )
+
+        for rew_name, rew in rew_dict.items():
+            self.extras[f"logs_rew_{rew_name}"] = rew.mean()
+
+        return rew_buf
 
     def _reset_idx(self, env_ids):
         """
@@ -462,13 +654,20 @@ class DisassemblyEnv(DirectRLEnv):
 
         self.randomize_initial_state(env_ids)
 
+        if self.cfg_task.if_logging_eval:
+            self.held_asset_pose_log = torch.cat(
+                [self.held_asset_pose_log, torch.cat([self.held_pos, self.held_quat], dim=1)], dim=0
+            )
+            self.fixed_asset_pose_log = torch.cat(
+                [self.fixed_asset_pose_log, torch.cat([self.fixed_pos, self.fixed_quat], dim=1)], dim=0
+            )
+
         prev_fingertip_midpoint_pos = (self.fingertip_midpoint_pos - self.gripper_goal_pos).unsqueeze(
             1
         )  # (num_envs, 1, 3)
         self.prev_fingertip_midpoint_pos = torch.repeat_interleave(
             prev_fingertip_midpoint_pos, self.cfg_task.num_point_robot_traj, dim=1
         )  # (num_envs, num_point_robot_traj, 3)
-        self._init_log_data_per_episode()
 
     def _set_assets_to_default_pose(self, env_ids):
         """Move assets to default pose before randomization."""
@@ -550,54 +749,8 @@ class DisassemblyEnv(DirectRLEnv):
 
         return pos_error, axis_angle_error
 
-    def _move_gripper_to_eef_pose(self, env_ids, goal_pos, goal_quat, sim_steps, if_log=False):
-
-        for _ in range(sim_steps):
-            if if_log:
-                self._log_robot_state_per_timestep()
-            # print('finger', self.fingertip_midpoint_pos[0], 'goal', goal_pos[0])
-            # Compute error to target.
-            pos_error, axis_angle_error = fc.get_pose_error(
-                fingertip_midpoint_pos=self.fingertip_midpoint_pos[env_ids],
-                fingertip_midpoint_quat=self.fingertip_midpoint_quat[env_ids],
-                ctrl_target_fingertip_midpoint_pos=goal_pos[env_ids],
-                ctrl_target_fingertip_midpoint_quat=goal_quat[env_ids],
-                jacobian_type="geometric",
-                rot_error_type="axis_angle",
-            )
-
-            delta_hand_pose = torch.cat((pos_error, axis_angle_error), dim=-1)
-            # print('delta hand pose', delta_hand_pose[0])
-            self.actions *= 0.0
-            # print('action shape', self.actions[env_ids, :6].shape)
-            # print('delta hand shape', delta_hand_pose.shape)
-            self.actions[env_ids, :6] = delta_hand_pose
-
-            is_rendering = self.sim.has_gui() or self.sim.has_rtx_sensors()
-            # perform physics stepping
-            for _ in range(self.cfg.decimation):
-                self._sim_step_counter += 1
-                # set actions into buffers
-                self._apply_action()
-                # set actions into simulator
-                self.scene.write_data_to_sim()
-                # simulate
-                self.sim.step(render=False)
-                # render between steps only if the GUI or an RTX sensor needs it
-                # note: we assume the render interval to be the shortest accepted rendering interval.
-                #    If a camera needs rendering at a faster frequency, this will lead to unexpected behavior.
-                if self._sim_step_counter % self.cfg.sim.render_interval == 0 and is_rendering:
-                    self.sim.render()
-                # update buffers at sim dt
-                self.scene.update(dt=self.physics_dt)
-
-            # Simulate and update tensors.
-            self.step_sim_no_action()
-
     def _set_franka_to_default_pose(self, joints, env_ids):
         """Return Franka to its default joint position."""
-        # gripper_width = self.cfg_task.held_asset_cfg.diameter / 2 * 1.25
-        # gripper_width = self.cfg_task.hand_width_max / 3.0
         gripper_width = self.gripper_open_width
         joint_pos = self._robot.data.default_joint_pos[env_ids]
         joint_pos[:, 7:] = gripper_width  # MIMIC
@@ -659,35 +812,51 @@ class DisassemblyEnv(DirectRLEnv):
 
     def randomize_held_initial_state(self, env_ids, pre_grasp):
 
-        # Set plug pos to assembled state
+        curr_curriculum_disp_range = self.curriculum_height_bound[:, 1] - self.curr_max_disp
+        if pre_grasp:
+            self.curriculum_disp = self.curr_max_disp + curr_curriculum_disp_range * (
+                torch.rand((self.num_envs,), dtype=torch.float32, device=self.device)
+            )
+
+            if self.cfg_task.sample_from == "rand":
+
+                rand_sample = torch.rand((len(env_ids), 3), dtype=torch.float32, device=self.device)
+                held_pos_init_rand = 2 * (rand_sample - 0.5)  # [-1, 1]
+                held_asset_init_pos_rand = torch.tensor(
+                    self.cfg_task.held_asset_init_pos_noise, dtype=torch.float32, device=self.device
+                )
+                self.held_pos_init_rand = held_pos_init_rand @ torch.diag(held_asset_init_pos_rand)
+
+            if self.cfg_task.sample_from == "gp":
+                rand_sample = torch.rand((self.cfg_task.num_gp_candidates, 3), dtype=torch.float32, device=self.device)
+                held_pos_init_rand = 2 * (rand_sample - 0.5)  # [-1, 1]
+                held_asset_init_pos_rand = torch.tensor(
+                    self.cfg_task.held_asset_init_pos_noise, dtype=torch.float32, device=self.device
+                )
+                held_asset_init_candidates = held_pos_init_rand @ torch.diag(held_asset_init_pos_rand)
+                self.held_pos_init_rand, _ = automate_algo.propose_failure_samples_batch_from_gp(
+                    self.gp, held_asset_init_candidates.cpu().detach().numpy(), len(env_ids), self.device
+                )
+
+            if self.cfg_task.sample_from == "gmm":
+                self.held_pos_init_rand = automate_algo.sample_rel_pos_from_gmm(self.gmm, len(env_ids), self.device)
+
+        # Set plug pos to assembled state, but offset plug Z-coordinate by height of socket,
+        # minus curriculum displacement
         held_state = self._held_asset.data.default_root_state.clone()
         held_state[env_ids, 0:3] = self.fixed_pos[env_ids].clone() + self.scene.env_origins[env_ids]
         held_state[env_ids, 3:7] = self.fixed_quat[env_ids].clone()
         held_state[env_ids, 7:] = 0.0
 
+        held_state[env_ids, 2] += self.curriculum_disp
+
+        plug_in_freespace_idx = torch.argwhere(self.curriculum_disp > self.disassembly_dists)
+        held_state[plug_in_freespace_idx, :2] += self.held_pos_init_rand[plug_in_freespace_idx, :2]
+
         self._held_asset.write_root_state_to_sim(held_state)
         self._held_asset.reset()
 
         self.step_sim_no_action()
-
-    def close_gripper(self, env_ids):
-        # Close hand
-        # Set gains to use for quick resets.
-        reset_task_prop_gains = torch.tensor(self.cfg.ctrl.reset_task_prop_gains, device=self.device).repeat(
-            (self.num_envs, 1)
-        )
-        reset_rot_deriv_scale = self.cfg.ctrl.reset_rot_deriv_scale
-        self._set_gains(reset_task_prop_gains, reset_rot_deriv_scale)
-
-        self.step_sim_no_action()
-
-        grasp_time = 0.0
-        while grasp_time < 0.25:
-            self.ctrl_target_joint_pos[env_ids, 7:] = 0.0  # Close gripper.
-            self.ctrl_target_gripper_dof_pos = 0.0
-            self.move_gripper_in_place(ctrl_target_gripper_dof_pos=0.0)
-            self.step_sim_no_action()
-            grasp_time += self.sim.get_physics_dt()
 
     def randomize_initial_state(self, env_ids):
         """Randomize initial state and perform any episode-level randomization."""
@@ -714,7 +883,23 @@ class DisassemblyEnv(DirectRLEnv):
 
         self.randomize_held_initial_state(env_ids, pre_grasp=False)
 
-        self.close_gripper(env_ids)
+        # Close hand
+        # Set gains to use for quick resets.
+        reset_task_prop_gains = torch.tensor(self.cfg.ctrl.reset_task_prop_gains, device=self.device).repeat(
+            (self.num_envs, 1)
+        )
+        reset_rot_deriv_scale = self.cfg.ctrl.reset_rot_deriv_scale
+        self._set_gains(reset_task_prop_gains, reset_rot_deriv_scale)
+
+        self.step_sim_no_action()
+
+        grasp_time = 0.0
+        while grasp_time < 0.25:
+            self.ctrl_target_joint_pos[env_ids, 7:] = 0.0  # Close gripper.
+            self.ctrl_target_gripper_dof_pos = 0.0
+            self.move_gripper_in_place(ctrl_target_gripper_dof_pos=0.0)
+            self.step_sim_no_action()
+            grasp_time += self.sim.get_physics_dt()
 
         self.prev_joint_pos = self.joint_pos[:, 0:7].clone()
         self.prev_fingertip_pos = self.fingertip_midpoint_pos.clone()
@@ -733,153 +918,3 @@ class DisassemblyEnv(DirectRLEnv):
         self._set_gains(self.default_gains)
 
         physics_sim_view.set_gravity(carb.Float3(*self.cfg.sim.gravity))
-
-    def _disassemble_plug_from_socket(self):
-        """Lift plug from socket till disassembly and then randomize end-effector pose."""
-
-        if_intersect = np.ones(self.num_envs, dtype=np.float32)
-
-        env_ids = np.argwhere(if_intersect == 1).reshape(-1)
-        self._lift_gripper(self.disassembly_dists * 3.0, self.cfg_task.disassemble_sim_steps, env_ids)
-
-        self.step_sim_no_action()
-
-        if_intersect = (self.held_pos[:, 2] < self.fixed_pos[:, 2] + self.disassembly_dists).cpu().numpy()
-        env_ids = np.argwhere(if_intersect == 0).reshape(-1)
-        # print('env ids', env_ids)
-        self._randomize_gripper_pose(self.cfg_task.move_gripper_sim_steps, env_ids)
-
-    def _lift_gripper(self, lift_distance, sim_steps, env_ids=None):
-        """Lift gripper by specified distance. Called outside RL loop (i.e., after last step of episode)."""
-
-        ctrl_tgt_pos = torch.empty_like(self.fingertip_midpoint_pos).copy_(self.fingertip_midpoint_pos)
-        # ctrl_tgt_quat = torch.tensor([1.0, 0.0, 0.0, 0.0], dtype=torch.float32, device=self.device).repeat((self.num_envs,1))
-        ctrl_tgt_quat = torch.empty_like(self.fingertip_midpoint_quat).copy_(self.fingertip_midpoint_quat)
-        ctrl_tgt_pos[:, 2] += lift_distance
-        if len(env_ids) == 0:
-            env_ids = np.array(range(self.num_envs)).reshape(-1)
-
-        self._move_gripper_to_eef_pose(env_ids, ctrl_tgt_pos, ctrl_tgt_quat, sim_steps, if_log=True)
-
-    def _randomize_gripper_pose(self, sim_steps, env_ids):
-        """Move gripper to random pose."""
-
-        ctrl_tgt_pos = torch.empty_like(self.gripper_goal_pos).copy_(self.gripper_goal_pos)
-        ctrl_tgt_pos[:, 2] += self.cfg_task.gripper_rand_z_offset
-
-        # ctrl_tgt_pos = torch.empty_like(self.fingertip_midpoint_pos).copy_(self.fingertip_midpoint_pos)
-
-        fingertip_centered_pos_noise = 2 * (
-            torch.rand((self.num_envs, 3), dtype=torch.float32, device=self.device) - 0.5
-        )  # [-1, 1]
-        fingertip_centered_pos_noise = fingertip_centered_pos_noise @ torch.diag(
-            torch.tensor(self.cfg_task.gripper_rand_pos_noise, device=self.device)
-        )
-        ctrl_tgt_pos += fingertip_centered_pos_noise
-
-        # Set target rot
-        ctrl_target_fingertip_centered_euler = (
-            torch.tensor(self.cfg_task.fingertip_centered_rot_initial, device=self.device)
-            .unsqueeze(0)
-            .repeat(self.num_envs, 1)
-        )
-
-        fingertip_centered_rot_noise = 2 * (
-            torch.rand((self.num_envs, 3), dtype=torch.float32, device=self.device) - 0.5
-        )  # [-1, 1]
-        fingertip_centered_rot_noise = fingertip_centered_rot_noise @ torch.diag(
-            torch.tensor(self.cfg_task.gripper_rand_rot_noise, device=self.device)
-        )
-        ctrl_target_fingertip_centered_euler += fingertip_centered_rot_noise
-        ctrl_tgt_quat = torch_utils.quat_from_euler_xyz(
-            ctrl_target_fingertip_centered_euler[:, 0],
-            ctrl_target_fingertip_centered_euler[:, 1],
-            ctrl_target_fingertip_centered_euler[:, 2],
-        )
-
-        # ctrl_tgt_quat = torch.empty_like(self.fingertip_midpoint_quat).copy_(self.fingertip_midpoint_quat)
-
-        self._move_gripper_to_eef_pose(env_ids, ctrl_tgt_pos, ctrl_tgt_quat, sim_steps, if_log=True)
-
-    def _init_log_data_per_assembly(self):
-
-        self.log_assembly_id = []
-        self.log_plug_pos = []
-        self.log_plug_quat = []
-        self.log_init_plug_pos = []
-        self.log_init_plug_quat = []
-        self.log_plug_grasp_pos = []
-        self.log_plug_grasp_quat = []
-        self.log_fingertip_centered_pos = []
-        self.log_fingertip_centered_quat = []
-        self.log_arm_dof_pos = []
-
-    def _init_log_data_per_episode(self):
-
-        self.log_fingertip_centered_pos_traj = []
-        self.log_fingertip_centered_quat_traj = []
-        self.log_arm_dof_pos_traj = []
-        self.log_plug_pos_traj = []
-        self.log_plug_quat_traj = []
-
-        self.init_plug_grasp_pos = self.gripper_goal_pos.clone().detach()
-        self.init_plug_grasp_quat = self.gripper_goal_quat.clone().detach()
-        self.init_plug_pos = self.held_pos.clone().detach()
-        self.init_plug_quat = self.held_quat.clone().detach()
-
-    def _log_robot_state(self, env_ids):
-
-        self.log_plug_pos += torch.stack(self.log_plug_pos_traj, dim=1)[env_ids].cpu().tolist()
-        self.log_plug_quat += torch.stack(self.log_plug_quat_traj, dim=1)[env_ids].cpu().tolist()
-        self.log_arm_dof_pos += torch.stack(self.log_arm_dof_pos_traj, dim=1)[env_ids].cpu().tolist()
-        self.log_fingertip_centered_pos += (
-            torch.stack(self.log_fingertip_centered_pos_traj, dim=1)[env_ids].cpu().tolist()
-        )
-        self.log_fingertip_centered_quat += (
-            torch.stack(self.log_fingertip_centered_quat_traj, dim=1)[env_ids].cpu().tolist()
-        )
-
-    def _log_robot_state_per_timestep(self):
-
-        self.log_plug_pos_traj.append(self.held_pos.clone().detach())
-        self.log_plug_quat_traj.append(self.held_quat.clone().detach())
-        self.log_arm_dof_pos_traj.append(self.joint_pos[:, 0:7].clone().detach())
-        self.log_fingertip_centered_pos_traj.append(self.fingertip_midpoint_pos.clone().detach())
-        self.log_fingertip_centered_quat_traj.append(self.fingertip_midpoint_quat.clone().detach())
-
-    def _log_object_state(self, env_ids):
-
-        self.log_plug_grasp_pos += self.init_plug_grasp_pos[env_ids].cpu().tolist()
-        self.log_plug_grasp_quat += self.init_plug_grasp_quat[env_ids].cpu().tolist()
-        self.log_init_plug_pos += self.init_plug_pos[env_ids].cpu().tolist()
-        self.log_init_plug_quat += self.init_plug_quat[env_ids].cpu().tolist()
-
-    def _save_log_traj(self):
-
-        if len(self.log_arm_dof_pos) > self.cfg_task.num_log_traj:
-
-            log_item = []
-            for i in range(self.cfg_task.num_log_traj):
-                curr_dict = dict({})
-                curr_dict["fingertip_centered_pos"] = self.log_fingertip_centered_pos[i]
-                curr_dict["fingertip_centered_quat"] = self.log_fingertip_centered_quat[i]
-                curr_dict["arm_dof_pos"] = self.log_arm_dof_pos[i]
-                curr_dict["plug_grasp_pos"] = self.log_plug_grasp_pos[i]
-                curr_dict["plug_grasp_quat"] = self.log_plug_grasp_quat[i]
-                curr_dict["init_plug_pos"] = self.log_init_plug_pos[i]
-                curr_dict["init_plug_quat"] = self.log_init_plug_quat[i]
-                curr_dict["plug_pos"] = self.log_plug_pos[i]
-                curr_dict["plug_quat"] = self.log_plug_quat[i]
-
-                log_item.append(curr_dict)
-
-            log_filename = os.path.join(
-                os.getcwd(), self.cfg_task.disassembly_dir, self.cfg_task.assembly_id + "_disassemble_traj.json"
-            )
-
-            with open(log_filename, "w+") as out_file:
-                json.dump(log_item, out_file, indent=6)
-
-            exit(0)
-        else:
-            print("current logging item num: ", len(self.log_arm_dof_pos))

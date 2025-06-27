@@ -35,6 +35,7 @@ maximum effort:
 .. math::
 
     \tau_{j, computed} & = k_p * (q_{des} - q) + k_d * (\dot{q}_{des} - \dot{q}) + \tau_{ff} \\
+    \tau_{j, max} & = \gamma \times \tau_{motor, max} \\
     \tau_{j, applied} & = clip(\tau_{computed}, -\tau_{j, max}, \tau_{j, max})
 
 

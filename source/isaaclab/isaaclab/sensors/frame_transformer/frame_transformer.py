@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -17,7 +17,14 @@ from pxr import UsdPhysics
 import isaaclab.sim as sim_utils
 import isaaclab.utils.string as string_utils
 from isaaclab.markers import VisualizationMarkers
-from isaaclab.utils.math import combine_frame_transforms, convert_quat, is_identity_pose, subtract_frame_transforms
+from isaaclab.utils.math import (
+    combine_frame_transforms,
+    convert_quat,
+    is_identity_pose,
+    normalize,
+    quat_from_angle_axis,
+    subtract_frame_transforms,
+)
 
 from ..sensor_base import SensorBase
 from .frame_transformer_data import FrameTransformerData
@@ -423,38 +430,40 @@ class FrameTransformer(SensorBase):
             if not hasattr(self, "frame_visualizer"):
                 self.frame_visualizer = VisualizationMarkers(self.cfg.visualizer_cfg)
 
-                try:
-                    # isaacsim.util is not available in headless mode
-                    import isaacsim.util.debug_draw._debug_draw as isaac_debug_draw
-
-                    self.debug_draw = isaac_debug_draw.acquire_debug_draw_interface()
-                except ImportError:
-                    omni.log.info("isaacsim.util.debug_draw module not found. Debug visualization will be limited.")
-
             # set their visibility to true
             self.frame_visualizer.set_visibility(True)
         else:
             if hasattr(self, "frame_visualizer"):
                 self.frame_visualizer.set_visibility(False)
-                # clear the lines
-                if hasattr(self, "debug_draw"):
-                    self.debug_draw.clear_lines()
 
     def _debug_vis_callback(self, event):
-        # Update the visualized markers
-        all_pos = torch.cat([self._data.source_pos_w, self._data.target_pos_w.view(-1, 3)], dim=0)
-        all_quat = torch.cat([self._data.source_quat_w, self._data.target_quat_w.view(-1, 4)], dim=0)
-        self.frame_visualizer.visualize(all_pos, all_quat)
+        # Get the all frames pose
+        frames_pos = torch.cat([self._data.source_pos_w, self._data.target_pos_w.view(-1, 3)], dim=0)
+        frames_quat = torch.cat([self._data.source_quat_w, self._data.target_quat_w.view(-1, 4)], dim=0)
 
-        if hasattr(self, "debug_draw"):
-            # Draw lines connecting the source frame to the target frames
-            self.debug_draw.clear_lines()
-            # make the lines color yellow
-            source_pos = self._data.source_pos_w.cpu().tolist()
-            colors = [[1, 1, 0, 1]] * self._num_envs
-            for frame_index in range(len(self._target_frame_names)):
-                target_pos = self._data.target_pos_w[:, frame_index].cpu().tolist()
-                self.debug_draw.draw_lines(source_pos, target_pos, colors, [1.5] * self._num_envs)
+        # Get the all connecting lines between frames pose
+        lines_pos, lines_quat, lines_length = self._get_connecting_lines(
+            start_pos=self._data.source_pos_w.repeat_interleave(self._data.target_pos_w.size(1), dim=0),
+            end_pos=self._data.target_pos_w.view(-1, 3),
+        )
+
+        # Initialize default (identity) scales and marker indices for all markers (frames + lines)
+        marker_scales = torch.ones(frames_pos.size(0) + lines_pos.size(0), 3)
+        marker_indices = torch.zeros(marker_scales.size(0))
+
+        # Set the z-scale of line markers to represent their actual length
+        marker_scales[-lines_length.size(0) :, -1] = lines_length
+
+        # Assign marker config index 1 to line markers
+        marker_indices[-lines_length.size(0) :] = 1
+
+        # Update the frame and the connecting line visualizer
+        self.frame_visualizer.visualize(
+            translations=torch.cat((frames_pos, lines_pos), dim=0),
+            orientations=torch.cat((frames_quat, lines_quat), dim=0),
+            scales=marker_scales,
+            marker_indices=marker_indices,
+        )
 
     """
     Internal simulation callbacks.
@@ -466,3 +475,52 @@ class FrameTransformer(SensorBase):
         super()._invalidate_initialize_callback(event)
         # set all existing views to None to invalidate them
         self._frame_physx_view = None
+
+    """
+    Internal helpers.
+    """
+
+    def _get_connecting_lines(
+        self, start_pos: torch.Tensor, end_pos: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        """
+        Given start and end points, compute the positions (mid-point), orientations, and lengths of the connecting lines.
+
+        Args:
+            start_pos: The start positions of the connecting lines. Shape is (N, 3).
+            end_pos: The end positions of the connecting lines. Shape is (N, 3).
+
+        Returns:
+            positions: The position of each connecting line. Shape is (N, 3).
+            orientations: The orientation of each connecting line in quaternion. Shape is (N, 4).
+            lengths: The length of each connecting line. Shape is (N,).
+        """
+        direction = end_pos - start_pos
+        lengths = torch.norm(direction, dim=-1)
+        positions = (start_pos + end_pos) / 2
+
+        # Get default direction (along z-axis)
+        default_direction = torch.tensor([0.0, 0.0, 1.0], device=self.device).expand(start_pos.size(0), -1)
+
+        # Normalize direction vector
+        direction_norm = normalize(direction)
+
+        # Calculate rotation from default direction to target direction
+        rotation_axis = torch.linalg.cross(default_direction, direction_norm)
+        rotation_axis_norm = torch.norm(rotation_axis, dim=-1)
+
+        # Handle case where vectors are parallel
+        mask = rotation_axis_norm > 1e-6
+        rotation_axis = torch.where(
+            mask.unsqueeze(-1),
+            normalize(rotation_axis),
+            torch.tensor([1.0, 0.0, 0.0], device=self.device).expand(start_pos.size(0), -1),
+        )
+
+        # Calculate rotation angle
+        cos_angle = torch.sum(default_direction * direction_norm, dim=-1)
+        cos_angle = torch.clamp(cos_angle, -1.0, 1.0)
+        angle = torch.acos(cos_angle)
+        orientations = quat_from_angle_axis(angle, rotation_axis)
+
+        return positions, orientations, lengths
