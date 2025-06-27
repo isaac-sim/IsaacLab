@@ -439,7 +439,7 @@ def main():
 
                 # actions[0, 2] += 0.01
                 # compute actions
-                control_gain = 0.1
+                control_gain = 0.01
                 actions[0, 0] += delta_pose[0] * control_gain
                 actions[0, 1] += delta_pose[1] * control_gain
                 actions[0, 2] += delta_pose[2] * control_gain
