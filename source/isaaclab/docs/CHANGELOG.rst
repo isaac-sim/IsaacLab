@@ -4,6 +4,11 @@ Changelog
 0.40.11 (2025-06-27)
 ~~~~~~~~~~~~~~~~~~~~
 
+Added
+^^^^^
+
+* Added unit test for :func:`~isaaclab.utils.math.quat_inv`.
+
 Fixed
 ^^^^^
 
