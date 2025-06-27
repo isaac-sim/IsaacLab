@@ -708,7 +708,7 @@ along with performance benchmarks across the libraries.</p>
 <section id="training-performance">
 <h2>Training Performance<a class="headerlink" href="#training-performance" title="Permalink to this heading">#</a></h2>
 <p>We performed training with each RL library on the same <code class="docutils literal notranslate"><span class="pre">Isaac-Humanoid-v0</span></code> environment
-with <code class="docutils literal notranslate"><span class="pre">--headless</span></code> on a single RTX 4090 GPU using 4096 environments
+with <code class="docutils literal notranslate"><span class="pre">--headless</span></code> on a single RTX PRO 6000 GPU using 4096 environments
 and logged the total training time for 65.5M steps for each RL library.</p>
 <div class="pst-scrollable-table-container"><table class="table">
 <thead>
@@ -718,16 +718,16 @@ and logged the total training time for 65.5M steps for each RL library.</p>
 </thead>
 <tbody>
 <tr class="row-even"><td><p>RL-Games</p></td>
-<td><p>203</p></td>
-</tr>
-<tr class="row-odd"><td><p>SKRL</p></td>
-<td><p>204</p></td>
-</tr>
-<tr class="row-even"><td><p>RSL RL</p></td>
 <td><p>207</p></td>
 </tr>
+<tr class="row-odd"><td><p>SKRL</p></td>
+<td><p>208</p></td>
+</tr>
+<tr class="row-even"><td><p>RSL RL</p></td>
+<td><p>199</p></td>
+</tr>
 <tr class="row-odd"><td><p>Stable-Baselines3</p></td>
-<td><p>550</p></td>
+<td><p>322</p></td>
 </tr>
 </tbody>
 </table>
