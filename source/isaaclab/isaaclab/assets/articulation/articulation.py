@@ -1247,24 +1247,6 @@ class Articulation(AssetBase):
         root_prim_path_expr = self.cfg.prim_path + root_prim_path[len(template_prim_path) :]
         self._root_newton_view = NewtonArticulationView(NewtonManager.get_model(), root_prim_path_expr.replace(".*", "*").replace("env_*", "*"), verbose=True)
 
-        if not self._root_newton_view.is_floating_base:
-            self._data.default_joint_pos_limits = torch.stack((wp.to_torch(self._root_newton_view.get_attribute("joint_limit_lower", NewtonManager.get_model())), 
-                                                             wp.to_torch(self._root_newton_view.get_attribute("joint_limit_upper", NewtonManager.get_model()))), dim=2).clone()
-            self._data.default_joint_stiffness = wp.to_torch(self._root_newton_view.get_attribute("joint_target_ke", NewtonManager.get_model())).clone().clone()
-            self._data.default_joint_damping = wp.to_torch(self._root_newton_view.get_attribute("joint_target_kd", NewtonManager.get_model())).clone().clone()
-
-        else:
-            self._data.default_joint_pos_limits = torch.stack((wp.to_torch(self._root_newton_view.get_attribute("joint_limit_lower", NewtonManager.get_model())), 
-                                                             wp.to_torch(self._root_newton_view.get_attribute("joint_limit_upper", NewtonManager.get_model()))), dim=2).clone()[:,6:]
-            self._data.default_joint_stiffness = wp.to_torch(self._root_newton_view.get_attribute("joint_target_ke", NewtonManager.get_model())).clone()[:,6:]
-            self._data.default_joint_damping = wp.to_torch(self._root_newton_view.get_attribute("joint_target_kd", NewtonManager.get_model())).clone()[:,6:]
-
-        self._data.default_joint_armature = wp.to_torch(self._root_newton_view.get_dof_armatures(NewtonManager.get_model())).clone()
-        self._data.default_joint_friction_coeff = (
-            torch.zeros([self.num_instances, self.num_joints], dtype=torch.float32, device=self.device).clone()
-        )
-
-
         # log information about the articulation
         print(f"[INFO]:Articulation initialized at: {self.cfg.prim_path} with root '{root_prim_path_expr}'.")
         print(f"[INFO]:Is fixed root: {self.is_fixed_base}")
@@ -1317,10 +1299,18 @@ class Articulation(AssetBase):
         #     self.root_physx_view.get_dof_friction_coefficients().to(self.device).clone()
         # )
         #TODO: read out all joint parameters from simulation
-        self._data.default_joint_pos_limits = torch.stack((wp.to_torch(self._root_newton_view.get_attribute("joint_limit_lower", NewtonManager.get_model())), 
-                                                         wp.to_torch(self._root_newton_view.get_attribute("joint_limit_upper", NewtonManager.get_model()))), dim=2)
-        self._data.default_joint_stiffness = wp.to_torch(self._root_newton_view.get_attribute("joint_target_ke", NewtonManager.get_model())).clone()
-        self._data.default_joint_damping = wp.to_torch(self._root_newton_view.get_attribute("joint_target_kd", NewtonManager.get_model())).clone()
+        if not self._root_newton_view.is_floating_base:
+            self._data.default_joint_pos_limits = torch.stack((wp.to_torch(self._root_newton_view.get_attribute("joint_limit_lower", NewtonManager.get_model())), 
+                                                             wp.to_torch(self._root_newton_view.get_attribute("joint_limit_upper", NewtonManager.get_model()))), dim=2).clone()
+            self._data.default_joint_stiffness = wp.to_torch(self._root_newton_view.get_attribute("joint_target_ke", NewtonManager.get_model())).clone().clone()
+            self._data.default_joint_damping = wp.to_torch(self._root_newton_view.get_attribute("joint_target_kd", NewtonManager.get_model())).clone().clone()
+
+        else:
+            self._data.default_joint_pos_limits = torch.stack((wp.to_torch(self._root_newton_view.get_attribute("joint_limit_lower", NewtonManager.get_model())), 
+                                                             wp.to_torch(self._root_newton_view.get_attribute("joint_limit_upper", NewtonManager.get_model()))), dim=2).clone()[:,6:]
+            self._data.default_joint_stiffness = wp.to_torch(self._root_newton_view.get_attribute("joint_target_ke", NewtonManager.get_model())).clone()[:,6:]
+            self._data.default_joint_damping = wp.to_torch(self._root_newton_view.get_attribute("joint_target_kd", NewtonManager.get_model())).clone()[:,6:]
+
         self._data.default_joint_armature = wp.to_torch(self._root_newton_view.get_dof_armatures(NewtonManager.get_model())).clone()
         self._data.default_joint_friction_coeff = (
             torch.zeros([self.num_instances, self.num_joints], dtype=torch.float32, device=self.device).clone()
