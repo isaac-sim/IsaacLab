@@ -594,7 +594,7 @@ def test_quat_apply_inverse(device):
 
 
 @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
-def test_quat_inv_identity(device):
+def test_quat_inv(device):
     """Test for quat_inv method.
 
     For random unit and non-unit quaternions q, the Hamilton products
