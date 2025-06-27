@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.40.11 (2025-06-27)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the implementation mistake in :func:`~isaaclab.utils.math.quat_inv`.
+
+
 0.40.10 (2025-06-25)
 ~~~~~~~~~~~~~~~~~~~~
 
