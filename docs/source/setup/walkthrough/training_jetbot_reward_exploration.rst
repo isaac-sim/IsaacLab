@@ -75,6 +75,8 @@ from linear algebra! Replace the contents of ``_get_observations`` with the foll
         observations = {"policy": obs}
         return observations
 
+We also need to **edit the ``IsaacLabTutorialEnvCfg`` to set the observation space back to 3** which includes the dot product, the z component of the cross product, and the forward speed.
+
 The dot or inner product tells us how aligned two vectors are as a single scalar quantity.  If they are very aligned and pointed in the same direction, then the inner
 product will be large and positive, but if they are aligned and in opposite directions, it will be large and negative.  If two vectors are
 perpendicular, the inner product is zero. This means that the inner product between the forward vector and the command vector can tell us
