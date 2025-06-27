@@ -82,7 +82,7 @@ def main():
     )
 
     task_name = args_cli.task.split(":")[-1]
-    train_task_name = task_name.replace("-PLAY", "")
+    train_task_name = task_name.replace("-Play", "")
 
     # directory for logging into
     log_root_path = os.path.join("logs", "sb3", train_task_name)
