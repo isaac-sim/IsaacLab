@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.40.10 (2025-06-25)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :meth:`omni.isaac.lab.utils.dict.update_class_from_dict` preventing setting flat Iterables with different lengths.
+
+
 0.40.9 (2025-06-25)
 ~~~~~~~~~~~~~~~~~~~
 
