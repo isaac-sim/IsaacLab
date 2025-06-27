@@ -4,6 +4,12 @@
 
 The LeRobot Dataset File Handler (`LeRobotDatasetFileHandler`) is a configuration-driven system for automatically extracting and recording episode data from Isaac Lab environments to the LeRobot dataset format. It provides a seamless bridge between Isaac Lab's manager-based environments and the HuggingFace LeRobot ecosystem, enabling efficient dataset creation for Vision-Language-Action (VLA) model training.
 
+## Dependencies
+
+- `lerobot` for dataset interfacing: https://github.com/huggingface/lerobot
+
+https://github.com/huggingface/lerobot/issues/1398
+
 ## Architecture
 
 ### Core Components
@@ -296,39 +302,3 @@ env_cfg.lerobot_dataset.state_observation_keys = [
     ("policy", "gripper_state")    # Gripper state
 ]
 ```
-
-## Dependencies and Installation
-
-### Required Dependencies
-```bash
-pip install datasets opencv-python imageio[ffmpeg]
-```
-
-### Optional Dependencies
-- `huggingface_hub` for dataset sharing
-- `lerobot` for training pipeline integration
-
-## Future Enhancements
-
-### Planned Features
-1. **Dynamic Task Descriptions**: Support for episode-specific task descriptions
-2. **Multi-Modal Support**: Enhanced support for audio and other sensor modalities
-3. **Compression Options**: Configurable video compression settings
-4. **Streaming Support**: Real-time dataset writing for long recording sessions
-5. **Validation Tools**: Enhanced dataset validation and quality checks
-
-### Integration Improvements
-1. **Direct LeRobot Training**: Seamless integration with LeRobot training pipelines
-2. **HuggingFace Hub Integration**: Automated dataset upload and versioning
-3. **Dataset Versioning**: Support for dataset versioning and incremental updates
-
-## Conclusion
-
-The LeRobot Dataset File Handler provides a robust, configuration-driven solution for creating LeRobot-compatible datasets from Isaac Lab environments. Its automatic feature extraction, flexible configuration system, and seamless integration with the Isaac Lab ecosystem make it an essential tool for VLA model training and dataset sharing within the robotics community.
-
-The handler's design emphasizes:
-- **Ease of Use**: Minimal configuration required for basic usage
-- **Flexibility**: Support for complex observation structures and multi-modal data
-- **Performance**: Efficient storage and processing of large datasets
-- **Compatibility**: Full compatibility with the LeRobot ecosystem
-- **Extensibility**: Easy to extend for new data types and use cases 
