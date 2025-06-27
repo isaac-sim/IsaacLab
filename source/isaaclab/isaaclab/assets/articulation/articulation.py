@@ -624,8 +624,13 @@ class Articulation(AssetBase):
         # set into simulation
         self._mask.fill_(False)
         self._mask[physx_env_ids] = True
-        #self._root_newton_view.set_attribute("joint_target_ke", NewtonManager.get_model(), self._data.joint_stiffness, mask=self._mask)
-        #self.root_physx_view.set_dof_stiffnesses(self._data.joint_stiffness.cpu(), indices=physx_env_ids.cpu())
+        if self._root_newton_view.is_floating_base:
+            data = wp.to_torch(self._root_newton_view.get_attribute("joint_target_ke", NewtonManager.get_model()))
+            data[..., 6:] = self._data.joint_stiffness
+            self._root_newton_view.set_attribute("joint_target_ke", NewtonManager.get_model(), data, mask=self._mask)
+        else:
+            self._root_newton_view.set_attribute("joint_target_ke", NewtonManager.get_model(), self._data.joint_stiffness, mask=self._mask)
+
 
     def write_joint_damping_to_sim(
         self,
@@ -656,8 +661,12 @@ class Articulation(AssetBase):
         # set into simulation
         self._mask.fill_(False)
         self._mask[physx_env_ids] = True
-        #self._root_newton_view.set_attribute("joint_target_kd", NewtonManager.get_model(), self._data.joint_damping, mask=self._mask)
-        #self.root_physx_view.set_dof_dampings(self._data.joint_damping.cpu(), indices=physx_env_ids.cpu())
+        if self._root_newton_view.is_floating_base:
+            data = wp.to_torch(self._root_newton_view.get_attribute("joint_target_kd", NewtonManager.get_model()))
+            data[..., 6:] = self._data.joint_damping
+            self._root_newton_view.set_attribute("joint_target_kd", NewtonManager.get_model(), data, mask=self._mask)
+        else:
+            self._root_newton_view.set_attribute("joint_target_kd", NewtonManager.get_model(), self._data.joint_damping, mask=self._mask)
 
     def write_joint_position_limit_to_sim(
         self,
@@ -709,8 +718,16 @@ class Articulation(AssetBase):
         # set into simulation
         self._mask.fill_(False)
         self._mask[physx_env_ids] = True
-        #self._root_newton_view.set_attribute("joint_limit_lower", NewtonManager.get_model(), self._data.joint_pos_limits[..., 0], mask=self._mask)
-        #self._root_newton_view.set_attribute("joint_limit_upper", NewtonManager.get_model(), self._data.joint_pos_limits[..., 1], mask=self._mask)
+        if self._root_newton_view.is_floating_base:
+            data = wp.to_torch(self._root_newton_view.get_attribute("joint_limit_lower", NewtonManager.get_model()))
+            data[:, 6:, 0] = self._data.joint_pos_limits[..., 0]
+            self._root_newton_view.set_attribute("joint_limit_lower", NewtonManager.get_model(), data, mask=self._mask)
+            data = wp.to_torch(self._root_newton_view.get_attribute("joint_limit_upper", NewtonManager.get_model()))
+            data[:, 6:, 1] = self._data.joint_pos_limits[..., 1]
+            self._root_newton_view.set_attribute("joint_limit_upper", NewtonManager.get_model(), data, mask=self._mask)
+        else:
+            self._root_newton_view.set_attribute("joint_limit_lower", NewtonManager.get_model(), self._data.joint_pos_limits[..., 0], mask=self._mask)
+            self._root_newton_view.set_attribute("joint_limit_upper", NewtonManager.get_model(), self._data.joint_pos_limits[..., 1], mask=self._mask)
 
         # compute the soft limits based on the joint limits
         # TODO: Optimize this computation for only selected joints
@@ -1228,13 +1245,25 @@ class Articulation(AssetBase):
         # resolve articulation root prim back into regex expression
         root_prim_path = root_prims[0].GetPath().pathString
         root_prim_path_expr = self.cfg.prim_path + root_prim_path[len(template_prim_path) :]
-        # -- articulation
-        # self._root_physx_view = self._physics_sim_view.create_articulation_view(root_prim_path_expr.replace(".*", "*"))
-        # print(root_prim_path_expr.replace(".*", "*").repl ace("env_*", "*"))
-        # print(NewtonManager.get_model().articulation_key)
         self._root_newton_view = NewtonArticulationView(NewtonManager.get_model(), root_prim_path_expr.replace(".*", "*").replace("env_*", "*"), verbose=True)
-        # if self._root_physx_view._backend is None:
-        #     raise RuntimeError(f"Failed to create articulation at: {self.cfg.prim_path}. Please check PhysX logs.")
+
+        if not self._root_newton_view.is_floating_base:
+            self._data.default_joint_pos_limits = torch.stack((wp.to_torch(self._root_newton_view.get_attribute("joint_limit_lower", NewtonManager.get_model())), 
+                                                             wp.to_torch(self._root_newton_view.get_attribute("joint_limit_upper", NewtonManager.get_model()))), dim=2).clone()
+            self._data.default_joint_stiffness = wp.to_torch(self._root_newton_view.get_attribute("joint_target_ke", NewtonManager.get_model())).clone().clone()
+            self._data.default_joint_damping = wp.to_torch(self._root_newton_view.get_attribute("joint_target_kd", NewtonManager.get_model())).clone().clone()
+
+        else:
+            self._data.default_joint_pos_limits = torch.stack((wp.to_torch(self._root_newton_view.get_attribute("joint_limit_lower", NewtonManager.get_model())), 
+                                                             wp.to_torch(self._root_newton_view.get_attribute("joint_limit_upper", NewtonManager.get_model()))), dim=2).clone()[:,6:]
+            self._data.default_joint_stiffness = wp.to_torch(self._root_newton_view.get_attribute("joint_target_ke", NewtonManager.get_model())).clone()[:,6:]
+            self._data.default_joint_damping = wp.to_torch(self._root_newton_view.get_attribute("joint_target_kd", NewtonManager.get_model())).clone()[:,6:]
+
+        self._data.default_joint_armature = wp.to_torch(self._root_newton_view.get_dof_armatures(NewtonManager.get_model())).clone()
+        self._data.default_joint_friction_coeff = (
+            torch.zeros([self.num_instances, self.num_joints], dtype=torch.float32, device=self.device).clone()
+        )
+
 
         # log information about the articulation
         print(f"[INFO]:Articulation initialized at: {self.cfg.prim_path} with root '{root_prim_path_expr}'.")
@@ -1431,16 +1460,16 @@ class Articulation(AssetBase):
             self.actuators[actuator_name] = actuator
             # set the passed gains and limits into the simulation
             #TODO: write out all joint parameters from simulation
-            #if isinstance(actuator, ImplicitActuator):
-            #    self._has_implicit_actuators = True
-            #    # the gains and limits are set into the simulation since actuator model is implicit
-            #    self.write_joint_stiffness_to_sim(actuator.stiffness, joint_ids=actuator.joint_indices)
-            #    self.write_joint_damping_to_sim(actuator.damping, joint_ids=actuator.joint_indices)
-            #else:
-            #    # the gains and limits are processed by the actuator model
-            #    # we set gains to zero, and torque limit to a high value in simulation to avoid any interference
-            #    self.write_joint_stiffness_to_sim(0.0, joint_ids=actuator.joint_indices)
-            #    self.write_joint_damping_to_sim(0.0, joint_ids=actuator.joint_indices)
+            if isinstance(actuator, ImplicitActuator):
+                self._has_implicit_actuators = True
+                # the gains and limits are set into the simulation since actuator model is implicit
+                self.write_joint_stiffness_to_sim(actuator.stiffness, joint_ids=actuator.joint_indices)
+                self.write_joint_damping_to_sim(actuator.damping, joint_ids=actuator.joint_indices)
+            else:
+                # the gains and limits are processed by the actuator model
+                # we set gains to zero, and torque limit to a high value in simulation to avoid any interference
+                self.write_joint_stiffness_to_sim(0.0, joint_ids=actuator.joint_indices)
+                self.write_joint_damping_to_sim(0.0, joint_ids=actuator.joint_indices)
 
             # # Set common properties into the simulation
             # self.write_joint_effort_limit_to_sim(actuator.effort_limit_sim, joint_ids=actuator.joint_indices)
