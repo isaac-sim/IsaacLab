@@ -120,6 +120,10 @@ def main():
     env_cfg.env_name = args_cli.task
     # modify configuration
     env_cfg.terminations.time_out = None
+    if "Dev" in args_cli.task:
+        # fix resampling
+        env_cfg.commands.object_pose.resampling_time_range = (1.0e9, 1.0e9)
+
     if "Lift" in args_cli.task:
         # set the resampling time range to large number to avoid resampling
         env_cfg.commands.object_pose.resampling_time_range = (1.0e9, 1.0e9)

@@ -52,17 +52,13 @@ class FrankaDevEnvCfg(CubeEnvCfg):
         # Set the body name for the end effector
         self.commands.object_pose.body_name = "panda_hand"
 
-        # Set Cube as object
-
-        #what if its now a vial rack  ?
 
         cube_properties = RigidBodyPropertiesCfg(
-            solver_position_iteration_count=16,
-            solver_velocity_iteration_count=1,
-            max_angular_velocity=1000.0,
+            rigid_body_enabled=True,
             max_linear_velocity=1000.0,
-            max_depenetration_velocity=5.0,
-            disable_gravity=False,
+            max_angular_velocity=1000.0,
+            max_depenetration_velocity=100.0,
+            enable_gyroscopic_forces=True,
         )
 
         # Set each stacking cube deterministically
@@ -81,16 +77,11 @@ class FrankaDevEnvCfg(CubeEnvCfg):
             prim_path="{ENV_REGEX_NS}/flask",
             init_state=RigidObjectCfg.InitialStateCfg(pos=[0.65, 0.4, 0.05],rot=[1, 0, 0, 0]),
             spawn=UsdFileCfg(
-                usd_path="/workspace/isaaclab/source/isaaclab_assets/data/Props/glassware/solid_conical_flask.usd",
+                usd_path="/workspace/isaaclab/source/isaaclab_assets/data/Props/glassware/conical_flask.usd",
                 scale=(1, 1, 1),
-                rigid_props=RigidBodyPropertiesCfg(
-                    solver_position_iteration_count=16,
-                    solver_velocity_iteration_count=1,
-                    max_angular_velocity=1000.0,
-                    max_linear_velocity=1000.0,
-                    max_depenetration_velocity=5.0,
-                    disable_gravity=False,
-                ),
+                rigid_props=cube_properties,
+                visible=True,
+                copy_from_source = False,
                 semantic_tags=[("class", "flask")],
             ),
         ) 
@@ -99,16 +90,11 @@ class FrankaDevEnvCfg(CubeEnvCfg):
             prim_path="{ENV_REGEX_NS}/vial",
             init_state=RigidObjectCfg.InitialStateCfg(pos=[0.65, 0.3, 0.05],rot=[0, 0, 1, 0]),
             spawn=UsdFileCfg(
-                usd_path="/workspace/isaaclab/source/isaaclab_assets/data/Props/glassware/sample_vial.usd",
+                usd_path="/workspace/isaaclab/source/isaaclab_assets/data/Props/glassware/sample_vial_20ml.usd",
                 scale=(1, 1, 1),
-                rigid_props=RigidBodyPropertiesCfg(
-                    solver_position_iteration_count=16,
-                    solver_velocity_iteration_count=1,
-                    max_angular_velocity=1000.0,
-                    max_linear_velocity=1000.0,
-                    max_depenetration_velocity=5.0,
-                    disable_gravity=False,
-                ),
+                rigid_props=cube_properties,
+                visible=True,
+                copy_from_source = False,
                 semantic_tags=[("class", "vial")],
             ),
         ) 
@@ -118,14 +104,7 @@ class FrankaDevEnvCfg(CubeEnvCfg):
             spawn=UsdFileCfg(
                 usd_path="/workspace/isaaclab/source/isaaclab_assets/data/Props/glassware/beaker_500ml.usd",
                 scale=(0.5, 0.5, 0.5),
-                rigid_props=RigidBodyPropertiesCfg(
-                    solver_position_iteration_count=16,
-                    solver_velocity_iteration_count=1,
-                    max_angular_velocity=1000.0,
-                    max_linear_velocity=1000.0,
-                    max_depenetration_velocity=5.0,
-                    disable_gravity=False,
-                ),
+                rigid_props=cube_properties,
                 semantic_tags=[("class", "beaker")],
             ),
         ) 
@@ -135,14 +114,7 @@ class FrankaDevEnvCfg(CubeEnvCfg):
             spawn=UsdFileCfg(
                 usd_path="/workspace/isaaclab/source/isaaclab_assets/data/Props/lab_equipment/mag_hotplate.usd",
                 scale=(0.8, 0.8, 0.8),
-                rigid_props=RigidBodyPropertiesCfg(
-                    solver_position_iteration_count=16,
-                    solver_velocity_iteration_count=1,
-                    max_angular_velocity=1000.0,
-                    max_linear_velocity=1000.0,
-                    max_depenetration_velocity=5.0,
-                    disable_gravity=False,
-                ),
+                rigid_props=cube_properties,
                 semantic_tags=[("class", "stirplate")],
             ),
         ) 

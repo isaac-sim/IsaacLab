@@ -11,7 +11,7 @@ It uses the `warp` library to run the state machine in parallel on the GPU.
 
 .. code-block:: bash
 
-    ./isaaclab.sh -p scripts/environments/state_machine/lift_cube_sm.py --num_envs 32
+    ../isaaclab.sh -p scripts/environments/state_machine/lift_cube_sm-copy.py --num_envs 1
 
 """
 
@@ -109,6 +109,7 @@ def infer_state_machine(
         gripper_state[tid] = GripperState.OPEN
         # wait for a while
         if sm_wait_time[tid] >= PickSmWaitTime.REST:
+            print("[SM_INFO] : Moving from REST to APPROACH_ABOVE_OBJECT")
             # move to next state and reset wait time
             sm_state[tid] = PickSmState.APPROACH_ABOVE_OBJECT
             sm_wait_time[tid] = 0.0
@@ -123,6 +124,7 @@ def infer_state_machine(
             # wait for a while
             if sm_wait_time[tid] >= PickSmWaitTime.APPROACH_OBJECT:
                 # move to next state and reset wait time
+                print("[SM_INFO] : Moving from APPR_ABOVE to APPROACH_OBJECT")
                 sm_state[tid] = PickSmState.APPROACH_OBJECT
                 sm_wait_time[tid] = 0.0
     elif state == PickSmState.APPROACH_OBJECT:
@@ -135,6 +137,7 @@ def infer_state_machine(
         ):
             if sm_wait_time[tid] >= PickSmWaitTime.APPROACH_OBJECT:
                 # move to next state and reset wait time
+                print("[SM_INFO] : Moving from APPR_OBJ to GRASP_OBJECT")
                 sm_state[tid] = PickSmState.GRASP_OBJECT
                 sm_wait_time[tid] = 0.0
     elif state == PickSmState.GRASP_OBJECT:
@@ -143,6 +146,7 @@ def infer_state_machine(
         # wait for a while
         if sm_wait_time[tid] >= PickSmWaitTime.GRASP_OBJECT:
             # move to next state and reset wait time
+            print("[SM_INFO] : Moving from GRSP to LIFT_OBJECT")
             sm_state[tid] = PickSmState.LIFT_OBJECT
             sm_wait_time[tid] = 0.0
     elif state == PickSmState.LIFT_OBJECT:
@@ -156,7 +160,8 @@ def infer_state_machine(
             # wait for a while
             if sm_wait_time[tid] >= PickSmWaitTime.LIFT_OBJECT:
                 # move to next state and reset wait time
-                sm_state[tid] = PickSmState.LIFT_OBJECT
+                print("[SM_INFO] : Moving from LIFT to REST")
+                sm_state[tid] = PickSmState.REST
                 sm_wait_time[tid] = 0.0
     # increment wait time
     sm_wait_time[tid] = sm_wait_time[tid] + dt[tid]
@@ -260,22 +265,22 @@ def main():
     # parse configuration
     env_cfg: LiftEnvCfg = parse_env_cfg(
         #"Isaac-Lift-Cube-Franka-IK-Abs-v0",
-        "Dev-IK-Rel-v0",
+        "Dev-IK-Abs-v0",
         device=args_cli.device,
         num_envs=args_cli.num_envs,
         use_fabric=not args_cli.disable_fabric,
     )
     # create environment
     #env = gym.make("Isaac-Lift-Cube-Franka-IK-Abs-v0", cfg=env_cfg)
-    env = gym.make("Dev-IK-Rel-v0", cfg=env_cfg)
+    env = gym.make("Dev-IK-Abs-v0", cfg=env_cfg)
     # reset environment at start
     env.reset()
-    print("Setup action buffer : shape : ", env.unwrapped.action_space.shape)
+   # print("Setup action buffer : shape : ", env.unwrapped.action_space.shape)
     # create action buffers (position + quaternion)
     actions = torch.zeros(env.unwrapped.action_space.shape, device=env.unwrapped.device)
     actions[:, 3] = 1.0
     
-    print("actions : ", actions)
+   # print("actions : ", actions)
     # desired object orientation (we only do position control of object)
     desired_orientation = torch.zeros((env.unwrapped.num_envs, 4), device=env.unwrapped.device)
     desired_orientation[:, 1] = 1.0
@@ -283,14 +288,14 @@ def main():
     pick_sm = PickAndLiftSm(
         env_cfg.sim.dt * env_cfg.decimation, env.unwrapped.num_envs, env.unwrapped.device, position_threshold=0.01
     )
-    print("debug1 : " , env.unwrapped.action_space.shape)
+   # print("debug1 : " , env.unwrapped.action_space.shape)
     n=0
     while simulation_app.is_running():
         # run everything in inference mode+
-        print("loop : ", n)
+       # print("loop : ", n)
         with torch.inference_mode():
             # step environment
-            print("debug2 : " , env.unwrapped.action_space.shape)
+           # print("debug2 : " , env.unwrapped.action_space.shape)
             dones = env.step(actions)[-2]
             #print("debug2 : " , env.unwrapped.action_space.shape)
             # observations
@@ -312,8 +317,8 @@ def main():
             )
          
             
-            print(f"End of loop : {actions.shape}")
-            print("Action space shape:", env.unwrapped.action_space.shape)
+           # print(f"End of loop : {actions.shape}")
+            #print("Action space shape:", env.unwrapped.action_space.shape)
             
 
             

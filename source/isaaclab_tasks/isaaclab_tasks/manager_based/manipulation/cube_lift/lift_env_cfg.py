@@ -25,92 +25,6 @@ import warp as wp
 from . import mdp
 from isaaclab.utils.logging_helper import LoggingHelper, ErrorType, LogType
 
-# wp.init()
-# ## state machine config 
-# class PickSmState:
-#     """States for the pick state machine."""
-#     REST = wp.constant(0)
-#     APPR = wp.constant(1)
-#     GRASP = wp.constant(2)
-#     LIFT = wp.constant(3)
-#     APP_GOAL = wp.constant(4)
-
-# class PickSmWaitTime:
-#     """Additional wait times (in s) for states for before switching."""
-
-#     REST = wp.constant(0.5)
-#     APPR = wp.constant(0.5)
-#     GRASP = wp.constant(0.5)
-#     LIFT = wp.constant(0.5)
-#     APPR_GOAL = wp.constant(0.5)
-
-# class GripperState:
-#     """States for the gripper."""
-
-#     OPEN = wp.constant(1.0)
-#     CLOSE = wp.constant(-1.0)
-
-# @wp.kernal
-# def infer_state(
-#     dt: wp.array(dtype=float),
-#     sm_state: wp.array(dtype=int),
-#     sm_wait_time: wp.array(dtype=float),
-#     ee_pose: wp.array(dtype=wp.transform),
-#     object_pose: wp.array(dtype=wp.transform),
-#     des_object_pose: wp.array(dtype=wp.transform),
-#     des_ee_pose: wp.array(dtype=wp.transform),
-#     gripper_state: wp.array(dtype=float),
-#     offset: wp.array(dtype=wp.transform),
-# ):
-#     tid = wp.tid()
-#     state = sm_state[tid]
-#     # decide next state
-#     if state == PickSmState.REST:
-#         des_ee_pose[tid] = ee_pose[tid]
-#         gripper_state[tid] = GripperState.OPEN
-#         # wait for a while
-#         if sm_wait_time[tid] >= PickSmWaitTime.REST:
-#             # move to next state and reset wait time
-#             sm_state[tid] = PickSmState.APPR
-#             sm_wait_time[tid] = 0.0
-#     elif state == PickSmState.APPR:
-#         des_ee_pose[tid] = wp.transform_multiply(offset[tid], object_pose[tid])
-#         gripper_state[tid] = GripperState.OPEN
-#         # TODO: error between current and desired ee pose below threshold
-
-#         # wait for a while
-#         if sm_wait_time[tid] >= PickSmWaitTime.APPROACH_OBJECT:
-#             # move to next state and reset wait time
-#             sm_state[tid] = PickSmState.APPROACH_OBJECT
-#             sm_wait_time[tid] = 0.0
-#     elif state == PickSmState.APPROACH_OBJECT:
-#         des_ee_pose[tid] = object_pose[tid]
-#         gripper_state[tid] = GripperState.OPEN
-#         # TODO: error between current and desired ee pose below threshold
-#         # wait for a while
-#         if sm_wait_time[tid] >= PickSmWaitTime.APPROACH_OBJECT:
-#             # move to next state and reset wait time
-#             sm_state[tid] = PickSmState.GRASP_OBJECT
-#             sm_wait_time[tid] = 0.0
-#     elif state == PickSmState.GRASP_OBJECT:
-#         des_ee_pose[tid] = object_pose[tid]
-#         gripper_state[tid] = GripperState.CLOSE
-#         # wait for a while
-#         if sm_wait_time[tid] >= PickSmWaitTime.GRASP_OBJECT:
-#             # move to next state and reset wait time
-#             sm_state[tid] = PickSmState.LIFT_OBJECT
-#             sm_wait_time[tid] = 0.0
-#     elif state == PickSmState.LIFT_OBJECT:
-#         des_ee_pose[tid] = des_object_pose[tid]
-#         gripper_state[tid] = GripperState.CLOSE
-#         # TODO: error between current and desired ee pose below threshold
-#         # wait for a while
-#         if sm_wait_time[tid] >= PickSmWaitTime.LIFT_OBJECT:
-#             # move to next state and reset wait time
-#             sm_state[tid] = PickSmState.LIFT_OBJECT
-#             sm_wait_time[tid] = 0.0
-#     # increment wait time
-#     sm_wait_time[tid] = sm_wait_time[tid] + dt[tid]
 
 
 
@@ -160,24 +74,7 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
         spawn=sim_utils.DomeLightCfg(color=(0.75, 0.75, 0.75), intensity=3000.0),
     )
 
-    flask = RigidObjectCfg(
-            prim_path="{ENV_REGEX_NS}/flask",
-            init_state=RigidObjectCfg.InitialStateCfg(pos=[0.65, 0.4, 0.05],rot=[1, 0, 0, 0]),
-            spawn=UsdFileCfg(
-                usd_path="/workspace/isaaclab/source/isaaclab_assets/data/Props/glassware/solid_conical_flask.usd",
-                scale=(1, 1, 1),
-                rigid_props=RigidBodyPropertiesCfg(
-                    solver_position_iteration_count=16,
-                    solver_velocity_iteration_count=1,
-                    max_angular_velocity=1000.0,
-                    max_linear_velocity=1000.0,
-                    max_depenetration_velocity=5.0,
-                    disable_gravity=False,
-                ),
-                semantic_tags=[("class", "flask")],
-            ),
-        ) 
-
+    
     
     
 
@@ -196,7 +93,8 @@ class CommandsCfg:
         resampling_time_range=(10.0, 10.0),
         debug_vis=True,
         ranges=mdp.UniformPoseCommandCfg.Ranges(
-            pos_x=(0.3,0.3), pos_y=(-0.28, -0.28), pos_z=(0.1, 0.1), roll=(0.0, 0.0), pitch=(0.0, 0.0), yaw=(0.0, 0.0)
+          #  pos_x=(0.3,0.3), pos_y=(-0.28, -0.28), pos_z=(0.1, 0.1), roll=(0.0, 0.0), pitch=(0.0, 0.0), yaw=(0.0, 0.0)
+            pos_x=(0.4,0.4), pos_y=(-0.25, -0.25), pos_z=(0.5, 0.5), roll=(0.0, 0.0), pitch=(0.0, 0.0), yaw=(0.0, 0.0)
         ),
     )
 
