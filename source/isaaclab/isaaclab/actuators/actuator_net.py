@@ -91,7 +91,6 @@ class ActuatorNetLSTM(DCMotor):
 
         # clip the computed effort based on the motor limits
         self.applied_effort = self._clip_effort(self.computed_effort)
-        
         # return torques
         control_action.joint_efforts = self.applied_effort
         control_action.joint_positions = None
