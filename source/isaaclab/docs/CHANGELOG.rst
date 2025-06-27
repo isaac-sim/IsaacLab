@@ -16,7 +16,7 @@ Fixed
 Fixed
 ^^^^^
 
-* Fixed :meth:`omni.isaac.lab.utils.dict.update_class_from_dict` preventing setting flat Iterables with different lengths.
+* Fixed :func:`~isaaclab.utils.dict.update_class_from_dict` preventing setting flat Iterables with different lengths.
 
 
 0.40.9 (2025-06-25)
@@ -47,7 +47,7 @@ Fixed
 Added
 ^^^^^
 
-* :class:`NoiseModel` support for manager-based workflows.
+* :class:`~isaaclab.utils.noise.NoiseModel` support for manager-based workflows.
 
 Changed
 ^^^^^^^
