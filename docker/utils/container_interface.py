@@ -114,6 +114,11 @@ class ContainerInterface:
             f"[INFO] Building the docker image and starting the container '{self.container_name}' in the"
             " background...\n"
         )
+        # Check if the container history file exists
+        container_history_file = self.context_dir / ".isaac-lab-docker-history"
+        if not container_history_file.exists():
+            # Create the file with sticky bit on the group
+            container_history_file.touch(mode=0o2644, exist_ok=True)
 
         # build the image for the base profile if not running base (up will build base already if profile is base)
         if self.profile != "base":

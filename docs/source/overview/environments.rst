@@ -214,13 +214,19 @@ We provide environments for both disassembly and assembly.
       wget https://developer.download.nvidia.com/compute/cuda/12.8.0/local_installers/cuda_12.8.0_570.86.10_linux.run
       sudo sh cuda_12.8.0_570.86.10_linux.run
 
+  When using conda, cuda toolkit can be installed with:
+
+  .. code-block:: bash
+
+      conda install cudatoolkit
+
   For addition instructions and Windows installation, please refer to the `CUDA installation page <https://developer.nvidia.com/cuda-12-8-0-download-archive>`_.
 
-* |disassembly-link|: The plug starts inserted in the socket. A low-level controller lifts th plug out and moves it to a random position. These trajectories serve as demonstrations for the reverse process, i.e., learning to assemble. To run disassembly for a specific task: ``./isaaclab.sh -p source/isaaclab_tasks/isaaclab_tasks/direct/automate/run_disassembly_w_id.py --assembly_id=ASSEMBLY_ID``
+* |disassembly-link|: The plug starts inserted in the socket. A low-level controller lifts the plug out and moves it to a random position. This process is purely scripted and does not involve any learned policy. Therefore, it does not require policy training or evaluation. The resulting trajectories serve as demonstrations for the reverse process, i.e., learning to assemble. To run disassembly for a specific task: ``python source/isaaclab_tasks/isaaclab_tasks/direct/automate/run_disassembly_w_id.py --assembly_id=ASSEMBLY_ID --disassembly_dir=DISASSEMBLY_DIR``. All generated trajectories are saved to a local directory ``DISASSEMBLY_DIR``.
 * |assembly-link|: The goal is to insert the plug into the socket. You can use this environment to train a policy via reinforcement learning or evaluate a pre-trained checkpoint.
 
-  * To train an assembly policy: ``./isaaclab.sh -p source/isaaclab_tasks/isaaclab_tasks/direct/automate/run_w_id.py --assembly_id=ASSEMBLY_ID --train``
-  * To evaluate an assembly policy: ``./isaaclab.sh -p source/isaaclab_tasks/isaaclab_tasks/direct/automate/run_w_id.py --assembly_id=ASSEMBLY_ID --checkpoint=CHECKPOINT --log_eval``
+  * To train an assembly policy, we run the command ``python source/isaaclab_tasks/isaaclab_tasks/direct/automate/run_w_id.py --assembly_id=ASSEMBLY_ID --train``. We can customize the training process using the optional flags: ``--headless`` to run without opening the GUI windows, ``--max_iterations=MAX_ITERATIONS`` to set the number of training iterations, ``--num_envs=NUM_ENVS`` to set the number of parallel environments during training, ``--seed=SEED`` to assign the random seed, ``--wandb`` to enable logging to WandB (requires a WandB account). The policy checkpoints will be saved automatically during training in the directory ``logs/rl_games/Assembly/test``.
+  * To evaluate an assembly policy, we run the command ``python source/isaaclab_tasks/isaaclab_tasks/direct/automate/run_w_id.py --assembly_id=ASSEMBLY_ID --checkpoint=CHECKPOINT --log_eval``. The evaluation results are stored in ``evaluation_{ASSEMBLY_ID}.h5``.
 
 .. table::
     :widths: 33 37 30
@@ -288,6 +294,12 @@ Environments based on legged locomotion tasks.
     +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+
     | |velocity-rough-g1|          | |velocity-rough-g1-link|                     | Track a velocity command on rough terrain with the Unitree G1 robot          |
     +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+
+    | |velocity-flat-digit|        | |velocity-flat-digit-link|                   | Track a velocity command on flat terrain with the Agility Digit robot        |
+    +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+
+    | |velocity-rough-digit|       | |velocity-rough-digit-link|                  | Track a velocity command on rough terrain with the Agility Digit robot       |
+    +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+
+    | |tracking-loco-manip-digit|  | |tracking-loco-manip-digit-link|             | Track a root velocity and hand pose command with the Agility Digit robot     |
+    +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+
 
 .. |velocity-flat-anymal-b-link| replace:: `Isaac-Velocity-Flat-Anymal-B-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/locomotion/velocity/config/anymal_b/flat_env_cfg.py>`__
 .. |velocity-rough-anymal-b-link| replace:: `Isaac-Velocity-Rough-Anymal-B-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/locomotion/velocity/config/anymal_b/rough_env_cfg.py>`__
@@ -318,6 +330,9 @@ Environments based on legged locomotion tasks.
 .. |velocity-flat-g1-link| replace:: `Isaac-Velocity-Flat-G1-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/locomotion/velocity/config/g1/flat_env_cfg.py>`__
 .. |velocity-rough-g1-link| replace:: `Isaac-Velocity-Rough-G1-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/locomotion/velocity/config/g1/rough_env_cfg.py>`__
 
+.. |velocity-flat-digit-link| replace:: `Isaac-Velocity-Flat-Digit-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/locomotion/velocity/config/digit/flat_env_cfg.py>`__
+.. |velocity-rough-digit-link| replace:: `Isaac-Velocity-Rough-Digit-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/locomotion/velocity/config/digit/rough_env_cfg.py>`__
+.. |tracking-loco-manip-digit-link| replace:: `Isaac-Tracking-Flat-Digit-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/locomotion/tracking/config/digit/loco_manip_env_cfg.py>`__
 
 .. |velocity-flat-anymal-b| image:: ../_static/tasks/locomotion/anymal_b_flat.jpg
 .. |velocity-rough-anymal-b| image:: ../_static/tasks/locomotion/anymal_b_rough.jpg
@@ -336,6 +351,9 @@ Environments based on legged locomotion tasks.
 .. |velocity-rough-h1| image:: ../_static/tasks/locomotion/h1_rough.jpg
 .. |velocity-flat-g1| image:: ../_static/tasks/locomotion/g1_flat.jpg
 .. |velocity-rough-g1| image:: ../_static/tasks/locomotion/g1_rough.jpg
+.. |velocity-flat-digit| image:: ../_static/tasks/locomotion/agility_digit_flat.jpg
+.. |velocity-rough-digit| image:: ../_static/tasks/locomotion/agility_digit_rough.jpg
+.. |tracking-loco-manip-digit| image:: ../_static/tasks/locomotion/agility_digit_loco_manip.jpg
 
 Navigation
 ~~~~~~~~~~
@@ -554,6 +572,10 @@ Environments based on fixed-arm manipulation tasks.
 Comprehensive List of Environments
 ==================================
 
+For environments that have a different task name listed under ``Inference Task Name``, please use the Inference Task Name
+provided when running ``play.py`` or any inferencing workflows. These tasks provide more suitable configurations for
+inferencing, including reading from an already trained checkpoint and disabling runtime perturbations used for training.
+
 .. list-table::
     :widths: 33 25 19 25
 
@@ -761,6 +783,10 @@ Comprehensive List of Environments
       -
       - Manager Based
       -
+    * - Isaac-Tracking-LocoManip-Digit-v0
+      - Isaac-Tracking-LocoManip-Digit-Play-v0
+      - Manager Based
+      - **rsl_rl** (PPO)
     * - Isaac-Navigation-Flat-Anymal-C-v0
       - Isaac-Navigation-Flat-Anymal-C-Play-v0
       - Manager Based
@@ -869,6 +895,10 @@ Comprehensive List of Environments
       - Isaac-Velocity-Flat-Cassie-Play-v0
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO)
+    * - Isaac-Velocity-Flat-Digit-v0
+      - Isaac-Velocity-Flat-Digit-Play-v0
+      - Manager Based
+      - **rsl_rl** (PPO)
     * - Isaac-Velocity-Flat-G1-v0
       - Isaac-Velocity-Flat-G1-Play-v0
       - Manager Based
@@ -884,7 +914,7 @@ Comprehensive List of Environments
     * - Isaac-Velocity-Flat-Unitree-A1-v0
       - Isaac-Velocity-Flat-Unitree-A1-Play-v0
       - Manager Based
-      - **rsl_rl** (PPO), **skrl** (PPO)
+      - **rsl_rl** (PPO), **skrl** (PPO), **sb3** (PPO)
     * - Isaac-Velocity-Flat-Unitree-Go1-v0
       - Isaac-Velocity-Flat-Unitree-Go1-Play-v0
       - Manager Based
@@ -913,6 +943,10 @@ Comprehensive List of Environments
       - Isaac-Velocity-Rough-Cassie-Play-v0
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO)
+    * - Isaac-Velocity-Rough-Digit-v0
+      - Isaac-Velocity-Rough-Digit-Play-v0
+      - Manager Based
+      - **rsl_rl** (PPO)
     * - Isaac-Velocity-Rough-G1-v0
       - Isaac-Velocity-Rough-G1-Play-v0
       - Manager Based
@@ -924,7 +958,7 @@ Comprehensive List of Environments
     * - Isaac-Velocity-Rough-Unitree-A1-v0
       - Isaac-Velocity-Rough-Unitree-A1-Play-v0
       - Manager Based
-      - **rsl_rl** (PPO), **skrl** (PPO)
+      - **rsl_rl** (PPO), **skrl** (PPO), **sb3** (PPO)
     * - Isaac-Velocity-Rough-Unitree-Go1-v0
       - Isaac-Velocity-Rough-Unitree-Go1-Play-v0
       - Manager Based

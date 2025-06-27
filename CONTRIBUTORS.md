@@ -40,6 +40,7 @@ Guidelines for modifications:
 * Amr Mousa
 * Andrej Orsula
 * Anton Bjørndahl Mortensen
+* Antonin Raffin
 * Arjun Bhardwaj
 * Ashwin Varghese Kuruttukulam
 * Bikram Pandit
@@ -74,6 +75,7 @@ Guidelines for modifications:
 * Jinqi Wei
 * Johnson Sun
 * Kaixi Bao
+* Kris Wilson
 * Kourosh Darvish
 * Kousheek Chakraborty
 * Lionel Gulich
@@ -86,6 +88,7 @@ Guidelines for modifications:
 * Miguel Alonso Jr
 * Muhong Guo
 * Nicola Loi
+* Norbert Cygiert
 * Nuoyan Chen (Alvin)
 * Nuralem Abizov
 * Ori Gadot
@@ -102,6 +105,7 @@ Guidelines for modifications:
 * Rosario Scalise
 * Ryley McCarroll
 * Shafeef Omar
+* Shaoshu Su
 * Shundo Kishi
 * Stefan Van de Mosselaer
 * Stephan Pleines
@@ -119,6 +123,7 @@ Guidelines for modifications:
 * Zhengyu Zhang
 * Ziqi Fan
 * Zoe McCarthy
+* David Leon
 
 ## Acknowledgements
 
