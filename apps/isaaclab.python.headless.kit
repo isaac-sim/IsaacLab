@@ -74,9 +74,10 @@ app.hydraEngine.waitIdle = false
 omni.replicator.asyncRendering = false
 
 ### FSD
-app.useFabricSceneDelegate = true
-# Temporary, should be enabled by default in Kit soon
-rtx.hydra.readTransformsFromFabricInRenderDelegate = true
+# this .kit file is used for headless, no-rendering cases. There won't be a scene delegate
+# created, but setting useFSD to false here is done to not do full fabric population, but
+# instead to minimal population
+app.useFabricSceneDelegate = false
 
 # Enable Iray and pxr by setting this to "rtx,iray,pxr"
 renderer.enabled = "rtx"
