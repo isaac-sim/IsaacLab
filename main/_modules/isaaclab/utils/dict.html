@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.1.0" />
-    <meta name="docbuild:last-update" content="Jun 26, 2025"/>
+    <meta name="docbuild:last-update" content="Jun 27, 2025"/>
   </head>
   
   
@@ -558,7 +558,7 @@
 <span class="kn">import</span><span class="w"> </span><span class="nn">hashlib</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">json</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Iterable</span><span class="p">,</span> <span class="n">Mapping</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Iterable</span><span class="p">,</span> <span class="n">Mapping</span><span class="p">,</span> <span class="n">Sized</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">.array</span><span class="w"> </span><span class="kn">import</span> <span class="n">TENSOR_TYPE_CONVERSIONS</span><span class="p">,</span> <span class="n">TENSOR_TYPES</span>
@@ -639,47 +639,79 @@
     <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
         <span class="c1"># key_ns is the full namespace of the key</span>
         <span class="n">key_ns</span> <span class="o">=</span> <span class="n">_ns</span> <span class="o">+</span> <span class="s2">&quot;/&quot;</span> <span class="o">+</span> <span class="n">key</span>
-        <span class="c1"># check if key is present in the object</span>
-        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">key</span><span class="p">)</span> <span class="ow">or</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+
+        <span class="c1"># -- A) if key is present in the object ------------------------------------</span>
+        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">key</span><span class="p">)</span> <span class="ow">or</span> <span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="nb">dict</span><span class="p">)</span> <span class="ow">and</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">obj</span><span class="p">):</span>
             <span class="n">obj_mem</span> <span class="o">=</span> <span class="n">obj</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="nb">dict</span><span class="p">)</span> <span class="k">else</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">key</span><span class="p">)</span>
+
+            <span class="c1"># -- 1) nested mapping → recurse ---------------------------</span>
             <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">Mapping</span><span class="p">):</span>
                 <span class="c1"># recursively call if it is a dictionary</span>
                 <span class="n">update_class_from_dict</span><span class="p">(</span><span class="n">obj_mem</span><span class="p">,</span> <span class="n">value</span><span class="p">,</span> <span class="n">_ns</span><span class="o">=</span><span class="n">key_ns</span><span class="p">)</span>
                 <span class="k">continue</span>
+
+            <span class="c1"># -- 2) iterable (list / tuple / etc.) ---------------------</span>
             <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">Iterable</span><span class="p">)</span> <span class="ow">and</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
-                <span class="c1"># check length of value to be safe</span>
-                <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">obj_mem</span><span class="p">)</span> <span class="o">!=</span> <span class="nb">len</span><span class="p">(</span><span class="n">value</span><span class="p">)</span> <span class="ow">and</span> <span class="n">obj_mem</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+
+                <span class="c1"># ---- 2a) flat iterable → replace wholesale ----------</span>
+                <span class="k">if</span> <span class="nb">all</span><span class="p">(</span><span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">el</span><span class="p">,</span> <span class="n">Mapping</span><span class="p">)</span> <span class="k">for</span> <span class="n">el</span> <span class="ow">in</span> <span class="n">value</span><span class="p">):</span>
+                    <span class="n">out_val</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">value</span><span class="p">)</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">obj_mem</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">)</span> <span class="k">else</span> <span class="n">value</span>
+                    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+                        <span class="n">obj</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">out_val</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="nb">setattr</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">out_val</span><span class="p">)</span>
+                    <span class="k">continue</span>
+
+                <span class="c1"># ---- 2b) existing value is None → abort -------------</span>
+                <span class="k">if</span> <span class="n">obj_mem</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                        <span class="sa">f</span><span class="s2">&quot;[Config]: Cannot merge list under namespace: </span><span class="si">{</span><span class="n">key_ns</span><span class="si">}</span><span class="s2"> because the existing value is None.&quot;</span>
+                    <span class="p">)</span>
+
+                <span class="c1"># ---- 2c) length mismatch → abort -------------------</span>
+                <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">obj_mem</span><span class="p">,</span> <span class="n">Sized</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">Sized</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">obj_mem</span><span class="p">)</span> <span class="o">!=</span> <span class="nb">len</span><span class="p">(</span><span class="n">value</span><span class="p">):</span>
                     <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
                         <span class="sa">f</span><span class="s2">&quot;[Config]: Incorrect length under namespace: </span><span class="si">{</span><span class="n">key_ns</span><span class="si">}</span><span class="s2">.&quot;</span>
                         <span class="sa">f</span><span class="s2">&quot; Expected: </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">obj_mem</span><span class="p">)</span><span class="si">}</span><span class="s2">, Received: </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">value</span><span class="p">)</span><span class="si">}</span><span class="s2">.&quot;</span>
                     <span class="p">)</span>
+
+                <span class="c1"># ---- 2d) keep tuple/list parity &amp; recurse ----------</span>
                 <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">obj_mem</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">):</span>
                     <span class="n">value</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
                 <span class="k">else</span><span class="p">:</span>
                     <span class="n">set_obj</span> <span class="o">=</span> <span class="kc">True</span>
-                    <span class="c1"># recursively call if iterable contains dictionaries</span>
+                    <span class="c1"># recursively call if iterable contains Mappings</span>
                     <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">obj_mem</span><span class="p">)):</span>
-                        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="nb">dict</span><span class="p">):</span>
+                        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">Mapping</span><span class="p">):</span>
                             <span class="n">update_class_from_dict</span><span class="p">(</span><span class="n">obj_mem</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">value</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">_ns</span><span class="o">=</span><span class="n">key_ns</span><span class="p">)</span>
                             <span class="n">set_obj</span> <span class="o">=</span> <span class="kc">False</span>
                     <span class="c1"># do not set value to obj, otherwise it overwrites the cfg class with the dict</span>
                     <span class="k">if</span> <span class="ow">not</span> <span class="n">set_obj</span><span class="p">:</span>
                         <span class="k">continue</span>
+
+            <span class="c1"># -- 3) callable attribute → resolve string --------------</span>
             <span class="k">elif</span> <span class="nb">callable</span><span class="p">(</span><span class="n">obj_mem</span><span class="p">):</span>
                 <span class="c1"># update function name</span>
                 <span class="n">value</span> <span class="o">=</span> <span class="n">string_to_callable</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
-            <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="nb">type</span><span class="p">(</span><span class="n">obj_mem</span><span class="p">))</span> <span class="ow">or</span> <span class="n">value</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+
+            <span class="c1"># -- 4) simple scalar / explicit None ---------------------</span>
+            <span class="k">elif</span> <span class="n">value</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="nb">type</span><span class="p">(</span><span class="n">obj_mem</span><span class="p">)):</span>
                 <span class="k">pass</span>
+
+            <span class="c1"># -- 5) type mismatch → abort -----------------------------</span>
             <span class="k">else</span><span class="p">:</span>
                 <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
                     <span class="sa">f</span><span class="s2">&quot;[Config]: Incorrect type under namespace: </span><span class="si">{</span><span class="n">key_ns</span><span class="si">}</span><span class="s2">.&quot;</span>
                     <span class="sa">f</span><span class="s2">&quot; Expected: </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">obj_mem</span><span class="p">)</span><span class="si">}</span><span class="s2">, Received: </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">value</span><span class="p">)</span><span class="si">}</span><span class="s2">.&quot;</span>
                 <span class="p">)</span>
-            <span class="c1"># set value</span>
+
+            <span class="c1"># -- 6) final assignment ---------------------------------</span>
             <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
                 <span class="n">obj</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">value</span>
             <span class="k">else</span><span class="p">:</span>
                 <span class="nb">setattr</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span>
+
+        <span class="c1"># -- B) if key is not present ------------------------------------</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="k">raise</span> <span class="ne">KeyError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;[Config]: Key not found under namespace: </span><span class="si">{</span><span class="n">key_ns</span><span class="si">}</span><span class="s2">.&quot;</span><span class="p">)</span></div>
 
@@ -902,7 +934,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jun 26, 2025.
+  Last updated on Jun 27, 2025.
   <br/>
 </p>
   </div>
