@@ -87,6 +87,7 @@ Guidelines for modifications:
 * Miguel Alonso Jr
 * Muhong Guo
 * Nicola Loi
+* Norbert Cygiert
 * Nuoyan Chen (Alvin)
 * Nuralem Abizov
 * Ori Gadot
