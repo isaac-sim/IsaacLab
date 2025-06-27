@@ -20,41 +20,41 @@ full_test:
 
 # mode for PR tests (default mode)
 fast:
-  # rl_games:Isaac-Ant-v0:
-  #   max_iterations: 200
-  #   lower_thresholds:
-  #     reward: 45
-  #     episode_length: 900
-  #   upper_thresholds:
-  #     duration: 500
-  # skrl:Isaac-Cartpole-RGB-Camera-Direct-v0:
-  #   max_iterations: 50
-  #   lower_thresholds:
-  #     reward: 190
-  #     episode_length: 230
-  #   upper_thresholds:
-  #     duration: 450
-  # rsl_rl:Isaac-Humanoid-v0:
-  #   max_iterations: 200
-  #   lower_thresholds:
-  #     reward: 50
-  #     episode_length: 750
-  #   upper_thresholds:
-  #     duration: 500
-  # rl_games:Isaac-Quadcopter-Direct-v0:
-  #   max_iterations: 200
-  #   lower_thresholds:
-  #     reward: 100
-  #     episode_length: 400
-  #   upper_thresholds:
-  #     duration: 250
-  # skrl:Isaac-Shadow-Hand-Over-Direct-v0:
-  #   max_iterations: 300
-  #   lower_thresholds:
-  #     reward: 30
-  #     episode_length: 250
-  #   upper_thresholds:
-  #     duration: 600
+  rl_games:Isaac-Ant-v0:
+    max_iterations: 200
+    lower_thresholds:
+      reward: 45
+      episode_length: 900
+    upper_thresholds:
+      duration: 500
+  skrl:Isaac-Cartpole-RGB-Camera-Direct-v0:
+    max_iterations: 50
+    lower_thresholds:
+      reward: 190
+      episode_length: 230
+    upper_thresholds:
+      duration: 450
+  rsl_rl:Isaac-Humanoid-v0:
+    max_iterations: 200
+    lower_thresholds:
+      reward: 50
+      episode_length: 750
+    upper_thresholds:
+      duration: 500
+  rl_games:Isaac-Quadcopter-Direct-v0:
+    max_iterations: 200
+    lower_thresholds:
+      reward: 100
+      episode_length: 400
+    upper_thresholds:
+      duration: 250
+  skrl:Isaac-Shadow-Hand-Over-Direct-v0:
+    max_iterations: 300
+    lower_thresholds:
+      reward: 30
+      episode_length: 250
+    upper_thresholds:
+      duration: 600
   rsl_rl:Isaac-Velocity-Rough-Anymal-C-v0:
     max_iterations: 300
     lower_thresholds:
@@ -62,13 +62,13 @@ fast:
       episode_length: 900
     upper_thresholds:
       duration: 1800
-  # rl_games:Isaac-Repose-Cube-Allegro-Direct-v0:
-  #   max_iterations: 500
-  #   lower_thresholds:
-  #     reward: 200
-  #     episode_length: 150
-  #   upper_thresholds:
-  #     duration: 1500
+  rl_games:Isaac-Repose-Cube-Allegro-Direct-v0:
+    max_iterations: 500
+    lower_thresholds:
+      reward: 200
+      episode_length: 150
+    upper_thresholds:
+      duration: 1500
 
 
 # mode for weekly CI
