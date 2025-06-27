@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+
+0.40.11 (2025-06-25)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+* Added new curriculum mdp :func:`~isaaclab.envs.mdp.curriculums.modify_env_param` and
+  :func:`~isaaclab.envs.mdp.curriculums.modify_env_param` that enables flexible changes to any configurations in the
+  env instance
+
+
 0.40.10 (2025-06-25)
 ~~~~~~~~~~~~~~~~~~~~
 
@@ -44,6 +55,7 @@ Changed
 ^^^^^^^
 
 * Renamed :func:`~isaaclab.utils.noise.NoiseModel.apply` method to :func:`~isaaclab.utils.noise.NoiseModel.__call__`.
+
 
 
 0.40.6 (2025-06-12)
