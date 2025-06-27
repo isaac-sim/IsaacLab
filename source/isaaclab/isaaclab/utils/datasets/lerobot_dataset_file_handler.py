@@ -127,8 +127,6 @@ from collections.abc import Iterable
 
 try:
     from lerobot.common.datasets.lerobot_dataset import LeRobotDataset
-    from lerobot.common.datasets.utils import (
-    )
     LEROBOT_AVAILABLE = True
 except ImportError:
     LEROBOT_AVAILABLE = False
@@ -554,7 +552,7 @@ class LeRobotDatasetFileHandler(DatasetFileHandlerBase):
         # Get the number of frames from the actions tensor
         actions_tensor = episode_dict["actions"]
         num_frames = actions_tensor.shape[0]
-                
+
         # Generate task description
         task = self._config.task_description
         
