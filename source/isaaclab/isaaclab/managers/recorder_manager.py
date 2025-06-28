@@ -161,14 +161,14 @@ class RecorderManager(ManagerBase):
         if cfg.dataset_export_mode != DatasetExportMode.EXPORT_NONE:
             self._dataset_file_handler = cfg.dataset_file_handler_class_type()
             self._dataset_file_handler.create(
-                os.path.join(cfg.dataset_export_dir_path, cfg.dataset_filename), env_name=env_name
+                os.path.join(cfg.dataset_export_dir_path, cfg.dataset_filename), env_name=env_name, env=env
             )
 
         self._failed_episode_dataset_file_handler = None
         if cfg.dataset_export_mode == DatasetExportMode.EXPORT_SUCCEEDED_FAILED_IN_SEPARATE_FILES:
             self._failed_episode_dataset_file_handler = cfg.dataset_file_handler_class_type()
             self._failed_episode_dataset_file_handler.create(
-                os.path.join(cfg.dataset_export_dir_path, f"{cfg.dataset_filename}_failed"), env_name=env_name
+                os.path.join(cfg.dataset_export_dir_path, f"{cfg.dataset_filename}_failed"), env_name=env_name, env=env
             )
 
         self._exported_successful_episode_count = {}

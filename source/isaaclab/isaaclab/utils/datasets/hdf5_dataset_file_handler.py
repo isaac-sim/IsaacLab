@@ -37,7 +37,7 @@ class HDF5DatasetFileHandler(DatasetFileHandlerBase):
         self._hdf5_data_group = self._hdf5_file_stream["data"]
         self._demo_count = len(self._hdf5_data_group)
 
-    def create(self, file_path: str, env_name: str = None):
+    def create(self, file_path: str, env_name: str | None = None, env = None):
         """Create a new dataset file."""
         if self._hdf5_file_stream is not None:
             raise RuntimeError("HDF5 dataset file stream is already in use")
@@ -107,7 +107,7 @@ class HDF5DatasetFileHandler(DatasetFileHandlerBase):
     def load_episode(self, episode_name: str, device: str) -> EpisodeData | None:
         """Load episode data from the file."""
         self._raise_if_not_initialized()
-        if episode_name not in self._hdf5_data_group:
+        if self._hdf5_data_group is None or episode_name not in self._hdf5_data_group:
             return None
         episode = EpisodeData()
         h5_episode_group = self._hdf5_data_group[episode_name]
@@ -132,7 +132,8 @@ class HDF5DatasetFileHandler(DatasetFileHandlerBase):
         if "success" in h5_episode_group.attrs:
             episode.success = h5_episode_group.attrs["success"]
 
-        episode.env_id = self.get_env_name()
+        # Note: env_id expects an integer, but we have environment name as string
+        # The environment name can be accessed via self.get_env_name() if needed
 
         return episode
 

@@ -180,6 +180,8 @@ class PinkInverseKinematicsAction(ActionTerm):
             controlled_frame_in_base_link_frame
         )
 
+        print("controlled_frame_in_base_link_frame_pos", controlled_frame_in_base_link_frame_pos)
+
         # Loop through each task and set the target
         for env_index, ik_controller in enumerate(self._ik_controllers):
             for task_index, task in enumerate(ik_controller.cfg.variable_input_tasks):
@@ -198,7 +200,8 @@ class PinkInverseKinematicsAction(ActionTerm):
             all_envs_joint_pos_des.append(joint_pos_des)
         all_envs_joint_pos_des = torch.stack(all_envs_joint_pos_des)
         # Combine IK joint positions with hand joint positions
-        all_envs_joint_pos_des = torch.cat((all_envs_joint_pos_des, self._target_hand_joint_positions), dim=1)
+        # all_envs_joint_pos_des = torch.cat((all_envs_joint_pos_des, self._target_hand_joint_positions), dim=1)
+        # print("self._target_hand_joint_positions", self._target_hand_joint_positions)
 
         self._asset.set_joint_position_target(all_envs_joint_pos_des, self._joint_ids)
 
