@@ -593,6 +593,35 @@ def test_quat_apply_inverse(device):
     torch.testing.assert_close(scipy_result.to(device=device), apply_result, atol=2e-4, rtol=2e-4)
 
 
+@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+def test_quat_inv(device):
+    """Test for quat_inv method.
+
+    For random unit and non-unit quaternions q, the Hamilton products
+    q ⊗ q⁻¹ and q⁻¹ ⊗ q must both equal the identity quaternion (1,0,0,0)
+    within numerical precision.
+    """
+    num = 2048
+
+    # -------- non-unit sample (average ‖q‖ ≈ 10) --------
+    q_nonunit = torch.randn(num, 4, device=device) * 5.0
+
+    # -------- unit sample (‖q‖ = 1) --------
+    q_unit = torch.randn(num, 4, device=device)
+    q_unit = q_unit / q_unit.norm(dim=-1, keepdim=True)
+
+    identity = torch.tensor([1.0, 0.0, 0.0, 0.0], device=device)
+
+    for q in (q_nonunit, q_unit):
+        q_inv = math_utils.quat_inv(q)
+
+        id_batch = identity.expand_as(q)
+
+        # left and right products must both be identity
+        torch.testing.assert_close(math_utils.quat_mul(q, q_inv), id_batch, atol=1e-4, rtol=1e-4)
+        torch.testing.assert_close(math_utils.quat_mul(q_inv, q), id_batch, atol=1e-4, rtol=1e-4)
+
+
 def test_quat_apply_benchmarks():
     """Test for quat_apply and quat_apply_inverse methods compared to old methods using torch.bmm and torch.einsum.
     The new implementation uses :meth:`torch.einsum` instead of `torch.bmm` which allows

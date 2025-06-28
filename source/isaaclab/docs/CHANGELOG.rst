@@ -1,13 +1,27 @@
 Changelog
 ---------
 
+0.40.11 (2025-06-27)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added unit test for :func:`~isaaclab.utils.math.quat_inv`.
+
+Fixed
+^^^^^
+
+* Fixed the implementation mistake in :func:`~isaaclab.utils.math.quat_inv`.
+
+
 0.40.10 (2025-06-25)
 ~~~~~~~~~~~~~~~~~~~~
 
 Fixed
 ^^^^^
 
-* Fixed :meth:`omni.isaac.lab.utils.dict.update_class_from_dict` preventing setting flat Iterables with different lengths.
+* Fixed :func:`~isaaclab.utils.dict.update_class_from_dict` preventing setting flat Iterables with different lengths.
 
 
 0.40.9 (2025-06-25)
@@ -17,7 +31,7 @@ Added
 ^^^^^
 
 * Added ``sample_bias_per_component`` flag to :class:`~isaaclab.utils.noise.noise_model.NoiseModelWithAdditiveBias` to enable independent per-component bias
- sampling, which is now the default behavior. If set to False, the previous behavior of sharing the same bias value across all components is retained.
+  sampling, which is now the default behavior. If set to False, the previous behavior of sharing the same bias value across all components is retained.
 
 
 0.40.8 (2025-06-18)
@@ -27,8 +41,8 @@ Fixed
 ^^^^^
 
 * Fixed data inconsistency between read_body, read_link, read_com when write_body, write_com, write_joint performed, in
- :class:`~isaaclab.assets.Articulation`, :class:`~isaaclab.assets.RigidObject`, and
- :class:`~isaaclab.assets.RigidObjectCollection`
+  :class:`~isaaclab.assets.Articulation`, :class:`~isaaclab.assets.RigidObject`, and
+  :class:`~isaaclab.assets.RigidObjectCollection`
 * added pytest that check against these data consistencies
 
 
@@ -38,7 +52,7 @@ Fixed
 Added
 ^^^^^
 
-* :class:`NoiseModel` support for manager-based workflows.
+* :class:`~isaaclab.utils.noise.NoiseModel` support for manager-based workflows.
 
 Changed
 ^^^^^^^
