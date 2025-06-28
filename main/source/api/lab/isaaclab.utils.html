@@ -63,7 +63,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.1.0" />
-    <meta name="docbuild:last-update" content="Jun 27, 2025"/>
+    <meta name="docbuild:last-update" content="Jun 28, 2025"/>
   </head>
   
   
@@ -1990,7 +1990,7 @@ Shape is (num_samples,)</p></li>
 <td><p>Computes the conjugate of a quaternion.</p></td>
 </tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.utils.math.quat_inv" title="isaaclab.utils.math.quat_inv"><code class="xref py py-obj docutils literal notranslate"><span class="pre">quat_inv</span></code></a></p></td>
-<td><p>Compute the inverse of a quaternion.</p></td>
+<td><p>Computes the inverse of a quaternion.</p></td>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.utils.math.quat_from_euler_xyz" title="isaaclab.utils.math.quat_from_euler_xyz"><code class="xref py py-obj docutils literal notranslate"><span class="pre">quat_from_euler_xyz</span></code></a></p></td>
 <td><p>Convert rotations given as Euler angles in radians to Quaternions.</p></td>
@@ -2335,11 +2335,14 @@ then the input is in ‘wxyz’ format, and vice-versa.</p>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="isaaclab.utils.math.quat_inv">
-<span class="sig-prename descclassname"><span class="pre">isaaclab.utils.math.</span></span><span class="sig-name descname"><span class="pre">quat_inv</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">q</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.7)"><span class="pre">torch.Tensor</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.7)"><span class="pre">torch.Tensor</span></a></span></span><a class="headerlink" href="#isaaclab.utils.math.quat_inv" title="Permalink to this definition">#</a></dt>
-<dd><p>Compute the inverse of a quaternion.</p>
+<span class="sig-prename descclassname"><span class="pre">isaaclab.utils.math.</span></span><span class="sig-name descname"><span class="pre">quat_inv</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">q</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.7)"><span class="pre">torch.Tensor</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">eps</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">1e-09</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.7)"><span class="pre">torch.Tensor</span></a></span></span><a class="headerlink" href="#isaaclab.utils.math.quat_inv" title="Permalink to this definition">#</a></dt>
+<dd><p>Computes the inverse of a quaternion.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>q</strong> – The quaternion orientation in (w, x, y, z). Shape is (N, 4).</p>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>q</strong> – The quaternion orientation in (w, x, y, z). Shape is (N, 4).</p></li>
+<li><p><strong>eps</strong> – A small value to avoid division by zero. Defaults to 1e-9.</p></li>
+</ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
 <dd class="field-even"><p>The inverse quaternion in (w, x, y, z). Shape is (N, 4).</p>
@@ -5178,7 +5181,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jun 27, 2025.
+  Last updated on Jun 28, 2025.
   <br/>
 </p>
   </div>
