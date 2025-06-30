@@ -75,13 +75,13 @@ For detailed Isaac Sim installation instructions, please refer to
     Linux:
 
     ```
-    ln -s IsaacSim/_build/linux-x86_64/release _isaac_sim
+    ln -s ../IsaacSim/_build/linux-x86_64/release _isaac_sim
     ```
 
     Windows:
 
     ```
-    mklink /D _isaac_sim IsaacSim\_build\windows-x86_64\release
+    mklink /D _isaac_sim ..\IsaacSim\_build\windows-x86_64\release
     ```
 
 5. Install Isaac Lab
@@ -98,7 +98,21 @@ For detailed Isaac Sim installation instructions, please refer to
     isaaclab.bat -i
     ```
 
-6. Train!
+6. [Optional] Set up a virtual python environment (e.g. for Conda)
+
+    Linux:
+
+    ```
+    source ../IsaacSim/_build/linux-x86_64/release/setup_conda_env.sh
+    ```
+
+    Windows:
+
+    ```
+    ..\IsaacSim\_build\windows-x86_64\release\setup_python_env.bat
+    ```
+
+7. Train!
 
     Linux:
 
