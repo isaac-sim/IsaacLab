@@ -254,16 +254,17 @@ def quat_conjugate(q: torch.Tensor) -> torch.Tensor:
 
 
 @torch.jit.script
-def quat_inv(q: torch.Tensor) -> torch.Tensor:
-    """Compute the inverse of a quaternion.
+def quat_inv(q: torch.Tensor, eps: float = 1e-9) -> torch.Tensor:
+    """Computes the inverse of a quaternion.
 
     Args:
         q: The quaternion orientation in (w, x, y, z). Shape is (N, 4).
+        eps: A small value to avoid division by zero. Defaults to 1e-9.
 
     Returns:
         The inverse quaternion in (w, x, y, z). Shape is (N, 4).
     """
-    return normalize(quat_conjugate(q))
+    return quat_conjugate(q) / q.pow(2).sum(dim=-1, keepdim=True).clamp(min=eps)
 
 
 @torch.jit.script
