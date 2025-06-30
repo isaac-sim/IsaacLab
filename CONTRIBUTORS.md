@@ -57,6 +57,7 @@ Guidelines for modifications:
 * David Yang
 * Dhananjay Shendre
 * Dorsa Rohani
+* Fabian Jenelten
 * Felipe Mohr
 * Felix Yu
 * Gary Lvov
@@ -69,6 +70,7 @@ Guidelines for modifications:
 * Jack Zeng
 * Jan Kerner
 * Jean Tampon
+* Jeonghwan Kim
 * Jia Lin Yuan
 * Jiakai Zhang
 * Jinghuan Shang
